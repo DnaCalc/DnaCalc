@@ -245,7 +245,7 @@ const BANNER_PREFIX: &str = "Running headless tests in ";
 /// The browser the runner's banner names, with the banner line. The banner must be the first
 /// non-empty line of standard output, ahead of libtest's `running N tests` and of anything the
 /// tests print; a run under Node.js prints none.
-fn runner_banner(stdout: &str) -> Option<(String, String)> {
+pub(crate) fn runner_banner(stdout: &str) -> Option<(String, String)> {
     let first = stdout
         .lines()
         .map(str::trim)
@@ -570,7 +570,7 @@ fn host_mismatch(platform: Platform) -> Option<String> {
     }
 }
 
-fn find_on_path(program: &str) -> Option<PathBuf> {
+pub(crate) fn find_on_path(program: &str) -> Option<PathBuf> {
     let names = if cfg!(windows) {
         vec![format!("{program}.exe"), program.to_owned()]
     } else {
@@ -593,14 +593,14 @@ fn variable_file(variable: &str) -> Option<PathBuf> {
 /// registered for automation, where PATH holds a program, and which file a driver variable names.
 /// `run` uses `Probe::HOST`; the unit tests inject their own to reach every `not_run` branch.
 #[derive(Clone, Copy)]
-struct Probe {
+pub(crate) struct Probe {
     excel: fn() -> Result<(), String>,
     on_path: fn(&str) -> Option<PathBuf>,
     variable_file: fn(&str) -> Option<PathBuf>,
 }
 
 impl Probe {
-    const HOST: Probe = Probe {
+    pub(crate) const HOST: Probe = Probe {
         excel: excel_available,
         on_path: find_on_path,
         variable_file,
@@ -609,14 +609,14 @@ impl Probe {
 
 /// A browser of the wasm route: its name in the receipt, its driver's variable and program, and
 /// the name wasm-bindgen-test-runner's banner gives it.
-struct Browser {
-    name: &'static str,
-    variable: &'static str,
-    program: &'static str,
-    banner: &'static str,
+pub(crate) struct Browser {
+    pub(crate) name: &'static str,
+    pub(crate) variable: &'static str,
+    pub(crate) program: &'static str,
+    pub(crate) banner: &'static str,
 }
 
-static BROWSERS: [Browser; 2] = [
+pub(crate) static BROWSERS: [Browser; 2] = [
     Browser {
         name: "chromium",
         variable: "CHROMEDRIVER",
@@ -641,7 +641,7 @@ const FORCE_BROWSER: &str = "WASM_BINDGEN_USE_BROWSER";
 /// Removed from every wasm run before the route sets its own: the drivers (the route sets exactly
 /// one), the runner's other modes (it refuses two at once), `NO_HEADLESS` (an interactive server
 /// that never exits) and the runner's switches that skip browser or Node.js targets.
-const WASM_REMOVED: [&str; 12] = [
+pub(crate) const WASM_REMOVED: [&str; 12] = [
     "CHROMEDRIVER",
     "GECKODRIVER",
     "SAFARIDRIVER",
@@ -657,11 +657,11 @@ const WASM_REMOVED: [&str; 12] = [
 ];
 
 /// The variables a wasm route sets for one browser, or why that browser cannot run here.
-type WasmRoute = Result<Vec<(&'static str, String)>, String>;
+pub(crate) type WasmRoute = Result<Vec<(&'static str, String)>, String>;
 
 /// The wasm route of each browser from what `probe` finds: the runner comes from PATH, the driver
 /// from its variable when that names a file, otherwise from PATH.
-fn wasm_routes(probe: &Probe) -> Vec<(&'static Browser, WasmRoute)> {
+pub(crate) fn wasm_routes(probe: &Probe) -> Vec<(&'static Browser, WasmRoute)> {
     let runner = (probe.on_path)("wasm-bindgen-test-runner");
     BROWSERS
         .iter()
@@ -1057,7 +1057,7 @@ fn check_json(check: &CheckResult) -> Value {
 /// Rewrites the absolute paths in receipt strings: the workspace root becomes relative, and the
 /// toolchain, cargo home, home and temporary directories become placeholders, so a committed
 /// receipt names no directory outside the workspace.
-struct Redactor {
+pub(crate) struct Redactor {
     /// Normalised prefixes (forward slashes, lower case on Windows) with their replacements, most
     /// specific first; an empty replacement stands for the workspace root.
     rules: Vec<(String, &'static str)>,
@@ -1077,7 +1077,7 @@ fn normalised(text: &str) -> String {
 }
 
 impl Redactor {
-    fn new(ws: &Workspace) -> Redactor {
+    pub(crate) fn new(ws: &Workspace) -> Redactor {
         let var = |name: &str| {
             std::env::var_os(name)
                 .filter(|value| !value.is_empty())
@@ -1137,7 +1137,7 @@ impl Redactor {
         if changed { out.replace('\\', "/") } else { out }
     }
 
-    fn apply_value(&self, value: &mut Value) {
+    pub(crate) fn apply_value(&self, value: &mut Value) {
         match value {
             Value::String(text) => *text = self.apply(text),
             Value::Array(items) => items.iter_mut().for_each(|item| self.apply_value(item)),

@@ -1,0 +1,16 @@
+{
+  "format": "dnacalc-license-allow-list/1",
+  "about": "The dependency sources and license expressions `cargo xtask ci licenses` accepts, for the workspace's Cargo.lock and the CI browser fixture's (tools/xtask/ci-browser-fixture/Cargo.lock). Each expression is matched exactly as cargo metadata reports a dependency's `license` field. Reviewed for infra-m0.2 on 2026-10-14 against every dependency of both lockfiles; a new expression is added only after the same review.",
+  "sources": [
+    "registry+https://github.com/rust-lang/crates.io-index"
+  ],
+  "expressions": [
+    {"expression": "MIT OR Apache-2.0", "reviewed": "either permissive license, at our choice"},
+    {"expression": "Apache-2.0 OR MIT", "reviewed": "the same choice, written in the other order"},
+    {"expression": "Apache-2.0/MIT", "reviewed": "the older slash form of the same choice"},
+    {"expression": "MIT", "reviewed": "permissive"},
+    {"expression": "Unlicense OR MIT", "reviewed": "public-domain dedication or MIT, at our choice"},
+    {"expression": "Unlicense/MIT", "reviewed": "the older slash form of the same choice"},
+    {"expression": "(MIT OR Apache-2.0) AND Unicode-3.0", "reviewed": "unicode-ident: MIT or Apache-2.0 for the code, plus the permissive Unicode-3.0 license for its Unicode data tables"}
+  ]
+}

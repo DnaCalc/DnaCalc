@@ -1,0 +1,12 @@
+{
+  "package": "xtask-ci-matrix-fixture",
+  "beads": [
+    {
+      "id": "fixture-ci-matrix",
+      "test": "acceptance",
+      "cases": ["fixture_ci_matrix__never_in_package_runs"],
+      "platforms": {"fixture_ci_matrix__never_in_package_runs": ["windows", "linux"]},
+      "commands": []
+    }
+  ]
+}

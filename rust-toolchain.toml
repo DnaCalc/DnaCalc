@@ -1,0 +1,8 @@
+# The one toolchain of this repository (infra-m0.2): every agent clone and every CI job builds with
+# Rust 1.94.1, the wasm32-unknown-unknown target and rustfmt and clippy. rustup installs what is
+# missing on first use. `cargo xtask ci` checks that the rustc it runs reports this version.
+[toolchain]
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

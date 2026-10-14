@@ -1,0 +1,28 @@
+# The browser fixture of `cargo xtask ci wasm` (infra-m0.2, tools/xtask/src/ci.rs). It is its own
+# workspace, never a member of the DnaCalc workspace, so no product build sees it. Each CI wasm run
+# sends its `probe` target to Chrome and Firefox through the same route as the portable packages'
+# tests, and keeps the user agent each browser reported from inside the test. With
+# DNACALC_CI_INJECT_BROWSER_FAILURE=1 the run also sends its `failure` target, whose one test fails
+# in the browser on purpose, so the CI wasm job must end failed.
+[package]
+name = "dnacalc-ci-browser-fixture"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "The browser fixture that cargo xtask ci wasm runs in Chrome and Firefox: a probe that reports each browser's user agent, and a test that fails on purpose when a failure is injected."
+
+[workspace]
+
+# wasm-bindgen-test-runner 0.2.117 runs only test binaries built with wasm-bindgen 0.2.117 exactly,
+# and wasm-bindgen-test 0.3.67 is the release built on that wasm-bindgen. Test-only dependencies.
+[dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"
+
+[[test]]
+name = "probe"
+path = "tests/probe.rs"
+
+[[test]]
+name = "failure"
+path = "tests/failure.rs"

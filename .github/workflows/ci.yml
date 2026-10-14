@@ -1,0 +1,234 @@
+# CI for the DnaCalc workspace (infra-m0.2). Each job checks out master at the commit that started
+# the run, builds with the toolchain rust-toolchain.toml pins, runs one repository command
+# (`cargo xtask ci <job>`, or `cargo xtask ci-audit` in the audit job) and uploads its record
+# whether that command passed or not: the windows, linux and wasm jobs upload target/ci,
+# target/accept and accept-receipts; the licenses and desktop jobs upload target/ci; the audit job
+# uploads target/ci-audit. This file holds no test logic: what each job runs, and what counts as
+# executed, is in tools/xtask/src/ci.rs.
+#
+# The desktop job is a release build of the native-only packages, not a packaging smoke: no
+# desktop application package exists yet, so it packages nothing. Bead dc-x704 replaces it with a
+# real packaging smoke once the desktop application exists.
+#
+# Actions are pinned by full commit SHA, with the release tag in a comment. On push and on
+# workflow_dispatch from master, actions/checkout fetches the run's commit into
+# refs/remotes/origin/master and checks out the local branch master there, not a detached HEAD;
+# `cargo xtask ci` checks that against DNACALC_CI_COMMIT.
+#
+# workflow_dispatch inputs: `accept_ids` makes the windows, linux and wasm jobs run
+# `cargo xtask accept --id <id> --platform <job> --require-all` for each listed bead that declares
+# a case for that platform, and keeps the receipts; `inject_browser_failure` adds a browser test
+# that fails on purpose to the wasm job, which must then fail.
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      accept_ids:
+        description: "Bead IDs, comma-separated, whose acceptance cases the windows, linux and wasm jobs run with cargo xtask accept --require-all"
+        type: string
+        default: ""
+      inject_browser_failure:
+        description: "Add the deliberately failing browser test to the wasm job, which must then fail"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  DNACALC_CI_ACCEPT: ${{ inputs.accept_ids }}
+  DNACALC_CI_COMMIT: ${{ github.sha }}
+
+jobs:
+  windows:
+    name: windows (cargo xtask ci windows)
+    if: github.ref == 'refs/heads/master'
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Check out master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain rust-toolchain.toml pins
+        run: rustup toolchain install
+      - name: Install wasm-bindgen-cli 0.2.117 for the accept runs
+        if: inputs.accept_ids != ''
+        run: cargo install wasm-bindgen-cli --version =0.2.117 --locked
+      - name: Name the runner image's browser drivers
+        shell: bash
+        run: |
+          ext=""
+          if [ "$RUNNER_OS" = "Windows" ]; then ext=".exe"; fi
+          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -f "$CHROMEWEBDRIVER/chromedriver$ext" ]; then echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver$ext" >> "$GITHUB_ENV"; fi
+          if [ -n "${GECKOWEBDRIVER:-}" ] && [ -f "$GECKOWEBDRIVER/geckodriver$ext" ]; then echo "GECKODRIVER=$GECKOWEBDRIVER/geckodriver$ext" >> "$GITHUB_ENV"; fi
+      - name: cargo xtask ci windows
+        run: cargo xtask ci windows
+      - name: Upload the CI record
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-windows
+          path: |
+            target/ci
+            target/accept
+            accept-receipts
+          if-no-files-found: warn
+
+  linux:
+    name: linux (cargo xtask ci linux)
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain rust-toolchain.toml pins
+        run: rustup toolchain install
+      - name: Install wasm-bindgen-cli 0.2.117 for the accept runs
+        if: inputs.accept_ids != ''
+        run: cargo install wasm-bindgen-cli --version =0.2.117 --locked
+      - name: Name the runner image's browser drivers
+        shell: bash
+        run: |
+          ext=""
+          if [ "$RUNNER_OS" = "Windows" ]; then ext=".exe"; fi
+          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -f "$CHROMEWEBDRIVER/chromedriver$ext" ]; then echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver$ext" >> "$GITHUB_ENV"; fi
+          if [ -n "${GECKOWEBDRIVER:-}" ] && [ -f "$GECKOWEBDRIVER/geckodriver$ext" ]; then echo "GECKODRIVER=$GECKOWEBDRIVER/geckodriver$ext" >> "$GITHUB_ENV"; fi
+      - name: cargo xtask ci linux
+        run: cargo xtask ci linux
+      - name: Upload the CI record
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-linux
+          path: |
+            target/ci
+            target/accept
+            accept-receipts
+          if-no-files-found: warn
+
+  wasm:
+    name: wasm (cargo xtask ci wasm)
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      DNACALC_CI_INJECT_BROWSER_FAILURE: ${{ inputs.inject_browser_failure && '1' || '' }}
+    steps:
+      - name: Check out master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain rust-toolchain.toml pins
+        run: rustup toolchain install
+      - name: Install wasm-bindgen-cli 0.2.117
+        run: cargo install wasm-bindgen-cli --version =0.2.117 --locked
+      - name: Name the runner image's browser drivers
+        shell: bash
+        run: |
+          ext=""
+          if [ "$RUNNER_OS" = "Windows" ]; then ext=".exe"; fi
+          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -f "$CHROMEWEBDRIVER/chromedriver$ext" ]; then echo "CHROMEDRIVER=$CHROMEWEBDRIVER/chromedriver$ext" >> "$GITHUB_ENV"; fi
+          if [ -n "${GECKOWEBDRIVER:-}" ] && [ -f "$GECKOWEBDRIVER/geckodriver$ext" ]; then echo "GECKODRIVER=$GECKOWEBDRIVER/geckodriver$ext" >> "$GITHUB_ENV"; fi
+      - name: cargo xtask ci wasm
+        run: cargo xtask ci wasm
+      - name: Upload the CI record
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-wasm
+          path: |
+            target/ci
+            target/accept
+            accept-receipts
+          if-no-files-found: warn
+
+  licenses:
+    name: licenses (cargo xtask ci licenses)
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain rust-toolchain.toml pins
+        run: rustup toolchain install
+      - name: cargo xtask ci licenses
+        run: cargo xtask ci licenses
+      - name: Upload the CI record
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-licenses
+          path: target/ci
+          if-no-files-found: warn
+
+  desktop:
+    name: release build of the native-only packages, no desktop package yet (cargo xtask ci desktop; dc-x704)
+    if: github.ref == 'refs/heads/master'
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2025
+          - ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - name: Check out master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain rust-toolchain.toml pins
+        run: rustup toolchain install
+      - name: cargo xtask ci desktop
+        run: cargo xtask ci desktop
+      - name: Upload the CI record and the release build
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-desktop-${{ matrix.os }}
+          path: target/ci
+          if-no-files-found: warn
+
+  audit:
+    name: audit (cargo xtask ci-audit)
+    needs:
+      - windows
+      - linux
+      - wasm
+    if: always() && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out master
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain rust-toolchain.toml pins
+        run: rustup toolchain install
+      - name: Download the platform jobs' records
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: ci-*
+          path: ci-artifacts
+      - name: cargo xtask ci-audit
+        run: cargo xtask ci-audit --require-executed-targets windows,linux,wasm --from ci-artifacts
+      - name: Upload the audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: audit
+          path: target/ci-audit
+          if-no-files-found: warn

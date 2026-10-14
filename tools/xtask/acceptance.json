@@ -55,6 +55,22 @@
       }
     },
     {
+      "id": "infra-m0.2",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "xtask", "--test", "acceptance", "infra_m0_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "xtask", "--bins"]
+      ],
+      "cases": [
+        "infra_m0_2__browser_failure_is_red",
+        "infra_m0_2__platform_matrix"
+      ],
+      "platforms": {
+        "infra_m0_2__browser_failure_is_red": ["windows", "linux"],
+        "infra_m0_2__platform_matrix": ["windows", "linux"]
+      }
+    },
+    {
       "id": "dc-e8ql",
       "test": "acceptance",
       "commands": [

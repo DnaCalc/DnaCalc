@@ -1860,6 +1860,32 @@ fn dc_e8ql__browser_route() {
     dc_e8ql::browser_route();
 }
 
+/// The bodies of the infra-m0.2 cases, which drive `cargo xtask ci` and `cargo xtask ci-audit`, the
+/// commands the CI jobs run, against a copy of the workspace with a portable fixture package.
+#[path = "acceptance/infra_m0_2.rs"]
+mod infra_m0_2;
+
+/// `cargo xtask ci wasm` fails, naming the test and recording it failed in Chrome and Firefox, when
+/// a deliberately failing browser test is added, and passes without it; the workflow's wasm job
+/// runs exactly that command with nothing that would keep its failure from failing the job. See
+/// `acceptance/infra_m0_2.rs`.
+#[test]
+fn infra_m0_2__browser_failure_is_red() {
+    infra_m0_2::browser_failure_is_red();
+}
+
+/// `cargo xtask ci <host>` and `cargo xtask ci wasm` record every portable package and both app
+/// cores built, with the test harness run on the host target and under wasm-bindgen-test-runner
+/// for Chrome and Firefox (zero tests recorded as `zero_tests`, and a module for which the runner
+/// reported no tests as starting no browser), as the kept transcripts and the fixture's own markers
+/// confirm; `cargo xtask ci-audit` accepts exactly that and refuses a missing target, package,
+/// browser run or route probe and a dirty tree without `--allow-dirty`. See
+/// `acceptance/infra_m0_2.rs`.
+#[test]
+fn infra_m0_2__platform_matrix() {
+    infra_m0_2::platform_matrix();
+}
+
 /// The bodies of the infra-m0.4 cases, which pin the legacy sources through the xtask binary and
 /// read the pins back independently.
 #[path = "acceptance/infra_m0_4.rs"]
