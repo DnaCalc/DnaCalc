@@ -1,0 +1,137 @@
+{
+  "method": "Original authoring run (2026-10-05): selected connected-GitHub source reads; no builds, live Excel execution or access to owner-local files/caches; blob identities do not assert a coherent multi-repository commit set. Owner-side review (2026-10-12): every path cited by a port task was checked to exist in the local checkout under C:/Work/DnaCalc, repository HEADs and uncommitted changes were recorded, and the br import was executed; still no builds or Excel runs.",
+  "sources": [
+    {
+      "path": "OxFunc/crates/oxfunc_core/src/excel_numeric/x87.rs",
+      "blob_sha": "7a8aba4e30a35da3ba4505ca469408a81ac4d617",
+      "source_line_ranges": "1-240",
+      "disposition": "inspected; native assembly and unresolved NT source-tree provenance citation"
+    },
+    {
+      "path": "OxFml/crates/oxfml_core/src/eval/mod.rs",
+      "blob_sha": "33b990513e33867a29bed1421336aac2af63fa41",
+      "source_line_ranges": "1-260;660-870;900-1300",
+      "disposition": "inspected private compile/frame/callable paths; not complete evaluator audit"
+    },
+    {
+      "path": "OxFunc/crates/oxfunc_value_types/src/lib.rs",
+      "blob_sha": "d79060c9fb57d6620482644dfe2b2a29d11b8ede",
+      "source_line_ranges": "1-160",
+      "disposition": "inspected feature-dependent Arc/Rc value and reference types"
+    },
+    {
+      "path": "OxFunc/crates/oxfunc_core/src/function_call.rs",
+      "blob_sha": "426cf6877cc60ce74caddc55a66bb287510baaec",
+      "source_line_ranges": "1-190",
+      "disposition": "inspected resolved-call metadata and scratch; not all invoke implementations"
+    },
+    {
+      "path": "OxFml/crates/oxfml_core/Cargo.toml",
+      "blob_sha": "5fecfaacfb12e67843509769dd31c77d334e4c40",
+      "source_line_ranges": "whole file",
+      "disposition": "inspected default dependency features"
+    },
+    {
+      "path": "OxFunc/crates/oxfunc_core/Cargo.toml",
+      "blob_sha": "2077e7162d37b33b0a255322fbf91a24a4bc8f54",
+      "source_line_ranges": "whole file",
+      "disposition": "inspected send-values default"
+    },
+    {
+      "path": "OxCalc/src/oxcalc-core/src/grid/machine/r1c1_plan.rs",
+      "blob_sha": "f22100cb79bb262803df6e82e28e19734b9892a5",
+      "source_line_ranges": "1-250",
+      "disposition": "inspected actual second evaluator"
+    },
+    {
+      "path": "OxCalc/src/oxcalc-core/src/grid/reference_engine.rs",
+      "blob_sha": "4895febda98aaeb230055da40553fd31daf7b78b",
+      "source_line_ranges": "1-165",
+      "disposition": "inspected profile/provider and per-sheet/cross-sheet maps"
+    },
+    {
+      "path": "OxFml/crates/oxfml_core/src/binding/profile.rs",
+      "blob_sha": "b5d7caccdab8b9c772722160723920ee6896f143",
+      "source_line_ranges": "1-200",
+      "disposition": "inspected multiple profiles and normal-form identity"
+    },
+    {
+      "path": "OxCalc/src/oxcalc-core/src/grid/machine/invalidation.rs",
+      "blob_sha": "8e4e65ef67502ac50a2bd91d66f400145173b6d8",
+      "source_line_ranges": "1-200",
+      "disposition": "inspected dependency taxonomy, not all closure consumers"
+    },
+    {
+      "path": "DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs",
+      "blob_sha": "1a2382d82b003a43654252d651a719c4d8bfe508",
+      "source_line_ranges": "1-150",
+      "disposition": "inspected old host ownership/imports"
+    },
+    {
+      "path": "DnaTreeCalc/src/dnacalc-stage-sheet/src/lib.rs",
+      "blob_sha": "31f96e2abaf0d6b13caa7eda083288777355aca8",
+      "source_line_ranges": "1-180",
+      "disposition": "inspected render-plan/canvas/Leptos/editor integration; no visual tests run"
+    },
+    {
+      "path": "Dicklesworthstone/beads_rust/src/model/mod.rs",
+      "blob_sha": "c7e91c11aa81055d625af13e72efd58511d03aa4",
+      "source_line_ranges": "1-240;400-720;850-980",
+      "disposition": "inspected native Issue/Dependency serialization fields"
+    }
+  ],
+  "unavailable": [
+    {
+      "path": "OxFunc/smart-fuzzer/cache and runs",
+      "disposition": "Present locally (1,618 and 26,774 files, untracked and not git-ignored, owner-reported about 3.4 GB); not backed up and not re-measured by either review. infra-m0.6 performs the backup."
+    }
+  ],
+  "verified_locally_2026_10_12": [
+    {
+      "path": "OxDoc/crates/oxdoc-model/src/lib.rs",
+      "disposition": "Present: 5,939 lines, one file; 191 OxCalc-named symbols. The authoring run could not fetch it; the port text now names it."
+    },
+    {
+      "path": "OxDoc/crates/oxdoc-xlsx/src/lib.rs",
+      "disposition": "Present: 37,648 lines, one file; RoundTripRefusal taxonomy, WriteMode::FreshExport, W010 tranche-2 authoring (cell add, formula add/remove/change, sheet lifecycle) committed 2026-09-15 with further uncommitted edits."
+    },
+    {
+      "path": "Foundation/notes/PROGRAM_INVESTIGATION_2026-09-10.md",
+      "disposition": "Present: the 2026-09-10 investigation whose lessons the brief restates; its dual-profile direction is superseded by the Excel-only decision of 2026-10-05."
+    },
+    {
+      "path": "OxCalc/src/oxcalc-core/src/consumer.rs",
+      "disposition": "Present: about 1.46 MB with uncommitted changes; still not read in full, and still not a port source."
+    },
+    {
+      "path": "All other Port-from paths",
+      "disposition": "Every file and directory named in PORTS and in the function/UI family tasks exists locally; sizes are listed in ROLLOUT_BRIEF.md."
+    }
+  ],
+  "repository_state_2026_10_12": {
+    "OxFunc": "6fca3518 (2026-09-29) clean",
+    "OxFml": "e2b6149 (2026-09-15) 1 uncommitted file (eval/mod.rs)",
+    "OxCalc": "5ea74767 (2026-09-15) 6 uncommitted files incl. consumer.rs",
+    "OxDoc": "baf05f9 (2026-09-15) 2 modified + 2 untracked (cell-add authoring)",
+    "DnaTreeCalc": "a1e486d (2026-09-15) .beads only",
+    "DnaOneCalc": "61e3979 (2026-07-12) archived into DnaTreeCalc",
+    "OxReplay": "0b90052 (2026-09-02)",
+    "OxXlPlay": "adcdb51 (2026-09-02)",
+    "OxVba": "4145280e (2026-09-22)",
+    "ExcelFunctionsHandbook": "30c5b03 (2026-09-24)",
+    "DnaVisiCalc": "7047389 (2026-03-08)",
+    "Foundation": "dd36664 (2026-10-05) clean, branch master"
+  },
+  "inferences": [
+    "Arc-default OxFunc and Rc-handle sampled OxFml suggest a source-version compatibility problem; not compiled or reproduced.",
+    "Function/Doc migration decisions beyond sampled files are conditional on source pin/admission tasks."
+  ],
+  "owner_reported_not_remeasured": [
+    "Repository line counts",
+    "Parity ledger counts",
+    "Corpus size and coverage",
+    "Untracked evidence size",
+    "Historical performance baselines"
+  ],
+  "uploaded_brief_sha256": "f2db22bf047271bd04a58414124e10ee53dd21bbeb2323f85536241319f07b07"
+}

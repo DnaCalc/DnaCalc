@@ -1,0 +1,8 @@
+/target/
+**/target/
+*.tmp
+Thumbs.db
+.DS_Store
+
+# bv (beads viewer) local config and caches
+.bv/

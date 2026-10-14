@@ -1,0 +1,318 @@
+{
+  "milestone_exits": {
+    "m0": [
+      "infra-m0.1",
+      "infra-m0.2",
+      "infra-m0.3",
+      "cfunc-m0.1",
+      "cdoc-m0.1"
+    ],
+    "m1": [
+      "infra-m1.3"
+    ],
+    "m2": [
+      "cfml-m2.1",
+      "cfml-m2.2",
+      "ceng-m2.1",
+      "onecalc-m2.1",
+      "infra-m2.1"
+    ],
+    "m3": [
+      "infra-m3.2",
+      "infra-m3.3",
+      "ceng-m3.8",
+      "chost-m3.2"
+    ],
+    "m4": [
+      "infra-m4.1",
+      "ceng-m4.6",
+      "chost-m4.10",
+      "chost-m4.11",
+      "chost-m4.12",
+      "chost-m4.13",
+      "cfml-m4.3",
+      "cfunc-m4.1"
+    ],
+    "m5": [
+      "infra-m5.3"
+    ],
+    "m6": [
+      "infra-m6.1"
+    ],
+    "m7": [
+      "infra-m7.10"
+    ],
+    "m8": [
+      "infra-m8.1"
+    ]
+  },
+  "release_gate": {
+    "implementation_task": "infra-m8.2",
+    "initial_state": "must_fail_until_separable_implementations_exist",
+    "scope": "First-version release is not equivalent to closing all current core/planning beads."
+  },
+  "ui_core": {
+    "ribbon_backstage_qat_keytips": [
+      "dnacalc-m6.1"
+    ],
+    "formula_bar_edit_point_ime": [
+      "cfml-m6.2",
+      "dnacalc-m6.3"
+    ],
+    "selection": [
+      "dnacalc-m6.2"
+    ],
+    "autofill": [
+      "dnacalc-m6.4"
+    ],
+    "drag_move_copy": [
+      "dnacalc-m6.5"
+    ],
+    "clipboard_paste_special": [
+      "dnacalc-m6.6"
+    ],
+    "axes_panes_groups": [
+      "dnacalc-m6.7"
+    ],
+    "format_number_alignment": [
+      "dnacalc-m6.8"
+    ],
+    "format_font_border_fill_protection": [
+      "dnacalc-m6.9"
+    ],
+    "styles_themes": [
+      "dnacalc-m6.10"
+    ],
+    "names_namebox": [
+      "dnacalc-m6.11"
+    ],
+    "conditional_formatting": [
+      "dnacalc-m6.12"
+    ],
+    "data_validation": [
+      "dnacalc-m6.13"
+    ],
+    "find_replace_goto": [
+      "dnacalc-m6.14"
+    ],
+    "sort_filters": [
+      "dnacalc-m6.15"
+    ],
+    "table_tools": [
+      "dnacalc-m6.16"
+    ],
+    "insert_delete_lifecycle": [
+      "dnacalc-m6.17"
+    ],
+    "calculation_options_data_tables": [
+      "dnacalc-m6.18"
+    ],
+    "formula_audit": [
+      "dnacalc-m6.19"
+    ],
+    "comments_notes_hyperlinks_review": [
+      "dnacalc-m6.20"
+    ],
+    "status_zoom_sheet_tabs_windows": [
+      "dnacalc-m6.21"
+    ],
+    "keyboard_accessibility": [
+      "dnacalc-m6.22",
+      "dnacalc-m6.24"
+    ],
+    "undo_redo": [
+      "chost-m2.2",
+      "chost-m4.9",
+      "dnacalc-m6.3"
+    ]
+  },
+  "ui_separable": {
+    "charts_drawings": [
+      "infra-m3.20"
+    ],
+    "pivots": [
+      "infra-m3.21"
+    ],
+    "printing_page_layout": [
+      "infra-m3.22"
+    ],
+    "external_analytics": [
+      "infra-m3.23"
+    ],
+    "extended_desktop_inventory": [
+      "infra-m3.24"
+    ]
+  },
+  "phase2_seams": {
+    "udf_registry": [
+      "cfunc-m4.1",
+      "cfml-m4.3",
+      "chost-m4.12",
+      "onecalc-m6.1"
+    ],
+    "async_volatility_thread_safety_caller": [
+      "cfunc-m4.1",
+      "cfml-m4.3",
+      "ceng-m4.6"
+    ],
+    "object_dispatch": [
+      "chost-m4.12"
+    ],
+    "events_macro_transaction": [
+      "chost-m4.11",
+      "chost-m8.1"
+    ],
+    "external_rtd_updates": [
+      "ceng-m4.6",
+      "chost-m4.10",
+      "chost-m4.11"
+    ],
+    "xll_callback_attachment": [
+      "chost-m4.13"
+    ],
+    "range_picker": [
+      "chost-m4.13",
+      "dnacalc-m6.22"
+    ],
+    "ide_panel_attachment": [
+      "chost-m4.13",
+      "dnacalc-m6.19",
+      "dnacalc-m6.22"
+    ]
+  },
+  "numeric_requirements": {
+    "ownership_persistence_defaults": [
+      "chost-m4.8",
+      "infra-m7.7"
+    ],
+    "metadata": [
+      "cfunc-m3.22",
+      "cfunc-m7.2"
+    ],
+    "full_recalc": [
+      "ceng-m4.4"
+    ],
+    "native_exact": [
+      "cfunc-m3.24",
+      "infra-m0.5"
+    ],
+    "software80_feasibility": [
+      "cfunc-m7.1",
+      "infra-m7.6"
+    ],
+    "fast_portability": [
+      "cfunc-m3.23",
+      "infra-m7.7"
+    ],
+    "scoring": [
+      "infra-m7.4",
+      "cfunc-m7.2"
+    ]
+  },
+  "skin_persistence_cases": {
+    "three_design_comparison": [
+      "infra-m2.1",
+      "infra-m3.3"
+    ],
+    "two_skins": [
+      "infra-m2.1"
+    ],
+    "real_excel_row_name_sheet_edits": [
+      "infra-m2.1",
+      "infra-m3.3"
+    ],
+    "cross_block_names": [
+      "infra-m3.3"
+    ],
+    "lambda": [
+      "chost-m3.3",
+      "dnacalc-m3.1",
+      "infra-m3.3"
+    ],
+    "spills": [
+      "dnacalc-m3.1",
+      "infra-m3.3"
+    ],
+    "ten_thousand_blocks": [
+      "infra-m2.1",
+      "infra-m7.8"
+    ]
+  },
+  "non_excel_skins": {
+    "notebook": [
+      "dnacalc-m2.2",
+      "dnacalc-m3.1",
+      "dnacalc-m6.23"
+    ],
+    "tree": [
+      "dnacalc-m2.3",
+      "dnacalc-m3.1",
+      "dnacalc-m6.23"
+    ],
+    "canvas": [
+      "dnacalc-m2.4",
+      "dnacalc-m3.1",
+      "dnacalc-m6.23"
+    ]
+  },
+  "separable_attachments": {
+    "chart": [
+      "ceng-m3.8",
+      "cdoc-m3.5",
+      "chost-m3.1",
+      "chost-m3.2",
+      "infra-m3.20"
+    ],
+    "pivot": [
+      "ceng-m3.8",
+      "cdoc-m3.5",
+      "chost-m3.2",
+      "infra-m3.21"
+    ],
+    "print": [
+      "cdoc-m3.5",
+      "chost-m3.2",
+      "infra-m3.22"
+    ],
+    "external": [
+      "ceng-m3.7",
+      "ceng-m3.8",
+      "cdoc-m3.4",
+      "cdoc-m3.5",
+      "chost-m3.2",
+      "infra-m3.23"
+    ],
+    "extended_ui": [
+      "infra-m3.1",
+      "chost-m3.2",
+      "chost-m4.13",
+      "infra-m3.24"
+    ]
+  },
+  "measurements": [
+    "infra-m0.6",
+    "infra-m2.1",
+    "infra-m3.3",
+    "infra-m5.1",
+    "infra-m5.2",
+    "infra-m7.2",
+    "infra-m7.4",
+    "infra-m7.6",
+    "infra-m7.7",
+    "infra-m7.8",
+    "infra-m7.10"
+  ],
+  "independent_lanes_after_bootstrap": [
+    "cfunc-m1.1",
+    "cfml-m1.1",
+    "cdoc-m1.1",
+    "ceng-m1.1"
+  ],
+  "future_area_graphs": [
+    "infra-m3.20",
+    "infra-m3.21",
+    "infra-m3.22",
+    "infra-m3.23",
+    "infra-m3.24"
+  ]
+}

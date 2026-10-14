@@ -1,0 +1,47 @@
+{
+  "records": 252,
+  "tasks": 204,
+  "epics": 48,
+  "blocking_edges": 527,
+  "parent_child_edges": 204,
+  "named_acceptance_cases": 411,
+  "topological_task_count": 204,
+  "tasks_by_milestone": {
+    "m0": 8,
+    "m1": 16,
+    "m2": 20,
+    "m3": 57,
+    "m4": 27,
+    "m5": 19,
+    "m6": 39,
+    "m7": 13,
+    "m8": 5
+  },
+  "status": "passed",
+  "coverage_references_checked": 156,
+  "independent_ready_lanes": [
+    "cfunc-m1.1",
+    "cfml-m1.1",
+    "cdoc-m1.1",
+    "ceng-m1.1"
+  ],
+  "all_tasks_reach_release_checker": true,
+  "negative_tests_rejected": [
+    "duplicate",
+    "dangling",
+    "cycle",
+    "missing_section",
+    "wrong_priority"
+  ],
+  "br_executable_available": true,
+  "br_import_executed": false,
+  "rust_compilation_executed": false,
+  "excel_tests_executed": false,
+  "scope": "Artifact validation only: JSON fields, graph integrity, description/test shape, coverage IDs, outline presence and native-export equivalence. Not proof of implementation correctness or br CLI compatibility.",
+  "sha256": {
+    "beads.plan.jsonl": "d909447b3bf786d91655d52ace969b3d95063a2d7c7d03176e39d632f5266242",
+    "beads.br.jsonl": "74c1b4ad0d928cbd0d26ac92fedc7df5680c8d7c3925fb94efdd8553aa11f0c1",
+    "coverage.json": "232a936d067e9fcbac8aa4b4c1a9f7ca0c8d557db73f8369ec5e38011fe77ffe",
+    "DNA_CALC_REIMPLEMENTATION_PLAN.md": "e77a7e960398ca8d7dad9168bb901349e8605377d331c13b4ab3ac4eaf957486"
+  }
+}
