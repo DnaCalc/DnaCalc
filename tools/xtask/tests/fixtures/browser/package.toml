@@ -1,0 +1,23 @@
+# Copied as tools/browser-fixture/Cargo.toml into a copy of the workspace by the dc-e8ql case,
+# which also adds the package to that copy's workspace members. It never enters the real workspace.
+[package]
+name = "xtask-browser-fixture"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "The wasm fixture package of the dc-e8ql acceptance case, present only in a copy of the workspace."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+# wasm-bindgen-test-runner 0.2.117 runs only test binaries built with wasm-bindgen 0.2.117 exactly,
+# and wasm-bindgen-test 0.3.67 is the release built on that wasm-bindgen. Test-only dependencies.
+[dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"
+
+# The second wasm test target (node.rs, copied as tests/node.rs) configures Node.js; the first,
+# tests/acceptance.rs, configures no run mode.
+[[test]]
+name = "node"
+path = "tests/node.rs"

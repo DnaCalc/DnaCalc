@@ -69,19 +69,24 @@ fn registered(case: &str) {
 }
 
 /// The evidence one case keeps, and the failures it found.
-struct Evidence {
+pub(super) struct Evidence {
     case: &'static str,
-    dir: PathBuf,
-    lines: Vec<String>,
+    pub(super) dir: PathBuf,
+    pub(super) lines: Vec<String>,
     failures: Vec<String>,
 }
 
 impl Evidence {
     fn new(case: &'static str) -> Evidence {
+        Evidence::for_bead(BEAD, case)
+    }
+
+    /// A cleared evidence directory `target/accept/<bead>/<case>/`.
+    pub(super) fn for_bead(bead: &str, case: &'static str) -> Evidence {
         let dir = repo_root()
             .join("target")
             .join("accept")
-            .join(BEAD)
+            .join(bead)
             .join(case);
         super::remove_tree(&dir).unwrap_or_else(|e| panic!("{e}"));
         fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("cannot create {}: {e}", dir.display()));
@@ -93,7 +98,7 @@ impl Evidence {
         }
     }
 
-    fn expect(&mut self, holds: bool, what: String) {
+    pub(super) fn expect(&mut self, holds: bool, what: String) {
         if holds {
             self.lines.push(format!("ok: {what}"));
         } else {
@@ -101,7 +106,7 @@ impl Evidence {
         }
     }
 
-    fn finish(self) {
+    pub(super) fn finish(self) {
         super::finish(self.case, &self.dir, &self.lines, &self.failures);
     }
 }
@@ -274,12 +279,40 @@ impl Graph {
     }
 }
 
-/// A copy of this checkout's working tree with the fixture package and its own git repository.
-struct WorkspaceCopy {
-    base: PathBuf,
+/// A fixture package a workspace copy adds to its members: the package name, its directory in
+/// the copy, the directory under `tests/fixtures/` its files come from, and each file as (name
+/// there, path in the package).
+pub(super) struct Fixture {
+    pub(super) package: &'static str,
+    pub(super) dir: &'static str,
+    pub(super) source: &'static str,
+    pub(super) files: &'static [(&'static str, &'static str)],
+}
+
+/// The fixture package of the infra-m0.3 cases.
+static ACCEPT_FIXTURE: Fixture = Fixture {
+    package: FIXTURE_PACKAGE,
+    dir: FIXTURE_DIR,
+    source: "accept",
+    files: &[
+        ("package.toml", "Cargo.toml"),
+        ("lib.rs", "src/lib.rs"),
+        ("acceptance.rs", "tests/acceptance.rs"),
+        ("zero_run.rs", "tests/zero_run.rs"),
+        ("acceptance.json", "acceptance.json"),
+        ("seams.json", "seams.json"),
+    ],
+};
+
+/// A copy of this checkout's working tree with a fixture package and its own git repository.
+pub(super) struct WorkspaceCopy {
+    pub(super) base: PathBuf,
     root: PathBuf,
     markers: PathBuf,
     graph: Graph,
+    fixture: &'static Fixture,
+    /// Variables every cargo and xtask run in the copy sets (`Some`) or removes (`None`).
+    environment: Vec<(&'static str, Option<String>)>,
 }
 
 /// Writes the contents of `from` to `to` as a new file (a plain copy can keep the old
@@ -315,12 +348,21 @@ fn run_kept(
 }
 
 impl WorkspaceCopy {
+    /// A copy with the infra-m0.3 fixture package.
+    fn new(name: &str, evidence: &mut Evidence) -> WorkspaceCopy {
+        WorkspaceCopy::with_fixture(name, &ACCEPT_FIXTURE, evidence)
+    }
+
     /// Copies the working tree into `CARGO_TARGET_TMPDIR/<name>/ws`, keeping an earlier copy's
-    /// `target/` so its builds are reused, adds the fixture package to the workspace members,
+    /// `target/` so its builds are reused, adds the `fixture` package to the workspace members,
     /// updates the copy's Cargo.lock for it and commits it all. Files are written afresh, so they
     /// carry new modification times as in a fresh checkout and cargo never takes an earlier run's
     /// build of a since-restored file for a current one.
-    fn new(name: &str, evidence: &mut Evidence) -> WorkspaceCopy {
+    pub(super) fn with_fixture(
+        name: &str,
+        fixture: &'static Fixture,
+        evidence: &mut Evidence,
+    ) -> WorkspaceCopy {
         let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
         let root = base.join("ws");
         if root.is_dir() {
@@ -357,26 +399,19 @@ impl WorkspaceCopy {
             write_afresh(&from, &root.join(rel));
             copied += 1;
         }
-        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        let sources = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("fixtures")
-            .join("accept");
-        let package = root.join(FIXTURE_DIR);
-        for (from, to) in [
-            ("package.toml", "Cargo.toml"),
-            ("lib.rs", "src/lib.rs"),
-            ("acceptance.rs", "tests/acceptance.rs"),
-            ("zero_run.rs", "tests/zero_run.rs"),
-            ("acceptance.json", "acceptance.json"),
-            ("seams.json", "seams.json"),
-        ] {
-            write_afresh(&fixture.join(from), &package.join(to));
+            .join(fixture.source);
+        let package = root.join(fixture.dir);
+        for (from, to) in fixture.files {
+            write_afresh(&sources.join(from), &package.join(to));
         }
         let workspace_manifest = root.join("Cargo.toml");
         let text = fs::read_to_string(&workspace_manifest).expect("read the copy's Cargo.toml");
         super::write(
             &workspace_manifest,
-            add_workspace_member(&text, FIXTURE_DIR),
+            add_workspace_member(&text, fixture.dir),
         );
         let mut copy = WorkspaceCopy {
             base,
@@ -386,6 +421,8 @@ impl WorkspaceCopy {
                 members: BTreeMap::new(),
                 edges: BTreeMap::new(),
             },
+            fixture,
+            environment: Vec::new(),
         };
         let (code, stdout, stderr) = copy.cargo(
             &["metadata", "--format-version", "1", "--all-features"],
@@ -399,8 +436,9 @@ impl WorkspaceCopy {
         );
         copy.graph = Graph::parse(&stdout);
         assert!(
-            copy.graph.members.contains_key(FIXTURE_PACKAGE),
-            "the copy's workspace has no {FIXTURE_PACKAGE}"
+            copy.graph.members.contains_key(fixture.package),
+            "the copy's workspace has no {}",
+            fixture.package
         );
         git_in(&copy.root, &["init", "--quiet"]);
         git_in(&copy.root, &["add", "--all"]);
@@ -416,10 +454,32 @@ impl WorkspaceCopy {
         copy.markers = copy.base.join("markers");
         copy.clear_markers();
         evidence.lines.push(format!(
-            "copy: {copied} files of the working tree at {}, plus the fixture package {FIXTURE_PACKAGE} at {FIXTURE_DIR} (from tools/xtask/tests/fixtures/accept) added to its workspace members and Cargo.lock, committed in its own repository",
-            copy.root.display()
+            "copy: {copied} files of the working tree at {}, plus the fixture package {} at {} (from tools/xtask/tests/fixtures/{}) added to its workspace members and Cargo.lock, committed in its own repository",
+            copy.root.display(),
+            fixture.package,
+            fixture.dir,
+            fixture.source
         ));
         copy
+    }
+
+    /// Sets (`Some`) or removes (`None`) `name` for every later cargo and xtask run in the copy.
+    pub(super) fn set_environment(&mut self, name: &'static str, setting: Option<String>) {
+        self.environment.retain(|(known, _)| *known != name);
+        self.environment.push((name, setting));
+    }
+
+    fn apply_environment(&self, command: &mut Command, extra: &[(&str, Option<&str>)]) {
+        let copy_wide = self
+            .environment
+            .iter()
+            .map(|(name, setting)| (*name, setting.as_deref()));
+        for (name, setting) in copy_wide.chain(extra.iter().copied()) {
+            match setting {
+                Some(value) => command.env(name, value),
+                None => command.env_remove(name),
+            };
+        }
     }
 
     fn clear_markers(&self) {
@@ -431,7 +491,7 @@ impl WorkspaceCopy {
         self.markers.join(case).is_file()
     }
 
-    fn path(&self, rel: &str) -> PathBuf {
+    pub(super) fn path(&self, rel: &str) -> PathBuf {
         self.root.join(rel)
     }
 
@@ -450,6 +510,18 @@ impl WorkspaceCopy {
         label: &str,
         evidence: &mut Evidence,
     ) -> (Option<i32>, String, String) {
+        self.cargo_with(args, &[], label, evidence)
+    }
+
+    /// Runs cargo in the copy, with no target directory from the environment and `extra` set
+    /// (`Some`) or removed (`None`) after the copy's own environment.
+    pub(super) fn cargo_with(
+        &self,
+        args: &[&str],
+        extra: &[(&str, Option<&str>)],
+        label: &str,
+        evidence: &mut Evidence,
+    ) -> (Option<i32>, String, String) {
         let mut command = Command::new(super::cargo_program().0);
         command
             .args(args)
@@ -457,13 +529,20 @@ impl WorkspaceCopy {
             .env("XTASK_FIXTURE_MARKERS", &self.markers)
             .env_remove("CARGO_TARGET_DIR")
             .env_remove("CARGO_BUILD_TARGET_DIR");
+        self.apply_environment(&mut command, extra);
         run_kept(command, label, evidence)
     }
 
     /// Runs `xtask accept <args>` in the copy. For a bead the copy's manifests register
     /// (`known`), the committed copy of the receipt must be identical to the one under target/;
     /// for an unknown bead there must be no committed copy.
-    fn accept(&self, args: &[&str], label: &str, known: bool, evidence: &mut Evidence) -> Accepted {
+    pub(super) fn accept(
+        &self,
+        args: &[&str],
+        label: &str,
+        known: bool,
+        evidence: &mut Evidence,
+    ) -> Accepted {
         let mut command = Command::new(env!("CARGO_BIN_EXE_xtask"));
         command
             .arg("accept")
@@ -472,6 +551,7 @@ impl WorkspaceCopy {
             .env("XTASK_FIXTURE_MARKERS", &self.markers)
             .env_remove("CARGO_TARGET_DIR")
             .env_remove("CARGO_BUILD_TARGET_DIR");
+        self.apply_environment(&mut command, &[]);
         let (exit_code, stdout, _) = run_kept(command, label, evidence);
         let id = args[args.iter().position(|a| *a == "--id").expect("--id") + 1];
         let platform = args[args
@@ -512,6 +592,7 @@ impl WorkspaceCopy {
                 .expect("keep the receipt");
         }
         Accepted {
+            package: self.fixture.package,
             exit_code,
             stdout,
             text: receipt.clone().unwrap_or_default(),
@@ -532,16 +613,18 @@ impl WorkspaceCopy {
 }
 
 /// What one `xtask accept` run showed.
-struct Accepted {
-    exit_code: Option<i32>,
-    stdout: String,
+pub(super) struct Accepted {
+    /// The fixture package whose cases the run's printed lines name.
+    package: &'static str,
+    pub(super) exit_code: Option<i32>,
+    pub(super) stdout: String,
     text: String,
-    receipt: Value,
+    pub(super) receipt: Value,
     own: String,
 }
 
 impl Accepted {
-    fn run(&self, case: &str) -> &Value {
+    pub(super) fn run(&self, case: &str) -> &Value {
         self.receipt["cases"]
             .as_array()
             .and_then(|runs| runs.iter().find(|run| run["case"] == case))
@@ -549,17 +632,20 @@ impl Accepted {
     }
 
     /// The outcome the receipt records for `case`.
-    fn outcome(&self, case: &str) -> Option<&str> {
+    pub(super) fn outcome(&self, case: &str) -> Option<&str> {
         self.run(case)["outcome"].as_str()
     }
 
-    fn result(&self) -> &str {
+    pub(super) fn result(&self) -> &str {
         self.receipt["result"].as_str().unwrap_or("no result")
     }
 
-    /// Whether the run printed the line for `case` with this outcome.
-    fn printed(&self, outcome: &str, case: &str) -> bool {
-        let prefix = format!("ACCEPT {outcome} {case} (package {FIXTURE_PACKAGE}, exit code ");
+    /// Whether the run printed the line for `case` (or `<case>@<browser>`) with this outcome.
+    pub(super) fn printed(&self, outcome: &str, case: &str) -> bool {
+        let prefix = format!(
+            "ACCEPT {outcome} {case} (package {}, exit code ",
+            self.package
+        );
         self.stdout.lines().any(|line| line.starts_with(&prefix))
     }
 
@@ -590,7 +676,7 @@ impl Accepted {
         })
     }
 
-    fn checks_ok_except(&self, failing: &[&str]) -> bool {
+    pub(super) fn checks_ok_except(&self, failing: &[&str]) -> bool {
         CHECKS
             .iter()
             .filter(|check| !failing.contains(check))

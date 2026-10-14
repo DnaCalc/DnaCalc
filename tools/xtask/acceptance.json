@@ -53,6 +53,23 @@
         "infra_m0_4__source_manifest": ["windows", "linux"],
         "infra_m0_4__missing_source": ["windows", "linux"]
       }
+    },
+    {
+      "id": "dc-e8ql",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "xtask", "accept", "--id", "dc-e8ql", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-e8ql", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m0.3", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m0.3", "--platform", "linux", "--require-all"]
+      ],
+      "cases": [
+        "dc_e8ql__browser_route"
+      ],
+      "platforms": {
+        "dc_e8ql__browser_route": ["windows", "linux"]
+      }
     }
   ]
 }

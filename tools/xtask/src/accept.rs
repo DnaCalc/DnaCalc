@@ -17,14 +17,17 @@
 //!    or standard error. A name absent from the listing is `missing` and is not run; an ignored
 //!    case is `ignored`; a case that prints the not-run line, or that this host cannot run, is
 //!    `not_run`; anything else is `failed`. A test carrying the bead's case prefix that the
-//!    manifest does not register fails the run.
+//!    manifest does not register fails the run. The `ACCEPT-NOTE: <case>: <text>` lines a case
+//!    prints are kept in its `notes`; they never change its outcome.
 //! 6. Writes the receipt to `target/accept/<bead>/<platform>/receipt.json`, beside one log per
 //!    cargo run, and, for a bead some manifest registers, copies it to
 //!    `accept-receipts/<bead>/<platform>.json`. Paths in the receipt are relative to the workspace
 //!    root; the toolchain, cargo home, home and temporary directories appear as `<rustup>`,
 //!    `<cargo-home>`, `<home>` and `<temp>`. The host record names the legacy root that
 //!    `pin-sources` reads as `..` (the workspace root's parent) or `<legacy-root>` (elsewhere,
-//!    from `DNACALC_LEGACY_ROOT`). Format `dnacalc-accept-receipt/3` added that record.
+//!    from `DNACALC_LEGACY_ROOT`). Format `dnacalc-accept-receipt/3` added that record; format
+//!    `dnacalc-accept-receipt/4` added case notes and, on wasm, each browser's route environment
+//!    and the runner's banner naming the browser that ran the case.
 //!
 //! The result: `failed` when a manifest, an architecture check or a command failed, the bead is
 //! unknown, no case declares the platform, or any selected case is `failed`, `missing` or
@@ -38,7 +41,15 @@
 //! runs them natively on a Windows host where Excel is registered for automation, and records
 //! them as `not_run` where it is not; `wasm` runs the acceptance target for wasm32-unknown-unknown
 //! under wasm-bindgen-test-runner once with chromedriver and once with geckodriver, and records a
-//! browser whose runner or driver is missing as `not_run`.
+//! browser whose runner or driver is missing as `not_run`. Every wasm run sets
+//! `WASM_BINDGEN_USE_BROWSER`, so a test target that configures no mode of its own runs in the
+//! browser rather than Node.js, and removes the runner's other mode variables. A target that
+//! configures a mode keeps it (`run_in_node_experimental` still runs under Node.js), so a browser's
+//! run counts as passed only when the first line the runner prints is its banner naming that
+//! browser (`Running headless tests in Chrome on ...`, `... in Firefox on ...`); a run without it
+//! is `failed`, whatever its result line says. Which host facts the excel and wasm routes read
+//! (Excel's registration, programs on PATH, the driver variables) comes from a `Probe`, which the
+//! unit tests replace to show each `not_run` branch.
 
 use crate::arch::{self, CheckResult};
 use crate::cargo::{self, WASM_TARGET, Workspace};
@@ -54,6 +65,9 @@ pub const USAGE: &str =
 
 /// The prefix of the line a case prints when it cannot run on this host.
 const NOT_RUN_MARKER: &str = "ACCEPT-NOT-RUN: ";
+
+/// The prefix of a line a case prints for the receipt to keep in its `notes`.
+const NOTE_MARKER: &str = "ACCEPT-NOTE: ";
 
 /// The committed copies of the receipts, relative to the workspace root.
 const RECEIPTS_DIR: &str = "accept-receipts";
@@ -90,7 +104,21 @@ struct CaseRun {
     reason: Option<String>,
     duration_s: f64,
     log: Option<String>,
+    notes: Vec<String>,
+    /// On wasm, the run of the case in each browser.
     browsers: Vec<CaseRun>,
+    /// On a wasm run in one browser, what the route did there.
+    wasm: Option<BrowserRun>,
+}
+
+/// What the wasm route did for one browser: the variables it set (none when the runner or the
+/// driver is missing and nothing started), and the banner line in which wasm-bindgen-test-runner
+/// named the browser that ran the case, if it printed one.
+struct BrowserRun {
+    browser: &'static str,
+    environment: Vec<(&'static str, String)>,
+    banner: Option<String>,
+    executed_in: Option<String>,
 }
 
 impl CaseRun {
@@ -105,11 +133,13 @@ impl CaseRun {
             reason: Some(reason),
             duration_s: 0.0,
             log: None,
+            notes: Vec::new(),
             browsers: Vec::new(),
+            wasm: None,
         }
     }
 
-    fn to_json(&self, browser: Option<&str>) -> Value {
+    fn to_json(&self) -> Value {
         let mut value = json!({
             "package": self.package,
             "case": self.case,
@@ -120,24 +150,28 @@ impl CaseRun {
             "reason": self.reason,
             "duration_s": seconds(self.duration_s),
             "log": self.log,
+            "notes": self.notes,
         });
-        if let Some(browser) = browser {
-            value["browser"] = json!(browser);
+        if let Some(wasm) = &self.wasm {
+            let environment: serde_json::Map<String, Value> = wasm
+                .environment
+                .iter()
+                .map(|(name, setting)| ((*name).to_owned(), json!(setting)))
+                .collect();
+            value["browser"] = json!(wasm.browser);
+            value["environment"] = Value::Object(environment);
+            value["environment_removed"] = json!(if wasm.environment.is_empty() {
+                &[][..]
+            } else {
+                &WASM_REMOVED[..]
+            });
+            value["runner_banner"] = json!(wasm.banner);
+            value["executed_in"] = json!(wasm.executed_in);
         }
         if !self.browsers.is_empty() {
-            value["browsers"] = Value::Array(
-                self.browsers
-                    .iter()
-                    .map(|run| run.to_json(run.reason_browser()))
-                    .collect(),
-            );
+            value["browsers"] = Value::Array(self.browsers.iter().map(CaseRun::to_json).collect());
         }
         value
-    }
-
-    /// The browser a wasm sub-run belongs to, stored in `case` as `<case>@<browser>`.
-    fn reason_browser(&self) -> Option<&str> {
-        self.case.rsplit_once('@').map(|(_, browser)| browser)
     }
 }
 
@@ -189,6 +223,64 @@ fn not_run_reason(case: &str, stdout: &str, stderr: &str) -> Option<String> {
         line.find(&marker)
             .map(|at| line[at + marker.len()..].trim().to_owned())
     })
+}
+
+/// The `ACCEPT-NOTE: <case>: <text>` texts a case printed, standard output first.
+fn case_notes(case: &str, stdout: &str, stderr: &str) -> Vec<String> {
+    let marker = format!("{NOTE_MARKER}{case}: ");
+    stdout
+        .lines()
+        .chain(stderr.lines())
+        .filter_map(|line| {
+            line.find(&marker)
+                .map(|at| line[at + marker.len()..].trim().to_owned())
+        })
+        .collect()
+}
+
+/// The start of the line wasm-bindgen-test-runner prints first when it runs tests in a headless
+/// browser: `Running headless tests in Chrome on <url>` or `... in Firefox on <url>`.
+const BANNER_PREFIX: &str = "Running headless tests in ";
+
+/// The browser the runner's banner names, with the banner line. The banner must be the first
+/// non-empty line of standard output, ahead of libtest's `running N tests` and of anything the
+/// tests print; a run under Node.js prints none.
+fn runner_banner(stdout: &str) -> Option<(String, String)> {
+    let first = stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())?;
+    let rest = first.strip_prefix(BANNER_PREFIX)?;
+    let browser = rest.split(" on ").next().filter(|name| !name.is_empty())?;
+    Some((browser.to_owned(), first.to_owned()))
+}
+
+/// A wasm run's outcome once the banner is checked: a run that libtest reports passed counts as
+/// passed only when the runner's banner names `expected`; otherwise no browser, or another one,
+/// ran it, and it is `failed`.
+fn browser_checked(
+    expected: &str,
+    stdout: &str,
+    (outcome, reason): (Outcome, Option<String>),
+) -> (Outcome, Option<String>) {
+    if outcome != Outcome::Passed {
+        return (outcome, reason);
+    }
+    match runner_banner(stdout) {
+        Some((browser, _)) if browser == expected => (outcome, reason),
+        Some((browser, line)) => (
+            Outcome::Failed,
+            Some(format!(
+                "wasm-bindgen-test-runner ran the case in {browser}, not {expected} ({line})"
+            )),
+        ),
+        None => (
+            Outcome::Failed,
+            Some(format!(
+                "wasm-bindgen-test-runner's output does not start with `{BANNER_PREFIX}{expected} on`, so {expected} did not run the case (a test target that configures Node.js runs there); its 1-passed result line is not browser evidence"
+            )),
+        ),
+    }
 }
 
 /// The libtest result line of a run and what it says about one case.
@@ -313,11 +405,25 @@ fn run_logged(ws: &Workspace, mut command: Command, log: &Path) -> Result<Ran, S
 }
 
 /// How one route runs cargo: `label` suffixes the log names and output lines, `extra` adds cargo
-/// arguments (a `--target`), and `configure` adds the environment.
+/// arguments (a `--target`), `removed` and `environment` are the variables it removes and sets,
+/// and `browser` is the browser a wasm route runs the cases in, whose banner the runner must print.
 struct Route<'a> {
     label: &'a str,
     extra: &'a [&'a str],
-    configure: &'a dyn Fn(&mut Command),
+    removed: &'a [&'static str],
+    environment: &'a [(&'static str, String)],
+    browser: Option<&'static Browser>,
+}
+
+impl Route<'_> {
+    fn apply(&self, command: &mut Command) {
+        for name in self.removed {
+            command.env_remove(name);
+        }
+        for (name, setting) in self.environment {
+            command.env(name, setting);
+        }
+    }
 }
 
 /// Lists the acceptance target and runs each case in it along `route`.
@@ -331,7 +437,7 @@ fn run_listed(
 ) -> Vec<CaseRun> {
     let (label, extra) = (route.label, route.extra);
     let mut list = cargo_test(ws, entry, extra, &["--list"]);
-    (route.configure)(&mut list);
+    route.apply(&mut list);
     let list_log = out_dir.join(format!("{}-{}-list{label}.log", entry.package, entry.test));
     let listed = match run_logged(ws, list, &list_log) {
         Err(e) => Err(e),
@@ -340,6 +446,14 @@ fn run_listed(
             entry.package, entry.test, ran.exit_code, ran.log
         )),
         Ok(ran) => Ok((listed_names(&ran.stdout), ran)),
+    };
+    let wasm = |banner: Option<(String, String)>| {
+        route.browser.map(|browser| BrowserRun {
+            browser: browser.name,
+            environment: route.environment.to_vec(),
+            executed_in: banner.as_ref().map(|(name, _)| name.clone()),
+            banner: banner.map(|(_, line)| line),
+        })
     };
     let (names, list_ran) = match listed {
         Ok(found) => found,
@@ -350,6 +464,7 @@ fn run_listed(
                     let mut run = CaseRun::not_run(&entry.package, case, String::new());
                     run.outcome = Outcome::Failed;
                     run.reason = Some(e.clone());
+                    run.wasm = wasm(None);
                     run
                 })
                 .collect();
@@ -380,23 +495,32 @@ fn run_listed(
                 )),
                 duration_s: 0.0,
                 log: Some(list_ran.log.clone()),
+                notes: Vec::new(),
                 browsers: Vec::new(),
+                wasm: wasm(None),
             });
             continue;
         }
         println!("ACCEPT running {case} (package {}){label}", entry.package);
         let mut command = cargo_test(ws, entry, extra, &["--exact", case, "--nocapture"]);
-        (route.configure)(&mut command);
+        route.apply(&mut command);
         let log = out_dir.join(format!("{case}{label}.log"));
         match run_logged(ws, command, &log) {
             Err(e) => {
                 let mut run = CaseRun::not_run(&entry.package, case, e);
                 run.outcome = Outcome::Failed;
+                run.wasm = wasm(None);
                 runs.push(run);
             }
             Ok(ran) => {
                 let (outcome, result_line, reason) =
                     classify(case, &ran.stdout, &ran.stderr, ran.exit_code);
+                let (outcome, reason) = match route.browser {
+                    Some(browser) => {
+                        browser_checked(browser.banner, &ran.stdout, (outcome, reason))
+                    }
+                    None => (outcome, reason),
+                };
                 runs.push(CaseRun {
                     package: entry.package.clone(),
                     case: (*case).to_owned(),
@@ -407,7 +531,9 @@ fn run_listed(
                     reason,
                     duration_s: ran.duration_s,
                     log: Some(ran.log),
+                    notes: case_notes(case, &ran.stdout, &ran.stderr),
                     browsers: Vec::new(),
+                    wasm: wasm(runner_banner(&ran.stdout)),
                 });
             }
         }
@@ -456,70 +582,148 @@ fn find_on_path(program: &str) -> Option<PathBuf> {
         .find(|path| path.is_file())
 }
 
-/// The browsers of the wasm route: name, driver variable and driver program.
-const BROWSERS: [(&str, &str, &str); 2] = [
-    ("chromium", "CHROMEDRIVER", "chromedriver"),
-    ("firefox", "GECKODRIVER", "geckodriver"),
+/// The file a driver variable names, when it is set and names a file.
+fn variable_file(variable: &str) -> Option<PathBuf> {
+    std::env::var_os(variable)
+        .map(PathBuf::from)
+        .filter(|path| path.is_file())
+}
+
+/// What the excel and wasm routes read from the host before they start anything: whether Excel is
+/// registered for automation, where PATH holds a program, and which file a driver variable names.
+/// `run` uses `Probe::HOST`; the unit tests inject their own to reach every `not_run` branch.
+#[derive(Clone, Copy)]
+struct Probe {
+    excel: fn() -> Result<(), String>,
+    on_path: fn(&str) -> Option<PathBuf>,
+    variable_file: fn(&str) -> Option<PathBuf>,
+}
+
+impl Probe {
+    const HOST: Probe = Probe {
+        excel: excel_available,
+        on_path: find_on_path,
+        variable_file,
+    };
+}
+
+/// A browser of the wasm route: its name in the receipt, its driver's variable and program, and
+/// the name wasm-bindgen-test-runner's banner gives it.
+struct Browser {
+    name: &'static str,
+    variable: &'static str,
+    program: &'static str,
+    banner: &'static str,
+}
+
+static BROWSERS: [Browser; 2] = [
+    Browser {
+        name: "chromium",
+        variable: "CHROMEDRIVER",
+        program: "chromedriver",
+        banner: "Chrome",
+    },
+    Browser {
+        name: "firefox",
+        variable: "GECKODRIVER",
+        program: "geckodriver",
+        banner: "Firefox",
+    },
 ];
-const DRIVER_VARIABLES: [&str; 3] = ["CHROMEDRIVER", "GECKODRIVER", "SAFARIDRIVER"];
+
+/// The runner program cargo starts for a wasm32-unknown-unknown test target.
+const WASM_RUNNER_VARIABLE: &str = "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER";
+
+/// The variable that makes wasm-bindgen-test-runner run a test target that configures no mode of
+/// its own in a browser rather than in Node.js.
+const FORCE_BROWSER: &str = "WASM_BINDGEN_USE_BROWSER";
+
+/// Removed from every wasm run before the route sets its own: the drivers (the route sets exactly
+/// one), the runner's other modes (it refuses two at once), `NO_HEADLESS` (an interactive server
+/// that never exits) and the runner's switches that skip browser or Node.js targets.
+const WASM_REMOVED: [&str; 12] = [
+    "CHROMEDRIVER",
+    "GECKODRIVER",
+    "SAFARIDRIVER",
+    "WASM_BINDGEN_USE_DENO",
+    "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+    "WASM_BINDGEN_USE_DEDICATED_WORKER",
+    "WASM_BINDGEN_USE_SHARED_WORKER",
+    "WASM_BINDGEN_USE_SERVICE_WORKER",
+    "WASM_BINDGEN_USE_EMSCRIPTEN",
+    "NO_HEADLESS",
+    "WASM_BINDGEN_TEST_ONLY_NODE",
+    "WASM_BINDGEN_TEST_ONLY_WEB",
+];
+
+/// The variables a wasm route sets for one browser, or why that browser cannot run here.
+type WasmRoute = Result<Vec<(&'static str, String)>, String>;
+
+/// The wasm route of each browser from what `probe` finds: the runner comes from PATH, the driver
+/// from its variable when that names a file, otherwise from PATH.
+fn wasm_routes(probe: &Probe) -> Vec<(&'static Browser, WasmRoute)> {
+    let runner = (probe.on_path)("wasm-bindgen-test-runner");
+    BROWSERS
+        .iter()
+        .map(|browser| {
+            let driver = (probe.variable_file)(browser.variable)
+                .or_else(|| (probe.on_path)(browser.program));
+            let route = match (&runner, driver) {
+                (None, _) => Err("wasm-bindgen-test-runner is not on PATH".to_owned()),
+                (Some(_), None) => Err(format!(
+                    "{} is not on PATH and {} names no file",
+                    browser.program, browser.variable
+                )),
+                (Some(runner), Some(driver)) => Ok(vec![
+                    (WASM_RUNNER_VARIABLE, runner.to_string_lossy().into_owned()),
+                    (browser.variable, driver.to_string_lossy().into_owned()),
+                    (FORCE_BROWSER, "1".to_owned()),
+                ]),
+            };
+            (browser, route)
+        })
+        .collect()
+}
 
 fn run_wasm(
     ws: &Workspace,
     entry: &BeadEntry,
     cases: &[&str],
     out_dir: &Path,
+    probe: &Probe,
     problems: &mut Vec<String>,
 ) -> Vec<CaseRun> {
-    let runner = find_on_path("wasm-bindgen-test-runner");
     let mut per_browser: Vec<Vec<CaseRun>> = Vec::new();
-    for (browser, variable, program) in BROWSERS {
-        let driver = std::env::var_os(variable)
-            .map(PathBuf::from)
-            .filter(|path| path.is_file())
-            .or_else(|| find_on_path(program));
-        let runs = match (&runner, driver) {
-            (None, _) => cases
+    for (browser, route) in wasm_routes(probe) {
+        let mut runs = match route {
+            Err(reason) => cases
                 .iter()
                 .map(|case| {
-                    CaseRun::not_run(
-                        &entry.package,
-                        &format!("{case}@{browser}"),
-                        "wasm-bindgen-test-runner is not on PATH".to_owned(),
-                    )
+                    let mut run = CaseRun::not_run(&entry.package, case, reason.clone());
+                    run.wasm = Some(BrowserRun {
+                        browser: browser.name,
+                        environment: Vec::new(),
+                        banner: None,
+                        executed_in: None,
+                    });
+                    run
                 })
                 .collect(),
-            (Some(_), None) => cases
-                .iter()
-                .map(|case| {
-                    CaseRun::not_run(
-                        &entry.package,
-                        &format!("{case}@{browser}"),
-                        format!("{program} is not on PATH and {variable} names no file"),
-                    )
-                })
-                .collect(),
-            (Some(runner), Some(driver)) => {
-                let configure = |command: &mut Command| {
-                    for name in DRIVER_VARIABLES {
-                        command.env_remove(name);
-                    }
-                    command
-                        .env("CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER", runner)
-                        .env(variable, &driver);
-                };
-                let label = format!("@{browser}");
+            Ok(environment) => {
+                let label = format!("@{}", browser.name);
                 let route = Route {
                     label: &label,
                     extra: &["--target", WASM_TARGET],
-                    configure: &configure,
+                    removed: &WASM_REMOVED,
+                    environment: &environment,
+                    browser: Some(browser),
                 };
-                let mut runs = run_listed(ws, entry, cases, out_dir, &route, problems);
-                for run in &mut runs {
-                    run.case = format!("{}@{browser}", run.case);
-                }
-                runs
+                run_listed(ws, entry, cases, out_dir, &route, problems)
             }
         };
+        for run in &mut runs {
+            run.case = format!("{}@{}", run.case, browser.name);
+        }
         per_browser.push(runs);
     }
     cases
@@ -547,7 +751,7 @@ fn run_wasm(
                 .map(|run| {
                     format!(
                         "{}: {} ({})",
-                        run.reason_browser().unwrap_or_default(),
+                        run.wasm.as_ref().map_or("", |wasm| wasm.browser),
                         run.outcome.as_str(),
                         run.reason.as_deref().unwrap_or_default()
                     )
@@ -570,10 +774,55 @@ fn run_wasm(
                 reason: (!reasons.is_empty()).then(|| reasons.join("; ")),
                 duration_s: browsers.iter().map(|run| run.duration_s).sum(),
                 log: None,
+                notes: browsers
+                    .iter()
+                    .flat_map(|run| run.notes.iter().cloned())
+                    .collect(),
                 browsers,
+                wasm: None,
             }
         })
         .collect()
+}
+
+/// Runs the cases of `entry` selected for `platform` along its route, or records each as
+/// `not_run` with the reason this host cannot start that route: `mismatch` (a host that cannot run
+/// the platform at all), or what `probe` reports about Excel, the wasm runner and the drivers.
+#[allow(clippy::too_many_arguments)]
+fn run_entry(
+    ws: &Workspace,
+    entry: &BeadEntry,
+    cases: &[&str],
+    platform: Platform,
+    mismatch: Option<&str>,
+    probe: &Probe,
+    out_dir: &Path,
+    problems: &mut Vec<String>,
+) -> Vec<CaseRun> {
+    let blocked = match (mismatch, platform) {
+        (Some(reason), _) => Some(reason.to_owned()),
+        (None, Platform::Excel) => (probe.excel)().err(),
+        (None, _) => None,
+    };
+    if let Some(reason) = blocked {
+        return cases
+            .iter()
+            .map(|case| CaseRun::not_run(&entry.package, case, reason.clone()))
+            .collect();
+    }
+    match platform {
+        Platform::Wasm => run_wasm(ws, entry, cases, out_dir, probe, problems),
+        _ => {
+            let route = Route {
+                label: "",
+                extra: &[],
+                removed: &[],
+                environment: &[],
+                browser: None,
+            };
+            run_listed(ws, entry, cases, out_dir, &route, problems)
+        }
+    }
 }
 
 /// One registered Acceptance command of the bead and what running it showed.
@@ -898,6 +1147,34 @@ impl Redactor {
     }
 }
 
+/// The line the runner prints for one case, or for one browser's run of a wasm case, which also
+/// names the browser the runner's banner named.
+fn print_case_line(run: &CaseRun) {
+    let code = run
+        .exit_code
+        .map_or_else(|| "none".to_owned(), |code| code.to_string());
+    let ran_in = run
+        .wasm
+        .as_ref()
+        .and_then(|wasm| wasm.executed_in.as_deref())
+        .map(|browser| format!(", ran in {browser}"))
+        .unwrap_or_default();
+    match &run.reason {
+        Some(reason) => println!(
+            "ACCEPT {} {} (package {}, exit code {code}{ran_in}): {reason}",
+            run.outcome.as_str(),
+            run.case,
+            run.package
+        ),
+        None => println!(
+            "ACCEPT {} {} (package {}, exit code {code}{ran_in})",
+            run.outcome.as_str(),
+            run.case,
+            run.package
+        ),
+    }
+}
+
 pub fn run(raw: &[String]) -> ExitCode {
     let args = match parse_args(raw) {
         Ok(args) => args,
@@ -1016,31 +1293,16 @@ pub fn run(raw: &[String]) -> ExitCode {
         if cases.is_empty() {
             continue;
         }
-        let blocked = match platform {
-            _ if mismatch.is_some() => mismatch.clone(),
-            Platform::Excel => excel_available().err(),
-            _ => None,
-        };
-        if let Some(reason) = blocked {
-            runs.extend(
-                cases
-                    .iter()
-                    .map(|case| CaseRun::not_run(&entry.package, case, reason.clone())),
-            );
-            continue;
-        }
-        let found = match platform {
-            Platform::Wasm => run_wasm(&ws, entry, &cases, &out_dir, &mut problems),
-            _ => {
-                let route = Route {
-                    label: "",
-                    extra: &[],
-                    configure: &|_| {},
-                };
-                run_listed(&ws, entry, &cases, &out_dir, &route, &mut problems)
-            }
-        };
-        runs.extend(found);
+        runs.extend(run_entry(
+            &ws,
+            entry,
+            &cases,
+            platform,
+            mismatch.as_deref(),
+            &Probe::HOST,
+            &out_dir,
+            &mut problems,
+        ));
     }
     if known && selected == 0 {
         problems.push(format!(
@@ -1050,22 +1312,12 @@ pub fn run(raw: &[String]) -> ExitCode {
     }
 
     for run in &runs {
-        let code = run
-            .exit_code
-            .map_or_else(|| "none".to_owned(), |code| code.to_string());
-        match &run.reason {
-            Some(reason) => println!(
-                "ACCEPT {} {} (package {}, exit code {code}): {reason}",
-                run.outcome.as_str(),
-                run.case,
-                run.package
-            ),
-            None => println!(
-                "ACCEPT {} {} (package {}, exit code {code})",
-                run.outcome.as_str(),
-                run.case,
-                run.package
-            ),
+        print_case_line(run);
+        for browser in &run.browsers {
+            print_case_line(browser);
+        }
+        for note in &run.notes {
+            println!("ACCEPT note {}: {note}", run.case);
         }
     }
     for problem in &problems {
@@ -1108,13 +1360,13 @@ pub fn run(raw: &[String]) -> ExitCode {
         _ => 1,
     };
     let mut receipt = json!({
-        "format": "dnacalc-accept-receipt/3",
+        "format": "dnacalc-accept-receipt/4",
         "bead": args.id,
         "platform": platform.as_str(),
         "require_all": args.require_all,
         "result": result,
         "exit_code": exit_code,
-        "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. The run exits 0 for passed, and for not_run only without --require-all.",
+        "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
         "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it, and host.legacy_root.path is .. for the workspace root's parent or <legacy-root> for a directory elsewhere",
         "command": command,
         "started_utc": started_utc,
@@ -1127,7 +1379,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         },
         "architecture": checks.iter().map(check_json).collect::<Vec<_>>(),
         "commands": commands.iter().map(CommandRun::to_json).collect::<Vec<_>>(),
-        "cases": runs.iter().map(|run| run.to_json(None)).collect::<Vec<_>>(),
+        "cases": runs.iter().map(CaseRun::to_json).collect::<Vec<_>>(),
         "counts": {
             "selected": selected,
             "passed": count(Outcome::Passed),
@@ -1307,5 +1559,321 @@ mod tests {
             redactor.apply(r"HKCR\Excel.Application\CLSID"),
             r"HKCR\Excel.Application\CLSID"
         );
+    }
+
+    // The not_run branches of the excel and wasm routes, each reached through `run_entry`, the
+    // function `run` calls, with an injected probe. None of them may start a process: the
+    // workspace root and the output directory do not exist, so a cargo run would fail the case
+    // instead of leaving it not_run.
+
+    const CASE: &str = "fixture_probe__alpha";
+    const RUNNER: &str = "/probe/bin/wasm-bindgen-test-runner";
+    const EXCEL_ABSENT: &str = r"Excel is not registered for automation on this host (HKCR\Excel.Application\CLSID is absent)";
+
+    fn probe_workspace() -> (Workspace, PathBuf) {
+        let root = std::env::temp_dir().join("xtask-probe-workspace-that-does-not-exist");
+        let out_dir = root.join("target").join("accept");
+        (
+            Workspace {
+                root,
+                members: Vec::new(),
+            },
+            out_dir,
+        )
+    }
+
+    fn probe_entry(platform: Platform) -> BeadEntry {
+        BeadEntry {
+            package: "probe-package".to_owned(),
+            id: "fixture-probe".to_owned(),
+            test: "acceptance".to_owned(),
+            cases: vec![manifest::CaseDecl {
+                name: CASE.to_owned(),
+                platforms: vec![platform],
+            }],
+            commands: Vec::new(),
+        }
+    }
+
+    /// Runs the probe entry's one case on `platform` with `probe`, checking that nothing started.
+    fn run_probed(platform: Platform, mismatch: Option<&str>, probe: &Probe) -> CaseRun {
+        let (ws, out_dir) = probe_workspace();
+        let mut problems = Vec::new();
+        let mut runs = run_entry(
+            &ws,
+            &probe_entry(platform),
+            &[CASE],
+            platform,
+            mismatch,
+            probe,
+            &out_dir,
+            &mut problems,
+        );
+        assert!(problems.is_empty(), "{problems:?}");
+        assert!(
+            !out_dir.exists(),
+            "a probed not_run branch wrote {out_dir:?}"
+        );
+        assert_eq!(runs.len(), 1);
+        let run = runs.remove(0);
+        for started in std::iter::once(&run).chain(&run.browsers) {
+            assert!(
+                started.argv.is_empty() && started.exit_code.is_none() && started.log.is_none(),
+                "{} started a process: {:?}",
+                started.case,
+                started.argv
+            );
+        }
+        run
+    }
+
+    fn excel_absent() -> Result<(), String> {
+        Err(EXCEL_ABSENT.to_owned())
+    }
+
+    fn never_excel() -> Result<(), String> {
+        panic!("the excel probe must not be read here")
+    }
+
+    fn nothing(_: &str) -> Option<PathBuf> {
+        None
+    }
+
+    fn never_path(name: &str) -> Option<PathBuf> {
+        panic!("the PATH probe must not be read here ({name})")
+    }
+
+    fn runner_only(program: &str) -> Option<PathBuf> {
+        (program == "wasm-bindgen-test-runner").then(|| PathBuf::from(RUNNER))
+    }
+
+    /// The (browser, outcome, reason) of each browser's run of a wasm case.
+    fn browser_outcomes(run: &CaseRun) -> Vec<(&str, Outcome, &str)> {
+        run.browsers
+            .iter()
+            .map(|browser| {
+                (
+                    browser.wasm.as_ref().map_or("", |wasm| wasm.browser),
+                    browser.outcome,
+                    browser.reason.as_deref().unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn excel_not_registered_is_not_run() {
+        let probe = Probe {
+            excel: excel_absent,
+            on_path: never_path,
+            variable_file: never_path,
+        };
+        let run = run_probed(Platform::Excel, None, &probe);
+        assert_eq!(
+            (run.case.as_str(), run.outcome, run.reason.as_deref()),
+            (CASE, Outcome::NotRun, Some(EXCEL_ABSENT))
+        );
+        let json = run.to_json();
+        assert_eq!(json["outcome"], "not_run");
+        assert_eq!(json["reason"], EXCEL_ABSENT);
+        assert!(json.get("browser").is_none() && json.get("browsers").is_none());
+    }
+
+    #[test]
+    fn a_host_that_cannot_run_the_platform_reads_no_probe() {
+        let probe = Probe {
+            excel: never_excel,
+            on_path: never_path,
+            variable_file: never_path,
+        };
+        for platform in [Platform::Excel, Platform::Wasm] {
+            let run = run_probed(platform, Some("this host cannot run it"), &probe);
+            assert_eq!(
+                (run.outcome, run.reason.as_deref()),
+                (Outcome::NotRun, Some("this host cannot run it"))
+            );
+        }
+    }
+
+    #[test]
+    fn wasm_runner_missing_is_not_run_in_both_browsers() {
+        // The drivers are there; without the runner neither browser can run.
+        let probe = Probe {
+            excel: never_excel,
+            on_path: |program| {
+                (program != "wasm-bindgen-test-runner")
+                    .then(|| PathBuf::from(format!("/probe/bin/{program}")))
+            },
+            variable_file: nothing,
+        };
+        let run = run_probed(Platform::Wasm, None, &probe);
+        let missing = "wasm-bindgen-test-runner is not on PATH";
+        assert_eq!(
+            browser_outcomes(&run),
+            [
+                ("chromium", Outcome::NotRun, missing),
+                ("firefox", Outcome::NotRun, missing)
+            ]
+        );
+        assert_eq!(run.outcome, Outcome::NotRun);
+        assert_eq!(
+            run.reason.as_deref(),
+            Some(
+                "chromium: not_run (wasm-bindgen-test-runner is not on PATH); firefox: not_run (wasm-bindgen-test-runner is not on PATH)"
+            )
+        );
+        let json = run.to_json();
+        assert_eq!(json["browsers"][0]["case"], format!("{CASE}@chromium"));
+        assert_eq!(json["browsers"][1]["case"], format!("{CASE}@firefox"));
+        for browser in json["browsers"].as_array().unwrap() {
+            assert_eq!(browser["environment"], json!({}));
+            assert!(browser["executed_in"].is_null() && browser["runner_banner"].is_null());
+        }
+    }
+
+    #[test]
+    fn wasm_drivers_missing_are_not_run_each_with_its_reason() {
+        let probe = Probe {
+            excel: never_excel,
+            on_path: runner_only,
+            variable_file: nothing,
+        };
+        let run = run_probed(Platform::Wasm, None, &probe);
+        assert_eq!(
+            browser_outcomes(&run),
+            [
+                (
+                    "chromium",
+                    Outcome::NotRun,
+                    "chromedriver is not on PATH and CHROMEDRIVER names no file"
+                ),
+                (
+                    "firefox",
+                    Outcome::NotRun,
+                    "geckodriver is not on PATH and GECKODRIVER names no file"
+                )
+            ]
+        );
+        assert_eq!(run.outcome, Outcome::NotRun);
+    }
+
+    #[test]
+    fn each_missing_driver_stops_only_its_own_browser() {
+        // chromedriver missing, geckodriver on PATH: firefox gets a route, chromium does not.
+        let probe = Probe {
+            excel: never_excel,
+            on_path: |program| match program {
+                "wasm-bindgen-test-runner" => Some(PathBuf::from(RUNNER)),
+                "geckodriver" => Some(PathBuf::from("/probe/bin/geckodriver")),
+                _ => None,
+            },
+            variable_file: nothing,
+        };
+        let routes = wasm_routes(&probe);
+        assert_eq!(routes[0].0.name, "chromium");
+        assert_eq!(
+            routes[0].1,
+            Err("chromedriver is not on PATH and CHROMEDRIVER names no file".to_owned())
+        );
+        assert_eq!(routes[1].0.name, "firefox");
+        assert_eq!(
+            routes[1].1,
+            Ok(vec![
+                (WASM_RUNNER_VARIABLE, RUNNER.to_owned()),
+                ("GECKODRIVER", "/probe/bin/geckodriver".to_owned()),
+                (FORCE_BROWSER, "1".to_owned()),
+            ])
+        );
+        // geckodriver missing, CHROMEDRIVER naming a file (it wins over PATH): the reverse.
+        let probe = Probe {
+            excel: never_excel,
+            on_path: |program| match program {
+                "wasm-bindgen-test-runner" => Some(PathBuf::from(RUNNER)),
+                "chromedriver" => Some(PathBuf::from("/probe/path/chromedriver")),
+                _ => None,
+            },
+            variable_file: |variable| {
+                (variable == "CHROMEDRIVER").then(|| PathBuf::from("/probe/variable/chromedriver"))
+            },
+        };
+        let routes = wasm_routes(&probe);
+        assert_eq!(
+            routes[0].1,
+            Ok(vec![
+                (WASM_RUNNER_VARIABLE, RUNNER.to_owned()),
+                ("CHROMEDRIVER", "/probe/variable/chromedriver".to_owned()),
+                (FORCE_BROWSER, "1".to_owned()),
+            ])
+        );
+        assert_eq!(
+            routes[1].1,
+            Err("geckodriver is not on PATH and GECKODRIVER names no file".to_owned())
+        );
+    }
+
+    #[test]
+    fn the_wasm_route_removes_every_other_driver_and_mode() {
+        for browser in &BROWSERS {
+            assert!(WASM_REMOVED.contains(&browser.variable));
+        }
+        for variable in [
+            "SAFARIDRIVER",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+        ] {
+            assert!(WASM_REMOVED.contains(&variable), "{variable}");
+        }
+        assert!(!WASM_REMOVED.contains(&FORCE_BROWSER));
+    }
+
+    #[test]
+    fn only_the_runner_banner_names_the_browser() {
+        let chrome = "Running headless tests in Chrome on `http://127.0.0.1:60524/`\nTry find `webdriver.json` for configure browser's capabilities:\nNot found\n\nrunning 1 test\ntest c ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.01s\n";
+        let node = "running 1 test\nInvoking test: c\nFIXTURE-AGENT: Node.js/25\ntest c ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.01s\n";
+        // A test that prints the banner text itself is not the runner's banner.
+        let printed = "running 1 test\nRunning headless tests in Chrome on `http://x/`\ntest c ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.01s\n";
+        assert_eq!(
+            runner_banner(chrome),
+            Some((
+                "Chrome".to_owned(),
+                "Running headless tests in Chrome on `http://127.0.0.1:60524/`".to_owned()
+            ))
+        );
+        assert_eq!(runner_banner(node), None);
+        assert_eq!(runner_banner(printed), None);
+
+        let passed = (Outcome::Passed, None);
+        assert_eq!(browser_checked("Chrome", chrome, passed.clone()), passed);
+        let (outcome, reason) = browser_checked("Firefox", chrome, passed.clone());
+        assert_eq!(outcome, Outcome::Failed);
+        assert!(
+            reason
+                .unwrap()
+                .contains("ran the case in Chrome, not Firefox")
+        );
+        for stdout in [node, printed] {
+            let (outcome, reason) = browser_checked("Chrome", stdout, passed.clone());
+            assert_eq!(outcome, Outcome::Failed);
+            assert!(
+                reason
+                    .unwrap()
+                    .contains("does not start with `Running headless tests in Chrome on`")
+            );
+        }
+        // Outcomes other than passed are kept as they are.
+        let not_run = (Outcome::NotRun, Some("no device".to_owned()));
+        assert_eq!(browser_checked("Chrome", node, not_run.clone()), not_run);
+        let failed = (Outcome::Failed, Some("libtest".to_owned()));
+        assert_eq!(browser_checked("Chrome", node, failed.clone()), failed);
+    }
+
+    #[test]
+    fn notes_are_kept_per_case() {
+        let stdout = format!("x\n{NOTE_MARKER}c: first\n{NOTE_MARKER}other: not mine\n");
+        let stderr = format!("prefix {NOTE_MARKER}c: second  \n");
+        assert_eq!(case_notes("c", &stdout, &stderr), ["first", "second"]);
+        assert!(case_notes("c", "nothing\n", "").is_empty());
     }
 }

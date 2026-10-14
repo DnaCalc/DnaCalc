@@ -1846,6 +1846,20 @@ fn infra_m0_3__forbidden_dependency() {
     infra_m0_3::forbidden_dependency();
 }
 
+/// The body of the dc-e8ql case, which drives the xtask binary's wasm route against a copy of the
+/// workspace with a wasm fixture package.
+#[path = "acceptance/dc_e8ql.rs"]
+mod dc_e8ql;
+
+/// The wasm route records a case passed in Chromium or Firefox only when the runner's banner names
+/// that browser, never for a Node.js run, and `--list` and `--exact` select exactly one case under
+/// wasm-bindgen-test-runner; on a host without the runner or a driver, each such browser is
+/// recorded not_run with its reason. See `acceptance/dc_e8ql.rs`.
+#[test]
+fn dc_e8ql__browser_route() {
+    dc_e8ql::browser_route();
+}
+
 /// The bodies of the infra-m0.4 cases, which pin the legacy sources through the xtask binary and
 /// read the pins back independently.
 #[path = "acceptance/infra_m0_4.rs"]

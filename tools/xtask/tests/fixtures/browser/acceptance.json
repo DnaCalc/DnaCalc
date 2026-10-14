@@ -1,0 +1,19 @@
+{
+  "package": "xtask-browser-fixture",
+  "beads": [
+    {
+      "id": "fixture-browser",
+      "test": "acceptance",
+      "cases": ["fixture_browser__alpha"],
+      "platforms": {"fixture_browser__alpha": ["wasm"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-browser-node",
+      "test": "node",
+      "cases": ["fixture_browser_node__alpha"],
+      "platforms": {"fixture_browser_node__alpha": ["wasm"]},
+      "commands": []
+    }
+  ]
+}
