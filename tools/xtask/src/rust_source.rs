@@ -135,7 +135,8 @@ impl ModuleFiles<'_> {
     }
 }
 
-fn path_attribute(attrs: &[Attribute]) -> Option<String> {
+/// The value of a `#[path = "..."]` attribute among `attrs`.
+pub fn path_attribute(attrs: &[Attribute]) -> Option<String> {
     attrs.iter().find_map(|attr| match &attr.meta {
         Meta::NameValue(pair) if pair.path.is_ident("path") => match &pair.value {
             syn::Expr::Lit(syn::ExprLit {

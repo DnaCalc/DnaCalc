@@ -1845,3 +1845,26 @@ fn infra_m0_3__zero_tests_fail() {
 fn infra_m0_3__forbidden_dependency() {
     infra_m0_3::forbidden_dependency();
 }
+
+/// The bodies of the infra-m0.4 cases, which pin the legacy sources through the xtask binary and
+/// read the pins back independently.
+#[path = "acceptance/infra_m0_4.rs"]
+mod infra_m0_4;
+
+/// Every pinned port input carries repository, commit, path, blob, license status and read
+/// disposition, every blob resolves at a pinned commit object, and a fresh pin written to a
+/// temporary file reproduces the committed manifest's pinned content; see
+/// `acceptance/infra_m0_4.rs`.
+#[test]
+fn infra_m0_4__source_manifest() {
+    let _serial = serial();
+    infra_m0_4::source_manifest();
+}
+
+/// A port input absent from the pinned manifest is reported unavailable and never counted among
+/// the port inputs, all of which stay provisional; see `acceptance/infra_m0_4.rs`.
+#[test]
+fn infra_m0_4__missing_source() {
+    let _serial = serial();
+    infra_m0_4::missing_source();
+}

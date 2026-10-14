@@ -22,7 +22,9 @@
 //!    cargo run, and, for a bead some manifest registers, copies it to
 //!    `accept-receipts/<bead>/<platform>.json`. Paths in the receipt are relative to the workspace
 //!    root; the toolchain, cargo home, home and temporary directories appear as `<rustup>`,
-//!    `<cargo-home>`, `<home>` and `<temp>`.
+//!    `<cargo-home>`, `<home>` and `<temp>`. The host record names the legacy root that
+//!    `pin-sources` reads as `..` (the workspace root's parent) or `<legacy-root>` (elsewhere,
+//!    from `DNACALC_LEGACY_ROOT`). Format `dnacalc-accept-receipt/3` added that record.
 //!
 //! The result: `failed` when a manifest, an architecture check or a command failed, the bead is
 //! unknown, no case declares the platform, or any selected case is `failed`, `missing` or
@@ -689,7 +691,7 @@ fn run_commands(
 }
 
 /// The UTC time as `YYYY-MM-DDThh:mm:ssZ`.
-fn utc_now() -> String {
+pub(crate) fn utc_now() -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
@@ -779,6 +781,7 @@ fn host_record(ws: &Workspace, own: &str, problems: &mut Vec<String>) -> Value {
     json!({
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
+        "legacy_root": crate::pin::legacy_root_record(&ws.root),
         "rustc": rustc.as_ref().map(|(_, version)| version.clone()).ok(),
         "rustc_host": rustc.as_ref().map(|(host, _)| host.clone()).ok(),
         "cargo": cargo_version.ok(),
@@ -1105,14 +1108,14 @@ pub fn run(raw: &[String]) -> ExitCode {
         _ => 1,
     };
     let mut receipt = json!({
-        "format": "dnacalc-accept-receipt/2",
+        "format": "dnacalc-accept-receipt/3",
         "bead": args.id,
         "platform": platform.as_str(),
         "require_all": args.require_all,
         "result": result,
         "exit_code": exit_code,
         "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. The run exits 0 for passed, and for not_run only without --require-all.",
-        "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it",
+        "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it, and host.legacy_root.path is .. for the workspace root's parent or <legacy-root> for a directory elsewhere",
         "command": command,
         "started_utc": started_utc,
         "duration_s": seconds(started.elapsed().as_secs_f64()),
