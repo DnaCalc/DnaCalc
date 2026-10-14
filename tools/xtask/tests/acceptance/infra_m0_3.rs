@@ -366,6 +366,7 @@ impl WorkspaceCopy {
             ("package.toml", "Cargo.toml"),
             ("lib.rs", "src/lib.rs"),
             ("acceptance.rs", "tests/acceptance.rs"),
+            ("zero_run.rs", "tests/zero_run.rs"),
             ("acceptance.json", "acceptance.json"),
             ("seams.json", "seams.json"),
         ] {
@@ -624,9 +625,10 @@ const CHECKS: [&str; 6] = [
 /// A misspelled required test name fails the runner, and so does every other way of not
 /// executing a registered case: a partial name, an ignored case, a failing case, a case that
 /// reports it could not run (on standard output or standard error), an unregistered prefixed test,
-/// a bead with no case for the platform, an unknown bead, a host that cannot run the platform and
-/// a registered command that fails. A correctly named case passes, and its marker file shows it
-/// ran. No run that executed nothing records `passed`.
+/// a bead with no case for the platform, an unknown bead, a host that cannot run the platform, a
+/// registered command that fails, and a case its target lists whose `--exact` run reports 0
+/// passed. A correctly named case passes, and its marker file shows it ran. No run that executed
+/// nothing records `passed`.
 pub fn zero_tests_fail() {
     const CASE: &str = "infra_m0_3__zero_tests_fail";
     let _serial = super::serial();
@@ -1067,6 +1069,84 @@ pub fn zero_tests_fail() {
             "15-commands: the failing command fails the run (exit code {:?}, result {}) while the case passed",
             run.exit_code,
             run.result()
+        ),
+    );
+
+    // A case its target lists, whose --exact run executes nothing and reports 0 passed. Unlike
+    // the misspelled and partial names, the listing holds the exact name, so the runner runs the
+    // case and must judge libtest's result line; 0 passed is never passed. The fixture target
+    // (zero_run, harness = false) stands for a harness that lists a case and then filters it out.
+    const ZERO_RUN: &str = "fixture_zero_run__alpha";
+    copy.clear_markers();
+    let (code, stdout, _) = copy.cargo(
+        &[
+            "test",
+            "-p",
+            FIXTURE_PACKAGE,
+            "--test",
+            "zero_run",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--",
+            "--list",
+        ],
+        "16-plain-cargo-list-zero-run",
+        &mut evidence,
+    );
+    let listed = format!("{ZERO_RUN}: test");
+    evidence.expect(
+        code == Some(0) && stdout.lines().any(|line| line == listed),
+        format!("16-plain-cargo-list-zero-run: plain cargo exits {code:?} and its listing holds the exact name {ZERO_RUN}"),
+    );
+    evidence.expect(
+        !copy.marker(ZERO_RUN),
+        "16-plain-cargo-list-zero-run: listing the target ran nothing".to_owned(),
+    );
+    let run = copy.accept(
+        &[
+            "--id",
+            "fixture-zero-run",
+            "--platform",
+            host,
+            "--require-all",
+        ],
+        "16-listed-zero-run",
+        true,
+        &mut evidence,
+    );
+    let outcome = run.outcome(ZERO_RUN).unwrap_or("no outcome").to_owned();
+    let result_line = run.run(ZERO_RUN)["result_line"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    evidence.expect(
+        run.exit_code == Some(1)
+            && run.result() == "failed"
+            && (outcome == "missing" || outcome == "failed")
+            && run.printed(&outcome, ZERO_RUN),
+        format!(
+            "16-listed-zero-run: a listed case whose run reports 0 passed is not passed (receipt outcome {outcome}, reason {}), the result is {} and the run exits {:?} under --require-all",
+            run.run(ZERO_RUN)["reason"],
+            run.result(),
+            run.exit_code
+        ),
+    );
+    evidence.expect(
+        result_line.contains(" 0 passed; 0 failed; 0 ignored;"),
+        format!(
+            "16-listed-zero-run: the receipt keeps the run's own result line {result_line:?}, so the runner judged a run rather than a name absent from the listing"
+        ),
+    );
+    let filter = fs::read_to_string(copy.markers.join(ZERO_RUN)).unwrap_or_default();
+    evidence.expect(
+        filter
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .windows(2)
+            .any(|pair| pair == ["--exact", ZERO_RUN]),
+        format!(
+            "16-listed-zero-run: the fixture target's marker shows the runner ran it with --exact {ZERO_RUN} (arguments {filter:?})"
         ),
     );
 

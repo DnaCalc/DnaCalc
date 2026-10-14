@@ -65,6 +65,13 @@
       "commands": []
     },
     {
+      "id": "fixture-zero-run",
+      "test": "zero_run",
+      "cases": ["fixture_zero_run__alpha"],
+      "platforms": {"fixture_zero_run__alpha": ["windows", "linux"]},
+      "commands": []
+    },
+    {
       "id": "fixture-commands",
       "test": "acceptance",
       "cases": ["fixture_commands__alpha"],

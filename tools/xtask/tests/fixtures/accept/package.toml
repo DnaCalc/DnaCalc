@@ -9,3 +9,10 @@ description = "The fixture package of the infra-m0.3 acceptance cases, present o
 
 [package.metadata.dnacalc]
 portability = "portable"
+
+# A second test target, without libtest's harness: it lists one case and executes nothing for it
+# (zero_run.rs, copied as tests/zero_run.rs).
+[[test]]
+name = "zero_run"
+path = "tests/zero_run.rs"
+harness = false
