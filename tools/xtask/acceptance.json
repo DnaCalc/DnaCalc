@@ -1,0 +1,18 @@
+{
+  "package": "xtask",
+  "beads": [
+    {
+      "id": "infra-m0.1",
+      "commands": [
+        ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+        ["cargo", "check", "--workspace"],
+        ["cargo", "check", "--workspace", "--target", "wasm32-unknown-unknown", "--exclude", "calc-platform-desktop", "--exclude", "calc-oracle-excel", "--exclude", "xtask"]
+      ],
+      "cases": [
+        "infra_m0_1__workspace_builds",
+        "infra_m0_1__independent_lanes",
+        "infra_m0_1__agent_contract"
+      ]
+    }
+  ]
+}

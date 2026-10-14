@@ -1,0 +1,9 @@
+[package]
+name = "calc-func"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "The package for CalcFunc: the worksheet function catalogue and semantic kernels."
+
+[package.metadata.dnacalc]
+portability = "portable"

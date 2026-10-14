@@ -11,7 +11,7 @@ The re-implementation of DNA Calc, an Excel-compatible calculation stack written
 
 ## Status
 
-Bootstrap. The workspace does not exist yet; `infra-m0.1` creates it. The first functional milestone is `infra-m1.3`: a real Excel workbook opened, calculated, compared provenance-first, edited, saved and reopened in Excel without repair.
+Bootstrap. `infra-m0.1` created the Cargo workspace; none of its packages has a library API yet. Its acceptance case `infra_m0_1__workspace_builds` runs `cargo check` on every package for the host target and on every portable package for `wasm32-unknown-unknown`. The first functional milestone is `infra-m1.3`: a real Excel workbook opened, calculated, compared provenance-first, edited, saved and reopened in Excel without repair.
 
 ## Legacy sources
 

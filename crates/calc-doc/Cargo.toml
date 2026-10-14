@@ -1,0 +1,9 @@
+[package]
+name = "calc-doc"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "The package for the CalcDoc codec: reading, writing and preserving .xlsx/.xlsm packages (ZIP/XML)."
+
+[package.metadata.dnacalc]
+portability = "portable"

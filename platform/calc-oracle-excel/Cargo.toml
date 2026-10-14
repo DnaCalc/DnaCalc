@@ -1,0 +1,9 @@
+[package]
+name = "calc-oracle-excel"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "The native-only package for the Excel oracle adapter: live capture against an installed Excel."
+
+[package.metadata.dnacalc]
+portability = "native-only"

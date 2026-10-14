@@ -1,0 +1,9 @@
+[package]
+name = "dna-calc"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "The package for the DNA Calc application core: the Excel, notebook, tree and canvas skins over one CalcHost workbook."
+
+[package.metadata.dnacalc]
+portability = "portable"

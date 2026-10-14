@@ -1,0 +1,9 @@
+[package]
+name = "calc-fml"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "The package for CalcFml: the Excel formula language, reference binding, shared formula plans and number formats."
+
+[package.metadata.dnacalc]
+portability = "portable"

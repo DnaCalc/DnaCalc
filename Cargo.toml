@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+# Every member declares `[package.metadata.dnacalc] portability` as "portable" or "native-only".
+# The wasm32 check excludes exactly the native-only members, and each of those refuses to compile
+# for wasm32.
+members = [
+    "crates/calc-value",
+    "crates/calc-func",
+    "crates/calc-fml",
+    "crates/calc-doc-model",
+    "crates/calc-doc",
+    "crates/calc-engine",
+    "crates/calc-host",
+    "apps/dna-onecalc",
+    "apps/dna-calc",
+    "platform/calc-platform-desktop",
+    "platform/calc-oracle-excel",
+    "tools/xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
