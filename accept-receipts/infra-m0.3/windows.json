@@ -1,0 +1,912 @@
+{
+  "architecture": [
+    {
+      "check": "dependencies",
+      "details": {
+        "by_target": {
+          "wasm32-unknown-unknown": {
+            "workspace_closures": {
+              "calc-doc": [],
+              "calc-doc-model": [],
+              "calc-engine": [],
+              "calc-fml": [],
+              "calc-func": [],
+              "calc-host": [],
+              "calc-oracle-excel": [],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": []
+            }
+          },
+          "x86_64-pc-windows-msvc": {
+            "workspace_closures": {
+              "calc-doc": [],
+              "calc-doc-model": [],
+              "calc-engine": [],
+              "calc-fml": [],
+              "calc-func": [],
+              "calc-host": [],
+              "calc-oracle-excel": [],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": []
+            }
+          },
+          "x86_64-unknown-linux-gnu": {
+            "workspace_closures": {
+              "calc-doc": [],
+              "calc-doc-model": [],
+              "calc-engine": [],
+              "calc-fml": [],
+              "calc-func": [],
+              "calc-host": [],
+              "calc-oracle-excel": [],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": []
+            }
+          }
+        },
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "5 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
+    },
+    {
+      "check": "os-imports",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": {
+          "calc-doc": 1,
+          "calc-doc-model": 1,
+          "calc-engine": 1,
+          "calc-fml": 1,
+          "calc-func": 1,
+          "calc-host": 1,
+          "calc-value": 1,
+          "dna-calc": 1,
+          "dna-onecalc": 1
+        },
+        "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "9 non-test source files of 9 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+    },
+    {
+      "check": "wasm-refusal",
+      "details": {
+        "calc-oracle-excel": {
+          "argv": [
+            "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/infra-m0.3/windows/arch/wasm-refusal-calc-oracle-excel.log",
+          "refusal": "calc-oracle-excel is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "calc-platform-desktop": {
+          "argv": [
+            "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/infra-m0.3/windows/arch/wasm-refusal-calc-platform-desktop.log",
+          "refusal": "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "xtask": {
+          "argv": [
+            "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/infra-m0.3/windows/arch/wasm-refusal-xtask.log",
+          "refusal": "xtask is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "3 native-only packages (calc-platform-desktop, calc-oracle-excel, xtask) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!"
+    },
+    {
+      "check": "tree-reference-tokens",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": 9,
+        "phrases": [
+          "tree reference",
+          "tree ref",
+          "reference profile",
+          "profile id",
+          "reference system provider",
+          "host reference"
+        ],
+        "scope": "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "9 non-test source files and 0 build-script files of 9 portable packages against 6 denied phrases and the include macros"
+    },
+    {
+      "check": "seams",
+      "details": {
+        "packages": {
+          "calc-doc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-doc-model": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-engine": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-fml": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-func": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-host": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-value": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "dna-calc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "dna-onecalc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          }
+        },
+        "reach": {
+          "entries_reach_unproven": 0,
+          "owner": "dc-pz3u",
+          "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "9 portable packages declare 0 pub enum variants and 0 pub traits; their seams.json files list 0 entries, 0 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+    },
+    {
+      "check": "word-scan",
+      "details": {
+        "baseline_owner": "dc-0nvp",
+        "baseline_recorded": "2026-10-14",
+        "commits": {},
+        "excluded_identifiers": [
+          {
+            "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 5,
+              "tracker_records": 3
+            },
+            "reason": "acceptance case name of infra-m0.5, a fixed identity"
+          },
+          {
+            "identifier_hex": "696e6672615f6d375f315f5f6c6963656e73655f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of infra-m7.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "6f6e6563616c635f6d315f315f5f646570656e64656e63795f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "646e6163616c632d617263682d6761746573",
+            "masked": {
+              "commit_messages": 0,
+              "files": 2,
+              "tracker_records": 0
+            },
+            "reason": "directory name of a crate in the read-only legacy repository DnaTreeCalc, cited as a path"
+          }
+        ],
+        "files": {
+          "docs/plan/BEAD_DETAILS.md": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/BEAD_GRAPH.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md": {
+            "baseline": 7,
+            "count": 7
+          },
+          "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md": {
+            "baseline": 2,
+            "count": 2
+          },
+          "docs/plan/beads.br.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/beads.plan.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/build_plan.py": {
+            "baseline": 13,
+            "count": 13
+          },
+          "docs/plan/coverage.json": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/topological-order.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/validate_plan.py": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "forms": 5,
+        "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
+        "scanned": {
+          "commit_messages": 5,
+          "files": 20,
+          "tracker_records": 259
+        },
+        "tracker": {
+          "ceng-m7.1": {
+            "baseline": 1,
+            "count": 1
+          },
+          "cfunc-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m0.3": {
+            "baseline": 3,
+            "count": 3
+          },
+          "infra-m3.20": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.21": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.22": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.23": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m7.5": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m8.2": {
+            "baseline": 2,
+            "count": 2
+          },
+          "onecalc-m2.1": {
+            "baseline": 1,
+            "count": 1
+          }
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 259 tracker records, 0 in 0 of 5 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 18 occurrences masked by 4 excluded identifiers"
+    }
+  ],
+  "bead": "infra-m0.3",
+  "cargo_target_dir": "target/xtask-accept",
+  "cases": [
+    {
+      "argv": [
+        "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "xtask",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--",
+        "--exact",
+        "infra_m0_3__zero_tests_fail",
+        "--nocapture"
+      ],
+      "case": "infra_m0_3__zero_tests_fail",
+      "duration_s": 46.483,
+      "exit_code": 0,
+      "log": "target/accept/infra-m0.3/windows/infra_m0_3__zero_tests_fail.log",
+      "outcome": "passed",
+      "package": "xtask",
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 46.35s"
+    },
+    {
+      "argv": [
+        "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "xtask",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--",
+        "--exact",
+        "infra_m0_3__forbidden_dependency",
+        "--nocapture"
+      ],
+      "case": "infra_m0_3__forbidden_dependency",
+      "duration_s": 55.563,
+      "exit_code": 0,
+      "log": "target/accept/infra-m0.3/windows/infra_m0_3__forbidden_dependency.log",
+      "outcome": "passed",
+      "package": "xtask",
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 55.44s"
+    }
+  ],
+  "command": [
+    "cargo",
+    "xtask",
+    "accept",
+    "--id",
+    "infra-m0.3",
+    "--platform",
+    "windows",
+    "--require-all"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "xtask",
+        "--test",
+        "acceptance",
+        "infra_m0_3",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 104.279,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 102.62s"
+      ],
+      "log": "target/accept/infra-m0.3/windows/command-1.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "xtask",
+        "--test",
+        "acceptance",
+        "infra_m0_3",
+        "--",
+        "--nocapture"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "xtask",
+        "--bins"
+      ],
+      "duration_s": 4.131,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s"
+      ],
+      "log": "target/accept/infra-m0.3/windows/command-2.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/stable-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "xtask",
+        "--bins"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "infra-m0.3",
+        "--platform",
+        "windows",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "infra-m0.3",
+        "--platform",
+        "linux",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    }
+  ],
+  "committed_copy": "accept-receipts/infra-m0.3/windows.json",
+  "counts": {
+    "architecture_checks": 6,
+    "architecture_checks_passed": 6,
+    "commands_failed": 0,
+    "commands_not_run": 0,
+    "commands_registered": 4,
+    "commands_run": 2,
+    "commands_skipped": 2,
+    "failed": 0,
+    "ignored": 0,
+    "missing": 0,
+    "not_run": 0,
+    "passed": 2,
+    "selected": 2
+  },
+  "duration_s": 213.63,
+  "exit_code": 0,
+  "format": "dnacalc-accept-receipt/2",
+  "host": {
+    "arch": "x86_64",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "git": {
+      "branch": "master",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "cb2fbfcbba3bc79adfe0d821d8f902aa6c3eee84",
+          "path": ".beads/issues.jsonl",
+          "status": "M"
+        },
+        {
+          "blob": "2568b1119ab2176744206c69c9e531390ed214e6",
+          "path": "AGENTS.md",
+          "status": "M"
+        },
+        {
+          "blob": "64e0fa63ffd07b7f8dc3fd32988200252e2524a2",
+          "path": "Cargo.lock",
+          "status": "M"
+        },
+        {
+          "blob": "f087865127aed9f52520d576646cebf80ed2097f",
+          "path": "README.md",
+          "status": "M"
+        },
+        {
+          "blob": "7390ad1c7211b5068c2e448f257839b8c73ce7bd",
+          "path": "tools/xtask/Cargo.toml",
+          "status": "M"
+        },
+        {
+          "blob": "4c475722cafd4eb36022df73f54c52addc622c13",
+          "path": "tools/xtask/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "95146592dd28d659152c3e44dc6c4cd30f6c90e0",
+          "path": "tools/xtask/src/main.rs",
+          "status": "M"
+        },
+        {
+          "blob": "d91c91852192b0b1b1892e007be9ea127ed97f55",
+          "path": "tools/xtask/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "55aae76fa671a1e8443fb8d4e01b03590e6b73b7",
+          "path": ".cargo/config.toml",
+          "status": "??"
+        },
+        {
+          "blob": "eae43e0c02f812062eed047cd4056bc5d0faa5f4",
+          "path": "apps/dna-calc/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "138e49ec9939e53792a2a2436fe56e0aa3929d91",
+          "path": "apps/dna-onecalc/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "8ee674827d2be0abf5886e6df0b8d82cb7e22596",
+          "path": "crates/calc-doc-model/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "8e0685a70ee4f0b1a0b5d6698bab560a85710256",
+          "path": "crates/calc-doc/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "9ee42f7a668f6b35620cea37372dcdc1ba89d617",
+          "path": "crates/calc-engine/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "0f43d36c1456867547fbd1b7ac96c664a10635ec",
+          "path": "crates/calc-fml/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "2eb2cf75ec18b48614040cccd86f3d797f6db39e",
+          "path": "crates/calc-func/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "dd672e64cda55215c3152bf8487042636632b17b",
+          "path": "crates/calc-host/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "beaa1aa16911f67cedc7fbe7bafb1dfa18e5e3cb",
+          "path": "crates/calc-value/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "a04b3f4ccab2266a411101c7ad832240b982b8f9",
+          "path": "tools/xtask/architecture.json",
+          "status": "??"
+        },
+        {
+          "blob": "fcdeaed4fa9f80b7cf142857270762d50c9fcf29",
+          "path": "tools/xtask/src/accept.rs",
+          "status": "??"
+        },
+        {
+          "blob": "b2fc836da85d478e9f7e8b633b8db56bd762067a",
+          "path": "tools/xtask/src/arch.rs",
+          "status": "??"
+        },
+        {
+          "blob": "6b0f9f2a3caf1f0381c93abdbfa114eac2124d90",
+          "path": "tools/xtask/src/cargo.rs",
+          "status": "??"
+        },
+        {
+          "blob": "101fce28ffa00496526d6f00656700b44eb4f884",
+          "path": "tools/xtask/src/manifest.rs",
+          "status": "??"
+        },
+        {
+          "blob": "a475cac2ba5bfce2bd3ae8d40196e61e15e43619",
+          "path": "tools/xtask/src/rust_source.rs",
+          "status": "??"
+        },
+        {
+          "blob": "09b2031a146212a2213aa92c7d201b2ea497f8e7",
+          "path": "tools/xtask/src/seams.rs",
+          "status": "??"
+        },
+        {
+          "blob": "9d6eef3130b944ed4b140dd3e5913c2bcb4448ff",
+          "path": "tools/xtask/src/text.rs",
+          "status": "??"
+        },
+        {
+          "blob": "fbc167458b247df14c86a5e4cb30b72bcca6715b",
+          "path": "tools/xtask/src/words.rs",
+          "status": "??"
+        },
+        {
+          "blob": "a382d6991c7e73601ae54042c8a94c634ca7c8c8",
+          "path": "tools/xtask/tests/acceptance/infra_m0_3.rs",
+          "status": "??"
+        },
+        {
+          "blob": "8acce9acf92a1c8b37602a7adc4bbd552d41515b",
+          "path": "tools/xtask/tests/fixtures/accept/acceptance.json",
+          "status": "??"
+        },
+        {
+          "blob": "ad2f1d291471c14fc02f81b7fb0a536e2e8ea34f",
+          "path": "tools/xtask/tests/fixtures/accept/acceptance.rs",
+          "status": "??"
+        },
+        {
+          "blob": "63a6d7ee58da4c57b70135e807cde459dd167134",
+          "path": "tools/xtask/tests/fixtures/accept/lib.rs",
+          "status": "??"
+        },
+        {
+          "blob": "99467b80986f38215ce65f83a5c069621de69130",
+          "path": "tools/xtask/tests/fixtures/accept/package.toml",
+          "status": "??"
+        },
+        {
+          "blob": "b792e5a9d7a1172e214b9da3bdaba4949c233e99",
+          "path": "tools/xtask/tests/fixtures/accept/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "a686ddfbf30340fcd21be2358a6a807f2aae2f39",
+          "path": "tools/xtask/tests/fixtures/module_tree/src/lib.rs",
+          "status": "??"
+        },
+        {
+          "blob": "c20391b3499c58c724cc82245812ee94ff40a8d9",
+          "path": "tools/xtask/tests/fixtures/module_tree/src/nested/inner.rs",
+          "status": "??"
+        },
+        {
+          "blob": "7968466ab6a6af8f55e2c983817ecaab31aa2038",
+          "path": "tools/xtask/tests/fixtures/module_tree/src/nested/mod.rs",
+          "status": "??"
+        },
+        {
+          "blob": "5079aef419360e47a7f0447d59b8b84a55671cd6",
+          "path": "tools/xtask/tests/fixtures/module_tree/src/renamed.rs",
+          "status": "??"
+        },
+        {
+          "blob": "f2a68bc4f56372299fb8b7b6f6eb3625c7b6cefc",
+          "path": "tools/xtask/tests/fixtures/os_imports/build.rs",
+          "status": "??"
+        },
+        {
+          "blob": "56986662f2939a944d9e84bf188a9596e107dbd7",
+          "path": "tools/xtask/tests/fixtures/os_imports/src/lib.rs",
+          "status": "??"
+        },
+        {
+          "blob": "e40d0701fed9daf4be89d6b8052e55d18970c5b0",
+          "path": "tools/xtask/tests/fixtures/seams/app_pkg/src/lib.rs",
+          "status": "??"
+        },
+        {
+          "blob": "73c9e3b5b1dbd9b0fbdd4b82923dabc37f2de018",
+          "path": "tools/xtask/tests/fixtures/seams/lib_pkg/seams.json",
+          "status": "??"
+        },
+        {
+          "blob": "428db88c941b63379d08d6e2f8ac2759613142be",
+          "path": "tools/xtask/tests/fixtures/seams/lib_pkg/src/lib.rs",
+          "status": "??"
+        },
+        {
+          "blob": "94240e3a410bf8e2160a5a0727015aea78984e42",
+          "path": "tools/xtask/tests/fixtures/seams/lib_pkg/src/shapes.rs",
+          "status": "??"
+        },
+        {
+          "blob": "57f973bee0bf8170271ddf6fe4577fb55b881157",
+          "path": "tools/xtask/tests/fixtures/tree_tokens/build.rs",
+          "status": "??"
+        },
+        {
+          "blob": "2be565af089e6bb821c0dfcb5138d2e4233e8038",
+          "path": "tools/xtask/tests/fixtures/tree_tokens/src/lib.rs",
+          "status": "??"
+        },
+        {
+          "blob": "53e44fa5579acd09308dd5671e91127d1f6c6a7b",
+          "path": "tools/xtask/tests/fixtures/tree_tokens/src/profiles.rs",
+          "status": "??"
+        },
+        {
+          "blob": "833228984c43ade759a35a90c0b54f56b663198b",
+          "path": "tools/xtask/tests/fixtures/word_scan/agents.tmpl",
+          "status": "??"
+        },
+        {
+          "blob": "ab3d2cc747bf729fe46dd2396773c5785dede2e8",
+          "path": "tools/xtask/tests/fixtures/word_scan/baseline.json",
+          "status": "??"
+        },
+        {
+          "blob": "09e730eba099b59b413b405d84c5c24f70f4accc",
+          "path": "tools/xtask/tests/fixtures/word_scan/notes.tmpl",
+          "status": "??"
+        },
+        {
+          "blob": "eddbef314562bd8cfabc19446d2becc41ac569c7",
+          "path": "tools/xtask/tests/fixtures/word_scan/readme.tmpl",
+          "status": "??"
+        },
+        {
+          "blob": "d19652c7b057d977b2de920a67eb2a6ccdaa9d17",
+          "path": "tools/xtask/tests/fixtures/word_scan/tracker.tmpl",
+          "status": "??"
+        },
+        {
+          "blob": "839c023f409290688082d918a853aa82cb910baf",
+          "path": "tools/xtask/word-scan.json",
+          "status": "??"
+        }
+      ],
+      "head": "a61dfd0115d4f2e8f354cf27dc574037588bfea9",
+      "receipt_paths_left_out": [
+        "accept-receipts/infra-m0.3/windows.json"
+      ]
+    },
+    "os": "windows",
+    "platform_matches_host": true,
+    "platform_mismatch": null,
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "rustc_host": "x86_64-pc-windows-msvc"
+  },
+  "manifests": {
+    "errors": [],
+    "files": [
+      "crates/calc-value/acceptance.json",
+      "crates/calc-func/acceptance.json",
+      "crates/calc-fml/acceptance.json",
+      "crates/calc-doc-model/acceptance.json",
+      "crates/calc-doc/acceptance.json",
+      "crates/calc-engine/acceptance.json",
+      "crates/calc-host/acceptance.json",
+      "apps/dna-onecalc/acceptance.json",
+      "apps/dna-calc/acceptance.json",
+      "platform/calc-platform-desktop/acceptance.json",
+      "platform/calc-oracle-excel/acceptance.json",
+      "tools/xtask/acceptance.json"
+    ]
+  },
+  "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it",
+  "platform": "windows",
+  "problems": [],
+  "receipt": "target/accept/infra-m0.3/windows/receipt.json",
+  "require_all": true,
+  "result": "passed",
+  "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. The run exits 0 for passed, and for not_run only without --require-all.",
+  "started_utc": "2026-10-14T13:46:39Z"
+}

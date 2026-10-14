@@ -1825,3 +1825,23 @@ fn infra_m0_1__agent_contract() {
 
     finish(CASE, &receipt, &evidence, &failures);
 }
+
+/// The bodies of the infra-m0.3 cases, which drive the xtask binary against a copy of the
+/// workspace.
+#[path = "acceptance/infra_m0_3.rs"]
+mod infra_m0_3;
+
+/// A misspelled required test name fails the runner (with the other ways of not executing a
+/// registered case); see `acceptance/infra_m0_3.rs`.
+#[test]
+fn infra_m0_3__zero_tests_fail() {
+    infra_m0_3::zero_tests_fail();
+}
+
+/// Adding calc-engine to OneCalc or calc-host to CalcFml is rejected mechanically, and so are an
+/// OS import, an OS-binding crate and a native-only package without its wasm32 refusal; see
+/// `acceptance/infra_m0_3.rs`.
+#[test]
+fn infra_m0_3__forbidden_dependency() {
+    infra_m0_3::forbidden_dependency();
+}

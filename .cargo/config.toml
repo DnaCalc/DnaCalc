@@ -1,0 +1,5 @@
+# `cargo xtask <command>` runs the repository tooling in tools/xtask. This file sets no
+# build.target-dir: every clone keeps its own target/, and cargo started by xtask uses
+# target/xtask-accept.
+[alias]
+xtask = "run --package xtask --locked --"

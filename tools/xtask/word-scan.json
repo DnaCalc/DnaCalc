@@ -1,0 +1,44 @@
+{
+  "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
+  "encoding": "every form and every excluded identifier below is the lower-case hex of its ASCII bytes (6162 is ab), so this file holds none of the words it counts",
+  "terms": [
+    {"forms_hex": ["70726f64756374696f6e207265616479"]},
+    {"forms_hex": ["67617465", "6761746573", "6761746564", "676174696e67"]}
+  ],
+  "excluded_identifiers": [
+    {"identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465", "reason": "acceptance case name of infra-m0.5, a fixed identity"},
+    {"identifier_hex": "696e6672615f6d375f315f5f6c6963656e73655f67617465", "reason": "acceptance case name of infra-m7.1, a fixed identity"},
+    {"identifier_hex": "6f6e6563616c635f6d315f315f5f646570656e64656e63795f67617465", "reason": "acceptance case name of onecalc-m1.1, a fixed identity"},
+    {"identifier_hex": "646e6163616c632d617263682d6761746573", "reason": "directory name of a crate in the read-only legacy repository DnaTreeCalc, cited as a path"}
+  ],
+  "baseline": {
+    "owner": "dc-0nvp",
+    "recorded": "2026-10-14",
+    "files": {
+      "docs/plan/BEAD_DETAILS.md": 14,
+      "docs/plan/BEAD_GRAPH.md": 1,
+      "docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md": 7,
+      "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md": 2,
+      "docs/plan/beads.br.jsonl": 14,
+      "docs/plan/beads.plan.jsonl": 14,
+      "docs/plan/build_plan.py": 13,
+      "docs/plan/coverage.json": 1,
+      "docs/plan/topological-order.md": 1,
+      "docs/plan/validate_plan.py": 1
+    },
+    "tracker": {
+      "ceng-m7.1": 1,
+      "cfunc-m3.24": 1,
+      "infra-m0.3": 3,
+      "infra-m3.20": 1,
+      "infra-m3.21": 1,
+      "infra-m3.22": 1,
+      "infra-m3.23": 1,
+      "infra-m3.24": 1,
+      "infra-m7.5": 1,
+      "infra-m8.2": 2,
+      "onecalc-m2.1": 1
+    },
+    "commits": {}
+  }
+}

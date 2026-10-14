@@ -1,0 +1,61 @@
+{
+  "dependency_rules": [
+    {
+      "package": "calc-func",
+      "scope": "closure",
+      "forbidden": ["calc-fml", "calc-engine", "calc-host"],
+      "reason": "plan 1.3: CalcFunc cannot depend on CalcFml, CalcEngine or CalcHost"
+    },
+    {
+      "package": "calc-fml",
+      "scope": "closure",
+      "forbidden": ["calc-engine", "calc-host", "calc-doc"],
+      "reason": "plan 1.3: CalcFml cannot depend on CalcEngine, CalcHost or the CalcDoc codec"
+    },
+    {
+      "package": "calc-engine",
+      "scope": "closure",
+      "forbidden": ["calc-doc", "calc-host", "dna-onecalc", "dna-calc"],
+      "reason": "plan 1.3: CalcEngine may depend on the CalcDoc model, never its codec, the applications or the skins"
+    },
+    {
+      "package": "dna-onecalc",
+      "scope": "closure",
+      "forbidden": ["calc-engine", "calc-host"],
+      "reason": "plan 1.3: OneCalc's transitive dependency closure contains no CalcEngine or CalcHost"
+    },
+    {
+      "package": "dna-calc",
+      "scope": "direct",
+      "forbidden": ["calc-engine"],
+      "reason": "plan 1.3: skins depend on the skin contract and controller layer, never engine internals"
+    }
+  ],
+  "os_binding_crates": [
+    "libc",
+    "nix",
+    "ntapi",
+    "rustix",
+    "winapi",
+    "winapi-util",
+    "windows",
+    "windows-core",
+    "windows-link",
+    "windows-sys",
+    "windows-targets",
+    "winreg"
+  ],
+  "os_import_paths": ["std::fs", "std::process", "std::os", "std::net"],
+  "os_import_abis": ["system"],
+  "os_import_attributes": ["link"],
+  "tree_reference_phrases": [
+    "tree reference",
+    "TreeRef",
+    "tree_ref",
+    "reference profile",
+    "ReferenceProfile",
+    "profile_id",
+    "ReferenceSystemProvider",
+    "host reference"
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "package": "xtask-fixture",
+  "beads": [
+    {
+      "id": "fixture-pass",
+      "test": "acceptance",
+      "cases": ["fixture_pass__alpha"],
+      "platforms": {"fixture_pass__alpha": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-misspelled",
+      "test": "acceptance",
+      "cases": ["fixture_misspelled__alpah"],
+      "platforms": {"fixture_misspelled__alpah": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-partial",
+      "test": "acceptance",
+      "cases": ["fixture_partial__alpha"],
+      "platforms": {"fixture_partial__alpha": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-ignored",
+      "test": "acceptance",
+      "cases": ["fixture_ignored__alpha"],
+      "platforms": {"fixture_ignored__alpha": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-failing",
+      "test": "acceptance",
+      "cases": ["fixture_failing__alpha"],
+      "platforms": {"fixture_failing__alpha": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-notrun",
+      "test": "acceptance",
+      "cases": ["fixture_notrun__alpha"],
+      "platforms": {"fixture_notrun__alpha": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-notrun-stderr",
+      "test": "acceptance",
+      "cases": ["fixture_notrun_stderr__alpha"],
+      "platforms": {"fixture_notrun_stderr__alpha": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-unregistered",
+      "test": "acceptance",
+      "cases": ["fixture_unregistered__beta"],
+      "platforms": {"fixture_unregistered__beta": ["windows", "linux"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-excel",
+      "test": "acceptance",
+      "cases": ["fixture_excel__alpha"],
+      "platforms": {"fixture_excel__alpha": ["excel"]},
+      "commands": []
+    },
+    {
+      "id": "fixture-commands",
+      "test": "acceptance",
+      "cases": ["fixture_commands__alpha"],
+      "platforms": {"fixture_commands__alpha": ["windows", "linux"]},
+      "commands": [
+        ["cargo", "--version"],
+        ["cargo", "xtask", "accept", "--id", "fixture-commands", "--platform", "linux", "--require-all"],
+        ["cargo", "check", "-p", "xtask-fixture-no-such-package"]
+      ]
+    }
+  ]
+}
