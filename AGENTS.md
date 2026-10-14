@@ -14,7 +14,7 @@ This is the DNA Calc re-implementation: one Cargo workspace for CalcFunc, CalcFm
 - Claim it: `br update <id> --status in_progress`. One bead per agent session, one library per bead.
 - Do exactly the bead's **Do** and prove its **Acceptance**. Every named acceptance case must exist, run and pass on the declared platforms; keep the receipt. A zero-test run is a failure.
 - Close with evidence: `br close <id> --reason "<what was proven, commands run, commit>"`, then `br sync --flush-only` and commit `.beads/`.
-- A missing prerequisite or a discovered gap gets a new bead (`br create ... --deps blocks:<id>`), never a local substitute or a widened scope. New bead IDs use the `dc` prefix; imported IDs keep their library prefixes.
+- A missing prerequisite or a discovered gap gets a new bead, never a local substitute or a widened scope. Two directions, verified on br 0.1.34: a prerequisite that must land before the current bead is created with `br create ...` and attached with `br dep add <current> <new>` (the current bead then depends on it and cannot close first); a follow-up that the current bead must not wait for is created with `br create ... --deps blocks:<current>` (the new bead depends on the current one). New bead IDs use the `dc` prefix; imported IDs keep their library prefixes.
 - Epics hold no work. A parent-child link never blocks a task.
 
 ## Git: master only, no branches, no worktrees, ever
