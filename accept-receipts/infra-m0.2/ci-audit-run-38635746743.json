@@ -1,0 +1,664 @@
+{
+  "allow_dirty": false,
+  "app_cores": [
+    "dna-onecalc",
+    "dna-calc"
+  ],
+  "checkout_head": "c74457c8bdbffa25943a7e18a765ef48528517e0",
+  "command": [
+    "cargo xtask ci-audit",
+    "--require-executed-targets",
+    "windows,linux,wasm",
+    "--run",
+    "38635746743"
+  ],
+  "counts": {
+    "package_targets_with_tests_passed": 0,
+    "package_targets_with_zero_tests": 27
+  },
+  "expected_packages": [
+    {
+      "dir": "crates/calc-value",
+      "package": "calc-value"
+    },
+    {
+      "dir": "crates/calc-func",
+      "package": "calc-func"
+    },
+    {
+      "dir": "crates/calc-fml",
+      "package": "calc-fml"
+    },
+    {
+      "dir": "crates/calc-doc-model",
+      "package": "calc-doc-model"
+    },
+    {
+      "dir": "crates/calc-doc",
+      "package": "calc-doc"
+    },
+    {
+      "dir": "crates/calc-engine",
+      "package": "calc-engine"
+    },
+    {
+      "dir": "crates/calc-host",
+      "package": "calc-host"
+    },
+    {
+      "dir": "apps/dna-onecalc",
+      "package": "dna-onecalc"
+    },
+    {
+      "dir": "apps/dna-calc",
+      "package": "dna-calc"
+    }
+  ],
+  "format": "dnacalc-ci-audit/1",
+  "problems": [],
+  "required_targets": [
+    "windows",
+    "linux",
+    "wasm"
+  ],
+  "result": "passed",
+  "rule": "for each required target exactly one manifest (an executed-targets.json directly inside a windows/, linux/ or wasm/ directory, or a file named by its path), whose job passed, made at this checkout's commit from a clean working tree (a dirty one only with --allow-dirty), in which every portable package (both app cores among them) was built and had its test harness run on every target cargo built for it without a failure, on wasm under wasm-bindgen-test-runner for Chrome and for Firefox with the route probe passed in both browsers; zero-test packages are counted apart and never as passed, and on wasm a package for which wasm-bindgen-test-runner reported no tests started no browser",
+  "sources": [
+    {
+      "dir": "target/ci-audit/run-38635746743",
+      "manifests": [
+        "target/ci-audit/run-38635746743/ci-linux/target/ci/linux/executed-targets.json",
+        "target/ci-audit/run-38635746743/ci-wasm/target/ci/wasm/executed-targets.json",
+        "target/ci-audit/run-38635746743/ci-windows/target/ci/windows/executed-targets.json"
+      ],
+      "run": "38635746743",
+      "skipped": [],
+      "summary": {
+        "conclusion": "success",
+        "databaseId": 38635746743,
+        "event": "push",
+        "headBranch": "master",
+        "headSha": "c74457c8bdbffa25943a7e18a765ef48528517e0",
+        "status": "completed",
+        "url": "https://github.com/DnaCalc/DnaCalc/actions/runs/38635746743",
+        "workflowName": "ci"
+      }
+    }
+  ],
+  "targets": {
+    "linux": {
+      "dirty": false,
+      "dirty_accepted_by_allow_dirty": false,
+      "dirty_paths": [],
+      "head": "c74457c8bdbffa25943a7e18a765ef48528517e0",
+      "job_result": "passed",
+      "manifest": "target/ci-audit/run-38635746743/ci-linux/target/ci/linux/executed-targets.json",
+      "packages": [
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-value",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-func",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-fml",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-doc-model",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-doc",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-engine",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-host",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "dna-onecalc",
+          "passed": 0,
+          "present": true,
+          "role": "app-core",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "dna-calc",
+          "passed": 0,
+          "present": true,
+          "role": "app-core",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        }
+      ],
+      "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)"
+    },
+    "wasm": {
+      "dirty": false,
+      "dirty_accepted_by_allow_dirty": false,
+      "dirty_paths": [],
+      "head": "c74457c8bdbffa25943a7e18a765ef48528517e0",
+      "job_result": "passed",
+      "manifest": "target/ci-audit/run-38635746743/ci-wasm/target/ci/wasm/executed-targets.json",
+      "packages": [
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_value"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_value"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "calc-value",
+          "present": true,
+          "role": "library",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_func"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_func"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "calc-func",
+          "present": true,
+          "role": "library",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_fml"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_fml"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "calc-fml",
+          "present": true,
+          "role": "library",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_doc_model"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_doc_model"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "calc-doc-model",
+          "present": true,
+          "role": "library",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_doc"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_doc"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "calc-doc",
+          "present": true,
+          "role": "library",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_engine"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_engine"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "calc-engine",
+          "present": true,
+          "role": "library",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_host"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "calc_host"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "calc-host",
+          "present": true,
+          "role": "library",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "dna_onecalc"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "dna_onecalc"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "dna-onecalc",
+          "present": true,
+          "role": "app-core",
+          "status": "zero_tests"
+        },
+        {
+          "browsers": {
+            "chromium": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "dna_calc"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            },
+            "firefox": {
+              "browser_started": false,
+              "built": true,
+              "failed": 0,
+              "harness_ran": true,
+              "passed": 0,
+              "runner_reported_no_tests_for": [
+                "dna_calc"
+              ],
+              "status": "zero_tests",
+              "tests_run": 0
+            }
+          },
+          "package": "dna-calc",
+          "present": true,
+          "role": "app-core",
+          "status": "zero_tests"
+        }
+      ],
+      "route_probe": {
+        "chromium": {
+          "outcome": "passed",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:33357/`",
+          "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+        },
+        "firefox": {
+          "outcome": "passed",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:37065/`",
+          "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0"
+        }
+      },
+      "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+      "tools": {
+        "chrome": "Google Chrome 155.0.8059.39",
+        "chromedriver": "ChromeDriver 155.0.8059.39 (3ff7ac5a9224be9156d7f8703a06e22890aafd34-refs/branch-heads/8059@{#935})",
+        "firefox": "Mozilla Firefox 157.0",
+        "geckodriver": "geckodriver 0.37.1 (300705c65d1b 2026-07-17 09:25 +0000)",
+        "wasm-bindgen-test-runner": "wasm-bindgen-test-runner 0.2.117"
+      }
+    },
+    "windows": {
+      "dirty": false,
+      "dirty_accepted_by_allow_dirty": false,
+      "dirty_paths": [],
+      "head": "c74457c8bdbffa25943a7e18a765ef48528517e0",
+      "job_result": "passed",
+      "manifest": "target/ci-audit/run-38635746743/ci-windows/target/ci/windows/executed-targets.json",
+      "packages": [
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-value",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-func",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-fml",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-doc-model",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-doc",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-engine",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "calc-host",
+          "passed": 0,
+          "present": true,
+          "role": "library",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "dna-onecalc",
+          "passed": 0,
+          "present": true,
+          "role": "app-core",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        },
+        {
+          "browser_started": null,
+          "built": true,
+          "failed": 0,
+          "harness_ran": true,
+          "package": "dna-calc",
+          "passed": 0,
+          "present": true,
+          "role": "app-core",
+          "runner_reported_no_tests_for": null,
+          "status": "zero_tests",
+          "tests_run": 0
+        }
+      ],
+      "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)"
+    }
+  }
+}
