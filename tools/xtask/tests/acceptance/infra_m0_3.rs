@@ -1645,13 +1645,30 @@ pub fn forbidden_dependency() {
     );
     copy.replace(source, &old);
 
-    // OS-binding crates: stand-in path crates outside the copy, named like the deny list.
+    // OS-binding crates: stand-in path crates outside the copy, named like the deny list, attached
+    // to dna-onecalc. Plan 2.1's diagram has no arrow into OneCalc and no member depends on it
+    // (checked below; no architecture rule forbids one), so the check's lines name dna-onecalc
+    // alone, whichever portable packages depend on each other.
+    const HOLDER: &str = "dna-onecalc";
+    let dependents: Vec<&String> = copy
+        .graph
+        .edges
+        .iter()
+        .filter(|(_, to)| to.iter().any(|name| name == HOLDER))
+        .map(|(from, _)| from)
+        .collect();
+    evidence.expect(
+        dependents.is_empty(),
+        format!("os-binding: no package of the copy depends on {HOLDER}: {dependents:?}"),
+    );
     let winapi = copy.base.join("winapi");
     stand_in_crate(&winapi, "winapi", None);
     let shim = copy.base.join("shim");
     stand_in_crate(&shim, "shim", Some(&path_dependency("winapi", &winapi)));
-    let manifest = "crates/calc-value/Cargo.toml";
-    let old_manifest = fs::read_to_string(copy.path(manifest)).expect("read calc-value's manifest");
+    let manifest = copy.rel(&copy.graph.member_dir(HOLDER).join("Cargo.toml"));
+    let manifest = manifest.as_str();
+    let old_manifest =
+        fs::read_to_string(copy.path(manifest)).expect("read dna-onecalc's manifest");
     let binding: [(&str, &Path, Vec<String>); 2] = [
         (
             "os-binding-direct",
@@ -1660,7 +1677,7 @@ pub fn forbidden_dependency() {
                 .iter()
                 .map(|t| {
                     format!(
-                        "[{t}] portable calc-value depends directly on the OS-binding crate winapi"
+                        "[{t}] portable {HOLDER} depends directly on the OS-binding crate winapi"
                     )
                 })
                 .collect(),
@@ -1669,7 +1686,7 @@ pub fn forbidden_dependency() {
             "os-binding-transitive",
             &shim,
             vec![format!(
-                "[{WASM_TARGET}] portable calc-value has the OS-binding crate winapi in its {WASM_TARGET} dependency closure"
+                "[{WASM_TARGET}] portable {HOLDER} has the OS-binding crate winapi in its {WASM_TARGET} dependency closure"
             )],
         ),
     ];
@@ -1683,8 +1700,8 @@ pub fn forbidden_dependency() {
             manifest,
             &add_dependency(&old_manifest, &path_dependency(&name, dir)),
         );
-        let (code, _, _) = copy.cargo(
-            &["metadata", "--format-version", "1"],
+        let (code, stdout, _) = copy.cargo(
+            &["metadata", "--format-version", "1", "--all-features"],
             &format!("{label}-lock"),
             &mut evidence,
         );
@@ -1695,12 +1712,50 @@ pub fn forbidden_dependency() {
                 "{label}: cargo metadata exits {code:?} and rewrites the copy's Cargo.lock with the {name} path crate ({relocked})"
             ),
         );
+        // Which portable packages reach the stand-in, from the copy's resolved metadata.
+        let resolved = (code == Some(0)).then(|| Graph::parse(&stdout));
+        let reaching: Vec<String> = resolved
+            .as_ref()
+            .map(|graph| {
+                graph
+                    .members
+                    .iter()
+                    .filter(|(member, (_, portability, _))| {
+                        portability == "portable" && graph.closure(member).contains("winapi")
+                    })
+                    .map(|(member, _)| member.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        evidence.expect(
+            reaching == [HOLDER],
+            format!("{label}: the copy's resolved metadata has winapi in the closure of the portable packages {reaching:?}, exactly [{HOLDER:?}]"),
+        );
         copy.clear_markers();
         let run = copy.accept(&accept_args, label, true, &mut evidence);
         let findings = run.findings("os-imports").unwrap_or_default();
         evidence.expect(
             run.exit_code == Some(1) && findings == expected,
             format!("{label}: exit code {:?}; the os-imports check reports exactly {expected:?} (a transitive OS-binding crate counts only in the wasm32 closure); got {findings:?}", run.exit_code),
+        );
+        // Each printed line names its package after `] portable `; that package must be the
+        // holder, and its resolved closure must really contain the stand-in.
+        let named: Vec<Option<&str>> = findings
+            .iter()
+            .map(|finding| {
+                finding
+                    .split_once("] portable ")
+                    .and_then(|(_, rest)| rest.split(' ').next())
+            })
+            .collect();
+        evidence.expect(
+            !findings.is_empty()
+                && named.iter().all(|package| {
+                    package.is_some_and(|package| {
+                        package == HOLDER && reaching.iter().any(|r| r == package)
+                    })
+                }),
+            format!("{label}: every os-imports line names {HOLDER}, a package whose resolved closure contains winapi; the lines name {named:?}"),
         );
         evidence.expect(
             run.checks_ok_except(&["os-imports"]),
