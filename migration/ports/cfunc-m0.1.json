@@ -1,0 +1,2559 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfunc-m0.1",
+  "written": "2026-10-15",
+  "about": "What cfunc-m0.1 ported into crates/calc-value from the pinned legacy source, what it changed and why, what it left out with the beads that will need it (found by the owner search it records), and each OxFunc test whose expectation the port keeps, changes or drops. Only this bead writes this file.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_value_types/src/lib.rs",
+      "blob": "d79060c9fb57d6620482644dfe2b2a29d11b8ede",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); the blob equals the pin's",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_value_types/src/lib.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc run-time loads"
+        ],
+        "how_the_port_meets_it": "The file's only run-time loads are fs::read_dir and fs::read_to_string in its test module wire_schema_tests, which reads the repository's own sources. That module is not ported, and nothing ported loads anything at run time, so no listed module needs a clean replacement."
+      },
+      "ported": [
+        {
+          "symbol": "CalcValue",
+          "to": "crates/calc-value/src/value.rs CalcValue",
+          "kept": [
+            "a value is a worksheet-visible CoreValue plus an optional shared callable",
+            "constructors new, number, text, logical, error, empty, missing, array, reference, callable",
+            "projections core, as_number, as_text, as_logical, as_error, as_array, as_reference, is_empty, is_missing, callable_value",
+            "a callable value's core is Error(Calc) (#CALC!), so as_error reports Calc",
+            "equality compares the core and the callable"
+          ],
+          "changes": [
+            {
+              "change": "The rich slot Option<Shared<RichValue>> becomes callable: Option<Arc<CallableValue>>.",
+              "reason": "Of the four rich kinds only the callable is in this bead (scalar/array/error/reference/callable values); object, presentation and error-metadata rich values are not ported (see not_ported). One Arc pointer keeps the slot one pointer wide, as it was."
+            },
+            {
+              "change": "The fields are private; a value is built only through its constructors.",
+              "reason": "Keeps the callable invariant (a callable's core is #CALC!) true by construction."
+            },
+            {
+              "change": "tag() and allowed_at() are removed.",
+              "reason": "They serve ValueTag and ValueBoundary, which are not ported."
+            }
+          ]
+        },
+        {
+          "symbol": "CoreValue",
+          "to": "crates/calc-value/src/value.rs CoreValue",
+          "kept": [
+            "the eight variants Number(f64), Text, Logical(bool), Error(WorksheetErrorCode), Empty, Missing, Array, Reference, in that order",
+            "Empty (an empty cell) and Missing (an omitted argument) stay distinct"
+          ],
+          "changes": [
+            {
+              "change": "Reference carries the typed ReferenceLike below instead of a string-address reference.",
+              "reason": "The bead removes string-address payloads."
+            },
+            {
+              "change": "Text and Array payloads are Arc-owned (ExcelText over Arc<[u16]>, CalcArray over Arc<[CalcValue]>).",
+              "reason": "The bead asks for Arc-owned immutable payloads: a clone shares its payload, which cfunc_m0_1__send_sync observes by pointer identity."
+            }
+          ]
+        },
+        {
+          "symbol": "WorksheetErrorCode",
+          "to": "crates/calc-value/src/value.rs WorksheetErrorCode",
+          "kept": [
+            "the fourteen codes Null, Div0, Value, Ref, Name, Num, NA, Busy, GettingData, Spill, Calc, Field, Blocked, Connect, in that order"
+          ],
+          "changes": [
+            {
+              "change": "Derives Hash, and gains WorksheetErrorCode::all(), the fourteen codes in declaration order (implemented fresh).",
+              "reason": "all() is the non-test function that names each variant (seams.json), and gives the acceptance case an observable that there are exactly fourteen distinct codes."
+            }
+          ]
+        },
+        {
+          "symbol": "ReferenceLike",
+          "to": "crates/calc-value/src/value.rs ReferenceLike",
+          "kept": [
+            "a reference value can hold several areas (multi-area) and reports area_count",
+            "the members of a union keep their order, duplicates included"
+          ],
+          "changes": [
+            {
+              "change": "The target text, the textual identity (ReferenceKind plus ExcelText), the display text, the reference system id, the opaque handle identity and the composite identity are replaced by one or more typed GridAreas of one sheet, each a SheetId and checked 1-based coordinates. Constructors cell, area and from_areas; accessors areas, area_count and sheet.",
+              "reason": "The bead replaces string-address payloads with typed references built from SheetId and checked coordinates. Reference text (A1, R1C1, structured, 3D, spill anchors) is parsed and bound by CalcFml, which produces these areas."
+            },
+            {
+              "change": "multi_area, multi_area_targets and normalized (trimming the target text and splitting it at top-level commas) are removed.",
+              "reason": "There is no text to split or trim; from_areas takes the areas themselves. One area given to from_areas equals ReferenceLike::area of it, so equality is structural."
+            },
+            {
+              "change": "A multi-area reference shares its areas behind Arc<[GridArea]>; a single area is held inline and allocates nothing.",
+              "reason": "Arc-owned immutable payloads without an allocation for the single-area case."
+            },
+            {
+              "change": "Duplicates in a union are kept.",
+              "reason": "OxFunc's multi_area kept every part as given; the port keeps that."
+            },
+            {
+              "change": "ReferenceKind (A1, Area, MultiArea, ThreeD, Structured, SpillAnchor) and kind() are dropped: a reference is its typed areas.",
+              "reason": "The kind classified reference text, which the bead removes. A cell, an area and a multi-area reference are told apart by their areas (area_count, GridArea::cell_count); ThreeD, Structured and SpillAnchor name reference forms that are not representable in this bead (see not_ported, with their beads)."
+            },
+            {
+              "change": "A multi-area (union) reference holds areas of one sheet only. from_areas returns Result: areas on more than one sheet are refused with ReferenceError::SheetMismatch, and no areas with ReferenceError::NoAreas. OxFunc's multi_area took any target texts, so a union could name parts of different sheets, and it returned None for fewer than two parts, where from_areas gives the single-area reference for one area.",
+              "reason": "The orchestrator's round-1 ruling: Excel's union operator works within one sheet, so a multi-area reference holds areas of one sheet only, with a typed error otherwise. Witnessed by calc-value value::tests::a_union_reference_holds_areas_of_one_sheet_only and by cfunc_m0_1__grid_edges (two live sheets, and a released and reissued slot)."
+            },
+            {
+              "change": "area_count for a 3D reference: OxFunc counted 1 for every reference whose kind was not MultiArea, a ThreeD reference over any number of sheets included (area_count is the number of parts of a MultiArea target, else 1). calc-value has no 3D reference, and a 3D span cannot be built as a union of per-sheet areas because a union holds one sheet, so area_count is defined only for references of one sheet.",
+              "reason": "3D sheet spans are bound by cfml-m3.2, which decides their representation and count when it adds them; this bead does not carry OxFunc's count of 1 forward for a form it cannot represent. No test in the ported file checks a ThreeD area_count."
+            }
+          ]
+        },
+        {
+          "symbol": "Shared",
+          "to": "removed: std::sync::Arc is named directly",
+          "kept": [
+            "values are shared through Arc (the send-values arm of the alias)"
+          ],
+          "changes": [
+            {
+              "change": "The Shared<T> alias, the send-values cargo feature and its Rc arm are removed. calc-value declares no cargo features; OpaqueCallable always requires Send + Sync.",
+              "reason": "The bead removes the Rc feature arm: Arc is the only shared pointer, so there is no thread-bound variant. cfunc_m0_1__send_sync reads calc-value's Cargo.toml and every source file its root declares (through include_str!, so the check also runs in the browsers) and fails on a [features] table, a table outside its allowed set, a root key (one before the first table header), an optional dependency, a build key, a thread-bound pointer or cell (std::rc, Rc, RefCell, Cell and their kin) and any cfg other than the unit tests' own."
+            }
+          ]
+        },
+        {
+          "symbol": "ExcelText and EXCEL_TEXT_MAX_UTF16_CODE_UNITS (payload of CoreValue::Text)",
+          "to": "crates/calc-value/src/value.rs ExcelText",
+          "kept": [
+            "text is UTF-16 code units, not necessarily valid UTF-16",
+            "from_interop_assignment truncates to 32,767 code units and can leave a dangling high surrogate",
+            "from_utf16_code_units does not truncate",
+            "len_utf16_code_units, utf16_code_units, to_string_lossy, has_dangling_high_surrogate_tail"
+          ],
+          "changes": [
+            {
+              "change": "The code units are held in Arc<[u16]> instead of Vec<u16>; from_interop_assignment stops encoding at the limit instead of encoding everything and truncating.",
+              "reason": "Arc-owned immutable payload; the resulting code units are the same."
+            }
+          ]
+        },
+        {
+          "symbol": "ArrayShape and CalcArray (payload of CoreValue::Array)",
+          "to": "crates/calc-value/src/value.rs ArrayShape, CalcArray",
+          "kept": [
+            "non-empty rectangular arrays in row-major order",
+            "new rejects a zero dimension or a cell count that does not match the shape",
+            "from_rows rejects no rows, an empty row or ragged rows",
+            "get, row_slice and iter_row_major index in row-major order; get and row_slice return None outside the shape",
+            "arrays may hold nested arrays and Missing elements"
+          ],
+          "changes": [
+            {
+              "change": "ArrayShape::cell_count returns Option<usize> (None when rows * cols overflows) instead of an unchecked product.",
+              "reason": "The unchecked product could overflow, most easily on wasm32's 32-bit usize; new() compares against the checked count."
+            },
+            {
+              "change": "The cells are held in Arc<[CalcValue]>.",
+              "reason": "Arc-owned immutable payload."
+            },
+            {
+              "change": "from_scalar returns the array instead of Option (it never failed); from_cells_iter is removed (new takes the cells).",
+              "reason": "Interface simplification with no semantic difference."
+            }
+          ]
+        },
+        {
+          "symbol": "CallableArityShape, OpaqueCallable and CallableValue (the callable of CalcValue::callable)",
+          "to": "crates/calc-value/src/value.rs",
+          "kept": [
+            "CallableArityShape {min, max} with exact, range and accepts, unchanged",
+            "OpaqueCallable: Debug + Send + Sync + 'static with as_any, the identity the value model never inspects",
+            "two callable values are equal when their arities are equal and they share one handle (Arc::ptr_eq); the summary is not compared"
+          ],
+          "changes": [
+            {
+              "change": "CallableValue's fields are private (constructor new(arity, summary, handle); accessors arity, summary, handle) and the summary is Arc<str>.",
+              "reason": "Arc-owned immutable payloads; Send + Sync is the trait's own bound, not a feature."
+            }
+          ]
+        }
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "Value",
+            "EvalError"
+          ],
+          "reason": "An older number-or-arity-error pair superseded by CalcValue; an argument-count failure becomes the call interface's admission failure.",
+          "beads": [
+            "cfunc-m1.1",
+            "cfunc-m1.2",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "cfunc-m3.22",
+            "cfunc-m3.25",
+            "cfunc-m7.2",
+            "onecalc-m6.1"
+          ],
+          "beads_basis": "EvalError's users at the pin are pi.rs (PI's arity failure) and surface_dispatch.rs (map_eval_error_to_ws maps EvalError::ArityMismatch to #VALUE!); the enum Value has no user outside the defining file. cfunc-m1.1 generates the call interface, whose admission replaces the arity failure, and cfunc-m1.2 propagates errors through it (BEAD_DETAILS.md matches 'call interface' at :588 and :627). The other beads are those the pin lists for pi.rs (catalogue) and surface_dispatch.rs (catalogue and registry).",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "chost-m4.12"
+              ],
+              "reason": "BEAD_DETAILS.md matches the word Value in it only as Range.Value, the object-model property (:5826), not this enum."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "EvalError",
+              "Value (the value-types enum)"
+            ],
+            "port_input_files_per_symbol": {
+              "EvalError": 3,
+              "Value (the value-types enum)": 1
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/functions/pi.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: EvalError",
+              "crates/oxfunc_core/src/functions/surface_dispatch.rs": "lookup exit 5; via cited crates/oxfunc_core/src/functions/surface_dispatch.rs; beads: catalogue and registry; symbols: EvalError",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: EvalError, Value (the value-types enum)"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m1.1": 1,
+              "cfunc-m1.2": 1,
+              "cfunc-m3.1": 3,
+              "cfunc-m3.2": 3,
+              "cfunc-m3.3": 3,
+              "cfunc-m3.4": 3,
+              "cfunc-m3.5": 3,
+              "cfunc-m3.6": 3,
+              "cfunc-m3.7": 3,
+              "cfunc-m3.8": 3,
+              "cfunc-m3.9": 3,
+              "cfunc-m3.10": 3,
+              "cfunc-m3.11": 3,
+              "cfunc-m3.12": 3,
+              "cfunc-m3.13": 3,
+              "cfunc-m3.14": 3,
+              "cfunc-m3.15": 3,
+              "cfunc-m3.16": 3,
+              "cfunc-m3.17": 3,
+              "cfunc-m3.18": 3,
+              "cfunc-m3.19": 3,
+              "cfunc-m3.20": 3,
+              "cfunc-m3.21": 3,
+              "cfunc-m3.22": 1,
+              "cfunc-m3.25": 1,
+              "cfunc-m7.2": 1,
+              "onecalc-m6.1": 1
+            },
+            "bead_details_matches": {
+              "EvalError": "none",
+              "Value (the value-types enum)": [
+                "chost-m4.12"
+              ],
+              "term: arity": [
+                "cfunc-m1.1",
+                "cfunc-m3.21"
+              ],
+              "term: call interface": [
+                "cfunc-m1.1",
+                "cfunc-m1.2"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "ValueTag",
+            "ValueBoundary",
+            "CalcValue::tag",
+            "CalcValue::allowed_at",
+            "CellContentValue"
+          ],
+          "reason": "Admission of value kinds at boundaries (cell content, function return, published result, call argument) and a cell-content value type. Authored cell input belongs to the CalcDoc model's CellInput.",
+          "beads": [
+            "cdoc-m0.1",
+            "cfml-m3.4",
+            "cfunc-m1.1",
+            "cfunc-m1.2",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "The only pinned port input that uses these symbols is the defining file, which the pin lists for cfunc-m3.1 to cfunc-m3.21 as a catalogue helper. The search of BEAD_DETAILS.md for the boundaries' semantics finds their owners: cfml-m3.4 keeps cell publication separate from callable/raw formula values and evaluates omitted arguments (:3719), which is the cell-content and published-result admission; cfunc-m1.2 ports the empty versus omitted versus empty-text distinctions through the generated call interface and distinguishes direct arguments from referenced values (:627, :640), which is call-argument admission; cfunc-m1.1 generates the call interface and its argument policy (:588), where a function's raw return and a reference-only parameter are admitted; cfunc-m3.1's case text_errors covers empty, missing and reference arguments (:2611). Authored cell input is cdoc-m0.1's CellInput (:373).",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "ValueTag",
+              "ValueBoundary",
+              "allowed_at",
+              "CellContentValue",
+              ".tag()"
+            ],
+            "port_input_files_per_symbol": {
+              "ValueTag": 1,
+              "ValueBoundary": 1,
+              "allowed_at": 1,
+              "CellContentValue": 1,
+              ".tag()": 1
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: .tag(), CellContentValue, ValueBoundary, ValueTag, allowed_at"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 1,
+              "cfunc-m3.2": 1,
+              "cfunc-m3.3": 1,
+              "cfunc-m3.4": 1,
+              "cfunc-m3.5": 1,
+              "cfunc-m3.6": 1,
+              "cfunc-m3.7": 1,
+              "cfunc-m3.8": 1,
+              "cfunc-m3.9": 1,
+              "cfunc-m3.10": 1,
+              "cfunc-m3.11": 1,
+              "cfunc-m3.12": 1,
+              "cfunc-m3.13": 1,
+              "cfunc-m3.14": 1,
+              "cfunc-m3.15": 1,
+              "cfunc-m3.16": 1,
+              "cfunc-m3.17": 1,
+              "cfunc-m3.18": 1,
+              "cfunc-m3.19": 1,
+              "cfunc-m3.20": 1,
+              "cfunc-m3.21": 1
+            },
+            "bead_details_matches": {
+              "ValueTag": "none",
+              "ValueBoundary": "none",
+              "allowed_at": "none",
+              "CellContentValue": "none",
+              "term: CellInput": [
+                "cdoc-m0.1"
+              ],
+              "term: cell publication": [
+                "cfml-m3.4"
+              ],
+              "term: callable/raw": [
+                "cfml-m3.4"
+              ],
+              "term: empty versus omitted": [
+                "cfunc-m1.2"
+              ],
+              "term: empty-text": [
+                "cfunc-m1.2"
+              ],
+              "term: omitted": [
+                "cfml-m3.4",
+                "cfunc-m1.2"
+              ],
+              "term: argument policy": [
+                "cfunc-m1.1"
+              ],
+              "term: referenced values": [
+                "cfunc-m1.2"
+              ],
+              "term: reference arguments": [
+                "cfunc-m3.1"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "RichValue",
+            "RichObjectValue",
+            "RichObjectType",
+            "RichObjectData",
+            "RichObjectKeyValue",
+            "RichValueKeyFlag",
+            "RichValueType",
+            "RichValueData",
+            "RichValueKeyValue",
+            "CalcValue::with_rich",
+            "CalcValue::rich_object",
+            "CalcValue::rich",
+            "CalcValue::rich_object_value"
+          ],
+          "reason": "Rich (object) values are not among this bead's value kinds (scalar, array, error, reference and callable).",
+          "beads": [
+            "cfunc-m1.1",
+            "cfunc-m1.2",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "cfunc-m3.22",
+            "cfunc-m3.25",
+            "cfunc-m7.2",
+            "onecalc-m6.1"
+          ],
+          "beads_basis": "Users at the pin: image_fn.rs (IMAGE builds a RichValue::Object with with_rich) and the image return-carrier test; index.rs and callable_helpers.rs test whether a value has rich content (.rich()); surface_dispatch.rs reads a rich object; registry.rs declares ProducesRichObject. cfunc-m3.19's Do names the image adapter and NOW/TODAY, and cfunc-m1.1 ports registry.rs. The other beads are those the pin lists for these files (catalogue, and catalogue and registry for registry.rs and surface_dispatch.rs).",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "cdoc-m1.3"
+              ],
+              "reason": "BEAD_DETAILS.md matches 'image' in it only as a saved workbook's 'source image' (:1043), not an image value."
+            },
+            {
+              "beads": [
+                "cdoc-m6.3",
+                "chost-m6.2"
+              ],
+              "reason": "BEAD_DETAILS.md matches HYPERLINK in them as a workbook's hyperlink objects (targets, tooltips, follow policy), not as a rich value."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "RichValue",
+              "RichObjectValue",
+              "RichObjectType",
+              "RichObjectData",
+              "RichObjectKeyValue",
+              "RichValueKeyFlag",
+              "RichValueType",
+              "RichValueData",
+              "RichValueKeyValue",
+              "with_rich",
+              "rich_object",
+              "rich_object_value",
+              "ProducesRichObject",
+              ".rich()"
+            ],
+            "port_input_files_per_symbol": {
+              "RichValue": 4,
+              "RichObjectValue": 2,
+              "RichObjectType": 1,
+              "RichObjectData": 1,
+              "RichObjectKeyValue": 1,
+              "RichValueKeyFlag": 2,
+              "RichValueType": 2,
+              "RichValueData": 3,
+              "RichValueKeyValue": 2,
+              "with_rich": 2,
+              "rich_object": 1,
+              "rich_object_value": 1,
+              "ProducesRichObject": 1,
+              ".rich()": 5
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/functions/callable_helpers.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .rich()",
+              "crates/oxfunc_core/src/functions/image_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .rich(), RichObjectValue, RichValue, RichValueData, RichValueKeyFlag, RichValueKeyValue, RichValueType, with_rich",
+              "crates/oxfunc_core/src/functions/index.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .rich()",
+              "crates/oxfunc_core/src/functions/surface_dispatch.rs": "lookup exit 5; via cited crates/oxfunc_core/src/functions/surface_dispatch.rs; beads: catalogue and registry; symbols: .rich(), RichValue, RichValueData",
+              "crates/oxfunc_core/src/registry.rs": "lookup exit 0; via cited crates/oxfunc_core/src/registry.rs, catalogue helper; beads: catalogue and registry; symbols: ProducesRichObject",
+              "crates/oxfunc_core/tests/oxfml_image_return_carrier_integration.rs": "lookup exit 0; via catalogue test; beads: catalogue; symbols: RichValue",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: .rich(), RichObjectData, RichObjectKeyValue, RichObjectType, RichObjectValue, RichValue, RichValueData, RichValueKeyFlag, RichValueKeyValue, RichValueType, rich_object, rich_object_value, with_rich"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m1.1": 2,
+              "cfunc-m1.2": 2,
+              "cfunc-m3.1": 7,
+              "cfunc-m3.2": 7,
+              "cfunc-m3.3": 7,
+              "cfunc-m3.4": 7,
+              "cfunc-m3.5": 7,
+              "cfunc-m3.6": 7,
+              "cfunc-m3.7": 7,
+              "cfunc-m3.8": 7,
+              "cfunc-m3.9": 7,
+              "cfunc-m3.10": 7,
+              "cfunc-m3.11": 7,
+              "cfunc-m3.12": 7,
+              "cfunc-m3.13": 7,
+              "cfunc-m3.14": 7,
+              "cfunc-m3.15": 7,
+              "cfunc-m3.16": 7,
+              "cfunc-m3.17": 7,
+              "cfunc-m3.18": 7,
+              "cfunc-m3.19": 7,
+              "cfunc-m3.20": 7,
+              "cfunc-m3.21": 7,
+              "cfunc-m3.22": 2,
+              "cfunc-m3.25": 2,
+              "cfunc-m7.2": 2,
+              "onecalc-m6.1": 2
+            },
+            "bead_details_matches": {
+              "RichValue": "none",
+              "RichObjectValue": "none",
+              "RichObjectType": "none",
+              "RichObjectData": "none",
+              "RichObjectKeyValue": "none",
+              "RichValueKeyFlag": "none",
+              "RichValueType": "none",
+              "RichValueData": "none",
+              "RichValueKeyValue": "none",
+              "with_rich": "none",
+              "rich_object": "none",
+              "rich_object_value": "none",
+              "ProducesRichObject": "none",
+              "term: rich value": "none",
+              "term: image": [
+                "cdoc-m1.3",
+                "cfunc-m3.19"
+              ],
+              "term: HYPERLINK": [
+                "cdoc-m6.3",
+                "chost-m6.2"
+              ]
+            },
+            "hyperlink": {
+              "catalogue_id": "FUNC.HYPERLINK (migration/source-manifest.json functions: files crates/oxfunc_core/src/functions/hyperlink_fn.rs, no tests)",
+              "file": "crates/oxfunc_core/src/functions/hyperlink_fn.rs",
+              "lookup": "exit 6; calls_quarantined crates/oxfunc_core/src/coercion.rs, crates/oxfunc_core/src/functions/adapters.rs",
+              "beads_the_pin_lists": "catalogue: cfunc-m3.1 to cfunc-m3.21 (via catalogue implementation)",
+              "uses_these_symbols": "none: git grep at the pin of every rich-value symbol of this entry and of .rich() finds no line in hyperlink_fn.rs",
+              "other_pinned_files_naming_hyperlink": "git grep -l -i -F -e hyperlink over the port inputs also lists surface_dispatch.rs, registry.rs, registry_context_seed.rs, registry_help_seed.rs, registry_signature_seed.rs, xll_export_specs.rs, tests/fixtures/function_meta_golden.txt and the defining file: catalogue tables and registries that name the function, not HYPERLINK implementations",
+              "family_beads": "none: no family of migration/source-manifest.json lists FUNC.HYPERLINK. cfunc-m3.19's family records the unresolved term 'external/CUBE/link/data/image/catalogue adapters already present in the pinned source', which the pin did not resolve to HYPERLINK",
+              "bead_details": "the whole-word term HYPERLINK matches cdoc-m6.3 and chost-m6.2 only, which model and command a workbook's hyperlink objects (targets, tooltips, follow policy), not the HYPERLINK function; no bead's Do names HYPERLINK"
+            }
+          }
+        },
+        {
+          "items": [
+            "PresentationHint",
+            "PresentationValue",
+            "NumberFormatHint",
+            "CellStyleHint",
+            "CalcValue::with_presentation",
+            "CalcValue::presentation_value"
+          ],
+          "reason": "Presentation hints carried on values; number formats and styles are separate concerns.",
+          "beads": [
+            "cfunc-m1.1",
+            "cfunc-m1.2",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "cfunc-m3.22",
+            "cfunc-m3.25",
+            "cfunc-m7.2",
+            "onecalc-m6.1"
+          ],
+          "beads_basis": "Users at the pin: now_fn.rs and today_fn.rs (NOW and TODAY attach a NumberFormatHint with with_presentation), hyperlink_fn.rs (HYPERLINK attaches CellStyleHint::Hyperlink with with_presentation), surface_dispatch.rs, and registry.rs (declares ProducesPresentation). cfunc-m3.19's Do names NOW and TODAY, and cfunc-m1.1 ports registry.rs. The other beads are those the pin lists for these files.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "infra-m0.6",
+                "infra-m1.1",
+                "infra-m1.2",
+                "infra-m1.3",
+                "infra-m2.1",
+                "infra-m3.2",
+                "infra-m3.3",
+                "infra-m4.1",
+                "infra-m5.1",
+                "infra-m5.2",
+                "infra-m5.3",
+                "infra-m6.1",
+                "infra-m7.1",
+                "infra-m7.10",
+                "infra-m7.2",
+                "infra-m7.4",
+                "infra-m7.5",
+                "infra-m7.7",
+                "infra-m8.1"
+              ],
+              "reason": "The only files that list them are pinned reference inputs (disposition reference: a source-discovery path read for behaviour only), which are outside the port-input restriction; no port input that uses these symbols lists them. The one match is a planning note (smart-fuzzer/planning/SMART_FUZZER_DESIGN.md) that names presentation_value."
+            },
+            {
+              "beads": [
+                "cdoc-m3.6",
+                "cfml-m2.6",
+                "cfml-m6.1",
+                "chost-m4.5"
+              ],
+              "reason": "BEAD_DETAILS.md matches 'number formats' or 'number-format' in them: they own a document's styles and number formats (cdoc-m3.6), number-format parsing and formatting (cfml-m2.6, cfml-m6.1) and the recalculation a number-format change causes (chost-m4.5). None names a format or style hint carried on a function's result."
+            },
+            {
+              "beads": [
+                "cdoc-m6.3",
+                "chost-m6.2"
+              ],
+              "reason": "BEAD_DETAILS.md matches HYPERLINK in them as a workbook's hyperlink objects, not as a presentation hint."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "PresentationHint",
+              "PresentationValue",
+              "NumberFormatHint",
+              "CellStyleHint",
+              "with_presentation",
+              "presentation_value",
+              "ProducesPresentation"
+            ],
+            "port_input_files_per_symbol": {
+              "PresentationHint": 5,
+              "PresentationValue": 1,
+              "NumberFormatHint": 4,
+              "CellStyleHint": 3,
+              "with_presentation": 5,
+              "presentation_value": 1,
+              "ProducesPresentation": 1
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/functions/hyperlink_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: CellStyleHint, PresentationHint, with_presentation",
+              "crates/oxfunc_core/src/functions/now_fn.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: NumberFormatHint, PresentationHint, with_presentation",
+              "crates/oxfunc_core/src/functions/surface_dispatch.rs": "lookup exit 5; via cited crates/oxfunc_core/src/functions/surface_dispatch.rs; beads: catalogue and registry; symbols: CellStyleHint, NumberFormatHint, PresentationHint, with_presentation",
+              "crates/oxfunc_core/src/functions/today_fn.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: NumberFormatHint, PresentationHint, with_presentation",
+              "crates/oxfunc_core/src/registry.rs": "lookup exit 0; via cited crates/oxfunc_core/src/registry.rs, catalogue helper; beads: catalogue and registry; symbols: ProducesPresentation",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: CellStyleHint, NumberFormatHint, PresentationHint, PresentationValue, presentation_value, with_presentation"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m1.1": 2,
+              "cfunc-m1.2": 2,
+              "cfunc-m3.1": 6,
+              "cfunc-m3.2": 6,
+              "cfunc-m3.3": 6,
+              "cfunc-m3.4": 6,
+              "cfunc-m3.5": 6,
+              "cfunc-m3.6": 6,
+              "cfunc-m3.7": 6,
+              "cfunc-m3.8": 6,
+              "cfunc-m3.9": 6,
+              "cfunc-m3.10": 6,
+              "cfunc-m3.11": 6,
+              "cfunc-m3.12": 6,
+              "cfunc-m3.13": 6,
+              "cfunc-m3.14": 6,
+              "cfunc-m3.15": 6,
+              "cfunc-m3.16": 6,
+              "cfunc-m3.17": 6,
+              "cfunc-m3.18": 6,
+              "cfunc-m3.19": 6,
+              "cfunc-m3.20": 6,
+              "cfunc-m3.21": 6,
+              "cfunc-m3.22": 2,
+              "cfunc-m3.25": 2,
+              "cfunc-m7.2": 2,
+              "onecalc-m6.1": 2
+            },
+            "reference_inputs_using_them": {
+              "smart-fuzzer/planning/SMART_FUZZER_DESIGN.md": "lookup exit 0; via discovery smart-fuzzer/; beads: smart-fuzzer; symbols: presentation_value"
+            },
+            "reference_bead_union": {
+              "infra-m0.6": 1,
+              "infra-m1.1": 1,
+              "infra-m1.2": 1,
+              "infra-m1.3": 1,
+              "infra-m2.1": 1,
+              "infra-m3.2": 1,
+              "infra-m3.3": 1,
+              "infra-m4.1": 1,
+              "infra-m5.1": 1,
+              "infra-m5.2": 1,
+              "infra-m5.3": 1,
+              "infra-m6.1": 1,
+              "infra-m7.1": 1,
+              "infra-m7.2": 1,
+              "infra-m7.4": 1,
+              "infra-m7.5": 1,
+              "infra-m7.7": 1,
+              "infra-m7.10": 1,
+              "infra-m8.1": 1
+            },
+            "bead_details_matches": {
+              "PresentationHint": "none",
+              "PresentationValue": "none",
+              "NumberFormatHint": "none",
+              "CellStyleHint": "none",
+              "with_presentation": "none",
+              "presentation_value": "none",
+              "ProducesPresentation": "none",
+              "term: presentation hint": "none",
+              "term: NOW, TODAY": [
+                "cfunc-m3.19"
+              ],
+              "term: HYPERLINK": [
+                "cdoc-m6.3",
+                "chost-m6.2"
+              ],
+              "term: number formats": [
+                "cdoc-m3.6"
+              ],
+              "term: number-format": [
+                "cfml-m2.6",
+                "cfml-m6.1",
+                "chost-m4.5"
+              ]
+            },
+            "hyperlink": {
+              "catalogue_id": "FUNC.HYPERLINK (migration/source-manifest.json functions: files crates/oxfunc_core/src/functions/hyperlink_fn.rs, no tests)",
+              "file": "crates/oxfunc_core/src/functions/hyperlink_fn.rs",
+              "lookup": "exit 6; calls_quarantined crates/oxfunc_core/src/coercion.rs, crates/oxfunc_core/src/functions/adapters.rs",
+              "beads_the_pin_lists": "catalogue: cfunc-m3.1 to cfunc-m3.21 (via catalogue implementation)",
+              "uses_these_symbols": "yes: hyperlink_fn.rs at the pin imports CellStyleHint and PresentationHint (line 12) and returns CalcValue::with_presentation(..., PresentationHint::style(CellStyleHint::Hyperlink)) at lines 108-110, 119-121 and 200-202",
+              "other_pinned_files_naming_hyperlink": "git grep -l -i -F -e hyperlink over the port inputs also lists surface_dispatch.rs, registry.rs, registry_context_seed.rs, registry_help_seed.rs, registry_signature_seed.rs, xll_export_specs.rs, tests/fixtures/function_meta_golden.txt and the defining file: catalogue tables and registries that name the function, not HYPERLINK implementations",
+              "family_beads": "none: no family of migration/source-manifest.json lists FUNC.HYPERLINK. cfunc-m3.19's family records the unresolved term 'external/CUBE/link/data/image/catalogue adapters already present in the pinned source', which the pin did not resolve to HYPERLINK",
+              "bead_details": "the whole-word term HYPERLINK matches cdoc-m6.3 and chost-m6.2 only, which model and command a workbook's hyperlink objects (targets, tooltips, follow policy), not the HYPERLINK function; no bead's Do names HYPERLINK"
+            }
+          }
+        },
+        {
+          "items": [
+            "ErrorSurface",
+            "ErrorMetadataValue",
+            "CalcValue::with_error_metadata",
+            "CalcValue::error_metadata_value"
+          ],
+          "reason": "Error metadata for XLL transfer and extended-only errors.",
+          "beads": [
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "The only pinned port input that uses these symbols is the defining file, which the pin lists for cfunc-m3.1 to cfunc-m3.21 as a catalogue helper; BEAD_DETAILS.md matches none of the symbols and not the term 'error metadata'. The reference-input pass finds none of these symbols in the XLL add-in either.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "cfml-m4.3",
+                "cfunc-m3.25",
+                "cfunc-m4.1",
+                "chost-m4.11",
+                "chost-m4.12",
+                "chost-m4.13"
+              ],
+              "reason": "BEAD_DETAILS.md matches XLL in them (registered-function compilation, the catalogue audit, the UDF registry, host callback attachments that build no XLL runtime); none names error metadata or an extended-only error."
+            },
+            {
+              "beads": [
+                "infra-m0.6",
+                "infra-m1.1",
+                "infra-m1.2",
+                "infra-m1.3",
+                "infra-m2.1",
+                "infra-m3.2",
+                "infra-m3.3",
+                "infra-m4.1",
+                "infra-m5.1",
+                "infra-m5.2",
+                "infra-m5.3",
+                "infra-m6.1",
+                "infra-m7.1",
+                "infra-m7.10",
+                "infra-m7.2",
+                "infra-m7.4",
+                "infra-m7.5",
+                "infra-m7.7",
+                "infra-m8.1"
+              ],
+              "reason": "BEAD_DETAILS.md matches XLL in them only in the sentence naming OxFunc/tools/xll-addin/ as a source-discovery path for capture; none names error metadata, and the reference-input pass finds none of these symbols in the add-in's pinned files."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "ErrorSurface",
+              "ErrorMetadataValue",
+              "with_error_metadata",
+              "error_metadata_value"
+            ],
+            "port_input_files_per_symbol": {
+              "ErrorSurface": 1,
+              "ErrorMetadataValue": 1,
+              "with_error_metadata": 1,
+              "error_metadata_value": 1
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: ErrorMetadataValue, ErrorSurface, error_metadata_value, with_error_metadata"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 1,
+              "cfunc-m3.2": 1,
+              "cfunc-m3.3": 1,
+              "cfunc-m3.4": 1,
+              "cfunc-m3.5": 1,
+              "cfunc-m3.6": 1,
+              "cfunc-m3.7": 1,
+              "cfunc-m3.8": 1,
+              "cfunc-m3.9": 1,
+              "cfunc-m3.10": 1,
+              "cfunc-m3.11": 1,
+              "cfunc-m3.12": 1,
+              "cfunc-m3.13": 1,
+              "cfunc-m3.14": 1,
+              "cfunc-m3.15": 1,
+              "cfunc-m3.16": 1,
+              "cfunc-m3.17": 1,
+              "cfunc-m3.18": 1,
+              "cfunc-m3.19": 1,
+              "cfunc-m3.20": 1,
+              "cfunc-m3.21": 1
+            },
+            "bead_details_matches": {
+              "ErrorSurface": "none",
+              "ErrorMetadataValue": "none",
+              "with_error_metadata": "none",
+              "error_metadata_value": "none",
+              "term: error metadata": "none",
+              "term: XLL": [
+                "cfml-m4.3",
+                "cfunc-m3.25",
+                "cfunc-m4.1",
+                "chost-m4.11",
+                "chost-m4.12",
+                "chost-m4.13",
+                "infra-m0.6",
+                "infra-m1.1",
+                "infra-m1.2",
+                "infra-m1.3",
+                "infra-m2.1",
+                "infra-m3.2",
+                "infra-m3.3",
+                "infra-m4.1",
+                "infra-m5.1",
+                "infra-m5.2",
+                "infra-m5.3",
+                "infra-m6.1",
+                "infra-m7.1",
+                "infra-m7.2",
+                "infra-m7.4",
+                "infra-m7.5",
+                "infra-m7.7",
+                "infra-m7.10",
+                "infra-m8.1"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "ReferenceKind",
+            "ReferenceSystemId",
+            "TextualReferenceIdentity",
+            "ReferenceDisplay",
+            "ReferenceIdentity",
+            "ReferenceLike::new",
+            "ReferenceLike::textual",
+            "ReferenceLike::typed",
+            "ReferenceLike::kind",
+            "ReferenceLike::target",
+            "ReferenceLike::multi_area",
+            "ReferenceLike::multi_area_targets",
+            "ReferenceLike::normalized"
+          ],
+          "reason": "String-address payloads, which the bead removes. Reference text and its kinds (A1, area, 3D, structured, spill anchor) are CalcFml's: it binds them to typed areas.",
+          "beads": [
+            "cfml-m1.1",
+            "cfml-m1.2",
+            "cfml-m3.2",
+            "cfml-m3.3",
+            "cfml-m3.5",
+            "cfunc-m1.1",
+            "cfunc-m1.2",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "cfunc-m3.22",
+            "cfunc-m3.25",
+            "cfunc-m4.1",
+            "cfunc-m7.2",
+            "onecalc-m6.1"
+          ],
+          "beads_basis": "Reference text is read by cfml-m1.1 (lexer and parser) and bound to typed areas by cfml-m1.2 (A1/R1C1 references against a ReferenceCatalog, :735); the forms not representable here have their own entries below (cfml-m3.2, cfml-m3.3, cfml-m3.5). At the pin 151 port inputs use the textual reference API, almost all through reference.target().to_string() where a function hands a reference to the resolver as text. The pin lists all of them for the catalogue (cfunc-m3.1 to cfunc-m3.21); registry.rs and surface_dispatch.rs also for cfunc-m1.1, cfunc-m1.2, cfunc-m3.22, cfunc-m3.25, cfunc-m7.2 and onecalc-m6.1, and function_call.rs for those and cfunc-m4.1.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "infra-m0.6",
+                "infra-m1.1",
+                "infra-m1.2",
+                "infra-m1.3",
+                "infra-m2.1",
+                "infra-m3.2",
+                "infra-m3.3",
+                "infra-m4.1",
+                "infra-m5.1",
+                "infra-m5.2",
+                "infra-m5.3",
+                "infra-m6.1",
+                "infra-m7.1",
+                "infra-m7.10",
+                "infra-m7.2",
+                "infra-m7.4",
+                "infra-m7.5",
+                "infra-m7.7",
+                "infra-m8.1"
+              ],
+              "reason": "The only files that list them are pinned reference inputs (disposition reference: a source-discovery path read for behaviour only), which are outside the port-input restriction; no port input that uses these symbols lists them. The matches are smart-fuzzer/planning/CASE_SCHEMA_V0.md (names ReferenceKind) and tools/xll-addin/oxfunc_xll/src/lib.rs (builds references with ReferenceLike::new and reads .target() and .kind())."
+            },
+            {
+              "beads": [
+                "cfml-m2.5",
+                "cfml-m6.2"
+              ],
+              "reason": "BEAD_DETAILS.md matches 'lexer' in them only in the sentence naming OxFml's syntax and language-service directories as discovery paths; they serve formula text in the editor through CalcFml's lexer, and no value carries reference text."
+            },
+            {
+              "beads": [
+                "cfml-m2.1",
+                "infra-m3.2"
+              ],
+              "reason": "BEAD_DETAILS.md matches R1C1 in them as template keys over parsed formulas (cfml-m2.1) and as repeated R1C1 regions of a feature matrix (infra-m3.2); neither carries reference text in a value."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "ReferenceKind",
+              "ReferenceSystemId",
+              "TextualReferenceIdentity",
+              "ReferenceDisplay",
+              "ReferenceIdentity",
+              "ReferenceLike::new",
+              "ReferenceLike::textual",
+              "ReferenceLike::typed",
+              "ReferenceLike::multi_area",
+              "multi_area_targets",
+              ".kind()",
+              ".target()",
+              ".normalized()"
+            ],
+            "port_input_files_per_symbol": {
+              "ReferenceKind": 84,
+              "ReferenceSystemId": 3,
+              "TextualReferenceIdentity": 1,
+              "ReferenceDisplay": 2,
+              "ReferenceIdentity": 2,
+              "ReferenceLike::new": 84,
+              "ReferenceLike::textual": 1,
+              "ReferenceLike::typed": 0,
+              "ReferenceLike::multi_area": 3,
+              "multi_area_targets": 2,
+              ".kind()": 5,
+              ".target()": 147,
+              ".normalized()": 3
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/coercion.rs": "lookup exit 5; via catalogue helper; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/function_call.rs": "lookup exit 6; via cited crates/oxfunc_core/src/function_call.rs, catalogue helper; beads: cfunc-m1.1, cfunc-m1.2, cfunc-m3.1, cfunc-m3.2, cfunc-m3.3, cfunc-m3.4, cfunc-m3.5, cfunc-m3.6, cfunc-m3.7, cfunc-m3.8, cfunc-m3.9, cfunc-m3.10, cfunc-m3.11, cfunc-m3.12, cfunc-m3.13, cfunc-m3.14, cfunc-m3.15, cfunc-m3.16, cfunc-m3.17, cfunc-m3.18, cfunc-m3.19, cfunc-m3.20, cfunc-m3.21, cfunc-m3.22, cfunc-m3.25, cfunc-m4.1, cfunc-m7.2, onecalc-m6.1; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/abs.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/adapters.rs": "lookup exit 5; via catalogue helper; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/amor_depreciation_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/and_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/array_text_split_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/asin.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/atan2.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/avedev_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/average.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/averagea_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/base_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/beta_gamma_stats_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/binary_numeric.rs": "lookup exit 6; via catalogue helper; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/bond_core_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/call_register_id_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/callable_helpers.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/cashflow_rate_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/ceiling_floor_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/cell.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/choose_ifs_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/clean_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/column_fn.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/columns_fn.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/complex_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/concat_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/confidence_test_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/count.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/counta.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/countblank_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/coupon_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/criteria_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/database_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/date_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/date_parts_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/date_value_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/delta_fn.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/depreciation_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/devsq_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/discrete_dist_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/dollar_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/dollar_fraction_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/dynamic_array_reshape_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/error_type_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/exact_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/fixed_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/gcd_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/gcd_lcm_common.rs": "lookup exit 5; via catalogue helper; beads: catalogue; symbols: ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/groupby_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/hstack.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/hyperlink_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/if_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/iferror.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/ifna_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/image_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/index.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .kind(), .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/indirect.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/info_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/is_predicates_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/iseven_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/isnumber.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/legacy_stats_alias_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/log_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/lookup_prob_frequency_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/match_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/matrix_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/max_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/median_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/min_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/misc_switch_info_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/mode_sngl_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/moment_stats_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/n_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/not_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/number_regex_translate_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/offset.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/op_add.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/op_implicit_intersection.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .kind(), .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/op_spill_ref.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/operator_arithmetic_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/operator_compare_concat_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/operator_reference_family.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::multi_area, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/or_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/pivotby_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/product.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/randbetween_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/reference_metadata_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::multi_area, ReferenceLike::new, multi_area_targets",
+              "crates/oxfunc_core/src/functions/regression_forecast_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/roman_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/round_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/row_fn.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/rows_fn.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/rtd_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/sequence.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/sin.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/special_dist_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/statistical_tests_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/subtotal_aggregate_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/sum.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/sumproduct_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/sumsq.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/surface_dispatch.rs": "lookup exit 5; via cited crates/oxfunc_core/src/functions/surface_dispatch.rs; beads: catalogue and registry; symbols: .target(), ReferenceKind, ReferenceLike::multi_area, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/t_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/test_alias_family.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/text_b_compat_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/text_compat_locale_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/text_delim_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/text_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/text_scalar_misc.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/text_search_replace_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/text_slice_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/text_unicode_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/textjoin.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/trimrange_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/trunc_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/type_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/unary_numeric.rs": "lookup exit 6; via catalogue helper; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/value_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/valuetotext_fn.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/vhlookup_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/web_text_xml_family.rs": "lookup exit 5; via catalogue implementation; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/src/functions/workday_networkdays_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/xlookup.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/functions/xor_fn.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/host_info.rs": "lookup exit 0; via catalogue helper; beads: catalogue; symbols: ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/registry.rs": "lookup exit 0; via cited crates/oxfunc_core/src/registry.rs, catalogue helper; beads: catalogue and registry; symbols: .normalized(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/src/resolver.rs": "lookup exit 0; via catalogue helper; beads: catalogue; symbols: .kind(), .normalized(), .target(), ReferenceDisplay, ReferenceIdentity, ReferenceKind, ReferenceLike::new, ReferenceLike::textual, ReferenceSystemId",
+              "crates/oxfunc_core/tests/binary_numeric_executor_routing.rs": "lookup exit 6; via catalogue test; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/tests/oxfml_registered_external_interface_integration.rs": "lookup exit 0; via catalogue test; beads: catalogue; symbols: ReferenceSystemId",
+              "crates/oxfunc_core/tests/oxfml_seam_integration.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/tests/structured_table_reference_guardrails.rs": "lookup exit 6; via catalogue test; beads: catalogue; symbols: .kind(), .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/unary_numeric_equivalence_law.rs": "lookup exit 6; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/unary_numeric_executor_routing.rs": "lookup exit 6; via catalogue test; beads: catalogue; symbols: .target()",
+              "crates/oxfunc_core/tests/w111_address_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_atan_typed_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_conditional_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_date_typed_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_distribution_surface_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_elementary_prepared_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_gcd_lcm_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_mround_prepared_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_not_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_numeric_text_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_numeric_to_text_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_permutationa_typed_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_quotient_prepared_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_radix_typed_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_rounding_prepared_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_core/tests/w111_text_slice_live_replay.rs": "lookup exit 5; via catalogue test; beads: catalogue; symbols: .target(), ReferenceKind, ReferenceLike::new",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: .kind(), .normalized(), .target(), ReferenceDisplay, ReferenceIdentity, ReferenceKind, ReferenceLike::new, ReferenceSystemId, TextualReferenceIdentity, multi_area_targets"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m1.1": 3,
+              "cfunc-m1.2": 3,
+              "cfunc-m3.1": 151,
+              "cfunc-m3.2": 151,
+              "cfunc-m3.3": 151,
+              "cfunc-m3.4": 151,
+              "cfunc-m3.5": 151,
+              "cfunc-m3.6": 151,
+              "cfunc-m3.7": 151,
+              "cfunc-m3.8": 151,
+              "cfunc-m3.9": 151,
+              "cfunc-m3.10": 151,
+              "cfunc-m3.11": 151,
+              "cfunc-m3.12": 151,
+              "cfunc-m3.13": 151,
+              "cfunc-m3.14": 151,
+              "cfunc-m3.15": 151,
+              "cfunc-m3.16": 151,
+              "cfunc-m3.17": 151,
+              "cfunc-m3.18": 151,
+              "cfunc-m3.19": 151,
+              "cfunc-m3.20": 151,
+              "cfunc-m3.21": 151,
+              "cfunc-m3.22": 3,
+              "cfunc-m3.25": 3,
+              "cfunc-m4.1": 1,
+              "cfunc-m7.2": 3,
+              "onecalc-m6.1": 3
+            },
+            "reference_inputs_using_them": {
+              "smart-fuzzer/planning/CASE_SCHEMA_V0.md": "lookup exit 0; via discovery smart-fuzzer/; beads: smart-fuzzer; symbols: ReferenceKind",
+              "tools/xll-addin/oxfunc_xll/src/lib.rs": "lookup exit 5; via discovery tools/xll-addin/; beads: smart-fuzzer; symbols: .kind(), .target(), ReferenceKind, ReferenceLike::new"
+            },
+            "reference_bead_union": {
+              "infra-m0.6": 2,
+              "infra-m1.1": 2,
+              "infra-m1.2": 2,
+              "infra-m1.3": 2,
+              "infra-m2.1": 2,
+              "infra-m3.2": 2,
+              "infra-m3.3": 2,
+              "infra-m4.1": 2,
+              "infra-m5.1": 2,
+              "infra-m5.2": 2,
+              "infra-m5.3": 2,
+              "infra-m6.1": 2,
+              "infra-m7.1": 2,
+              "infra-m7.2": 2,
+              "infra-m7.4": 2,
+              "infra-m7.5": 2,
+              "infra-m7.7": 2,
+              "infra-m7.10": 2,
+              "infra-m8.1": 2
+            },
+            "bead_details_matches": {
+              "ReferenceKind": "none",
+              "ReferenceSystemId": "none",
+              "TextualReferenceIdentity": "none",
+              "ReferenceDisplay": "none",
+              "ReferenceIdentity": "none",
+              "ReferenceLike::new": "none",
+              "ReferenceLike::textual": "none",
+              "ReferenceLike::typed": "none",
+              "ReferenceLike::multi_area": "none",
+              "multi_area_targets": "none",
+              "term: reference text": "none",
+              "term: lexer": [
+                "cfml-m1.1",
+                "cfml-m2.5",
+                "cfml-m6.2"
+              ],
+              "term: R1C1": [
+                "cfml-m1.2",
+                "cfml-m2.1",
+                "infra-m3.2"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "ReferenceHandle",
+            "ReferenceHandleId",
+            "ReferenceLike::opaque"
+          ],
+          "reason": "Opaque identities of reference systems other than the Excel grid. Only the Excel grid exists, and the plan adds no other reference language.",
+          "beads": [
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "The pinned port inputs that use these symbols are the defining file and crates/oxfunc_core/src/resolver.rs, which the pin lists for cfunc-m3.1 to cfunc-m3.21 as catalogue helpers; BEAD_DETAILS.md matches none of the symbols and neither term. The plan adds no reference system besides the Excel grid.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "ReferenceHandle",
+              "ReferenceHandleId",
+              "ReferenceLike::opaque"
+            ],
+            "port_input_files_per_symbol": {
+              "ReferenceHandle": 2,
+              "ReferenceHandleId": 2,
+              "ReferenceLike::opaque": 2
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/resolver.rs": "lookup exit 0; via catalogue helper; beads: catalogue; symbols: ReferenceHandle, ReferenceHandleId, ReferenceLike::opaque",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: ReferenceHandle, ReferenceHandleId, ReferenceLike::opaque"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 2,
+              "cfunc-m3.2": 2,
+              "cfunc-m3.3": 2,
+              "cfunc-m3.4": 2,
+              "cfunc-m3.5": 2,
+              "cfunc-m3.6": 2,
+              "cfunc-m3.7": 2,
+              "cfunc-m3.8": 2,
+              "cfunc-m3.9": 2,
+              "cfunc-m3.10": 2,
+              "cfunc-m3.11": 2,
+              "cfunc-m3.12": 2,
+              "cfunc-m3.13": 2,
+              "cfunc-m3.14": 2,
+              "cfunc-m3.15": 2,
+              "cfunc-m3.16": 2,
+              "cfunc-m3.17": 2,
+              "cfunc-m3.18": 2,
+              "cfunc-m3.19": 2,
+              "cfunc-m3.20": 2,
+              "cfunc-m3.21": 2
+            },
+            "bead_details_matches": {
+              "ReferenceHandle": "none",
+              "ReferenceHandleId": "none",
+              "ReferenceLike::opaque": "none",
+              "term: opaque reference": "none",
+              "term: reference handle": "none"
+            }
+          }
+        },
+        {
+          "items": [
+            "CompositeReferenceOperation",
+            "CompositeReferenceIdentity",
+            "ReferenceLike::composite"
+          ],
+          "reason": "A union is kept as ordered areas of one sheet; intersection, spill expansion and selector are reference operators that CalcFml evaluates to areas, not identities a value carries.",
+          "beads": [
+            "cfml-m3.3",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "cfml-m3.3's Do implements the range, union, intersection, spill and implicit-intersection operators (:3680), which evaluate to areas rather than to an identity a value carries. The pinned port inputs that use the symbols are the defining file and resolver.rs, which the pin lists for cfunc-m3.1 to cfunc-m3.21.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "cfml-m3.4"
+              ],
+              "reason": "BEAD_DETAILS.md matches 'intersection' in it as the shape and intersection differences of legacy array contexts (:3732), not a composite reference identity."
+            },
+            {
+              "beads": [
+                "ceng-m3.1"
+              ],
+              "reason": "BEAD_DETAILS.md matches 'intersection' in it as point/range intersection queries of the dependency index (:3827), not a reference value."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "CompositeReferenceOperation",
+              "CompositeReferenceIdentity",
+              "ReferenceLike::composite"
+            ],
+            "port_input_files_per_symbol": {
+              "CompositeReferenceOperation": 2,
+              "CompositeReferenceIdentity": 1,
+              "ReferenceLike::composite": 1
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/resolver.rs": "lookup exit 0; via catalogue helper; beads: catalogue; symbols: CompositeReferenceOperation",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: CompositeReferenceIdentity, CompositeReferenceOperation, ReferenceLike::composite"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 2,
+              "cfunc-m3.2": 2,
+              "cfunc-m3.3": 2,
+              "cfunc-m3.4": 2,
+              "cfunc-m3.5": 2,
+              "cfunc-m3.6": 2,
+              "cfunc-m3.7": 2,
+              "cfunc-m3.8": 2,
+              "cfunc-m3.9": 2,
+              "cfunc-m3.10": 2,
+              "cfunc-m3.11": 2,
+              "cfunc-m3.12": 2,
+              "cfunc-m3.13": 2,
+              "cfunc-m3.14": 2,
+              "cfunc-m3.15": 2,
+              "cfunc-m3.16": 2,
+              "cfunc-m3.17": 2,
+              "cfunc-m3.18": 2,
+              "cfunc-m3.19": 2,
+              "cfunc-m3.20": 2,
+              "cfunc-m3.21": 2
+            },
+            "bead_details_matches": {
+              "CompositeReferenceOperation": "none",
+              "CompositeReferenceIdentity": "none",
+              "ReferenceLike::composite": "none",
+              "term: composite reference": "none",
+              "term: reference operator": "none",
+              "term: intersection": [
+                "ceng-m3.1",
+                "cfml-m3.3",
+                "cfml-m3.4"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "OXFUNC_VALUE_WIRE_SCHEMA_ID",
+            "OXFUNC_VALUE_WIRE_SCHEMA_VERSION",
+            "WireSchemaMismatch",
+            "validate_wire_schema_id",
+            "wire_schema_tests"
+          ],
+          "reason": "The JSON envelope of legacy evidence artifacts. Capture records and verdicts get one canonical format of their own (plan 10.1).",
+          "beads": [
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "infra-m1.1"
+          ],
+          "beads_basis": "infra-m1.1 defines the canonical CaptureRecord and CellVerdict format (BEAD_DETAILS.md matches CaptureRecord in it only). The only pinned port input that uses these symbols or the schema literal is the defining file, which the pin lists for cfunc-m3.1 to cfunc-m3.21 as a catalogue helper.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "OXFUNC_VALUE_WIRE_SCHEMA_ID",
+              "OXFUNC_VALUE_WIRE_SCHEMA_VERSION",
+              "WireSchemaMismatch",
+              "validate_wire_schema_id",
+              "wire_schema_tests",
+              "literal oxfunc_value_types.aligned_json.v1"
+            ],
+            "port_input_files_per_symbol": {
+              "OXFUNC_VALUE_WIRE_SCHEMA_ID": 1,
+              "OXFUNC_VALUE_WIRE_SCHEMA_VERSION": 1,
+              "WireSchemaMismatch": 1,
+              "validate_wire_schema_id": 1,
+              "wire_schema_tests": 1,
+              "literal oxfunc_value_types.aligned_json.v1": 1
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: OXFUNC_VALUE_WIRE_SCHEMA_ID, OXFUNC_VALUE_WIRE_SCHEMA_VERSION, WireSchemaMismatch, literal oxfunc_value_types.aligned_json.v1, validate_wire_schema_id, wire_schema_tests"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 1,
+              "cfunc-m3.2": 1,
+              "cfunc-m3.3": 1,
+              "cfunc-m3.4": 1,
+              "cfunc-m3.5": 1,
+              "cfunc-m3.6": 1,
+              "cfunc-m3.7": 1,
+              "cfunc-m3.8": 1,
+              "cfunc-m3.9": 1,
+              "cfunc-m3.10": 1,
+              "cfunc-m3.11": 1,
+              "cfunc-m3.12": 1,
+              "cfunc-m3.13": 1,
+              "cfunc-m3.14": 1,
+              "cfunc-m3.15": 1,
+              "cfunc-m3.16": 1,
+              "cfunc-m3.17": 1,
+              "cfunc-m3.18": 1,
+              "cfunc-m3.19": 1,
+              "cfunc-m3.20": 1,
+              "cfunc-m3.21": 1
+            },
+            "bead_details_matches": {
+              "OXFUNC_VALUE_WIRE_SCHEMA_ID": "none",
+              "OXFUNC_VALUE_WIRE_SCHEMA_VERSION": "none",
+              "WireSchemaMismatch": "none",
+              "validate_wire_schema_id": "none",
+              "wire_schema_tests": "none",
+              "literal oxfunc_value_types.aligned_json.v1": "none",
+              "term: wire schema": "none",
+              "term: CaptureRecord": [
+                "infra-m1.1"
+              ],
+              "term: envelope": "none"
+            }
+          }
+        },
+        {
+          "items": [
+            "send_values_audit"
+          ],
+          "reason": "The feature-conditional compile-time audit; with no feature, the assertions live in the acceptance case.",
+          "beads": [
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "Replaced in this bead by the acceptance case cfunc_m0_1__send_sync (BEAD_DETAILS.md matches Send+Sync in cfunc-m0.1 only). The only pinned port input that names the module or the send-values feature is the defining file, which the pin also lists for cfunc-m3.1 to cfunc-m3.21 as a catalogue helper.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead: the assertions the module held are made by the acceptance case cfunc_m0_1__send_sync, so no later bead needs the module itself; the other 14 entries also leave this bead out."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "send_values_audit",
+              "feature send-values"
+            ],
+            "port_input_files_per_symbol": {
+              "send_values_audit": 1,
+              "feature send-values": 1
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: feature send-values, send_values_audit"
+            },
+            "bead_union": {
+              "cfunc-m3.1": 1,
+              "cfunc-m3.2": 1,
+              "cfunc-m3.3": 1,
+              "cfunc-m3.4": 1,
+              "cfunc-m3.5": 1,
+              "cfunc-m3.6": 1,
+              "cfunc-m3.7": 1,
+              "cfunc-m3.8": 1,
+              "cfunc-m3.9": 1,
+              "cfunc-m3.10": 1,
+              "cfunc-m3.11": 1,
+              "cfunc-m3.12": 1,
+              "cfunc-m3.13": 1,
+              "cfunc-m3.14": 1,
+              "cfunc-m3.15": 1,
+              "cfunc-m3.16": 1,
+              "cfunc-m3.17": 1,
+              "cfunc-m3.18": 1,
+              "cfunc-m3.19": 1,
+              "cfunc-m3.20": 1,
+              "cfunc-m3.21": 1
+            },
+            "bead_details_matches": {
+              "send_values_audit": "none",
+              "feature send-values": "none",
+              "term: Send+Sync": [
+                "cfunc-m0.1"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "CalcArray::from_cells_iter"
+          ],
+          "reason": "A convenience over new.",
+          "beads": [
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "Of the pinned port inputs that use from_cells_iter, hstack.rs and dynamic_array_reshape_family.rs implement functions that cfunc-m3.16's Do names (HSTACK and the reshape family), and callable_helpers.rs serves the callable functions that cfunc-m3.17's Do names; the pin lists all three and the defining file for cfunc-m3.1 to cfunc-m3.21. CalcArray::new takes the same cells, so a port can build its arrays without it.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "from_cells_iter"
+            ],
+            "port_input_files_per_symbol": {
+              "from_cells_iter": 4
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/functions/callable_helpers.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: from_cells_iter",
+              "crates/oxfunc_core/src/functions/dynamic_array_reshape_family.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: from_cells_iter",
+              "crates/oxfunc_core/src/functions/hstack.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: from_cells_iter",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: from_cells_iter"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 4,
+              "cfunc-m3.2": 4,
+              "cfunc-m3.3": 4,
+              "cfunc-m3.4": 4,
+              "cfunc-m3.5": 4,
+              "cfunc-m3.6": 4,
+              "cfunc-m3.7": 4,
+              "cfunc-m3.8": 4,
+              "cfunc-m3.9": 4,
+              "cfunc-m3.10": 4,
+              "cfunc-m3.11": 4,
+              "cfunc-m3.12": 4,
+              "cfunc-m3.13": 4,
+              "cfunc-m3.14": 4,
+              "cfunc-m3.15": 4,
+              "cfunc-m3.16": 4,
+              "cfunc-m3.17": 4,
+              "cfunc-m3.18": 4,
+              "cfunc-m3.19": 4,
+              "cfunc-m3.20": 4,
+              "cfunc-m3.21": 4
+            },
+            "bead_details_matches": {
+              "from_cells_iter": "none"
+            }
+          }
+        },
+        {
+          "items": [
+            "3D sheet span (OxFunc ReferenceKind::ThreeD, e.g. a reference over Sheet1:Sheet3)"
+          ],
+          "reason": "A GridArea lies on one SheetId and a multi-area reference holds one sheet, so a span of sheets is not representable here.",
+          "beads": [
+            "ceng-m3.5",
+            "cfml-m3.2",
+            "cfml-m4.2",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "cfml-m3.2 binds structured tables and 3D sheet spans; ceng-m3.5 calculates sheet spans; cfml-m4.2 applies 3D endpoint rules when sheets are added, moved or deleted (:4865). The pinned port inputs that use ThreeD (op_implicit_intersection.rs, resolver.rs and the defining file) are listed for cfunc-m3.1 to cfunc-m3.21.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "infra-m3.2"
+              ],
+              "reason": "BEAD_DETAILS.md matches 3D in it as 3D ranges in a retained feature matrix run through HostState (:2304); it implements no reference form."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "ReferenceKind::ThreeD",
+              "ThreeD"
+            ],
+            "port_input_files_per_symbol": {
+              "ReferenceKind::ThreeD": 2,
+              "ThreeD": 3
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/functions/op_implicit_intersection.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: ReferenceKind::ThreeD, ThreeD",
+              "crates/oxfunc_core/src/resolver.rs": "lookup exit 0; via catalogue helper; beads: catalogue; symbols: ReferenceKind::ThreeD, ThreeD",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: ThreeD"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 3,
+              "cfunc-m3.2": 3,
+              "cfunc-m3.3": 3,
+              "cfunc-m3.4": 3,
+              "cfunc-m3.5": 3,
+              "cfunc-m3.6": 3,
+              "cfunc-m3.7": 3,
+              "cfunc-m3.8": 3,
+              "cfunc-m3.9": 3,
+              "cfunc-m3.10": 3,
+              "cfunc-m3.11": 3,
+              "cfunc-m3.12": 3,
+              "cfunc-m3.13": 3,
+              "cfunc-m3.14": 3,
+              "cfunc-m3.15": 3,
+              "cfunc-m3.16": 3,
+              "cfunc-m3.17": 3,
+              "cfunc-m3.18": 3,
+              "cfunc-m3.19": 3,
+              "cfunc-m3.20": 3,
+              "cfunc-m3.21": 3
+            },
+            "bead_details_matches": {
+              "ReferenceKind::ThreeD": "none",
+              "ThreeD": "none",
+              "term: 3D": [
+                "ceng-m3.5",
+                "cfml-m3.2",
+                "cfml-m4.2",
+                "infra-m3.2"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "structured reference (OxFunc ReferenceKind::Structured, e.g. Table1[Column])"
+          ],
+          "reason": "A structured reference names a table and its parts, not grid coordinates; it is bound to areas through the table catalogue.",
+          "beads": [
+            "cfml-m3.2",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "cfml-m3.2 binds structured tables. The pinned port inputs that use ReferenceKind::Structured (indirect.rs, op_implicit_intersection.rs, resolver.rs, the structured-table guardrail test and the defining file) are listed for cfunc-m3.1 to cfunc-m3.21.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "cdoc-m3.2"
+              ],
+              "reason": "BEAD_DETAILS.md matches 'structured table' in it as reading and writing table definitions, the catalogue cfml-m3.2 binds structured references through; it holds no reference value."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "ReferenceKind::Structured"
+            ],
+            "port_input_files_per_symbol": {
+              "ReferenceKind::Structured": 5
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/functions/indirect.rs": "lookup exit 6; via catalogue implementation; beads: catalogue; symbols: ReferenceKind::Structured",
+              "crates/oxfunc_core/src/functions/op_implicit_intersection.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: ReferenceKind::Structured",
+              "crates/oxfunc_core/src/resolver.rs": "lookup exit 0; via catalogue helper; beads: catalogue; symbols: ReferenceKind::Structured",
+              "crates/oxfunc_core/tests/structured_table_reference_guardrails.rs": "lookup exit 6; via catalogue test; beads: catalogue; symbols: ReferenceKind::Structured",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: ReferenceKind::Structured"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 5,
+              "cfunc-m3.2": 5,
+              "cfunc-m3.3": 5,
+              "cfunc-m3.4": 5,
+              "cfunc-m3.5": 5,
+              "cfunc-m3.6": 5,
+              "cfunc-m3.7": 5,
+              "cfunc-m3.8": 5,
+              "cfunc-m3.9": 5,
+              "cfunc-m3.10": 5,
+              "cfunc-m3.11": 5,
+              "cfunc-m3.12": 5,
+              "cfunc-m3.13": 5,
+              "cfunc-m3.14": 5,
+              "cfunc-m3.15": 5,
+              "cfunc-m3.16": 5,
+              "cfunc-m3.17": 5,
+              "cfunc-m3.18": 5,
+              "cfunc-m3.19": 5,
+              "cfunc-m3.20": 5,
+              "cfunc-m3.21": 5
+            },
+            "bead_details_matches": {
+              "ReferenceKind::Structured": "none",
+              "term: structured reference": "none",
+              "term: structured table": [
+                "cdoc-m3.2"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "spill anchor (OxFunc ReferenceKind::SpillAnchor, e.g. A1#)"
+          ],
+          "reason": "A spill anchor resolves to the spilled area only when the anchor's result is known; the value model holds the resulting area, not the anchor.",
+          "beads": [
+            "ceng-m3.4",
+            "cfml-m3.3",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "cfml-m3.3's Do implements the spill operator, which evaluates an anchor to its spilled area; ceng-m3.4 implements spill allocation, which decides that area. The pinned port inputs that use SpillAnchor (op_implicit_intersection.rs, op_spill_ref.rs, resolver.rs and the defining file) are listed for cfunc-m3.1 to cfunc-m3.21.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "cfunc-m0.1"
+              ],
+              "reason": "This bead. The pin lists the defining file for it as the cited source; it records the item as not ported, so it does not need it."
+            },
+            {
+              "beads": [
+                "cdoc-m3.3",
+                "ceng-m4.1",
+                "ceng-m5.3",
+                "ceng-m7.1",
+                "chost-m2.3",
+                "chost-m3.1",
+                "chost-m4.2",
+                "dnacalc-m2.3",
+                "dnacalc-m2.5",
+                "dnacalc-m2.6",
+                "dnacalc-m3.1",
+                "dnacalc-m6.5",
+                "infra-m3.2",
+                "infra-m3.3"
+              ],
+              "reason": "BEAD_DETAILS.md matches spill or 'dynamic array' in them as spill metadata and formula encodings, spill ownership in patches and iteration, spill deltas, display, inspection and editing, spill space in block layout, retained spill captures or a differential comparison of results; none binds a spill-anchor reference to its area, which cfml-m3.3's spill operator does."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "SpillAnchor"
+            ],
+            "port_input_files_per_symbol": {
+              "SpillAnchor": 4
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/functions/op_implicit_intersection.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: SpillAnchor",
+              "crates/oxfunc_core/src/functions/op_spill_ref.rs": "lookup exit 0; via catalogue implementation; beads: catalogue; symbols: SpillAnchor",
+              "crates/oxfunc_core/src/resolver.rs": "lookup exit 0; via catalogue helper; beads: catalogue; symbols: SpillAnchor",
+              "crates/oxfunc_value_types/src/lib.rs": "lookup exit 6; via cited crates/oxfunc_value_types/src/lib.rs, catalogue helper; beads: value-types file; symbols: SpillAnchor"
+            },
+            "bead_union": {
+              "cfunc-m0.1": 1,
+              "cfunc-m3.1": 4,
+              "cfunc-m3.2": 4,
+              "cfunc-m3.3": 4,
+              "cfunc-m3.4": 4,
+              "cfunc-m3.5": 4,
+              "cfunc-m3.6": 4,
+              "cfunc-m3.7": 4,
+              "cfunc-m3.8": 4,
+              "cfunc-m3.9": 4,
+              "cfunc-m3.10": 4,
+              "cfunc-m3.11": 4,
+              "cfunc-m3.12": 4,
+              "cfunc-m3.13": 4,
+              "cfunc-m3.14": 4,
+              "cfunc-m3.15": 4,
+              "cfunc-m3.16": 4,
+              "cfunc-m3.17": 4,
+              "cfunc-m3.18": 4,
+              "cfunc-m3.19": 4,
+              "cfunc-m3.20": 4,
+              "cfunc-m3.21": 4
+            },
+            "bead_details_matches": {
+              "SpillAnchor": "none",
+              "term: spill": [
+                "cdoc-m3.3",
+                "ceng-m3.4",
+                "ceng-m4.1",
+                "ceng-m5.3",
+                "ceng-m7.1",
+                "cfml-m3.3",
+                "chost-m2.3",
+                "chost-m3.1",
+                "chost-m4.2",
+                "dnacalc-m2.3",
+                "dnacalc-m2.5",
+                "dnacalc-m2.6",
+                "dnacalc-m3.1",
+                "dnacalc-m6.5",
+                "infra-m3.2",
+                "infra-m3.3"
+              ],
+              "term: dynamic array": [
+                "cdoc-m3.3",
+                "cfunc-m3.16"
+              ]
+            }
+          }
+        },
+        {
+          "items": [
+            "external workbook reference (e.g. [Book2]Sheet1!A1)"
+          ],
+          "reason": "A GridArea's SheetId belongs to one workbook; a reference into another workbook needs a typed workbook catalogue. OxFunc's ReferenceLike could hold one only as target text, which the bead removes; the ported file has no external reference kind (git -C ../OxFunc grep -n -i -e external -e workbook 6fca3518 -- crates/oxfunc_value_types/src/lib.rs finds nothing).",
+          "beads": [
+            "ceng-m3.7",
+            "cfml-m3.5",
+            "cfunc-m3.1",
+            "cfunc-m3.2",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.20",
+            "cfunc-m3.21"
+          ],
+          "beads_basis": "cfml-m3.5 binds external workbook references through a typed catalogue; ceng-m3.7 resolves external workbook snapshots and link updates; the pin lists cfunc-m3.1 to cfunc-m3.21 for the three port inputs that use the resolver capability allow_external_refs (resolver.rs refuses a reference whose target text holds '[' when the capability is off, the witness resolve_rejects_external_reference_when_disallowed), so porting that refusal needs a typed external reference.",
+          "beads_excluded": [
+            {
+              "beads": [
+                "infra-m3.23"
+              ],
+              "reason": "BEAD_DETAILS.md matches 'external workbook' in it within an implementation-subgraph bead for import, query and connection refresh (:2493); it binds no reference."
+            }
+          ],
+          "search": {
+            "restriction": "pinned OxFunc port inputs only (owner_search.restriction)",
+            "symbols": [
+              "allow_external_refs"
+            ],
+            "port_input_files_per_symbol": {
+              "allow_external_refs": 3
+            },
+            "pinned_files_using_them": {
+              "crates/oxfunc_core/src/resolver.rs": "lookup exit 0; beads: cfunc-m3.1 to cfunc-m3.21; declares the capability and refuses an external reference when it is off",
+              "crates/oxfunc_core/src/functions/adapters.rs": "lookup exit 5 (numeric provenance unresolved, tainted-commit); beads: cfunc-m3.1 to cfunc-m3.21; sets the capability to false",
+              "crates/oxfunc_core/tests/structured_table_reference_guardrails.rs": "lookup exit 6 (calls_quarantined); beads: cfunc-m3.1 to cfunc-m3.21; sets the capability to false"
+            },
+            "bead_union": {
+              "cfunc-m3.1": 3,
+              "cfunc-m3.2": 3,
+              "cfunc-m3.3": 3,
+              "cfunc-m3.4": 3,
+              "cfunc-m3.5": 3,
+              "cfunc-m3.6": 3,
+              "cfunc-m3.7": 3,
+              "cfunc-m3.8": 3,
+              "cfunc-m3.9": 3,
+              "cfunc-m3.10": 3,
+              "cfunc-m3.11": 3,
+              "cfunc-m3.12": 3,
+              "cfunc-m3.13": 3,
+              "cfunc-m3.14": 3,
+              "cfunc-m3.15": 3,
+              "cfunc-m3.16": 3,
+              "cfunc-m3.17": 3,
+              "cfunc-m3.18": 3,
+              "cfunc-m3.19": 3,
+              "cfunc-m3.20": 3,
+              "cfunc-m3.21": 3
+            },
+            "bead_details_matches": {
+              "term: external workbook": [
+                "ceng-m3.7",
+                "cfml-m3.5",
+                "infra-m3.23"
+              ]
+            },
+            "pinned_file_check": "git -C ../OxFunc grep -n -i -e external -e workbook 6fca351872616a352848a3dea2e182662834ea57 -- crates/oxfunc_value_types/src/lib.rs prints nothing (exit 1): the ported file, a pinned port input, has no external reference kind.",
+            "orchestrator_addition": "Added by the orchestrator after the round-3 judge (2026-10-15), which found that the earlier search listed no pinned port input for this entry: git -C ../OxFunc grep -n -e allow_external_refs 6fca3518 -- '*.rs' over the port inputs finds the three files above (the command also printed the two lines of adapters.rs, a lookup exit-5 file, that set the field to false; nothing else of that file was read), and target/debug/xtask.exe pin-sources --lookup gave the exits and beads shown."
+          }
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "oxfunc_test": "wire_schema_tests::constant_equals_the_historical_literal_so_retained_artifacts_still_load",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "The wire schema is not ported (infra-m1.1 defines the evidence format)."
+        },
+        {
+          "oxfunc_test": "wire_schema_tests::version_constant_agrees_with_the_id_suffix",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "The wire schema is not ported."
+        },
+        {
+          "oxfunc_test": "wire_schema_tests::validate_accepts_the_constant",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "The wire schema is not ported."
+        },
+        {
+          "oxfunc_test": "wire_schema_tests::validate_rejects_a_different_id_with_a_typed_error",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "The wire schema is not ported."
+        },
+        {
+          "oxfunc_test": "wire_schema_tests::no_bare_wire_schema_literal_outside_the_constant",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "The wire schema is not ported; this test held the file's only run-time loads (the calls_quarantined entry)."
+        },
+        {
+          "oxfunc_test": "send_values_audit::tests::calc_value_with_callable_handle_crosses_a_thread_boundary",
+          "disposition": "changed",
+          "replaced_by": "calc-func acceptance cfunc_m0_1__send_sync",
+          "reason": "The Send + Sync bound is asserted at compile time for every type calc-value exports, always (no feature). As in the OxFunc test, the case natively moves a CalcValue holding a callable into std::thread::spawn, reads its token there through the handle, joins, and checks Arc::ptr_eq on the handle afterwards. wasm32-unknown-unknown has no threads, so in Chrome and Firefox no thread is spawned and the compile-time assertions carry the bound. The case is registered for Windows, Linux and wasm; Linux runs after the push."
+        },
+        {
+          "oxfunc_test": "tests::published_formula_result_excludes_missing_empty_and_null",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "carried_by": "cfml-m3.4",
+          "carried_by_basis": "It keeps cell publication separate from callable/raw formula values (BEAD_DETAILS.md:3719): a published result excludes Missing, Empty and the null value.",
+          "reason": "ValueBoundary is not ported."
+        },
+        {
+          "oxfunc_test": "tests::raw_function_return_allows_empty_but_not_missing_or_null",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "carried_by": "cfunc-m1.1",
+          "carried_by_basis": "It generates the call interface (FunctionCallTarget::invoke, BEAD_DETAILS.md:588), whose return is a function's raw return.",
+          "reason": "ValueBoundary is not ported."
+        },
+        {
+          "oxfunc_test": "tests::cell_content_boundary_excludes_missing_callable_and_null",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "carried_by": "cfml-m3.4",
+          "carried_by_basis": "It keeps cell publication separate from callable/raw formula values (BEAD_DETAILS.md:3719): a cell's content excludes Missing and a callable.",
+          "reason": "ValueBoundary is not ported."
+        },
+        {
+          "oxfunc_test": "tests::call_arg_boundary_allows_missing_and_empty",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "carried_by": "cfunc-m1.2",
+          "carried_by_basis": "It ports the empty versus omitted versus empty-text distinctions through the generated call interface (BEAD_DETAILS.md:627): a call argument admits Missing and Empty.",
+          "reason": "ValueBoundary is not ported."
+        },
+        {
+          "oxfunc_test": "tests::reference_boundary_only_allows_reference_like",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "carried_by": "cfunc-m1.1",
+          "carried_by_basis": "It generates the call interface and its argument policy (BEAD_DETAILS.md:588), where a reference-only parameter admits only a reference.",
+          "reason": "ValueBoundary is not ported."
+        },
+        {
+          "oxfunc_test": "tests::published_formula_result_allows_rich_value",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "carried_by": "cfml-m3.4",
+          "carried_by_basis": "It keeps cell publication separate from callable/raw formula values (BEAD_DETAILS.md:3719); the witness also needs rich values, which cfunc-m3.19 adds (see not_ported, RichValue).",
+          "reason": "ValueBoundary and rich values are not ported."
+        },
+        {
+          "oxfunc_test": "tests::interop_assignment_truncates_ascii_to_32767_utf16_units",
+          "disposition": "kept",
+          "replaced_by": "calc-value value::tests::interop_assignment_truncates_ascii_to_32767_utf16_units (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "Same expectations."
+        },
+        {
+          "oxfunc_test": "tests::interop_assignment_can_leave_dangling_surrogate_tail",
+          "disposition": "kept",
+          "replaced_by": "calc-value value::tests::interop_assignment_can_leave_dangling_surrogate_tail (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "Same expectations."
+        },
+        {
+          "oxfunc_test": "tests::calc_array_preserves_shape_and_row_major_access",
+          "disposition": "kept",
+          "replaced_by": "calc-value value::tests::calc_array_preserves_shape_and_row_major_access (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "Same expectations; the expected cell is built with CalcValue::new(CoreValue::Number(1.0)) because the fields are private. Added: get outside the shape, row_slice, a ragged from_rows and a mismatched new are rejected, and an overflowing cell_count is None."
+        },
+        {
+          "oxfunc_test": "tests::calc_array_admits_nested_arrays_and_missing_elements",
+          "disposition": "kept",
+          "replaced_by": "calc-value value::tests::calc_array_admits_nested_arrays_and_missing_elements (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "Same expectations; from_scalar returns the array directly, so the test checks the held element instead of Some."
+        },
+        {
+          "oxfunc_test": "tests::calc_value_scalar_projection_helpers_are_core_explicit",
+          "disposition": "kept",
+          "replaced_by": "calc-value value::tests::calc_value_scalar_projection_helpers_are_core_explicit (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "Same expectations, plus a number has no text projection."
+        },
+        {
+          "oxfunc_test": "tests::calc_value_reference_array_and_rich_projection_helpers_are_typed",
+          "disposition": "changed",
+          "replaced_by": "calc-value value::tests::calc_value_reference_and_array_projection_helpers_are_typed (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "The reference and array projections are kept, with a typed cell reference instead of ReferenceLike::new(A1, \"A1\"); the presentation, rich-object and error-metadata expectations are dropped with those types."
+        },
+        {
+          "oxfunc_test": "tests::calc_value_callable_constructor_and_projection_are_rich_only",
+          "disposition": "changed",
+          "replaced_by": "calc-value value::tests::calc_value_callable_constructor_and_projection (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "The core is still Error(Calc) and the arity is still projected; the callable is no longer a rich value. Added: as_error reports Calc, the summary is projected, and a plain #CALC! value has no callable and is not equal to a callable."
+        },
+        {
+          "oxfunc_test": "tests::textual_reference_carries_typed_identity_and_display_projection",
+          "disposition": "changed",
+          "replaced_by": "calc-value value::tests::union_reference_keeps_typed_areas_in_order and grid::tests::an_area_normalizes_its_corners_and_counts_its_cells (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "The typed forms are kept: a cell or area reference is its typed areas, built, ordered and compared without text. The textual identity, the trimming of \" A1:B2 \" and the display projection are removed with the string payloads; reading reference text is CalcFml's (cfml-m1.1, cfml-m1.2)."
+        },
+        {
+          "oxfunc_test": "tests::opaque_reference_identity_does_not_require_display_as_identity",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Opaque handles and other reference systems are not ported. The owner search (see not_ported, ReferenceHandle) finds them only in the defining file and resolver.rs, which the pin lists for cfunc-m3.1 to cfunc-m3.21 as catalogue helpers; no bead's own text names them."
+        },
+        {
+          "oxfunc_test": "tests::composite_reference_can_represent_union_without_reparsing_display",
+          "disposition": "changed",
+          "replaced_by": "calc-value value::tests::union_reference_keeps_typed_areas_in_order and value::tests::a_union_reference_holds_areas_of_one_sheet_only (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "A union keeps its member areas in order (duplicates included) without any display text, and holds areas of one sheet only; the composite operation and the display are dropped (cfml-m3.3 owns the reference operators)."
+        },
+        {
+          "oxfunc_test": "tests::callable_arity_shape_exact_accepts_only_matching_arity",
+          "disposition": "kept",
+          "replaced_by": "calc-value value::tests::callable_arity_shape_exact_accepts_only_matching_arity (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "Same expectations, plus a range accepts its maximum."
+        },
+        {
+          "oxfunc_test": "tests::rich_value_model_supports_object_fallback_and_nested_array_data",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Rich values are not ported. cfunc-m3.19 (image_fn.rs, IMAGE, uses RichValue::Object) and cfunc-m1.1 (registry.rs declares ProducesRichObject) will need them; see not_ported."
+        },
+        {
+          "oxfunc_test": "tests::presentation_hint_is_rich_metadata_on_calc_value",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Presentation hints are not ported. cfunc-m3.19 (now_fn.rs and today_fn.rs, NOW and TODAY, use with_presentation) and cfunc-m1.1 (registry.rs declares ProducesPresentation) will need them; see not_ported."
+        },
+        {
+          "oxfunc_test": "tests::rich_object_tag_is_not_confused_with_core_fallback",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Rich values and ValueTag are not ported."
+        },
+        {
+          "oxfunc_test": "tests::callable_values_have_calc_error_core_and_callable_tag",
+          "disposition": "changed",
+          "replaced_by": "calc-value value::tests::calc_value_callable_constructor_and_projection and value::tests::callable_values_are_equal_only_when_they_share_a_handle (cargo test -p calc-value --lib natively, and in Chrome and Firefox under cargo xtask ci wasm)",
+          "reason": "The #CALC! core is kept; ValueTag::Callable is replaced by callable_value() being present, and equality by a shared handle is checked directly."
+        }
+      ],
+      "owner_search": {
+        "why": "Each not_ported entry names the beads that will need its items, as this search found them (round-1 finding 2; round 2's findings 1 and 3). An entry's beads cover every bead the pin lists for a port input that uses its symbols, and every bead BEAD_DETAILS.md matches for its symbols and terms, unless beads_excluded gives that bead and why.",
+        "restriction": {
+          "rule": "Every symbol search matches only the pinned port inputs that the pin does not quarantine: the inputs of migration/source-manifest.json with repository OxFunc, commit 6fca351872616a352848a3dea2e182662834ea57 and disposition port (the release source allowlist's rule uses the same term: 'exactly the inputs of the manifest whose read disposition is port'). Their lookup exits are 0, 5 or 6. Quarantined and quarantine_derived inputs (lookup exit 3) and files that are not pinned inputs are never passed to the search; neither are reference inputs, which have their own pass below.",
+          "port_inputs_searched": 577,
+          "left_out": {
+            "quarantine_derived": 911,
+            "quarantined": 7,
+            "reference": 391,
+            "not_pinned": "every other file of OxFunc at the commit"
+          },
+          "blobs": "the 1,886 OxFunc inputs all record commit 6fca3518, and each recorded blob equals the blob git ls-tree -r gives for its path at that commit (0 mismatches), so git grep at the commit reads the pinned blobs",
+          "reference_pass": "A second pass runs the same searches over the 391 pinned reference inputs (not port inputs; the search lists file names only) and reports what it finds separately, under reference_inputs_using_them. It finds smart-fuzzer/planning/CASE_SCHEMA_V0.md and tools/xll-addin/oxfunc_xll/src/lib.rs (ReferenceKind entry) and smart-fuzzer/planning/SMART_FUZZER_DESIGN.md (PresentationHint entry), all listed for the smart-fuzzer set. Their lookups (target/debug/xtask.exe pin-sources --lookup, run by the orchestrator after the round-3 judge): smart-fuzzer/planning/CASE_SCHEMA_V0.md and smart-fuzzer/planning/SMART_FUZZER_DESIGN.md exit 0; tools/xll-addin/oxfunc_xll/src/lib.rs exits 5 (numeric provenance unresolved, unread-include), so it is not read for behaviour. Reference inputs do not all exit 0."
+        },
+        "commands": [
+          "git -C ../OxFunc grep -l -w -F -e <symbol> 6fca351872616a352848a3dea2e182662834ea57 -- <paths>   (from the workspace root; <paths> are the port inputs of the restriction, passed in chunks of under 20,000 characters to stay below the Windows command-line limit; a label such as .target() or 'literal ...' is searched with -E -e <regex> or -F -e <text> instead of -w -F -e)",
+          "target/debug/xtask.exe pin-sources --lookup OxFunc/<path>   (the binary cargo xtask runs, for each file found; its exit code is recorded per file)",
+          "migration/source-manifest.json inputs[OxFunc, <path>].beads and .via   (the beads and route the pin lists for each file found)",
+          "docs/plan/BEAD_DETAILS.md: each symbol as a whole word, case-sensitive, and each term as a whole word, case-insensitive; a matching line belongs to the task bead whose '## <id> — ' heading precedes it (an epic's lines belong to no bead)"
+        ],
+        "special_searches": {
+          "Value (the value-types enum)": "git grep -w Value matches WorksheetErrorCode::Value, serde_json::Value and other enums' Value variants in 315 port inputs, so this search reads each port .rs input at the pin (git show) and lists the files that declare pub enum Value, import Value in a use item whose path runs through value:: or oxfunc_value_types, or name value::Value or oxfunc_value_types::Value. It finds only the defining file.",
+          "method calls": ".tag(), .kind(), .target(), .normalized() and .rich() are searched as -E '\\.<name>\\(\\)'; text does not resolve the receiver's type. The receivers of .target() and .kind() at the pin are reference, request.reference, request.lhs, request.rhs, normalized, composite, member, got, r and self (in the defining file), all references.",
+          "glob re-export": "crates/oxfunc_core/src/value.rs is the one line 'pub use oxfunc_value_types::*;', so it names no symbol and no symbol search lists it; its lookup exits 0 and the pin lists it for cfunc-m3.1 to cfunc-m3.21 (catalogue helper), which every entry but the external-workbook one already covers through the defining file."
+        },
+        "run": "2026-10-15, round 3 of this bead. It replaces round 2's searches, which ran git grep -l over the whole OxFunc tree at the pin (quarantined and unpinned files included) and recorded a count of unpinned files; round 3 records no unpinned matches.",
+        "bead_sets": {
+          "value-types file": "the beads the pin lists for crates/oxfunc_value_types/src/lib.rs: cfunc-m0.1 (cited) and cfunc-m3.1 to cfunc-m3.21 (catalogue helper)",
+          "catalogue": "the beads the pin lists for an OxFunc function implementation, catalogue helper or catalogue test file: cfunc-m3.1 to cfunc-m3.21 (the pin does not narrow a file to one of them)",
+          "catalogue and registry": "the beads the pin lists for crates/oxfunc_core/src/registry.rs and crates/oxfunc_core/src/functions/surface_dispatch.rs: cfunc-m1.1, cfunc-m1.2, cfunc-m3.22, cfunc-m3.25, cfunc-m7.2 and onecalc-m6.1 (cited) and cfunc-m3.1 to cfunc-m3.21 (catalogue)",
+          "smart-fuzzer": "the beads the pin lists for files under OxFunc smart-fuzzer/ (discovery): infra-m0.6, infra-m1.1, infra-m1.2, infra-m1.3, infra-m2.1, infra-m3.2, infra-m3.3, infra-m4.1, infra-m5.1, infra-m5.2, infra-m5.3, infra-m6.1, infra-m7.1, infra-m7.10, infra-m7.2, infra-m7.4, infra-m7.5, infra-m7.7, infra-m8.1"
+        },
+        "bead_set_members": {
+          "catalogue": [
+            "cfunc-m3.1",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.2",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9"
+          ],
+          "catalogue and registry": [
+            "cfunc-m1.1",
+            "cfunc-m1.2",
+            "cfunc-m3.1",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.2",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "cfunc-m3.22",
+            "cfunc-m3.25",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9",
+            "cfunc-m7.2",
+            "onecalc-m6.1"
+          ],
+          "smart-fuzzer": [
+            "infra-m0.6",
+            "infra-m1.1",
+            "infra-m1.2",
+            "infra-m1.3",
+            "infra-m2.1",
+            "infra-m3.2",
+            "infra-m3.3",
+            "infra-m4.1",
+            "infra-m5.1",
+            "infra-m5.2",
+            "infra-m5.3",
+            "infra-m6.1",
+            "infra-m7.1",
+            "infra-m7.10",
+            "infra-m7.2",
+            "infra-m7.4",
+            "infra-m7.5",
+            "infra-m7.7",
+            "infra-m8.1"
+          ],
+          "value-types file": [
+            "cfunc-m0.1",
+            "cfunc-m3.1",
+            "cfunc-m3.10",
+            "cfunc-m3.11",
+            "cfunc-m3.12",
+            "cfunc-m3.13",
+            "cfunc-m3.14",
+            "cfunc-m3.15",
+            "cfunc-m3.16",
+            "cfunc-m3.17",
+            "cfunc-m3.18",
+            "cfunc-m3.19",
+            "cfunc-m3.2",
+            "cfunc-m3.20",
+            "cfunc-m3.21",
+            "cfunc-m3.3",
+            "cfunc-m3.4",
+            "cfunc-m3.5",
+            "cfunc-m3.6",
+            "cfunc-m3.7",
+            "cfunc-m3.8",
+            "cfunc-m3.9"
+          ]
+        }
+      },
+      "reads_outside_the_pin": [
+        {
+          "repository": "OxFunc",
+          "commit": "6fca351872616a352848a3dea2e182662834ea57",
+          "path": "crates/oxfunc_value_types/Cargo.toml",
+          "pinned": "no: cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_value_types/Cargo.toml exits 1 (not a pinned input of migration/source-manifest.json), and the bead's Port from does not name it",
+          "what_and_why": "Its text at the pin, read once in round 1 of this bead. The pinned lib.rs switches its Shared alias and OpaqueCallable between an Arc and an Rc arm on cfg(feature = \"send-values\") and says that feature is on by default; the feature itself is declared in this manifest, which is what the read concerned.",
+          "ported": "Nothing. calc-value's Cargo.toml takes nothing from it: calc-value declares no features, and its only dependencies are the wasm32-only test pair wasm-bindgen =0.2.117 and wasm-bindgen-test =0.3.67. Round 2's owner search printed the names of unpinned and quarantined files (git grep -l over the whole tree at the pin); round 3's searches pass only pinned inputs to git grep and git show, and list the tree only to compare the pinned blobs (git ls-tree -r, names and blob IDs). One round-3 command, mistyped with a stray '--', searched the OxFunc working tree's copies of the port-input paths instead of the commit; the pin records 0 tracked changes in that working tree, and the command was re-run at the commit with the same lines found."
+        }
+      ]
+    }
+  ],
+  "fresh": [
+    {
+      "items": [
+        "WorkbookId",
+        "SheetId",
+        "NameId",
+        "TableId",
+        "NodeId",
+        "IdAllocator",
+        "IdError"
+      ],
+      "file": "crates/calc-value/src/id.rs",
+      "what": "Generational IDs (slot and generation) issued only by an IdAllocator; a released slot comes back under the next generation (the most recently released slot first); a slot whose generation would pass u32::MAX is retired and never issued again; there is no public constructor from raw parts. The pinned source has no ID types."
+    },
+    {
+      "items": [
+        "CellKey",
+        "GridArea",
+        "GridError",
+        "MAX_ROWS",
+        "MAX_COLUMNS"
+      ],
+      "file": "crates/calc-value/src/grid.rs",
+      "what": "A sheet and a 1-based u32 row (1 to 1,048,576) and column (1 to 16,384) with private fields and checked construction, with a typed error for zero and out-of-bounds coordinates; a GridArea is a Copy rectangle on one sheet, the full sheet included, built without allocation. calc-value parses no reference text."
+    },
+    {
+      "items": [
+        "NumericMode",
+        "NumericTargetId"
+      ],
+      "file": "crates/calc-value/src/numeric.rs",
+      "what": "NumericMode { Fast, Exact(NumericTargetId) } with Fast as the default (plan 5.1); NumericTargetId names the Excel build, channel, compatibility and numeric environment as four non-empty text parts (plan 5.2). No process-global mode exists."
+    },
+    {
+      "items": [
+        "WorksheetErrorCode::all"
+      ],
+      "file": "crates/calc-value/src/value.rs",
+      "what": "The fourteen codes in declaration order."
+    },
+    {
+      "items": [
+        "ReferenceError",
+        "ReferenceLike::sheet"
+      ],
+      "file": "crates/calc-value/src/value.rs",
+      "what": "The typed refusal of ReferenceLike::from_areas (NoAreas; SheetMismatch, naming the first sheet and the first other one) and the one sheet a reference's areas lie on."
+    }
+  ],
+  "limits": [
+    "ID uniqueness holds among the IDs one allocator issues. Two allocators can issue equal IDs, and an allocator cannot tell an ID another allocator of the same kind issued from its own; identity across workbooks is the pair of WorkbookId and the ID inside that workbook.",
+    "An allocator addresses slot indices below u32::MAX and past that refuses with IdError::Exhausted. The retirement and exhaustion paths are covered by calc-value unit tests that set a slot's generation or the slot limit directly, not by the acceptance cases.",
+    "NumericTargetId keeps its four parts as text; it does not parse an Excel build number or check a channel name.",
+    "calc-value's unit tests (18 at round 3, the kept OxFunc witnesses among them) run natively under cargo test -p calc-value --lib and in Chrome and Firefox under cargo xtask ci wasm: each is #[test] natively and #[wasm_bindgen_test] on wasm32, with wasm-bindgen =0.2.117 and wasm-bindgen-test =0.3.67 as wasm32-only dev-dependencies of calc-value.",
+    "wasm32-unknown-unknown has no threads: cfunc_m0_1__send_sync spawns and joins a thread natively only; in Chrome and Firefox the Send + Sync bound rests on the compile-time assertions.",
+    "The no-opt-out check of cfunc_m0_1__send_sync reads text, not the compiler's view: it reads comments and strings as code (so calc-value's sources do not use the banned words anywhere), it finds the module files through the root's mod declarations (an include macro or a #[path] attribute fails the case, and a file no module declares is not compiled), and it cannot read a build script the manifest does not name; a cfg such a script set would still need a cfg in the sources, which the check fails.",
+    "calc-value's seams.json names callers inside calc-value only (CalcValue's constructors, CallableValue::new, CellKey::new, GridArea::new, SlotTable::issue and SlotTable::release, NumericMode::target, WorksheetErrorCode::all and ReferenceLike::from_areas). dc-0oyu (blocks dc-pz3u) points those entries at callers outside calc-value once consumers exist.",
+    "A multi-area reference holds one sheet; a 3D sheet span, a structured reference, a spill anchor and an external workbook reference are not representable in this bead (not_ported names their beads)."
+  ]
+}

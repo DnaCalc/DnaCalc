@@ -1,4 +1,24 @@
 {
   "package": "calc-func",
-  "beads": []
+  "beads": [
+    {
+      "id": "cfunc-m0.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m0_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-value", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m0.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m0.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m0.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfunc_m0_1__send_sync",
+        "cfunc_m0_1__grid_edges"
+      ],
+      "platforms": {
+        "cfunc_m0_1__send_sync": ["windows", "linux", "wasm"],
+        "cfunc_m0_1__grid_edges": ["windows", "linux", "wasm"]
+      }
+    }
+  ]
 }

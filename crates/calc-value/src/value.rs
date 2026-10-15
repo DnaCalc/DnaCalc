@@ -1,0 +1,739 @@
+//! The worksheet value model.
+//!
+//! A [`CalcValue`] is a [`CoreValue`] plus, for a callable, its [`CallableValue`]. Every shared
+//! payload (text code units, array cells, the areas of a multi-area reference, a callable and its
+//! handle) is immutable behind `std::sync::Arc`, so cloning a value shares its payload and every
+//! type here is `Send + Sync`.
+
+use crate::grid::{CellKey, GridArea};
+use crate::id::SheetId;
+use std::any::Any;
+use std::fmt;
+use std::sync::Arc;
+
+/// The longest text Excel holds in a cell, in UTF-16 code units. Text assigned through
+/// [`ExcelText::from_interop_assignment`] is truncated to it.
+pub const EXCEL_TEXT_MAX_UTF16_CODE_UNITS: usize = 32_767;
+
+/// The worksheet error values this model represents. Whether an Excel build shows others is not
+/// established here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WorksheetErrorCode {
+    Null,
+    Div0,
+    Value,
+    Ref,
+    Name,
+    Num,
+    NA,
+    Busy,
+    GettingData,
+    Spill,
+    Calc,
+    Field,
+    Blocked,
+    Connect,
+}
+
+impl WorksheetErrorCode {
+    /// Every worksheet error code, in declaration order.
+    pub const fn all() -> [WorksheetErrorCode; 14] {
+        [
+            Self::Null,
+            Self::Div0,
+            Self::Value,
+            Self::Ref,
+            Self::Name,
+            Self::Num,
+            Self::NA,
+            Self::Busy,
+            Self::GettingData,
+            Self::Spill,
+            Self::Calc,
+            Self::Field,
+            Self::Blocked,
+            Self::Connect,
+        ]
+    }
+}
+
+/// Excel text: UTF-16 code units, which need not form valid UTF-16 (a truncation can leave a
+/// dangling high surrogate, as Excel's can).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ExcelText {
+    units: Arc<[u16]>,
+}
+
+impl ExcelText {
+    /// Text of exactly these code units, without truncation.
+    pub fn from_utf16_code_units(units: Vec<u16>) -> Self {
+        ExcelText {
+            units: units.into(),
+        }
+    }
+
+    /// Text as Excel stores a string assigned through its interop surface: the UTF-16 encoding of
+    /// `input`, truncated to [`EXCEL_TEXT_MAX_UTF16_CODE_UNITS`] code units.
+    pub fn from_interop_assignment(input: &str) -> Self {
+        let units: Vec<u16> = input
+            .encode_utf16()
+            .take(EXCEL_TEXT_MAX_UTF16_CODE_UNITS)
+            .collect();
+        Self::from_utf16_code_units(units)
+    }
+
+    pub fn len_utf16_code_units(&self) -> usize {
+        self.units.len()
+    }
+
+    pub fn utf16_code_units(&self) -> &[u16] {
+        &self.units
+    }
+
+    /// The text as a Rust string, with each unpaired surrogate replaced by U+FFFD.
+    pub fn to_string_lossy(&self) -> String {
+        String::from_utf16_lossy(&self.units)
+    }
+
+    /// Whether the last code unit is a high surrogate with no low surrogate after it.
+    pub fn has_dangling_high_surrogate_tail(&self) -> bool {
+        self.units
+            .last()
+            .is_some_and(|unit| (0xD800..=0xDBFF).contains(unit))
+    }
+}
+
+/// The rows and columns of an array value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ArrayShape {
+    pub rows: usize,
+    pub cols: usize,
+}
+
+impl ArrayShape {
+    /// `rows * cols`, or `None` when the product overflows `usize`.
+    pub const fn cell_count(self) -> Option<usize> {
+        self.rows.checked_mul(self.cols)
+    }
+}
+
+/// A non-empty rectangular array of values in row-major order. Its cells are shared, immutable,
+/// behind an `Arc`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalcArray {
+    shape: ArrayShape,
+    cells: Arc<[CalcValue]>,
+}
+
+impl CalcArray {
+    /// The array of `shape` with `cells` in row-major order; `None` when a dimension is 0 or the
+    /// cell count does not match the shape.
+    pub fn new(shape: ArrayShape, cells: Vec<CalcValue>) -> Option<Self> {
+        if shape.rows == 0 || shape.cols == 0 || shape.cell_count() != Some(cells.len()) {
+            return None;
+        }
+        Some(CalcArray {
+            shape,
+            cells: cells.into(),
+        })
+    }
+
+    /// The 1-by-1 array holding `value`.
+    pub fn from_scalar(value: CalcValue) -> Self {
+        CalcArray {
+            shape: ArrayShape { rows: 1, cols: 1 },
+            cells: Arc::from([value]),
+        }
+    }
+
+    /// The array of these rows; `None` when there are no rows, a row is empty, or the rows differ
+    /// in length.
+    pub fn from_rows(rows: Vec<Vec<CalcValue>>) -> Option<Self> {
+        let row_count = rows.len();
+        let col_count = rows.first()?.len();
+        if col_count == 0 || rows.iter().any(|row| row.len() != col_count) {
+            return None;
+        }
+        let cells: Vec<CalcValue> = rows.into_iter().flatten().collect();
+        Self::new(
+            ArrayShape {
+                rows: row_count,
+                cols: col_count,
+            },
+            cells,
+        )
+    }
+
+    pub const fn shape(&self) -> ArrayShape {
+        self.shape
+    }
+
+    pub fn cell_count(&self) -> usize {
+        self.cells.len()
+    }
+
+    /// The cell at 0-based `row` and `col`, or `None` outside the shape.
+    pub fn get(&self, row: usize, col: usize) -> Option<&CalcValue> {
+        if row >= self.shape.rows || col >= self.shape.cols {
+            return None;
+        }
+        let index = row.checked_mul(self.shape.cols)?.checked_add(col)?;
+        self.cells.get(index)
+    }
+
+    /// The cells of 0-based `row`, or `None` outside the shape.
+    pub fn row_slice(&self, row: usize) -> Option<&[CalcValue]> {
+        if row >= self.shape.rows {
+            return None;
+        }
+        let start = row.checked_mul(self.shape.cols)?;
+        let end = start.checked_add(self.shape.cols)?;
+        self.cells.get(start..end)
+    }
+
+    pub fn iter_row_major(&self) -> std::slice::Iter<'_, CalcValue> {
+        self.cells.iter()
+    }
+}
+
+/// Why [`ReferenceLike::from_areas`] refused its areas.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ReferenceError {
+    /// A reference holds at least one area.
+    NoAreas,
+    /// The areas lie on more than one sheet; Excel's union operator works within one sheet.
+    /// `first` is the sheet of the first area and `other` that of the first area on another.
+    SheetMismatch { first: SheetId, other: SheetId },
+}
+
+impl fmt::Display for ReferenceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ReferenceError::NoAreas => f.write_str("a reference holds at least one area"),
+            ReferenceError::SheetMismatch { first, other } => write!(
+                f,
+                "a multi-area reference holds areas of one sheet only, not of {first:?} and {other:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ReferenceError {}
+
+/// A reference value: one or more grid areas of one sheet, in order. A single cell is a one-cell
+/// area. The areas of a multi-area (union) reference are shared behind an `Arc`; one area is held
+/// inline and allocates nothing. A 3D sheet span, a structured reference, a spill anchor and an
+/// external workbook reference are not representable here.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ReferenceLike {
+    areas: Areas,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum Areas {
+    One(GridArea),
+    /// Two or more areas.
+    Many(Arc<[GridArea]>),
+}
+
+impl ReferenceLike {
+    /// The reference to one cell.
+    pub const fn cell(key: CellKey) -> Self {
+        Self::area(GridArea::cell(key))
+    }
+
+    /// The reference to one area.
+    pub const fn area(area: GridArea) -> Self {
+        ReferenceLike {
+            areas: Areas::One(area),
+        }
+    }
+
+    /// The reference to these areas, in this order, duplicates kept (as Excel's union keeps
+    /// them). One area gives the same value as [`Self::area`]. Refused with the typed error when
+    /// there are no areas or when they lie on more than one sheet.
+    pub fn from_areas(areas: Vec<GridArea>) -> Result<Self, ReferenceError> {
+        let first = areas.first().ok_or(ReferenceError::NoAreas)?.sheet();
+        if let Some(other) = areas.iter().map(|area| area.sheet()).find(|s| *s != first) {
+            return Err(ReferenceError::SheetMismatch { first, other });
+        }
+        match areas.as_slice() {
+            [one] => Ok(Self::area(*one)),
+            _ => Ok(ReferenceLike {
+                areas: Areas::Many(areas.into()),
+            }),
+        }
+    }
+
+    /// The sheet that every area of this reference lies on.
+    pub fn sheet(&self) -> SheetId {
+        self.areas()[0].sheet()
+    }
+
+    pub fn areas(&self) -> &[GridArea] {
+        match &self.areas {
+            Areas::One(area) => std::slice::from_ref(area),
+            Areas::Many(areas) => areas,
+        }
+    }
+
+    pub fn area_count(&self) -> usize {
+        self.areas().len()
+    }
+}
+
+/// The number of arguments a callable accepts, from `min` to `max` inclusive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CallableArityShape {
+    pub min: usize,
+    pub max: usize,
+}
+
+impl CallableArityShape {
+    pub const fn exact(n: usize) -> Self {
+        CallableArityShape { min: n, max: n }
+    }
+
+    pub const fn range(min: usize, max: usize) -> Self {
+        CallableArityShape { min, max }
+    }
+
+    pub const fn accepts(self, argc: usize) -> bool {
+        argc >= self.min && argc <= self.max
+    }
+}
+
+/// The contract of the identity behind a [`CallableValue`]. The value model never inspects it;
+/// the evaluator that owns the callable downcasts it through [`OpaqueCallable::as_any`].
+/// Implementers are `Send + Sync`: a callable value carries a token or an immutable binding,
+/// never thread-bound evaluation state.
+pub trait OpaqueCallable: fmt::Debug + Send + Sync + 'static {
+    fn as_any(&self) -> &dyn Any;
+}
+
+/// A callable value (a LAMBDA or a function value): its arity, a summary for display, and the
+/// shared handle of its identity. Two callable values are equal when their arities are equal and
+/// they share one handle.
+#[derive(Clone, Debug)]
+pub struct CallableValue {
+    arity: CallableArityShape,
+    summary: Arc<str>,
+    handle: Arc<dyn OpaqueCallable>,
+}
+
+impl CallableValue {
+    pub fn new(arity: CallableArityShape, summary: &str, handle: Arc<dyn OpaqueCallable>) -> Self {
+        CallableValue {
+            arity,
+            summary: summary.into(),
+            handle,
+        }
+    }
+
+    pub const fn arity(&self) -> CallableArityShape {
+        self.arity
+    }
+
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    pub fn handle(&self) -> &Arc<dyn OpaqueCallable> {
+        &self.handle
+    }
+}
+
+impl PartialEq for CallableValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.arity == other.arity && Arc::ptr_eq(&self.handle, &other.handle)
+    }
+}
+
+/// The worksheet-visible part of a value.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CoreValue {
+    Number(f64),
+    Text(ExcelText),
+    Logical(bool),
+    Error(WorksheetErrorCode),
+    /// An empty cell.
+    Empty,
+    /// An omitted argument.
+    Missing,
+    Array(CalcArray),
+    Reference(ReferenceLike),
+}
+
+/// A value: its worksheet-visible [`CoreValue`], and for a callable the [`CallableValue`] behind
+/// it (whose worksheet-visible core is `#CALC!`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalcValue {
+    core: CoreValue,
+    callable: Option<Arc<CallableValue>>,
+}
+
+impl CalcValue {
+    pub const fn new(core: CoreValue) -> Self {
+        CalcValue {
+            core,
+            callable: None,
+        }
+    }
+
+    pub fn number(value: f64) -> Self {
+        Self::new(CoreValue::Number(value))
+    }
+
+    pub fn text(value: ExcelText) -> Self {
+        Self::new(CoreValue::Text(value))
+    }
+
+    pub fn logical(value: bool) -> Self {
+        Self::new(CoreValue::Logical(value))
+    }
+
+    pub fn error(code: WorksheetErrorCode) -> Self {
+        Self::new(CoreValue::Error(code))
+    }
+
+    pub fn empty() -> Self {
+        Self::new(CoreValue::Empty)
+    }
+
+    pub fn missing() -> Self {
+        Self::new(CoreValue::Missing)
+    }
+
+    pub fn array(array: CalcArray) -> Self {
+        Self::new(CoreValue::Array(array))
+    }
+
+    pub fn reference(reference: ReferenceLike) -> Self {
+        Self::new(CoreValue::Reference(reference))
+    }
+
+    /// A callable value. Its worksheet-visible core is `#CALC!`, which is what Excel shows for a
+    /// callable that reaches a cell.
+    pub fn callable(callable: CallableValue) -> Self {
+        CalcValue {
+            core: CoreValue::Error(WorksheetErrorCode::Calc),
+            callable: Some(Arc::new(callable)),
+        }
+    }
+
+    pub fn core(&self) -> &CoreValue {
+        &self.core
+    }
+
+    pub fn as_number(&self) -> Option<f64> {
+        match self.core {
+            CoreValue::Number(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_text(&self) -> Option<&ExcelText> {
+        match &self.core {
+            CoreValue::Text(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_logical(&self) -> Option<bool> {
+        match self.core {
+            CoreValue::Logical(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The error code of the core; a callable reports `Calc`.
+    pub fn as_error(&self) -> Option<WorksheetErrorCode> {
+        match self.core {
+            CoreValue::Error(code) => Some(code),
+            _ => None,
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&CalcArray> {
+        match &self.core {
+            CoreValue::Array(array) => Some(array),
+            _ => None,
+        }
+    }
+
+    pub fn as_reference(&self) -> Option<&ReferenceLike> {
+        match &self.core {
+            CoreValue::Reference(reference) => Some(reference),
+            _ => None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        matches!(self.core, CoreValue::Empty)
+    }
+
+    pub fn is_missing(&self) -> bool {
+        matches!(self.core, CoreValue::Missing)
+    }
+
+    pub fn callable_value(&self) -> Option<&CallableValue> {
+        self.callable.as_deref()
+    }
+}
+
+/// The value model's unit tests. Each test runs natively and, as a wasm-bindgen test, in Chrome
+/// and Firefox.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::grid::CellKey;
+    use crate::id::{IdAllocator, SheetId};
+
+    #[derive(Debug)]
+    struct TestCallable;
+
+    impl OpaqueCallable for TestCallable {
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn interop_assignment_truncates_ascii_to_32767_utf16_units() {
+        let text = ExcelText::from_interop_assignment(&"x".repeat(40_000));
+        assert_eq!(text.len_utf16_code_units(), EXCEL_TEXT_MAX_UTF16_CODE_UNITS);
+        assert!(!text.has_dangling_high_surrogate_tail());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn interop_assignment_can_leave_dangling_surrogate_tail() {
+        let text = ExcelText::from_interop_assignment(&"\u{1F600}".repeat(40_000));
+        assert_eq!(text.len_utf16_code_units(), EXCEL_TEXT_MAX_UTF16_CODE_UNITS);
+        assert!(text.has_dangling_high_surrogate_tail());
+        assert!(text.to_string_lossy().ends_with('\u{FFFD}'));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn calc_array_preserves_shape_and_row_major_access() {
+        let array = CalcArray::from_rows(vec![
+            vec![
+                CalcValue::number(1.0),
+                CalcValue::text(ExcelText::from_utf16_code_units(
+                    "x".encode_utf16().collect(),
+                )),
+            ],
+            vec![CalcValue::logical(true), CalcValue::empty()],
+        ])
+        .unwrap();
+
+        assert_eq!(array.shape(), ArrayShape { rows: 2, cols: 2 });
+        assert_eq!(
+            array.get(0, 0),
+            Some(&CalcValue::new(CoreValue::Number(1.0)))
+        );
+        assert_eq!(array.get(1, 1), Some(&CalcValue::empty()));
+        assert_eq!(array.get(2, 0), None);
+        assert_eq!(array.row_slice(1).map(<[CalcValue]>::len), Some(2));
+        assert_eq!(array.iter_row_major().count(), 4);
+        assert_eq!(
+            array
+                .iter_row_major()
+                .nth(2)
+                .and_then(CalcValue::as_logical),
+            Some(true)
+        );
+        assert!(CalcArray::from_rows(vec![vec![CalcValue::empty()], vec![]]).is_none());
+        assert!(
+            CalcArray::new(ArrayShape { rows: 2, cols: 1 }, vec![CalcValue::empty()]).is_none()
+        );
+        assert_eq!(
+            ArrayShape {
+                rows: usize::MAX,
+                cols: 2
+            }
+            .cell_count(),
+            None
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn calc_array_admits_nested_arrays_and_missing_elements() {
+        let nested = CalcValue::array(CalcArray::from_scalar(CalcValue::number(1.0)));
+        assert_eq!(CalcArray::from_scalar(nested).cell_count(), 1);
+        assert!(
+            CalcArray::from_scalar(CalcValue::missing())
+                .get(0, 0)
+                .unwrap()
+                .is_missing()
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn calc_value_scalar_projection_helpers_are_core_explicit() {
+        let number = CalcValue::number(12.5);
+        let text = CalcValue::text(ExcelText::from_interop_assignment("x"));
+        let logical = CalcValue::logical(true);
+        let error = CalcValue::error(WorksheetErrorCode::NA);
+
+        assert_eq!(number.core(), &CoreValue::Number(12.5));
+        assert_eq!(number.as_number(), Some(12.5));
+        assert_eq!(
+            text.as_text().map(ExcelText::to_string_lossy),
+            Some("x".to_string())
+        );
+        assert_eq!(logical.as_logical(), Some(true));
+        assert_eq!(error.as_error(), Some(WorksheetErrorCode::NA));
+        assert!(CalcValue::empty().is_empty());
+        assert!(CalcValue::missing().is_missing());
+        assert_eq!(number.as_text(), None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn calc_value_reference_and_array_projection_helpers_are_typed() {
+        let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = sheets.issue().unwrap();
+        let reference = ReferenceLike::cell(CellKey::new(sheet, 1, 1).unwrap());
+        let reference_value = CalcValue::reference(reference.clone());
+        assert_eq!(reference_value.as_reference(), Some(&reference));
+
+        let array = CalcArray::from_scalar(CalcValue::number(1.0));
+        let array_value = CalcValue::array(array.clone());
+        assert_eq!(array_value.as_array(), Some(&array));
+        assert_eq!(array_value.as_reference(), None);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn union_reference_keeps_typed_areas_in_order() {
+        let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = sheets.issue().unwrap();
+        let key = |row, column| CellKey::new(sheet, row, column).unwrap();
+        let left = GridArea::new(key(1, 1), key(2, 1)).unwrap();
+        let right = GridArea::new(key(1, 3), key(2, 3)).unwrap();
+
+        let union = ReferenceLike::from_areas(vec![left, right, left]).unwrap();
+        assert_eq!(union.areas(), [left, right, left]);
+        assert_eq!(union.area_count(), 3);
+        assert_eq!(union.sheet(), sheet);
+        assert_eq!(
+            ReferenceLike::from_areas(vec![left]),
+            Ok(ReferenceLike::area(left))
+        );
+        assert_eq!(
+            ReferenceLike::from_areas(Vec::new()),
+            Err(ReferenceError::NoAreas)
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_union_reference_holds_areas_of_one_sheet_only() {
+        let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+        let first = sheets.issue().unwrap();
+        let second = sheets.issue().unwrap();
+        let on = |sheet, row, column| GridArea::cell(CellKey::new(sheet, row, column).unwrap());
+
+        // Areas on two live sheets, wherever the other sheet's area comes in the list.
+        assert_eq!(
+            ReferenceLike::from_areas(vec![on(first, 1, 1), on(second, 1, 1)]),
+            Err(ReferenceError::SheetMismatch {
+                first,
+                other: second
+            })
+        );
+        assert_eq!(
+            ReferenceLike::from_areas(vec![on(second, 2, 2), on(second, 3, 3), on(first, 2, 2)]),
+            Err(ReferenceError::SheetMismatch {
+                first: second,
+                other: first
+            })
+        );
+
+        // A released slot reissued under a new generation is another sheet.
+        sheets.release(first).unwrap();
+        let reissued = sheets.issue().unwrap();
+        assert_eq!(reissued.slot(), first.slot());
+        assert_eq!(
+            ReferenceLike::from_areas(vec![on(first, 1, 1), on(reissued, 1, 1)]),
+            Err(ReferenceError::SheetMismatch {
+                first,
+                other: reissued
+            })
+        );
+
+        // Areas of one sheet are accepted, in order.
+        let union = ReferenceLike::from_areas(vec![on(second, 1, 1), on(second, 5, 5)]).unwrap();
+        assert_eq!((union.sheet(), union.area_count()), (second, 2));
+        assert_eq!(
+            ReferenceLike::cell(CellKey::new(second, 1, 1).unwrap()).sheet(),
+            second
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn calc_value_callable_constructor_and_projection() {
+        let value = CalcValue::callable(CallableValue::new(
+            CallableArityShape::exact(1),
+            "test.callable",
+            Arc::new(TestCallable),
+        ));
+        assert_eq!(value.core(), &CoreValue::Error(WorksheetErrorCode::Calc));
+        assert_eq!(value.as_error(), Some(WorksheetErrorCode::Calc));
+        assert_eq!(
+            value.callable_value().map(CallableValue::arity),
+            Some(CallableArityShape::exact(1))
+        );
+        assert_eq!(
+            value.callable_value().map(CallableValue::summary),
+            Some("test.callable")
+        );
+        assert!(
+            CalcValue::error(WorksheetErrorCode::Calc)
+                .callable_value()
+                .is_none()
+        );
+        assert_ne!(CalcValue::error(WorksheetErrorCode::Calc), value);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn callable_values_are_equal_only_when_they_share_a_handle() {
+        let handle: Arc<dyn OpaqueCallable> = Arc::new(TestCallable);
+        let one = CallableValue::new(CallableArityShape::exact(1), "LAMBDA(x, x)", handle.clone());
+        let same = CallableValue::new(CallableArityShape::exact(1), "another summary", handle);
+        let other = CallableValue::new(
+            CallableArityShape::exact(1),
+            "LAMBDA(x, x)",
+            Arc::new(TestCallable),
+        );
+        assert_eq!(one, same);
+        assert_ne!(one, other);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn callable_arity_shape_exact_accepts_only_matching_arity() {
+        let arity = CallableArityShape::exact(2);
+        assert!(!arity.accepts(1));
+        assert!(arity.accepts(2));
+        assert!(!arity.accepts(3));
+        assert!(CallableArityShape::range(1, 3).accepts(3));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn there_are_fourteen_distinct_worksheet_error_codes() {
+        let all = WorksheetErrorCode::all();
+        for (index, code) in all.iter().enumerate() {
+            assert!(!all[..index].contains(code), "{code:?} repeats");
+        }
+        assert_eq!(all.len(), 14);
+    }
+}
