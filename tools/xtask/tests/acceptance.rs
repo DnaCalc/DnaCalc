@@ -1917,7 +1917,9 @@ mod infra_m0_5;
 /// No source manifest entry marked unresolved or tainted enters the release source allowlist, and
 /// a file that only calls one enters it only with its calls_quarantined list: the committed
 /// allowlist and its facts recomputed from git, the generator over fixture dispositions, and hand
-/// edits, which the check of `cargo xtask accept` rejects; see `acceptance/infra_m0_5.rs`.
+/// edits, which the check of `cargo xtask accept` rejects, except a coordinated edit of the
+/// tainted-commit list, the manifest's recorded rule sets and the review hash, which only this
+/// case's recomputation from git rejects; see `acceptance/infra_m0_5.rs`.
 #[test]
 fn infra_m0_5__quarantine_gate() {
     let _serial = serial();
@@ -1925,11 +1927,13 @@ fn infra_m0_5__quarantine_gate() {
 }
 
 /// Every retained numeric witness is a selection of a pinned capture with black-box acquisition
-/// metadata, and no quarantined implementation generated its expected bits: a generator that
-/// builds or runs a package of a tainted class leaves a witness retained only when its bits equal
-/// the capture runner's earlier retention row by row; a witness without metadata, with a
-/// quarantined generator or without that equality fails the check of `cargo xtask accept`; see
-/// `acceptance/infra_m0_5.rs`.
+/// metadata, and no quarantined implementation generated its expected bits: every file of its
+/// chain is admitted only through a reviewed witness_chain entry at the blob that ran, and a
+/// generator that builds, runs or names a package of a tainted class leaves a witness retained only
+/// when its bits equal the retention of the same capture row by row and the raw capture's hash is
+/// continuous through the snapshot and freeze steps; a witness without metadata, with a quarantined
+/// generator, without that equality or with a chain entry that does not match the review fails the
+/// check of `cargo xtask accept`; see `acceptance/infra_m0_5.rs`.
 #[test]
 fn infra_m0_5__independent_witness() {
     let _serial = serial();

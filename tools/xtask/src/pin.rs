@@ -751,6 +751,50 @@ impl Repository {
             .collect())
     }
 
+    /// What the stated rule of the tainted-commit list finds in the history of the pinned commit:
+    /// the commits `git log -i -E --grep=<pattern>` lists, and the commits whose message (lossy
+    /// UTF-8) the citation sweep with `patterns` matches.
+    fn rule_found(
+        &self,
+        pattern: &str,
+        patterns: &[String],
+    ) -> Result<provenance::RuleFound, String> {
+        let pinned = self
+            .commit
+            .clone()
+            .ok_or_else(|| format!("{} is not present", self.name))?;
+        let grep = format!("--grep={pattern}");
+        let listed = self
+            .legacy
+            .text(&["log", "--format=%H", "-i", "-E", &grep, &pinned])?;
+        let identification = listed
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let messages = self
+            .legacy
+            .read(&["log", "--format=%H%x00%B%x1e", &pinned])?;
+        let messages = String::from_utf8_lossy(&messages);
+        let mut message_sweep = BTreeSet::new();
+        for record in messages.split('\u{1e}') {
+            let Some((commit, body)) = record.trim_start().split_once('\0') else {
+                continue;
+            };
+            if !provenance::sweep(body, patterns).is_empty() {
+                message_sweep.insert(commit.trim().to_owned());
+            }
+        }
+        Ok(provenance::RuleFound {
+            repository: self.name.clone(),
+            commit: pinned,
+            pattern: pattern.to_owned(),
+            identification,
+            message_sweep,
+        })
+    }
+
     /// The committed text of `path` at the pinned commit (lossy UTF-8), read once.
     fn content(&mut self, path: &str) -> Result<String, String> {
         if let Some(text) = self.contents.get(path) {
@@ -1000,7 +1044,42 @@ fn pin(ws: &Workspace, tracker: &Path, reviewed: &Reviewed) -> Result<Value, Str
         .iter()
         .map(|name| Repository::open(&root.path, name))
         .collect::<Result<_, _>>()?;
-    build(&beads, &mut repositories, &audit, reviewed)
+    // The tainted-commit list against its stated rule, recomputed from git at the pin.
+    let rule_found = match &reviewed.commit_rule {
+        None => None,
+        Some(rule) => {
+            let state = repositories
+                .iter()
+                .find(|r| r.name == rule.repository)
+                .ok_or_else(|| {
+                    format!(
+                        "the tainted_commit_rule names {}, which is not a legacy repository",
+                        rule.repository
+                    )
+                })?;
+            let found = state.rule_found(&rule.pattern, &reviewed.sweep_patterns)?;
+            let problems = provenance::rule_findings(reviewed, Some(&found), &ws.root);
+            if !problems.is_empty() {
+                return Err(format!(
+                    "the tainted_commits list of the dispositions file does not follow its stated rule at {} {} ({} by the identification grep, {} by the citation sweep of the message); {} findings:\n  {}",
+                    found.repository,
+                    found.commit,
+                    found.identification.len(),
+                    found.message_sweep.len(),
+                    problems.len(),
+                    problems.join("\n  ")
+                ));
+            }
+            Some(found)
+        }
+    };
+    build(
+        &beads,
+        &mut repositories,
+        &audit,
+        reviewed,
+        rule_found.as_ref(),
+    )
 }
 
 /// The manifest for `beads` over `repositories`; everything after reading the tracker, the plan
@@ -1010,6 +1089,7 @@ fn build(
     repositories: &mut [Repository],
     audit: &[AuditEntry],
     reviewed: &Reviewed,
+    rule_found: Option<&provenance::RuleFound>,
 ) -> Result<Value, String> {
     let mut citations: BTreeMap<String, Citation> = BTreeMap::new();
     let mut family_do: BTreeMap<String, String> = BTreeMap::new();
@@ -1145,6 +1225,7 @@ fn build(
     mark_runner_candidates(repositories, &mut selection)?;
     let crates = record_code_refs(repositories, &mut selection, &mut trees, &mut skips)?;
     let witness_facts = record_content_facts(repositories, &mut selection, reviewed)?;
+    let chain_facts = record_chain_facts(repositories, reviewed)?;
 
     for ((name, path), input) in selection.inputs.iter_mut() {
         let state = repository(repositories, name)?;
@@ -1178,6 +1259,8 @@ fn build(
         reviewed,
         crates: &crates,
         witness_facts: &witness_facts,
+        rule_found,
+        chain_facts,
     }))
 }
 
@@ -1891,6 +1974,67 @@ fn record_content_facts(
     Ok(sources)
 }
 
+/// The facts of each witness-chain entry's own content at its blob: the lines the citation sweep
+/// matches, and the commits of the tainted list that git log of its path up to the entry's commit
+/// lists. Fails when the entry's blob is not the path's blob at that commit, or the commit is not
+/// an ancestor of the pin.
+fn record_chain_facts(
+    repositories: &mut [Repository],
+    reviewed: &Reviewed,
+) -> Result<Vec<Value>, String> {
+    let mut out = Vec::new();
+    for entry in &reviewed.chain {
+        let source = &entry.source;
+        let state = repository(repositories, &source.repository)?;
+        let pinned = state
+            .commit
+            .clone()
+            .ok_or_else(|| format!("{} is not present", state.name))?;
+        let at = state
+            .legacy
+            .text(&["rev-parse", &format!("{}:{}", entry.commit, source.path)])?;
+        if at != source.blob {
+            return Err(format!(
+                "witness_chain entry {}: {}:{} is blob {at}, not the recorded {}",
+                entry.id, entry.commit, source.path, source.blob
+            ));
+        }
+        if !state
+            .legacy
+            .succeeds(&["merge-base", "--is-ancestor", &entry.commit, &pinned])
+        {
+            return Err(format!(
+                "witness_chain entry {}: {} is not an ancestor of the pinned commit {pinned}",
+                entry.id, entry.commit
+            ));
+        }
+        let text = state.blob_text(&source.blob)?;
+        let history =
+            state
+                .legacy
+                .text(&["log", "--format=%H", &entry.commit, "--", &source.path])?;
+        let changed_by: BTreeSet<String> = history
+            .lines()
+            .map(str::trim)
+            .filter(|c| reviewed.is_tainted_commit(&source.repository, c))
+            .map(str::to_owned)
+            .collect();
+        let facts = provenance::Facts {
+            citations: provenance::sweep(&text, &reviewed.sweep_patterns),
+            changed_by: changed_by.into_iter().collect(),
+        };
+        out.push(json!({
+            "id": entry.id,
+            "repository": source.repository,
+            "path": source.path,
+            "blob": source.blob,
+            "commit": entry.commit,
+            "content_facts": facts.json(),
+        }));
+    }
+    Ok(out)
+}
+
 struct CatalogueResolution {
     functions: Vec<Value>,
     notes: Vec<String>,
@@ -2520,7 +2664,9 @@ fn rules() -> Value {
         "directory_tests": "for a Port from text that asks for test files: the tests of the cited directory's crate that name its module (<module>::), with the files they include or name",
         "code_refs": "for every Rust input whose read disposition is port or reference: the files of its repository that its non-test code refers to (refs) and includes literally with include!, include_str! or include_bytes! (includes), the include macros of its non-test code whose argument is not one string literal (unread_includes: a concat! or a macro variable, which this pin does not expand; each such file is counted once in summary.resolution_skipped), the library crates of other legacy repositories it refers to by crate name (crates, as '<Repo> crate <name>'; a crate of its own repository with the same name wins, and a name two other repositories define is not followed), the run-time loads it makes (runtime: fs::read, fs::read_to_string, fs::read_dir, File::open, OpenOptions and Command::new, whose targets are not resolved), and what its test code adds (test_refs, test_includes, test_unread_includes, test_crates, test_runtime). A file of a library crate's module tree resolves crate, self, super and sibling-crate paths and relative paths to its child modules; any other file of a package (an integration test, a binary, an example, a bench or a build script) resolves only paths into the library crates by crate name. A path names the files of its longest prefix that is a module; a name imported with use and then used as a path prefix resolves only through its use. A file in no package, or one that does not parse, has no code_refs and is counted in summary.resolution_skipped",
         "content_facts": "for every input: the lines of its own text that the citation sweep of numeric_content matches (citations: line and pattern, never the line's text), and the commits of the dispositions file's tainted list that changed it (changed_by), as numeric_content.changed_by_rule says",
-        "numeric_provenance": format!("from the dispositions file ({}; another with --provenance), by the content-derivation rule of 2026-10-15: a module entry for the path when the pinned blob is the reviewed one (another blob makes the input at least unresolved), else the first class whose selector matches, else unresolved ({}) when the pin quarantines the input; then at least unresolved for a citation sweep match ({}), a change by a listed tainted commit ({}) or an include macro the pin cannot read ({}); then at least the provenance of every file its code includes literally ({}, to a fixed point). A file that is not an input counts by the entry for its path, or unresolved under the quarantined directory. A file that only refers to a tainted or unresolved file keeps its own provenance and lists, under calls_quarantined ({}), the files of its repository it refers to whose provenance is tainted or unresolved, each crate of another repository it refers to that holds such a file, and '<Repo> {}' when its code loads files or runs programs at run time; summary.numeric_provenance counts these edges and the edges into files that are not pinned inputs, which bead dc-4uy4 owns. A catalogue function with quarantined_helpers records each helper's disposition and the most restrictive one. Dispositions are cleared, tainted or unresolved (the file defines them); the read disposition is unchanged by them, but summary.by_disposition counts a port input whose numeric provenance is tainted as port_numeric_tainted, not as port", provenance::DISPOSITIONS, provenance::NO_REVIEW, provenance::RULE_CITATION, provenance::RULE_COMMIT, provenance::RULE_UNREAD, provenance::RULE_INCLUDE, provenance::RULE_CALLS, provenance::RUNTIME_LOADS),
+        "tainted_commit_rule": "numeric_content.tainted_commit_rule: what the dispositions file's stated rule finds in the history of its repository's pinned commit, computed here from git: identification, the commits git log -i -E --grep=<identification_pattern> lists, and message_sweep, the commits whose message the citation sweep matches. The pin refuses to write when the tainted_commits list omits one of them or a commit the commits review ties to the pass, lists a commit none of them gives, or records found_by or a review verdict they and the review files do not give",
+        "witness_chain": "numeric_content.witness_chain: for each witness_chain entry of the dispositions file, the citation sweep's matches in its blob and the commits of the tainted list that git log of its path up to the entry's commit lists (content_facts); the pin refuses to write when the entry's blob is not the path's blob at that commit or the commit is not an ancestor of the pin",
+        "numeric_provenance": format!("from the dispositions file ({}; another with --provenance), by the content-derivation rule of 2026-10-15: a module entry for the path when the pinned blob is the reviewed one (another blob makes the input at least unresolved), else a witness_chain entry that clears the path at its pinned blob on the file's own acquisition (cleared_as acquisition) when the file holds a retained witness's expected bits (its source capture or its independent retention; every other witness_chain entry admits its file to the witness chain only and gives no provenance), else the first class whose selector matches, else unresolved ({}) when the pin quarantines the input; then at least unresolved for a citation sweep match ({}), a change by a listed tainted commit that no such witness_chain entry names among its considered_commits ({}) or an include macro the pin cannot read ({}); then at least the provenance of every file its code includes literally ({}, to a fixed point). A file that is not an input counts by the entry for its path, or unresolved under the quarantined directory. A file that only refers to a tainted or unresolved file keeps its own provenance and lists, under calls_quarantined ({}), the files of its repository it refers to whose provenance is tainted or unresolved, each crate of another repository it refers to that holds such a file, and '<Repo> {}' when its code loads files or runs programs at run time; summary.numeric_provenance counts these edges and the edges into files that are not pinned inputs, which bead dc-4uy4 owns. A catalogue function with quarantined_helpers records each helper's disposition and the most restrictive one. Dispositions are cleared, tainted or unresolved (the file defines them); the read disposition is unchanged by them, but summary.by_disposition counts a port input whose numeric provenance is tainted as port_numeric_tainted, not as port", provenance::DISPOSITIONS, provenance::NO_REVIEW, provenance::RULE_CITATION, provenance::RULE_COMMIT, provenance::RULE_UNREAD, provenance::RULE_INCLUDE, provenance::RULE_CALLS, provenance::RUNTIME_LOADS),
         "release_allowlist": format!("{} beside the manifest: every input whose read disposition is port and whose numeric_provenance is absent or cleared, each with its calls_quarantined list when it has one; summary.release_allowlist counts them; --lookup exits {EXIT_NUMERIC} for any other input whose numeric provenance is tainted or unresolved, and {EXIT_CALLS_QUARANTINED} for an input admitted only with its calls_quarantined list (port it only against clean replacements of the listed modules)", provenance::ALLOWLIST_FILE),
         "retained_witnesses": format!("the retained numeric witness selections of the dispositions file, each with its source capture (repository, commit, path, blob, sha256 and rows); --lookup of a source names its retained selection and exits 0. The capture itself is not an input; its selection under {} is the copy to read", provenance::WITNESSES),
         "plan_audit": format!("every blob of {PLAN_AUDIT} sources compared with the blob of the same path at the pinned commit; changed_since_plan_audit lists each that differs"),
@@ -2551,6 +2697,10 @@ struct Parts<'a> {
     crates: &'a provenance::Crates,
     /// The content facts of each retained witness's source.
     witness_facts: &'a BTreeMap<Key, provenance::Facts>,
+    /// What the stated rule of the tainted-commit list finds at the pin.
+    rule_found: Option<&'a provenance::RuleFound>,
+    /// The content facts of each witness-chain entry at its blob.
+    chain_facts: Vec<Value>,
 }
 
 /// The numeric provenance of `<repository>/<path>`: its tag when it is an input, else the reviewed
@@ -2633,6 +2783,8 @@ fn assemble(parts: Parts<'_>) -> Value {
         reviewed,
         crates,
         witness_facts,
+        rule_found,
+        chain_facts,
     } = parts;
     let repository_of = |name: &str| repositories.iter().find(|r| r.name == name);
     let tags = numeric_tags(selection, repositories, reviewed, crates);
@@ -2984,6 +3136,13 @@ fn assemble(parts: Parts<'_>) -> Value {
         "retained_witness_sources": reviewed.witnesses.len(),
         "module_entries_matching_no_input": reviewed.modules_outside(&input_keys),
     });
+    let mut numeric_content = provenance::content_record(reviewed, crates);
+    if let Some(found) = rule_found {
+        numeric_content["tainted_commit_rule"] = found.json();
+    }
+    if !chain_facts.is_empty() {
+        numeric_content["witness_chain"] = Value::Array(chain_facts);
+    }
     json!({
         "format": FORMAT,
         "written_by": "cargo xtask pin-sources",
@@ -3019,7 +3178,7 @@ fn assemble(parts: Parts<'_>) -> Value {
             "numeric_provenance": numeric_summary,
             "release_allowlist": admitted,
         },
-        "numeric_content": provenance::content_record(reviewed, crates),
+        "numeric_content": numeric_content,
         "notes": notes,
         "repositories": repository_records,
         "not_pinned": not_pinned,
@@ -3163,6 +3322,7 @@ fn lookup_text(manifest: &Value, shown: &str, wanted: &str) -> (String, u8) {
         let mut code = 0;
         for entry in found {
             out.push_str(&entry_text(entry, shown, &manifest["pin_date"]));
+            out.push_str(&chain_only_text(manifest, entry));
             let disposition = entry["disposition"].as_str().unwrap_or_default();
             let numeric = entry["numeric_provenance"]["disposition"]
                 .as_str()
@@ -3249,6 +3409,43 @@ fn lookup_text(manifest: &Value, shown: &str, wanted: &str) -> (String, u8) {
         ));
     }
     (out, EXIT_UNAVAILABLE)
+}
+
+/// One line for each witness_chain entry the manifest records for the input's path that gave
+/// the input no numeric provenance: the entry clears the file only for a retained witness's
+/// chain (it holds no expected bits, or the entry is at another blob or labelled
+/// supplied_no_bits), so as a port input the file keeps what the content rules give it.
+fn chain_only_text(manifest: &Value, entry: &Value) -> String {
+    let given = entry["numeric_provenance"]["entries"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let numeric = entry["numeric_provenance"]["disposition"]
+        .as_str()
+        .unwrap_or("none");
+    manifest["numeric_content"]["witness_chain"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|c| {
+            c["repository"] == entry["repository"]
+                && c["path"] == entry["path"]
+                && !given.contains(&c["id"])
+        })
+        .map(|c| {
+            let blob = c["blob"].as_str().unwrap_or("?");
+            let pinned = if c["blob"] == entry["blob"] {
+                String::new()
+            } else {
+                format!(" (the pinned blob is {})", entry["blob"].as_str().unwrap_or("?"))
+            };
+            format!(
+                "  witness chain: entry {} clears this file at blob {blob}{pinned} only for the witness chain of a retained witness, not as a port input; as a port input its numeric provenance is what the content rules give it ({numeric})
+",
+                c["id"].as_str().unwrap_or("?")
+            )
+        })
+        .collect()
 }
 
 fn list_text(value: &Value) -> String {
@@ -3650,7 +3847,7 @@ mod tests {
                 blob: "x".to_owned(),
             },
         ];
-        build(beads, &mut repositories, &audit, &Reviewed::empty()).unwrap()
+        build(beads, &mut repositories, &audit, &Reviewed::empty(), None).unwrap()
     }
 
     /// Each input as `Repo/path` with its disposition.
@@ -4050,6 +4247,43 @@ mod tests {
         }
     }
 
+    /// A pinned input whose witness_chain entry gave it no numeric provenance (a script of a
+    /// witness's chain) is looked up with the provenance the content rules give it and a line
+    /// saying the entry clears it only for the witness chain; one whose entry gave its provenance
+    /// (a file that holds expected bits) gets no such line.
+    #[test]
+    fn lookups_say_a_chain_entry_clears_a_script_only_for_the_witness_chain() {
+        let input = |path: &str, numeric: Value| {
+            json!({"repository": "OxFunc", "path": path, "commit": "c", "blob": format!("blob:{path}"),
+                   "disposition": "port", "verification": "provisional", "category": "other",
+                   "license_status": "found", "beads": [], "via": [], "numeric_provenance": numeric})
+        };
+        let manifest = json!({
+            "pin_date": "2026-10-15",
+            "inputs": [
+                input("tools/run.py", json!({"disposition": "unresolved", "entries": [provenance::RULE_COMMIT],
+                                             "reason": "r", "changed_by": ["c1"]})),
+                input("data/bits.json", json!({"disposition": "cleared", "entries": ["chain-bits"], "reason": "r"})),
+            ],
+            "numeric_content": {"witness_chain": [
+                {"id": "chain-run", "repository": "OxFunc", "path": "tools/run.py", "blob": "blob:tools/run.py"},
+                {"id": "chain-bits", "repository": "OxFunc", "path": "data/bits.json", "blob": "blob:data/bits.json"},
+            ]},
+        });
+        let (text, code) = lookup_text(&manifest, "m.json", "OxFunc/tools/run.py");
+        assert_eq!(code, EXIT_NUMERIC, "{text}");
+        assert!(
+            text.contains("  numeric provenance unresolved (tainted-commit): r
+")
+                && text.contains("  witness chain: entry chain-run clears this file at blob blob:tools/run.py only for the witness chain of a retained witness, not as a port input; as a port input its numeric provenance is what the content rules give it (unresolved)
+"),
+            "{text}"
+        );
+        let (text, code) = lookup_text(&manifest, "m.json", "OxFunc/data/bits.json");
+        assert_eq!(code, 0, "{text}");
+        assert!(!text.contains("witness chain:"), "{text}");
+    }
+
     /// A small catalogue: EXP calls the quarantined dispatcher, LOGEXP calls only EXP, ABS's own
     /// comment cites the C-runtime, the dispatch file was changed by a tainted commit, one test
     /// embeds a production replay (include_str!) and another loads a file at run time.
@@ -4179,6 +4413,7 @@ mod tests {
             &mut repositories,
             &[],
             &reviewed,
+            None,
         )
         .unwrap();
         let path = |name: &str| format!("crates/oxfunc_core/src/{name}");

@@ -1396,27 +1396,36 @@ pub fn missing_source() {
     );
     let mut lookup_outputs = vec![stdout];
     // eval/mod.rs calls oxfunc_core, which holds the quarantined numeric directory: bead
-    // infra-m0.5 admits it only with its calls_quarantined list, and the lookup exits 6.
-    for (label, wanted, code, line) in [
+    // infra-m0.5 admits it only with its calls_quarantined list, and the lookup exits 6. The
+    // declared module coercion_decimal.rs was changed by OxFunc commit ffcb9a77, which the record
+    // lists as tainted (bead dc-m33w): by infra-m0.5's tainted-commit rule its numeric provenance
+    // is unresolved, the release source allowlist leaves it out, and the lookup exits 5 and names
+    // the commit. Each expected line is a whole line of the lookup's output.
+    for (label, wanted, code, lines) in [
         (
             "lookup-pinned",
             "OxFml/crates/oxfml_core/src/eval/mod.rs",
             6,
-            Some(
+            &[
                 "admitted: port only against clean replacements of the listed modules: OxFunc crate oxfunc_core (infra-m0.5)",
-            ),
+            ][..],
         ),
         (
             "lookup-declared",
             "OxFunc/crates/oxfunc_core/src/coercion_decimal.rs",
-            0,
-            None,
+            5,
+            &[
+                "  numeric provenance unresolved (tainted-commit): a commit this record lists as tainted changed it, so its content (a test value included) may have been computed through a tainted chain; a reviewed per-file entry (witness_chain) cleared on the file's own acquisition at its pinned blob lifts this for the commits it names as considered, but only for a file that holds a retained witness's expected bits (an answer capture or the retention); the entry of a script or module of the witness chain lifts nothing",
+                "  changed by tainted commits ffcb9a7728195f359bdb54a1e97af0a07c8f816e",
+                "  release source allowlist: left out",
+                "numeric provenance unresolved: do not copy it and do not read it for behaviour; nothing establishes its provenance until a reviewed entry clears it (infra-m0.5)",
+            ][..],
         ),
         (
             "lookup-quarantined",
             "OxFunc/crates/oxfunc_core/src/excel_numeric/x87.rs",
             3,
-            Some("quarantined: do not copy (infra-m0.5)"),
+            &["quarantined: do not copy (infra-m0.5)"][..],
         ),
     ] {
         let out = xtask(&evidence, label, &["pin-sources", "--lookup", wanted]);
@@ -1435,13 +1444,14 @@ pub fn missing_source() {
                 && stdout.contains(&format!("  blob {blob}\n"))
                 && stdout.contains(&format!("  disposition {d}\n"))
                 && stdout.contains("  verification provisional\n")
-                && line.is_none_or(|l| stdout.contains(&format!("{l}\n")))
+                && lines
+                    .iter()
+                    .all(|l| stdout.lines().any(|printed| printed == *l))
         });
         evidence.expect(
             out.status.code() == Some(code) && shows,
             format!(
-                "--lookup {wanted} exits {code} and prints the manifest's commit, blob and disposition {expected:?}{} (exit {:?})",
-                line.map(|l| format!(" and {l:?}")).unwrap_or_default(),
+                "--lookup {wanted} exits {code} and prints the manifest's commit, blob and disposition {expected:?} and the lines {lines:?} (exit {:?})",
                 out.status.code()
             ),
         );

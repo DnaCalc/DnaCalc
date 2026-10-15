@@ -64,10 +64,83 @@ const RULES: [&str; 5] = [
     "calls-quarantined",
 ];
 
-/// The tokens of the staging formulas the clean room keeps out of both provenance files.
-const STAGING_TOKENS: [&str; 6] = ["FPREM1", "exp_x87", "ln_x87", "LN87", "RN53", "RN64"];
+/// The tokens of the staging formulas, helper instruction sequences and control-word settings
+/// the clean room keeps out of the provenance files, both review files, the lookup output and
+/// this source, stored as the hex of their ASCII bytes (as tools/xtask/word-scan.json stores its
+/// words) so that this file holds none of them.
+const STAGING_TOKENS_HEX: [&str; 14] = [
+    "465052454d31",
+    "6578705f783837",
+    "6c6e5f783837",
+    "4c4e3837",
+    "524e3533",
+    "524e3634",
+    "50433d3634",
+    "307831333346",
+    "464d554c",
+    "46444956",
+    "66737562",
+    "52433d6e656172657374",
+    "706f7766",
+    "646f75626c652d726f756e646564",
+];
+/// Further tokens that no lookup prints (the dispositions file names symbols that hold the last
+/// one, so it is checked in the lookup output only), stored the same way.
+const LOOKUP_TOKENS_HEX: [&str; 3] = ["445228", "4c53325049", "7838375f6d756c"];
 /// The mark of a redaction in the review file.
 const REDACTION_MARK: &str = "[staging formula removed for the clean room]";
+/// The commits review whose verbatim output the record applies (bead dc-m33w).
+const COMMITS_REVIEW: &str = "migration/numeric-provenance-review-2026-10-15-commits.json";
+/// The commit the omission fixture drops: only the stated rule's identification grep ties it (the
+/// commits review gives it not_tied_to_pass, the earlier review does not name it, and it changed
+/// no pinned input), so nothing but the rule's sets and the hash of the dispositions as reviewed
+/// records it.
+const NOT_TIED_FIXTURE_COMMIT: &str = "04f21e96f4dc82dde8996a5bd904bdb750af2ca1";
+/// The OxFunc files that hold the retained witnesses' expected bits: the five pinned answer
+/// captures and their independent retention. Only their witness_chain entries lift the
+/// tainted-commit rule (the orchestrator's ruling (b) after dc-m33w's round 2); every other entry
+/// admits its file (a script or module of the chain) to the witness chain only.
+const EXPECTED_BIT_FILES: [&str; 6] = [
+    "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json",
+    "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json",
+    "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json",
+    "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json",
+    "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json",
+    "docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json",
+];
+/// The eleven OxFunc functions/ files the round-3 judge named, which stay out of the release
+/// source allowlist (lookup exit 5) while no reviewed per-file entry clears them.
+const NAMED_FUNCTION_FILES: [&str; 11] = [
+    "combin.rs",
+    "combina.rs",
+    "matrix_family.rs",
+    "misc_conversion_family.rs",
+    "regression_forecast_family.rs",
+    "beta_gamma_stats_family.rs",
+    "chi_f_t_family.rs",
+    "statistical_tests_family.rs",
+    "asin.rs",
+    "acot.rs",
+    "atan.rs",
+];
+
+/// The ASCII text whose bytes `hex` spells in hexadecimal.
+fn unhex(hex: &str) -> String {
+    let bytes: Vec<u8> = hex
+        .as_bytes()
+        .chunks(2)
+        .map(|pair| {
+            u8::from_str_radix(std::str::from_utf8(pair).expect("hex digits"), 16)
+                .expect("hex digits")
+        })
+        .collect();
+    String::from_utf8(bytes).expect("ASCII")
+}
+
+/// The staging tokens, decoded.
+fn staging_tokens() -> Vec<String> {
+    STAGING_TOKENS_HEX.iter().map(|h| unhex(h)).collect()
+}
 
 /// The owner beads the record must name (round-3 finding 5).
 const OWNERS: [&str; 4] = ["dc-4uy4", "dc-2203", "dc-0huc", "dc-1c6a"];
@@ -407,9 +480,49 @@ fn list_of(value: &Value, key: &str) -> Vec<String> {
         .collect()
 }
 
+/// The witness-chain entry of the dispositions file for `<repository>/<path>` at `blob`.
+fn own_chain_entry<'a>(
+    file: &'a Value,
+    repository: &str,
+    path: &str,
+    blob: &str,
+) -> Option<&'a Value> {
+    file["witness_chain"]["entries"]
+        .as_array()?
+        .iter()
+        .find(|e| {
+            !blob.is_empty()
+                && text(&e["repository"]) == repository
+                && text(&e["path"]) == path
+                && text(&e["blob"]) == blob
+        })
+}
+
+/// Whether a witness-chain entry lifts the tainted-commit rule, by this test's own reading: it
+/// clears its file on the file's own acquisition, and the file is one of the
+/// `EXPECTED_BIT_FILES` of OxFunc.
+fn own_lifts(entry: &Value) -> bool {
+    entry["cleared_as"] == "acquisition"
+        && entry["disposition"] == "cleared"
+        && entry["repository"] == "OxFunc"
+        && EXPECTED_BIT_FILES.contains(&text(&entry["path"]))
+}
+
+/// The commits a witness-chain entry that lifts the tainted-commit rule for `<repository>/<path>`
+/// at `blob` names as considered (the precedence change recorded on dc-m33w, limited to the files
+/// that hold expected bits).
+fn own_considered(file: &Value, repository: &str, path: &str, blob: &str) -> Vec<String> {
+    own_chain_entry(file, repository, path, blob)
+        .filter(|e| own_lifts(e))
+        .map(|e| list_of(e, "considered_commits"))
+        .unwrap_or_default()
+}
+
 /// The disposition the dispositions file gives `<repository>/<path>` at `blob`, by this test's
 /// own reading of its entries: a module entry for the path (a different blob is at least
-/// unresolved), else the first class whose selector matches.
+/// unresolved), else a witness-chain entry that lifts the tainted-commit rule at that blob (one of
+/// the expected-bit files, cleared on its own acquisition), else the first class whose selector
+/// matches.
 fn own_disposition(file: &Value, repository: &str, path: &str, blob: &str) -> Option<String> {
     let modules = file["modules"].as_array().cloned().unwrap_or_default();
     if let Some(module) = modules
@@ -422,6 +535,9 @@ fn own_disposition(file: &Value, repository: &str, path: &str, blob: &str) -> Op
         } else {
             "unresolved".to_owned()
         });
+    }
+    if own_chain_entry(file, repository, path, blob).is_some_and(own_lifts) {
+        return Some("cleared".to_owned());
     }
     for class in file["classes"].as_array().into_iter().flatten() {
         let selector = &class["selector"];
@@ -506,9 +622,10 @@ fn own_tags(manifest: &Value, dispositions: &Value) -> BTreeMap<String, OwnTag> 
         if facts["citations"].as_array().is_some_and(|c| !c.is_empty()) {
             raise(&mut disposition, "unresolved");
         }
+        let considered = own_considered(dispositions, repository, path, text(&input["blob"]));
         if list_of(facts, "changed_by")
             .iter()
-            .any(|c| tainted.contains(&format!("{repository}:{c}")))
+            .any(|c| tainted.contains(&format!("{repository}:{c}")) && !considered.contains(c))
         {
             raise(&mut disposition, "unresolved");
         }
@@ -1018,9 +1135,61 @@ fn cross_repository_problems(
 
 /// The canonical form of the dispositions as reviewed, by this test's own reading: every module
 /// and class entry without an after_review mark as it stands, a changed one as its reviewed_as
-/// record, an added one left out; the deciding fields only, sorted by kind and id.
+/// record, an added one left out; the stated rule of the tainted-commit list, every tainted
+/// commit without an after_review mark and every witness-chain entry; the deciding fields only,
+/// sorted by kind and id.
 fn own_reviewed_view(file: &Value) -> Value {
     let mut view: Vec<Value> = Vec::new();
+    let rule = &file["tainted_commit_rule"];
+    if rule.is_object() {
+        let mut record = serde_json::Map::new();
+        record.insert("kind".to_owned(), json!("tainted_commit_rule"));
+        record.insert("id".to_owned(), rule["repository"].clone());
+        record.insert("repository".to_owned(), rule["repository"].clone());
+        record.insert(
+            "identification_pattern".to_owned(),
+            rule["identification_pattern"].clone(),
+        );
+        view.push(Value::Object(record));
+    }
+    for entry in file["tainted_commits"].as_array().into_iter().flatten() {
+        if entry["after_review"].is_object() {
+            continue;
+        }
+        let mut review = serde_json::Map::new();
+        for field in ["file", "entries", "verdict"] {
+            review.insert(field.to_owned(), entry["review"][field].clone());
+        }
+        let mut record = serde_json::Map::new();
+        record.insert("kind".to_owned(), json!("tainted_commit"));
+        record.insert("id".to_owned(), entry["commit"].clone());
+        record.insert("repository".to_owned(), entry["repository"].clone());
+        record.insert("found_by".to_owned(), entry["found_by"].clone());
+        record.insert("review".to_owned(), Value::Object(review));
+        view.push(Value::Object(record));
+    }
+    for entry in file["witness_chain"]["entries"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        let mut record = serde_json::Map::new();
+        record.insert("kind".to_owned(), json!("witness_chain"));
+        for field in [
+            "id",
+            "repository",
+            "path",
+            "blob",
+            "commit",
+            "disposition",
+            "cleared_as",
+            "considered_commits",
+            "review",
+        ] {
+            record.insert(field.to_owned(), entry[field].clone());
+        }
+        view.push(Value::Object(record));
+    }
     for (kind, key) in [("module", "modules"), ("class", "classes")] {
         for entry in file[key].as_array().into_iter().flatten() {
             let mark = &entry["after_review"];
@@ -1056,6 +1225,320 @@ fn own_reviewed_view(file: &Value) -> Value {
         (text(&a["kind"]), text(&a["id"])).cmp(&(text(&b["kind"]), text(&b["id"])))
     });
     Value::Array(view)
+}
+
+/// This test's own reading of the stated rule of the tainted-commit list at `pin`: the commits its
+/// own `git log -i -E --grep=<pattern>` lists, and the commits whose message (lossy UTF-8) holds a
+/// sweep pattern at a word start by its own `holds_pattern`.
+fn own_rule_sets(
+    dir: &Path,
+    pin: &str,
+    pattern: &str,
+    patterns: &[String],
+) -> Result<(BTreeSet<String>, BTreeSet<String>), String> {
+    let grep = format!("--grep={pattern}");
+    let identification = legacy_read(dir, &["log", "--format=%H", "-i", "-E", &grep, pin])?
+        .lines()
+        .map(|l| l.trim().to_owned())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let bytes = legacy_bytes(dir, &["log", "--format=%H%x00%B%x1e", pin])?;
+    let messages = String::from_utf8_lossy(&bytes).into_owned();
+    let mut sweep = BTreeSet::new();
+    for record in messages.split('\u{1e}') {
+        let Some((commit, body)) = record.trim_start().split_once('\0') else {
+            continue;
+        };
+        if body
+            .split('\n')
+            .any(|line| patterns.iter().any(|p| holds_pattern(line, p)))
+        {
+            sweep.insert(commit.trim().to_owned());
+        }
+    }
+    Ok((identification, sweep))
+}
+
+/// The full ID of a commit of the repository at `dir` that `token` names, if it names one.
+fn own_commit(dir: &Path, token: &str) -> Option<String> {
+    legacy_read(
+        dir,
+        &[
+            "rev-parse",
+            "--verify",
+            "-q",
+            &format!("{token}^{{commit}}"),
+        ],
+    )
+    .ok()
+    .filter(|c| c.len() == 40)
+}
+
+/// What the review files tie to the pass, by this test's own reading: from the commits review,
+/// each commit of its commits list and each top-level commit entry with its verdict (resolved with
+/// git); from the earlier review, every commit its entries name other than the witness entries
+/// (witness-source-*, witnesses, witnesses-excluded), resolved with git, the pin left out.
+fn own_review_ties(
+    dir: &Path,
+    pin: &str,
+    earlier: &Value,
+    commits_review: &Value,
+) -> (BTreeMap<String, String>, BTreeSet<String>) {
+    let mut verdicts = BTreeMap::new();
+    for item in commits_review["commits"].as_array().into_iter().flatten() {
+        verdicts.insert(
+            text(&item["commit"]).to_owned(),
+            text(&item["verdict"]).to_owned(),
+        );
+    }
+    for (key, item) in commits_review.as_object().into_iter().flatten() {
+        if key.len() >= 7
+            && key.bytes().all(|b| b.is_ascii_hexdigit())
+            && let Some(commit) = own_commit(dir, key)
+        {
+            verdicts.insert(commit, text(&item["verdict"]).to_owned());
+        }
+    }
+    let mut earlier_ties = BTreeSet::new();
+    for entry in earlier["entries"].as_array().into_iter().flatten() {
+        let id = text(&entry["id"]);
+        if id.starts_with("witness") {
+            continue;
+        }
+        let serialized = entry.to_string();
+        let bytes = serialized.as_bytes();
+        let mut i = 0;
+        while i + 8 <= bytes.len() {
+            let starts = i == 0 || !bytes[i - 1].is_ascii_alphanumeric();
+            let run = bytes[i..]
+                .iter()
+                .take_while(|b| b.is_ascii_hexdigit())
+                .count();
+            if starts
+                && run >= 8
+                && (i + run == bytes.len() || !bytes[i + run].is_ascii_alphanumeric())
+            {
+                let token = &serialized[i..i + run];
+                if let Some(commit) = own_commit(dir, token)
+                    && commit != pin
+                {
+                    earlier_ties.insert(commit);
+                }
+            }
+            i += run.max(1);
+        }
+    }
+    (verdicts, earlier_ties)
+}
+
+/// The record's tainted-commit list against this test's own reading of the rule and the review
+/// files: every commit the rule finds or a review ties is listed, nothing else is, each found_by
+/// says which gives it, and each commit the commits review judges carries that verdict from that
+/// file.
+fn own_rule_problems(
+    dispositions: &Value,
+    identification: &BTreeSet<String>,
+    sweep: &BTreeSet<String>,
+    verdicts: &BTreeMap<String, String>,
+    earlier_ties: &BTreeSet<String>,
+) -> Vec<String> {
+    let ties = |v: &str| v == "tainted" || v == "unresolved";
+    let listed: BTreeMap<String, &Value> = dispositions["tainted_commits"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|t| (text(&t["commit"]).to_owned(), t))
+        .collect();
+    let mut wanted: BTreeSet<String> = identification.union(sweep).cloned().collect();
+    wanted.extend(
+        verdicts
+            .iter()
+            .filter(|(_, v)| ties(v))
+            .map(|(c, _)| c.clone()),
+    );
+    wanted.extend(earlier_ties.iter().cloned());
+    let mut problems = Vec::new();
+    for commit in wanted.iter().filter(|c| !listed.contains_key(*c)) {
+        problems.push(format!("omits {commit}"));
+    }
+    for (commit, entry) in &listed {
+        if !wanted.contains(commit) {
+            problems.push(format!(
+                "lists {commit}, which neither the rule nor a review gives"
+            ));
+            continue;
+        }
+        let tied = verdicts.get(commit).is_some_and(|v| ties(v)) || earlier_ties.contains(commit);
+        let expected: Vec<&str> = [
+            ("identification", identification.contains(commit)),
+            ("message-sweep", sweep.contains(commit)),
+            ("review", tied),
+        ]
+        .iter()
+        .filter(|(_, hit)| *hit)
+        .map(|(name, _)| *name)
+        .collect();
+        if list_of(entry, "found_by") != expected {
+            problems.push(format!(
+                "{commit}: found_by {:?}, this test derives {expected:?}",
+                entry["found_by"]
+            ));
+        }
+        match verdicts.get(commit) {
+            Some(verdict) => {
+                if entry["review"]["verdict"] != verdict.as_str()
+                    || entry["review"]["file"] != COMMITS_REVIEW
+                {
+                    problems.push(format!(
+                        "{commit}: records {} but {COMMITS_REVIEW} gives {verdict}",
+                        entry["review"]
+                    ));
+                }
+            }
+            None => {
+                let earlier_file = &dispositions["status"]["review"]["outcome"]["file"];
+                if !earlier_ties.contains(commit)
+                    || entry["review"]["file"] != *earlier_file
+                    || !matches!(text(&entry["review"]["verdict"]), "tainted" | "unresolved")
+                {
+                    problems.push(format!(
+                        "{commit}: no review verdict this test can trace to {earlier_file} ({})",
+                        entry["review"]
+                    ));
+                }
+            }
+        }
+    }
+    problems
+}
+
+/// The stated rule of the tainted-commit list as this test computes it from git at the pin
+/// (`own_rule_sets`), and what the review files tie to the pass by this test's reading
+/// (`own_review_ties`).
+struct OwnRule {
+    identification: BTreeSet<String>,
+    sweep: BTreeSet<String>,
+    verdicts: BTreeMap<String, String>,
+    earlier_ties: BTreeSet<String>,
+}
+
+impl OwnRule {
+    /// This test's recomputation of the rule over a dispositions file and a manifest read from
+    /// disk: the record's list against the rule and the reviews (`own_rule_problems`), and the
+    /// rule's sets the manifest records against this test's own git.
+    fn problems_in(&self, dispositions: &Path, manifest: &Path) -> Vec<String> {
+        let mut problems = own_rule_problems(
+            &super::read_json(dispositions),
+            &self.identification,
+            &self.sweep,
+            &self.verdicts,
+            &self.earlier_ties,
+        );
+        let manifest = super::read_json(manifest);
+        let recorded = &manifest["numeric_content"]["tainted_commit_rule"];
+        for (key, own) in [
+            ("identification", &self.identification),
+            ("message_sweep", &self.sweep),
+        ] {
+            let set: BTreeSet<String> = list_of(recorded, key).into_iter().collect();
+            for commit in own.difference(&set) {
+                problems.push(format!(
+                    "{MANIFEST} numeric_content.tainted_commit_rule.{key} omits {commit}"
+                ));
+            }
+            for commit in set.difference(own) {
+                problems.push(format!(
+                    "{MANIFEST} numeric_content.tainted_commit_rule.{key} holds {commit}, which this test's git does not find"
+                ));
+            }
+        }
+        problems
+    }
+}
+
+/// Removes `commit`, byte for byte, from a dispositions file and a manifest on disk: its one-line
+/// entry in the dispositions file's tainted_commits, its line in the manifest's
+/// numeric_content.tainted_commit_rule sets and its four-line entry in the manifest's
+/// numeric_content.tainted_commits. Every other byte stays. Returns the lines it removed, or why
+/// the edit is not that (the commit named anywhere else, or a file that no longer parses).
+fn drop_commit_bytes(
+    dispositions: &Path,
+    manifest: &Path,
+    commit: &str,
+) -> Result<Vec<String>, String> {
+    let read = |path: &Path| {
+        fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))
+    };
+    let mut removed = Vec::new();
+    let text = read(dispositions)?;
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    let needle = format!("\"commit\": \"{commit}\"");
+    let hits: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| {
+            l.trim_start().starts_with("{\"repository\"")
+                && l.contains(&needle)
+                && l.trim_end().ends_with("},")
+        })
+        .map(|(i, _)| i)
+        .collect();
+    if hits.len() != 1 {
+        return Err(format!(
+            "{DISPOSITIONS} holds {} one-line tainted_commits entries for {commit}",
+            hits.len()
+        ));
+    }
+    removed.push(format!("{DISPOSITIONS} line {}", hits[0] + 1));
+    let kept: String = lines
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != hits[0])
+        .map(|(_, l)| *l)
+        .collect();
+    super::write(dispositions, kept);
+    let text = read(manifest)?;
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    let set_line = format!("\"{commit}\",");
+    let entry_line = format!("\"commit\": \"{commit}\",");
+    let mut dropped: BTreeSet<usize> = BTreeSet::new();
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        if trimmed == set_line {
+            dropped.insert(i);
+            removed.push(format!("{MANIFEST} line {} (a rule set)", i + 1));
+        } else if trimmed == entry_line
+            && i > 0
+            && lines[i - 1].trim() == "{"
+            && lines
+                .get(i + 1)
+                .is_some_and(|l| l.trim().starts_with("\"repository\": "))
+            && lines.get(i + 2).is_some_and(|l| l.trim() == "},")
+        {
+            dropped.extend([i - 1, i, i + 1, i + 2]);
+            removed.push(format!(
+                "{MANIFEST} lines {}-{} (a numeric_content.tainted_commits entry)",
+                i,
+                i + 3
+            ));
+        }
+    }
+    let kept: String = lines
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !dropped.contains(i))
+        .map(|(_, l)| *l)
+        .collect();
+    super::write(manifest, kept);
+    for path in [dispositions, manifest] {
+        let after = read(path)?;
+        if after.contains(commit) {
+            return Err(format!("{} still names {commit}", path.display()));
+        }
+        serde_json::from_str::<Value>(&after)
+            .map_err(|e| format!("{} no longer parses: {e}", path.display()))?;
+    }
+    Ok(removed)
 }
 
 /// What a fixture input must show: its key, read disposition, numeric provenance, whether the
@@ -1124,15 +1607,27 @@ fn write_json(path: &Path, value: &Value) {
 /// infra_m0_5__quarantine_gate: no entry marked unresolved or tainted enters the release source
 /// allowlist, and a file that only calls one enters it only with its calls_quarantined list. The
 /// committed record is read independently: the allowlist and the manifest's recorded provenance
-/// against this test's own derivation of the content-derivation rule; the manifest's content
-/// facts against this test's own git citation sweep and touched-by-commit lists; the
-/// cross-repository edges spot-checked by its own git grep; each quoted provenance line or value
-/// found in its pinned blob or commit message; the review record and its hash recomputed; the
-/// owners named; the clean room kept. The generator, run over a fixture tracker and fixture
-/// dispositions, admits a pure caller with its list and a cross-repository caller with a
-/// crate-level list and leaves out a file changed by a tainted commit and a file that includes a
-/// tainted file. Hand edits of workspace copies fail the numeric-provenance check of
-/// `cargo xtask accept`, which passes on the unaltered copy.
+/// against this test's own derivation of the content-derivation rule (with the precedence change
+/// of dc-m33w: a reviewed witness_chain entry cleared on its file's own acquisition lifts the
+/// tainted-commit rule only for the commits it considered, and only for one of the files that
+/// hold expected bits; the scripts and modules of the chain are looked up as cleared for the
+/// witness chain only); the manifest's content facts against
+/// this test's own git citation sweep and touched-by-commit lists; the tainted-commit list against
+/// its stated rule, recomputed by this test's own git log and its reading of the review files,
+/// together with the rule's sets the manifest records; the cross-repository edges
+/// spot-checked by its own git grep; each quoted provenance line or value found in its pinned blob
+/// or commit message; the review records and the hash recomputed; the owners named; the clean room
+/// kept; the eleven functions/ files the round-3 judge named left out (lookup exit 5). The
+/// generator, run over a fixture tracker and fixture dispositions, admits a pure caller with its
+/// list and a cross-repository caller with a crate-level list and leaves out a file changed by a
+/// tainted commit and a file that includes a tainted file, and refuses fixture dispositions that
+/// omit the commit their stated rule finds. Hand edits of workspace copies fail the
+/// numeric-provenance check of `cargo xtask accept`, which passes on the unaltered copy; one of
+/// them (08) drops, byte for byte, a commit only the rule's identification grep ties from the
+/// dispositions file and from the manifest's recorded rule set and tainted commits, which that
+/// check, reading the sets from the manifest, catches only through the hash of the dispositions as
+/// reviewed, and with the hash re-recorded as well (08b) not at all; this test's own recomputation
+/// of the rule from git, run over the copy's files, names the omission in both.
 pub fn quarantine() {
     const CASE: &str = "infra_m0_5__quarantine_gate";
     registered(CASE);
@@ -1224,15 +1719,85 @@ pub fn quarantine() {
             tainted.len()
         ),
     );
-    let named_commits = ["a4e94d1e", "af79125b", "5d991255", "853675ee", "85e91e45"];
-    evidence.expect(
-        named_commits.iter().all(|c| {
-            tainted
-                .iter()
-                .any(|t| t.starts_with(&format!("OxFunc:{c}")))
-        }),
-        format!("{DISPOSITIONS} lists the tainted commits {named_commits:?} among {tainted:?}"),
+    // The tainted-commit list against its stated rule, recomputed here from git at the pin and
+    // from the review files, and against what the manifest records the rule finds.
+    let rule = &dispositions["tainted_commit_rule"];
+    let rule_repository = text(&rule["repository"]).to_owned();
+    let rule_pattern = text(&rule["identification_pattern"]).to_owned();
+    let rule_pin = manifest["repositories"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|r| r["name"] == rule_repository.as_str())
+        .map(|r| text(&r["commit"]).to_owned())
+        .unwrap_or_default();
+    let rule_dir = root.join(&rule_repository);
+    let earlier_review = super::read_json(
+        &repo_root().join(text(&dispositions["status"]["review"]["outcome"]["file"])),
     );
+    let commits_review = super::read_json(&repo_root().join(COMMITS_REVIEW));
+    // The rule's sets and the review ties as this test computes them, kept for fixture 08.
+    let mut own_rule: Option<OwnRule> = None;
+    match own_rule_sets(&rule_dir, &rule_pin, &rule_pattern, &patterns) {
+        Err(e) => evidence.expect(
+            false,
+            format!("this test's own git log of the stated rule ran: {e}"),
+        ),
+        Ok((identification, sweep)) => {
+            let (verdicts, earlier_ties) =
+                own_review_ties(&rule_dir, &rule_pin, &earlier_review, &commits_review);
+            let rule = OwnRule {
+                identification,
+                sweep,
+                verdicts,
+                earlier_ties,
+            };
+            // The recomputation fixture 08 applies to a workspace copy's files, applied here to
+            // the committed files: the list against the rule and the reviews, and the rule's sets
+            // the manifest records against this test's git.
+            let problems =
+                rule.problems_in(&repo_root().join(DISPOSITIONS), &repo_root().join(MANIFEST));
+            let OwnRule {
+                identification,
+                sweep,
+                verdicts,
+                earlier_ties,
+            } = &rule;
+            let recorded_rule = &recorded_content["tainted_commit_rule"];
+            let union: BTreeSet<&String> = identification.union(sweep).collect();
+            let ffcb = dispositions["tainted_commits"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|t| text(&t["commit"]).starts_with("ffcb9a77"))
+                .cloned()
+                .unwrap_or(Value::Null);
+            evidence.expect(
+                problems.is_empty()
+                    && rule_repository == "OxFunc"
+                    && !rule_pattern.is_empty()
+                    && !identification.is_empty()
+                    && !sweep.is_empty()
+                    && recorded_rule["commit"] == rule_pin.as_str()
+                    && recorded_rule["identification_pattern"] == rule_pattern.as_str()
+                    && ffcb["review"]["verdict"] == "tainted"
+                    && ffcb["review"]["file"] == COMMITS_REVIEW
+                    && commits_review["ffcb9a77"]["verdict"] == "tainted",
+                format!(
+                    "{DISPOSITIONS} states its rule (git log -i -E --grep={rule_pattern:?} at {rule_repository} {rule_pin}, plus the citation sweep of each message, plus the review ties), and this test's own git finds {} commits by the grep and {} by the message sweep ({} in all), the manifest's numeric_content.tainted_commit_rule records the same sets, and the reviews tie {} commits ({} judged by {COMMITS_REVIEW}, {} named by the earlier review's entries); the {} listed commits are exactly those, each with the found_by and review verdict this test derives, and ffcb9a77 is listed with {COMMITS_REVIEW}'s verdict tainted ({}); problems: {problems:?}",
+                    identification.len(),
+                    sweep.len(),
+                    union.len(),
+                    verdicts.values().filter(|v| matches!(v.as_str(), "tainted" | "unresolved")).count() + earlier_ties.iter().filter(|c| !verdicts.contains_key(*c)).count(),
+                    verdicts.len(),
+                    earlier_ties.len(),
+                    tainted.len(),
+                    commits_review["ffcb9a77"]["verdict"]
+                ),
+            );
+            own_rule = Some(rule);
+        }
+    }
     match (
         git_sweep(&root, &manifest, &patterns),
         git_changed(&root, &manifest, &dispositions),
@@ -1414,16 +1979,28 @@ pub fn quarantine() {
         .flatten()
         .filter_map(|e| e["line"].as_u64())
         .collect();
+    // Line 397 is cited, not quoted: its evidence names the symbol as a label and says in a
+    // citing clause that the line defines the file's own copy of excel_bond_pow.
+    let line_397 = odd["evidence"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|e| e["line"] == 397)
+        .cloned()
+        .unwrap_or(Value::Null);
     evidence.expect(
         odd["disposition"] == "tainted"
             && odd["after_review"]["kind"] == "added"
             && [392, 393, 394, 397, 1047].iter().all(|l| odd_lines.contains(l))
+            && line_397["quote"] == "excel_bond_pow"
+            && text(&line_397["clause"])
+                .contains("line 397 defines its own copy of bond_core_family's excel_bond_pow")
             && by_key
                 .get(&format!("OxFunc/{odd_bond}"))
                 .is_some_and(|i| i["blob"] == odd["blob"])
             && !listed_keys.contains(&format!("OxFunc/{odd_bond}")),
         format!(
-            "OxFunc/{odd_bond} has a tainted module entry at its pinned blob, marked as added after the review, quoting lines 392-394 and 397 (its own copy of bond_core_family::excel_bond_pow) and 1047 (the C-runtime pow), and is not listed: {}",
+            "OxFunc/{odd_bond} has a tainted module entry at its pinned blob, marked as added after the review, citing lines 392-394, 397 (a citing clause that the line defines its own copy of bond_core_family's excel_bond_pow, with the symbol name as its only quote: {line_397}) and 1047 (the C-runtime pow), and is not listed: {}",
             odd["id"]
         ),
     );
@@ -1492,6 +2069,19 @@ pub fn quarantine() {
                     text(&item["pointer"])
                 ));
             }
+            // A code line is cited, never quoted: the quote of a code item is a label (a symbol
+            // or file name) and a citing clause says what the line does.
+            let label = !quote.is_empty()
+                && quote
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "_./-".contains(c));
+            if item["kind"] == "code" && (!label || text(&item["clause"]).is_empty()) {
+                quote_problems.push(format!(
+                    "{} code line {}: the quote {quote:?} is not a label, or no citing clause says what the line does",
+                    text(&entry["id"]),
+                    item["line"]
+                ));
+            }
         }
     }
     for item in dispositions["tainted_commits"]
@@ -1505,7 +2095,7 @@ pub fn quarantine() {
             &root.join(text(&item["repository"])),
             &["show", "-s", "--format=%B", text(&item["commit"])],
         )
-        .map(|message| !quote.is_empty() && message.contains(quote));
+        .map(|message| !quote.is_empty() && message.starts_with(quote));
         if found != Ok(true) {
             quote_problems.push(format!(
                 "tainted commit {}: {quote:?}",
@@ -1516,7 +2106,7 @@ pub fn quarantine() {
     evidence.expect(
         quotes > 0 && quote_problems.is_empty(),
         format!(
-            "all {quotes} quoted evidence lines and values of {DISPOSITIONS}, and the quote of every listed tainted commit, appear at their stated line or JSON pointer of the pinned blob, or in the commit message, read with this test's own git; problems: {quote_problems:?}"
+            "all {quotes} quoted evidence lines and values of {DISPOSITIONS} appear at their stated line or JSON pointer of the pinned blob, or in the commit message, every code line is cited by a label and a citing clause rather than quoted, and the quote of every listed tainted commit is the opening words of its message, read with this test's own git; problems: {quote_problems:?}"
         ),
     );
 
@@ -1654,6 +2244,226 @@ pub fn quarantine() {
         ),
     );
 
+    // 5b. The commits review (bead dc-m33w): the record repeats its counts, every witness-chain
+    //     file it judges has an entry with its verdict, role, reason and considered commits, the
+    //     four restricted clearances repeat the review's qualification, only the entries of the
+    //     expected-bit files lift the tainted-commit rule, and its Still open items are recorded
+    //     with owners.
+    let commits_review = super::read_json(&repo_root().join(COMMITS_REVIEW));
+    let commits_record = &record["commits_review"];
+    let mut commits_problems = Vec::new();
+    let judged = commits_review["commits"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let count = |v: &str| judged.iter().filter(|c| c["verdict"] == v).count();
+    let chain_files = commits_review["witness_chain_files"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let outcome = &commits_record["outcome"];
+    for (key, wanted) in [
+        ("commits", json!(judged.len())),
+        ("tainted", json!(count("tainted"))),
+        ("unresolved", json!(count("unresolved"))),
+        ("not_tied_to_pass", json!(count("not_tied_to_pass"))),
+        ("ffcb9a77", commits_review["ffcb9a77"]["verdict"].clone()),
+        ("witness_chain_files", json!(chain_files.len())),
+        (
+            "retention_ordering_established",
+            commits_review["retention_ordering"]["established"].clone(),
+        ),
+    ] {
+        if outcome[key] != wanted {
+            commits_problems.push(format!(
+                "outcome {key}: {} but the review holds {wanted}",
+                outcome[key]
+            ));
+        }
+    }
+    if !text(&commits_record["reviewer"]).contains("wf_5ba77a06-ea9")
+        || text(&commits_record["date"]).is_empty()
+        || commits_record["file"] != COMMITS_REVIEW
+    {
+        commits_problems.push(format!("the commits review record is {commits_record}"));
+    }
+    let chain: Vec<Value> = dispositions["witness_chain"]["entries"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let no_bits = [
+        "smart-fuzzer/tools/w111/retain_numeric_campaign.py",
+        "smart-fuzzer/tools/OracleCache.psm1",
+        "smart-fuzzer/tools/w111/snapshot_numeric_20260929.py",
+        "smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py",
+    ];
+    for item in &chain_files {
+        let path = text(&item["path"]);
+        let Some(entry) = chain
+            .iter()
+            .find(|e| e["path"] == item["path"] && e["blob"] == item["blob"])
+        else {
+            commits_problems.push(format!("no witness_chain entry for {path}"));
+            continue;
+        };
+        let considered = list_of(entry, "considered_commits");
+        let named = considered
+            .iter()
+            .all(|c| text(&item["considered_commits"]).contains(&c[..8]));
+        let cleared_as = if no_bits.contains(&path) {
+            "supplied_no_bits"
+        } else {
+            "acquisition"
+        };
+        // The review's own wording: the opening sentence of its reason, which the entry quotes as
+        // cleared_as_basis, starts with "Cleared " exactly for the four restricted clearances.
+        let reason = text(&item["reason"]);
+        let opening = reason.find(". ").map_or(reason, |end| &reason[..=end]);
+        if entry["cleared_as_basis"] != opening
+            || opening.starts_with("Cleared ") != (cleared_as == "supplied_no_bits")
+        {
+            commits_problems.push(format!(
+                "{}: cleared_as_basis {} is not the review's opening sentence {opening:?}, or that sentence does not give cleared_as {cleared_as}",
+                text(&entry["id"]),
+                entry["cleared_as_basis"]
+            ));
+        }
+        if item["cleared"] != true
+            || entry["disposition"] != "cleared"
+            || entry["reason"] != item["reason"]
+            || entry["role"] != item["role"]
+            || entry["considered_text"] != item["considered_commits"]
+            || !named
+            || entry["cleared_as"] != cleared_as
+            || entry["review"] != "wf_5ba77a06-ea9"
+        {
+            commits_problems.push(format!("{}: {entry}", text(&entry["id"])));
+        }
+        // Only the entries of the files that hold expected bits lift the tainted-commit rule
+        // (ruling (b) after round 2). Every other entry says it admits its file to the witness
+        // chain only and lifts no rule, and a restricted clearance repeats the review's own
+        // qualification (its opening sentence) in cleared_note.
+        let lifts = EXPECTED_BIT_FILES.contains(&path);
+        let note = text(&entry["cleared_note"]);
+        let says_chain_only =
+            note.contains("admitted to the witness chain only") && note.contains("lifts no rule");
+        let repeats_review =
+            cleared_as != "supplied_no_bits" || note.starts_with(opening.trim_end_matches('.'));
+        if own_lifts(entry) != lifts
+            || (lifts && cleared_as != "acquisition")
+            || says_chain_only == lifts
+            || !repeats_review
+        {
+            commits_problems.push(format!(
+                "{}: lifts the tainted-commit rule by this test's reading: {}, but it is {}one of the expected-bit files, or its cleared_note {note:?} does not say it is admitted to the witness chain only (or, for a restricted clearance, does not open with the review's qualification {opening:?})",
+                text(&entry["id"]),
+                own_lifts(entry),
+                if lifts { "" } else { "not " }
+            ));
+        }
+        // The manifest gives no pinned input a provenance through an entry that does not lift.
+        let key = format!("{}/{}", text(&entry["repository"]), path);
+        if let Some(input) = by_key.get(&key)
+            && !lifts
+            && list_of(&input["numeric_provenance"], "entries")
+                .contains(&text(&entry["id"]).to_owned())
+        {
+            commits_problems.push(format!(
+                "{key}: the manifest's numeric provenance names witness_chain entry {}, which lifts no rule",
+                text(&entry["id"])
+            ));
+        }
+    }
+    if chain.len() != chain_files.len() || chain.len() != 15 {
+        commits_problems.push(format!(
+            "{} witness_chain entries for {} reviewed files",
+            chain.len(),
+            chain_files.len()
+        ));
+    }
+    // The expected-bit files are exactly the retained witnesses' sources and their independent
+    // retention, each at the blob of its witness_chain entry.
+    let holders: BTreeSet<(String, String)> = dispositions["witnesses"]["retained"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|w| [&w["source"], &w["independent_retention"]])
+        .filter(|s| s.is_object())
+        .map(|s| (text(&s["path"]).to_owned(), text(&s["blob"]).to_owned()))
+        .collect();
+    let lifting: BTreeSet<(String, String)> = chain
+        .iter()
+        .filter(|e| own_lifts(e))
+        .map(|e| (text(&e["path"]).to_owned(), text(&e["blob"]).to_owned()))
+        .collect();
+    let bit_files: BTreeSet<String> = EXPECTED_BIT_FILES.iter().map(|p| (*p).to_owned()).collect();
+    let holder_paths: BTreeSet<String> = holders.iter().map(|(p, _)| p.clone()).collect();
+    if holders != lifting || holder_paths != bit_files {
+        commits_problems.push(format!(
+            "the retained witnesses' sources and retention {holders:?} are not the entries that lift the tainted-commit rule {lifting:?}, or not the expected-bit files {bit_files:?}"
+        ));
+    }
+    let limits: Vec<(String, String)> = dispositions["known_limits"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|l| (text(&l["what"]).to_owned(), text(&l["owner"]).to_owned()))
+        .collect();
+    // Each limit with the bead whose tracker notes name it: the review's four witness-independence
+    // limits (dc-z5ay), its unresolved commits (dc-2203) and the check's limits (dc-qfqa).
+    for (needle, wanted_owner) in [
+        ("write time", "dc-z5ay"),
+        ("12:57:54Z", "dc-z5ay"),
+        ("subprocess", "dc-z5ay"),
+        ("CellRefBatch", "dc-z5ay"),
+        ("24 commits", "dc-2203"),
+        ("not by a reviewer", "dc-qfqa"),
+        ("hash_continuity record", "dc-qfqa"),
+        ("precedence over every class", "dc-qfqa"),
+        ("without running git", "dc-qfqa"),
+    ] {
+        if !limits
+            .iter()
+            .any(|(what, owner)| what.contains(needle) && owner == wanted_owner)
+        {
+            commits_problems.push(format!(
+                "no known limit owned by {wanted_owner} mentions {needle:?}"
+            ));
+        }
+    }
+    let texts = fs::read_to_string(repo_root().join(DISPOSITIONS)).unwrap_or_default();
+    let contract = fs::read_to_string(repo_root().join("AGENTS.md")).unwrap_or_default();
+    if texts.contains("before those steps, which builds and runs nothing")
+        || texts.contains("an earlier independent retention")
+        || texts.contains("\"commits_not_listed\"")
+        || contract.contains("earlier independent retention")
+    {
+        commits_problems.push(
+            "the record or AGENTS.md still says the retention was written before the freeze steps, or the record keeps commits_not_listed"
+                .to_owned(),
+        );
+    }
+    evidence.expect(
+        commits_problems.is_empty(),
+        format!(
+            "{DISPOSITIONS} records the commits review {COMMITS_REVIEW} ({}, {}) with its counts {outcome}; each of its {} witness-chain files has an entry with its verdict, role, reason and considered commits verbatim, every entry quotes as cleared_as_basis the review's opening sentence for its file, which starts with \"Cleared \" exactly for the four restricted clearances (cleared_as supplied_no_bits, whose cleared_note opens with the review's own qualification); only the six entries of the expected-bit files {EXPECTED_BIT_FILES:?}, which are the retained witnesses' sources and their retention at those blobs, lift the tainted-commit rule, the other nine say in cleared_note that they admit their file to the witness chain only and lift no rule, and no pinned input's recorded provenance names one of those nine; the review's Still open items are known_limits with owners ({limits:?}); the retention-before-freeze claim and commits_not_listed are gone; problems: {commits_problems:?}",
+            text(&commits_record["reviewer"]),
+            text(&commits_record["date"]),
+            chain_files.len()
+        ),
+    );
+    for entry in &chain {
+        evidence.lines.push(format!(
+            "witness_chain entry {}: {} at blob {} (commit {}), cleared_as {}, considered {:?}",
+            text(&entry["id"]),
+            text(&entry["path"]),
+            text(&entry["blob"]),
+            text(&entry["commit"]),
+            text(&entry["cleared_as"]),
+            list_of(entry, "considered_commits")
+        ));
+    }
+
     // 6. Owners: every rule, every class that selects by prefix and every unresolved entry names
     //    one; the gaps name the owners of the deferred work; the manifest counts the five unread
     //    include macros.
@@ -1739,25 +2549,49 @@ pub fn quarantine() {
         ),
     );
 
-    // 7. The clean room: neither provenance file holds a staging formula token, and the review
-    //    file says its redactions are the only change from the reviewer's output.
+    // 7. The clean room: neither provenance file, neither review file and not this source holds a
+    //    staging formula, instruction-sequence or control-word token (this source keeps them as
+    //    hex), and the earlier review file says its redactions are the only change from the
+    //    reviewer's output.
     let dispositions_text = fs::read_to_string(repo_root().join(DISPOSITIONS)).unwrap_or_default();
     let review_text = fs::read_to_string(repo_root().join(&review_rel)).unwrap_or_default();
-    let tokens: Vec<String> = STAGING_TOKENS
-        .iter()
-        .filter(|t| dispositions_text.contains(**t) || review_text.contains(**t))
-        .map(|t| (*t).to_owned())
-        .collect();
+    let commits_text = fs::read_to_string(repo_root().join(COMMITS_REVIEW)).unwrap_or_default();
+    let source_rel = "tools/xtask/tests/acceptance/infra_m0_5.rs";
+    let source_text = fs::read_to_string(repo_root().join(source_rel)).unwrap_or_default();
+    let staging = staging_tokens();
+    let lookup_tokens: Vec<String> = LOOKUP_TOKENS_HEX.iter().map(|h| unhex(h)).collect();
+    let mut found_tokens: Vec<String> = Vec::new();
+    for (name, body) in [
+        (DISPOSITIONS, &dispositions_text),
+        (review_rel.as_str(), &review_text),
+        (COMMITS_REVIEW, &commits_text),
+        (source_rel, &source_text),
+    ] {
+        let mut tokens: Vec<&String> = staging.iter().collect();
+        if name == source_rel {
+            tokens.extend(lookup_tokens.iter());
+        }
+        for token in tokens {
+            if body.contains(token.as_str()) {
+                let hex: String = token.bytes().map(|b| format!("{b:02x}")).collect();
+                found_tokens.push(format!("{name}: the token whose hex is {hex}"));
+            }
+        }
+    }
     let header = text(&review["clean_room_redactions"]);
     // The header quotes the mark once; every other occurrence marks a redaction.
     let marks =
         review_text.matches(REDACTION_MARK).count() - header.matches(REDACTION_MARK).count();
     evidence.expect(
-        tokens.is_empty()
+        found_tokens.is_empty()
+            && !source_text.is_empty()
+            && !commits_text.is_empty()
             && marks > 0
             && header.contains(&format!("These {marks} redactions are the only change")),
         format!(
-            "neither {DISPOSITIONS} nor {review_rel} holds any of {STAGING_TOKENS:?} (found {tokens:?}); the review file marks {marks} redactions {REDACTION_MARK:?} and its clean_room_redactions header says they are the only change from the reviewer's verbatim output"
+            "none of {DISPOSITIONS}, {review_rel}, {COMMITS_REVIEW} and {source_rel} holds any of the {} staging tokens this source keeps as hex (and the source holds none of the {} lookup tokens either; found {found_tokens:?}); the review file marks {marks} redactions {REDACTION_MARK:?} and its clean_room_redactions header says they are the only change from the reviewer's verbatim output",
+            staging.len(),
+            LOOKUP_TOKENS_HEX.len()
         ),
     );
 
@@ -1808,22 +2642,108 @@ pub fn quarantine() {
     ] {
         let out = xtask(&evidence, label, &["pin-sources", "--lookup", wanted]);
         let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
-        let staging: Vec<&str> = STAGING_TOKENS
+        let printed = staging
             .iter()
-            .copied()
-            .chain(["DR(", "LS2PI", "x87_mul"])
-            .filter(|t| stdout.contains(*t))
-            .collect();
+            .chain(&lookup_tokens)
+            .filter(|t| stdout.contains(t.as_str()))
+            .count();
         evidence.expect(
             out.status.code().is_some_and(|c| codes.contains(&c))
                 && stdout.contains(line)
-                && staging.is_empty(),
+                && printed == 0,
             format!(
-                "--lookup {wanted} exits one of {codes:?} (exit {:?}), prints {line:?}, and prints no staging-formula token (found {staging:?})",
+                "--lookup {wanted} exits one of {codes:?} (exit {:?}), prints {line:?}, and prints none of the staging tokens this source keeps as hex ({printed} printed)",
                 out.status.code()
             ),
         );
     }
+    // The eleven functions/ files the round-3 judge named stay out of the release source
+    // allowlist (exit 5): none is in the witness chain, and no reviewed per-file entry clears one.
+    let mut named_exits = Vec::new();
+    for file in NAMED_FUNCTION_FILES {
+        let wanted = format!("OxFunc/crates/oxfunc_core/src/functions/{file}");
+        let label = format!("lookup-named-{}", file.trim_end_matches(".rs"));
+        let out = xtask(&evidence, &label, &["pin-sources", "--lookup", &wanted]);
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        let cleared_by_entry = own_chain_entry(
+            &dispositions,
+            "OxFunc",
+            &format!("crates/oxfunc_core/src/functions/{file}"),
+            by_key
+                .get(&wanted)
+                .map(|i| text(&i["blob"]))
+                .unwrap_or_default(),
+        )
+        .is_some();
+        named_exits.push(format!("{file}: exit {:?}", out.status.code()));
+        evidence.expect(
+            out.status.code() == Some(5)
+                && stdout.contains("  release source allowlist: left out")
+                && !cleared_by_entry
+                && !listed_keys.contains(&wanted),
+            format!(
+                "--lookup {wanted} exits 5 (exit {:?}): it is left out of the release source allowlist, and no reviewed per-file entry clears it",
+                out.status.code()
+            ),
+        );
+    }
+    evidence.lines.push(format!(
+        "the eleven named functions/ files: {named_exits:?}"
+    ));
+    // The scripts and modules of the witness chain (every witness_chain entry that lifts no rule)
+    // are looked up with the provenance the content rules give them and a line saying that their
+    // entry clears them only for the witness chain; none reads as a clean port input.
+    let mut chain_exits = Vec::new();
+    let mut chain_only = 0;
+    for entry in &chain {
+        let wanted = key_of(entry);
+        if own_lifts(entry) {
+            continue;
+        }
+        chain_only += 1;
+        let id = text(&entry["id"]);
+        let out = xtask(
+            &evidence,
+            &format!("lookup-{id}"),
+            &["pin-sources", "--lookup", &wanted],
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        let mine = own.get(&wanted).and_then(|t| t.disposition.clone());
+        let codes: &[i32] = if non_cleared(mine.as_deref()) {
+            &[5]
+        } else {
+            &[0, 6]
+        };
+        let line = format!(
+            "  witness chain: entry {id} clears this file at blob {} ",
+            text(&entry["blob"])
+        );
+        let provenance_line = mine
+            .as_deref()
+            .is_none_or(|d| stdout.contains(&format!("  numeric provenance {d} (")));
+        chain_exits.push(format!("{wanted}: exit {:?}", out.status.code()));
+        evidence.expect(
+            by_key.contains_key(&wanted)
+                && out.status.code().is_some_and(|c| codes.contains(&c))
+                && stdout.contains(&line)
+                && stdout.contains(
+                    "only for the witness chain of a retained witness, not as a port input",
+                )
+                && provenance_line
+                && !listed_keys.contains(&wanted),
+            format!(
+                "--lookup {wanted} (witness_chain entry {id}, which lifts no rule) exits one of {codes:?} (exit {:?}), prints the numeric provenance this test derives from the content rules ({mine:?}) and the line {line:?}... saying the entry clears it only for the witness chain, and the file is not in the release source allowlist",
+                out.status.code()
+            ),
+        );
+    }
+    evidence.expect(
+        chain_only == chain.len() - EXPECTED_BIT_FILES.len(),
+        format!(
+            "every witness_chain entry but the {} of the expected-bit files lifts no rule and was looked up: {chain_exits:?}",
+            EXPECTED_BIT_FILES.len()
+        ),
+    );
 
     // 9. The generator over a fixture tracker and fixture dispositions.
     let oxfml = root.join("OxFml");
@@ -1860,10 +2780,31 @@ pub fn quarantine() {
     );
     let fixture_evidence = json!([{"kind": "commit", "commit": "fixture", "quote": "fixture"}]);
     let fixture_owner = json!({"bead": "dc-fixture", "replacement": "fixture"});
+    // The fixture states a rule whose identification grep finds the fixture commit alone.
+    let fixture_pattern = "fml-kt8\\.3: typed entry-time";
+    let fixture_found = legacy_read(
+        &oxfml,
+        &[
+            "log",
+            "--format=%H",
+            "-i",
+            "-E",
+            &format!("--grep={fixture_pattern}"),
+            &head,
+        ],
+    )
+    .unwrap_or_default();
+    evidence.expect(
+        fixture_found.lines().collect::<Vec<_>>() == [fixture_commit],
+        format!(
+            "at OxFml {head}, git log -i -E --grep={fixture_pattern:?} finds exactly the fixture commit {fixture_commit}: {fixture_found:?}"
+        ),
+    );
     let fixture_dispositions = json!({
         "format": "dnacalc-numeric-provenance/2",
         "rules": RULES.iter().map(|id| json!({"id": id, "reason": format!("fixture {id}"), "owner": fixture_owner})).collect::<Vec<_>>(),
-        "tainted_commits": [{"repository": "OxFml", "commit": fixture_commit, "reason": "fixture: changed syntax/token.rs"}],
+        "tainted_commit_rule": {"repository": "OxFml", "identification_pattern": fixture_pattern, "statement": "fixture: the commits the identification grep finds"},
+        "tainted_commits": [{"repository": "OxFml", "commit": fixture_commit, "reason": "fixture: changed syntax/token.rs", "found_by": ["identification"]}],
         "citation_sweep": {"patterns": ["87tran", "C-runtime"]},
         "modules": [
             {"id": "fixture-tainted", "repository": "OxFml", "path": "crates/oxfml_core/src/source.rs", "blob": source_blob,
@@ -2125,6 +3066,43 @@ pub fn quarantine() {
             );
         }
     }
+
+    // 9b. The generator refuses fixture dispositions that omit the commit their stated rule finds.
+    let mut omitting = fixture_dispositions.clone();
+    omitting["tainted_commits"] = json!([]);
+    let omitting_path = dir.join("fixture-omitting-numeric-provenance.json");
+    write_json(&omitting_path, &omitting);
+    write_json(
+        &evidence
+            .dir
+            .join("fixture-omitting-numeric-provenance.json"),
+        &omitting,
+    );
+    let omitting_out = dir.join("omitting-source-manifest.json");
+    let out = xtask(
+        &evidence,
+        "pin-sources-fixture-omitting",
+        &[
+            "pin-sources",
+            "--tracker",
+            &tracker.to_string_lossy(),
+            "--provenance",
+            &omitting_path.to_string_lossy(),
+            "--out",
+            &omitting_out.to_string_lossy(),
+        ],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    evidence.expect(
+        out.status.code() == Some(1)
+            && stderr.contains(&format!("tainted_commits omits {fixture_commit}"))
+            && stderr.contains("(identification)")
+            && !omitting_out.exists(),
+        format!(
+            "pin-sources over fixture dispositions whose tainted_commits omits {fixture_commit}, which their stated rule finds, exits 1 (exit {:?}), names the commit and writes no manifest",
+            out.status.code()
+        ),
+    );
 
     // 10. Hand edits of workspace copies fail the check that cargo xtask accept runs.
     let host = host_platform();
@@ -2388,8 +3366,11 @@ pub fn quarantine() {
         dropped["commit"]
     ));
     let reachers = changed(&own, &own_tags(&manifest, &altered));
+    let dropped_commit = text(&dropped["commit"]).to_owned();
     let mut named = reachers.clone();
     named.push("numeric_content.tainted_commits".to_owned());
+    named.push("dispositions_hash".to_owned());
+    named.push(dropped_commit.clone());
     rejected(
         &copy,
         "07-commit-dropped",
@@ -2398,6 +3379,117 @@ pub fn quarantine() {
         "the check finds the manifest's content facts were computed with another tainted-commit list",
         &mut evidence,
     );
+    restore(&copy);
+
+    // 08: a coordinated hand edit, byte for byte: a commit that only the stated rule's
+    //     identification grep ties (the commits review gives it not_tied_to_pass, and it changed
+    //     no pinned input) is dropped from the dispositions file's tainted_commits and from the
+    //     manifest's numeric_content.tainted_commits and its recorded rule set. The check of
+    //     cargo xtask accept reads the rule's sets from the manifest without git, so it sees no
+    //     omission and fails only on the hash of the dispositions as reviewed; this test's own
+    //     recomputation of the rule from git, run over the copy's files, names the omission.
+    // 08b: the same edit with that hash re-recorded: the check passes, and only this test's
+    //     recomputation fails the copy (the limit AGENTS.md and known_limits record).
+    let fixture = NOT_TIED_FIXTURE_COMMIT;
+    let (copy_dispositions, copy_manifest) = (copy.path(DISPOSITIONS), copy.path(MANIFEST));
+    match &own_rule {
+        None => evidence.expect(
+            false,
+            "08: this test's own reading of the stated rule ran (see its finding above)".to_owned(),
+        ),
+        Some(rule) => {
+            let changed_inputs: Vec<String> = inputs
+                .iter()
+                .filter(|i| {
+                    list_of(&i["content_facts"], "changed_by")
+                        .iter()
+                        .any(|c| c == fixture)
+                })
+                .map(key_of)
+                .collect();
+            evidence.expect(
+                rule.identification.contains(fixture)
+                    && !rule.sweep.contains(fixture)
+                    && rule.verdicts.get(fixture).map(String::as_str) == Some("not_tied_to_pass")
+                    && !rule.earlier_ties.contains(fixture)
+                    && changed_inputs.is_empty(),
+                format!(
+                    "08: {fixture} is found by this test's identification grep and not by its message sweep, {COMMITS_REVIEW} gives it {:?}, the earlier review's entries do not name it, and it changed no pinned input (changed: {changed_inputs:?})",
+                    rule.verdicts.get(fixture)
+                ),
+            );
+            let unaltered = rule.problems_in(&copy_dispositions, &copy_manifest);
+            let removed = drop_commit_bytes(&copy_dispositions, &copy_manifest, fixture);
+            evidence.lines.push(format!(
+                "08: in the copy, byte for byte, {DISPOSITIONS} loses the tainted_commits entry of {fixture} and {MANIFEST} loses it from numeric_content.tainted_commit_rule.identification and numeric_content.tainted_commits: {removed:?}"
+            ));
+            let wanted = vec![
+                format!("omits {fixture}"),
+                format!(
+                    "{MANIFEST} numeric_content.tainted_commit_rule.identification omits {fixture}"
+                ),
+            ];
+            let run = copy.accept(&args, "08-rule-commit-omitted", true, &mut evidence);
+            let found = check_of(&run);
+            let findings = found.clone().map(|(_, f)| f).unwrap_or_default();
+            let caught = rule.problems_in(&copy_dispositions, &copy_manifest);
+            evidence.expect(
+                removed.as_ref().is_ok_and(|r| r.len() == 3)
+                    && unaltered.is_empty()
+                    && run.exit_code == Some(1)
+                    && run.result() == "failed"
+                    && findings.len() == 1
+                    && findings[0].contains("status.review.dispositions_hash records")
+                    && run.checks_ok_except(&[CHECK])
+                    && caught == wanted,
+                format!(
+                    "08-rule-commit-omitted: accept exits {:?} with result {}; the {CHECK} check, which reads the rule's sets from the manifest, fails only because the entries as reviewed no longer hash to the recorded value: {findings:?}; this test's own recomputation of the rule from git over the copy's files finds nothing in the unaltered copy ({unaltered:?}) and names the omission in the altered one: {caught:?}",
+                    run.exit_code,
+                    run.result()
+                ),
+            );
+            let edited = super::read_json(&copy_dispositions);
+            let old_hash =
+                text(&edited["status"]["review"]["dispositions_hash"]["value"]).to_owned();
+            let new_hash = own_blob_of(own_reviewed_view(&edited).to_string().as_bytes());
+            let bytes =
+                fs::read_to_string(&copy_dispositions).expect("read the copy's dispositions");
+            let old = format!("\"value\": \"{old_hash}\"");
+            let rehashed = match &new_hash {
+                Ok(hash) if bytes.matches(&old).count() == 1 && *hash != old_hash => {
+                    super::write(
+                        &copy_dispositions,
+                        bytes.replacen(&old, &format!("\"value\": \"{hash}\""), 1),
+                    );
+                    true
+                }
+                _ => false,
+            };
+            evidence.lines.push(format!(
+                "08b: in the same copy, status.review.dispositions_hash.value {old_hash} is replaced, byte for byte, by this test's own hash of the edited entries as reviewed, {new_hash:?} (replaced: {rehashed})"
+            ));
+            let run = copy.accept(
+                &args,
+                "08b-rule-commit-omitted-rehashed",
+                true,
+                &mut evidence,
+            );
+            let found = check_of(&run);
+            let caught = rule.problems_in(&copy_dispositions, &copy_manifest);
+            evidence.expect(
+                rehashed
+                    && run.exit_code == Some(0)
+                    && run.result() == "passed"
+                    && found == Some((true, Vec::new()))
+                    && caught == wanted,
+                format!(
+                    "08b-rule-commit-omitted-rehashed: with the hash re-recorded too, accept exits {:?} with result {} and its {CHECK} check passes ({found:?}), because it reads the rule's sets from the manifest without git (the limit AGENTS.md and known_limits record, owner dc-qfqa); this test's own recomputation of the rule from git, the one step 2 applies to the committed files, names the omission in the copy's files: {caught:?}",
+                    run.exit_code,
+                    run.result()
+                ),
+            );
+        }
+    }
     restore(&copy);
 
     // The legacy repositories and the tracked files are unchanged.
@@ -2474,6 +3566,185 @@ fn changed_by_tainted(
     .collect()
 }
 
+/// Whether a file of a witness's chain is admitted through its reviewed witness_chain entry, by
+/// this test's own reading: an entry at its blob, cleared, reviewed by the commits review's run,
+/// whose blob is the path's blob at the entry's commit, an ancestor of the pin, whose text matches
+/// no line of the citation sweep, and whose considered_commits include every listed tainted commit
+/// that `git log` of the path up to that commit lists. Returns the entry's id, or the problem.
+#[allow(clippy::too_many_arguments)]
+fn own_chain_admission(
+    dispositions: &Value,
+    root: &Path,
+    repository: &str,
+    path: &str,
+    blob: &str,
+    pin: &str,
+    tainted: &BTreeSet<String>,
+    patterns: &[String],
+) -> Result<String, String> {
+    let Some(entry) = own_chain_entry(dispositions, repository, path, blob) else {
+        return Err(format!(
+            "{repository}/{path} at blob {blob} has no witness_chain entry"
+        ));
+    };
+    let id = text(&entry["id"]).to_owned();
+    let dir = root.join(repository);
+    let commit = text(&entry["commit"]);
+    let at = legacy_read(&dir, &["rev-parse", &format!("{commit}:{path}")]);
+    let ancestor = legacy_git(&dir, &["merge-base", "--is-ancestor", commit, pin])
+        .output()
+        .is_ok_and(|o| o.status.success());
+    let body = legacy_bytes(&dir, &["cat-file", "blob", blob])
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .unwrap_or_default();
+    let cited = body
+        .split('\n')
+        .filter(|line| patterns.iter().any(|p| holds_pattern(line, p)))
+        .count();
+    let considered = list_of(entry, "considered_commits");
+    let unconsidered: Vec<String> = changed_by_tainted(root, repository, commit, path, tainted)
+        .into_iter()
+        .filter(|c| !considered.contains(c))
+        .collect();
+    if entry["disposition"] != "cleared"
+        || entry["review"] != "wf_5ba77a06-ea9"
+        || at.as_deref() != Ok(blob)
+        || !ancestor
+        || body.is_empty()
+        || cited > 0
+        || !unconsidered.is_empty()
+    {
+        return Err(format!(
+            "{repository}/{path} at blob {blob}: entry {id} is {} by {}, the blob at {commit} is {at:?} (ancestor of the pin: {ancestor}), {cited} lines match the citation sweep, and the listed tainted commits {unconsidered:?} changed it without being considered",
+            entry["disposition"], entry["review"]
+        ));
+    }
+    Ok(id)
+}
+
+/// The hash continuity of one witness's raw capture, by this test's own reading of the pinned
+/// files: the raw-capture sha256 that snapshot-1735 recorded (its report generated before the
+/// wrap-1952 freeze), that snapshot-wrap-1952 recorded, and the retention's answer_sha256 agree
+/// with the raw hash the witness records, each with the capture record the source repeats; and
+/// every row of the pinned source equals the retention's expected bits at its index. Returns what
+/// it measured, or the problem.
+fn own_continuity(
+    witness: &Value,
+    source: &Value,
+    root: &Path,
+    pin: &str,
+) -> Result<String, String> {
+    let continuity = &witness["independent_retention"]["hash_continuity"];
+    let raw = text(&witness["acquisition"]["known"]["raw_capture_sha256"]);
+    let function = text(&witness["function"]);
+    let repository = text(&witness["source"]["repository"]);
+    let dir = root.join(repository);
+    let read = |path: &str, blob: &str| -> Result<Value, String> {
+        let pinned = legacy_read(&dir, &["rev-parse", &format!("{pin}:{path}")])?;
+        if pinned != blob {
+            return Err(format!("{path} is {pinned} at the pin, not {blob}"));
+        }
+        legacy_bytes(&dir, &["cat-file", "blob", blob]).and_then(|b| {
+            serde_json::from_slice(&b).map_err(|e| format!("{path} is not JSON: {e}"))
+        })
+    };
+    let records = continuity["records"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if continuity["raw_capture_sha256"] != raw || raw.is_empty() || records.len() != 3 {
+        return Err(format!(
+            "the hash_continuity record {continuity} does not hold the raw hash {raw} with its three records"
+        ));
+    }
+    let mut seen = Vec::new();
+    let mut before = String::new();
+    let mut freeze = String::new();
+    for record in &records {
+        let path = text(&record["path"]);
+        let data = read(path, text(&record["blob"]))?;
+        if record["field"] == "source_sha256" {
+            let row = data["functions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|f| f["source"] == record["source"])
+                .cloned()
+                .unwrap_or(Value::Null);
+            if row["source_sha256"] != raw
+                || row["capture_provenance"] != source["capture_provenance"]
+            {
+                return Err(format!(
+                    "{path}: the row for {} records {} with another capture record",
+                    record["source"], row["source_sha256"]
+                ));
+            }
+            if let Some(report) = record.get("report") {
+                let data = read(text(&report["path"]), text(&report["blob"]))?;
+                if data["generated_utc"] != report["generated_utc"] {
+                    return Err(format!(
+                        "{} is generated at {}",
+                        report["path"], data["generated_utc"]
+                    ));
+                }
+                before = text(&data["generated_utc"]).to_owned();
+            }
+            if let Some(step) = record.get("freeze") {
+                let data = read(text(&step["path"]), text(&step["blob"]))?;
+                if data["captured_utc"] != step["captured_utc"] {
+                    return Err(format!(
+                        "{} is captured at {}",
+                        step["path"], data["captured_utc"]
+                    ));
+                }
+                freeze = text(&data["captured_utc"]).to_owned();
+            }
+            seen.push(path.rsplit('/').nth(1).unwrap_or(path).to_owned());
+        } else {
+            let retained = &data["functions"][function];
+            if retained["answer_sha256"] != raw
+                || retained["capture_provenance"] != source["capture_provenance"]
+            {
+                return Err(format!(
+                    "the retention records {} for {function}, not {raw}",
+                    retained["answer_sha256"]
+                ));
+            }
+            let bits = retained["expected_bits"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            let rows = source["witnesses"].as_array().cloned().unwrap_or_default();
+            let matched = rows
+                .iter()
+                .enumerate()
+                .filter(|(i, row)| bits.get(*i) == Some(&row["expected_bits"]))
+                .count();
+            if rows.is_empty() || matched != rows.len() || bits.len() != rows.len() {
+                return Err(format!(
+                    "{matched} of the source's {} rows equal the retention's {} expected bits",
+                    rows.len(),
+                    bits.len()
+                ));
+            }
+            seen.push(format!(
+                "retention ({matched} of {} rows equal)",
+                rows.len()
+            ));
+        }
+    }
+    // Both times are RFC 3339 UTC with the same offset form, so they order as text.
+    if before.is_empty() || freeze.is_empty() || before >= freeze {
+        return Err(format!(
+            "the snapshot report time {before:?} does not precede the freeze time {freeze:?}"
+        ));
+    }
+    Ok(format!(
+        "raw capture sha256 {raw} recorded by {} (snapshot report {before}, before the freeze at {freeze})",
+        seen.join(", ")
+    ))
+}
+
 /// What this test finds for one witness's generator chain and its equality with the retention.
 #[derive(Debug, Default)]
 struct Chain {
@@ -2488,9 +3759,10 @@ struct Chain {
 /// The generator chain of one witness, by this test's own reading of the generators' blobs: every
 /// generator whose text names a package of a tainted class is flagged, and its record must name
 /// that package under builds_or_runs; a witness with a flagged generator is retained only when
-/// its bits equal the earlier independent retention it records, which this test reads at its
-/// pinned blob and compares row by row (and whose writer names no tainted package and no
-/// quarantined implementation).
+/// its bits equal the independent retention it records, which this test reads at its pinned blob
+/// and compares row by row (and whose writer names no tainted package and no quarantined
+/// implementation), and every listed tainted commit that changed the retention or its writer is
+/// one their reviewed witness_chain entries name as considered.
 fn check_chain(
     witness: &Value,
     selection: &Value,
@@ -2498,6 +3770,7 @@ fn check_chain(
     pin: &str,
     packages: &[(String, String)],
     tainted: &BTreeSet<String>,
+    dispositions: &Value,
 ) -> Chain {
     let mut chain = Chain::default();
     let names_tainted = |body: &str| -> Vec<String> {
@@ -2650,11 +3923,20 @@ fn check_chain(
             writer["blob"]
         ));
     }
-    for (what, path) in [("retention", path), ("writer", writer_path)] {
-        let commits = changed_by_tainted(root, repository, pin, path, tainted);
+    for (what, path, blob) in [
+        ("retention", path, text(&retention["blob"])),
+        ("writer", writer_path, text(&writer["blob"])),
+    ] {
+        let considered = own_chain_entry(dispositions, repository, path, blob)
+            .map(|e| list_of(e, "considered_commits"))
+            .unwrap_or_default();
+        let commits: Vec<String> = changed_by_tainted(root, repository, pin, path, tainted)
+            .into_iter()
+            .filter(|c| !considered.contains(c))
+            .collect();
         if !commits.is_empty() {
             chain.problems.push(format!(
-                "the {what} {path} was changed by the tainted commits {commits:?}"
+                "the {what} {path} was changed by the tainted commits {commits:?}, which no reviewed witness_chain entry for it names as considered"
             ));
         }
     }
@@ -2665,16 +3947,24 @@ fn check_chain(
 /// pinned capture: its rows equal the source rows the recorded rule picks (this test's own reading
 /// of the source blob, its own SHA-256 and git blob IDs), it carries black-box acquisition
 /// metadata that its own embedded capture record repeats, the directory stays within its bound,
-/// its source was changed by no listed tainted commit and matches no citation, and its generators
-/// are pinned at commits of the pinned repository with none a quarantined implementation; every
-/// generator that builds or runs a package of a tainted class is flagged, and each such witness's
-/// bits are compared row by row with the capture runner's own earlier retention
-/// (extended-numeric/numeric-outcomes.json at its pinned blob), the equality recorded per witness
-/// in an ACCEPT-NOTE line of the receipt. The excluded candidates stay out; and a witness without
-/// metadata, one naming a quarantined generator, one whose expected bits were edited and one whose
-/// equality record was removed fail the check that cargo xtask accept runs, while a generator that
-/// names a tainted package without the equality proof, and bits that differ from the retention,
-/// fail this test's own chain check.
+/// its source matches no citation, and its generators are pinned at commits of the pinned
+/// repository with none a quarantined implementation. Every file of its chain (the source, every
+/// generator, the retention and the retention's writer) is admitted only through a reviewed
+/// witness_chain entry of the commits review at its blob, whose considered commits cover every
+/// listed tainted commit that changed it (ffcb9a77 among them) and whose text matches no citation.
+/// Every generator that builds or runs a package of a tainted class is flagged, and each such
+/// witness's bits are compared row by row with the retention (extended-numeric/numeric-outcomes.json
+/// at its pinned blob), and its independence rests on hash continuity, measured from the pinned
+/// files: the raw-capture sha256 recorded by snapshot-1735 (whose report precedes the wrap-1952
+/// freeze), by snapshot-wrap-1952 and by the retention agree, with the same capture record, and the
+/// pinned source equals the retention row for row; each witness's ACCEPT-NOTE states the hash
+/// continuity and the entry that admits each chain file. The excluded candidates stay out; and a
+/// witness without metadata, one naming a quarantined generator, one whose expected bits were
+/// edited, one whose equality record was removed, a chain file whose entry is removed, an entry
+/// that no longer names ffcb9a77 as considered and an entry whose cleared_as_basis no longer quotes
+/// the review's opening sentence fail the check that cargo xtask accept runs, while a
+/// generator that names a tainted package without the equality proof, and bits that differ from the
+/// retention, fail this test's own chain check.
 pub fn independent_witness() {
     const CASE: &str = "infra_m0_5__independent_witness";
     registered(CASE);
@@ -2696,7 +3986,6 @@ pub fn independent_witness() {
     let dispositions = super::read_json(&repo_root().join(DISPOSITIONS));
     let inputs = manifest["inputs"].as_array().cloned().unwrap_or_default();
     let by_key: BTreeMap<String, &Value> = inputs.iter().map(|e| (key_of(e), e)).collect();
-    let own = own_tags(&manifest, &dispositions);
     let tainted = tainted_commits(&dispositions);
     let patterns = list_of(&dispositions["citation_sweep"], "patterns");
     let retained: Vec<Value> = dispositions["witnesses"]["retained"]
@@ -2758,6 +4047,8 @@ pub fn independent_witness() {
     let mut functions = Vec::new();
     let mut equalities = Vec::new();
     let mut flagged_any = 0;
+    let mut chain_ids: BTreeSet<String> = BTreeSet::new();
+    let mut continuities = 0;
     for witness in &retained {
         let file = text(&witness["file"]);
         let mut fail = |what: String| witness_problems.push(format!("{file}: {what}"));
@@ -2796,17 +4087,70 @@ pub fn independent_witness() {
         if commit != pin {
             fail(format!("commit {commit} is not the pinned commit {pin}"));
         }
-        // The source's own content: no listed tainted commit changed it and it cites nothing.
+        // The source's own content: it cites nothing, and every listed tainted commit that
+        // changed it (ffcb9a77 for each of the five) is one its reviewed witness_chain entry names
+        // as considered; the whole chain is admitted only through such entries.
         let source_text = String::from_utf8_lossy(&source_bytes).into_owned();
         let cited = source_text
             .split('\n')
             .filter(|line| patterns.iter().any(|p| holds_pattern(line, p)))
             .count();
+        let considered = own_chain_entry(&dispositions, repository, path, blob)
+            .map(|e| list_of(e, "considered_commits"))
+            .unwrap_or_default();
         let touched = changed_by_tainted(&root, repository, &pin, path, &tainted);
-        if cited > 0 || !touched.is_empty() {
+        let unconsidered: Vec<&String> =
+            touched.iter().filter(|c| !considered.contains(c)).collect();
+        if cited > 0 || !unconsidered.is_empty() {
             fail(format!(
-                "its source has {cited} lines matching the citation sweep and was changed by the tainted commits {touched:?}"
+                "its source has {cited} lines matching the citation sweep and was changed by the tainted commits {unconsidered:?} that no reviewed witness_chain entry names as considered"
             ));
+        }
+        let mut members: Vec<(String, String, String, String)> = vec![(
+            "source".to_owned(),
+            repository.to_owned(),
+            path.to_owned(),
+            blob.to_owned(),
+        )];
+        for generator in witness["generators"].as_array().into_iter().flatten() {
+            members.push((
+                format!("generator ({})", text(&generator["role"])),
+                text(&generator["repository"]).to_owned(),
+                text(&generator["path"]).to_owned(),
+                text(&generator["blob"]).to_owned(),
+            ));
+        }
+        let retention_record = &witness["independent_retention"];
+        members.push((
+            "independent retention".to_owned(),
+            text(&retention_record["repository"]).to_owned(),
+            text(&retention_record["path"]).to_owned(),
+            text(&retention_record["blob"]).to_owned(),
+        ));
+        members.push((
+            "retention writer".to_owned(),
+            text(&retention_record["repository"]).to_owned(),
+            text(&retention_record["writer"]["path"]).to_owned(),
+            text(&retention_record["writer"]["blob"]).to_owned(),
+        ));
+        let mut admitted: Vec<String> = Vec::new();
+        for (role, m_repository, m_path, m_blob) in &members {
+            match own_chain_admission(
+                &dispositions,
+                &root,
+                m_repository,
+                m_path,
+                m_blob,
+                &pin,
+                &tainted,
+                &patterns,
+            ) {
+                Ok(id) => {
+                    chain_ids.insert(id.clone());
+                    admitted.push(format!("{role} {m_path} through {id}"));
+                }
+                Err(problem) => fail(format!("its {role}: {problem}")),
+            }
         }
         let content: Value = serde_json::from_slice(&local_bytes).unwrap_or(Value::Null);
         let full: Value = serde_json::from_slice(&source_bytes).unwrap_or(Value::Null);
@@ -2958,14 +4302,11 @@ pub fn independent_witness() {
                     if matches!(
                         text(&input["disposition"]),
                         "quarantined" | "quarantine_derived"
-                    ) || non_cleared(own.get(&key).and_then(|t| t.disposition.as_deref()))
-                        || (input["blob"] != g_blob && generator["commit"].is_null())
+                    ) || (input["blob"] != g_blob && generator["commit"].is_null())
                     {
                         fail(format!(
-                            "generator {key} is {} / {:?} at {} in the manifest",
-                            input["disposition"],
-                            own.get(&key),
-                            input["blob"]
+                            "generator {key} is {} at {} in the manifest",
+                            input["disposition"], input["blob"]
                         ));
                     }
                 }
@@ -2987,16 +4328,35 @@ pub fn independent_witness() {
             ));
         }
         // The generator chain and the equality with the capture runner's own retention.
-        let chain = check_chain(witness, &content, &root, &pin, &packages, &tainted);
+        let chain = check_chain(
+            witness,
+            &content,
+            &root,
+            &pin,
+            &packages,
+            &tainted,
+            &dispositions,
+        );
         if !chain.flagged.is_empty() {
             flagged_any += 1;
         }
         for problem in &chain.problems {
             fail(problem.clone());
         }
+        // Hash continuity: the independence of the retained bits rests on it (the commits review
+        // found the retention-before-freeze ordering not established).
+        let continuity = own_continuity(witness, &full, &root, &pin);
+        match &continuity {
+            Ok(_) => continuities += 1,
+            Err(problem) => fail(format!("hash continuity: {problem}")),
+        }
         let note = format!(
-            "{file} ({}): {} rows compared with the retention {} (written by {} from the raw captures); {} of {} matched{}; generators that build, run or name a package of a tainted class: {:?}",
+            "{file} ({}): hash continuity {}; {} rows of the selection compared with the retention {} (writer {}); {} of {} matched{}; generators that build, run or name a package of a tainted class: {:?}; chain admitted through its reviewed witness_chain entries: {}",
             text(&witness["function"]),
+            match &continuity {
+                Ok(measured) => measured.clone(),
+                Err(problem) => format!("NOT SHOWN: {problem}"),
+            },
             chain.compared,
             chain.retention,
             text(&witness["independent_retention"]["writer"]["path"]),
@@ -3007,7 +4367,8 @@ pub fn independent_witness() {
             } else {
                 ""
             },
-            chain.flagged
+            chain.flagged,
+            admitted.join("; ")
         );
         println!("ACCEPT-NOTE: {CASE}: {note}");
         equalities.push((chain.compared, chain.matched));
@@ -3016,17 +4377,27 @@ pub fn independent_witness() {
     evidence.expect(
         witness_problems.is_empty(),
         format!(
-            "every retained selection ({}) is the rows its recorded rule picks from its source capture, read at the pinned commit with this test's git and checked against the recorded blob and SHA-256; its source was changed by no listed tainted commit and matches no citation; it repeats the Excel version, build, bitness, compatibility, operating system, input plumbing, capture time, runner and no-cache mode its capture record states, records CPU, locale and calculation settings as unknown and the 1900 date system, holds {rows_total} rows in all, and names generators at commits of the pinned repository that are ancestors of the pin, none quarantined, quarantine_derived, tainted or unresolved, none whose text names excel_numeric, x87, 87tran or oxfunc_core, with the expected bits from the COM runner that drives Excel.Application; every generator whose text names a package of a tainted class records it under builds_or_runs; problems: {witness_problems:?}",
+            "every retained selection ({}) is the rows its recorded rule picks from its source capture, read at the pinned commit with this test's git and checked against the recorded blob and SHA-256; its source matches no citation and every listed tainted commit that changed it is one its reviewed witness_chain entry names as considered; it repeats the Excel version, build, bitness, compatibility, operating system, input plumbing, capture time, runner and no-cache mode its capture record states, records CPU, locale and calculation settings as unknown and the 1900 date system, holds {rows_total} rows in all, and names generators at commits of the pinned repository that are ancestors of the pin, none quarantined or quarantine_derived, none whose text names excel_numeric, x87, 87tran or oxfunc_core, with the expected bits from the COM runner that drives Excel.Application; every file of its chain (source, generators, retention and writer) is admitted through a reviewed witness_chain entry at its blob whose text matches no citation and whose considered commits cover every listed tainted commit that changed it; every generator whose text names a package of a tainted class records it under builds_or_runs; problems: {witness_problems:?}",
             functions.join(", ")
         ),
     );
+    let entry_ids: BTreeSet<String> = dispositions["witness_chain"]["entries"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|e| text(&e["id"]).to_owned())
+        .collect();
     evidence.expect(
         equalities.len() == retained.len()
             && flagged_any == retained.len()
-            && equalities.iter().all(|(c, m)| *c > 0 && c == m),
+            && equalities.iter().all(|(c, m)| *c > 0 && c == m)
+            && continuities == retained.len()
+            && chain_ids == entry_ids
+            && entry_ids.len() == 15,
         format!(
-            "all {} witnesses have a generator that builds, runs or names a package of a tainted class (freeze_campaign_snapshot_20260929.py builds smart-fuzzer/tools/pmt_ppmt_local_eval/; the runner's comments name smart-fuzzer/tools/calc_graph_racer/), and each is retained because its bits equal the earlier independent retention, row by row: (compared, matched) {equalities:?}",
-            retained.len()
+            "all {} witnesses have a generator that builds, runs or names a package of a tainted class (freeze_campaign_snapshot_20260929.py builds smart-fuzzer/tools/pmt_ppmt_local_eval/; the runner's comments name smart-fuzzer/tools/calc_graph_racer/), and each is retained because its bits equal the independent retention row by row ((compared, matched) {equalities:?}) and the raw capture's hash is continuous from snapshot-1735 through snapshot-wrap-1952 to the retention ({continuities} witnesses); the chains use exactly the {} reviewed witness_chain entries {chain_ids:?}",
+            retained.len(),
+            entry_ids.len()
         ),
     );
 
@@ -3044,7 +4415,15 @@ pub fn independent_witness() {
             object.remove("builds_or_runs");
             object.remove("names_packages");
         }
-        let chain = check_chain(&no_proof, &content, &root, &pin, &packages, &tainted);
+        let chain = check_chain(
+            &no_proof,
+            &content,
+            &root,
+            &pin,
+            &packages,
+            &tainted,
+            &dispositions,
+        );
         let unrecorded = chain
             .problems
             .iter()
@@ -3071,7 +4450,15 @@ pub fn independent_witness() {
             "0x0000000000000000"
         };
         rows[last]["expected_bits"] = json!(new);
-        let chain = check_chain(first, &edited, &root, &pin, &packages, &tainted);
+        let chain = check_chain(
+            first,
+            &edited,
+            &root,
+            &pin,
+            &packages,
+            &tainted,
+            &dispositions,
+        );
         evidence.expect(
             chain.matched + 1 == chain.compared
                 && chain.problems.iter().any(|p| p.contains("rows match the retention")),
@@ -3274,6 +4661,142 @@ pub fn independent_witness() {
             && run.checks_ok_except(&[CHECK]),
         format!(
             "03-equality-removed: accept exits {:?} with result {}; the {CHECK} check fails only for {first}: its snapshot step builds or runs smart-fuzzer/tools/pmt_ppmt_local_eval/ and it records no equality with an independent retention: {findings:?}",
+            run.exit_code,
+            run.result()
+        ),
+    );
+    // 04: the witness chain is admitted only through its reviewed entries: without the driver's
+    //     entry every witness fails.
+    let driver = "smart-fuzzer/tools/w111/run_numeric_campaign.py";
+    let mut altered: Value =
+        serde_json::from_str(&pristine_dispositions).expect("the copy's dispositions parse");
+    altered["witness_chain"]["entries"]
+        .as_array_mut()
+        .expect("witness_chain entries")
+        .retain(|e| e["path"] != driver);
+    write_json(&copy_dispositions, &altered);
+    evidence.lines.push(format!(
+        "04: in the copy, {DISPOSITIONS} loses the witness_chain entry of {driver}"
+    ));
+    let run = copy.accept(&args, "04-chain-entry-removed", true, &mut evidence);
+    let found = check_of(&run);
+    let findings = found.clone().map(|(_, f)| f).unwrap_or_default();
+    let per_witness = retained
+        .iter()
+        .filter(|w| {
+            findings.iter().any(|f| {
+                f.contains(text(&w["file"]))
+                    && f.contains(driver)
+                    && f.contains("has no reviewed witness_chain entry")
+            })
+        })
+        .count();
+    evidence.expect(
+        run.exit_code == Some(1)
+            && run.result() == "failed"
+            && per_witness == retained.len()
+            && findings.iter().all(|f| {
+                f.contains(driver)
+                    || f.contains("dispositions_hash")
+                    || f.contains("numeric_content.witness_chain")
+            })
+            && run.checks_ok_except(&[CHECK]),
+        format!(
+            "04-chain-entry-removed: accept exits {:?} with result {}; the {CHECK} check fails for each of the {per_witness} witnesses whose driver {driver} has no reviewed witness_chain entry (and for the review record, the hash and the manifest's chain facts that no longer match it), and for nothing else: {findings:?}",
+            run.exit_code,
+            run.result()
+        ),
+    );
+    // 05: an entry that no longer names ffcb9a77 as considered does not admit its file, which
+    //     ffcb9a77 changed.
+    let exp_source = text(&retained[0]["source"]["path"]).to_owned();
+    let mut altered: Value =
+        serde_json::from_str(&pristine_dispositions).expect("the copy's dispositions parse");
+    for entry in altered["witness_chain"]["entries"]
+        .as_array_mut()
+        .expect("witness_chain entries")
+    {
+        if entry["path"] == exp_source.as_str() {
+            entry["considered_commits"]
+                .as_array_mut()
+                .expect("considered_commits")
+                .retain(|c| !text(c).starts_with("ffcb9a77"));
+        }
+    }
+    write_json(&copy_dispositions, &altered);
+    evidence.lines.push(format!(
+        "05: in the copy, the witness_chain entry of {exp_source} no longer names ffcb9a77 among its considered_commits"
+    ));
+    let run = copy.accept(&args, "05-consideration-dropped", true, &mut evidence);
+    let found = check_of(&run);
+    let findings = found.clone().map(|(_, f)| f).unwrap_or_default();
+    let names_source = findings.iter().any(|f| {
+        f.contains(&first)
+            && f.contains(&exp_source)
+            && f.contains("ffcb9a7728195f359bdb54a1e97af0a07c8f816e")
+            && f.contains("does not name as considered")
+    });
+    evidence.expect(
+        run.exit_code == Some(1)
+            && run.result() == "failed"
+            && names_source
+            && findings
+                .iter()
+                .all(|f| f.contains(&exp_source) || f.contains("dispositions_hash"))
+            && run.checks_ok_except(&[CHECK]),
+        format!(
+            "05-consideration-dropped: accept exits {:?} with result {}; the {CHECK} check fails for {first}, whose source {exp_source} ffcb9a77 changed and whose entry no longer names it as considered (and for the hash of the dispositions as reviewed), and for nothing else: {findings:?}",
+            run.exit_code,
+            run.result()
+        ),
+    );
+    // 06: cleared_as rests on the review's wording. The entry of the retention's writer, which the
+    //     review clears only as a copier, quotes as its cleared_as_basis the driver's acquisition
+    //     wording instead, byte for byte; nothing the hash of the dispositions as reviewed covers
+    //     changes, so only the comparison with the review file can fail it.
+    let writer = "smart-fuzzer/tools/w111/retain_numeric_campaign.py";
+    let pristine: Value =
+        serde_json::from_str(&pristine_dispositions).expect("the copy's dispositions parse");
+    let basis_of = |path: &str| {
+        pristine["witness_chain"]["entries"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|e| e["path"] == path)
+            .map(|e| text(&e["cleared_as_basis"]).to_owned())
+            .unwrap_or_default()
+    };
+    let (writer_basis, driver_basis) = (basis_of(writer), basis_of(driver));
+    let quoted = |basis: &str| {
+        format!(
+            "\"cleared_as_basis\": {}",
+            serde_json::to_string(basis).expect("serialise")
+        )
+    };
+    let old = quoted(&writer_basis);
+    let swapped = pristine_dispositions.matches(&old).count() == 1
+        && !writer_basis.is_empty()
+        && !driver_basis.is_empty();
+    super::write(
+        &copy_dispositions,
+        pristine_dispositions.replacen(&old, &quoted(&driver_basis), 1),
+    );
+    evidence.lines.push(format!(
+        "06: in the copy, byte for byte, the witness_chain entry of {writer} quotes as its cleared_as_basis {driver_basis:?} (the driver's acquisition wording) in place of {writer_basis:?} (replaced: {swapped})"
+    ));
+    let run = copy.accept(&args, "06-basis-swapped", true, &mut evidence);
+    let found = check_of(&run);
+    let findings = found.clone().map(|(_, f)| f).unwrap_or_default();
+    evidence.expect(
+        swapped
+            && run.exit_code == Some(1)
+            && run.result() == "failed"
+            && findings.len() == 1
+            && findings[0].contains("witness_chain entry chain-retention-writer records cleared_as supplied_no_bits")
+            && findings[0].contains(&writer_basis)
+            && run.checks_ok_except(&[CHECK]),
+        format!(
+            "06-basis-swapped: accept exits {:?} with result {}; the {CHECK} check fails with one finding, that chain-retention-writer's cleared_as_basis is not the opening sentence of the review's reason for {writer}, {writer_basis:?}: {findings:?}",
             run.exit_code,
             run.result()
         ),

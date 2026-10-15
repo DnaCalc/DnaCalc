@@ -281,7 +281,7 @@
             "masked": {
               "commit_messages": 0,
               "files": 5,
-              "tracker_records": 5
+              "tracker_records": 6
             },
             "reason": "acceptance case name of infra-m0.5, a fixed identity"
           },
@@ -358,7 +358,7 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 14,
+          "commit_messages": 15,
           "files": 20,
           "tracker_records": 278
         },
@@ -411,15 +411,15 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 278 tracker records, 0 in 0 of 14 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 20 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 278 tracker records, 0 in 0 of 15 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 21 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
       "details": {
-        "admitted_by_recomputation": 564,
-        "admitted_with_calls_quarantined": 78,
+        "admitted_by_recomputation": 478,
+        "admitted_with_calls_quarantined": 165,
         "allowlist": "migration/release-source-allowlist.json",
-        "allowlist_entries": 564,
+        "allowlist_entries": 478,
         "cross_repository_crate_edges": 61,
         "dispositions": "migration/numeric-provenance.json",
         "edges_into_files_not_pinned": {
@@ -467,10 +467,46 @@
           {
             "owner": "dc-jtlu",
             "what": "cargo xtask pin-sources --lookup exit codes 5 (left out of the release source allowlist for its numeric provenance) and 6 (admitted only with its calls_quarantined list) are not yet part of a reviewed exit-code scheme"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the retention extended-numeric/numeric-outcomes.json has no write time, so the order of the retention and the freeze steps is not established (the commits review's retention_ordering, established false); witness independence rests on hash continuity instead"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "no raw-capture hash exists between the last extended capture (2026-09-29T12:57:54Z) and the snapshot-1735 report (17:34:45Z)"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "retain_numeric_campaign.py imports subprocess and what it runs was not checked (its code was not reviewed under the reading rule), so the record's earlier statement that it builds and runs nothing is not confirmed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "that CellRefBatch.psm1 blob 55085b4d is the one that ran rests on the extended run's source_status alone; no last-write time is recorded for it"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the 24 commits the commits review gives unresolved need file-by-file review of the files they changed"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "status.review.dispositions_hash was recorded by the dc-m33w implementer, not by a reviewer"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the hash-continuity check of cargo xtask accept trusts the hash_continuity record a witness declares; only the infra-m0.5 acceptance case reads the hashes from the pinned blobs"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "a witness_chain entry cleared on its file's own acquisition for a file that holds expected bits (since dc-m33w's round 3 only such entries, for the five answer captures and the retention, change a provenance) takes precedence over every class (tag in tools/xtask/src/provenance.rs), wider than the precedence change of dc-m33w; it must be narrowed before dc-1c6a pins w111-broad answer or retention files"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the numeric-provenance check of cargo xtask accept reads the tainted-commit rule's sets from the manifest without running git, so only the infra-m0.5 acceptance case, which recomputes them from git, catches a coordinated edit of the record, the manifest's sets and the hash"
           }
         ],
         "inputs_by_entry": {
-          "calls-quarantined": 89,
+          "calls-quarantined": 176,
           "citation-sweep": 51,
           "crt-citing-callers": 13,
           "excel-numeric-gammaln": 1,
@@ -479,10 +515,10 @@
           "excel-numeric-mod": 1,
           "excel-numeric-research": 1,
           "excel-numeric-tables": 1,
-          "include-of-quarantined": 32,
+          "include-of-quarantined": 34,
           "odd-bond-family": 1,
           "production-replay": 5,
-          "tainted-commit": 260,
+          "tainted-commit": 929,
           "unread-include": 5,
           "w111-broad-evidence": 234,
           "w111-distribution-judgements": 8,
@@ -496,7 +532,7 @@
           {
             "disposition": "rule",
             "entry": "calls-quarantined",
-            "inputs": 89,
+            "inputs": 176,
             "owner": "dc-4uy4",
             "replacement": "every crate-level entry ('<Repo> crate <name>') and every '<Repo> run-time loads' entry resolved to the pinned files it reaches, and the edges into files that are not pinned inputs followed"
           },
@@ -510,14 +546,14 @@
           {
             "disposition": "rule",
             "entry": "include-of-quarantined",
-            "inputs": 32,
+            "inputs": 34,
             "owner": "dc-2203",
             "replacement": "nothing while the included file stays tainted or unresolved; a clearance of the included file lifts it"
           },
           {
             "disposition": "rule",
             "entry": "tainted-commit",
-            "inputs": 260,
+            "inputs": 929,
             "owner": "dc-2203",
             "replacement": "a file-level disposition with quoted evidence for each changed file: tainted where the change carried tainted material, cleared only on positive evidence that it did not"
           },
@@ -572,14 +608,128 @@
           }
         ],
         "retained_witnesses": 5,
-        "test_files_tainted_or_unresolved": 38,
+        "tainted_commit_rule": {
+          "identification": 64,
+          "listed": 72,
+          "message-sweep": 18,
+          "review": 63,
+          "rule_found_recorded": 70
+        },
+        "test_files_tainted_or_unresolved": 51,
         "trusted_facts": "the manifest's code_refs and content_facts (citation sweep matches and touched-by-commit lists) are trusted as recorded, and the calls_quarantined lists and the include rule rest on code_refs; the infra-m0.5 acceptance case recomputes the citation sweep and the touched-by-commit lists from git",
         "witness_bytes": 55933,
+        "witness_chain_entries": [
+          {
+            "blob": "cc10a9ec20dc660db03e711570f55fd00500dcfe",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-exp",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json"
+          },
+          {
+            "blob": "5356055d00edbc8b92ba6daf87248216c3636d6f",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-ln",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json"
+          },
+          {
+            "blob": "6cb89b0cf250aecdee667fdd0d5932f9b1dfa218",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-log10",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json"
+          },
+          {
+            "blob": "d9e8978e54d425957c14bf1b002275f83fedc22e",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-power",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json"
+          },
+          {
+            "blob": "cea92ab3d0c956941b6d702d7d05977a256cdc5d",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-atan",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json"
+          },
+          {
+            "blob": "3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30",
+            "cleared_as": "acquisition",
+            "id": "chain-retention",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json"
+          },
+          {
+            "blob": "91b96b93671c2b575fafb4a1c0d1ba5d6a1c8dc8",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-retention-writer",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/retain_numeric_campaign.py"
+          },
+          {
+            "blob": "9fc3d4aec25b59e38f6d0635ac6bf87ccd95dde7",
+            "cleared_as": "acquisition",
+            "id": "chain-runner",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/Run-W109BulkBatch.ps1"
+          },
+          {
+            "blob": "55085b4d0381076dcfae90087ec35e75703c08e4",
+            "cleared_as": "acquisition",
+            "id": "chain-cellrefbatch",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/CellRefBatch.psm1"
+          },
+          {
+            "blob": "a08fb1161821d0c05afc69c9a776ef436b4f0ea5",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-oracle-cache",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/OracleCache.psm1"
+          },
+          {
+            "blob": "0e727499af37570fb48d8f1f88b0fed6278017c4",
+            "cleared_as": "acquisition",
+            "id": "chain-driver",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/run_numeric_campaign.py"
+          },
+          {
+            "blob": "54fda4264d59d415e82f300069c77fbc5620ff9a",
+            "cleared_as": "acquisition",
+            "id": "chain-input-generator",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py"
+          },
+          {
+            "blob": "331556e5ef0dd6b1e7e2056497684f3d93fcc6f1",
+            "cleared_as": "acquisition",
+            "id": "chain-corpus-helpers",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_w111_broad_20260929.py"
+          },
+          {
+            "blob": "4ebb3188a3f3192bf14e2e4f20491570d22d344a",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-snapshot",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/snapshot_numeric_20260929.py"
+          },
+          {
+            "blob": "5274a745d0b68b28f8163a5291b6946c60f6f588",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-freeze",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py"
+          }
+        ],
         "witnesses": "migration/witnesses"
       },
       "findings": [],
       "passed": true,
-      "summary": "release source allowlist 564 entries (564 admitted by the provenance recomputed from migration/numeric-provenance.json and the manifest's code_refs and content_facts, 78 of them only with a calls_quarantined list, 0 missing); 0 manifest inputs with stale numeric provenance; review record present, matching its review file and covering every cleared entry; 5 retained witness selections (55933 bytes), 0 witness findings; entries and rules with their owners: calls-quarantined (rule) on 89 inputs, owner dc-4uy4; citation-sweep (rule) on 51 inputs, owner dc-2203; include-of-quarantined (rule) on 32 inputs, owner dc-2203; tainted-commit (rule) on 260 inputs, owner dc-2203; unread-include (rule) on 5 inputs, owner dc-1c6a; excel-numeric-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-gen-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-ground-truth (unresolved) on 1 inputs, owner dc-2203; x87-research-packages (tainted) on 911 inputs, owner dc-43vt; production-replay (tainted) on 5 inputs, owner dc-z5ay; w111-broad-evidence (unresolved) on 234 inputs, owner dc-z5ay; edges counted for the calls_quarantined owner dc-4uy4: 61 cross-repository crate edges in 44 inputs, 25 inputs with run-time loads, and 199 edges into files that are not pinned inputs (2 in OxFunc, 197 elsewhere); 38 files under a tests directory are tainted or unresolved; gaps owned by dc-4uy4, dc-2203, dc-0huc, dc-1c6a, dc-ime9, dc-x3oi, dc-4546, dc-z5ay, dc-43vt, dc-jtlu"
+      "summary": "tainted-commit list follows its stated rule (72 listed: 64 by the identification grep, 18 by the citation sweep of the message, 63 tied to the pass by a review; the manifest records 70 commits the rule finds at the pin); 15 reviewed witness_chain entries; release source allowlist 478 entries (478 admitted by the provenance recomputed from migration/numeric-provenance.json and the manifest's code_refs and content_facts, 165 of them only with a calls_quarantined list, 0 missing); 0 manifest inputs with stale numeric provenance; review record present, matching its review file and covering every cleared entry; 5 retained witness selections (55933 bytes), 0 witness findings; entries and rules with their owners: calls-quarantined (rule) on 176 inputs, owner dc-4uy4; citation-sweep (rule) on 51 inputs, owner dc-2203; include-of-quarantined (rule) on 34 inputs, owner dc-2203; tainted-commit (rule) on 929 inputs, owner dc-2203; unread-include (rule) on 5 inputs, owner dc-1c6a; excel-numeric-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-gen-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-ground-truth (unresolved) on 1 inputs, owner dc-2203; x87-research-packages (tainted) on 911 inputs, owner dc-43vt; production-replay (tainted) on 5 inputs, owner dc-z5ay; w111-broad-evidence (unresolved) on 234 inputs, owner dc-z5ay; edges counted for the calls_quarantined owner dc-4uy4: 61 cross-repository crate edges in 44 inputs, 25 inputs with run-time loads, and 199 edges into files that are not pinned inputs (2 in OxFunc, 197 elsewhere); 51 files under a tests directory are tainted or unresolved; gaps owned by dc-4uy4, dc-2203, dc-0huc, dc-1c6a, dc-ime9, dc-x3oi, dc-4546, dc-z5ay, dc-43vt, dc-jtlu, dc-z5ay, dc-z5ay, dc-z5ay, dc-z5ay, dc-2203, dc-qfqa, dc-qfqa, dc-qfqa, dc-qfqa"
     }
   ],
   "bead": "infra-m0.5",
@@ -602,14 +752,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_5__quarantine_gate",
-      "duration_s": 85.93,
+      "duration_s": 125.543,
       "exit_code": 0,
       "log": "target/accept/infra-m0.5/windows/infra_m0_5__quarantine_gate.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 85.80s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 125.40s"
     },
     {
       "argv": [
@@ -628,20 +778,20 @@
         "--nocapture"
       ],
       "case": "infra_m0_5__independent_witness",
-      "duration_s": 38.327,
+      "duration_s": 72.43,
       "exit_code": 0,
       "log": "target/accept/infra-m0.5/windows/infra_m0_5__independent_witness.log",
       "notes": [
-        "migration/witnesses/w111-extended-exp.json (EXP): 72 rows compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (written by smart-fuzzer/tools/w111/retain_numeric_campaign.py from the raw captures); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]",
-        "migration/witnesses/w111-extended-ln.json (LN): 72 rows compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (written by smart-fuzzer/tools/w111/retain_numeric_campaign.py from the raw captures); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]",
-        "migration/witnesses/w111-extended-log10.json (LOG10): 72 rows compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (written by smart-fuzzer/tools/w111/retain_numeric_campaign.py from the raw captures); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]",
-        "migration/witnesses/w111-extended-power.json (POWER): 111 rows compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (written by smart-fuzzer/tools/w111/retain_numeric_campaign.py from the raw captures); 111 of 111 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]",
-        "migration/witnesses/w111-extended-atan.json (ATAN): 72 rows compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (written by smart-fuzzer/tools/w111/retain_numeric_campaign.py from the raw captures); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]"
+        "migration/witnesses/w111-extended-exp.json (EXP): hash continuity raw capture sha256 60ec37d1f940772eb3c22ef1e0ee3b405c99617f05667dcd9ebd79d112bbb26a recorded by snapshot-1735, snapshot-wrap-1952, retention (1224 of 1224 rows equal) (snapshot report 2026-09-29T17:34:45.336948+00:00, before the freeze at 2026-09-29T19:52:19.579564+00:00); 72 rows of the selection compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (writer smart-fuzzer/tools/w111/retain_numeric_campaign.py); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]; chain admitted through its reviewed witness_chain entries: source docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json through chain-answers-exp; generator (expected_bits) smart-fuzzer/tools/Run-W109BulkBatch.ps1 through chain-runner; generator (expected_bits) smart-fuzzer/tools/CellRefBatch.psm1 through chain-cellrefbatch; generator (cache) smart-fuzzer/tools/OracleCache.psm1 through chain-oracle-cache; generator (driver) smart-fuzzer/tools/w111/run_numeric_campaign.py through chain-driver; generator (inputs) smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py through chain-input-generator; generator (inputs) smart-fuzzer/tools/w111/gen_w111_broad_20260929.py through chain-corpus-helpers; generator (snapshot) smart-fuzzer/tools/w111/snapshot_numeric_20260929.py through chain-snapshot; generator (snapshot) smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py through chain-freeze; independent retention docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json through chain-retention; retention writer smart-fuzzer/tools/w111/retain_numeric_campaign.py through chain-retention-writer",
+        "migration/witnesses/w111-extended-ln.json (LN): hash continuity raw capture sha256 daddd3847f8c859f2baa4f1f8df59ca26581d68049dc96f0cc57d5add18aad0e recorded by snapshot-1735, snapshot-wrap-1952, retention (1224 of 1224 rows equal) (snapshot report 2026-09-29T17:34:45.336948+00:00, before the freeze at 2026-09-29T19:52:19.579564+00:00); 72 rows of the selection compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (writer smart-fuzzer/tools/w111/retain_numeric_campaign.py); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]; chain admitted through its reviewed witness_chain entries: source docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json through chain-answers-ln; generator (expected_bits) smart-fuzzer/tools/Run-W109BulkBatch.ps1 through chain-runner; generator (expected_bits) smart-fuzzer/tools/CellRefBatch.psm1 through chain-cellrefbatch; generator (cache) smart-fuzzer/tools/OracleCache.psm1 through chain-oracle-cache; generator (driver) smart-fuzzer/tools/w111/run_numeric_campaign.py through chain-driver; generator (inputs) smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py through chain-input-generator; generator (inputs) smart-fuzzer/tools/w111/gen_w111_broad_20260929.py through chain-corpus-helpers; generator (snapshot) smart-fuzzer/tools/w111/snapshot_numeric_20260929.py through chain-snapshot; generator (snapshot) smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py through chain-freeze; independent retention docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json through chain-retention; retention writer smart-fuzzer/tools/w111/retain_numeric_campaign.py through chain-retention-writer",
+        "migration/witnesses/w111-extended-log10.json (LOG10): hash continuity raw capture sha256 1388872075c53d708bef126c126eafd56371bcdbdee29d3bfdfe7d4468a88c00 recorded by snapshot-1735, snapshot-wrap-1952, retention (1224 of 1224 rows equal) (snapshot report 2026-09-29T17:34:45.336948+00:00, before the freeze at 2026-09-29T19:52:19.579564+00:00); 72 rows of the selection compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (writer smart-fuzzer/tools/w111/retain_numeric_campaign.py); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]; chain admitted through its reviewed witness_chain entries: source docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json through chain-answers-log10; generator (expected_bits) smart-fuzzer/tools/Run-W109BulkBatch.ps1 through chain-runner; generator (expected_bits) smart-fuzzer/tools/CellRefBatch.psm1 through chain-cellrefbatch; generator (cache) smart-fuzzer/tools/OracleCache.psm1 through chain-oracle-cache; generator (driver) smart-fuzzer/tools/w111/run_numeric_campaign.py through chain-driver; generator (inputs) smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py through chain-input-generator; generator (inputs) smart-fuzzer/tools/w111/gen_w111_broad_20260929.py through chain-corpus-helpers; generator (snapshot) smart-fuzzer/tools/w111/snapshot_numeric_20260929.py through chain-snapshot; generator (snapshot) smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py through chain-freeze; independent retention docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json through chain-retention; retention writer smart-fuzzer/tools/w111/retain_numeric_campaign.py through chain-retention-writer",
+        "migration/witnesses/w111-extended-power.json (POWER): hash continuity raw capture sha256 e27321dfbb9a34d7ee697a437d2d497bcffe7dacd95ec532153d99c5e01f4d43 recorded by snapshot-1735, snapshot-wrap-1952, retention (1263 of 1263 rows equal) (snapshot report 2026-09-29T17:34:45.336948+00:00, before the freeze at 2026-09-29T19:52:19.579564+00:00); 111 rows of the selection compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (writer smart-fuzzer/tools/w111/retain_numeric_campaign.py); 111 of 111 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]; chain admitted through its reviewed witness_chain entries: source docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json through chain-answers-power; generator (expected_bits) smart-fuzzer/tools/Run-W109BulkBatch.ps1 through chain-runner; generator (expected_bits) smart-fuzzer/tools/CellRefBatch.psm1 through chain-cellrefbatch; generator (cache) smart-fuzzer/tools/OracleCache.psm1 through chain-oracle-cache; generator (driver) smart-fuzzer/tools/w111/run_numeric_campaign.py through chain-driver; generator (inputs) smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py through chain-input-generator; generator (inputs) smart-fuzzer/tools/w111/gen_w111_broad_20260929.py through chain-corpus-helpers; generator (snapshot) smart-fuzzer/tools/w111/snapshot_numeric_20260929.py through chain-snapshot; generator (snapshot) smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py through chain-freeze; independent retention docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json through chain-retention; retention writer smart-fuzzer/tools/w111/retain_numeric_campaign.py through chain-retention-writer",
+        "migration/witnesses/w111-extended-atan.json (ATAN): hash continuity raw capture sha256 77c510abbcfd8f69da440aa915fc0514ea3669fb7d80e6c59ba2d06cf803a765 recorded by snapshot-1735, snapshot-wrap-1952, retention (1224 of 1224 rows equal) (snapshot report 2026-09-29T17:34:45.336948+00:00, before the freeze at 2026-09-29T19:52:19.579564+00:00); 72 rows of the selection compared with the retention OxFunc docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json at blob 3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30 (writer smart-fuzzer/tools/w111/retain_numeric_campaign.py); 72 of 72 matched, all rows matched; generators that build, run or name a package of a tainted class: [\"smart-fuzzer/tools/Run-W109BulkBatch.ps1 names {\\\"smart-fuzzer/tools/calc_graph_racer/\\\"}\", \"smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py builds or runs {\\\"smart-fuzzer/tools/pmt_ppmt_local_eval/\\\"}\"]; chain admitted through its reviewed witness_chain entries: source docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json through chain-answers-atan; generator (expected_bits) smart-fuzzer/tools/Run-W109BulkBatch.ps1 through chain-runner; generator (expected_bits) smart-fuzzer/tools/CellRefBatch.psm1 through chain-cellrefbatch; generator (cache) smart-fuzzer/tools/OracleCache.psm1 through chain-oracle-cache; generator (driver) smart-fuzzer/tools/w111/run_numeric_campaign.py through chain-driver; generator (inputs) smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py through chain-input-generator; generator (inputs) smart-fuzzer/tools/w111/gen_w111_broad_20260929.py through chain-corpus-helpers; generator (snapshot) smart-fuzzer/tools/w111/snapshot_numeric_20260929.py through chain-snapshot; generator (snapshot) smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py through chain-freeze; independent retention docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json through chain-retention; retention writer smart-fuzzer/tools/w111/retain_numeric_campaign.py through chain-retention-writer"
       ],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 38.19s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 72.26s"
     }
   ],
   "command": [
@@ -707,13 +857,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 2.837,
+      "duration_s": 3.242,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s"
+        "test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s"
       ],
       "log": "target/accept/infra-m0.5/windows/command-3.log",
       "outcome": "passed",
@@ -743,7 +893,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 134.35,
+  "duration_s": 212.142,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -754,127 +904,82 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "f0a9239684296478fe455beb6adaf877200ae707",
+          "blob": "689e3a04163930df8f2144a21cf1fb3da5596247",
           "path": ".beads/issues.jsonl",
           "status": "M"
         },
         {
-          "blob": "c3dbf7bcff981a01966a2b002afcb30e3cc0768c",
+          "blob": "f2024ada930f517437ab32d58d83530f63877979",
           "path": "AGENTS.md",
           "status": "M"
         },
         {
-          "blob": "d5c61b3f41bc5a04f8f29cd8a480f91ab7b01feb",
+          "blob": "550456aeba7210270d1377f4357718d964e33233",
+          "path": "accept-receipts/infra-m0.2/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "51eeaeaddaf193ae535dbef3ded3a7e0fb2d5bc5",
+          "path": "accept-receipts/infra-m0.3/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "40fee0f80f639438f0e8e841e820057c2a5cb47f",
+          "path": "accept-receipts/infra-m0.4/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "aa425753c3486ee3ba83e68b180136f7bfbc302d",
+          "path": "migration/numeric-provenance-review-2026-10-15.json",
+          "status": "M"
+        },
+        {
+          "blob": "70364e82d698858a2ef1e39d5021b4e919ad7c34",
+          "path": "migration/numeric-provenance.json",
+          "status": "M"
+        },
+        {
+          "blob": "28d1af3a20e9eb489beb48deb0448cc55fc69cbf",
+          "path": "migration/release-source-allowlist.json",
+          "status": "M"
+        },
+        {
+          "blob": "a630843dba93f624924f842c59db7e75cf8f8b59",
           "path": "migration/source-manifest.json",
           "status": "M"
         },
         {
-          "blob": "3f1a626892b8820c49d62d3343683846019fd837",
-          "path": "tools/xtask/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "cef0d65eb9ec40822a9d14861d69f2646ba1e14c",
-          "path": "tools/xtask/src/arch.rs",
-          "status": "M"
-        },
-        {
-          "blob": "1bb300521c0bdaffb21d32aa5c1e66cd6ce6cc53",
-          "path": "tools/xtask/src/main.rs",
-          "status": "M"
-        },
-        {
-          "blob": "17093a64a4c90a2b97a46752f0e9a069ec7b2075",
+          "blob": "daa971f97eb929aa7c2d2e4a4edc70d1fd9d95bc",
           "path": "tools/xtask/src/pin.rs",
           "status": "M"
         },
         {
-          "blob": "9d135cf24b3418d4e08576ab4d9a1547f3c621af",
-          "path": "tools/xtask/src/pin_rust.rs",
+          "blob": "72e6f21a125afbd3f01831f17097262dfad94bd5",
+          "path": "tools/xtask/src/provenance.rs",
           "status": "M"
         },
         {
-          "blob": "546f1a7092dac8a1577d6d4f4a79104691414ffa",
-          "path": "tools/xtask/src/words.rs",
-          "status": "M"
-        },
-        {
-          "blob": "dca9e04771d2856758e968915ef141f69ef36149",
+          "blob": "be4a94f815632ec4fad6da0d670be423ae1bb3a1",
           "path": "tools/xtask/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "ca28ac6e909d74d90786effa7ac16728b608aaa5",
-          "path": "tools/xtask/tests/acceptance/infra_m0_3.rs",
-          "status": "M"
-        },
-        {
-          "blob": "9f1f52f1ba5d3cafc049067186f2b8eea5d7ec55",
+          "blob": "e3370f14ae3cc0f5c42fbb527ebb451039765dab",
           "path": "tools/xtask/tests/acceptance/infra_m0_4.rs",
           "status": "M"
         },
         {
-          "blob": "10169b679e0983be90bbf81290e66e6024a92a06",
-          "path": "migration/numeric-provenance-review-2026-10-15.json",
-          "status": "??"
-        },
-        {
-          "blob": "8141ccc73bf3541d8987f169fda6a6afbb5e3094",
-          "path": "migration/numeric-provenance.json",
-          "status": "??"
-        },
-        {
-          "blob": "46156088341354a03e242a678606c59e18b9ddc4",
-          "path": "migration/release-source-allowlist.json",
-          "status": "??"
-        },
-        {
-          "blob": "1c640ace12b60cdb35033ae66bd528b4117491f3",
-          "path": "migration/witnesses/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "ab990e58d32cf218e270a331a758448de1a3331c",
-          "path": "migration/witnesses/w111-extended-atan.json",
-          "status": "??"
-        },
-        {
-          "blob": "9549b7e50fba182da3f5fa528655f8d1483944b3",
-          "path": "migration/witnesses/w111-extended-exp.json",
-          "status": "??"
-        },
-        {
-          "blob": "a96a7a4009b26c9989ceaf28bc2df8809992ed6e",
-          "path": "migration/witnesses/w111-extended-ln.json",
-          "status": "??"
-        },
-        {
-          "blob": "34bcf6e0567b07c146a50fab133f28085c914c36",
-          "path": "migration/witnesses/w111-extended-log10.json",
-          "status": "??"
-        },
-        {
-          "blob": "3191b647f71f3f941903e13e99390ad8d905dc2f",
-          "path": "migration/witnesses/w111-extended-power.json",
-          "status": "??"
-        },
-        {
-          "blob": "c87d3fa2647053a755bd2abdcf86001b20d92172",
-          "path": "tools/xtask/src/provenance.rs",
-          "status": "??"
-        },
-        {
-          "blob": "9a990743ec7e5627e223aebb9159129c990cdd9c",
+          "blob": "fb70ac0716d6c2f3e6337214c30c3bea37f46d7d",
           "path": "tools/xtask/tests/acceptance/infra_m0_5.rs",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "d9f5e31f6380b1df5064d542ba28f53052d16828",
-          "path": "tools/xtask/tests/fixtures/provenance/issues.jsonl",
+          "blob": "ab688d711fcce46208ab725f5ece5b372c307cda",
+          "path": "migration/numeric-provenance-review-2026-10-15-commits.json",
           "status": "??"
         }
       ],
-      "head": "92c73f47967a91f75232b9905846421e7f4a6f2a",
+      "head": "6c579a2101c7813f56220b5d3bb469a954250962",
       "receipt_paths_left_out": [
         "accept-receipts/infra-m0.5/windows.json"
       ]
@@ -914,5 +1019,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-15T01:48:36Z"
+  "started_utc": "2026-10-15T06:07:10Z"
 }
