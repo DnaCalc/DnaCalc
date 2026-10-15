@@ -16,8 +16,11 @@
 //! clean tree unless `--allow-dirty` (`ci_audit.rs`).
 //!
 //! `cargo xtask pin-sources` pins the legacy repositories and the port inputs the beads cite in
-//! `migration/source-manifest.json`; `cargo xtask pin-sources --lookup <Repo>/<path>` prints one
-//! pinned input, or why there is none, with an exit code per disposition (`pin.rs`).
+//! `migration/source-manifest.json`, with each input's numeric provenance from the reviewed
+//! `migration/numeric-provenance.json`, and writes the release source allowlist
+//! `migration/release-source-allowlist.json` (`pin.rs`, `provenance.rs`); `cargo xtask
+//! pin-sources --lookup <Repo>/<path>` prints one pinned input, or why there is none, with an exit
+//! code per disposition (`pin.rs`).
 //!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
@@ -37,6 +40,7 @@ mod pin;
 mod pin_cite;
 mod pin_git;
 mod pin_rust;
+mod provenance;
 mod rust_source;
 mod seams;
 mod text;

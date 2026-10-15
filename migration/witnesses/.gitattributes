@@ -1,0 +1,3 @@
+# Retained witness selections (migration/numeric-provenance.json): their bytes are recorded as git
+# blob IDs, so keep them unchanged across checkouts, including Windows core.autocrlf.
+* -text

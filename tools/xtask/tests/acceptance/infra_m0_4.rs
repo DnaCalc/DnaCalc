@@ -1305,25 +1305,36 @@ pub fn missing_source() {
     let inputs = manifest["inputs"].as_array().cloned().unwrap_or_default();
     let mut counts: BTreeMap<&str, u64> = BTreeMap::new();
     let mut none_found = 0;
+    // A port input whose numeric provenance is tainted (bead infra-m0.5) is never a port source:
+    // the summary counts it apart, as port_numeric_tainted.
+    let mut port_tainted = 0;
     for entry in &inputs {
         *counts.entry(text(&entry["disposition"])).or_default() += 1;
         if text(&entry["license_status"]) == "none-found" {
             none_found += 1;
         }
+        if text(&entry["disposition"]) == "port"
+            && text(&entry["numeric_provenance"]["disposition"]) == "tainted"
+        {
+            port_tainted += 1;
+        }
     }
     let count = |d: &str| counts.get(d).copied().unwrap_or(0);
     let summary = &manifest["summary"];
+    let ports = count("port") - port_tainted;
     evidence.expect(
-        summary["port_provisional"] == count("port")
+        summary["port_provisional"] == ports
+            && summary["by_disposition"]["port"] == ports
+            && summary["by_disposition"]["port_numeric_tainted"] == port_tainted
             && DISPOSITIONS
                 .iter()
+                .filter(|d| **d != "port")
                 .all(|d| summary["by_disposition"][*d] == count(d))
             && summary["inputs"] == inputs.len() as u64
             && DISPOSITIONS.iter().map(|d| count(d)).sum::<u64>() == inputs.len() as u64,
         format!(
-            "{MANIFEST}: port_provisional {} equals the {} port inputs counted here; {} reference, {} quarantined and {} quarantine_derived inputs are not among them",
+            "{MANIFEST}: port_provisional {} equals the {ports} port inputs counted here without a tainted numeric provenance ({port_tainted} more are counted apart as port_numeric_tainted); {} reference, {} quarantined and {} quarantine_derived inputs are not among them",
             summary["port_provisional"],
-            count("port"),
             count("reference"),
             count("quarantined"),
             count("quarantine_derived")
@@ -1384,12 +1395,16 @@ pub fn missing_source() {
         ),
     );
     let mut lookup_outputs = vec![stdout];
+    // eval/mod.rs calls oxfunc_core, which holds the quarantined numeric directory: bead
+    // infra-m0.5 admits it only with its calls_quarantined list, and the lookup exits 6.
     for (label, wanted, code, line) in [
         (
             "lookup-pinned",
             "OxFml/crates/oxfml_core/src/eval/mod.rs",
-            0,
-            None,
+            6,
+            Some(
+                "admitted: port only against clean replacements of the listed modules: OxFunc crate oxfunc_core (infra-m0.5)",
+            ),
         ),
         (
             "lookup-declared",

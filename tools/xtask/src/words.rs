@@ -553,21 +553,52 @@ mod tests {
     }
 
     /// The configuration decodes to the reviewed forms and identifiers, and no file of this
-    /// package (configuration, sources, tests, fixtures) holds an occurrence of either word.
+    /// package (configuration, sources, tests, fixtures) holds an occurrence of either word. One
+    /// excluded identifier, bead infra-m0.5's fixed acceptance case name, may appear where this
+    /// package names that bead's cases: its acceptance manifest, its acceptance target and the
+    /// bead's case module; every other excluded identifier masks nothing anywhere here.
     #[test]
     fn this_package_holds_none_of_the_words() {
         let config = config();
         assert_eq!(config.forms.len(), 5);
         assert_eq!(config.forms[0].len(), 2);
         assert_eq!(config.excluded.len(), 4);
+        // infra-m0.5's case name, found by its bead prefix so this file does not hold it.
+        let case_prefix = "infra_m0_5__";
+        let allowed: Vec<usize> = config
+            .excluded
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.identifier.starts_with(case_prefix))
+            .map(|(index, _)| index)
+            .collect();
+        assert_eq!(
+            allowed.len(),
+            1,
+            "one excluded identifier is {case_prefix}*"
+        );
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut paths = Vec::new();
-        files_under(Path::new(env!("CARGO_MANIFEST_DIR")), &mut paths).unwrap();
+        files_under(root, &mut paths).unwrap();
         let mut scanned = 0;
         for path in paths {
             let text = String::from_utf8_lossy(&fs::read(&path).unwrap()).into_owned();
             let found = config.occurrences(&text);
+            let rel = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            let names_the_case = rel == "acceptance.json"
+                || rel == "tests/acceptance.rs"
+                || rel == "tests/acceptance/infra_m0_5.rs";
+            let masked_ok = found
+                .masked
+                .iter()
+                .enumerate()
+                .all(|(index, n)| *n == 0 || (names_the_case && allowed.contains(&index)));
             assert!(
-                found.offsets.is_empty() && found.masked.iter().all(|n| *n == 0),
+                found.offsets.is_empty() && masked_ok,
                 "{} holds {} occurrences and {:?} masked identifiers",
                 path.display(),
                 found.offsets.len(),

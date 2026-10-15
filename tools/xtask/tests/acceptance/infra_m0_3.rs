@@ -699,13 +699,14 @@ impl Accepted {
     }
 }
 
-const CHECKS: [&str; 6] = [
+const CHECKS: [&str; 7] = [
     "dependencies",
     "os-imports",
     "wasm-refusal",
     "tree-reference-tokens",
     "seams",
     "word-scan",
+    "numeric-provenance",
 ];
 
 /// A misspelled required test name fails the runner, and so does every other way of not
@@ -761,7 +762,7 @@ pub fn zero_tests_fail() {
     );
     evidence.expect(
         run.checks_ok_except(&[]),
-        "01-pass: all six architecture checks passed".to_owned(),
+        "01-pass: all seven architecture checks passed".to_owned(),
     );
     let reach = &run.check("seams")["details"]["reach"];
     evidence.expect(

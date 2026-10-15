@@ -55,6 +55,23 @@
       }
     },
     {
+      "id": "infra-m0.5",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "xtask", "accept", "--id", "infra-m0.5", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m0.5", "--platform", "linux", "--require-all"],
+        ["cargo", "test", "-p", "xtask", "--bins"]
+      ],
+      "cases": [
+        "infra_m0_5__quarantine_gate",
+        "infra_m0_5__independent_witness"
+      ],
+      "platforms": {
+        "infra_m0_5__quarantine_gate": ["windows", "linux"],
+        "infra_m0_5__independent_witness": ["windows", "linux"]
+      }
+    },
+    {
       "id": "infra-m0.2",
       "test": "acceptance",
       "commands": [

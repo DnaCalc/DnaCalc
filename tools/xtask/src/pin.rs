@@ -4,10 +4,23 @@
 //! blob of that commit.
 //!
 //! `cargo xtask pin-sources --lookup <Repo>/<path> [--manifest <file>]` prints the pinned entry of
-//! one input (or of every input under a directory). It exits 0 for a port or reference input, 1
-//! for an unavailable one, 3 for a quarantined or quarantine_derived one (do not copy), 4 for a
-//! bulk-evidence path that is never pinned, and 2 for a usage or manifest error. Port beads use it
-//! before copying anything.
+//! one input (or of every input under a directory). It exits 0 for a port or reference input (and
+//! for the source of a retained numeric witness, which it names as such), 1 for an unavailable
+//! one, 3 for a quarantined or quarantine_derived one (do not copy), 4 for a bulk-evidence path
+//! that is never pinned, 5 for any other input whose numeric provenance is tainted or unresolved
+//! (left out of the release source allowlist), 6 for a port input the allowlist admits only with
+//! its calls_quarantined list (port it only against clean replacements of the listed modules), and
+//! 2 for a usage or manifest error. Port beads use it before copying anything.
+//!
+//! Numeric provenance (`provenance.rs`, bead infra-m0.5): every pin reads the dispositions of
+//! `migration/numeric-provenance.json` (or `--provenance <file>`); records, per input, the facts of
+//! its own content the content-derivation rule reads (`content_facts`: the lines the citation
+//! sweep matched and the listed tainted commits that changed it) and, per Rust input, its code
+//! edges (`code_refs`: the files its non-test and its test code refer to and include, the crates
+//! of other repositories it refers to and the run-time loads it makes); records each input's
+//! numeric provenance and calls_quarantined list; lists the retained numeric witnesses; and writes
+//! the release source allowlist `release-source-allowlist.json` beside the manifest it writes (or
+//! to `--allowlist <file>`).
 //!
 //! The legacy root is the workspace root's parent directory, or `DNACALC_LEGACY_ROOT` when set.
 //! The legacy repositories are only read (`pin_git.rs`). The tracker's Port from sections are
@@ -30,13 +43,14 @@ use crate::cargo::Workspace;
 use crate::pin_cite::{self, Cited, Disposition, REPOSITORIES};
 use crate::pin_git::{BlobReader, Legacy};
 use crate::pin_rust;
+use crate::provenance::{self, Numeric, Reviewed, Tag};
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-pub const USAGE: &str = "usage: cargo xtask pin-sources [--tracker <issues.jsonl>] [--out <file>]\n       cargo xtask pin-sources --lookup <Repo>/<path> [--manifest <file>]\n       (--lookup exits 0 for a pinned port or reference input, 1 unavailable, 3 quarantined or\n        quarantine_derived, 4 never-pinned bulk evidence, 2 a usage or manifest error)";
+pub const USAGE: &str = "usage: cargo xtask pin-sources [--tracker <issues.jsonl>] [--out <file>] [--provenance <file>] [--allowlist <file>]\n       cargo xtask pin-sources --lookup <Repo>/<path> [--manifest <file>]\n       (--lookup exits 0 for a pinned port or reference input or a retained witness's source,\n        1 unavailable, 3 quarantined or quarantine_derived, 4 never-pinned bulk evidence,\n        5 left out of the release source allowlist for a tainted or unresolved numeric\n        provenance, 6 admitted only with its calls_quarantined list, 2 a usage or manifest\n        error)";
 
 /// The migration record, relative to the workspace root.
 pub const MANIFEST: &str = "migration/source-manifest.json";
@@ -51,6 +65,12 @@ const EXIT_UNAVAILABLE: u8 = 1;
 const EXIT_USAGE: u8 = 2;
 const EXIT_QUARANTINED: u8 = 3;
 const EXIT_BULK_EVIDENCE: u8 = 4;
+const EXIT_NUMERIC: u8 = 5;
+const EXIT_CALLS_QUARANTINED: u8 = 6;
+
+/// The key of `summary.by_disposition` that counts port inputs whose numeric provenance is
+/// tainted: they are never port sources, so they leave the port count.
+const PORT_NUMERIC_TAINTED: &str = "port_numeric_tainted";
 
 /// A path that is never pinned, committed or not.
 struct NotPinned {
@@ -79,8 +99,8 @@ const NOT_PINNED: [NotPinned; 2] = [
 ];
 
 /// Paths quarantined whatever the citing text says: the numeric code whose provenance infra-m0.5
-/// traces (x87.rs, mod.rs, tables.rs, gen_tables.py, gammaln.rs, research.rs and
-/// x87_excel_ground_truth.tsv), pending that bead.
+/// traced (x87.rs, mod.rs, tables.rs, gen_tables.py, gammaln.rs, research.rs and
+/// x87_excel_ground_truth.tsv); `migration/numeric-provenance.json` records each one's disposition.
 const QUARANTINED: [(&str, &str); 1] = [("OxFunc", "crates/oxfunc_core/src/excel_numeric/")];
 
 /// The feature of `RESEARCH_CRATE` that compiles the x87 research surface (`RESEARCH_SURFACE`),
@@ -144,6 +164,9 @@ const SKIP_CHILD_EXCLUDED: &str =
 const SKIP_CHILD_NOT_PINNED: &str = "a declared module under a never-pinned path is not pinned";
 const SKIP_RESEARCH_PARSE: &str =
     "the x87 research-surface check read the file as text: it does not parse";
+const SKIP_CODE_REFS_PARSE: &str = "code references not read: the file does not parse";
+const SKIP_CODE_REFS_OUTSIDE: &str =
+    "code references not read: the file is in no library crate's module tree and in no package";
 /// A counted fallback: a declared module found only by reading its parent as a `#[path]` file.
 const FALLBACK_PATH_READING: &str = "a declared module was found only by reading its parent's children as those of a #[path] file (the parent is cited directly, so how it is loaded is not known)";
 
@@ -206,6 +229,8 @@ struct Args {
     out: Option<PathBuf>,
     lookup: Option<String>,
     manifest: Option<PathBuf>,
+    provenance: Option<PathBuf>,
+    allowlist: Option<PathBuf>,
 }
 
 fn parse_args(args: &[String]) -> Result<Args, String> {
@@ -214,6 +239,8 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
         out: None,
         lookup: None,
         manifest: None,
+        provenance: None,
+        allowlist: None,
     };
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -227,10 +254,16 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
             "--out" => parsed.out = Some(PathBuf::from(value("--out")?)),
             "--lookup" => parsed.lookup = Some(value("--lookup")?),
             "--manifest" => parsed.manifest = Some(PathBuf::from(value("--manifest")?)),
+            "--provenance" => parsed.provenance = Some(PathBuf::from(value("--provenance")?)),
+            "--allowlist" => parsed.allowlist = Some(PathBuf::from(value("--allowlist")?)),
             other => return Err(format!("unknown argument {other}")),
         }
     }
-    if parsed.lookup.is_some() && (parsed.tracker.is_some() || parsed.out.is_some()) {
+    let writes = parsed.tracker.is_some()
+        || parsed.out.is_some()
+        || parsed.provenance.is_some()
+        || parsed.allowlist.is_some();
+    if parsed.lookup.is_some() && writes {
         return Err("--lookup takes only --manifest".to_owned());
     }
     if parsed.lookup.is_none() && parsed.manifest.is_some() {
@@ -272,7 +305,18 @@ pub fn run(raw: &[String]) -> ExitCode {
     }
     let tracker = at_root(args.tracker, TRACKER);
     let out = at_root(args.out, MANIFEST);
-    match pin(&ws, &tracker) {
+    let allowlist_path = match args.allowlist {
+        Some(path) => at_root(Some(path), provenance::ALLOWLIST),
+        None => out.with_file_name(provenance::ALLOWLIST_FILE),
+    };
+    let reviewed = match Reviewed::load(&at_root(args.provenance, provenance::DISPOSITIONS)) {
+        Ok(reviewed) => reviewed,
+        Err(e) => {
+            eprintln!("xtask pin-sources: {e}");
+            return ExitCode::from(1);
+        }
+    };
+    match pin(&ws, &tracker, &reviewed) {
         Err(e) => {
             eprintln!("xtask pin-sources: {e}");
             ExitCode::from(1)
@@ -305,7 +349,26 @@ pub fn run(raw: &[String]) -> ExitCode {
                 eprintln!("xtask pin-sources: cannot write {}: {e}", out.display());
                 return ExitCode::from(1);
             }
+            let allowlist = provenance::allowlist(&manifest, &ws.rel(&out));
+            let written = allowlist_path
+                .parent()
+                .map_or(Ok(()), fs::create_dir_all)
+                .and_then(|()| fs::write(&allowlist_path, provenance::allowlist_text(&allowlist)));
+            if let Err(e) = written {
+                eprintln!(
+                    "xtask pin-sources: cannot write {}: {e}",
+                    allowlist_path.display()
+                );
+                return ExitCode::from(1);
+            }
             print_summary(&manifest, &ws.rel(&out));
+            println!(
+                "PIN wrote {}: {} entries of {} port inputs; left out for numeric provenance {}",
+                ws.rel(&allowlist_path),
+                allowlist["summary"]["entries"],
+                allowlist["summary"]["port_inputs"],
+                allowlist["summary"]["port_inputs_left_out"]
+            );
             ExitCode::SUCCESS
         }
     }
@@ -354,11 +417,29 @@ fn print_summary(manifest: &Value, out: &str) {
             if shown.len() < note.len() { " ..." } else { "" }
         );
     }
+    let numeric = &summary["numeric_provenance"];
+    println!(
+        "PIN numeric provenance: {} by disposition, {} by entry or rule, {} admitted only with a calls_quarantined list, {} inputs with code_refs, {} with content facts, {} cross-repository crate edges in {} inputs and {} inputs with run-time loads, edges into files not pinned {} (owner {}), {} quarantined without an entry, {} catalogue functions reaching a non-cleared helper, {} retained witness sources",
+        numeric["by_disposition"],
+        numeric["by_entry"],
+        numeric["admitted_with_calls_quarantined"],
+        numeric["inputs_with_code_refs"],
+        numeric["inputs_with_content_facts"],
+        numeric["cross_repository_crate_edges"],
+        numeric["inputs_with_cross_repository_crate_edges"],
+        numeric["inputs_with_run_time_loads"],
+        numeric["edges_into_files_not_pinned"],
+        numeric["edges_owner"].as_str().unwrap_or("?"),
+        numeric["quarantined_without_review"],
+        numeric["functions_reaching_non_cleared_helpers"],
+        numeric["retained_witness_sources"]
+    );
     let by = &summary["by_disposition"];
     println!(
-        "PIN wrote {out}: {} inputs, all provisional ({} port, {} reference, {} quarantined, {} quarantine_derived), {} with license none-found, {} runner candidates, {} unavailable, {} excluded; by category {}",
+        "PIN wrote {out}: {} inputs, all provisional ({} port, {} port with tainted numeric provenance counted apart, {} reference, {} quarantined, {} quarantine_derived), {} with license none-found, {} runner candidates, {} unavailable, {} excluded; by category {}",
         summary["inputs"],
         by["port"],
+        by[PORT_NUMERIC_TAINTED],
         by["reference"],
         by["quarantined"],
         by["quarantine_derived"],
@@ -460,6 +541,8 @@ struct Repository {
     reader: Option<BlobReader>,
     contents: BTreeMap<String, String>,
     children: BTreeMap<(String, ModState), Vec<Child>>,
+    /// For a fixture repository: the paths each commit changed (no git is run).
+    fixture_changes: Option<BTreeMap<String, Vec<String>>>,
 }
 
 impl Repository {
@@ -477,6 +560,7 @@ impl Repository {
             reader: None,
             contents: BTreeMap::new(),
             children: BTreeMap::new(),
+            fixture_changes: None,
         };
         if !repository.legacy.dir.is_dir() {
             repository.record.insert("present".to_owned(), json!(false));
@@ -579,6 +663,94 @@ impl Repository {
         Ok(())
     }
 
+    /// The committed text of `path` at the pinned commit (lossy UTF-8), without keeping it.
+    fn text_once(&mut self, path: &str) -> Result<String, String> {
+        if let Some(text) = self.contents.get(path) {
+            return Ok(text.clone());
+        }
+        let blob = self
+            .tree
+            .get(path)
+            .ok_or_else(|| format!("{}: {path} is not in the pinned tree", self.name))?
+            .clone();
+        self.blob_text(&blob)
+    }
+
+    /// The text of the blob `object` (lossy UTF-8).
+    fn blob_text(&mut self, object: &str) -> Result<String, String> {
+        if self.reader.is_none() {
+            self.reader = Some(self.legacy.blobs()?);
+        }
+        let reader = self.reader.as_mut().ok_or("no blob reader")?;
+        Ok(String::from_utf8_lossy(&reader.read(object)?).into_owned())
+    }
+
+    /// The paths of the pinned tree that `commit` changed (against its first parent, with rename
+    /// detection), followed through later renames up to the pinned commit.
+    fn changed_paths(&self, commit: &str) -> Result<BTreeSet<String>, String> {
+        if let Some(changes) = &self.fixture_changes {
+            return Ok(changes
+                .get(commit)
+                .into_iter()
+                .flatten()
+                .filter(|path| self.tree.contains_key(*path))
+                .cloned()
+                .collect());
+        }
+        let pinned = self
+            .commit
+            .clone()
+            .ok_or_else(|| format!("{} is not present", self.name))?;
+        let kind = self.legacy.text(&["cat-file", "-t", commit]);
+        if kind.as_deref() != Ok("commit") {
+            return Err(format!(
+                "{}: the tainted commit {commit} is not a commit of this repository ({kind:?})",
+                self.name
+            ));
+        }
+        let listed = self.legacy.text(&[
+            "diff-tree",
+            "-r",
+            "--root",
+            "-M",
+            "--no-commit-id",
+            "--name-only",
+            "-z",
+            commit,
+        ])?;
+        let mut paths: BTreeSet<String> = listed
+            .split('\0')
+            .filter(|p| !p.is_empty())
+            .map(str::to_owned)
+            .collect();
+        let renames = self.legacy.text(&[
+            "log",
+            "--reverse",
+            "--format=",
+            "-M",
+            "--diff-filter=R",
+            "--name-status",
+            "-z",
+            &format!("{commit}..{pinned}"),
+        ])?;
+        let mut fields = renames.split('\0').map(str::trim).filter(|f| !f.is_empty());
+        while let Some(status) = fields.next() {
+            if !status.starts_with('R') {
+                continue;
+            }
+            let (Some(from), Some(to)) = (fields.next(), fields.next()) else {
+                break;
+            };
+            if paths.contains(from) {
+                paths.insert(to.to_owned());
+            }
+        }
+        Ok(paths
+            .into_iter()
+            .filter(|path| self.tree.contains_key(path))
+            .collect())
+    }
+
     /// The committed text of `path` at the pinned commit (lossy UTF-8), read once.
     fn content(&mut self, path: &str) -> Result<String, String> {
         if let Some(text) = self.contents.get(path) {
@@ -623,8 +795,16 @@ fn not_pinned(repository: &str, path: &str) -> bool {
         .any(|np| np.repository == repository && path.starts_with(np.prefix))
 }
 
-fn quarantined(repository: &str, path: &str) -> bool {
+/// Whether `<repository>/<path>` lies under the quarantined numeric directory.
+pub fn quarantined(repository: &str, path: &str) -> bool {
     under(&QUARANTINED, repository, path)
+}
+
+/// Whether a quarantined directory of `repository` lies under `dir` (which ends with `/`).
+pub fn quarantined_under(repository: &str, dir: &str) -> bool {
+    QUARANTINED
+        .iter()
+        .any(|(r, prefix)| *r == repository && prefix.starts_with(dir))
 }
 
 fn under(table: &[(&str, &str)], repository: &str, path: &str) -> bool {
@@ -733,6 +913,14 @@ struct Input {
     wants_exported: bool,
     exported: Option<Result<Vec<String>, String>>,
     uses: Option<Vec<String>>,
+    /// For a Rust input whose read disposition is port or reference: the files its non-test and
+    /// its test code refer to and include, the crates of other repositories it refers to and the
+    /// run-time loads it makes (the calls_quarantined list reads them; an include passes on the
+    /// included file's numeric provenance).
+    code_refs: Option<provenance::Edges>,
+    /// The facts of its own content that the content-derivation rule reads: the lines the
+    /// citation sweep matched and the listed tainted commits that changed it.
+    facts: provenance::Facts,
     /// The runner markers a file under a source-discovery path holds.
     runner_markers: Vec<String>,
     /// Why the input is quarantine_derived.
@@ -793,7 +981,7 @@ struct Citation {
     resolved: BTreeSet<Key>,
 }
 
-fn pin(ws: &Workspace, tracker: &Path) -> Result<Value, String> {
+fn pin(ws: &Workspace, tracker: &Path, reviewed: &Reviewed) -> Result<Value, String> {
     let root = legacy_root(&ws.root);
     if !root.path.is_dir() {
         return Err(format!(
@@ -812,7 +1000,7 @@ fn pin(ws: &Workspace, tracker: &Path) -> Result<Value, String> {
         .iter()
         .map(|name| Repository::open(&root.path, name))
         .collect::<Result<_, _>>()?;
-    build(&beads, &mut repositories, &audit)
+    build(&beads, &mut repositories, &audit, reviewed)
 }
 
 /// The manifest for `beads` over `repositories`; everything after reading the tracker, the plan
@@ -821,6 +1009,7 @@ fn build(
     beads: &[Bead],
     repositories: &mut [Repository],
     audit: &[AuditEntry],
+    reviewed: &Reviewed,
 ) -> Result<Value, String> {
     let mut citations: BTreeMap<String, Citation> = BTreeMap::new();
     let mut family_do: BTreeMap<String, String> = BTreeMap::new();
@@ -954,6 +1143,8 @@ fn build(
     }
     mark_quarantine_derived(repositories, &mut selection, &mut skips)?;
     mark_runner_candidates(repositories, &mut selection)?;
+    let crates = record_code_refs(repositories, &mut selection, &mut trees, &mut skips)?;
+    let witness_facts = record_content_facts(repositories, &mut selection, reviewed)?;
 
     for ((name, path), input) in selection.inputs.iter_mut() {
         let state = repository(repositories, name)?;
@@ -984,6 +1175,9 @@ fn build(
         skips: &skips,
         plan_audit,
         changed,
+        reviewed,
+        crates: &crates,
+        witness_facts: &witness_facts,
     }))
 }
 
@@ -1386,12 +1580,45 @@ fn uses_of(
         }
     };
     let others: BTreeSet<String> = crates.keys().filter(|n| **n != own).cloned().collect();
+    let references = pin_rust::module_refs(&file, &module, &others);
+    let used = resolve_refs(
+        state,
+        crates,
+        trees,
+        references,
+        (&module, Some(&src)),
+        path,
+        skips,
+    )?;
+    Ok(Uses {
+        refs: used.into_iter().collect(),
+        children,
+    })
+}
+
+/// The files the module references of the file `path` name, in the crate trees of its repository:
+/// a path into another crate from that crate's root; `crate::`, `self::` and `super::` paths from
+/// the file's own crate root, and a relative path only to a child module of the file's module.
+/// `place` is the file's module path and its crate's `src` directory, which is `None` for an
+/// integration test, whose own-crate paths name the test crate and are not followed. A path names
+/// the files of its longest prefix that is a module; the file itself is left out.
+fn resolve_refs(
+    state: &mut Repository,
+    crates: &BTreeMap<String, String>,
+    trees: &mut Trees,
+    references: BTreeSet<pin_rust::ModuleRef>,
+    place: (&[String], Option<&String>),
+    path: &str,
+    skips: &mut Skips,
+) -> Result<BTreeSet<String>, String> {
+    let (module, own_src) = place;
     let mut used = BTreeSet::new();
-    for reference in pin_rust::module_refs(&file, &module, &others) {
-        let (crate_src, min) = match &reference.krate {
-            Some(name) => (crates[name].clone(), 0),
-            None if reference.relative => (src.clone(), module.len() + 1),
-            None => (src.clone(), 0),
+    for reference in references {
+        let (crate_src, min) = match (&reference.krate, own_src) {
+            (Some(name), _) => (crates[name].clone(), 0),
+            (None, None) => continue,
+            (None, Some(src)) if reference.relative => (src.clone(), module.len() + 1),
+            (None, Some(src)) => (src.clone(), 0),
         };
         ensure_tree(state, &crate_src, trees, skips)?;
         let key = (state.name.clone(), crate_src);
@@ -1401,10 +1628,267 @@ fn uses_of(
             }
         }
     }
-    Ok(Uses {
-        refs: used.into_iter().collect(),
-        children,
+    Ok(used)
+}
+
+/// The library crates of other repositories, by crate name: (repository, src). A name that two
+/// other repositories both define is left out (it cannot be told apart by name).
+type Foreign = BTreeMap<String, (String, String)>;
+
+/// The library crates of every present repository other than `own`, by crate name.
+fn foreign_crates(all: &BTreeMap<String, BTreeMap<String, String>>, own: &str) -> Foreign {
+    let mut found: Foreign = BTreeMap::new();
+    let mut twice: BTreeSet<String> = BTreeSet::new();
+    for (repository, crates) in all {
+        if repository == own {
+            continue;
+        }
+        for (name, src) in crates {
+            if found
+                .insert(name.clone(), (repository.clone(), src.clone()))
+                .is_some()
+            {
+                twice.insert(name.clone());
+            }
+        }
+    }
+    for name in twice {
+        found.remove(&name);
+    }
+    found
+}
+
+/// The code edges of the Rust file `path` (bead infra-m0.5's calls_quarantined lists read them,
+/// and an include passes on the included file's numeric provenance): the files its non-test code
+/// refers to (`refs`, resolved as [`resolve_refs`] says) and includes literally (`includes`), the
+/// include macros of its non-test code it cannot read (`unread_includes`, also counted in the
+/// skips), the library crates of other repositories it refers to by crate name (`crates`, as
+/// `<Repo> crate <name>`; a crate of its own repository with the same name wins), the run-time
+/// loads it makes (`runtime`), and what its test code adds (`test_refs`, `test_includes`,
+/// `test_unread_includes`, `test_crates`, `test_runtime`). A file of a library crate's module tree
+/// reads paths from its module. Any other file of a package (an integration test, a binary, an
+/// example, a bench or a build script: the deepest directory above it that holds a Cargo.toml)
+/// reads only paths into the library crates by crate name. A file in no package, and a file that
+/// does not parse, is counted in the skips and has no edges.
+fn code_edges(
+    state: &mut Repository,
+    trees: &mut Trees,
+    foreign: &Foreign,
+    path: &str,
+    skips: &mut Skips,
+) -> Result<provenance::Edges, String> {
+    let shown = format!("{}/{path}", state.name);
+    let crates = library_crates(&state.tree);
+    let text = state.content(path)?;
+    let (full, non_test) = match (pin_rust::parse_full(&text), pin_rust::parse(&text)) {
+        (Ok(full), Ok(non_test)) => (full, non_test),
+        (Err(e), _) | (_, Err(e)) => {
+            skips.skip(SKIP_CODE_REFS_PARSE, format!("{shown}: {e}"));
+            return Ok(provenance::Edges::default());
+        }
+    };
+    let in_tree = match owning_crate(&crates, path) {
+        Some((own, src)) => {
+            ensure_tree(state, &src, trees, skips)?;
+            let key = (state.name.clone(), src.clone());
+            trees[&key]
+                .files
+                .get(path)
+                .map(|(module, _)| (own, src, module.clone()))
+        }
+        None => None,
+    };
+    let in_package = {
+        let mut dir = parent_dir(path);
+        loop {
+            if state.tree.contains_key(&push(&dir, "Cargo.toml")) {
+                break true;
+            }
+            if dir.is_empty() {
+                break false;
+            }
+            dir = parent_dir(&dir);
+        }
+    };
+    let (module, own_src, mut others): (Vec<String>, Option<String>, BTreeSet<String>) =
+        match in_tree {
+            Some((own, src, module)) => (
+                module,
+                Some(src),
+                crates.keys().filter(|n| **n != own).cloned().collect(),
+            ),
+            None if in_package => (Vec::new(), None, crates.keys().cloned().collect()),
+            None => {
+                skips.skip(SKIP_CODE_REFS_OUTSIDE, shown);
+                return Ok(provenance::Edges::default());
+            }
+        };
+    let foreign_names: BTreeSet<String> = foreign
+        .keys()
+        .filter(|name| !crates.contains_key(*name))
+        .cloned()
+        .collect();
+    others.extend(foreign_names.iter().cloned());
+    let place = (module.as_slice(), own_src.as_ref());
+    // A reference to a crate of another repository is recorded at crate level; the rest resolve
+    // to files of this repository.
+    let split = |references: BTreeSet<pin_rust::ModuleRef>| {
+        let mut labels: BTreeSet<String> = BTreeSet::new();
+        let mut local: BTreeSet<pin_rust::ModuleRef> = BTreeSet::new();
+        for reference in references {
+            match reference
+                .krate
+                .as_ref()
+                .filter(|k| foreign_names.contains(*k))
+            {
+                Some(name) => {
+                    let (repository, _) = &foreign[name];
+                    labels.insert(provenance::crate_label(repository, name));
+                }
+                None => {
+                    local.insert(reference);
+                }
+            }
+        }
+        (labels, local)
+    };
+    let (labels, local) = split(pin_rust::module_refs(&non_test, &module, &others));
+    let (all_labels, all_local) = split(pin_rust::module_refs(&full, &module, &others));
+    let refs = resolve_refs(state, &crates, trees, local, place, path, skips)?;
+    let all_refs = resolve_refs(state, &crates, trees, all_local, place, path, skips)?;
+    let dir = parent_dir(path);
+    let read = |file: &syn::File| -> (BTreeSet<String>, BTreeSet<String>) {
+        let found = pin_rust::include_macros(file);
+        let literal = found
+            .literal
+            .iter()
+            .filter_map(|literal| pin_rust::join(&dir, literal))
+            .filter(|target| target != path && state.tree.contains_key(target))
+            .collect();
+        (literal, found.non_literal.into_iter().collect())
+    };
+    let (includes, unread) = read(&non_test);
+    let (all_includes, all_unread) = read(&full);
+    // An include macro the pin cannot read is counted once per file in the skips (the catalogue
+    // resolution may have counted it already, read as text).
+    let counted = skips
+        .skipped
+        .get(SKIP_NON_LITERAL_INCLUDE)
+        .is_some_and(|found| found.iter().any(|f| f.starts_with(&format!("{shown}: "))));
+    if !counted && let Some(call) = all_unread.iter().next() {
+        skips.skip(SKIP_NON_LITERAL_INCLUDE, format!("{shown}: {call}"));
+    }
+    let runtime: BTreeSet<String> = pin_rust::runtime_loads(&non_test).into_iter().collect();
+    let all_runtime: BTreeSet<String> = pin_rust::runtime_loads(&full).into_iter().collect();
+    Ok(provenance::Edges {
+        test_refs: all_refs.difference(&refs).cloned().collect(),
+        test_includes: all_includes.difference(&includes).cloned().collect(),
+        test_unread_includes: all_unread.difference(&unread).cloned().collect(),
+        test_crates: all_labels.difference(&labels).cloned().collect(),
+        test_runtime: all_runtime.difference(&runtime).cloned().collect(),
+        refs: refs.into_iter().collect(),
+        includes: includes.into_iter().collect(),
+        unread_includes: unread.into_iter().collect(),
+        crates: labels.into_iter().collect(),
+        runtime: runtime.into_iter().collect(),
     })
+}
+
+/// Records the code edges of every Rust input whose read disposition is port or reference (a
+/// quarantined or quarantine_derived input is never admitted, so its own edges change nothing),
+/// and returns the crates of other repositories they refer to, by label, with their repository
+/// and `src` directory.
+fn record_code_refs(
+    repositories: &mut [Repository],
+    selection: &mut Selection,
+    trees: &mut Trees,
+    skips: &mut Skips,
+) -> Result<provenance::Crates, String> {
+    let all: BTreeMap<String, BTreeMap<String, String>> = repositories
+        .iter()
+        .filter(|r| r.commit.is_some())
+        .map(|r| (r.name.clone(), library_crates(&r.tree)))
+        .collect();
+    let wanted: Vec<Key> = selection
+        .inputs
+        .iter()
+        .filter(|((_, path), input)| {
+            path.ends_with(".rs")
+                && matches!(
+                    input_disposition(input),
+                    Disposition::Port | Disposition::Reference
+                )
+        })
+        .map(|(key, _)| key.clone())
+        .collect();
+    let mut labels: provenance::Crates = BTreeMap::new();
+    for (name, path) in wanted {
+        let foreign = foreign_crates(&all, &name);
+        let state = repository(repositories, &name)?;
+        let edges = code_edges(state, trees, &foreign, &path, skips)?;
+        for (crate_name, (repository, src)) in &foreign {
+            let label = provenance::crate_label(repository, crate_name);
+            if edges.crates.contains(&label) || edges.test_crates.contains(&label) {
+                labels.insert(label, (repository.clone(), src.clone()));
+            }
+        }
+        if let Some(input) = selection.inputs.get_mut(&(name, path)) {
+            input.code_refs = Some(edges);
+        }
+    }
+    Ok(labels)
+}
+
+/// Records the facts of every input's own content that the content-derivation rule reads: the
+/// lines of its text the citation sweep matches, and the commits of the dispositions file's
+/// tainted list that changed it. Returns the same facts for each retained witness's source.
+fn record_content_facts(
+    repositories: &mut [Repository],
+    selection: &mut Selection,
+    reviewed: &Reviewed,
+) -> Result<BTreeMap<Key, provenance::Facts>, String> {
+    let mut changed_by: BTreeMap<Key, BTreeSet<String>> = BTreeMap::new();
+    for tainted in &reviewed.tainted_commits {
+        let state = repository(repositories, &tainted.repository)?;
+        for path in state.changed_paths(&tainted.commit)? {
+            changed_by
+                .entry((tainted.repository.clone(), path))
+                .or_default()
+                .insert(tainted.commit.clone());
+        }
+    }
+    let keys: Vec<Key> = selection.inputs.keys().cloned().collect();
+    for (name, path) in keys {
+        let state = repository(repositories, &name)?;
+        let text = state.text_once(&path)?;
+        let facts = provenance::Facts {
+            citations: provenance::sweep(&text, &reviewed.sweep_patterns),
+            changed_by: changed_by
+                .get(&(name.clone(), path.clone()))
+                .map(|c| c.iter().cloned().collect())
+                .unwrap_or_default(),
+        };
+        if let Some(input) = selection.inputs.get_mut(&(name, path)) {
+            input.facts = facts;
+        }
+    }
+    let mut sources = BTreeMap::new();
+    for witness in &reviewed.witnesses {
+        let source = &witness.source;
+        let state = repository(repositories, &source.repository)?;
+        let text = state.blob_text(&source.blob)?;
+        sources.insert(
+            (source.repository.clone(), source.path.clone()),
+            provenance::Facts {
+                citations: provenance::sweep(&text, &reviewed.sweep_patterns),
+                changed_by: changed_by
+                    .get(&(source.repository.clone(), source.path.clone()))
+                    .map(|c| c.iter().cloned().collect())
+                    .unwrap_or_default(),
+            },
+        );
+    }
+    Ok(sources)
 }
 
 struct CatalogueResolution {
@@ -2017,8 +2501,8 @@ fn rules() -> Value {
         "dispositions": {
             "port": "may be copied after review",
             "reference": format!("read for behaviour only: the citing clause or the text after the last path holds one of {:?}, or the token's own sentence names it a {:?}", pin_cite::REFERENCE_MARKERS, pin_cite::DISCOVERY_MARKER),
-            "quarantined": format!("not a port source: the citing clause holds {}, or the path is under {:?} (pending infra-m0.5)", pin_cite::QUARANTINE_MARKER, QUARANTINED),
-            "quarantine_derived": format!("not a port source and out of every port count (pending infra-m0.5): a file of a package whose Cargo.toml enables {RESEARCH_CRATE}'s {RESEARCH_FEATURE} feature (on the dependency or through a feature of its own), or a Rust file whose code names {}, the route to the quarantined x87 entry points; catalogue files that call the crate-internal excel_numeric dispatcher keep their disposition and list it under quarantined_helpers", RESEARCH_SURFACE.join("::")),
+            "quarantined": format!("not a port source: the citing clause holds {}, or the path is under {:?} (infra-m0.5 records its numeric provenance)", pin_cite::QUARANTINE_MARKER, QUARANTINED),
+            "quarantine_derived": format!("not a port source and out of every port count (infra-m0.5 records its numeric provenance): a file of a package whose Cargo.toml enables {RESEARCH_CRATE}'s {RESEARCH_FEATURE} feature (on the dependency or through a feature of its own), or a Rust file whose code names {}, the route to the quarantined x87 entry points; catalogue files that call the crate-internal excel_numeric dispatcher keep their disposition and list it under quarantined_helpers", RESEARCH_SURFACE.join("::")),
             "input": "quarantined when any citing bead reads it so, then quarantine_derived, then port when any citing bead may port it, otherwise reference. When the citing beads differ in disposition or in how they reached the input, routes lists each group of beads with its own disposition and via",
         },
         "discovery": format!("a token whose own sentence names it a {:?} is read for behaviour only: its files are inputs with disposition reference (unless quarantined or quarantine_derived) and category oracle-runner (corpus files stay corpus)", pin_cite::DISCOVERY_MARKER),
@@ -2034,6 +2518,11 @@ fn rules() -> Value {
         "resolution_skips": "a file a resolution cannot read (a parse failure, a file in no crate or outside its crate's module tree, a non-literal include macro, an absent, ambiguous or cfg_attr module file) is counted per reason in notes and summary.resolution_skipped; counted fallbacks are in summary.resolution_fallbacks",
         "families": "the Do list after 'Port the named family only:'; an item that equals a catalogue name resolves to its ID, any other item stays an unresolved term (bead dc-xz2t owns them)",
         "directory_tests": "for a Port from text that asks for test files: the tests of the cited directory's crate that name its module (<module>::), with the files they include or name",
+        "code_refs": "for every Rust input whose read disposition is port or reference: the files of its repository that its non-test code refers to (refs) and includes literally with include!, include_str! or include_bytes! (includes), the include macros of its non-test code whose argument is not one string literal (unread_includes: a concat! or a macro variable, which this pin does not expand; each such file is counted once in summary.resolution_skipped), the library crates of other legacy repositories it refers to by crate name (crates, as '<Repo> crate <name>'; a crate of its own repository with the same name wins, and a name two other repositories define is not followed), the run-time loads it makes (runtime: fs::read, fs::read_to_string, fs::read_dir, File::open, OpenOptions and Command::new, whose targets are not resolved), and what its test code adds (test_refs, test_includes, test_unread_includes, test_crates, test_runtime). A file of a library crate's module tree resolves crate, self, super and sibling-crate paths and relative paths to its child modules; any other file of a package (an integration test, a binary, an example, a bench or a build script) resolves only paths into the library crates by crate name. A path names the files of its longest prefix that is a module; a name imported with use and then used as a path prefix resolves only through its use. A file in no package, or one that does not parse, has no code_refs and is counted in summary.resolution_skipped",
+        "content_facts": "for every input: the lines of its own text that the citation sweep of numeric_content matches (citations: line and pattern, never the line's text), and the commits of the dispositions file's tainted list that changed it (changed_by), as numeric_content.changed_by_rule says",
+        "numeric_provenance": format!("from the dispositions file ({}; another with --provenance), by the content-derivation rule of 2026-10-15: a module entry for the path when the pinned blob is the reviewed one (another blob makes the input at least unresolved), else the first class whose selector matches, else unresolved ({}) when the pin quarantines the input; then at least unresolved for a citation sweep match ({}), a change by a listed tainted commit ({}) or an include macro the pin cannot read ({}); then at least the provenance of every file its code includes literally ({}, to a fixed point). A file that is not an input counts by the entry for its path, or unresolved under the quarantined directory. A file that only refers to a tainted or unresolved file keeps its own provenance and lists, under calls_quarantined ({}), the files of its repository it refers to whose provenance is tainted or unresolved, each crate of another repository it refers to that holds such a file, and '<Repo> {}' when its code loads files or runs programs at run time; summary.numeric_provenance counts these edges and the edges into files that are not pinned inputs, which bead dc-4uy4 owns. A catalogue function with quarantined_helpers records each helper's disposition and the most restrictive one. Dispositions are cleared, tainted or unresolved (the file defines them); the read disposition is unchanged by them, but summary.by_disposition counts a port input whose numeric provenance is tainted as port_numeric_tainted, not as port", provenance::DISPOSITIONS, provenance::NO_REVIEW, provenance::RULE_CITATION, provenance::RULE_COMMIT, provenance::RULE_UNREAD, provenance::RULE_INCLUDE, provenance::RULE_CALLS, provenance::RUNTIME_LOADS),
+        "release_allowlist": format!("{} beside the manifest: every input whose read disposition is port and whose numeric_provenance is absent or cleared, each with its calls_quarantined list when it has one; summary.release_allowlist counts them; --lookup exits {EXIT_NUMERIC} for any other input whose numeric provenance is tainted or unresolved, and {EXIT_CALLS_QUARANTINED} for an input admitted only with its calls_quarantined list (port it only against clean replacements of the listed modules)", provenance::ALLOWLIST_FILE),
+        "retained_witnesses": format!("the retained numeric witness selections of the dispositions file, each with its source capture (repository, commit, path, blob, sha256 and rows); --lookup of a source names its retained selection and exits 0. The capture itself is not an input; its selection under {} is the copy to read", provenance::WITNESSES),
         "plan_audit": format!("every blob of {PLAN_AUDIT} sources compared with the blob of the same path at the pinned commit; changed_since_plan_audit lists each that differs"),
         "categories": {
             "corpus": format!("a path component in {CORPUS_COMPONENTS:?} or an extension in {CORPUS_EXTENSIONS:?}"),
@@ -2057,6 +2546,64 @@ struct Parts<'a> {
     skips: &'a Skips,
     plan_audit: Value,
     changed: Vec<Value>,
+    reviewed: &'a Reviewed,
+    /// The crates of other repositories that inputs refer to.
+    crates: &'a provenance::Crates,
+    /// The content facts of each retained witness's source.
+    witness_facts: &'a BTreeMap<Key, provenance::Facts>,
+}
+
+/// The numeric provenance of `<repository>/<path>`: its tag when it is an input, else the reviewed
+/// entry for its pinned blob, else unresolved when it lies under the quarantined directory.
+fn numeric_of(
+    tags: &BTreeMap<Key, Tag>,
+    reviewed: &Reviewed,
+    repositories: &[Repository],
+    repository: &str,
+    path: &str,
+) -> Option<Numeric> {
+    if let Some(tag) = tags.get(&(repository.to_owned(), path.to_owned())) {
+        return tag.disposition;
+    }
+    let blob = repositories
+        .iter()
+        .find(|r| r.name == repository)
+        .and_then(|r| r.tree.get(path));
+    reviewed
+        .tag(repository, path, blob.map(String::as_str))
+        .and_then(|t| t.disposition)
+        .or_else(|| quarantined(repository, path).then_some(Numeric::Unresolved))
+}
+
+/// Every input's numeric provenance, derived as the check of `cargo xtask accept` derives it
+/// ([`provenance::derive`]) from the dispositions file and the inputs' code edges and content
+/// facts.
+fn numeric_tags(
+    selection: &Selection,
+    repositories: &[Repository],
+    reviewed: &Reviewed,
+    crates: &provenance::Crates,
+) -> BTreeMap<Key, Tag> {
+    let nodes: Vec<provenance::Node> = selection
+        .inputs
+        .iter()
+        .map(|((repository, path), input)| provenance::Node {
+            repository: repository.clone(),
+            path: path.clone(),
+            blob: repositories
+                .iter()
+                .find(|r| &r.name == repository)
+                .and_then(|r| r.tree.get(path))
+                .cloned(),
+            quarantine: matches!(
+                input_disposition(input),
+                Disposition::Quarantined | Disposition::QuarantineDerived
+            ),
+            edges: input.code_refs.clone().unwrap_or_default(),
+            facts: input.facts.clone(),
+        })
+        .collect();
+    provenance::derive(&nodes, reviewed, crates)
 }
 
 fn input_disposition(input: &Input) -> Disposition {
@@ -2077,19 +2624,42 @@ fn assemble(parts: Parts<'_>) -> Value {
         repositories,
         citations,
         selection,
-        functions,
+        mut functions,
         families,
         notes,
         skips,
         plan_audit,
         changed,
+        reviewed,
+        crates,
+        witness_facts,
     } = parts;
     let repository_of = |name: &str| repositories.iter().find(|r| r.name == name);
-    let mut by_disposition: BTreeMap<&str, usize> =
-        ["port", "reference", "quarantine_derived", "quarantined"]
+    let tags = numeric_tags(selection, repositories, reviewed, crates);
+    let mut numeric_by: BTreeMap<&str, usize> =
+        [Numeric::Cleared, Numeric::Tainted, Numeric::Unresolved]
             .into_iter()
-            .map(|d| (d, 0))
+            .map(|d| (d.as_str(), 0))
             .collect();
+    let mut numeric_entries: BTreeMap<String, usize> = BTreeMap::new();
+    let mut admitted_with_list = 0;
+    let mut numeric_no_review = 0;
+    let mut code_refs_recorded = 0;
+    let mut facts_recorded = 0;
+    let mut cross_repository_edges = 0;
+    let mut cross_repository_inputs = 0;
+    let mut runtime_inputs = 0;
+    let mut admitted = 0;
+    let mut by_disposition: BTreeMap<&str, usize> = [
+        "port",
+        PORT_NUMERIC_TAINTED,
+        "reference",
+        "quarantine_derived",
+        "quarantined",
+    ]
+    .into_iter()
+    .map(|d| (d, 0))
+    .collect();
     let mut by_category: BTreeMap<&str, usize> = BTreeMap::new();
     let mut per_repository: BTreeMap<&str, usize> = BTreeMap::new();
     let mut license_none_found = 0;
@@ -2102,12 +2672,22 @@ fn assemble(parts: Parts<'_>) -> Value {
         let disposition = input_disposition(input);
         let category = category(repository, path, &input.via);
         let license = state.map_or("none-found", |s| s.license_status);
-        *by_disposition.entry(disposition.as_str()).or_default() += 1;
+        let tag = tags.get(&(repository.clone(), path.clone()));
+        // A port input whose numeric provenance is tainted is never a port source: it leaves the
+        // port count.
+        let counted_port = disposition == Disposition::Port
+            && tag.is_none_or(|t| t.disposition != Some(Numeric::Tainted));
+        let counted_as = if disposition == Disposition::Port && !counted_port {
+            PORT_NUMERIC_TAINTED
+        } else {
+            disposition.as_str()
+        };
+        *by_disposition.entry(counted_as).or_default() += 1;
         *by_category.entry(category).or_default() += 1;
         *per_repository.entry(repository).or_default() += 1;
         if license == "none-found" {
             license_none_found += 1;
-            if disposition == Disposition::Port {
+            if counted_port {
                 port_license_none_found += 1;
             }
         }
@@ -2147,6 +2727,38 @@ fn assemble(parts: Parts<'_>) -> Value {
         if let Some(reason) = &input.derived {
             record["quarantine_derived"] = json!(reason);
         }
+        if !input.facts.is_empty() {
+            facts_recorded += 1;
+            record["content_facts"] = input.facts.json();
+        }
+        if let Some(tag) = tag {
+            if let Some(d) = tag.disposition {
+                *numeric_by.entry(d.as_str()).or_default() += 1;
+            }
+            for entry in &tag.entries {
+                *numeric_entries.entry(entry.clone()).or_default() += 1;
+            }
+            if tag.entries.iter().any(|e| e == provenance::NO_REVIEW) {
+                numeric_no_review += 1;
+            }
+            record["numeric_provenance"] = tag.json();
+        }
+        if provenance::admitted(&record) {
+            admitted += 1;
+            if tag.is_some_and(|t| !t.calls_quarantined.is_empty()) {
+                admitted_with_list += 1;
+            }
+        }
+        if let Some(edges) = &input.code_refs {
+            let foreign = edges.crates.len() + edges.test_crates.len();
+            cross_repository_edges += foreign;
+            if foreign > 0 {
+                cross_repository_inputs += 1;
+            }
+            if !edges.runtime.is_empty() || !edges.test_runtime.is_empty() {
+                runtime_inputs += 1;
+            }
+        }
         if !input.runner_markers.is_empty() {
             runner_candidates += 1;
             record["runner_candidate"] = json!({
@@ -2164,6 +2776,10 @@ fn assemble(parts: Parts<'_>) -> Value {
         }
         if let Some(uses) = &input.uses {
             record["uses"] = json!(uses);
+        }
+        if let Some(edges) = input.code_refs.as_ref().filter(|e| !e.is_empty()) {
+            code_refs_recorded += 1;
+            record["code_refs"] = edges.json();
         }
         inputs.push(record);
     }
@@ -2275,6 +2891,99 @@ fn assemble(parts: Parts<'_>) -> Value {
         .iter()
         .filter(|f| f["files"].as_array().is_none_or(Vec::is_empty))
         .count();
+    let mut functions_reaching = 0;
+    for function in functions.iter_mut() {
+        let helpers: Vec<String> = function["quarantined_helpers"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect();
+        if helpers.is_empty() {
+            continue;
+        }
+        let mut worst = Numeric::Cleared;
+        let mut each = Map::new();
+        for helper in &helpers {
+            let repository = QUARANTINED
+                .iter()
+                .find(|(_, prefix)| helper.starts_with(prefix))
+                .map_or("", |(r, _)| *r);
+            let found = numeric_of(&tags, reviewed, repositories, repository, helper)
+                .unwrap_or(Numeric::Unresolved);
+            worst = worst.max(found);
+            each.insert(helper.clone(), json!(found.as_str()));
+        }
+        if worst != Numeric::Cleared {
+            functions_reaching += 1;
+        }
+        function["numeric_provenance"] = json!({"disposition": worst.as_str(), "helpers": each});
+    }
+    let input_keys: BTreeSet<String> = selection
+        .inputs
+        .keys()
+        .map(|(r, p)| format!("{r}/{p}"))
+        .collect();
+    // Edges into files that are not pinned inputs: their own content is not read, so nothing
+    // lists them (bead dc-4uy4 owns them with the cross-repository and run-time edges).
+    let mut unpinned: BTreeMap<&str, usize> = [("OxFunc", 0), ("elsewhere", 0)].into();
+    for ((repository, _), input) in &selection.inputs {
+        let Some(edges) = &input.code_refs else {
+            continue;
+        };
+        for target in edges
+            .refs
+            .iter()
+            .chain(&edges.includes)
+            .chain(&edges.test_refs)
+            .chain(&edges.test_includes)
+        {
+            if !selection
+                .inputs
+                .contains_key(&(repository.clone(), target.clone()))
+            {
+                let side = if repository == "OxFunc" {
+                    "OxFunc"
+                } else {
+                    "elsewhere"
+                };
+                *unpinned.entry(side).or_default() += 1;
+            }
+        }
+    }
+    let mut retained = reviewed.retained_json();
+    for witness in retained.as_array_mut().into_iter().flatten() {
+        let key = (
+            witness["source"]["repository"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
+            witness["source"]["path"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
+        );
+        if let Some(facts) = witness_facts.get(&key) {
+            witness["source"]["content_facts"] = facts.json();
+        }
+    }
+    let numeric_summary = json!({
+        "by_disposition": numeric_by,
+        "by_entry": numeric_entries,
+        "admitted_with_calls_quarantined": admitted_with_list,
+        "inputs_with_code_refs": code_refs_recorded,
+        "inputs_with_content_facts": facts_recorded,
+        "cross_repository_crate_edges": cross_repository_edges,
+        "inputs_with_cross_repository_crate_edges": cross_repository_inputs,
+        "inputs_with_run_time_loads": runtime_inputs,
+        "edges_into_files_not_pinned": unpinned,
+        "edges_owner": "dc-4uy4",
+        "quarantined_without_review": numeric_no_review,
+        "functions_reaching_non_cleared_helpers": functions_reaching,
+        "retained_witness_sources": reviewed.witnesses.len(),
+        "module_entries_matching_no_input": reviewed.modules_outside(&input_keys),
+    });
     json!({
         "format": FORMAT,
         "written_by": "cargo xtask pin-sources",
@@ -2307,7 +3016,10 @@ fn assemble(parts: Parts<'_>) -> Value {
             "resolution_skipped": Skips::counts(&skips.skipped),
             "resolution_fallbacks": Skips::counts(&skips.fallbacks),
             "changed_since_plan_audit": changed.len(),
+            "numeric_provenance": numeric_summary,
+            "release_allowlist": admitted,
         },
+        "numeric_content": provenance::content_record(reviewed, crates),
         "notes": notes,
         "repositories": repository_records,
         "not_pinned": not_pinned,
@@ -2318,6 +3030,7 @@ fn assemble(parts: Parts<'_>) -> Value {
         "functions": functions,
         "unavailable": unavailable,
         "excluded": excluded,
+        "retained_witnesses": retained,
         "inputs": inputs,
     })
 }
@@ -2336,13 +3049,14 @@ const LINE_ARRAYS: [&str; 7] = [
 /// The manifest as text: the top-level keys in a fixed order, the large arrays one compact
 /// element per line so that a re-pin shows as a line diff.
 fn manifest_text(manifest: &Value) -> String {
-    const ORDER: [&str; 17] = [
+    const ORDER: [&str; 19] = [
         "format",
         "written_by",
         "pin_date",
         "tracker",
         "rules",
         "summary",
+        "numeric_content",
         "notes",
         "repositories",
         "not_pinned",
@@ -2353,6 +3067,7 @@ fn manifest_text(manifest: &Value) -> String {
         "functions",
         "unavailable",
         "excluded",
+        "retained_witnesses",
         "inputs",
     ];
     let object = manifest.as_object().cloned().unwrap_or_default();
@@ -2438,13 +3153,44 @@ fn lookup_text(manifest: &Value, shown: &str, wanted: &str) -> (String, u8) {
         exact
     };
     if !found.is_empty() {
+        // The most restrictive outcome of the entries found: 3, then 5, then 6, then 0.
+        let rank = |code: u8| match code {
+            EXIT_QUARANTINED => 3,
+            EXIT_NUMERIC => 2,
+            EXIT_CALLS_QUARANTINED => 1,
+            _ => 0,
+        };
         let mut code = 0;
         for entry in found {
             out.push_str(&entry_text(entry, shown, &manifest["pin_date"]));
             let disposition = entry["disposition"].as_str().unwrap_or_default();
-            if matches!(disposition, "quarantined" | "quarantine_derived") {
+            let numeric = entry["numeric_provenance"]["disposition"]
+                .as_str()
+                .and_then(Numeric::parse);
+            let this = if matches!(disposition, "quarantined" | "quarantine_derived") {
                 out.push_str(&format!("{disposition}: do not copy (infra-m0.5)\n"));
-                code = EXIT_QUARANTINED;
+                EXIT_QUARANTINED
+            } else if let Some(numeric) = numeric.filter(|d| *d != Numeric::Cleared) {
+                out.push_str(match numeric {
+                    Numeric::Tainted => "numeric provenance tainted: do not copy it and do not read it for behaviour (infra-m0.5)\n",
+                    _ => "numeric provenance unresolved: do not copy it and do not read it for behaviour; nothing establishes its provenance until a reviewed entry clears it (infra-m0.5)\n",
+                });
+                EXIT_NUMERIC
+            } else if provenance::admitted(entry)
+                && entry["numeric_provenance"]["calls_quarantined"]
+                    .as_array()
+                    .is_some_and(|l| !l.is_empty())
+            {
+                out.push_str(&format!(
+                    "admitted: port only against clean replacements of the listed modules: {} (infra-m0.5)\n",
+                    list_text(&entry["numeric_provenance"]["calls_quarantined"])
+                ));
+                EXIT_CALLS_QUARANTINED
+            } else {
+                0
+            };
+            if rank(this) > rank(code) {
+                code = this;
             }
         }
         return (out, code);
@@ -2457,6 +3203,33 @@ fn lookup_text(manifest: &Value, shown: &str, wanted: &str) -> (String, u8) {
             .find(|e| e["repository"] == json!(repository) && e["path"] == json!(path))
             .cloned()
     };
+    let retained: Vec<&Value> = manifest["retained_witnesses"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|w| {
+            w["source"]["repository"] == json!(repository) && w["source"]["path"] == json!(path)
+        })
+        .collect();
+    if !retained.is_empty() {
+        for witness in retained {
+            let source = &witness["source"];
+            out.push_str(&format!(
+                "retained witness source {wanted}\n  commit {}\n  blob {}\n  sha256 {}\n  rows {}\n  numeric provenance {} ({})\n  retained selection {} ({} rows of {}, function {}): read the selection; the capture itself is not a pinned input\n",
+                source["commit"].as_str().unwrap_or("?"),
+                source["blob"].as_str().unwrap_or("?"),
+                source["sha256"].as_str().unwrap_or("?"),
+                source["rows"],
+                witness["numeric_provenance"]["disposition"].as_str().unwrap_or("?"),
+                list_text(&witness["numeric_provenance"]["entries"]),
+                witness["file"].as_str().unwrap_or("?"),
+                witness["rows"],
+                source["rows"],
+                witness["function"].as_str().unwrap_or("?"),
+            ));
+        }
+        return (out, 0);
+    }
     if let Some(entry) = listed("unavailable") {
         out.push_str(&format!(
             "unavailable {wanted}: cited by {} but {}\n",
@@ -2509,6 +3282,36 @@ fn entry_text(entry: &Value, manifest: &str, pin_date: &Value) -> String {
     if let Some(reason) = entry["quarantine_derived"].as_str() {
         out.push_str(&format!("  quarantine_derived because it is {reason}\n"));
     }
+    let numeric = &entry["numeric_provenance"];
+    if numeric.is_object() {
+        out.push_str(&format!(
+            "  numeric provenance {} ({}): {}\n",
+            numeric["disposition"].as_str().unwrap_or("none"),
+            list_text(&numeric["entries"]),
+            numeric["reason"].as_str().unwrap_or_default()
+        ));
+        for (key, shown) in [
+            ("citations", "citation sweep matches"),
+            ("changed_by", "changed by tainted commits"),
+            ("includes", "includes"),
+            ("unread_includes", "include macros not read"),
+            ("calls_quarantined", "calls_quarantined"),
+        ] {
+            if numeric[key].is_array() {
+                out.push_str(&format!("  {shown} {}\n", list_text(&numeric[key])));
+            }
+        }
+    }
+    let with_list = numeric["calls_quarantined"]
+        .as_array()
+        .is_some_and(|l| !l.is_empty());
+    out.push_str(match (provenance::admitted(entry), with_list) {
+        (true, true) => {
+            "  release source allowlist: admitted only with its calls_quarantined list\n"
+        }
+        (true, false) => "  release source allowlist: admitted\n",
+        (false, _) => "  release source allowlist: left out\n",
+    });
     if entry["runner_candidate"].is_object() {
         out.push_str(&format!(
             "  runner candidate ({}): {}\n",
@@ -2562,6 +3365,7 @@ impl Repository {
             reader: None,
             contents,
             children: BTreeMap::new(),
+            fixture_changes: Some(BTreeMap::new()),
         }
     }
 }
@@ -2846,7 +3650,7 @@ mod tests {
                 blob: "x".to_owned(),
             },
         ];
-        build(beads, &mut repositories, &audit).unwrap()
+        build(beads, &mut repositories, &audit, &Reviewed::empty()).unwrap()
     }
 
     /// Each input as `Repo/path` with its disposition.
@@ -3244,6 +4048,339 @@ mod tests {
         ] {
             assert!(!look(wanted).0.to_ascii_lowercase().contains("verified"));
         }
+    }
+
+    /// A small catalogue: EXP calls the quarantined dispatcher, LOGEXP calls only EXP, ABS's own
+    /// comment cites the C-runtime, the dispatch file was changed by a tainted commit, one test
+    /// embeds a production replay (include_str!) and another loads a file at run time.
+    const NUMERIC: [(&str, &str); 12] = [
+        (
+            "crates/oxfunc_core/Cargo.toml",
+            "[package]\nname = \"oxfunc_core\"\n",
+        ),
+        (
+            "crates/oxfunc_core/src/lib.rs",
+            "pub mod functions;\nmod excel_numeric;\n",
+        ),
+        (
+            "crates/oxfunc_core/src/functions/mod.rs",
+            "pub mod exp_fn;\npub mod logexp;\npub mod abs;\npub mod sign;\npub mod surface_dispatch;\n",
+        ),
+        (
+            "crates/oxfunc_core/src/functions/exp_fn.rs",
+            "use crate::excel_numeric::excel_exp;\npub struct Meta { pub arg_preparation_profile: u8 }\npub const EXP_META: Meta = Meta { arg_preparation_profile: 0 };\npub fn exp(x: f64) -> f64 { excel_exp(x) }\n",
+        ),
+        (
+            "crates/oxfunc_core/src/functions/logexp.rs",
+            "pub const LOGEXP_META: crate::functions::exp_fn::Meta = crate::functions::exp_fn::Meta { arg_preparation_profile: 0 };\npub fn logexp(x: f64) -> f64 { super::exp_fn::exp(x).ln() }\n",
+        ),
+        (
+            "crates/oxfunc_core/src/functions/abs.rs",
+            "pub struct Meta { pub arg_preparation_profile: u8 }\npub const ABS_META: Meta = Meta { arg_preparation_profile: 0 };\n/// As the C-runtime fabs.\npub fn abs(x: f64) -> f64 { x.abs() }\n",
+        ),
+        (
+            "crates/oxfunc_core/src/functions/sign.rs",
+            "pub struct Meta { pub arg_preparation_profile: u8 }\npub const SIGN_META: Meta = Meta { arg_preparation_profile: 0 };\npub fn sign(x: f64) -> f64 { x.signum() }\n",
+        ),
+        (
+            "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+            "pub const FUNC_ID_EXP: &str = \"FUNC.EXP\";\npub const FUNC_ID_LOGEXP: &str = \"FUNC.LOGEXP\";\npub const FUNC_ID_ABS: &str = \"FUNC.ABS\";\npub const FUNC_ID_SIGN: &str = \"FUNC.SIGN\";\npub fn arg_preparation_profile(function_id: &str) -> Option<u8> {\n    match function_id {\n        FUNC_ID_EXP => Some(crate::functions::exp_fn::EXP_META.arg_preparation_profile),\n        FUNC_ID_LOGEXP => Some(crate::functions::logexp::LOGEXP_META.arg_preparation_profile),\n        FUNC_ID_ABS => Some(crate::functions::abs::ABS_META.arg_preparation_profile),\n        FUNC_ID_SIGN => Some(crate::functions::sign::SIGN_META.arg_preparation_profile),\n        _ => None,\n    }\n}\n",
+        ),
+        (
+            "crates/oxfunc_core/src/excel_numeric/mod.rs",
+            "pub(crate) fn excel_exp(x: f64) -> f64 { x }\n",
+        ),
+        (
+            "crates/oxfunc_core/tests/abs_replay.rs",
+            "const REPLAY: &str = include_str!(\"../../../docs/abs-production-replay.json\");\n#[test]\nfn abs_replays() { assert!(!REPLAY.is_empty() && oxfunc_core::functions::abs::abs(-1.0) == 1.0); }\n",
+        ),
+        (
+            "crates/oxfunc_core/tests/sign_bank.rs",
+            "#[test]\nfn sign_bank() { let bank = std::fs::read_to_string(\"bank.json\").unwrap(); assert!(!bank.is_empty() && oxfunc_core::functions::sign::sign(-1.0) == -1.0); }\n",
+        ),
+        (
+            "docs/abs-production-replay.json",
+            "{\"function\": \"ABS\"}\n",
+        ),
+    ];
+
+    /// A formula crate in another repository that calls oxfunc_core, and a file whose include
+    /// macro the pin cannot read.
+    const FORMULAS: [(&str, &str); 4] = [
+        (
+            "crates/oxfml_core/Cargo.toml",
+            "[package]\nname = \"oxfml_core\"\n",
+        ),
+        (
+            "crates/oxfml_core/src/lib.rs",
+            "pub mod eval;\npub mod generated;\n",
+        ),
+        (
+            "crates/oxfml_core/src/eval.rs",
+            "pub fn call(x: f64) -> f64 { oxfunc_core::functions::exp_fn::exp(x) }\n",
+        ),
+        (
+            "crates/oxfml_core/src/generated.rs",
+            "include!(concat!(env!(\"OUT_DIR\"), \"/exports.rs\"));\n",
+        ),
+    ];
+
+    const TAINTED: &str = "abababababababababababababababababababab";
+
+    /// Numeric provenance end to end on a fixture, by the content-derivation rule: the dispatcher
+    /// is tainted and quarantined; EXP only calls it, so it keeps no disposition and is admitted
+    /// with calls_quarantined, and LOGEXP, which calls only EXP, is admitted without a list; ABS's
+    /// own comment matches the citation sweep, the dispatch file was changed by a listed tainted
+    /// commit and the replay test embeds a tainted replay, so all three are left out; a test that
+    /// loads a file at run time and a file of another repository that calls oxfunc_core are
+    /// admitted with a run-time and a crate-level entry; a file whose include macro the pin cannot
+    /// read is unresolved and counted among the skips; and the lookup exits 6, 5, 3 or 0 by those
+    /// outcomes.
+    #[test]
+    fn numeric_provenance_reads_own_content_and_lists_what_callers_call() {
+        let reviewed = Reviewed::parse(&provenance::fixture_text(
+            json!([{
+                "id": "dispatcher", "repository": "OxFunc",
+                "path": "crates/oxfunc_core/src/excel_numeric/mod.rs",
+                "blob": "blob:crates/oxfunc_core/src/excel_numeric/mod.rs",
+                "disposition": "tainted", "reason": "fixture dispatcher",
+                "evidence": [{"kind": "header", "line": 1, "quote": "excel_exp"}],
+            }]),
+            json!([{
+                "id": "replays", "selector": {"repository": "OxFunc", "prefixes": ["docs/"], "suffixes": ["-production-replay.json"]},
+                "disposition": "tainted", "reason": "fixture replay",
+                "evidence": [{"kind": "commit", "commit": "c", "quote": "q"}],
+            }]),
+            json!([{"repository": "OxFunc", "commit": TAINTED, "reason": "fixture"}]),
+        ))
+        .unwrap();
+        let mut oxfunc = Repository::fixture("OxFunc", &NUMERIC);
+        oxfunc.fixture_changes = Some(
+            [(
+                TAINTED.to_owned(),
+                vec!["crates/oxfunc_core/src/functions/surface_dispatch.rs".to_owned()],
+            )]
+            .into(),
+        );
+        let mut repositories = vec![oxfunc, Repository::fixture("OxFml", &FORMULAS)];
+        let manifest = build(
+            &[
+                bead_with_do(
+                    "dc-f.20",
+                    "Port the named family only: EXP, LOGEXP, ABS, SIGN.",
+                    "OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs: the catalogue entries for \
+                     the function IDs named in Do.",
+                ),
+                bead(
+                    "dc-f.21",
+                    "OxFml/crates/oxfml_core/src/eval.rs and crates/oxfml_core/src/generated.rs: the evaluator.",
+                ),
+            ],
+            &mut repositories,
+            &[],
+            &reviewed,
+        )
+        .unwrap();
+        let path = |name: &str| format!("crates/oxfunc_core/src/{name}");
+        let dispatcher = path("excel_numeric/mod.rs");
+        let exp_fn = path("functions/exp_fn.rs");
+        let numeric = |key: &str| input(&manifest, key)["numeric_provenance"].clone();
+        let caller = input(&manifest, &format!("OxFunc/{exp_fn}"));
+        assert_eq!(caller["disposition"], "port");
+        assert_eq!(caller["code_refs"], json!({"refs": [dispatcher]}));
+        assert_eq!(
+            caller["numeric_provenance"],
+            json!({
+                "entries": [provenance::RULE_CALLS],
+                "reason": "fixture calls-quarantined",
+                "calls_quarantined": [dispatcher],
+            })
+        );
+        assert!(numeric(&format!("OxFunc/{}", path("functions/logexp.rs"))).is_null());
+        assert!(numeric(&format!("OxFunc/{}", path("functions/sign.rs"))).is_null());
+        let dispatch = numeric(&format!("OxFunc/{}", path("functions/surface_dispatch.rs")));
+        assert_eq!(dispatch["disposition"], "unresolved", "{dispatch}");
+        assert_eq!(dispatch["entries"], json!([provenance::RULE_COMMIT]));
+        assert_eq!(dispatch["changed_by"], json!([TAINTED]));
+        let abs = input(&manifest, &format!("OxFunc/{}", path("functions/abs.rs")));
+        assert_eq!(
+            abs["content_facts"],
+            json!({"citations": [{"line": 3, "pattern": "C-runtime"}]})
+        );
+        assert_eq!(abs["numeric_provenance"]["disposition"], "unresolved");
+        assert_eq!(
+            abs["numeric_provenance"]["citations"],
+            json!(["line 3 (C-runtime)"])
+        );
+        let replay = numeric("OxFunc/crates/oxfunc_core/tests/abs_replay.rs");
+        assert_eq!(replay["disposition"], "tainted", "{replay}");
+        assert_eq!(replay["entries"], json!([provenance::RULE_INCLUDE]));
+        assert_eq!(
+            replay["includes"],
+            json!(["docs/abs-production-replay.json"])
+        );
+        assert_eq!(
+            replay["calls_quarantined"],
+            json!([path("functions/abs.rs")])
+        );
+        let bank = input(&manifest, "OxFunc/crates/oxfunc_core/tests/sign_bank.rs");
+        assert_eq!(
+            bank["code_refs"],
+            json!({"test_refs": [path("functions/sign.rs")], "test_runtime": ["fs::read_to_string"]})
+        );
+        assert_eq!(
+            bank["numeric_provenance"]["calls_quarantined"],
+            json!(["OxFunc run-time loads"])
+        );
+        let eval = input(&manifest, "OxFml/crates/oxfml_core/src/eval.rs");
+        assert_eq!(
+            eval["code_refs"],
+            json!({"crates": ["OxFunc crate oxfunc_core"]})
+        );
+        assert_eq!(
+            eval["numeric_provenance"]["calls_quarantined"],
+            json!(["OxFunc crate oxfunc_core"])
+        );
+        assert_eq!(
+            manifest["numeric_content"]["library_crates"],
+            json!({"OxFunc crate oxfunc_core": {"repository": "OxFunc", "src": "crates/oxfunc_core/src"}})
+        );
+        let generated = numeric("OxFml/crates/oxfml_core/src/generated.rs");
+        assert_eq!(generated["disposition"], "unresolved");
+        assert_eq!(generated["entries"], json!([provenance::RULE_UNREAD]));
+        assert_eq!(
+            manifest["summary"]["resolution_skipped"]["an include macro whose argument is not a string literal is not resolved"],
+            1,
+            "{}",
+            manifest["summary"]["resolution_skipped"]
+        );
+        let quarantined = input(&manifest, &format!("OxFunc/{dispatcher}"));
+        assert_eq!(quarantined["disposition"], "quarantined");
+        assert_eq!(quarantined["numeric_provenance"]["disposition"], "tainted");
+        assert!(quarantined["code_refs"].is_null());
+        let exp = manifest["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["id"] == "FUNC.EXP")
+            .unwrap();
+        assert_eq!(
+            exp["numeric_provenance"],
+            json!({"disposition": "tainted", "helpers": {dispatcher.clone(): "tainted"}})
+        );
+        let summary = &manifest["summary"]["numeric_provenance"];
+        assert_eq!(summary["admitted_with_calls_quarantined"], 3, "{summary}");
+        assert_eq!(summary["cross_repository_crate_edges"], 1, "{summary}");
+        assert_eq!(summary["inputs_with_run_time_loads"], 1, "{summary}");
+        assert_eq!(summary["edges_owner"], "dc-4uy4");
+        assert_eq!(
+            summary["by_entry"],
+            json!({
+                provenance::RULE_CALLS: 3,
+                provenance::RULE_CITATION: 1,
+                provenance::RULE_COMMIT: 1,
+                provenance::RULE_INCLUDE: 1,
+                provenance::RULE_UNREAD: 1,
+                "dispatcher": 1,
+                "replays": 1,
+            }),
+            "{summary}"
+        );
+        // The replay test and the replay it embeds are port inputs with a tainted provenance.
+        let by = &manifest["summary"]["by_disposition"];
+        assert_eq!(by[PORT_NUMERIC_TAINTED], 2, "{by}");
+        assert_eq!(manifest["summary"]["port_provisional"], by["port"]);
+        let list = provenance::allowlist(&manifest, "m.json");
+        let listed: BTreeMap<String, Value> = list["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| {
+                (
+                    format!(
+                        "{}/{}",
+                        e["repository"].as_str().unwrap(),
+                        e["path"].as_str().unwrap()
+                    ),
+                    e["calls_quarantined"].clone(),
+                )
+            })
+            .collect();
+        let wanted: BTreeMap<String, Value> = [
+            (format!("OxFunc/{exp_fn}"), json!([dispatcher])),
+            (
+                format!("OxFunc/{}", path("functions/logexp.rs")),
+                Value::Null,
+            ),
+            (format!("OxFunc/{}", path("functions/sign.rs")), Value::Null),
+            (
+                "OxFunc/crates/oxfunc_core/tests/sign_bank.rs".to_owned(),
+                json!(["OxFunc run-time loads"]),
+            ),
+            (
+                "OxFml/crates/oxfml_core/src/eval.rs".to_owned(),
+                json!(["OxFunc crate oxfunc_core"]),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(listed, wanted);
+        for left_out in [
+            path("functions/abs.rs"),
+            path("functions/surface_dispatch.rs"),
+            dispatcher.clone(),
+            "crates/oxfunc_core/tests/abs_replay.rs".to_owned(),
+            "docs/abs-production-replay.json".to_owned(),
+        ] {
+            assert!(
+                !listed.contains_key(&format!("OxFunc/{left_out}")),
+                "{left_out} is listed"
+            );
+        }
+        assert!(!listed.contains_key("OxFml/crates/oxfml_core/src/generated.rs"));
+        assert_eq!(manifest["summary"]["release_allowlist"], listed.len());
+        let look = |wanted: &str| lookup_text(&manifest, "m.json", wanted);
+        let (text, code) = look(&format!("OxFunc/{exp_fn}"));
+        assert_eq!(code, EXIT_CALLS_QUARANTINED, "{text}");
+        assert!(
+            text.contains(&format!("  calls_quarantined {dispatcher}\n")),
+            "{text}"
+        );
+        assert!(text.contains(
+            "  release source allowlist: admitted only with its calls_quarantined list\n"
+        ));
+        assert!(text.contains(&format!(
+            "admitted: port only against clean replacements of the listed modules: {dispatcher} (infra-m0.5)\n"
+        )));
+        let (text, code) = look("OxFml/crates/oxfml_core/src/eval.rs");
+        assert_eq!(code, EXIT_CALLS_QUARANTINED, "{text}");
+        assert!(
+            text.contains("  calls_quarantined OxFunc crate oxfunc_core\n"),
+            "{text}"
+        );
+        let (text, code) = look(&format!("OxFunc/{}", path("functions/surface_dispatch.rs")));
+        assert_eq!(code, EXIT_NUMERIC, "{text}");
+        assert!(
+            text.contains(&format!("  changed by tainted commits {TAINTED}\n")),
+            "{text}"
+        );
+        assert!(text.contains("  release source allowlist: left out\n"));
+        assert!(text.contains("do not copy it and do not read it for behaviour; nothing establishes its provenance until a reviewed entry clears it"));
+        let (text, code) = look(&format!("OxFunc/{}", path("functions/abs.rs")));
+        assert_eq!(code, EXIT_NUMERIC, "{text}");
+        assert!(
+            text.contains("  citation sweep matches line 3 (C-runtime)\n"),
+            "{text}"
+        );
+        let (text, code) = look(&format!("OxFunc/{dispatcher}"));
+        assert_eq!(code, EXIT_QUARANTINED, "{text}");
+        assert!(text.contains("quarantined: do not copy (infra-m0.5)\n"));
+        let (text, code) = look(&format!("OxFunc/{}", path("functions/sign.rs")));
+        assert_eq!(code, 0, "{text}");
+        assert!(text.contains("  release source allowlist: admitted\n"));
+        // A directory lookup takes the most restrictive outcome of its entries.
+        let (_, code) = look("OxFunc/crates/oxfunc_core/src/functions");
+        assert_eq!(code, EXIT_NUMERIC);
     }
 
     #[test]

@@ -564,6 +564,87 @@ pub fn include_paths(text: &str) -> Includes {
     found
 }
 
+/// The include macros (`include!`, `include_str!`, `include_bytes!`) in the code of `file`, read
+/// from its tokens, so comments do not count and a file parsed with its test-only items removed
+/// yields only the includes of its non-test code: the literal paths (backslashes read as `/`, as
+/// [`include_paths`] reads them), and each call whose argument is not one string literal (a
+/// `concat!`, or a macro variable inside a `macro_rules!` body), shortened to 80 characters.
+pub fn include_macros(file: &syn::File) -> Includes {
+    let mut found = Includes::default();
+    each_level(file.to_token_stream(), &mut |tokens| {
+        for i in 0..tokens.len() {
+            let Some(name) = ident_text(tokens.get(i)) else {
+                continue;
+            };
+            if !matches!(name.as_str(), "include" | "include_str" | "include_bytes") {
+                continue;
+            }
+            if !matches!(tokens.get(i + 1), Some(TokenTree::Punct(p)) if p.as_char() == '!') {
+                continue;
+            }
+            let Some(TokenTree::Group(group)) = tokens.get(i + 2) else {
+                continue;
+            };
+            let mut inner = group.stream().into_iter();
+            match (inner.next(), inner.next()) {
+                (Some(TokenTree::Literal(literal)), None)
+                    if crate::rust_source::string_literal_value(&literal).is_some() =>
+                {
+                    let value =
+                        crate::rust_source::string_literal_value(&literal).unwrap_or_default();
+                    found.literal.push(value.replace('\\', "/"));
+                }
+                _ => found
+                    .non_literal
+                    .push(format!("{name}!{group}").chars().take(80).collect()),
+            }
+        }
+    });
+    found
+}
+
+/// The literal paths of the include macros in the code of `file` ([`include_macros`]).
+#[cfg(test)]
+pub fn include_literals(file: &syn::File) -> Vec<String> {
+    include_macros(file).literal
+}
+
+/// The run-time loads in the code of `file`, read from its tokens (so comments do not count, and
+/// a file parsed with its test-only items removed yields only those of its non-test code): the
+/// calls that read files or run programs, `fs::read`, `fs::read_to_string`, `fs::read_dir`,
+/// `File::open`, `OpenOptions` and `Command::new`, each named once. What they load is not resolved
+/// (bead dc-4uy4 owns that).
+pub fn runtime_loads(file: &syn::File) -> Vec<String> {
+    let mut found: BTreeSet<String> = BTreeSet::new();
+    each_level(file.to_token_stream(), &mut |tokens| {
+        for i in 0..tokens.len() {
+            let Some(name) = ident_text(tokens.get(i)) else {
+                continue;
+            };
+            if name == "OpenOptions" {
+                found.insert(name);
+                continue;
+            }
+            if !is_path_separator(tokens, i + 1) {
+                continue;
+            }
+            let Some(next) = ident_text(tokens.get(i + 3)) else {
+                continue;
+            };
+            let load = matches!(
+                (name.as_str(), next.as_str()),
+                ("fs", "read" | "read_to_string" | "read_dir")
+                    | ("File", "open")
+                    | ("Command", "new")
+            );
+            if load {
+                found.insert(format!("{name}::{next}"));
+            }
+        }
+    });
+    found.into_iter().collect()
+}
+
 /// `relative` joined to the directory `dir` of a repository path, with `.` and `..` resolved, or
 /// `None` when it climbs out of the repository.
 pub fn join(dir: &str, relative: &str) -> Option<String> {
@@ -763,5 +844,68 @@ mod tests {
             Some("docs/a.json")
         );
         assert_eq!(join("a", "../../b"), None);
+    }
+
+    /// Include macros read from tokens: comments do not count, a non-literal argument is not
+    /// followed, and the test-only items removed by [`parse`] take their includes with them.
+    #[test]
+    fn include_literals_split_non_test_from_test_code() {
+        let source = r#"
+            // include_str!("comment.json")
+            const DATA: &str = include_str!("../data/live.json");
+            fn f() -> &'static [u8] { std::include_bytes!(r"raw\bin.dat") }
+            const NOT: &str = include_str!(concat!("x", ".json"));
+            #[cfg(test)]
+            mod tests {
+                const PINNED: &str = include_str!("../../docs/replay.json");
+            }
+        "#;
+        let full = parse_full(source).unwrap();
+        assert_eq!(
+            include_literals(&full),
+            ["../data/live.json", "raw/bin.dat", "../../docs/replay.json"]
+        );
+        assert_eq!(
+            include_literals(&parse(source).unwrap()),
+            ["../data/live.json", "raw/bin.dat"]
+        );
+        let found = include_macros(&full);
+        assert_eq!(found.non_literal.len(), 1);
+        assert!(
+            found.non_literal[0].starts_with("include_str!(concat !"),
+            "{:?}",
+            found.non_literal
+        );
+        let in_macro = r#"
+            macro_rules! bank { ($f:literal) => { include_str!(concat!("../docs/", $f)) }; }
+        "#;
+        assert_eq!(
+            include_macros(&parse(in_macro).unwrap()).non_literal.len(),
+            1
+        );
+    }
+
+    /// Run-time loads read from tokens: comments and strings do not count, and the test-only
+    /// items removed by [`parse`] take theirs with them.
+    #[test]
+    fn runtime_loads_split_non_test_from_test_code() {
+        let source = r#"
+            // std::fs::read_to_string("comment.json")
+            use std::process::Command;
+            fn run() { let _ = Command::new("sf.exe"); let _ = "fs::read"; }
+            fn data() -> Vec<u8> { std::fs::read("a.bin").unwrap() }
+            #[cfg(test)]
+            mod tests {
+                fn bank() -> std::fs::File { std::fs::File::open("bank.json").unwrap() }
+            }
+        "#;
+        assert_eq!(
+            runtime_loads(&parse(source).unwrap()),
+            ["Command::new", "fs::read"]
+        );
+        assert_eq!(
+            runtime_loads(&parse_full(source).unwrap()),
+            ["Command::new", "File::open", "fs::read"]
+        );
     }
 }

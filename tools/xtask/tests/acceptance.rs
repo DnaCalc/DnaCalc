@@ -1908,3 +1908,30 @@ fn infra_m0_4__missing_source() {
     let _serial = serial();
     infra_m0_4::missing_source();
 }
+
+/// The bodies of the infra-m0.5 cases, which read the numeric provenance record independently and
+/// drive `pin-sources` and `accept` through the xtask binary.
+#[path = "acceptance/infra_m0_5.rs"]
+mod infra_m0_5;
+
+/// No source manifest entry marked unresolved or tainted enters the release source allowlist, and
+/// a file that only calls one enters it only with its calls_quarantined list: the committed
+/// allowlist and its facts recomputed from git, the generator over fixture dispositions, and hand
+/// edits, which the check of `cargo xtask accept` rejects; see `acceptance/infra_m0_5.rs`.
+#[test]
+fn infra_m0_5__quarantine_gate() {
+    let _serial = serial();
+    infra_m0_5::quarantine();
+}
+
+/// Every retained numeric witness is a selection of a pinned capture with black-box acquisition
+/// metadata, and no quarantined implementation generated its expected bits: a generator that
+/// builds or runs a package of a tainted class leaves a witness retained only when its bits equal
+/// the capture runner's earlier retention row by row; a witness without metadata, with a
+/// quarantined generator or without that equality fails the check of `cargo xtask accept`; see
+/// `acceptance/infra_m0_5.rs`.
+#[test]
+fn infra_m0_5__independent_witness() {
+    let _serial = serial();
+    infra_m0_5::independent_witness();
+}
