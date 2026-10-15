@@ -279,7 +279,7 @@
           {
             "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
             "masked": {
-              "commit_messages": 0,
+              "commit_messages": 1,
               "files": 5,
               "tracker_records": 6
             },
@@ -358,7 +358,7 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 15,
+          "commit_messages": 16,
           "files": 20,
           "tracker_records": 278
         },
@@ -411,7 +411,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 278 tracker records, 0 in 0 of 15 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 21 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 278 tracker records, 0 in 0 of 16 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 22 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -752,14 +752,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_5__quarantine_gate",
-      "duration_s": 125.543,
+      "duration_s": 150.966,
       "exit_code": 0,
       "log": "target/accept/infra-m0.5/windows/infra_m0_5__quarantine_gate.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 125.40s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 150.64s"
     },
     {
       "argv": [
@@ -778,7 +778,7 @@
         "--nocapture"
       ],
       "case": "infra_m0_5__independent_witness",
-      "duration_s": 72.43,
+      "duration_s": 86.515,
       "exit_code": 0,
       "log": "target/accept/infra-m0.5/windows/infra_m0_5__independent_witness.log",
       "notes": [
@@ -791,7 +791,7 @@
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 72.26s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 86.36s"
     }
   ],
   "command": [
@@ -857,13 +857,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 3.242,
+      "duration_s": 5.51,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s"
+        "test result: ok. 92 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s"
       ],
       "log": "target/accept/infra-m0.5/windows/command-3.log",
       "outcome": "passed",
@@ -893,7 +893,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 212.142,
+  "duration_s": 257.044,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -901,88 +901,10 @@
     "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
     "git": {
       "branch": "master",
-      "dirty": true,
-      "dirty_paths": [
-        {
-          "blob": "689e3a04163930df8f2144a21cf1fb3da5596247",
-          "path": ".beads/issues.jsonl",
-          "status": "M"
-        },
-        {
-          "blob": "f2024ada930f517437ab32d58d83530f63877979",
-          "path": "AGENTS.md",
-          "status": "M"
-        },
-        {
-          "blob": "550456aeba7210270d1377f4357718d964e33233",
-          "path": "accept-receipts/infra-m0.2/windows.json",
-          "status": "M"
-        },
-        {
-          "blob": "51eeaeaddaf193ae535dbef3ded3a7e0fb2d5bc5",
-          "path": "accept-receipts/infra-m0.3/windows.json",
-          "status": "M"
-        },
-        {
-          "blob": "40fee0f80f639438f0e8e841e820057c2a5cb47f",
-          "path": "accept-receipts/infra-m0.4/windows.json",
-          "status": "M"
-        },
-        {
-          "blob": "aa425753c3486ee3ba83e68b180136f7bfbc302d",
-          "path": "migration/numeric-provenance-review-2026-10-15.json",
-          "status": "M"
-        },
-        {
-          "blob": "70364e82d698858a2ef1e39d5021b4e919ad7c34",
-          "path": "migration/numeric-provenance.json",
-          "status": "M"
-        },
-        {
-          "blob": "28d1af3a20e9eb489beb48deb0448cc55fc69cbf",
-          "path": "migration/release-source-allowlist.json",
-          "status": "M"
-        },
-        {
-          "blob": "a630843dba93f624924f842c59db7e75cf8f8b59",
-          "path": "migration/source-manifest.json",
-          "status": "M"
-        },
-        {
-          "blob": "daa971f97eb929aa7c2d2e4a4edc70d1fd9d95bc",
-          "path": "tools/xtask/src/pin.rs",
-          "status": "M"
-        },
-        {
-          "blob": "72e6f21a125afbd3f01831f17097262dfad94bd5",
-          "path": "tools/xtask/src/provenance.rs",
-          "status": "M"
-        },
-        {
-          "blob": "be4a94f815632ec4fad6da0d670be423ae1bb3a1",
-          "path": "tools/xtask/tests/acceptance.rs",
-          "status": "M"
-        },
-        {
-          "blob": "e3370f14ae3cc0f5c42fbb527ebb451039765dab",
-          "path": "tools/xtask/tests/acceptance/infra_m0_4.rs",
-          "status": "M"
-        },
-        {
-          "blob": "fb70ac0716d6c2f3e6337214c30c3bea37f46d7d",
-          "path": "tools/xtask/tests/acceptance/infra_m0_5.rs",
-          "status": "M"
-        },
-        {
-          "blob": "ab688d711fcce46208ab725f5ece5b372c307cda",
-          "path": "migration/numeric-provenance-review-2026-10-15-commits.json",
-          "status": "??"
-        }
-      ],
-      "head": "6c579a2101c7813f56220b5d3bb469a954250962",
-      "receipt_paths_left_out": [
-        "accept-receipts/infra-m0.5/windows.json"
-      ]
+      "dirty": false,
+      "dirty_paths": [],
+      "head": "80a3733b85622808ce44f13297bee4b83a819db3",
+      "receipt_paths_left_out": []
     },
     "legacy_root": {
       "exists": true,
@@ -1019,5 +941,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-15T06:07:10Z"
+  "started_utc": "2026-10-15T07:24:43Z"
 }
