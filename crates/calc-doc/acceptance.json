@@ -1,4 +1,23 @@
 {
   "package": "calc-doc",
-  "beads": []
+  "beads": [
+    {
+      "id": "cdoc-m0.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-doc", "--test", "acceptance", "cdoc_m0_1", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m0.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m0.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m0.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cdoc_m0_1__op_roundtrip",
+        "cdoc_m0_1__no_engine_dependency"
+      ],
+      "platforms": {
+        "cdoc_m0_1__op_roundtrip": ["windows", "linux", "wasm"],
+        "cdoc_m0_1__no_engine_dependency": ["windows", "linux", "wasm"]
+      }
+    }
+  ]
 }

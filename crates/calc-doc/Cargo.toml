@@ -7,3 +7,18 @@ description = "The package for the CalcDoc codec: reading, writing and preservin
 
 [package.metadata.dnacalc]
 portability = "portable"
+
+[dependencies]
+calc-doc-model = { path = "../calc-doc-model" }
+
+# The acceptance cases inspect the committed wire fixtures with serde_json, apart from the codec
+# under test.
+[dev-dependencies]
+serde_json = "=1.0.154"
+
+# The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which runs
+# only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the
+# release built on that wasm-bindgen (the pair the CI browser fixture pins). Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"
