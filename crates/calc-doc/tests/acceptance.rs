@@ -21,9 +21,9 @@ use calc_doc::model::value::{
 };
 use calc_doc::model::{
     AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError, BATCH_FORMAT, BATCH_VERSION,
-    CellInput, CellText, DecodeError, EncodeError, FiniteNumber, FormulaText, ModelRoot,
-    ModelRootError, OpBatch, SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetEdit, SheetEntry, SheetKey,
-    SheetName, SheetNameError, SheetVisibility, WorkbookOp, decode_batch, encode_batch,
+    CellInput, CellText, DecodeError, EncodeError, FiniteNumber, FormulaText, FormulaTextError,
+    ModelRoot, ModelRootError, OpBatch, SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetEdit, SheetEntry,
+    SheetKey, SheetName, SheetNameError, SheetVisibility, WorkbookOp, decode_batch, encode_batch,
     op_capabilities,
 };
 use serde_json::{Value, json};
@@ -461,8 +461,11 @@ fn assert_same_bytes(label: &str, encoded: &[u8], golden: &[u8]) {
     assert_bytes(label, ("encoded", "golden"), encoded, golden);
 }
 
-/// The (capability, version, operation) of every envelope of a wire message, read with
-/// serde_json apart from the codec, and the frame's format, version and base.
+/// The frame's format, version and base, and the (capability, version, operation) of every
+/// envelope of a wire message, read with serde_json. serde_json is also the codec's JSON
+/// tokenizer, so this reading is not independent of the codec. The comparison that is independent
+/// of it is the literal-value comparison, [`check_fixture_members`], which compares the fixtures'
+/// bytes with text written in this file without parsing them.
 fn inspect(bytes: &[u8]) -> (String, u64, u64, Vec<(String, u64, String)>) {
     let message: Value = serde_json::from_slice(bytes).expect("a JSON message");
     let envelopes = message["operations"]
@@ -489,7 +492,8 @@ fn inspect(bytes: &[u8]) -> (String, u64, u64, Vec<(String, u64, String)>) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The fixtures compared, apart from the codec, with text written here from the wire format's
+// The literal-value comparison: the fixtures' bytes compared, without parsing them and so apart
+// from the codec and its JSON tokenizer, with text written here from the wire format's
 // description: a frame `{"format","version","base","operations"}`, envelopes
 // `{"capability","version","op","args"}`, arguments in their declaration order, sheets as their
 // keys, numbers as the 16 lowercase hex digits of their binary64 bits, text as 4 lowercase hex
@@ -717,10 +721,11 @@ fn compare_fixture(
     operations.len()
 }
 
-/// Compares the bytes of the three golden fixtures, apart from the codec, with text written in
-/// this file from the wire format's description: each fixture's frame up to its first operation,
-/// every one of its operations as a whole envelope (capability, version, operation name and every
-/// argument, members in wire order), and its closing `]}`. Every argument is written out here
+/// Compares the bytes of the three golden fixtures, without parsing them and so apart from the
+/// codec and its JSON tokenizer, with text written in this file from the wire format's
+/// description: each fixture's frame up to its first operation, every one of its operations as a
+/// whole envelope (capability, version, operation name and every argument, members in wire
+/// order), and its closing `]}`. Every argument is written out here
 /// except the 131,068 digits of the 32,767-unit text, which are built here from that text's rule
 /// (A to Z repeating), not by the codec. So a fixture changed to match a mistake the encoder and
 /// the decoder share fails here when the mistake changes the bytes of any operation the fixtures
@@ -789,6 +794,54 @@ fn replace_first(bytes: &[u8], from: &str, to: &str) -> Vec<u8> {
     text.replacen(from, to, 1).into_bytes()
 }
 
+/// The members of a frame or an envelope, each `(name, raw JSON value)`, in order, as one JSON
+/// object: with `change` None all of them; with `Some((member, None))` without `member`; with
+/// `Some((member, Some(value)))` with `value` in place of `member`'s.
+fn object_with(members: &[(&str, &str)], change: Option<(&str, Option<&str>)>) -> String {
+    let body: Vec<String> = members
+        .iter()
+        .filter_map(|(name, valid)| match change {
+            Some((member, None)) if member == *name => None,
+            Some((member, Some(other))) if member == *name => Some(format!("\"{name}\":{other}")),
+            _ => Some(format!("\"{name}\":{valid}")),
+        })
+        .collect();
+    format!("{{{}}}", body.join(","))
+}
+
+/// The envelope of a set_cell of A1 on the sheet with key 1 to true, changed by `change` as
+/// [`object_with`] changes it.
+fn one_envelope(change: Option<(&str, Option<&str>)>) -> String {
+    object_with(
+        &[
+            ("capability", "\"cells\""),
+            ("version", "1"),
+            ("op", "\"set_cell\""),
+            (
+                "args",
+                "{\"sheet\":1,\"row\":1,\"column\":1,\"input\":{\"logical\":true}}",
+            ),
+        ],
+        change,
+    )
+}
+
+/// A batch frame (format, version 1, base 41) holding [`one_envelope`] unchanged, changed by
+/// `change` as [`object_with`] changes it.
+fn frame_with(change: Option<(&str, Option<&str>)>) -> Vec<u8> {
+    let operations = format!("[{}]", one_envelope(None));
+    object_with(
+        &[
+            ("format", "\"dnacalc/workbook-op-batch\""),
+            ("version", "1"),
+            ("base", "41"),
+            ("operations", &operations),
+        ],
+        change,
+    )
+    .into_bytes()
+}
+
 const OPS0: &str = "$.operations[0]";
 
 fn at(path: &str) -> String {
@@ -800,6 +853,267 @@ fn assert_refused(label: &str, bytes: &[u8], root: &ModelRoot, expected: &Decode
         Ok(batch) => panic!("{label}: decoded {:?}", describe_all(&batch.operations)),
         Err(error) => assert_eq!(&error, expected, "{label}"),
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Model roots, axis edits and numbers, against literal values.
+
+/// The sheets of a root as (ID, key, name as hex UTF-16 code units, visibility), read through
+/// `ModelRoot::sheets` and each `SheetEntry`'s accessors.
+fn root_sheets(root: &ModelRoot) -> Vec<(SheetId, u32, String, SheetVisibility)> {
+    root.sheets()
+        .iter()
+        .map(|sheet| {
+            (
+                sheet.id(),
+                sheet.key().get(),
+                hex_units(sheet.name().text().utf16_code_units()),
+                sheet.visibility(),
+            )
+        })
+        .collect()
+}
+
+/// The fixture root's revision and sheets compared with literal values: revision 41, and the
+/// keys, names (Sheet1, Data, Archive and Lookup as hex code units) and visibilities the fixture
+/// document gives its sheets, in order, each with the ID this session issued it. `when` names the
+/// point of the case, for a failure.
+fn check_fixture_root(s: &Session, when: &str) {
+    assert_eq!(
+        s.root.revision().get(),
+        41,
+        "ModelRoot::revision of the fixture root, {when}"
+    );
+    assert_eq!(
+        root_sheets(&s.root),
+        vec![
+            (
+                s.sheet1,
+                1,
+                "005300680065006500740031".to_owned(),
+                SheetVisibility::Visible
+            ),
+            (
+                s.data,
+                2,
+                "0044006100740061".to_owned(),
+                SheetVisibility::Visible
+            ),
+            (
+                s.archive,
+                5,
+                "0041007200630068006900760065".to_owned(),
+                SheetVisibility::Hidden
+            ),
+            (
+                s.lookup,
+                7,
+                "004c006f006f006b00750070".to_owned(),
+                SheetVisibility::VeryHidden
+            ),
+        ],
+        "ModelRoot::sheets of the fixture root (ID, key, name, visibility), {when}"
+    );
+}
+
+/// Roots other than the fixture's: one at `AuthoredRevision::INITIAL` with one hidden sheet, and
+/// one at revision 2^64 - 1 with none, each read back through its accessors.
+fn check_other_roots(s: &Session) {
+    let lone = ModelRoot::new(
+        AuthoredRevision::INITIAL,
+        vec![SheetEntry::new(
+            s.stranger,
+            SheetKey::new(3),
+            name("Only"),
+            SheetVisibility::Hidden,
+        )],
+    )
+    .expect("one sheet");
+    assert_eq!(
+        lone.revision().get(),
+        0,
+        "ModelRoot::revision of a root at INITIAL"
+    );
+    assert_eq!(
+        root_sheets(&lone),
+        vec![(
+            s.stranger,
+            3,
+            "004f006e006c0079".to_owned(),
+            SheetVisibility::Hidden
+        )],
+        "ModelRoot::sheets of a one-sheet root"
+    );
+    let empty = ModelRoot::new(AuthoredRevision::new(u64::MAX), Vec::new()).expect("no sheets");
+    assert_eq!(
+        empty.revision().get(),
+        18_446_744_073_709_551_615,
+        "ModelRoot::revision of a root at the last revision"
+    );
+    assert!(empty.sheets().is_empty(), "a root without sheets");
+}
+
+/// A root is shared, not copied. What a change to calc-doc-model can break: a clone's sheets are
+/// the same slice at the same address, and `sheet_by_key` returns the root's own entry. The
+/// `Arc::ptr_eq`, handle-count and `Arc::get_mut` checks only confirm that the case holds the root
+/// through `std::sync::Arc`. Returns the number of handles before and while the clone is held.
+fn check_root_sharing(first: &Session, later: &Session) -> (usize, usize) {
+    let before = Arc::strong_count(&first.root);
+    let mut shared = Arc::clone(&first.root);
+    assert!(
+        Arc::ptr_eq(&shared, &first.root),
+        "a clone of a root is the same allocation"
+    );
+    assert!(
+        std::ptr::eq(shared.sheets().as_ptr(), first.root.sheets().as_ptr()),
+        "a clone's ModelRoot::sheets is the same slice"
+    );
+    assert!(
+        std::ptr::eq(
+            shared.sheet_by_key(SheetKey::new(5)).expect("key 5"),
+            &first.root.sheets()[2]
+        ),
+        "sheet_by_key returns the root's own entry"
+    );
+    let during = Arc::strong_count(&first.root);
+    assert_eq!(during, before + 1, "the clone is a second handle");
+    assert!(
+        Arc::get_mut(&mut shared).is_none(),
+        "a shared root cannot be borrowed mutably"
+    );
+    assert!(
+        !Arc::ptr_eq(&first.root, &later.root),
+        "two roots built separately are separate allocations"
+    );
+    assert!(
+        !std::ptr::eq(first.root.sheets().as_ptr(), later.root.sheets().as_ptr()),
+        "two roots built separately hold separate sheets"
+    );
+    (before, during)
+}
+
+/// `AxisEdit::last` compared with literal positions: each edit of the axes fixture as decoded,
+/// as (operation, first, count, last), then edits built directly. Both include an insert and a
+/// delete that reach the grid's last row (1,048,576) and its last column (16,384).
+fn check_axis_lasts(s: &Session) -> (usize, usize) {
+    let decoded = decode_batch(AXES_V1, &s.root).expect("axes_v1.json");
+    let spans: Vec<(&str, u32, u32, u32)> = decoded
+        .operations
+        .iter()
+        .map(|op| {
+            let WorkbookOp::EditAxis(edit) = op else {
+                panic!("an axes fixture operation decoded as {}", describe(op));
+            };
+            let kind = match (edit.axis(), edit.change()) {
+                (Axis::Rows, AxisChange::Insert) => "insert_rows",
+                (Axis::Rows, AxisChange::Delete) => "delete_rows",
+                (Axis::Columns, AxisChange::Insert) => "insert_columns",
+                (Axis::Columns, AxisChange::Delete) => "delete_columns",
+            };
+            (kind, edit.first(), edit.count(), edit.last())
+        })
+        .collect();
+    assert_eq!(
+        spans,
+        vec![
+            ("insert_rows", 3, 2, 4),
+            ("insert_rows", 1, 1_048_576, 1_048_576),
+            ("delete_rows", 1_048_576, 1, 1_048_576),
+            ("insert_columns", 16_384, 1, 16_384),
+            ("delete_columns", 1, 16_384, 16_384),
+            ("delete_rows", 10, 5, 14),
+        ],
+        "AxisEdit::last of the axes fixture's edits (operation, first, count, last)"
+    );
+    let built = [
+        (Axis::Rows, AxisChange::Insert, 1, 1, 1),
+        (Axis::Rows, AxisChange::Insert, 1_048_576, 1, 1_048_576),
+        (Axis::Rows, AxisChange::Delete, 1_048_575, 2, 1_048_576),
+        (Axis::Columns, AxisChange::Insert, 16_383, 2, 16_384),
+        (Axis::Columns, AxisChange::Delete, 7, 3, 9),
+        (Axis::Columns, AxisChange::Delete, 16_384, 1, 16_384),
+    ];
+    for (axis, change, first, count, last) in built {
+        let edit = AxisEdit::new(s.sheet1, axis, change, first, count).expect("inside the grid");
+        assert_eq!(
+            edit.last(),
+            last,
+            "AxisEdit::last of {change:?} {axis:?} {first}+{count}"
+        );
+    }
+    (spans.len(), built.len())
+}
+
+/// `FiniteNumber` compares bits: +0.0 and -0.0 are different numbers and different cell inputs,
+/// and each round-trips to its own bits, compared with literal wire text and literal bits.
+fn check_signed_zeros(first: &Session, later: &Session) {
+    let positive = FiniteNumber::new(0.0).expect("+0.0");
+    let negative = FiniteNumber::new(-0.0).expect("-0.0");
+    assert_eq!(
+        (positive.to_bits(), negative.to_bits()),
+        (0x0000_0000_0000_0000, 0x8000_0000_0000_0000),
+        "the bits of +0.0 and -0.0"
+    );
+    assert_ne!(
+        positive, negative,
+        "+0.0 and -0.0 are different FiniteNumbers"
+    );
+    assert_ne!(
+        number(0.0),
+        number(-0.0),
+        "+0.0 and -0.0 are different cell inputs"
+    );
+    let zeros = |s: &Session| OpBatch {
+        base: AuthoredRevision::new(FIXTURE_BASE),
+        operations: vec![
+            set(s.sheet1, 1, 1, number(0.0)),
+            set(s.sheet1, 2, 1, number(-0.0)),
+        ],
+    };
+    let literal = format!(
+        "{FIXTURE_FRAME}{},{}]}}",
+        envelope(
+            "cells",
+            "set_cell",
+            r#""sheet":1,"row":1,"column":1,"input":{"number":"0000000000000000"}"#
+        ),
+        envelope(
+            "cells",
+            "set_cell",
+            r#""sheet":1,"row":2,"column":1,"input":{"number":"8000000000000000"}"#
+        ),
+    );
+    let wire = encode_batch(&zeros(first), &first.root).expect("+0.0 and -0.0");
+    assert_bytes(
+        "+0.0 and -0.0 encoded",
+        ("encoded", "literal"),
+        &wire,
+        literal.as_bytes(),
+    );
+    let decoded = decode_batch(literal.as_bytes(), &later.root).expect("+0.0 and -0.0");
+    assert_eq!(
+        describe_all(&decoded.operations),
+        vec![
+            format!("set {:?} R1C1 number 0000000000000000", later.sheet1),
+            format!("set {:?} R2C1 number 8000000000000000", later.sheet1),
+        ],
+        "+0.0 and -0.0 decoded to their own bits"
+    );
+    let [
+        WorkbookOp::SetCell { input: zero, .. },
+        WorkbookOp::SetCell {
+            input: negative_zero,
+            ..
+        },
+    ] = decoded.operations.as_slice()
+    else {
+        panic!("two set_cell operations");
+    };
+    assert_ne!(
+        zero, negative_zero,
+        "+0.0 and -0.0 decoded are different inputs"
+    );
+    assert_eq!(decoded, zeros(later), "+0.0 and -0.0 decoded");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -824,6 +1138,17 @@ fn cdoc_m0_1__op_roundtrip() {
         "ACCEPT-NOTE: {CASE}: the two sessions give keys 1, 2, 5 and 7 the IDs {:?} and {:?}",
         pairs.map(|(one, _)| (one.slot(), one.generation())),
         pairs.map(|(_, other)| (other.slot(), other.generation()))
+    );
+
+    // The roots this case builds, read through their accessors and compared with literal values,
+    // and a root that is shared rather than copied.
+    for s in [&first, &later] {
+        check_fixture_root(s, "before any batch is decoded through it");
+    }
+    check_other_roots(&first);
+    let (handles_before, handles_during) = check_root_sharing(&first, &later);
+    note!(
+        "ACCEPT-NOTE: {CASE}: ModelRoot::revision and ModelRoot::sheets (with each SheetEntry's id, key, name and visibility) of both sessions' fixture roots equal literal values: revision 41, keys 1, 2, 5 and 7 named Sheet1, Data, Archive and Lookup, visible, visible, hidden and very hidden; so do a root at revision 0 with one hidden sheet and a root at revision 18446744073709551615 with none; a clone of a root holds the same sheets slice and sheet_by_key returns the root's own entry (the case holds roots through std::sync::Arc: {handles_before} then {handles_during} handles), and the two sessions' roots hold separate sheets"
     );
 
     // The golden fixtures decode to the expected operations, through either session's root, and
@@ -875,9 +1200,9 @@ fn cdoc_m0_1__op_roundtrip() {
         );
     }
 
-    // The same fixtures compared apart from the codec: the bytes of each frame and of every
-    // operation equal text written here from the wire format's description, and each error code's
-    // wire name decodes to that code.
+    // The literal-value comparison, apart from the codec: the bytes of each frame and of every
+    // operation equal text written here from the wire format's description. Then, through the
+    // decoder, each error code's wire name decodes to that code.
     let compared = check_fixture_members();
     let total: usize = compared.iter().map(|(_, count)| count).sum();
     assert_eq!(
@@ -1078,6 +1403,13 @@ fn cdoc_m0_1__op_roundtrip() {
         WorksheetErrorCode::all().len()
     );
 
+    // AxisEdit::last and the signed zeros, against literal values.
+    let (decoded_edits, built_edits) = check_axis_lasts(&first);
+    check_signed_zeros(&first, &later);
+    note!(
+        "ACCEPT-NOTE: {CASE}: AxisEdit::last equals literal positions for the axes fixture's {decoded_edits} edits as decoded and {built_edits} edits built directly, inserts and deletes reaching row 1048576 and column 16384 among them; +0.0 and -0.0 are different FiniteNumbers and different inputs, encode to literal wire text with bits 0000000000000000 and 8000000000000000, and decode from it to those bits"
+    );
+
     // A batch of every fixture operation, based on the last revision, encoded through one
     // session's root and decoded through the other's: the wire carries keys, not IDs.
     let mixed = |s: &Session| OpBatch {
@@ -1136,7 +1468,22 @@ fn cdoc_m0_1__op_roundtrip() {
     }
 
     // A newer version or an unknown capability is refused, and so is every other message the
-    // codec does not admit.
+    // codec does not admit. The rows that change one frame or envelope member start from a frame
+    // and an envelope that decode.
+    let control = OpBatch {
+        base: AuthoredRevision::new(FIXTURE_BASE),
+        operations: vec![set(first.sheet1, 1, 1, CellInput::Logical(true))],
+    };
+    assert_eq!(
+        decode_batch(&frame_with(None), &first.root),
+        Ok(control.clone()),
+        "the frame the frame rows change"
+    );
+    assert_eq!(
+        decode_batch(&batch_of(&[one_envelope(None)]), &first.root),
+        Ok(control),
+        "the envelope the envelope rows change"
+    );
     let refusals = refusal_table();
     for (label, bytes, expected) in &refusals {
         assert_refused(label, bytes, &first.root, expected);
@@ -1165,6 +1512,74 @@ fn cdoc_m0_1__op_roundtrip() {
             other => panic!("{label}: {other:?}"),
         }
     }
+
+    // Only an empty formula text is refused (the refusal rows above). Formula syntax is the
+    // parser's, so a text that begins with + or -, holds = after its start, or itself begins with
+    // = is kept as given.
+    let formula_text =
+        |source: &str| FormulaText::new(ExcelText::from_utf16_code_units(units(source)));
+    assert_eq!(
+        formula_text("=A1").map(|kept| kept.text().utf16_code_units().to_vec()),
+        Ok(units("=A1")),
+        "FormulaText::new keeps a text that begins with = as given"
+    );
+    assert_eq!(formula_text(""), Err(FormulaTextError::Empty));
+    let mut admitted = Vec::new();
+    for source in ["+A1", "-1", "A1=1", "=A1", "=="] {
+        let bytes = set_cell_with(&format!("\"formula\":\"{}\"", hex_text(source)));
+        let batch = decode_batch(&bytes, &first.root)
+            .unwrap_or_else(|error| panic!("the formula {source}: {error}"));
+        assert_eq!(
+            batch.operations,
+            [set(first.sheet1, 1, 1, formula(source))],
+            "the formula {source}"
+        );
+        admitted.push(source);
+    }
+
+    // The refusals' messages state the refusal.
+    let messages = [
+        (SheetNameError::Empty.to_string(), "the sheet name is empty"),
+        (
+            SheetNameError::ForbiddenCharacter { unit: 0x3A }.to_string(),
+            "the sheet name contains U+003A, which a sheet name may not contain",
+        ),
+        (
+            SheetNameError::BoundaryApostrophe.to_string(),
+            "the sheet name begins or ends with an apostrophe",
+        ),
+        (
+            AxisEditError::ZeroCount.to_string(),
+            "the axis edit covers no position",
+        ),
+        (
+            FormulaTextError::Empty.to_string(),
+            "the formula text is empty",
+        ),
+        (
+            DecodeError::InvalidFormula {
+                at: at(".args.input.formula"),
+                error: FormulaTextError::Empty,
+            }
+            .to_string(),
+            "$.operations[0].args.input.formula: the formula text is empty",
+        ),
+        (
+            DecodeError::InvalidSheetName {
+                at: at(".args.name"),
+                error: SheetNameError::Empty,
+            }
+            .to_string(),
+            "$.operations[0].args.name: the sheet name is empty",
+        ),
+    ];
+    for (shown, expected) in &messages {
+        assert_eq!(shown, expected);
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: FormulaText::new refused the empty text (Empty) and kept =A1 as given; the formulas {admitted:?} decoded as given; {} refusal messages equal their literal text",
+        messages.len()
+    );
 
     // The decoder refuses an unknown sheet key in every declared operation that names an
     // existing sheet (all but insert, which names a new key; an insert of a key in use is
@@ -1348,6 +1763,15 @@ fn cdoc_m0_1__op_roundtrip() {
     note!(
         "ACCEPT-NOTE: {CASE}: the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID"
     );
+
+    // Decoding every batch above through the two roots, the sheets fixture's insert, rename,
+    // visibility changes and remove among them, left both roots unchanged.
+    for s in [&first, &later] {
+        check_fixture_root(s, "after every batch of the case was decoded through it");
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: after every batch of the case was decoded through them, both fixture roots still equal the same literal revision and sheets"
+    );
 }
 
 fn refusal_kind(error: &DecodeError) -> &'static str {
@@ -1363,7 +1787,7 @@ fn refusal_kind(error: &DecodeError) -> &'static str {
         DecodeError::Malformed { .. } => "Malformed",
         DecodeError::NonFiniteNumber { .. } => "NonFiniteNumber",
         DecodeError::TextTooLong { .. } => "TextTooLong",
-        DecodeError::EmptyFormula { .. } => "EmptyFormula",
+        DecodeError::InvalidFormula { .. } => "InvalidFormula",
         DecodeError::InvalidSheetName { .. } => "InvalidSheetName",
         DecodeError::UnknownSheetKey { .. } => "UnknownSheetKey",
         DecodeError::SheetKeyInUse { .. } => "SheetKeyInUse",
@@ -1701,6 +2125,324 @@ fn refusal_table() -> Vec<(String, Vec<u8>, DecodeError)> {
         },
     );
 
+    // Every frame member is required and has one type: a missing member is refused, never given
+    // a default, and so is a member of another type, a negative or fractional integer included.
+    let u64_integer = "an integer from 0 to 18446744073709551615";
+    let lone_envelope = one_envelope(None);
+    let missing = |field: &str| DecodeError::MissingField {
+        at: "$".to_owned(),
+        field: field.to_owned(),
+    };
+    let frame_malformed = |member: &str, expected: &'static str| DecodeError::Malformed {
+        at: format!("$.{member}"),
+        expected,
+    };
+    let frame_rows: [(&str, &str, Option<&str>, DecodeError); 17] = [
+        ("no format", "format", None, missing("format")),
+        (
+            "a format that is a number",
+            "format",
+            Some("1"),
+            frame_malformed("format", "a string"),
+        ),
+        (
+            "a format that is null",
+            "format",
+            Some("null"),
+            frame_malformed("format", "a string"),
+        ),
+        (
+            "a format in capitals",
+            "format",
+            Some("\"DNACALC/WORKBOOK-OP-BATCH\""),
+            DecodeError::UnknownFormat {
+                at: "$.format".to_owned(),
+                format: "DNACALC/WORKBOOK-OP-BATCH".to_owned(),
+            },
+        ),
+        ("no version", "version", None, missing("version")),
+        (
+            "a version that is a string",
+            "version",
+            Some("\"1\""),
+            frame_malformed("version", u64_integer),
+        ),
+        (
+            "a fractional version",
+            "version",
+            Some("1.0"),
+            frame_malformed("version", u64_integer),
+        ),
+        (
+            "a negative version",
+            "version",
+            Some("-1"),
+            frame_malformed("version", u64_integer),
+        ),
+        ("no base", "base", None, missing("base")),
+        (
+            "a base that is a string",
+            "base",
+            Some("\"41\""),
+            frame_malformed("base", u64_integer),
+        ),
+        (
+            "a fractional base",
+            "base",
+            Some("41.5"),
+            frame_malformed("base", u64_integer),
+        ),
+        (
+            "a negative base",
+            "base",
+            Some("-41"),
+            frame_malformed("base", u64_integer),
+        ),
+        (
+            "base -0",
+            "base",
+            Some("-0"),
+            frame_malformed("base", u64_integer),
+        ),
+        (
+            "a base of 2^64",
+            "base",
+            Some("18446744073709551616"),
+            frame_malformed("base", u64_integer),
+        ),
+        ("no operations", "operations", None, missing("operations")),
+        (
+            "operations that are null",
+            "operations",
+            Some("null"),
+            frame_malformed("operations", "an array of operations"),
+        ),
+        (
+            "operations that are one envelope, not an array",
+            "operations",
+            Some(lone_envelope.as_str()),
+            frame_malformed("operations", "an array of operations"),
+        ),
+    ];
+    for (label, member, value, error) in frame_rows {
+        add(
+            &format!("frame row: {label}"),
+            frame_with(Some((member, value))),
+            error,
+        );
+    }
+
+    // Every envelope member is required and has one type, likewise.
+    let missing_member = |field: &str| DecodeError::MissingField {
+        at: OPS0.to_owned(),
+        field: field.to_owned(),
+    };
+    let envelope_rows: [(&str, &str, Option<&str>, DecodeError); 13] = [
+        (
+            "no capability",
+            "capability",
+            None,
+            missing_member("capability"),
+        ),
+        (
+            "a capability that is a number",
+            "capability",
+            Some("1"),
+            malformed(".capability", "a string"),
+        ),
+        ("no version", "version", None, missing_member("version")),
+        (
+            "a version that is a string",
+            "version",
+            Some("\"1\""),
+            malformed(".version", u64_integer),
+        ),
+        (
+            "a fractional version",
+            "version",
+            Some("1.0"),
+            malformed(".version", u64_integer),
+        ),
+        (
+            "a negative version",
+            "version",
+            Some("-1"),
+            malformed(".version", u64_integer),
+        ),
+        ("no op", "op", None, missing_member("op")),
+        (
+            "an op that is a number",
+            "op",
+            Some("1"),
+            malformed(".op", "a string"),
+        ),
+        (
+            "an op that is null",
+            "op",
+            Some("null"),
+            malformed(".op", "a string"),
+        ),
+        ("no args", "args", None, missing_member("args")),
+        (
+            "args that are an array",
+            "args",
+            Some("[]"),
+            malformed(".args", "an object"),
+        ),
+        (
+            "args that are a string",
+            "args",
+            Some("\"sheet=1\""),
+            malformed(".args", "an object"),
+        ),
+        (
+            "args that are null",
+            "args",
+            Some("null"),
+            malformed(".args", "an object"),
+        ),
+    ];
+    for (label, member, value, error) in envelope_rows {
+        add(
+            &format!("envelope row: {label}"),
+            batch_of(&[one_envelope(Some((member, value)))]),
+            error,
+        );
+    }
+    add(
+        "envelope row: an envelope that is not an object",
+        batch_of(&["\"cells\"".to_owned()]),
+        DecodeError::Malformed {
+            at: OPS0.to_owned(),
+            expected: "an object",
+        },
+    );
+
+    // Names are spelled exactly, case included, and hex digits are lowercase, unsigned and of
+    // their exact width.
+    for visibility in [
+        "Visible",
+        "VISIBLE",
+        "Hidden",
+        "veryHidden",
+        "Very_Hidden",
+        "very-hidden",
+        "very hidden",
+        " visible",
+        "visible ",
+    ] {
+        add(
+            &format!("spelling row: visibility {visibility:?}"),
+            batch_of(&[envelope(
+                "sheets",
+                "set_visibility",
+                &format!("\"sheet\":2,\"visibility\":\"{visibility}\""),
+            )]),
+            malformed(
+                ".args.visibility",
+                "\"visible\", \"hidden\" or \"very_hidden\"",
+            ),
+        );
+    }
+    for name in [
+        "NA",
+        "Na",
+        "Div0",
+        "DIV0",
+        "GETTING_DATA",
+        "Getting_Data",
+        "n/a",
+        "div/0",
+        "#DIV/0!",
+        "#NULL!",
+        "getting-data",
+        "gettingdata",
+        " na",
+    ] {
+        add(
+            &format!("spelling row: error {name:?}"),
+            set_cell_with(&format!("\"error\":\"{name}\"")),
+            malformed(
+                ".args.input.error",
+                "the wire name of a worksheet error code",
+            ),
+        );
+    }
+    let set_a1 = "\"sheet\":1,\"row\":1,\"column\":1,\"input\":{\"logical\":true}";
+    for capability in ["Cells", "CELLS", "cell", "Sheets", "AXES", " cells"] {
+        add(
+            &format!("spelling row: capability {capability:?}"),
+            batch_of(&[envelope(capability, "set_cell", set_a1)]),
+            DecodeError::UnknownCapability {
+                at: at(".capability"),
+                capability: capability.to_owned(),
+            },
+        );
+    }
+    for (capability, operation, args) in [
+        ("cells", "SET_CELL", set_a1),
+        ("cells", "Set_Cell", set_a1),
+        ("cells", "setCell", set_a1),
+        ("cells", "set-cell", set_a1),
+        ("axes", "insertRows", "\"sheet\":1,\"first\":1,\"count\":1"),
+        ("axes", "Insert_Rows", "\"sheet\":1,\"first\":1,\"count\":1"),
+        (
+            "sheets",
+            "setVisibility",
+            "\"sheet\":2,\"visibility\":\"hidden\"",
+        ),
+        ("sheets", "REMOVE", "\"sheet\":7"),
+    ] {
+        add(
+            &format!("spelling row: operation {operation:?}"),
+            batch_of(&[envelope(capability, operation, args)]),
+            DecodeError::UnknownOperation {
+                at: at(".op"),
+                capability,
+                operation: operation.to_owned(),
+            },
+        );
+    }
+    let code_units = "4 lowercase hex digits per UTF-16 code unit";
+    for units in [
+        "004A", "+041", "00041", "004a004A", "0x41", "-041", " 041", "0041 ",
+    ] {
+        add(
+            &format!("spelling row: text unit {units:?}"),
+            set_cell_with(&format!("\"text\":\"{units}\"")),
+            malformed(".args.input.text", code_units),
+        );
+    }
+    add(
+        "spelling row: formula unit \"+041\"",
+        set_cell_with("\"formula\":\"+041\""),
+        malformed(".args.input.formula", code_units),
+    );
+    add(
+        "spelling row: sheet name unit \"004E\"",
+        batch_of(&[envelope(
+            "sheets",
+            "rename",
+            "\"sheet\":2,\"name\":\"004E\"",
+        )]),
+        malformed(".args.name", code_units),
+    );
+    let bits = "16 lowercase hex digits of binary64 bits";
+    for (label, spelled) in [
+        ("bits with a + sign", "+3ff000000000000"),
+        ("bits with a - sign", "-3ff000000000000"),
+        ("mixed-case bits", "3fF0000000000000"),
+        ("17 hex digits", "03ff0000000000000"),
+        ("bits with a 0x prefix", "0x3ff00000000000"),
+        ("bits with a leading space", " 3ff000000000000"),
+    ] {
+        add(
+            &format!("spelling row: {label}"),
+            set_cell_with(&format!("\"number\":\"{spelled}\"")),
+            malformed(".args.input.number", bits),
+        );
+    }
+
     // Values outside their type.
     let integer = "an integer from 0 to 4294967295";
     for (label, row) in [
@@ -1719,7 +2461,6 @@ fn refusal_table() -> Vec<(String, Vec<u8>, DecodeError)> {
             malformed(".args.row", integer),
         );
     }
-    let bits = "16 lowercase hex digits of binary64 bits";
     for (label, input) in [
         ("uppercase bits", "\"number\":\"3FF0000000000000\""),
         ("15 hex digits", "\"number\":\"3ff000000000000\""),
@@ -1731,7 +2472,6 @@ fn refusal_table() -> Vec<(String, Vec<u8>, DecodeError)> {
             malformed(".args.input.number", bits),
         );
     }
-    let code_units = "4 lowercase hex digits per UTF-16 code unit";
     add(
         "text of 3 hex digits",
         set_cell_with("\"text\":\"004\""),
@@ -1804,11 +2544,11 @@ fn refusal_table() -> Vec<(String, Vec<u8>, DecodeError)> {
     add(
         "an empty formula",
         set_cell_with("\"formula\":\"\""),
-        DecodeError::EmptyFormula {
+        DecodeError::InvalidFormula {
             at: at(".args.input.formula"),
+            error: FormulaTextError::Empty,
         },
     );
-
     // Sheet names.
     let rename = |units: &str| {
         batch_of(&[envelope(

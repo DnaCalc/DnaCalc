@@ -208,7 +208,7 @@ impl WireValue for CellInput {
             // Fields::new admitted only INPUT_KINDS, so this kind is "formula".
             _ => FormulaText::new(read_units(value, &at)?)
                 .map(CellInput::Formula)
-                .ok_or(DecodeError::EmptyFormula { at }),
+                .map_err(|error| DecodeError::InvalidFormula { at, error }),
         }
     }
 }

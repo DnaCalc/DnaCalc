@@ -32,7 +32,7 @@ mod sheet;
 mod wire;
 
 pub use calc_value as value;
-pub use input::{CellInput, CellText, FiniteNumber, FormulaText};
+pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use op::{Axis, AxisChange, AxisEdit, AxisEditError, OpBatch, SheetEdit, WorkbookOp};
 pub use revision::AuthoredRevision;
 pub use root::{ModelRoot, ModelRootError, SheetEntry};

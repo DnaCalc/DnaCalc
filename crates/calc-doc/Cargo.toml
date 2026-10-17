@@ -11,8 +11,10 @@ portability = "portable"
 [dependencies]
 calc-doc-model = { path = "../calc-doc-model" }
 
-# The acceptance cases inspect the committed wire fixtures with serde_json, apart from the codec
-# under test.
+# The acceptance cases read the committed wire fixtures and the encoder's output with serde_json.
+# serde_json is also the codec's JSON tokenizer, so that reading is not independent of the codec;
+# the comparison that is independent of it is the literal-value comparison, which compares the
+# fixtures' bytes with text written in the test without parsing them.
 [dev-dependencies]
 serde_json = "=1.0.154"
 

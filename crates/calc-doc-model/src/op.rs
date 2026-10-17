@@ -67,7 +67,7 @@ impl fmt::Display for AxisEditError {
                 "position {first} is outside the {axis:?} 1 to {}",
                 axis.size()
             ),
-            AxisEditError::ZeroCount => f.write_str("an axis edit covers at least one position"),
+            AxisEditError::ZeroCount => f.write_str("the axis edit covers no position"),
             AxisEditError::PastGridEnd { axis, first, count } => write!(
                 f,
                 "{count} positions from {first} pass the last of the {axis:?} ({})",

@@ -3,6 +3,7 @@
 //! the provenance-aware value views, not to its input.
 
 use calc_value::{EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, WorksheetErrorCode};
+use std::fmt;
 use std::hash::{Hash, Hasher};
 
 /// A finite binary64 number. Equality and hashing compare the bits, so `-0.0` and `0.0` are
@@ -64,16 +65,41 @@ impl CellText {
     }
 }
 
-/// The source text of a formula as authored, without the leading `=` that marks a formula entry
-/// (the text an xlsx `<f>` element holds), kept as UTF-16 code units. It is text and nothing
-/// else: no cached value and no parse result. Parsing it is CalcFml's work.
+/// Why [`FormulaText::new`] refused a text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FormulaTextError {
+    Empty,
+}
+
+impl fmt::Display for FormulaTextError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FormulaTextError::Empty => f.write_str("the formula text is empty"),
+        }
+    }
+}
+
+impl std::error::Error for FormulaTextError {}
+
+/// The source text of a formula as authored: what follows the `=` that marks a formula entry,
+/// as an xlsx `<f>` element holds it, kept as UTF-16 code units. It is text and nothing else: no
+/// cached value and no parse result.
+///
+/// Only one rule is checked here: the text is not empty. Whether a text is valid Excel formula
+/// syntax, a text that itself begins with `=` included, is for CalcFml's parser to decide. No
+/// length limit is applied here either; Excel's formula-length limit belongs to the parser or the
+/// loader.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FormulaText(ExcelText);
 
 impl FormulaText {
-    /// `text`, or `None` when it is empty.
-    pub fn new(text: ExcelText) -> Option<Self> {
-        (text.len_utf16_code_units() > 0).then_some(FormulaText(text))
+    /// `text`, or why it is not a formula's text: it is empty.
+    pub fn new(text: ExcelText) -> Result<Self, FormulaTextError> {
+        let units = text.utf16_code_units();
+        if units.is_empty() {
+            return Err(FormulaTextError::Empty);
+        }
+        Ok(FormulaText(text))
     }
 
     pub fn text(&self) -> &ExcelText {

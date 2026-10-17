@@ -6,6 +6,12 @@
 //! {"format":"dnacalc/workbook-op-batch","version":1,"base":<revision>,"operations":[<envelope>,...]}
 //! ```
 //!
+//! Every integer (the frame's version and base, an envelope's version, and the rows, columns,
+//! counts, positions and sheet keys of the arguments) travels as a JSON decimal number. The base
+//! is a revision, which may be as large as 2^64 - 1, so a reader that parses the message's numbers
+//! as JavaScript numbers (binary64) loses precision above 2^53 and can misread the base. This
+//! codec's reader keeps every integer that fits `u64` exactly.
+//!
 //! Each operation travels in an envelope that names its capability and that capability's
 //! version: `{"capability":"cells","version":1,"op":"set_cell","args":{...}}`. Each capability's
 //! codec, the list [`op_capabilities`] returns, and the dispatch from an envelope's capability name
@@ -17,7 +23,10 @@
 //!
 //! Decoding refuses, with a typed [`DecodeError`], anything it does not admit: an unknown format,
 //! capability, operation or field, a version other than the declared one, a duplicate or missing
-//! field, a non-finite number, and a value outside its type. Nothing is skipped. A frame's format
+//! field, a non-finite number, and a value outside its type. Nothing is skipped and nothing missing
+//! takes a default. Names (the format, capabilities, operations, visibilities and error codes) match
+//! exactly, case included; hex digits are lowercase, with no sign or prefix, at their exact width;
+//! an integer is a JSON integer from 0, never negative, fractional or a string. A frame's format
 //! and version, and an envelope's capability and version, are judged before the other members of
 //! their object, so a newer version that adds a member is refused as a version, not as a field.
 
@@ -25,6 +34,7 @@ mod capability;
 mod json;
 mod value;
 
+use crate::input::FormulaTextError;
 use crate::op::{AxisEditError, OpBatch};
 use crate::revision::AuthoredRevision;
 use crate::root::ModelRoot;
@@ -109,8 +119,10 @@ pub enum DecodeError {
         at: String,
         units: usize,
     },
-    EmptyFormula {
+    /// The formula text is empty or begins with `=`.
+    InvalidFormula {
         at: String,
+        error: FormulaTextError,
     },
     InvalidSheetName {
         at: String,
@@ -180,7 +192,7 @@ impl fmt::Display for DecodeError {
                     "{at}: cell text of {units} UTF-16 code units is too long"
                 )
             }
-            DecodeError::EmptyFormula { at } => write!(f, "{at}: a formula is not empty"),
+            DecodeError::InvalidFormula { at, error } => write!(f, "{at}: {error}"),
             DecodeError::InvalidSheetName { at, error } => write!(f, "{at}: {error}"),
             DecodeError::UnknownSheetKey { at, key } => {
                 write!(f, "{at}: no sheet has the key {}", key.get())
@@ -230,6 +242,9 @@ impl std::error::Error for EncodeError {}
 /// The batch as its wire message, with each sheet written as its key in `root`. Like
 /// [`decode_batch`], it reads `root` as it is, not as the batch's earlier operations leave it: an
 /// operation on a sheet that an earlier remove of the batch takes away still encodes.
+///
+/// Integers are written as JSON decimal numbers, the base revision among them, so a reader that
+/// parses the message's numbers as JavaScript numbers (binary64) loses precision above 2^53.
 pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, EncodeError> {
     let mut claimed = Vec::new();
     let mut operations = Vec::with_capacity(batch.operations.len());
@@ -259,7 +274,11 @@ const FRAME_FIELDS: [&str; 4] = ["format", "version", "base", "operations"];
 
 /// The batch a wire message holds, with each sheet key resolved through `root`. The format and
 /// then the version are judged before the frame's other members, so a message of another format
-/// or of another frame version is refused as such, whatever members it carries.
+/// or of another frame version is refused as such, whatever members it carries. Every frame and
+/// envelope member is required: a missing one is refused, never given a default.
+///
+/// Integers arrive as JSON decimal numbers and are read exactly up to 2^64 - 1; a reader that
+/// parses the same message's numbers as JavaScript numbers (binary64) loses precision above 2^53.
 ///
 /// What it does not check, which is left to whoever applies the batch:
 ///

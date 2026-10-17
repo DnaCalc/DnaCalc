@@ -232,9 +232,9 @@
             "pub_traits": 0
           },
           "calc-doc-model": {
-            "entries": 50,
-            "entries_reach_unproven": 50,
-            "pub_enum_variants": 50,
+            "entries": 51,
+            "entries_reach_unproven": 51,
+            "pub_enum_variants": 51,
             "pub_traits": 0
           },
           "calc-engine": {
@@ -281,14 +281,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 82,
+          "entries_reach_unproven": 83,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "9 portable packages declare 81 pub enum variants and 1 pub traits; their seams.json files list 82 entries, 82 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "9 portable packages declare 82 pub enum variants and 1 pub traits; their seams.json files list 83 entries, 83 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -379,9 +379,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 20,
+          "commit_messages": 22,
           "files": 20,
-          "tracker_records": 285
+          "tracker_records": 286
         },
         "tracker": {
           "ceng-m7.1": {
@@ -432,7 +432,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 285 tracker records, 0 in 0 of 20 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 286 tracker records, 0 in 0 of 22 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -795,7 +795,7 @@
           ],
           "browser": "chromium",
           "case": "cdoc_m0_1__op_roundtrip@chromium",
-          "duration_s": 3.915,
+          "duration_s": 7.051,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -820,6 +820,7 @@
           "log": "target/accept/cdoc-m0.1/wasm/cdoc_m0_1__op_roundtrip@chromium.log",
           "notes": [
             "the two sessions give keys 1, 2, 5 and 7 the IDs [(0, 0), (1, 0), (2, 0), (3, 0)] and [(6, 1), (5, 1), (4, 1), (3, 1)]",
+            "ModelRoot::revision and ModelRoot::sheets (with each SheetEntry's id, key, name and visibility) of both sessions' fixture roots equal literal values: revision 41, keys 1, 2, 5 and 7 named Sheet1, Data, Archive and Lookup, visible, visible, hidden and very hidden; so do a root at revision 0 with one hidden sheet and a root at revision 18446744073709551615 with none; a clone of a root holds the same sheets slice and sheet_by_key returns the root's own entry (the case holds roots through std::sync::Arc: 1 then 2 handles), and the two sessions' roots hold separate sheets",
             "cells_v1.json: 134625 bytes, 29 operations decoded through both sessions' roots and re-encoded byte for byte",
             "axes_v1.json: 654 bytes, 6 operations decoded through both sessions' roots and re-encoded byte for byte",
             "sheets_v1.json: 752 bytes, 7 operations decoded through both sessions' roots and re-encoded byte for byte",
@@ -827,17 +828,20 @@
             "every declared operation of every declared capability round-tripped on its own: [\"cells/set_cell\", \"cells/clear\", \"axes/insert_rows\", \"axes/delete_rows\", \"axes/insert_columns\", \"axes/delete_columns\", \"sheets/insert\", \"sheets/rename\", \"sheets/move\", \"sheets/remove\", \"sheets/set_visibility\"]",
             "42 fixture operations cover 35 features: every WorkbookOp variant, every CellInput kind, all 4 AxisEdit kinds, all 5 SheetEdit kinds, all 3 visibilities and all 14 worksheet error codes; envelopes [\"cells v1\", \"axes v1\", \"sheets v1\"]",
             "edges kept: -0.0 (sign negative), bits 0000000000000001 and 7fefffffffffffff, a 32767-unit text, a text ending in U+D83D, all 14 error codes, and a formula at XFD1048576",
+            "AxisEdit::last equals literal positions for the axes fixture's 6 edits as decoded and 6 edits built directly, inserts and deletes reaching row 1048576 and column 16384 among them; +0.0 and -0.0 are different FiniteNumbers and different inputs, encode to literal wire text with bits 0000000000000000 and 8000000000000000, and decode from it to those bits",
             "a 42-operation batch based on revision 18446744073709551615 was encoded in one session (135899 bytes), decoded in the other with that session's IDs, and re-encoded to the same bytes",
-            "88 refused messages, of 17 kinds: {\"DuplicateField\", \"EmptyFormula\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+            "171 refused messages, of 17 kinds: {\"DuplicateField\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidFormula\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+            "FormulaText::new refused the empty text (Empty) and kept =A1 as given; the formulas [\"+A1\", \"-1\", \"A1=1\", \"=A1\", \"==\"] decoded as given; 7 refusal messages equal their literal text",
             "an unknown sheet was refused by the encoder (EncodeError::UnknownSheet) and an unknown key by the decoder (DecodeError::UnknownSheetKey) in each of 10 operations: {\"clear\", \"delete_columns\", \"delete_rows\", \"insert_columns\", \"insert_rows\", \"move\", \"remove\", \"rename\", \"set_cell\", \"set_visibility\"}",
             "a 31-unit sheet name was encoded, decoded in the other session and decoded from a literal message",
-            "the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID"
+            "the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID",
+            "after every batch of the case was decoded through them, both fixture roots still equal the same literal revision and sheets"
           ],
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.43s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50797/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 1.00s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:52197/`"
         },
         {
           "argv": [
@@ -859,7 +863,7 @@
           ],
           "browser": "firefox",
           "case": "cdoc_m0_1__op_roundtrip@firefox",
-          "duration_s": 6.379,
+          "duration_s": 13.061,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -884,6 +888,7 @@
           "log": "target/accept/cdoc-m0.1/wasm/cdoc_m0_1__op_roundtrip@firefox.log",
           "notes": [
             "the two sessions give keys 1, 2, 5 and 7 the IDs [(0, 0), (1, 0), (2, 0), (3, 0)] and [(6, 1), (5, 1), (4, 1), (3, 1)]",
+            "ModelRoot::revision and ModelRoot::sheets (with each SheetEntry's id, key, name and visibility) of both sessions' fixture roots equal literal values: revision 41, keys 1, 2, 5 and 7 named Sheet1, Data, Archive and Lookup, visible, visible, hidden and very hidden; so do a root at revision 0 with one hidden sheet and a root at revision 18446744073709551615 with none; a clone of a root holds the same sheets slice and sheet_by_key returns the root's own entry (the case holds roots through std::sync::Arc: 1 then 2 handles), and the two sessions' roots hold separate sheets",
             "cells_v1.json: 134625 bytes, 29 operations decoded through both sessions' roots and re-encoded byte for byte",
             "axes_v1.json: 654 bytes, 6 operations decoded through both sessions' roots and re-encoded byte for byte",
             "sheets_v1.json: 752 bytes, 7 operations decoded through both sessions' roots and re-encoded byte for byte",
@@ -891,25 +896,29 @@
             "every declared operation of every declared capability round-tripped on its own: [\"cells/set_cell\", \"cells/clear\", \"axes/insert_rows\", \"axes/delete_rows\", \"axes/insert_columns\", \"axes/delete_columns\", \"sheets/insert\", \"sheets/rename\", \"sheets/move\", \"sheets/remove\", \"sheets/set_visibility\"]",
             "42 fixture operations cover 35 features: every WorkbookOp variant, every CellInput kind, all 4 AxisEdit kinds, all 5 SheetEdit kinds, all 3 visibilities and all 14 worksheet error codes; envelopes [\"cells v1\", \"axes v1\", \"sheets v1\"]",
             "edges kept: -0.0 (sign negative), bits 0000000000000001 and 7fefffffffffffff, a 32767-unit text, a text ending in U+D83D, all 14 error codes, and a formula at XFD1048576",
+            "AxisEdit::last equals literal positions for the axes fixture's 6 edits as decoded and 6 edits built directly, inserts and deletes reaching row 1048576 and column 16384 among them; +0.0 and -0.0 are different FiniteNumbers and different inputs, encode to literal wire text with bits 0000000000000000 and 8000000000000000, and decode from it to those bits",
             "a 42-operation batch based on revision 18446744073709551615 was encoded in one session (135899 bytes), decoded in the other with that session's IDs, and re-encoded to the same bytes",
-            "88 refused messages, of 17 kinds: {\"DuplicateField\", \"EmptyFormula\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+            "171 refused messages, of 17 kinds: {\"DuplicateField\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidFormula\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+            "FormulaText::new refused the empty text (Empty) and kept =A1 as given; the formulas [\"+A1\", \"-1\", \"A1=1\", \"=A1\", \"==\"] decoded as given; 7 refusal messages equal their literal text",
             "an unknown sheet was refused by the encoder (EncodeError::UnknownSheet) and an unknown key by the decoder (DecodeError::UnknownSheetKey) in each of 10 operations: {\"clear\", \"delete_columns\", \"delete_rows\", \"insert_columns\", \"insert_rows\", \"move\", \"remove\", \"rename\", \"set_cell\", \"set_visibility\"}",
             "a 31-unit sheet name was encoded, decoded in the other session and decoded from a literal message",
-            "the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID"
+            "the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID",
+            "after every batch of the case was decoded through them, both fixture roots still equal the same literal revision and sheets"
           ],
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.58s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:65188/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 1.17s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59572/`"
         }
       ],
       "case": "cdoc_m0_1__op_roundtrip",
-      "duration_s": 10.293,
+      "duration_s": 20.112,
       "exit_code": 0,
       "log": null,
       "notes": [
         "the two sessions give keys 1, 2, 5 and 7 the IDs [(0, 0), (1, 0), (2, 0), (3, 0)] and [(6, 1), (5, 1), (4, 1), (3, 1)]",
+        "ModelRoot::revision and ModelRoot::sheets (with each SheetEntry's id, key, name and visibility) of both sessions' fixture roots equal literal values: revision 41, keys 1, 2, 5 and 7 named Sheet1, Data, Archive and Lookup, visible, visible, hidden and very hidden; so do a root at revision 0 with one hidden sheet and a root at revision 18446744073709551615 with none; a clone of a root holds the same sheets slice and sheet_by_key returns the root's own entry (the case holds roots through std::sync::Arc: 1 then 2 handles), and the two sessions' roots hold separate sheets",
         "cells_v1.json: 134625 bytes, 29 operations decoded through both sessions' roots and re-encoded byte for byte",
         "axes_v1.json: 654 bytes, 6 operations decoded through both sessions' roots and re-encoded byte for byte",
         "sheets_v1.json: 752 bytes, 7 operations decoded through both sessions' roots and re-encoded byte for byte",
@@ -917,12 +926,16 @@
         "every declared operation of every declared capability round-tripped on its own: [\"cells/set_cell\", \"cells/clear\", \"axes/insert_rows\", \"axes/delete_rows\", \"axes/insert_columns\", \"axes/delete_columns\", \"sheets/insert\", \"sheets/rename\", \"sheets/move\", \"sheets/remove\", \"sheets/set_visibility\"]",
         "42 fixture operations cover 35 features: every WorkbookOp variant, every CellInput kind, all 4 AxisEdit kinds, all 5 SheetEdit kinds, all 3 visibilities and all 14 worksheet error codes; envelopes [\"cells v1\", \"axes v1\", \"sheets v1\"]",
         "edges kept: -0.0 (sign negative), bits 0000000000000001 and 7fefffffffffffff, a 32767-unit text, a text ending in U+D83D, all 14 error codes, and a formula at XFD1048576",
+        "AxisEdit::last equals literal positions for the axes fixture's 6 edits as decoded and 6 edits built directly, inserts and deletes reaching row 1048576 and column 16384 among them; +0.0 and -0.0 are different FiniteNumbers and different inputs, encode to literal wire text with bits 0000000000000000 and 8000000000000000, and decode from it to those bits",
         "a 42-operation batch based on revision 18446744073709551615 was encoded in one session (135899 bytes), decoded in the other with that session's IDs, and re-encoded to the same bytes",
-        "88 refused messages, of 17 kinds: {\"DuplicateField\", \"EmptyFormula\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+        "171 refused messages, of 17 kinds: {\"DuplicateField\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidFormula\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+        "FormulaText::new refused the empty text (Empty) and kept =A1 as given; the formulas [\"+A1\", \"-1\", \"A1=1\", \"=A1\", \"==\"] decoded as given; 7 refusal messages equal their literal text",
         "an unknown sheet was refused by the encoder (EncodeError::UnknownSheet) and an unknown key by the decoder (DecodeError::UnknownSheetKey) in each of 10 operations: {\"clear\", \"delete_columns\", \"delete_rows\", \"insert_columns\", \"insert_rows\", \"move\", \"remove\", \"rename\", \"set_cell\", \"set_visibility\"}",
         "a 31-unit sheet name was encoded, decoded in the other session and decoded from a literal message",
         "the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID",
+        "after every batch of the case was decoded through them, both fixture roots still equal the same literal revision and sheets",
         "the two sessions give keys 1, 2, 5 and 7 the IDs [(0, 0), (1, 0), (2, 0), (3, 0)] and [(6, 1), (5, 1), (4, 1), (3, 1)]",
+        "ModelRoot::revision and ModelRoot::sheets (with each SheetEntry's id, key, name and visibility) of both sessions' fixture roots equal literal values: revision 41, keys 1, 2, 5 and 7 named Sheet1, Data, Archive and Lookup, visible, visible, hidden and very hidden; so do a root at revision 0 with one hidden sheet and a root at revision 18446744073709551615 with none; a clone of a root holds the same sheets slice and sheet_by_key returns the root's own entry (the case holds roots through std::sync::Arc: 1 then 2 handles), and the two sessions' roots hold separate sheets",
         "cells_v1.json: 134625 bytes, 29 operations decoded through both sessions' roots and re-encoded byte for byte",
         "axes_v1.json: 654 bytes, 6 operations decoded through both sessions' roots and re-encoded byte for byte",
         "sheets_v1.json: 752 bytes, 7 operations decoded through both sessions' roots and re-encoded byte for byte",
@@ -930,11 +943,14 @@
         "every declared operation of every declared capability round-tripped on its own: [\"cells/set_cell\", \"cells/clear\", \"axes/insert_rows\", \"axes/delete_rows\", \"axes/insert_columns\", \"axes/delete_columns\", \"sheets/insert\", \"sheets/rename\", \"sheets/move\", \"sheets/remove\", \"sheets/set_visibility\"]",
         "42 fixture operations cover 35 features: every WorkbookOp variant, every CellInput kind, all 4 AxisEdit kinds, all 5 SheetEdit kinds, all 3 visibilities and all 14 worksheet error codes; envelopes [\"cells v1\", \"axes v1\", \"sheets v1\"]",
         "edges kept: -0.0 (sign negative), bits 0000000000000001 and 7fefffffffffffff, a 32767-unit text, a text ending in U+D83D, all 14 error codes, and a formula at XFD1048576",
+        "AxisEdit::last equals literal positions for the axes fixture's 6 edits as decoded and 6 edits built directly, inserts and deletes reaching row 1048576 and column 16384 among them; +0.0 and -0.0 are different FiniteNumbers and different inputs, encode to literal wire text with bits 0000000000000000 and 8000000000000000, and decode from it to those bits",
         "a 42-operation batch based on revision 18446744073709551615 was encoded in one session (135899 bytes), decoded in the other with that session's IDs, and re-encoded to the same bytes",
-        "88 refused messages, of 17 kinds: {\"DuplicateField\", \"EmptyFormula\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+        "171 refused messages, of 17 kinds: {\"DuplicateField\", \"InvalidAxisEdit\", \"InvalidCell\", \"InvalidFormula\", \"InvalidSheetName\", \"InvertedArea\", \"Malformed\", \"MissingField\", \"NonFiniteNumber\", \"SheetKeyInUse\", \"TextTooLong\", \"UnknownCapability\", \"UnknownField\", \"UnknownFormat\", \"UnknownOperation\", \"UnknownSheetKey\", \"UnsupportedVersion\"}",
+        "FormulaText::new refused the empty text (Empty) and kept =A1 as given; the formulas [\"+A1\", \"-1\", \"A1=1\", \"=A1\", \"==\"] decoded as given; 7 refusal messages equal their literal text",
         "an unknown sheet was refused by the encoder (EncodeError::UnknownSheet) and an unknown key by the decoder (DecodeError::UnknownSheetKey) in each of 10 operations: {\"clear\", \"delete_columns\", \"delete_rows\", \"insert_columns\", \"insert_rows\", \"move\", \"remove\", \"rename\", \"set_cell\", \"set_visibility\"}",
         "a 31-unit sheet name was encoded, decoded in the other session and decoded from a literal message",
-        "the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID"
+        "the encoder refused a sheet outside the root and two in-use insert keys; the root refused a duplicate key and a duplicate ID",
+        "after every batch of the case was decoded through them, both fixture roots still equal the same literal revision and sheets"
       ],
       "outcome": "passed",
       "package": "calc-doc",
@@ -980,7 +996,7 @@
           ],
           "browser": "chromium",
           "case": "cdoc_m0_1__no_engine_dependency@chromium",
-          "duration_s": 3.063,
+          "duration_s": 5.209,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -1012,8 +1028,8 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.05s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53103/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.10s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:62951/`"
         },
         {
           "argv": [
@@ -1035,7 +1051,7 @@
           ],
           "browser": "firefox",
           "case": "cdoc_m0_1__no_engine_dependency@firefox",
-          "duration_s": 5.566,
+          "duration_s": 10.598,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1067,12 +1083,12 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.04s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:65208/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.05s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59594/`"
         }
       ],
       "case": "cdoc_m0_1__no_engine_dependency",
-      "duration_s": 8.629,
+      "duration_s": 15.807,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1114,13 +1130,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 0.503,
+      "duration_s": 1.371,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s"
       ],
       "log": "target/accept/cdoc-m0.1/wasm/command-1.log",
       "outcome": "passed",
@@ -1220,7 +1236,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 32.557,
+  "duration_s": 71.7,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1231,117 +1247,57 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "78175c8beded6ccde04cf3183170dbe3cffcfae2",
-          "path": ".beads/issues.jsonl",
+          "blob": "b20ffacb55bed2717c9bddd75126de0dace66fd7",
+          "path": "accept-receipts/cdoc-m0.1/windows.json",
           "status": "M"
         },
         {
-          "blob": "13faf02fab98a1f937afa46b5e04db5bec42753c",
-          "path": "Cargo.lock",
-          "status": "M"
-        },
-        {
-          "blob": "9da8e2ff8bf2f57071175e587babbcbd4759fa4c",
-          "path": "crates/calc-doc-model/Cargo.toml",
-          "status": "M"
-        },
-        {
-          "blob": "339175256ed1f90e5793e1ded6387cf406f01bbc",
+          "blob": "c635c714b671a2effd39383279be4ae1df517d59",
           "path": "crates/calc-doc-model/seams.json",
           "status": "M"
         },
         {
-          "blob": "b639787d2ac7f41aa166dea494a16d1928af1147",
+          "blob": "a2cc5759e3857c809ba53705a25a21daa3c59d25",
+          "path": "crates/calc-doc-model/src/input.rs",
+          "status": "M"
+        },
+        {
+          "blob": "469391bcd29cde03f44248652d01734797c93125",
           "path": "crates/calc-doc-model/src/lib.rs",
           "status": "M"
         },
         {
-          "blob": "b9b95306b273045f14e2894b84c1b3a4358c30ae",
+          "blob": "250b8b6cf78de2b6576889af7e9632c0537a8193",
+          "path": "crates/calc-doc-model/src/op.rs",
+          "status": "M"
+        },
+        {
+          "blob": "8ed2768f97bcd989683bfe1b79f9bb8beedbae29",
+          "path": "crates/calc-doc-model/src/sheet.rs",
+          "status": "M"
+        },
+        {
+          "blob": "9b5ff5e168083cee59822888574c53523e733d87",
+          "path": "crates/calc-doc-model/src/wire/mod.rs",
+          "status": "M"
+        },
+        {
+          "blob": "c8857d6cf07df2139763a05e1e4c29ea213befb2",
+          "path": "crates/calc-doc-model/src/wire/value.rs",
+          "status": "M"
+        },
+        {
+          "blob": "ed23bfbb8a42fdd3dc369120cf0234543ee1a23e",
           "path": "crates/calc-doc/Cargo.toml",
           "status": "M"
         },
         {
-          "blob": "ea673df65e89741be06436e62658696e89704324",
-          "path": "crates/calc-doc/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "83a05b265aef5e41de8d14fa8cda41555fde2e17",
-          "path": "crates/calc-doc/src/lib.rs",
-          "status": "M"
-        },
-        {
-          "blob": "1089b029e131b0d4a893b3cbca58a39ac19c8c8f",
-          "path": "accept-receipts/cdoc-m0.1/windows.json",
-          "status": "??"
-        },
-        {
-          "blob": "ca1abb443072cd17c42c31698927b4f30350d02d",
-          "path": "crates/calc-doc-model/src/input.rs",
-          "status": "??"
-        },
-        {
-          "blob": "8f2d270143b2e69f394070b5da1eb094b29062d3",
-          "path": "crates/calc-doc-model/src/op.rs",
-          "status": "??"
-        },
-        {
-          "blob": "95af29f1201c330eefeeb02f979c1dd3faf70023",
-          "path": "crates/calc-doc-model/src/revision.rs",
-          "status": "??"
-        },
-        {
-          "blob": "2b84f87182d602624272bdaa1fa5aa311c1d5241",
-          "path": "crates/calc-doc-model/src/root.rs",
-          "status": "??"
-        },
-        {
-          "blob": "17a28aa38d77bf76ded30d5d5c207e8844802d2d",
-          "path": "crates/calc-doc-model/src/sheet.rs",
-          "status": "??"
-        },
-        {
-          "blob": "53bf6bdee0faf41bac0c3671e532aa8a5eaf923d",
-          "path": "crates/calc-doc-model/src/wire/capability.rs",
-          "status": "??"
-        },
-        {
-          "blob": "0bfb402b61e59a491789989a58e3f7b4dede35e4",
-          "path": "crates/calc-doc-model/src/wire/json.rs",
-          "status": "??"
-        },
-        {
-          "blob": "a4f9b12e653359406e42e58aa1e31da48cb6f518",
-          "path": "crates/calc-doc-model/src/wire/mod.rs",
-          "status": "??"
-        },
-        {
-          "blob": "1cbfe95bd6ba650b419e21832303bf2f9d6220bb",
-          "path": "crates/calc-doc-model/src/wire/value.rs",
-          "status": "??"
-        },
-        {
-          "blob": "e31e97f459758151c8cbad45956a1b333b16cd90",
+          "blob": "50a13a3607921777a4d077be855d8d16326b9fb6",
           "path": "crates/calc-doc/tests/acceptance.rs",
-          "status": "??"
-        },
-        {
-          "blob": "18694c82990459df42221c481e9979b77dc9044a",
-          "path": "crates/calc-doc/tests/fixtures/axes_v1.json",
-          "status": "??"
-        },
-        {
-          "blob": "45ac3b0cace030c928864f6ae0fd38c42aa6bf89",
-          "path": "crates/calc-doc/tests/fixtures/cells_v1.json",
-          "status": "??"
-        },
-        {
-          "blob": "1db793c197d039b91a6743e243039fab8f11a04a",
-          "path": "crates/calc-doc/tests/fixtures/sheets_v1.json",
-          "status": "??"
+          "status": "M"
         }
       ],
-      "head": "738740d6ac42649bd2c90348a025054c59bcd2cb",
+      "head": "9789385a5f623d836ed131e85a876f2bd215a6d5",
       "receipt_paths_left_out": [
         "accept-receipts/cdoc-m0.1/wasm.json"
       ]
@@ -1381,5 +1337,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-16T22:01:29Z"
+  "started_utc": "2026-10-17T13:34:04Z"
 }

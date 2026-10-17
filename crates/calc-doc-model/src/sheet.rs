@@ -52,16 +52,19 @@ pub enum SheetNameError {
 impl fmt::Display for SheetNameError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SheetNameError::Empty => f.write_str("a sheet name is not empty"),
+            SheetNameError::Empty => f.write_str("the sheet name is empty"),
             SheetNameError::TooLong { units } => write!(
                 f,
                 "a sheet name has at most {SHEET_NAME_MAX_UTF16_CODE_UNITS} UTF-16 code units, not {units}"
             ),
             SheetNameError::ForbiddenCharacter { unit } => {
-                write!(f, "a sheet name does not contain U+{unit:04X}")
+                write!(
+                    f,
+                    "the sheet name contains U+{unit:04X}, which a sheet name may not contain"
+                )
             }
             SheetNameError::BoundaryApostrophe => {
-                f.write_str("a sheet name does not begin or end with an apostrophe")
+                f.write_str("the sheet name begins or ends with an apostrophe")
             }
         }
     }
