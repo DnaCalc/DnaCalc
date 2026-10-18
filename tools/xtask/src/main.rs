@@ -22,6 +22,13 @@
 //! pin-sources --lookup <Repo>/<path>` prints one pinned input, or why there is none, with an exit
 //! code per disposition (`pin.rs`).
 //!
+//! `cargo xtask evidence verify [--all | --sample N] [--seed S]` and `cargo xtask evidence restore
+//! <dir> [--sample N] [--seed S]` run the evidence repository's own `archive-evidence.py` over the
+//! backup of OxFunc's smart-fuzzer evidence, after printing how the checkout compares with the
+//! pinned commit, and exit with its exit code (`evidence.rs`); `cargo xtask evidence labels
+//! [--write]` recomputes the acquisition labels of `migration/evidence/oxfunc-smart-fuzzer.json`
+//! and prints how the record differs or writes them into it (`evidence_labels.rs`).
+//!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
 
@@ -35,6 +42,8 @@ mod arch;
 mod cargo;
 mod ci;
 mod ci_audit;
+mod evidence;
+mod evidence_labels;
 mod manifest;
 mod pin;
 mod pin_cite;
@@ -55,13 +64,15 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "pin-sources" => pin::run(rest),
         Some((command, rest)) if command == "ci" => ci::run(rest),
         Some((command, rest)) if command == "ci-audit" => ci_audit::run(rest),
+        Some((command, rest)) if command == "evidence" => evidence::run(rest),
         _ => {
             eprintln!(
-                "xtask: unknown or missing command {args:?}\n{}\n{}\n{}\n{}",
+                "xtask: unknown or missing command {args:?}\n{}\n{}\n{}\n{}\n{}",
                 accept::USAGE,
                 pin::USAGE,
                 ci::USAGE,
-                ci_audit::USAGE
+                ci_audit::USAGE,
+                evidence::USAGE
             );
             ExitCode::from(2)
         }

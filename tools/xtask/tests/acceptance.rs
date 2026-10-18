@@ -1939,3 +1939,32 @@ fn infra_m0_5__independent_witness() {
     let _serial = serial();
     infra_m0_5::independent_witness();
 }
+
+/// The bodies of the infra-m0.6 cases, which check the backup of OxFunc's smart-fuzzer evidence
+/// in OxFunc-Evidence against the local originals and the record
+/// `migration/evidence/oxfunc-smart-fuzzer.json`, and restore through the xtask binary.
+#[path = "acceptance/infra_m0_6.rs"]
+mod infra_m0_6;
+
+/// The evidence checkout is clean at the pinned commit, which is GitHub's master; the pinned tree
+/// holds one blob per manifest row at its gzip size; the local originals equal manifest.tsv plus
+/// excluded.tsv by path and size; and `cargo xtask evidence restore` of a random sample of at least
+/// 100 manifest paths, run from a legacy root that holds only a link to the evidence checkout and
+/// given no path to the originals, writes files byte-identical to the originals; see
+/// `acceptance/infra_m0_6.rs`.
+#[test]
+fn infra_m0_6__restore_roundtrip() {
+    let _serial = serial();
+    infra_m0_6::restore_roundtrip();
+}
+
+/// Legacy evidence without an Excel fingerprint is labelled unknown and certifies no Exact target,
+/// a known entry certifies only its own build, the path-only folders are derived from their names
+/// and `migration/numeric-provenance.json`, and the record's labels, unread metadata files,
+/// outside-rule entries and counts equal a recomputation from the inventory paths and the
+/// permitted top-level metadata fields of JSON files at any depth; see `acceptance/infra_m0_6.rs`.
+#[test]
+fn infra_m0_6__unknown_metadata() {
+    let _serial = serial();
+    infra_m0_6::unknown_metadata();
+}
