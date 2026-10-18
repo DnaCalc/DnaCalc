@@ -3,6 +3,7 @@ name = "dna-onecalc"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "The package for the DNA OneCalc application core: formulas without a calculation engine."
 
 [package.metadata.dnacalc]

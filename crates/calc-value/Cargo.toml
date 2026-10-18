@@ -3,6 +3,7 @@ name = "calc-value"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "The package for CalcFunc's lowest layer: the value types and service contracts that CalcFunc and the CalcDoc model are to share."
 
 [package.metadata.dnacalc]

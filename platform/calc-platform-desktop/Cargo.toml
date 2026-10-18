@@ -3,6 +3,7 @@ name = "calc-platform-desktop"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "The native-only package for the desktop platform adapter: native filesystem and operating-system services for the desktop application."
 
 [package.metadata.dnacalc]

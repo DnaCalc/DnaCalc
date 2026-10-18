@@ -1968,3 +1968,19 @@ fn infra_m0_6__unknown_metadata() {
     let _serial = serial();
     infra_m0_6::unknown_metadata();
 }
+
+/// The body of the dc-cyd7 case, which reads the workspace's license through cargo metadata and
+/// the LICENSE bytes.
+#[path = "acceptance/dc_cyd7.rs"]
+mod dc_cyd7;
+
+/// Every package of the workspace and of the browser fixture's workspace reports license MIT
+/// through `cargo metadata --no-deps`, every member inherits it, and LICENSE equals the legacy
+/// repositories' pinned MIT text with the holder line "Copyright (c) 2026 DNA Kode, Inc."; the same
+/// check fails a working-tree copy with one package's license removed, and `cargo xtask ci
+/// licenses` still passes. See `acceptance/dc_cyd7.rs`.
+#[test]
+fn dc_cyd7__workspace_license() {
+    let _serial = serial();
+    dc_cyd7::workspace_license();
+}

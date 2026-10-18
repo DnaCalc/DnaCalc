@@ -9,6 +9,7 @@ name = "dnacalc-ci-browser-fixture"
 version = "0.1.0"
 edition = "2024"
 publish = false
+license = "MIT"
 description = "The browser fixture that cargo xtask ci wasm runs in Chrome and Firefox: a probe that reports each browser's user agent, and a test that fails on purpose when a failure is injected."
 
 [workspace]

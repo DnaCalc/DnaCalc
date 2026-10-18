@@ -3,6 +3,7 @@ name = "calc-engine"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "The package for CalcEngine: the one dependency graph and the derived calculation state."
 
 [package.metadata.dnacalc]

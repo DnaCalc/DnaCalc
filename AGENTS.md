@@ -21,6 +21,8 @@ One Cargo workspace with one committed `Cargo.lock`:
 | `platform/` | `calc-platform-desktop`, `calc-oracle-excel` (native-only adapters) |
 | `tools/` | `xtask` (native-only repository tooling) |
 
+The workspace is MIT-licensed (`LICENSE`), and a new package inherits that license with `license.workspace = true` in its `[package]` table.
+
 Every package declares `[package.metadata.dnacalc] portability` as `"portable"` or `"native-only"`. Native-only packages refuse to compile for wasm32, and the wasm32 compile check (a compile check, not browser evidence) excludes exactly them:
 
 ```text

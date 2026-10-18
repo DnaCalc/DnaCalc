@@ -3,6 +3,7 @@ name = "calc-host"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "The package for CalcHost: the authoritative authored workbook state, transactions, commands and the skin contract."
 
 [package.metadata.dnacalc]

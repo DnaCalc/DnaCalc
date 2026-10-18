@@ -3,6 +3,7 @@ name = "calc-doc-model"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "The package for the CalcDoc model: the engine-neutral authored workbook model and input-view types."
 
 [package.metadata.dnacalc]
