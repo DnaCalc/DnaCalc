@@ -620,7 +620,7 @@
    "a call to RTD, WEBSERVICE (and so FILTERXML over it), IMAGE, STOCKHISTORY, CUBEKPIMEMBER, CUBEMEMBER, CUBEMEMBERPROPERTY, CUBERANKEDMEMBER, CUBESET, CUBESETCOUNT, CUBEVALUE, TRANSLATE, DETECTLANGUAGE, COPILOT, PY, IMPORTTEXT, IMPORTCSV, CALL, REGISTER.ID or SQL.REQUEST (the worker's $ExternalDataFunctions), matched without regard to case on the function name after any _xl prefix and outside string literals, in a cell formula of a worksheet, macro sheet or dialog sheet, in a conditional-formatting or data-validation formula of such a sheet (any element f, formula, formula1 or formula2), or in a defined name (tests/fixtures/worker/external-functions.xlsx)"
   ],
   "checked_after_excel_starts": [
-   "an add-in that is open or installed, a COM add-in that is connected, an add-in whose state cannot be read, and registered XLL functions: the capture is refused before the workbook is opened, and no add-in is switched off",
+   "an add-in that is open in the capture's Excel instance (one installed in the profile but not open is recorded only), a COM add-in that is connected, an add-in whose state cannot be read, and registered XLL functions: the capture is refused before the workbook is opened, and no add-in is switched off",
    "links to other workbooks: kept, opened with UpdateLinks 0, which never refreshes them, and recorded in the external_links setting",
    "an OLE or DDE link that Excel reports, and a data connection that Excel reports as refreshing on open or whose setting cannot be read: isolation failures that refuse the capture"
   ],

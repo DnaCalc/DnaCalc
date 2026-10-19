@@ -38,7 +38,7 @@
 //!   capture records it as an ordinary formula flagged as dynamic.
 //!
 //! The excel part needs an Excel profile with no loaded add-ins: the worker reads every add-in's
-//! state, switches none off, and refuses the capture, naming each, when one is open, installed or
+//! state, switches none off, and refuses the capture, naming each, when one is open in the instance or
 //! connected (or its state cannot be read). A refusal of this kind on the owner's run lists the
 //! add-ins to unload in Excel's add-in dialogs before running again. That refusal itself is
 //! exercised without Excel by the worker unit tests, with a stand-in Application.

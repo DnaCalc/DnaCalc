@@ -111,7 +111,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "6 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
+      "summary": "7 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
     },
     {
       "check": "os-imports",
@@ -119,10 +119,10 @@
         "build_script_files_scanned": 0,
         "files_scanned": {
           "calc-doc": 1,
-          "calc-doc-model": 10,
+          "calc-doc-model": 11,
           "calc-engine": 1,
           "calc-fml": 1,
-          "calc-func": 1,
+          "calc-func": 8,
           "calc-host": 1,
           "calc-value": 5,
           "calc-verdict": 11,
@@ -138,7 +138,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "33 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "41 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -236,7 +236,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 33,
+        "files_scanned": 41,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -249,7 +249,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "33 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "41 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
@@ -262,9 +262,9 @@
             "pub_traits": 0
           },
           "calc-doc-model": {
-            "entries": 51,
-            "entries_reach_unproven": 51,
-            "pub_enum_variants": 51,
+            "entries": 56,
+            "entries_reach_unproven": 56,
+            "pub_enum_variants": 56,
             "pub_traits": 0
           },
           "calc-engine": {
@@ -280,10 +280,10 @@
             "pub_traits": 0
           },
           "calc-func": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 18,
+            "entries_reach_unproven": 18,
+            "pub_enum_variants": 17,
+            "pub_traits": 1
           },
           "calc-host": {
             "entries": 0,
@@ -317,14 +317,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 137,
+          "entries_reach_unproven": 160,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 136 pub enum variants and 1 pub traits; their seams.json files list 137 entries, 137 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 158 pub enum variants and 2 pub traits; their seams.json files list 160 entries, 160 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -415,9 +415,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 34,
+          "commit_messages": 51,
           "files": 20,
-          "tracker_records": 315
+          "tracker_records": 318
         },
         "tracker": {
           "ceng-m7.1": {
@@ -468,7 +468,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 315 tracker records, 0 in 0 of 34 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 318 tracker records, 0 in 0 of 51 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -809,20 +809,20 @@
         "--nocapture"
       ],
       "case": "infra_m1_2__untrusted_workbook",
-      "duration_s": 32.709,
+      "duration_s": 34.09,
       "exit_code": 0,
       "log": "target/accept/infra-m1.2/windows/infra_m1_2__untrusted_workbook.log",
       "notes": [
-        "a hanging stand-in worker (PID 25924) timed out after 20.1s with a 20s timeout; its stand-in Excel (PID 37688, the PID it wrote itself, started through WMI outside the worker's process tree) and the worker are gone from Win32_Process, and the sentinel (PID 40488, the same image) still runs",
-        "a stand-in worker that exited at once left its stand-in Excel (PID 6412) running; the run terminated it after the grace period, Win32_Process no longer lists it, and the sentinel still runs",
-        "a stand-in Excel (PID 38660) has parent PID 28128 in Win32_Process, not its worker (PID 15260)",
-        "a stand-in worker that reported the sentinel's PID 40488 (running before the run started) was refused (the worker reported Excel PID 40488, a powershell.exe process that was already running before the capture started, so not one this capture started; it is not terminated); the sentinel still runs after the grace period",
+        "a hanging stand-in worker (PID 37592) timed out after 20.1s with a 20s timeout; its stand-in Excel (PID 7332, the PID it wrote itself, started through WMI outside the worker's process tree) and the worker are gone from Win32_Process, and the sentinel (PID 15968, the same image) still runs",
+        "a stand-in worker that exited at once left its stand-in Excel (PID 6408) running; the run terminated it after the grace period, Win32_Process no longer lists it, and the sentinel still runs",
+        "a stand-in Excel (PID 23392) has parent PID 28128 in Win32_Process, not its worker (PID 25496)",
+        "a stand-in worker that reported the sentinel's PID 15968 (running before the run started) was refused (the worker reported Excel PID 15968, a powershell.exe process that was already running before the capture started, so not one this capture started; it is not terminated); the sentinel still runs after the grace period",
         "the excel part (live captures of the untrusted fixtures: macros, the user-defined function and the external link) runs only on the owner's excel route; this run's route is Ok(\"windows\"), so only the isolation part ran and no Excel was started"
       ],
       "outcome": "passed",
       "package": "calc-oracle-excel",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.57s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 33.93s"
     },
     {
       "argv": [
@@ -841,7 +841,7 @@
         "--nocapture"
       ],
       "case": "infra_m1_2__capture_replays",
-      "duration_s": 0.15,
+      "duration_s": 0.221,
       "exit_code": 0,
       "log": "target/accept/infra-m1.2/windows/infra_m1_2__capture_replays.log",
       "notes": [],
@@ -870,7 +870,7 @@
         "calc-verdict",
         "--lib"
       ],
-      "duration_s": 1.866,
+      "duration_s": 8.984,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -897,13 +897,13 @@
         "calc-oracle-excel",
         "--lib"
       ],
-      "duration_s": 19.184,
+      "duration_s": 23.222,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.38s"
+        "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.52s"
       ],
       "log": "target/accept/infra-m1.2/windows/command-2.log",
       "outcome": "passed",
@@ -924,13 +924,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 5.325,
+      "duration_s": 22.485,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 116 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s"
+        "test result: ok. 116 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s"
       ],
       "log": "target/accept/infra-m1.2/windows/command-3.log",
       "outcome": "passed",
@@ -1048,7 +1048,7 @@
     "passed": 1,
     "selected": 2
   },
-  "duration_s": 69.351,
+  "duration_s": 108.444,
   "exit_code": 1,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1059,255 +1059,33 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "c9cd07e99954023e4a09bf3fd2ee1e018ea13161",
-          "path": ".beads/issues.jsonl",
+          "blob": "1ec34b81ff6a5e98389ef8e1b84b5f155e6f6072",
+          "path": "migration/ports/infra-m1.2.json",
           "status": "M"
         },
         {
-          "blob": "f8f9c4c6189484ef3492460335d9c75ad076091d",
-          "path": "AGENTS.md",
-          "status": "M"
-        },
-        {
-          "blob": "b8119ebe0c85f7423812734acb17a3396036660f",
-          "path": "Cargo.lock",
-          "status": "M"
-        },
-        {
-          "blob": "333f2464e4870294ba29ac61b4816fd778df61b0",
-          "path": "platform/calc-oracle-excel/Cargo.toml",
-          "status": "M"
-        },
-        {
-          "blob": "6ec5c9883f8093c140776d91281d3f14ac5fe8df",
-          "path": "platform/calc-oracle-excel/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "5b7824b1a62dfb25e2838472b35dce6c0548cec7",
+          "blob": "fdbafba00fdaf26bf432f3a7a8be6325a58c79a5",
           "path": "platform/calc-oracle-excel/src/lib.rs",
           "status": "M"
         },
         {
-          "blob": null,
-          "path": "platform/calc-oracle-excel/tests/.gitkeep",
-          "status": "D"
-        },
-        {
-          "blob": "523bcc95196fb7bcb6e0b25c1c3c74d8cdcc3e07",
-          "path": "tools/calc-verdict/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "2b4347a877a37f28212fe1f9667976f6c0bff822",
-          "path": "tools/calc-verdict/seams.json",
-          "status": "M"
-        },
-        {
-          "blob": "bbb7f3fd49cbce217385c40ffe3c406c24704bf6",
-          "path": "tools/calc-verdict/src/capture.rs",
-          "status": "M"
-        },
-        {
-          "blob": "9ea8c5e9ea4679521aea9da213d08578591d17e2",
-          "path": "tools/calc-verdict/src/json.rs",
-          "status": "M"
-        },
-        {
-          "blob": "0ff7e05529d3e0313658e390aa1e402b6fa8e663",
-          "path": "tools/calc-verdict/src/lib.rs",
-          "status": "M"
-        },
-        {
-          "blob": "3f863853cdeb601d8075410eb42eb0ae638927d8",
-          "path": "tools/calc-verdict/src/typed.rs",
-          "status": "M"
-        },
-        {
-          "blob": "91a9e9acaf21e78e6cf84a6200b6d96bf0ef6386",
-          "path": "tools/calc-verdict/src/verdict.rs",
-          "status": "M"
-        },
-        {
-          "blob": "c44b2fa429646032a304f750bf30df7de22b36d2",
-          "path": "tools/calc-verdict/tests/acceptance.rs",
-          "status": "M"
-        },
-        {
-          "blob": "7259db83650772fd25f49c71a2f8eb330c536486",
-          "path": "tools/xtask/Cargo.toml",
-          "status": "M"
-        },
-        {
-          "blob": "a1c13438ce43efab71187a5312b6fcfbddbe594b",
-          "path": "tools/xtask/src/accept.rs",
-          "status": "M"
-        },
-        {
-          "blob": "2c38e9c052b7ee323d0a8836ad3a5e4262883d24",
-          "path": "tools/xtask/src/main.rs",
-          "status": "M"
-        },
-        {
-          "blob": "90e8508aeab19ef59c5d5d9c7fc095620380a7c5",
-          "path": "tools/xtask/src/verdict.rs",
-          "status": "M"
-        },
-        {
-          "blob": "5850cd1f45736a6470b42aa5ec4875e66ef12346",
-          "path": "accept-receipts/infra-m1.2/wasm.json",
-          "status": "??"
-        },
-        {
-          "blob": "0dececc0df3586388edb015d19cbe4ae46f3ef46",
-          "path": "migration/ports/infra-m1.2.json",
-          "status": "??"
-        },
-        {
-          "blob": "836e250df54096a9220c986c6a729df196a8b8b9",
-          "path": "platform/calc-oracle-excel/seams.json",
-          "status": "??"
-        },
-        {
-          "blob": "50739dacdc5543ebdffe7171767abf7773802646",
-          "path": "platform/calc-oracle-excel/src/capture.rs",
-          "status": "??"
-        },
-        {
-          "blob": "1b6a845d77c6ec990acc1f7cb257a3f3168b229d",
-          "path": "platform/calc-oracle-excel/src/convert.rs",
-          "status": "??"
-        },
-        {
-          "blob": "08a4d78e67b73f0912d5d7a4bf8d014f7c81e0a1",
-          "path": "platform/calc-oracle-excel/src/isolation.rs",
-          "status": "??"
-        },
-        {
-          "blob": "2b3b35e5c9d56e1e9768564687ca738a73b67038",
+          "blob": "aadb2eb27f716a533e0fe4bdffed02376bdf42eb",
           "path": "platform/calc-oracle-excel/src/worker_tests.rs",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "bcaf6636e2dee86483eb9b8946d590705df6b213",
+          "blob": "78d907d9e50f82667ddbf268553efd5fe5a4c6d7",
           "path": "platform/calc-oracle-excel/tests/acceptance.rs",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "832b905cf7d7c6b419bbcd2030b7351a41efbe37",
-          "path": "platform/calc-oracle-excel/tests/fixtures/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "74289b392d44168c78bd60fd59a62894837a8632",
-          "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/link-target.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "eca650803ccff9951e9860530d1b822dc1793edd",
-          "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "9ae3752694942572fdf8eeddb56a28d60de84dd2",
-          "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/untrusted-link.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "fb8afac295b5332c0f0be32021fef66d9d49a23c",
-          "path": "platform/calc-oracle-excel/tests/fixtures/make-fixtures.ps1",
-          "status": "??"
-        },
-        {
-          "blob": "d9d69bdd63cc1aa5bf931f26545c04e71556d0d5",
-          "path": "platform/calc-oracle-excel/tests/fixtures/standin-worker.ps1",
-          "status": "??"
-        },
-        {
-          "blob": "a0547dd29286919348cea1d2432f3574ce44830b",
-          "path": "platform/calc-oracle-excel/tests/fixtures/worker/dynamic-array.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "b9c74ee6ebf8bfeb18dcbde9a3d224678c513dec",
-          "path": "platform/calc-oracle-excel/tests/fixtures/worker/external-content.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "1739e67846faddc2223924bacb223cc7a7c8e0ec",
-          "path": "platform/calc-oracle-excel/tests/fixtures/worker/external-functions.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "10dcf67ca176e816858e1f31240ff1176f17c305",
-          "path": "platform/calc-oracle-excel/tests/fixtures/worker/macro-sheet.xlsm",
-          "status": "??"
-        },
-        {
-          "blob": "c9638b56ae954d28c8dfa54198043fed69a43b14",
-          "path": "platform/calc-oracle-excel/tests/fixtures/worker/pivot-refresh.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "a9259be52a51a5ed34ad7140cad2c83be408d3da",
-          "path": "platform/calc-oracle-excel/tests/fixtures/worker/query-table-refresh.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "a00fa54367b93942cbacdfc2d7471dd1f69bb1c4",
-          "path": "platform/calc-oracle-excel/worker/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "6e771a00f27af5e6f8c7ade780fcd3ec776300e8",
+          "blob": "43649f2b83dd4760095e062aa30754cf62ba430b",
           "path": "platform/calc-oracle-excel/worker/capture-worker.ps1",
-          "status": "??"
-        },
-        {
-          "blob": "49578fed478ad9b8c791e7bad1614813d8429ec6",
-          "path": "tools/calc-verdict/src/capture_v2_tests.rs",
-          "status": "??"
-        },
-        {
-          "blob": "fcc971a324535e0e4267ae5fff0448a7d4a0961d",
-          "path": "tools/calc-verdict/src/replay.rs",
-          "status": "??"
-        },
-        {
-          "blob": "b750f9fa84368c0702eaf4fd4b49aa986d26da59",
-          "path": "tools/calc-verdict/src/session.rs",
-          "status": "??"
-        },
-        {
-          "blob": "82085a97658870d4af92323feaa9525333e58692",
-          "path": "tools/calc-verdict/src/sha256.rs",
-          "status": "??"
-        },
-        {
-          "blob": "0345f2bd9a50c8a0205a79b91876141ec1ee2415",
-          "path": "tools/calc-verdict/tests/captures/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "3734eb18cef30aa45ddf7a192faaf20bebd7b571",
-          "path": "tools/calc-verdict/tests/captures/infra_m1_2/replay.capture.json",
-          "status": "??"
-        },
-        {
-          "blob": "f76c12bc9c089c402aaa52db42bfbed73509e7a5",
-          "path": "tools/calc-verdict/tests/captures/infra_m1_2/replay.verdict.json",
-          "status": "??"
-        },
-        {
-          "blob": "bb2c2e4ef98fce0103a4e94667d7a26ec8ec1ce0",
-          "path": "tools/xtask/src/capture.rs",
-          "status": "??"
+          "status": "M"
         }
       ],
-      "head": "14b40ed6700d0d7f9533c26f0151b18e025b57a0",
-      "receipt_paths_left_out": [
-        "accept-receipts/infra-m1.2/windows.json"
-      ]
+      "head": "4ab6ab809c28f3728b0abebf3586070be990ac8d",
+      "receipt_paths_left_out": []
     },
     "legacy_root": {
       "exists": true,
@@ -1345,5 +1123,5 @@
   "require_all": true,
   "result": "not_run",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-19T14:23:08Z"
+  "started_utc": "2026-10-19T21:10:52Z"
 }

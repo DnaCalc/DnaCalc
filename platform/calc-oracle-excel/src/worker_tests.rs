@@ -574,13 +574,14 @@ fn a_refused_package_never_starts_excel() {
 /// An Excel with add-ins loaded is refused before the workbook is opened, nothing switched off:
 /// a stand-in Application reporting a connected COM add-in, a COM add-in whose Connect cannot be
 /// read, a real COM object (a closed ADODB.Recordset, which has neither ProgId nor Connect) in the
-/// COM add-in list, an installed add-in, and a DisplayAlerts that cannot be read back makes the
-/// worker report the stand-in's PID, refuse the capture with each named (and neither idle
-/// add-in), never call Workbooks.Open, and quit the stand-in. A read that fails, through
+/// COM add-in list, an add-in open in the instance, and a DisplayAlerts that cannot be read back
+/// makes the worker report the stand-in's PID, refuse the capture with each named (and neither the
+/// idle add-ins nor one installed in the profile but not open), never call Workbooks.Open, and
+/// quit the stand-in. A read that fails, through
 /// PowerShell's property read or through COM, never passes for a state that is off.
 #[test]
 fn an_excel_with_loaded_add_ins_is_refused_before_the_workbook_opens() {
-    let setup = "$recordset = Microsoft.PowerShell.Utility\\New-Object -ComObject ADODB.Recordset\n$global:StandinApplication = New-StandinApplication @((New-StandinComAddIn 'Contoso.Loaded' $true), (New-StandinComAddIn 'Contoso.Idle' $false), (New-StandinComAddIn 'Contoso.Broken' $null), $recordset) @((New-StandinAddIn 'C:\\AddIns\\Tool.xlam' $false $true), (New-StandinAddIn 'C:\\AddIns\\Idle.xlam' $false $false)) @('DisplayAlerts')";
+    let setup = "$recordset = Microsoft.PowerShell.Utility\\New-Object -ComObject ADODB.Recordset\n$global:StandinApplication = New-StandinApplication @((New-StandinComAddIn 'Contoso.Loaded' $true), (New-StandinComAddIn 'Contoso.Idle' $false), (New-StandinComAddIn 'Contoso.Broken' $null), $recordset) @((New-StandinAddIn 'C:\\AddIns\\Tool.xlam' $true $true), (New-StandinAddIn 'C:\\AddIns\\Installed.xll' $false $true), (New-StandinAddIn 'C:\\AddIns\\Idle.xlam' $false $false)) @('DisplayAlerts')";
     let (code, lines, result) = run_main_flow("add-ins", &fixture("infra_m1_2/replay.xlsx"), setup);
     assert_eq!(code, Some(1), "{lines:?}");
     assert!(
@@ -626,9 +627,10 @@ fn an_excel_with_loaded_add_ins_is_refused_before_the_workbook_opens() {
     );
     assert_eq!(
         isolation[4],
-        "add-in C:\\AddIns\\Tool.xlam is installed; the workbook was not opened"
+        "add-in C:\\AddIns\\Tool.xlam is open; the workbook was not opened"
     );
     assert!(!fatal.contains("Idle"), "{fatal}");
+    assert!(!fatal.contains("Installed.xll"), "{fatal}");
     assert_eq!(result["cells"], json!([]));
 }
 
@@ -637,7 +639,7 @@ fn an_excel_with_loaded_add_ins_is_refused_before_the_workbook_opens() {
 /// the stand-in does show an open when one happens.
 #[test]
 fn an_excel_without_loaded_add_ins_goes_on_to_open_the_workbook() {
-    let setup = "$global:StandinApplication = New-StandinApplication @((New-StandinComAddIn 'Contoso.Idle' $false)) @((New-StandinAddIn 'C:\\AddIns\\Idle.xlam' $false $false))";
+    let setup = "$global:StandinApplication = New-StandinApplication @((New-StandinComAddIn 'Contoso.Idle' $false)) @((New-StandinAddIn 'C:\\AddIns\\Idle.xlam' $false $false), (New-StandinAddIn 'C:\\AddIns\\Installed.xll' $false $true))";
     let (code, lines, result) =
         run_main_flow("no-add-ins", &fixture("infra_m1_2/replay.xlsx"), setup);
     assert_eq!(code, Some(1), "{lines:?}");

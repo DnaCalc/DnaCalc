@@ -21,7 +21,7 @@
 //!   capture before the workbook is opened.
 //! - Add-ins: after Excel starts, the worker reads every add-in's state (AddIns2: IsOpen and
 //!   Installed; COMAddIns: Connect) and whether XLL functions are registered, and switches none
-//!   off. One that is open, installed or connected, one whose state cannot be read, and registered
+//!   off. One that is open in the capture's instance or connected, one whose state cannot be read, and registered
 //!   XLL functions refuse the capture as isolation failures that name each, and Excel quits
 //!   without the workbook having been opened. A capture therefore needs an Excel profile with no
 //!   loaded add-ins.

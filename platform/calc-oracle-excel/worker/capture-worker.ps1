@@ -27,10 +27,11 @@
 #   4. sets the session settings above (DisplayAlerts, ScreenUpdating, EnableEvents and Interactive
 #      off, AutomationSecurity 3, force-disable macros), each read back, and reads the state of
 #      every add-in (AddIns2: IsOpen and Installed; COMAddIns: Connect) and whether XLL functions
-#      are registered. A setting that does not read back as set, an add-in that is open, installed
-#      or connected, an add-in whose state cannot be read and registered XLL functions refuse the
-#      capture as isolation failures, each named, and Excel quits without the workbook having been
-#      opened. Nothing is switched off: a capture needs an Excel profile with no loaded add-ins;
+#      are registered. A setting that does not read back as set, an add-in that is open in this
+#      instance, a COM add-in that is connected, an add-in whose state cannot be read and
+#      registered XLL functions refuse the capture as isolation failures, each named, and Excel
+#      quits without the workbook having been opened. An add-in that is installed in the profile
+#      but not open in this instance is recorded and does not refuse it. Nothing is switched off;
 #   5. opens the input read-only with UpdateLinks 0, sets the calculation policy of the request,
 #      forces a full rebuild, and reads each inventory cell's formula (Formula2 only) and raw
 #      Value2 (numbers as their binary64 bits), the environment and settings, the workbook's links
@@ -590,7 +591,8 @@ function Read-Value($Cell) {
 }
 
 # The add-ins of an Excel instance, read and never changed: in loaded, each COM add-in that is
-# connected, each add-in that is open or installed, each add-in or list whose state cannot be read,
+# connected, each add-in that is open in this instance (one installed in the profile but not open
+# is recorded only), each add-in or list whose state cannot be read,
 # and registered XLL functions, every one named (by its full name, for the owner to find); in
 # states, the state read of every add-in, named by its file name only, since the states go into
 # the capture record and a full name can hold the user's profile path.
@@ -634,12 +636,7 @@ function Get-AddInStates($Application) {
                 $open = Get-Flag $addIn 'IsOpen'
                 $installed = Get-Flag $addIn 'Installed'
                 [void]$states.Add("$shown open=" + ([string]$open).ToLowerInvariant() + ' installed=' + ([string]$installed).ToLowerInvariant())
-                if ($open -or $installed) {
-                    $how = @()
-                    if ($open) { $how += 'open' }
-                    if ($installed) { $how += 'installed' }
-                    [void]$loaded.Add("$label is " + ($how -join ' and '))
-                }
+                if ($open) { [void]$loaded.Add("$label is open") }
             } catch {
                 [void]$loaded.Add("the state of $label cannot be read: $($_.Exception.Message)")
             }
