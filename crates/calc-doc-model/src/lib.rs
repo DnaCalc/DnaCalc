@@ -5,8 +5,15 @@
 //! - Revisions: an [`AuthoredRevision`] counts committed authored changes, with a checked next.
 //! - Model roots: a [`ModelRoot`] is one immutable, `Arc`-shared authored revision of a
 //!   document's sheets, each a [`SheetEntry`] with its session [`calc_value::SheetId`], its
-//!   document-stable [`SheetKey`], its [`SheetName`] and its [`SheetVisibility`]. It holds no cell
-//!   storage yet.
+//!   document-stable [`SheetKey`], its [`SheetName`] and its [`SheetVisibility`], and of each
+//!   sheet's authored cell inputs.
+//! - Cell pages: a sheet's cells live in immutable, `Arc`-shared [`CellPage`]s, one for each
+//!   block of [`PAGE_ROWS`] rows by [`PAGE_COLUMNS`] columns that holds an occupied cell. Reads
+//!   borrow from the pages: [`ModelRoot::cell`] for one cell, and [`ModelRoot::cells`] and
+//!   [`ModelRoot::sheet_cells`] for the occupied cells of a rectangle or a sheet in row-major order
+//!   ([`OccupiedCells`]). [`ModelRoot::apply`] applies a batch's cell operations and makes a new
+//!   root that shares every page the batch did not change with the old one by pointer; it refuses
+//!   a batch it cannot apply ([`ApplyError`]).
 //! - Operations: a [`WorkbookOp`] sets one cell's [`CellInput`], clears an area, or applies a
 //!   structural-edit descriptor ([`AxisEdit`] for rows and columns, [`SheetEdit`] for sheets). An
 //!   [`OpBatch`] carries one command's operations against a base revision. An operation holds no
@@ -24,6 +31,7 @@
 //! [`value`] re-exports calc-value, whose grid coordinates, sheet IDs, text and worksheet error
 //! codes these types hold.
 
+mod cells;
 mod input;
 mod op;
 mod revision;
@@ -32,10 +40,11 @@ mod sheet;
 mod wire;
 
 pub use calc_value as value;
+pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use op::{Axis, AxisChange, AxisEdit, AxisEditError, OpBatch, SheetEdit, WorkbookOp};
 pub use revision::AuthoredRevision;
-pub use root::{ModelRoot, ModelRootError, SheetEntry};
+pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};
 pub use sheet::{
     SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetName, SheetNameError, SheetVisibility,
 };

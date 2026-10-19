@@ -18,6 +18,21 @@
         "cdoc_m0_1__op_roundtrip": ["windows", "linux", "wasm"],
         "cdoc_m0_1__no_engine_dependency": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-73yy",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "xtask", "accept", "--id", "dc-73yy", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-73yy", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-73yy", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_73yy__page_sharing"
+      ],
+      "platforms": {
+        "dc_73yy__page_sharing": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

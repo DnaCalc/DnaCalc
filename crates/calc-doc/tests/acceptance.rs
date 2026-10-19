@@ -20,14 +20,14 @@ use calc_doc::model::value::{
     WorksheetErrorCode,
 };
 use calc_doc::model::{
-    AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError, BATCH_FORMAT, BATCH_VERSION,
-    CellInput, CellText, DecodeError, EncodeError, FiniteNumber, FormulaText, FormulaTextError,
-    ModelRoot, ModelRootError, OpBatch, SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetEdit, SheetEntry,
-    SheetKey, SheetName, SheetNameError, SheetVisibility, WorkbookOp, decode_batch, encode_batch,
-    op_capabilities,
+    ApplyError, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError, BATCH_FORMAT,
+    BATCH_VERSION, CellInput, CellPage, CellText, DecodeError, EncodeError, FiniteNumber,
+    FormulaText, FormulaTextError, ModelRoot, ModelRootError, OpBatch, PAGE_COLUMNS, PAGE_ROWS,
+    SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetEdit, SheetEntry, SheetKey, SheetName, SheetNameError,
+    SheetVisibility, WorkbookOp, decode_batch, encode_batch, op_capabilities,
 };
 use serde_json::{Value, json};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
@@ -3148,5 +3148,424 @@ fn cdoc_m0_1__no_engine_dependency() {
     note!(
         "ACCEPT-NOTE: {CASE}: cells_v1.json decoded to {formulas} formulas and {literals} literals, each the kind its JSON member names; text \"=SUM(A1:A3)\" and \"=1+1\" stay text; the encoder wrote each of 5 input kinds as one member {:?}",
         members
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case dc_73yy__page_sharing.
+
+/// Applies `operations` to `root` through the route a host uses: the batch is encoded against
+/// `root`, decoded against it again, checked equal to the batch built here, and the decoded batch
+/// is applied.
+fn through_route(root: &Arc<ModelRoot>, operations: Vec<WorkbookOp>) -> Arc<ModelRoot> {
+    let batch = OpBatch {
+        base: root.revision(),
+        operations,
+    };
+    let bytes = encode_batch(&batch, root).expect("an encodable batch");
+    let decoded = decode_batch(&bytes, root).expect("a decodable batch");
+    assert_eq!(decoded, batch, "the batch survives the wire");
+    root.apply(&decoded).expect("an applicable batch")
+}
+
+/// The occupied cells of `area` as (row, column, input), in the order the borrowed read returns
+/// them.
+fn read_area(root: &ModelRoot, area: GridArea) -> Vec<(u32, u32, CellInput)> {
+    root.cells(area)
+        .expect("a sheet of the root")
+        .map(|(at, input)| {
+            assert_eq!(at.sheet(), area.sheet(), "a read stays on its sheet");
+            (at.row(), at.column(), input.clone())
+        })
+        .collect()
+}
+
+/// Every page of every sheet of `root`, by (sheet, first row, first column).
+fn page_map(root: &ModelRoot) -> BTreeMap<(SheetId, u32, u32), &Arc<CellPage>> {
+    let mut pages = BTreeMap::new();
+    for sheet in root.sheets() {
+        for page in root.pages(sheet.id()).expect("a sheet of the root") {
+            let previous = pages.insert((sheet.id(), page.first_row(), page.first_column()), page);
+            assert!(previous.is_none(), "one page per block");
+        }
+    }
+    pages
+}
+
+/// Each page's block, as (sheet, first row, first column, last row, last column, cells), with
+/// every cell of the page inside its block.
+fn page_blocks(root: &ModelRoot) -> Vec<(SheetId, u32, u32, u32, u32, usize)> {
+    page_map(root)
+        .into_iter()
+        .map(|((sheet, _, _), page)| {
+            for (row, column, _) in page.iter() {
+                assert!(
+                    (page.first_row()..=page.last_row()).contains(&row)
+                        && (page.first_column()..=page.last_column()).contains(&column),
+                    "a page's cell lies in its block"
+                );
+            }
+            (
+                sheet,
+                page.first_row(),
+                page.first_column(),
+                page.last_row(),
+                page.last_column(),
+                page.cell_count(),
+            )
+        })
+        .collect()
+}
+
+/// Asserts that every page of `old` and `new` is the same allocation, except the pages of the
+/// blocks in `changed`, which must be new allocations or absent from `new`. Returns the number of
+/// shared pages.
+fn check_sharing(
+    label: &str,
+    old: &ModelRoot,
+    new: &ModelRoot,
+    changed: &[(SheetId, u32, u32)],
+) -> usize {
+    let (old_pages, new_pages) = (page_map(old), page_map(new));
+    let mut shared = 0;
+    for (block, old_page) in &old_pages {
+        let new_page = new_pages.get(block);
+        if changed.contains(block) {
+            if let Some(new_page) = new_page {
+                assert!(
+                    !Arc::ptr_eq(old_page, new_page),
+                    "{label}: the changed page at {block:?} is a new allocation"
+                );
+            }
+        } else {
+            let new_page = new_page.unwrap_or_else(|| panic!("{label}: page {block:?} kept"));
+            assert!(
+                Arc::ptr_eq(old_page, new_page),
+                "{label}: the untouched page at {block:?} is the old root's allocation"
+            );
+            shared += 1;
+        }
+    }
+    for block in new_pages.keys() {
+        assert!(
+            old_pages.contains_key(block) || changed.contains(block),
+            "{label}: no page appears at {block:?} unless the batch changed it"
+        );
+    }
+    shared
+}
+
+/// A one-cell change through the operation route makes a root that shares every untouched page
+/// with the old root by pointer and holds a new page for the changed block; both roots' borrowed
+/// reads return the expected inputs. The batches are built here, sent through the wire codec and
+/// applied with `ModelRoot::apply`; every expectation is a literal written here.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_73yy__page_sharing() {
+    const CASE: &str = "dc_73yy__page_sharing";
+    assert_eq!((PAGE_ROWS, PAGE_COLUMNS), (256, 16), "the page block");
+    let s = session(0);
+    let (sheet1, data) = (s.sheet1, s.data);
+    let r2_formula = formula("Q1*2");
+
+    // Cells in five blocks of Sheet1 and two of Data. A1 is set twice, C3 and C600 are cleared
+    // (C600's block then holds nothing), and C4 is set after the clear that covers it.
+    let populated = through_route(
+        &s.root,
+        vec![
+            set(sheet1, 1, 1, number(0.0)),
+            set(sheet1, 2, 2, text(units("b2"))),
+            set(sheet1, 3, 3, number(33.0)),
+            set(sheet1, 256, 16, CellInput::Logical(true)),
+            set(sheet1, 1, 17, number(17.0)),
+            set(sheet1, 2, 18, r2_formula.clone()),
+            set(sheet1, 257, 1, number(257.0)),
+            set(sheet1, 300, 20, CellInput::Error(WorksheetErrorCode::Div0)),
+            set(sheet1, 600, 3, number(600.0)),
+            set(sheet1, MAX_ROWS, MAX_COLUMNS, text(units("end"))),
+            set(data, 1, 1, number(-1.0)),
+            set(data, 5000, 100, formula("A1")),
+            set(sheet1, 1, 1, number(1.0)),
+            WorkbookOp::Clear {
+                area: GridArea::new(cell(sheet1, 3, 3), cell(sheet1, 600, 3)).expect("one sheet"),
+            },
+            set(sheet1, 4, 3, number(4.0)),
+        ],
+    );
+    assert_eq!(
+        populated.revision(),
+        AuthoredRevision::new(FIXTURE_BASE + 1)
+    );
+    assert_eq!(
+        page_blocks(&populated),
+        vec![
+            (sheet1, 1, 1, 256, 16, 4),
+            (sheet1, 1, 17, 256, 32, 2),
+            (sheet1, 257, 1, 512, 16, 1),
+            (sheet1, 257, 17, 512, 32, 1),
+            (sheet1, 1_048_321, 16_369, 1_048_576, 16_384, 1),
+            (data, 1, 1, 256, 16, 1),
+            (data, 4865, 97, 5120, 112, 1),
+        ],
+        "the populated root's pages: one per occupied block of 256 rows by 16 columns"
+    );
+    assert!(populated.page_of(cell(sheet1, 600, 3)).is_none());
+    let sheet1_before = vec![
+        (1, 1, number(1.0)),
+        (1, 17, number(17.0)),
+        (2, 2, text(units("b2"))),
+        (2, 18, r2_formula.clone()),
+        (4, 3, number(4.0)),
+        (256, 16, CellInput::Logical(true)),
+        (257, 1, number(257.0)),
+        (300, 20, CellInput::Error(WorksheetErrorCode::Div0)),
+        (MAX_ROWS, MAX_COLUMNS, text(units("end"))),
+    ];
+    assert_eq!(
+        read_area(&populated, GridArea::full_sheet(sheet1)),
+        sheet1_before,
+        "Sheet1's occupied cells in row-major order"
+    );
+    assert_eq!(
+        read_area(&populated, GridArea::full_sheet(data)),
+        vec![(1, 1, number(-1.0)), (5000, 100, formula("A1"))]
+    );
+
+    // The one-cell change: R2, in the block of rows 1 to 256 and columns Q to AF.
+    let changed = through_route(&populated, vec![set(sheet1, 2, 18, number(36.0))]);
+    assert_eq!(changed.revision(), AuthoredRevision::new(FIXTURE_BASE + 2));
+    let r2_block = (sheet1, 1, 17);
+    let shared = check_sharing("one-cell change", &populated, &changed, &[r2_block]);
+    assert_eq!(shared, 6, "six of the seven pages are shared");
+    let (old_page, new_page) = (
+        populated.page_of(cell(sheet1, 2, 18)).expect("R2's page"),
+        changed.page_of(cell(sheet1, 2, 18)).expect("R2's page"),
+    );
+    assert!(!Arc::ptr_eq(old_page, new_page), "the changed page is new");
+    assert_eq!(
+        page_blocks(&changed),
+        page_blocks(&populated),
+        "the change keeps every block and its cell count"
+    );
+    assert_eq!(old_page.get(2, 18), Some(&r2_formula));
+    assert_eq!(new_page.get(2, 18), Some(&number(36.0)));
+    assert_eq!(old_page.get(1, 17), new_page.get(1, 17));
+
+    // Borrowed reads of both roots.
+    let mut sheet1_after = sheet1_before.clone();
+    sheet1_after[3] = (2, 18, number(36.0));
+    assert_eq!(
+        read_area(&populated, GridArea::full_sheet(sheet1)),
+        sheet1_before,
+        "the old root still reads its own inputs"
+    );
+    assert_eq!(
+        read_area(&changed, GridArea::full_sheet(sheet1)),
+        sheet1_after,
+        "the new root reads the change"
+    );
+    let mut same_address = 0;
+    for (row, column, expected) in &sheet1_before {
+        let at = cell(sheet1, *row, *column);
+        let old = populated.cell(at).expect("an occupied cell");
+        let new = changed.cell(at).expect("an occupied cell");
+        assert_eq!(old, expected, "the old root's {at:?}");
+        if (*row, *column) == (2, 18) {
+            assert_eq!(new, &number(36.0));
+        } else {
+            assert_eq!(new, expected, "the new root's {at:?}");
+            if populated
+                .page_of(at)
+                .map(|page| (page.first_row(), page.first_column()))
+                != Some((1, 17))
+            {
+                assert!(
+                    std::ptr::eq(old, new),
+                    "{at:?} on an untouched page is read from the same allocation"
+                );
+                same_address += 1;
+            }
+        }
+        let page = changed.page_of(at).expect("the cell's page");
+        assert!(
+            std::ptr::eq(
+                changed.cell(at).expect("a cell"),
+                page.get(*row, *column).expect("a cell")
+            ),
+            "ModelRoot::cell borrows from the page"
+        );
+    }
+    assert_eq!(same_address, 7);
+    for (row, column) in [(3, 3), (600, 3), (2, 1), (MAX_ROWS, 1)] {
+        assert_eq!(
+            changed.cell(cell(sheet1, row, column)),
+            None,
+            "an empty cell"
+        );
+    }
+    assert_eq!(
+        changed.cell(cell(s.archive, 1, 1)),
+        None,
+        "a sheet without cells"
+    );
+    assert_eq!(
+        changed.cell(cell(s.stranger, 1, 1)),
+        None,
+        "a sheet the root lacks"
+    );
+    assert!(changed.cells(GridArea::full_sheet(s.stranger)).is_none());
+    assert!(changed.sheet_cells(s.stranger).is_none());
+    assert!(changed.pages(s.stranger).is_none());
+    assert_eq!(changed.sheet_cells(s.archive).expect("Archive").count(), 0);
+
+    // Rectangles: row-major across the pages of one page row, and clipped to the rectangle.
+    let rectangles = [
+        (
+            (1, 1, 300, 20),
+            vec![
+                (1, 1, number(1.0)),
+                (1, 17, number(17.0)),
+                (2, 2, text(units("b2"))),
+                (2, 18, number(36.0)),
+                (4, 3, number(4.0)),
+                (256, 16, CellInput::Logical(true)),
+                (257, 1, number(257.0)),
+                (300, 20, CellInput::Error(WorksheetErrorCode::Div0)),
+            ],
+        ),
+        (
+            (1, 2, 2, 17),
+            vec![(1, 17, number(17.0)), (2, 2, text(units("b2")))],
+        ),
+        ((3, 3, 600, 3), vec![(4, 3, number(4.0))]),
+        ((5, 1, 255, MAX_COLUMNS), Vec::new()),
+        (
+            (256, 16, MAX_ROWS, MAX_COLUMNS),
+            vec![
+                (256, 16, CellInput::Logical(true)),
+                (300, 20, CellInput::Error(WorksheetErrorCode::Div0)),
+                (MAX_ROWS, MAX_COLUMNS, text(units("end"))),
+            ],
+        ),
+    ];
+    for ((top, left, bottom, right), expected) in &rectangles {
+        let area = GridArea::new(cell(sheet1, *top, *left), cell(sheet1, *bottom, *right))
+            .expect("one sheet");
+        assert_eq!(
+            &read_area(&changed, area),
+            expected,
+            "the occupied cells of rows {top} to {bottom}, columns {left} to {right}"
+        );
+    }
+    assert_eq!(
+        read_area(
+            &changed,
+            GridArea::new(cell(data, 4865, 97), cell(data, 5120, 112)).expect("one sheet")
+        ),
+        vec![(5000, 100, formula("A1"))]
+    );
+
+    // Setting a cell to the input it holds changes no page; clearing a block's only cell
+    // removes its page and shares the rest.
+    let unchanged = through_route(&changed, vec![set(sheet1, 2, 18, number(36.0))]);
+    assert_eq!(
+        unchanged.revision(),
+        AuthoredRevision::new(FIXTURE_BASE + 3)
+    );
+    assert_eq!(check_sharing("same input", &changed, &unchanged, &[]), 7);
+    let t300_block = (sheet1, 257, 17);
+    let cleared = through_route(
+        &changed,
+        vec![WorkbookOp::Clear {
+            area: GridArea::new(cell(sheet1, 290, 17), cell(sheet1, 310, 32)).expect("one sheet"),
+        }],
+    );
+    assert_eq!(check_sharing("clear", &changed, &cleared, &[t300_block]), 6);
+    assert!(cleared.page_of(cell(sheet1, 300, 20)).is_none());
+    assert_eq!(page_map(&cleared).len(), 6);
+    assert_eq!(
+        changed.cell(cell(sheet1, 300, 20)),
+        Some(&CellInput::Error(WorksheetErrorCode::Div0)),
+        "the root the clear was applied to keeps T300"
+    );
+
+    // What the route refuses: nothing is made, and the root reads as before.
+    let refusals = [
+        (
+            OpBatch {
+                base: populated.revision(),
+                operations: vec![set(sheet1, 1, 1, number(2.0))],
+            },
+            ApplyError::StaleBase {
+                batch: populated.revision(),
+                root: changed.revision(),
+            },
+        ),
+        (
+            OpBatch {
+                base: changed.revision(),
+                operations: vec![
+                    set(sheet1, 1, 1, number(2.0)),
+                    set(s.stranger, 1, 1, number(2.0)),
+                ],
+            },
+            ApplyError::UnknownSheet {
+                operation: 1,
+                sheet: s.stranger,
+            },
+        ),
+        (
+            OpBatch {
+                base: changed.revision(),
+                operations: vec![
+                    WorkbookOp::Clear {
+                        area: GridArea::full_sheet(sheet1),
+                    },
+                    axis(sheet1, Axis::Rows, AxisChange::Insert, 1, 1),
+                ],
+            },
+            ApplyError::AxisEdit { operation: 1 },
+        ),
+        (
+            OpBatch {
+                base: changed.revision(),
+                operations: vec![WorkbookOp::EditSheet(SheetEdit::SetVisibility {
+                    sheet: sheet1,
+                    visibility: SheetVisibility::Hidden,
+                })],
+            },
+            ApplyError::SheetEdit { operation: 0 },
+        ),
+    ];
+    for (batch, expected) in &refusals {
+        assert_eq!(changed.apply(batch).err(), Some(*expected));
+    }
+    assert_eq!(changed.revision(), AuthoredRevision::new(FIXTURE_BASE + 2));
+    assert_eq!(
+        read_area(&changed, GridArea::full_sheet(sheet1)),
+        sheet1_after,
+        "a refused batch leaves the root's cells as they were"
+    );
+    let last = ModelRoot::new(
+        AuthoredRevision::new(u64::MAX),
+        vec![SheetEntry::new(
+            sheet1,
+            SheetKey::new(1),
+            name("Sheet1"),
+            SheetVisibility::Visible,
+        )],
+    )
+    .expect("one sheet");
+    assert_eq!(
+        last.apply(&OpBatch {
+            base: AuthoredRevision::new(u64::MAX),
+            operations: vec![set(sheet1, 1, 1, number(1.0))],
+        })
+        .err(),
+        Some(ApplyError::RevisionExhausted)
+    );
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: a one-cell change (R2) through encode, decode and ModelRoot::apply kept {shared} of 7 pages pointer-identical and made 1 new page; {same_address} cells on untouched pages read from the same address in both roots; 5 rectangle reads returned literal row-major lists"
     );
 }
