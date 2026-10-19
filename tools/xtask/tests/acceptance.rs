@@ -35,7 +35,7 @@ const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
 /// The workspace has exactly these members, each at exactly this directory; a missing, moved or
 /// extra member fails the build case.
-const EXPECTED_PACKAGES: [(&str, &str); 12] = [
+const EXPECTED_PACKAGES: [(&str, &str); 13] = [
     ("calc-value", "crates/calc-value"),
     ("calc-func", "crates/calc-func"),
     ("calc-fml", "crates/calc-fml"),
@@ -47,6 +47,7 @@ const EXPECTED_PACKAGES: [(&str, &str); 12] = [
     ("dna-calc", "apps/dna-calc"),
     ("calc-platform-desktop", "platform/calc-platform-desktop"),
     ("calc-oracle-excel", "platform/calc-oracle-excel"),
+    ("calc-verdict", "tools/calc-verdict"),
     ("xtask", "tools/xtask"),
 ];
 

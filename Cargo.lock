@@ -82,6 +82,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc-verdict"
+version = "0.1.0"
+dependencies = [
+ "calc-value",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -466,6 +477,7 @@ dependencies = [
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "calc-verdict",
  "proc-macro2",
  "quote",
  "serde_json",

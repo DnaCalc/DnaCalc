@@ -19,7 +19,7 @@ One Cargo workspace with one committed `Cargo.lock`:
 | `crates/` | `calc-value`, `calc-func` (CalcFunc); `calc-fml` (CalcFml); `calc-doc-model`, `calc-doc` (CalcDoc); `calc-engine` (CalcEngine); `calc-host` (CalcHost) |
 | `apps/` | `dna-onecalc`, `dna-calc` |
 | `platform/` | `calc-platform-desktop`, `calc-oracle-excel` (native-only adapters) |
-| `tools/` | `xtask` (native-only repository tooling) |
+| `tools/` | `calc-verdict` (the portable verdict library: CaptureRecord, result set, evaluation record and CellVerdict report); `xtask` (native-only repository tooling) |
 
 The workspace is MIT-licensed (`LICENSE`), and a new package inherits that license with `license.workspace = true` in its `[package]` table.
 

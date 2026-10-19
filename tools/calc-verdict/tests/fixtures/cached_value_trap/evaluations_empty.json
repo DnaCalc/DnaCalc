@@ -1,0 +1,7 @@
+{
+  "format": "dnacalc-evaluation-record",
+  "version": 1,
+  "case": "infra_m1_1__cached_value_trap",
+  "source": "fixture:cached-value-trap/workbook",
+  "evaluations": []
+}

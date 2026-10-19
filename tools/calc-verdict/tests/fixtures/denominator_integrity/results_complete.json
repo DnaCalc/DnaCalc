@@ -1,0 +1,17 @@
+{
+  "format": "dnacalc-result-set",
+  "version": 1,
+  "case": "infra_m1_1__denominator_integrity",
+  "source": "fixture:denominator-integrity/workbook",
+  "run": {"revision": 1, "context": "fixture-context"},
+  "results": [
+    {"sheet": "Sheet1", "row": 1, "column": 1, "provenance": {"calculated": {"tick": 1, "revision": 1, "context": "fixture-context"}}, "value": {"text": "0074006f00740061006c"}},
+    {"sheet": "Sheet1", "row": 1, "column": 3, "provenance": {"calculated": {"tick": 2, "revision": 1, "context": "fixture-context"}}, "value": {"number": "4000000000000000"}},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "provenance": {"calculated": {"tick": 3, "revision": 1, "context": "fixture-context"}}, "value": {"number": "4010000000000000"}},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "provenance": {"calculated": {"tick": 4, "revision": 1, "context": "fixture-context"}}, "value": {"number": "4018000000000000"}},
+    {"sheet": "Sheet1", "row": 1, "column": 4, "provenance": {"calculated": {"tick": 5, "revision": 1, "context": "fixture-context"}}, "value": {"error": "div0"}},
+    {"sheet": "Hidden", "row": 1, "column": 1, "provenance": {"calculated": {"tick": 6, "revision": 1, "context": "fixture-context"}}, "value": {"logical": true}},
+    {"sheet": "Archive", "row": 1, "column": 1, "provenance": {"calculated": {"tick": 7, "revision": 1, "context": "fixture-context"}}, "value": {"error": "na"}},
+    {"sheet": "Sheet1", "row": 1, "column": 5, "provenance": {"calculated": {"tick": 8, "revision": 1, "context": "fixture-context"}}, "value": {"number": "3ff0000000000000"}}
+  ]
+}

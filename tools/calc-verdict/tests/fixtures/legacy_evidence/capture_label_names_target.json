@@ -1,0 +1,23 @@
+{
+  "format": "dnacalc-capture-record",
+  "version": 1,
+  "case": "infra-m1.1/legacy-evidence",
+  "source": "fixture:legacy-evidence/converted",
+  "acquisition": {"kind": "legacy_evidence", "entry": "cache/oracle-20430/"},
+  "environment": {
+    "excel_build": "16.0.20430.20000",
+    "channel": "fixture-channel",
+    "compatibility": "fixture-compatibility",
+    "numeric_environment": "fixture-x86-64",
+    "settings": {}
+  },
+  "sheets": [
+    {"name": "Sheet1", "visibility": "visible"}
+  ],
+  "formulas": [
+    {"sheet": "Sheet1", "row": 1, "column": 1, "kind": "ordinary"}
+  ],
+  "observations": [
+    {"sheet": "Sheet1", "row": 1, "column": 1, "excel_raw": {"number": "4000000000000000"}}
+  ]
+}

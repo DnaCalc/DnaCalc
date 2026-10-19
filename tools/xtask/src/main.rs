@@ -29,6 +29,11 @@
 //! [--write]` recomputes the acquisition labels of `migration/evidence/oxfunc-smart-fuzzer.json`
 //! and prints how the record differs or writes them into it (`evidence_labels.rs`).
 //!
+//! `cargo xtask verdict --capture <file> --results <file> --evaluations <file> --out <file>
+//! [--evidence <record>] [--exact-target <excel build>,<channel>,<compatibility>,<numeric
+//! environment>]` judges a canonical CaptureRecord, result set and evaluation record through
+//! calc-verdict, the one verdict path, and writes the CellVerdict report (`verdict.rs`).
+//!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
 
@@ -53,6 +58,7 @@ mod provenance;
 mod rust_source;
 mod seams;
 mod text;
+mod verdict;
 mod words;
 
 use std::process::ExitCode;
@@ -65,14 +71,16 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "ci" => ci::run(rest),
         Some((command, rest)) if command == "ci-audit" => ci_audit::run(rest),
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
+        Some((command, rest)) if command == "verdict" => verdict::run(rest),
         _ => {
             eprintln!(
-                "xtask: unknown or missing command {args:?}\n{}\n{}\n{}\n{}\n{}",
+                "xtask: unknown or missing command {args:?}\n{}\n{}\n{}\n{}\n{}\n{}",
                 accept::USAGE,
                 pin::USAGE,
                 ci::USAGE,
                 ci_audit::USAGE,
-                evidence::USAGE
+                evidence::USAGE,
+                verdict::USAGE
             );
             ExitCode::from(2)
         }

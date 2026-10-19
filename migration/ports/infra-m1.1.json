@@ -1,0 +1,406 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "infra-m1.1",
+  "written": "2026-10-19",
+  "about": "What infra-m1.1 took from the three legacy inputs its claim note pins for it, for tools/calc-verdict and the cargo xtask verdict command. Nothing was ported: all three inputs have disposition reference, so each was read at its pinned blob for behaviour only, and every line of tools/calc-verdict was written fresh. The record lists, per input, the behaviour kept, the behaviour changed with its reason, and what was not carried with the beads that will need it. Only this bead writes this file.",
+  "sources": [
+    {
+      "repository": "DnaTreeCalc",
+      "commit": "bf6dfd7f0655867cabbebfe99b3de4ea5be89803",
+      "path": "src/dnacalc-conform/src/verdict.rs",
+      "blob": "b1bab529221bbee8dff9c662aefbdb6baa8902a2",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); read with git cat-file -p of the pinned blob",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup DnaTreeCalc/src/dnacalc-conform/src/verdict.rs",
+        "exit": 0,
+        "transcript": "target/accept/infra-m1.1/lookup-verdict.log with its exit in lookup-verdict.exit (kept in the DnaCalc clone that ran it on 2026-10-19; target/ is not committed)",
+        "disposition": "reference",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ],
+        "how_the_record_meets_it": "Nothing is ported. tools/calc-verdict depends on calc-value only and calls no OxFunc code; its value types are calc-value's."
+      },
+      "ported": [],
+      "read_for_behaviour": {
+        "kept": [
+          "Provenance first: a cell's provenance is classified before any value comparison, and only a calculated result can be scored as a match; a file-cached value never matches, whatever it equals.",
+          "Every not-calculated cell keeps a typed reason (here the Verdict variants file_cached, stale, unproven, not_modeled, failed and missing).",
+          "Type-aware comparison: numbers, text, logicals and error codes compared within their kind, with a kind mismatch reported as its own class."
+        ],
+        "changed": [
+          {
+            "change": "Numbers are equal only when their bits are equal: +0 and -0 differ (reported as a number mismatch at 0 ULP), and no ULP tolerance or 15-significant-digit class turns a near value into anything but a mismatch.",
+            "reason": "The bead asks for numbers compared by bits; a tolerance belongs to a declared Fast-mode contract (cfunc-m7.2), not to the verdict path."
+          },
+          {
+            "change": "Arrays are compared by shape and then cell by cell (MismatchClass::ArrayShape and ArrayCell); the legacy ladder marked an array result Unclassified.",
+            "reason": "The bead asks for array-shape comparison."
+          },
+          {
+            "change": "A calculated provenance counts only when its revision and context are the run's and the evaluation record, a separate input of judge that the publisher of results does not write, lists an evaluation of the cell at the claim's tick, revision and context; otherwise the cell is stale (revision_not_run, context_not_run) or unproven. The legacy ladder took the engine's published provenance as given.",
+            "reason": "The bead: the library never accepts a status flag from the code under test as proof of calculation (plan 10.1: reconcile provenance against instrumented calls and revision-bound publication). The orchestrator's round-2 ruling (2026-10-19) made the evaluation record its own document and judge input."
+          },
+          {
+            "change": "The denominator is the CaptureRecord's formula inventory; a cell with no result is missing, and a result outside the inventory is counted apart.",
+            "reason": "The bead's denominator-integrity rule. The legacy ladder walked the oracle's cells and reported a cell without a published value as not_published, which this keeps as missing."
+          },
+          {
+            "change": "Each comparison carries a certainty: strict_bits only for a raw Excel observation of the selected Exact target (and, for legacy evidence, a label naming it); every other comparison is uncertified with its reason.",
+            "reason": "The bead: decimal <v> is an observation, not a guaranteed binary64 oracle; strict-bit certainty is marked separately."
+          }
+        ]
+      },
+      "not_ported": [
+        {
+          "items": [
+            "ExcludedReason::Nondeterministic (NOW, TODAY, RAND, RANDBETWEEN, RANDARRAY and ca=\"1\" cells)"
+          ],
+          "reason": "No infra-m1.1 fixture holds a volatile formula. A volatile result is judged like any other: compared with its observation, never excluded and never matched by default.",
+          "beads": [
+            "ceng-m3.6",
+            "infra-m7.4"
+          ],
+          "beads_basis": "BEAD_DETAILS.md matches 'volatile' in ceng-m3.6 (replay volatile time and random effects per tick; permit oracle capture injection) and infra-m7.4 extends this verdict path with raw observations and freshness evidence."
+        },
+        {
+          "items": [
+            "ExcludedReason::NoFileCache, OracleUnknownErrorCode, OracleUnsupportedPayload"
+          ],
+          "reason": "A CaptureRecord holds an observation only where one exists; a formula cell without one is calculated and not_run, never excluded. Reading caches out of a package is the capture or replay reader's work.",
+          "beads": [
+            "infra-m1.2",
+            "infra-m7.4"
+          ],
+          "beads_basis": "infra-m1.2 implements the capture adapter that writes CaptureRecords; infra-m7.4 adds saved XML cache text and freshness evidence."
+        },
+        {
+          "items": [
+            "MismatchClass::ReferenceTwin"
+          ],
+          "reason": "A disagreement between the engine's reference strategy and an optimized one is the differential harness's finding, not a comparison with Excel.",
+          "beads": [
+            "ceng-m7.1"
+          ],
+          "beads_basis": "BEAD_DETAILS.md matches 'twin' only in ceng-m7.1 (retain the reference strategy and differential-twin harness)."
+        },
+        {
+          "items": [
+            "PinFacts and the FileCached refinement (bind_degraded, external_reference_pinned, not_calc_modeled, manual_mode)"
+          ],
+          "reason": "The refinement reads the legacy engine's load report. Here a file-cached result carries its source and a not-modeled one its feature and diagnostic; why the engine pinned a cache is the engine's provenance to supply at the boundary.",
+          "beads": [
+            "ceng-m1.2",
+            "cdoc-m1.2",
+            "ceng-m4.2"
+          ],
+          "beads_basis": "BEAD_DETAILS.md matches 'provenance' in ceng-m1.2 (Calculated provenance), cdoc-m1.2 (file-cache provenance) and ceng-m4.2 (calculation modes)."
+        },
+        {
+          "items": [
+            "NotEvaluatedReason::OpenFailed { kind }"
+          ],
+          "reason": "The legacy ladder opened the workbook itself. calc-verdict never opens a package: it judges a result set its producer supplies, and an inventory cell with no result is counted missing. An open failure is the producer's to report.",
+          "beads": [
+            "chost-m1.2",
+            "cdoc-m1.2",
+            "infra-m1.3"
+          ],
+          "beads_basis": "chost-m1.2 exposes open, recalc, save and projections on the product route; cdoc-m1.2 loads cells and formulas; infra-m1.3 drives the first real workbook through that route end to end."
+        },
+        {
+          "items": [
+            "NotEvaluatedReason::SheetUnmatched"
+          ],
+          "reason": "Cells are identified by sheet name and coordinate in both the CaptureRecord and the result set, and the formula inventory drives the count. A cell whose sheet has no result in the result set is counted missing; no separate unmatched-sheet reason is kept.",
+          "beads": [
+            "dc-sb69"
+          ],
+          "beads_basis": "dc-sb69 makes sheet-name matching case-insensitive as Excel's is, and refuses a capture listing two names that differ only in case."
+        },
+        {
+          "items": [
+            "NotEvaluatedReason::EngineReadFailed { kind }"
+          ],
+          "reason": "A refused engine read is the producer's failure. In calc-verdict's vocabulary it reaches the verdict as failed provenance for the cells it affects, which is counted failed and never matched.",
+          "beads": [
+            "ceng-m1.2",
+            "chost-m1.2"
+          ],
+          "beads_basis": "ceng-m1.2 calculates the thin slice through CalcFml and chost-m1.2 exposes its results; between them they map CalcEngine's ValueProvenance and read errors onto calc-verdict's input vocabulary."
+        },
+        {
+          "items": [
+            "Provenance::Degraded (a rejected formula with a substitute #NAME?)"
+          ],
+          "reason": "A substitute value is not a calculation. At the boundary it maps to not-modeled or failed provenance, which is never scored as calculated.",
+          "beads": [
+            "ceng-m1.2",
+            "chost-m1.2"
+          ],
+          "beads_basis": "The same boundary mapping of CalcEngine's ValueProvenance onto calc-verdict's input vocabulary (claim note of infra-m1.1, 2026-10-19)."
+        }
+      ],
+      "semantic_witnesses_basis": "All nine #[test] functions of the pinned blob b1bab529 (git cat-file -p, grep '#[test]'), each with its disposition. replaced_by names the fresh test whose assertions carry the kept or changed expectation.",
+      "semantic_witnesses": [
+        {
+          "legacy_test": "numbers_match_on_exact_bits_and_on_signed_zero",
+          "disposition": "changed",
+          "replaced_by": "typed::tests::comparison_is_type_aware_and_bit_exact",
+          "reason": "Exact bits still match; +0 against -0 is now a number mismatch at 0 ULP (compare(number(0), number(1 << 63)) is Number { ulp: Some(0) })."
+        },
+        {
+          "legacy_test": "numbers_within_four_ulp_are_ulp_mismatches_with_the_distance",
+          "disposition": "kept as distance, dropped as class",
+          "replaced_by": "typed::tests::comparison_is_type_aware_and_bit_exact",
+          "reason": "The ULP distance is reported on every finite number mismatch (1.0 against 1.0 plus 3 ULP is Number { ulp: Some(3) }; the smallest positive against the smallest negative subnormal is 2); there is no separate within-4-ULP class."
+        },
+        {
+          "legacy_test": "numbers_agreeing_at_fifteen_digits_but_beyond_four_ulp_are_significant_digits_15",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "No 15-digit class: such a pair is a number mismatch with its ULP distance, and a number against an infinity is a number mismatch with no distance (Number { ulp: None }, asserted in typed::tests::comparison_is_type_aware_and_bit_exact)."
+        },
+        {
+          "legacy_test": "errors_compare_by_code_and_asymmetric_errors_name_their_side",
+          "disposition": "changed",
+          "replaced_by": "typed::tests::comparison_is_type_aware_and_bit_exact",
+          "reason": "Two errors still compare by code (#NAME? against #NAME? is equal; #DIV/0! against #VALUE! is MismatchClass::Error with both codes). An error against a non-error is no longer EngineError or OracleError naming the code: it is MismatchClass::Kind, whose expected and actual kind names say which side holds the error (Kind { expected: number, actual: error } and Kind { expected: error, actual: number }). The key string EngineError:Value is not carried."
+        },
+        {
+          "legacy_test": "text_and_logical_compare_exactly_and_kinds_are_type_mismatches",
+          "disposition": "changed",
+          "replaced_by": "typed::tests::comparison_is_type_aware_and_bit_exact",
+          "reason": "Text compares by UTF-16 code units and logicals exactly, as before. The legacy Type { engine, excel } class with the kind names Empty, Number, Logical and Text is now MismatchClass::Kind { expected, actual } with the lower-case names empty, number, logical and text, and the comparison takes the expectation first (empty against number, number against logical, text against number are asserted)."
+        },
+        {
+          "legacy_test": "engine_shapes_the_classifier_does_not_model_are_unclassified",
+          "disposition": "changed",
+          "replaced_by": "typed::tests::comparison_is_type_aware_and_bit_exact",
+          "reason": "A calculated value of a kind no cell holds is compared, not Unclassified: a calculated Missing (omitted argument) is Kind { expected: number, actual: missing } against a number and Kind { expected: error, actual: missing } against an error. Arrays, which the legacy ladder also left Unclassified, are compared by shape and cell (ArrayShape, ArrayCell)."
+        },
+        {
+          "legacy_test": "file_cached_refinement_follows_the_precedence_order",
+          "disposition": "dropped as refinement, kept as provenance first",
+          "replaced_by": "verdict::tests::every_provenance_is_counted_in_its_own_category_and_only_proven_cells_match and the cached_value_trap acceptance case",
+          "reason": "The PinFacts precedence (bind_degraded, external_reference_pinned, not_calc_modeled, manual_mode) is not carried (see not_ported). Its provenance-first expectation is: a file-cached or stale result is never evaluated and a calculated one is judged, which the fresh tests assert as file_cached and stale verdicts that never count as calculated."
+        },
+        {
+          "legacy_test": "reference_twin_keys_separate_value_and_payload_disagreements",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "MismatchClass::ReferenceTwin is not carried (see not_ported, ceng-m7.1)."
+        },
+        {
+          "legacy_test": "keys_are_stable_strings",
+          "disposition": "changed",
+          "replaced_by": "the infra_m1_1__cached_value_trap and infra_m1_1__denominator_integrity acceptance cases (their cell lines and counts compare the report's names literally)",
+          "reason": "There are no key strings; the stable names are the report's JSON members and values (matched, mismatched, not_run, unproven, file_cached, not_modeled, failed, missing, stale with reported, revision_not_run and context_not_run, strict_bits and the uncertified reason saved_cache), which the acceptance cases compare as literals; the other uncertified reasons are compared literally by the calc-verdict and xtask unit tests. The keys it lists for open_failed, nondeterministic exclusion, the oracle's unknown error code and the Ulp class name items that are not carried (see not_ported)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "smart-fuzzer/engine/src/judge.rs",
+      "blob": "fa98d61caa984967031b7f777f15231e4d7b04b2",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); read with git cat-file -p of the pinned blob",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/smart-fuzzer/engine/src/judge.rs",
+        "exit": 0,
+        "transcript": "target/accept/infra-m1.1/lookup-judge.log with its exit in lookup-judge.exit (kept in the DnaCalc clone that ran it on 2026-10-19; target/ is not committed)",
+        "disposition": "reference",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ],
+        "how_the_record_meets_it": "Nothing is ported, and nothing in tools/calc-verdict evaluates a function: the result set is supplied by the code under test."
+      },
+      "ported": [],
+      "read_for_behaviour": {
+        "kept": [
+          "Expected and actual outcomes are typed (number bits, error code, logical, text) and compared as types, never as rendered text."
+        ],
+        "changed": [
+          {
+            "change": "No severity summary (worst severity, misses sorted and truncated); the report lists every inventory cell with its verdict and counts every category.",
+            "reason": "The bead asks for every category counted and per-cell verdicts; a campaign summary belongs to the campaign runner."
+          }
+        ]
+      },
+      "not_ported": [
+        {
+          "items": [
+            "eval_production",
+            "outcome_of"
+          ],
+          "reason": "They call OxFunc's surface dispatch (the calls_quarantined module) to produce the actual values; the verdict path judges values the code under test supplies.",
+          "beads": [
+            "infra-m7.5"
+          ],
+          "beads_basis": "infra-m7.5 ports one black-box smart-fuzzer campaign runner, which produces actual values through the product route."
+        },
+        {
+          "items": [
+            "Report",
+            "Miss",
+            "judge (the per-function witness loop)"
+          ],
+          "reason": "A per-function witness campaign report, not a cell verdict.",
+          "beads": [
+            "infra-m7.5",
+            "infra-m7.10"
+          ],
+          "beads_basis": "infra-m7.5 (campaign runner) and infra-m7.10 (one report for conformance and campaign evidence)."
+        }
+      ],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "smart-fuzzer/engine/src/classify.rs",
+      "blob": "a70daa91559761bb10b6ece2fbe3a022445b5a42",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); read with git cat-file -p of the pinned blob",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/smart-fuzzer/engine/src/classify.rs",
+        "exit": 0,
+        "transcript": "target/accept/infra-m1.1/lookup-classify.log with its exit in lookup-classify.exit (kept in the DnaCalc clone that ran it on 2026-10-19; target/ is not committed)",
+        "disposition": "reference",
+        "numeric_provenance": "none: the lookup prints no numeric provenance line and no calls_quarantined list for it",
+        "calls_quarantined": [],
+        "how_the_record_meets_it": "Nothing is ported."
+      },
+      "ported": [],
+      "read_for_behaviour": {
+        "kept": [
+          "The ULP distance between two finite doubles is their distance on the IEEE total order with +0 and -0 both at 0 (typed::ulp_distance, written fresh); it is None when either side is infinite or NaN."
+        ],
+        "changed": [
+          {
+            "change": "No severity bands (LastBit 1 to 4 ULP, Numeric 5 to 1024, Gross, Structural): every difference is a mismatch of its class, with the ULP distance for numbers.",
+            "reason": "Bands are a tolerance policy; the bead compares numbers by bits, and a measured tolerance contract belongs to cfunc-m7.2."
+          }
+        ]
+      },
+      "not_ported": [
+        {
+          "items": [
+            "Severity",
+            "RowVerdict"
+          ],
+          "reason": "Tolerance bands, see changed.",
+          "beads": [
+            "cfunc-m7.2"
+          ],
+          "beads_basis": "BEAD_DETAILS.md matches 'tolerance' in cfunc-m7.2 (declare measured Fast-mode tolerance contracts) and cfunc-m3.11, whose match ('rather than tolerance-laundered') is about retaining ill-conditioned witnesses, not a verdict policy."
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "legacy_test": "ulp_distance_is_ordinal_across_zero_and_sign",
+          "disposition": "kept",
+          "replaced_by": "typed::tests::comparison_is_type_aware_and_bit_exact",
+          "reason": "1 ULP above 1.0 is 1, +0 against -0 is 0, and the smallest positive against the smallest negative subnormal is 2."
+        },
+        {
+          "legacy_test": "severity_bands_follow_odr_fn_005",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "No severity bands."
+        }
+      ]
+    }
+  ],
+  "fresh": [
+    {
+      "items": [
+        "CaptureRecord",
+        "Acquisition",
+        "ExcelEnvironment",
+        "SheetEntry",
+        "SheetVisibility",
+        "FormulaCell",
+        "FormulaKind",
+        "CellAddress",
+        "Observation",
+        "SavedCache",
+        "CacheCellType"
+      ],
+      "file": "tools/calc-verdict/src/capture.rs",
+      "what": "The canonical CaptureRecord with its JSON codec: acquisition (live capture, file-cache replay, legacy evidence entry), the Excel environment as calc-value's NumericTargetId plus settings, sheets with visibility, the formula inventory (ordinary, shared master, shared child), and per-cell observations whose three origins stay distinct."
+    },
+    {
+      "items": [
+        "ResultSet",
+        "RunIdentity",
+        "CellResult",
+        "Provenance"
+      ],
+      "file": "tools/calc-verdict/src/result.rs",
+      "what": "The result set: the run's revision and context and each published value with its provenance (calculated, file_cached, stale, not_modeled, missing, failed). It holds no evaluations: a result set cannot carry the proof of its own calculation."
+    },
+    {
+      "items": [
+        "EvaluationRecord",
+        "Evaluation"
+      ],
+      "file": "tools/calc-verdict/src/evaluations.rs",
+      "what": "The evaluation record (dnacalc-evaluation-record, version 1): the evaluator calls an instrument observed, each with its cell, tick, revision and context, as a separate input of judge that the publisher of results does not write."
+    },
+    {
+      "items": [
+        "EvidenceLabels",
+        "excel_build_number"
+      ],
+      "file": "tools/calc-verdict/src/evidence.rs",
+      "what": "The certifies_exact_target label of each entry of a dnacalc-evidence-record/1 (migration/evidence/oxfunc-smart-fuzzer.json, infra-m0.6), and the documented rule that reduces a label and a target's excel_build text to one Excel build number (the build number alone, or the third part of Excel's four-part file version)."
+    },
+    {
+      "items": [
+        "judge",
+        "VerdictPolicy",
+        "VerdictReport",
+        "CellVerdict",
+        "Verdict",
+        "Certainty",
+        "UncertifiedReason",
+        "StaleSource",
+        "Counts",
+        "Strata",
+        "OutsideResult"
+      ],
+      "file": "tools/calc-verdict/src/verdict.rs",
+      "what": "The one verdict computation and the dnacalc-verdict-report JSON."
+    },
+    {
+      "items": [
+        "JudgeError"
+      ],
+      "file": "tools/calc-verdict/src/lib.rs",
+      "what": "The typed refusals of judge: EmptyInventory (no formula cell, so no report) and Inconsistent."
+    },
+    {
+      "items": [
+        "MismatchClass",
+        "the canonical value codec",
+        "compare",
+        "ulp_distance"
+      ],
+      "file": "tools/calc-verdict/src/typed.rs",
+      "what": "Typed values with numbers as binary64 bits in hex, text as UTF-16 code units in hex and calc-doc-model's error wire names, and the type-aware comparison."
+    },
+    {
+      "items": [
+        "cargo xtask verdict"
+      ],
+      "file": "tools/xtask/src/verdict.rs",
+      "what": "The repository command that reads a CaptureRecord, a result set, the evaluation record and optionally the legacy evidence record, judges them through calc_verdict::judge and writes the report; it exits 3 without a report when the formula inventory is empty."
+    }
+  ],
+  "limits": [
+    "Nothing here was ported, so no legacy test is carried as code. The DnaTreeCalc source lists all nine of its legacy tests in semantic_witnesses with the disposition of each; the OxFunc classify.rs source lists both of its tests, and judge.rs holds none.",
+    "The evaluation record is a separate input of judge that the result producer does not write, and judge reconciles each calculated claim against it. No instrument writes one yet: producing it from instrumented evaluator calls is bead dc-qguw (created 2026-10-19; it blocks infra-m1.3). Until then every evaluation record judged here is an authored fixture, so no case here shows that an evaluation occurred in an evaluator.",
+    "Legacy arrays (CSE formulas over a range), dynamic-spill children as their own population and names, rules, charts and pivots as participants are not in the formula inventory vocabulary yet; a result for a cell outside the inventory is counted apart (outside_inventory)."
+  ]
+}

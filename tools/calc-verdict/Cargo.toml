@@ -1,0 +1,32 @@
+[package]
+name = "calc-verdict"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The package for the one verdict path: CaptureRecord, result-set and evaluation-record codecs and the provenance-first CellVerdict report shared by file-cache replay and live Excel capture."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+# calc-value supplies the value model (numbers, text, logicals, worksheet errors, arrays and their
+# shapes) the comparisons are typed over, and the numeric mode that names an Exact target.
+# serde_json parses the canonical records; serde's visitor traits read them into a tree that keeps
+# duplicate keys, so a duplicate is refused rather than dropped. No derive. The two pins are the
+# versions the workspace already locks.
+[dependencies]
+calc-value = { path = "../../crates/calc-value" }
+serde = "=1.0.229"
+serde_json = "=1.0.154"
+
+# The acceptance cases read the report the library writes with serde_json.
+[dev-dependencies]
+serde_json = "=1.0.154"
+
+# The acceptance cases and unit tests run in Chrome and Firefox under wasm-bindgen-test-runner
+# 0.2.117, which runs only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test
+# 0.3.67 is the release built on that wasm-bindgen (the pair the CI browser fixture pins).
+# Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"

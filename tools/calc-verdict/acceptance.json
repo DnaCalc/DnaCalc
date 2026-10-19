@@ -1,0 +1,30 @@
+{
+  "package": "calc-verdict",
+  "beads": [
+    {
+      "id": "infra-m1.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-verdict", "--test", "acceptance", "infra_m1_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-verdict", "--lib"],
+        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "xtask", "verdict", "--capture", "tools/calc-verdict/tests/fixtures/cached_value_trap/capture.json", "--results", "tools/calc-verdict/tests/fixtures/cached_value_trap/results_file_cached.json", "--evaluations", "tools/calc-verdict/tests/fixtures/cached_value_trap/evaluations.json", "--exact-target", "20430,fixture-channel,fixture-compatibility,fixture-x86-64", "--out", "target/verdict/infra-m1.1/cached_value_trap.json"],
+        ["cargo", "xtask", "verdict", "--capture", "tools/calc-verdict/tests/fixtures/cached_value_trap/capture.json", "--results", "tools/calc-verdict/tests/fixtures/cached_value_trap/results_calculated.json", "--evaluations", "tools/calc-verdict/tests/fixtures/cached_value_trap/evaluations_empty.json", "--exact-target", "20430,fixture-channel,fixture-compatibility,fixture-x86-64", "--out", "target/verdict/infra-m1.1/cached_value_trap_without_evaluations.json"],
+        ["cargo", "xtask", "verdict", "--capture", "tools/calc-verdict/tests/fixtures/denominator_integrity/capture.json", "--results", "tools/calc-verdict/tests/fixtures/denominator_integrity/results_omitting.json", "--evaluations", "tools/calc-verdict/tests/fixtures/denominator_integrity/evaluations.json", "--out", "target/verdict/infra-m1.1/denominator_integrity.json"],
+        ["cargo", "xtask", "verdict", "--capture", "tools/calc-verdict/tests/fixtures/legacy_evidence/capture_label_names_target.json", "--results", "tools/calc-verdict/tests/fixtures/legacy_evidence/results.json", "--evaluations", "tools/calc-verdict/tests/fixtures/legacy_evidence/evaluations.json", "--evidence", "migration/evidence/oxfunc-smart-fuzzer.json", "--exact-target", "16.0.20430.20000,fixture-channel,fixture-compatibility,fixture-x86-64", "--out", "target/verdict/infra-m1.1/legacy_label_names_target.json"],
+        ["cargo", "xtask", "verdict", "--capture", "tools/calc-verdict/tests/fixtures/legacy_evidence/capture_label_not_target.json", "--results", "tools/calc-verdict/tests/fixtures/legacy_evidence/results.json", "--evaluations", "tools/calc-verdict/tests/fixtures/legacy_evidence/evaluations.json", "--evidence", "migration/evidence/oxfunc-smart-fuzzer.json", "--exact-target", "16.0.20430.20000,fixture-channel,fixture-compatibility,fixture-x86-64", "--out", "target/verdict/infra-m1.1/legacy_label_not_target.json"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "infra_m1_1__cached_value_trap",
+        "infra_m1_1__denominator_integrity"
+      ],
+      "platforms": {
+        "infra_m1_1__cached_value_trap": ["windows", "linux", "wasm"],
+        "infra_m1_1__denominator_integrity": ["windows", "linux", "wasm"]
+      }
+    }
+  ]
+}

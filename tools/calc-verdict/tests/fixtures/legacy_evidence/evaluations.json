@@ -1,0 +1,9 @@
+{
+  "format": "dnacalc-evaluation-record",
+  "version": 1,
+  "case": "infra-m1.1/legacy-evidence",
+  "source": "fixture:legacy-evidence/converted",
+  "evaluations": [
+    {"sheet": "Sheet1", "row": 1, "column": 1, "tick": 1, "revision": 1, "context": "fixture-context"}
+  ]
+}

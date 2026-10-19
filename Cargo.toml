@@ -15,6 +15,7 @@ members = [
     "apps/dna-calc",
     "platform/calc-platform-desktop",
     "platform/calc-oracle-excel",
+    "tools/calc-verdict",
     "tools/xtask",
 ]
 

@@ -1,0 +1,31 @@
+{
+  "format": "dnacalc-capture-record",
+  "version": 1,
+  "case": "infra_m1_1__denominator_integrity",
+  "source": "fixture:denominator-integrity/workbook",
+  "acquisition": {"kind": "file_cache_replay"},
+  "environment": null,
+  "sheets": [
+    {"name": "Sheet1", "visibility": "visible"},
+    {"name": "Hidden", "visibility": "hidden"},
+    {"name": "Archive", "visibility": "very_hidden"}
+  ],
+  "formulas": [
+    {"sheet": "Sheet1", "row": 1, "column": 1, "kind": "ordinary"},
+    {"sheet": "Sheet1", "row": 1, "column": 3, "kind": "shared_master", "group": 0},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "kind": "shared_child", "group": 0},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "kind": "shared_child", "group": 0},
+    {"sheet": "Sheet1", "row": 1, "column": 4, "kind": "ordinary"},
+    {"sheet": "Hidden", "row": 1, "column": 1, "kind": "ordinary"},
+    {"sheet": "Archive", "row": 1, "column": 1, "kind": "ordinary"}
+  ],
+  "observations": [
+    {"sheet": "Sheet1", "row": 1, "column": 1, "excel_saved_cache": {"t": "str", "v": "total"}},
+    {"sheet": "Sheet1", "row": 1, "column": 3, "excel_saved_cache": {"t": "n", "v": "2"}},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "excel_saved_cache": {"t": "n", "v": "4"}},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "excel_saved_cache": {"t": "n", "v": "6"}},
+    {"sheet": "Sheet1", "row": 1, "column": 4, "excel_saved_cache": {"t": "e", "v": "#DIV/0!"}},
+    {"sheet": "Hidden", "row": 1, "column": 1, "excel_saved_cache": {"t": "b", "v": "1"}},
+    {"sheet": "Archive", "row": 1, "column": 1, "excel_saved_cache": {"t": "e", "v": "#N/A"}}
+  ]
+}

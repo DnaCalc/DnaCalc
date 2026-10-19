@@ -1,0 +1,16 @@
+{
+  "format": "dnacalc-result-set",
+  "version": 1,
+  "case": "infra_m1_1__cached_value_trap",
+  "source": "fixture:cached-value-trap/workbook",
+  "run": {"revision": 1, "context": "fixture-context"},
+  "results": [
+    {"sheet": "Sheet1", "row": 1, "column": 1, "provenance": {"not_modeled": {"feature": "LAMBDA", "diagnostic": "fixture-not-modeled"}}},
+    {"sheet": "Sheet1", "row": 2, "column": 1, "provenance": {"failed": {"fault": "fixture-admission-refused"}}},
+    {"sheet": "Sheet1", "row": 3, "column": 1, "provenance": {"missing": {"reason": "fixture-nothing-published"}}},
+    {"sheet": "Sheet1", "row": 4, "column": 1, "provenance": {"stale": {"last_calculated": 4, "cause": "fixture-input-edited"}}, "value": {"logical": true}},
+    {"sheet": "Sheet1", "row": 5, "column": 1, "provenance": {"calculated": {"tick": 5, "revision": 0, "context": "fixture-context"}}, "value": {"error": "div0"}},
+    {"sheet": "Sheet1", "row": 6, "column": 1, "provenance": {"calculated": {"tick": 6, "revision": 1, "context": "other-context"}}, "value": {"number": "4010000000000000"}},
+    {"sheet": "Sheet1", "row": 7, "column": 1, "provenance": {"calculated": {"tick": 7, "revision": 1, "context": "fixture-context"}}, "value": {"number": "401c000000000000"}}
+  ]
+}

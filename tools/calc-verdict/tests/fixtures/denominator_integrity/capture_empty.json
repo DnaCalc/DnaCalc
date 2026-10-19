@@ -1,0 +1,15 @@
+{
+  "format": "dnacalc-capture-record",
+  "version": 1,
+  "case": "infra_m1_1__denominator_integrity",
+  "source": "fixture:denominator-integrity/workbook",
+  "acquisition": {"kind": "file_cache_replay"},
+  "environment": null,
+  "sheets": [
+    {"name": "Sheet1", "visibility": "visible"},
+    {"name": "Hidden", "visibility": "hidden"},
+    {"name": "Archive", "visibility": "very_hidden"}
+  ],
+  "formulas": [],
+  "observations": []
+}

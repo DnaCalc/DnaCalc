@@ -29,6 +29,12 @@
       "scope": "direct",
       "forbidden": ["calc-engine"],
       "reason": "plan 1.3: skins depend on the skin contract and controller layer, never engine internals"
+    },
+    {
+      "package": "calc-verdict",
+      "scope": "closure",
+      "forbidden": ["calc-func", "calc-fml", "calc-engine", "calc-host", "calc-doc-model", "calc-doc", "dna-onecalc", "dna-calc"],
+      "reason": "plan 10.1 and infra-m1.1: the portable verdict library depends on neither calc-func (the function library whose results it judges) nor any CalcFml, CalcEngine, CalcHost, CalcDoc or application package, so the code under test is never part of its own judge; calc-value supplies its value types"
     }
   ],
   "os_binding_crates": [
