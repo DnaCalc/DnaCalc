@@ -1298,6 +1298,36 @@ struct DependencyScenario {
     absent: Option<String>,
 }
 
+/// The layering scenarios the case plants whatever `tools/xtask/architecture.json` holds: the
+/// package, the forbidden package added to it, and the start of the line its rule must report on
+/// every shipped target. Each of the four packages calc-doc-model's rule forbids has its own
+/// scenario, so a rule deleted from the file, or a forbidden list without one of them, fails the
+/// case instead of taking the scenario with it. The scenarios generated from the file's rules skip
+/// nothing: a later rule for one of these packages (a direct-scope one reports another line) keeps
+/// its own generated scenario, which also checks the rule's whole reason.
+const FIXED_RULE_SCENARIOS: [(&str, &str, &str); 4] = [
+    (
+        "calc-doc-model",
+        "calc-engine",
+        "calc-doc-model has in its dependency closure calc-engine (plan 1.3 and 2.1: ",
+    ),
+    (
+        "calc-doc-model",
+        "calc-fml",
+        "calc-doc-model has in its dependency closure calc-fml (plan 1.3 and 2.1: ",
+    ),
+    (
+        "calc-doc-model",
+        "calc-host",
+        "calc-doc-model has in its dependency closure calc-host (plan 1.3 and 2.1: ",
+    ),
+    (
+        "calc-doc-model",
+        "calc-doc",
+        "calc-doc-model has in its dependency closure calc-doc (plan 1.3 and 2.1: ",
+    ),
+];
+
 /// The dependency line that makes a package depend on the package in `dir`.
 fn path_dependency(name: &str, dir: &Path) -> String {
     format!(
@@ -1322,10 +1352,13 @@ fn stand_in_crate(dir: &Path, name: &str, dependency: Option<&str>) {
     );
 }
 
-/// Adding calc-engine to dna-onecalc, calc-host to calc-fml, any forbidden package to the package
-/// of each other layering rule of `tools/xtask/architecture.json`, calc-engine behind an
-/// intermediate package of dna-onecalc, or a native-only package to a portable one fails the
-/// dependencies check on every shipped target; an OS import, an include macro or an OS-binding
+/// Adding calc-engine to dna-onecalc, calc-host to calc-fml, each of calc-engine, calc-fml and
+/// calc-host to calc-doc-model and a stand-in crate named calc-doc to it (planted whatever
+/// `tools/xtask/architecture.json` holds, so the case fails when that file has no such rule or its
+/// forbidden list lacks one of them; calc-doc's stand-in, needed while crates/calc-doc depends on
+/// calc-doc-model, shows that the rule matches by name), a forbidden package to the package of each layering rule of that file, calc-engine
+/// behind an intermediate package of dna-onecalc, or a native-only package to a portable one fails
+/// the dependencies check on every shipped target; an OS import, an include macro or an OS-binding
 /// crate in a portable package fails the os-imports check; each native-only package without its
 /// wasm32 refusal fails the wasm-refusal check. Each mutation fails only its own check, the
 /// fixture case still runs and passes, and the run exits 1; the unmodified copy passes every check.
@@ -1403,6 +1436,7 @@ pub fn forbidden_dependency() {
     let named: BTreeMap<&str, &str> =
         BTreeMap::from([("dna-onecalc", "calc-engine"), ("calc-fml", "calc-host")]);
     let mut scenarios = Vec::new();
+    let mut generated_stand_in = false;
     for rule in rules["dependency_rules"]
         .as_array()
         .expect("dependency_rules")
@@ -1442,6 +1476,7 @@ pub fn forbidden_dependency() {
                 absent: None,
             },
             None => {
+                generated_stand_in = true;
                 let added = &forbidden[0];
                 let dir = copy.base.join(format!("stand-in-{added}"));
                 stand_in_crate(&dir, added, None);
@@ -1457,8 +1492,62 @@ pub fn forbidden_dependency() {
             }
         });
     }
-    // The stand-in construction, exercised now so it is proven before a rule needs it.
-    if !scenarios.iter().any(|s| s.label.contains("stand-in")) {
+    // The fixed scenarios: the pair and the expected line come from the case, not from the file.
+    let fixed_packages: BTreeSet<&str> = FIXED_RULE_SCENARIOS
+        .iter()
+        .map(|(package, _, _)| *package)
+        .collect();
+    for package in fixed_packages {
+        let in_file: Vec<String> = rules["dependency_rules"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|rule| rule["package"] == package)
+            .map(Value::to_string)
+            .collect();
+        evidence.lines.push(format!(
+            "fixed scenarios for {package}: planted whatever architecture.json holds; its rules for {package}: {in_file:?}"
+        ));
+    }
+    for (package, added, expected) in FIXED_RULE_SCENARIOS {
+        // Every fixed pair names members of the copy. As above, an added package that already
+        // reaches this one gets a stand-in crate.
+        assert!(
+            copy.graph.members.contains_key(added),
+            "{CASE}: the fixed scenario {package} -> {added} names {added}, which is not a member of the copy"
+        );
+        let (label, dir) = if copy.graph.closure(added).contains(package) {
+            let dir = copy.base.join(format!("fixed-stand-in-{added}"));
+            stand_in_crate(&dir, added, None);
+            let why = format!(
+                "{added} already has {package} in its dependency closure, so adding the member would close a cycle that cargo refuses before any check runs"
+            );
+            evidence.lines.push(format!(
+                "fixed scenario {package} -> {added}: {why}; the scenario adds a stand-in crate named {added} (version 0.0.0, outside the copy, at {}) instead, which the name-based rule must reject the same way",
+                dir.display()
+            ));
+            (format!("fixed-{package}-stand-in-{added}"), dir)
+        } else {
+            evidence.lines.push(format!(
+                "fixed scenario {package} -> {added}: the scenario adds the member {added}, whose dependency closure does not contain {package}"
+            ));
+            (
+                format!("fixed-{package}-{added}"),
+                copy.graph.member_dir(added),
+            )
+        };
+        scenarios.push(DependencyScenario {
+            label,
+            edges: vec![(package.to_owned(), added.to_owned(), dir)],
+            expected: expected.to_owned(),
+            absent: None,
+        });
+    }
+    // The stand-in construction of the generated scenarios, exercised now so it is proven before
+    // a rule of the file needs it. It runs unless a generated scenario already used a stand-in;
+    // the fixed scenarios' stand-ins follow the case's own pairs, not the file's rules, so they
+    // never decide whether it runs.
+    if !generated_stand_in {
         let dir = copy.base.join("stand-in-calc-fml");
         stand_in_crate(&dir, "calc-fml", None);
         scenarios.push(DependencyScenario {
