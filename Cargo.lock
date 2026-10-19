@@ -68,6 +68,11 @@ version = "0.1.0"
 [[package]]
 name = "calc-oracle-excel"
 version = "0.1.0"
+dependencies = [
+ "calc-verdict",
+ "serde_json",
+ "windows-sys",
+]
 
 [[package]]
 name = "calc-platform-desktop"
@@ -477,6 +482,7 @@ dependencies = [
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "calc-oracle-excel",
  "calc-verdict",
  "proc-macro2",
  "quote",

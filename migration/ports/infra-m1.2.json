@@ -1,0 +1,697 @@
+{
+ "format": "dnacalc-port-record/1",
+ "bead": "infra-m1.2",
+ "written": "2026-10-19",
+ "about": "What infra-m1.2 took from the legacy capture runners for the one Excel capture adapter (platform/calc-oracle-excel, its worker worker/capture-worker.ps1, and cargo xtask capture) and for CaptureRecord version 2 in tools/calc-verdict. Nothing was ported. Of the 30 runner_candidate inputs infra-m0.4 marked under OxFunc/smart-fuzzer/ and OxFunc/tools/xll-addin/, cargo xtask pin-sources --lookup exits 5 for 18 (numeric provenance unresolved), 3 for 1 (quarantine_derived) and 0 for 11, each of those of disposition reference and outside the release source allowlist. None is a port input without a re-pin, so no re-pin was made, none of the 30 files was opened, and the worker was written fresh from Excel's documented object model (Application, Workbooks.Open, Workbook.SaveAs, Range.Value2, Range.Formula2, Range.HasFormula, Range.SpecialCells, Application.International, CalculateFullRebuild, AutomationSecurity, COMAddIns and COMAddIn.Connect, AddIns2 and AddIn.IsOpen and AddIn.Installed, RegisteredFunctions, Workbook.LinkSources, Workbook.Connections; every add-in state and Excel option is read, never written), the COM late-binding call System.__ComObject.InvokeMember (so that a failed property read throws instead of reading as nothing), and the published SpreadsheetML package structure (including the refreshOnLoad of the connections part, of pivot cache definitions and of query tables, the external link part's externalBook, ddeLink and oleLink elements, and the cell metadata index cm that Excel with dynamic arrays writes on a dynamic-array formula). Only this bead writes this file.",
+ "selection": {
+  "ported": [],
+  "rule": "port nothing from an input whose lookup exits 3 or 5 (claim note of infra-m1.2, 2026-10-19); an input of disposition reference is a port input only after a re-pin names it for this bead through an Infrastructure disposition bead",
+  "result": "none qualifies; the worker is written fresh, and no re-pin is needed",
+  "lookup_transcript": "target/accept/infra-m1.2/lookups.log in the DnaCalc clone that ran it on 2026-10-19 (target/ is not committed): one cargo xtask pin-sources --lookup <Repo>/<path> per input, each followed by its exit code",
+  "lookup_exits": {
+   "0": 11,
+   "3": 1,
+   "5": 18
+  }
+ },
+ "independently_derived": [
+  {
+   "what": "The worker's map of Application.International settings: country_code 1, country_setting 2, decimal_separator 3, thousands_separator 4, list_separator 5, date_separator 17, date_order 32 (platform/calc-oracle-excel/worker/capture-worker.ps1).",
+   "derived_from": "The documented XlApplicationInternational constants of Excel's object model (xlCountryCode 1, xlCountrySetting 2, xlDecimalSeparator 3, xlThousandsSeparator 4, xlListSeparator 5, xlDateSeparator 17, xlDateOrder 32), each named in snake case.",
+   "legacy_overlap": "The review of round 1 (2026-10-19) found that these names are shared with OxFunc smart-fuzzer/tools/w111/Capture-LocaleProfile20260929.ps1 (runner_candidates below: lookup exit 5, numeric provenance unresolved). That file was not opened or read for this bead: the map was derived independently, from the documented constants alone."
+  },
+  {
+   "what": "The SHA-256 implementation (tools/calc-verdict/src/sha256.rs, moved there from platform/calc-oracle-excel in round 2 so that the adapter that writes the content hashes and the replay case that checks them on Windows, Linux and wasm use one implementation).",
+   "derived_from": "FIPS 180-4, tested against its example messages.",
+   "legacy_overlap": "None read."
+  }
+ ],
+ "runner_candidates": [
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/CellRefBatch.psm1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "0dc9990482b5a168f10cdc52e0aa811c4f0a3399",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-ArraySupportTranche.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "b91e245c478f7cc7fc03ac60581c151c17570cd8",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-AtanhBoundaryBisection.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "6ea71ecec2cfdbad0ea4d5fefa0e4ee6f1bee89e",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-ConvertValue2Readback.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "dff6757870406def5bc3f42b5ae68e4acbdda120",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-DiscrepancyCatalogRecon.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "b51d1747e9bb10e740b555ca51c9d081de73ad2a",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-ExcelDecompositionMicroprobes.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "97d7adf660e752585a01277f364713a12d42d1ed",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-ExcelThroughputBenchmark.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "a82c3fa040ade5be10f99a1c515ee9726a651541",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-RandCharacterization.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "e18422db7e1b38695ae0386a35199774329c557b",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-RandStatisticalProfile.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "d4afc9547180b9708ddc0e657220b5faf2972169",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-W109BulkBatch.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "0db00e6d16062bd4f760655480d19491d5473039",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/Run-W109IrrNpvObjectiveCompanion.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "45cb1617ee88ef1fe946dad3855275949810c328",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/calc_graph_racer/src/bin/race_effect_rri_check.rs",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "9b6e9d139c9468e880782cbb56542f54b90e1da4",
+   "lookup_exit": 3,
+   "disposition": "quarantine_derived",
+   "numeric_provenance": "tainted",
+   "markers": [
+    "Excel.Application"
+   ],
+   "ported": false,
+   "why_not": "quarantine_derived: never copied (infra-m0.5); not read"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Capture-LocaleProfile20260929.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "bf4e3768e9c0b7b946a57de4908bb607d26d58a0",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Probe-ExactNumericControls.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "9407db3323d5db67435a761c6262f24cc994ee48",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Probe-WeeknumDeterminism.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "8a799639093e2e0089c70d785941968771526e9c",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-AddressTextValue2Ingress.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "40c6e5c2c753cbb69062d54a9a46627ad6e9b2ae",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-AddressUtf16Units.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "46c7d3e518ae29fa39239375e79f2b0aa2abf23f",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-NumericValue2Ingress20260929.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "b77bc18b553bf36fbe1c9b1008e6411fc7200060",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-RoundingEndpointRepeatedSessions.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "8fbbdd0f7d935b399ca10244805d56aeee404e14",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-RoundingEndpointValue2.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "6a2b3eae7a448c08b364435b5e113dfa9da6148b",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-TextSliceUtf16FallbackHeldout.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "bfd68906dffc10eceaa27b1b25d871add44f52bd",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-TextSliceUtf16Heldout.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "dc1d3a77d539dec1dba8794fb35e36440c1ccb80",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-TextSliceUtf16Tail.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "135dfa8da91f9244a94917606a25e54984592a0a",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-TextSliceUtf16Units.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "1b8ea466376f6a1f9e410f4d84742c60e0fac67c",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "smart-fuzzer/tools/w111/Test-TypedFixtureIngress20260929.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "056ba3688a0766c20fbe7e237b0894b3821501fc",
+   "lookup_exit": 5,
+   "disposition": "reference",
+   "numeric_provenance": "unresolved",
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "numeric provenance unresolved (tainted-commit): not copied and not read for behaviour (infra-m0.5)"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "tools/xll-addin/run-get-info-probe.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "d1d9c5c8baa3af7de4881bca1a9ae3e6bf0ad8b3",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "tools/xll-addin/run-oxfunc-xll-bridge-baseline.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "6f58b96c60b18f8ce1b11dbdfb77e661060351f4",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "tools/xll-addin/run-registration-flag-evidence.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "ead837ad71b94f59a21df1d7352f557dc6edcca5",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Workbooks.Open",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "tools/xll-addin/run-xll-call-pattern-probe.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "012347c326b72038162e65a63428c2c53b2054e4",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  },
+  {
+   "repository": "OxFunc",
+   "path": "tools/xll-addin/run-xll-nil-probe.ps1",
+   "commit": "6fca351872616a352848a3dea2e182662834ea57",
+   "blob": "ae1387853409abf8dcc8d4077a4918992aed4557",
+   "lookup_exit": 0,
+   "disposition": "reference",
+   "numeric_provenance": null,
+   "markers": [
+    "Excel.Application",
+    "Marshal",
+    "Interop",
+    "ComObject"
+   ],
+   "ported": false,
+   "why_not": "disposition reference and outside the release source allowlist: porting it would need a re-pin through an Infrastructure disposition bead; not read, because nothing was ported from it"
+  }
+ ],
+ "legacy_runners_after_this_bead": "The legacy runners stay in OxFunc, which this repository never edits; in this repository nothing but calc-oracle-excel drives Excel. Legacy capture data reaches the verdict only through readers: the acquisition labels of migration/evidence/oxfunc-smart-fuzzer.json (cargo xtask evidence labels, infra-m0.6) and calc-verdict's legacy_evidence acquisition (infra-m1.1). No converter of legacy capture bundles into CaptureRecord version 2 exists yet.",
+ "verdict_precedent": "DnaTreeCalc/src/dnacalc-conform/ is the provenance-first verdict precedent; infra-m1.1 read it for behaviour and recorded that in migration/ports/infra-m1.1.json. This bead extends that one verdict (calc-verdict) and did not read the precedent again.",
+ "semantic_changes": [
+  {
+   "change": "CaptureRecord version 2: a session (authored revision and operations, calculation-context fingerprint, capture-tool revision, input and output package hashes, capture failures), formula text per inventory cell, each shared-formula range's ref, and the save and reopen round trip (saved caches, reopened raw values). The decoder reads versions 1 and 2; the encoder writes version 2 only.",
+   "reason": "Plan section 10.2's capture manifest and the hand-off of infra-m1.1 (2026-10-19)."
+  },
+  {
+   "change": "judge measures a calculated result's revision and context against the run the result set declares and, for a version 2 record, also against the revision and context the capture recorded; a result set at revision R judged against a capture of revision R+1 has every calculated cell stale (revision_not_run). A version 1 record is judged as before.",
+   "reason": "infra-m1.1 round-2 judge: stale detection trusted the run identity the result set declared (tools/calc-verdict/src/verdict.rs:529-546 before this bead)."
+  },
+  {
+   "change": "judge refuses a version 2 record whose shared group's listed cells do not cover the group's range ref, whose group cells lie outside it, or whose groups and ranges do not pair one to one.",
+   "reason": "infra-m1.1 round-2 judge: version 1 has no shared-formula range, so a record listing C1 and C2 of C1:C3 was judged with a denominator one short."
+  },
+  {
+   "change": "The infra-m1.1 unit test malformed_records_are_refused_with_their_path now refuses version 3 at capture.version instead of version 2, which is now read.",
+   "reason": "Version 2 is a format this bead adds; the refusal of an unknown version is kept."
+  },
+  {
+   "change": "CaptureRecord version 2 adds an optional \"dynamic_array\": true on an ordinary formulas entry (FormulaCell::dynamic_array): the workbook saves the formula as a dynamic-array formula over its own cell. It is written only when true, and the decoder refuses it as false or on a shared formula; version 1 records never carry it.",
+   "reason": "Review of round 2 (2026-10-19): Excel with dynamic arrays saves a formula such as =MarkUdf() as t=\"array\" with cm=\"1\" over one cell, which the converter refused, so modern packages, the owner's untrusted-macro.xlsm and infra-m1.3's fixture among them, would fail capture."
+  },
+  {
+   "change": "The worker result (dnacalc-capture-worker-result version 1, never committed) carries cm on each formula and may carry the raw value {\"unread\": \"<why>\"} for a Value2 read that failed; the converter makes the latter a value failure of the cell.",
+   "reason": "Windows PowerShell reads a property whose getter fails as $null without an error, for COM objects too (measured 2026-10-19 in Windows PowerShell 5.1.26100 on an ADODB.Recordset never opened: $rs.RecordCount read as nothing with no error, [double] and [string] of that read gave 0 and an empty string, and InvokeMember of RecordCount threw; transcript and script in target/accept/infra-m1.2/getter-probe.log of the DnaCalc clone, not committed); read plainly, a failed Value2 read would have been recorded as an empty value."
+  }
+ ],
+ "not_ported": [
+  {
+   "items": [
+    "Run-RandCharacterization.ps1 and Run-RandStatisticalProfile.ps1 (RAND behaviour probes, lookup exit 0)"
+   ],
+   "reason": "Not part of a single capture; volatile and random functions are characterised by their own beads.",
+   "beads": [
+    "cfunc-m3.16",
+    "cfunc-m3.19",
+    "ceng-m3.6"
+   ],
+   "beads_basis": "docs/plan/BEAD_DETAILS.md sections whose text matches the regular expression \\bRAND\\b|RANDARRAY|random, leaving out infra-m0.6 and infra-m4.1, which mention it for evidence and settings only"
+  },
+  {
+   "items": [
+    "Run-ExcelThroughputBenchmark.ps1 (capture throughput, lookup exit 0)"
+   ],
+   "reason": "Performance tuning is outside this bead.",
+   "beads": [
+    "infra-m7.8"
+   ],
+   "beads_basis": "docs/plan/BEAD_DETAILS.md sections matching throughput|benchmark: infra-m7.8 and its exit infra-m7.10"
+  },
+  {
+   "items": [
+    "The five tools/xll-addin run-*.ps1 scripts (an XLL loaded into Excel, lookup exit 0)"
+   ],
+   "reason": "The capture loads no add-in by design; plan section 10.2: the reverse-direction XLL add-in is not an XLL-host implementation.",
+   "beads": [],
+   "beads_basis": "docs/plan/BEAD_DETAILS.md sections matching XLL|xll-addin name it only as a source-discovery path; no bead implements an XLL route"
+  },
+  {
+   "items": [
+    "Legacy array formulas (package formula type array without cell metadata, over one cell or several), dynamic-array formulas over a spill range, data-table formulas (type dataTable), spill children, and macro sheets in a captured workbook"
+   ],
+   "reason": "CaptureRecord version 2 has no formula kind for them; the adapter refuses a workbook holding such a formula (a typed refusal, never a record with the cell left out or misnamed) and records a macro sheet or dialog sheet as a capture failure at stage inventory (src/worker_tests.rs, fixture tests/fixtures/worker/macro-sheet.xlsm), which calc-verdict's judge and so cargo xtask capture refuse. A single-cell dynamic-array formula (type array with cell metadata cm and a ref of the cell itself) is accepted as an ordinary formula flagged dynamic_array (src/convert.rs, fixture tests/fixtures/worker/dynamic-array.xlsx).",
+   "beads": [
+    "infra-m3.2",
+    "infra-m5.1",
+    "infra-m7.4"
+   ],
+   "beads_basis": "infra-m3.2 (arrays and spills with real Excel), infra-m5.1 (TABLE captures before implementation), infra-m7.4 (raw observations and freshness evidence on the verdict path)"
+  }
+ ],
+ "legacy_tests": "No legacy test was ported, so none is kept, changed or dropped. The adapter's tests are fresh: calc-oracle-excel's unit tests and the case infra_m1_2__untrusted_workbook, calc-verdict's unit tests of version 2 and the case infra_m1_2__capture_replays.",
+ "semantic_witnesses": "None changed: no retained witness under migration/witnesses/ is read or written by this bead.",
+ "external_routes": {
+  "about": "The routes from a captured workbook to external data or another application, as the worker handles them (platform/calc-oracle-excel/worker/capture-worker.ps1, its header; src/lib.rs, the module documentation). A route listed under checked is refused before Excel starts, or refuses the capture as an isolation failure; any route not listed under checked is not modeled: the capture neither detects nor refuses it, and nothing in the record says it was absent.",
+  "checked_before_excel_starts": [
+   "a data connection of the connections part with refreshOnLoad (fixture tests/fixtures/worker/external-content.xlsx)",
+   "a pivot cache definition with refreshOnLoad, found by the root element of every package part whose first bytes are XML, whatever its name (tests/fixtures/worker/pivot-refresh.xlsx)",
+   "a query table with refreshOnLoad, found the same way (tests/fixtures/worker/query-table-refresh.xlsx)",
+   "an external link part that is not a link to another workbook: ddeLink, oleLink, or a part of no known kind (tests/fixtures/worker/external-content.xlsx)",
+   "a call to RTD, WEBSERVICE (and so FILTERXML over it), IMAGE, STOCKHISTORY, CUBEKPIMEMBER, CUBEMEMBER, CUBEMEMBERPROPERTY, CUBERANKEDMEMBER, CUBESET, CUBESETCOUNT, CUBEVALUE, TRANSLATE, DETECTLANGUAGE, COPILOT, PY, IMPORTTEXT, IMPORTCSV, CALL, REGISTER.ID or SQL.REQUEST (the worker's $ExternalDataFunctions), matched without regard to case on the function name after any _xl prefix and outside string literals, in a cell formula of a worksheet, macro sheet or dialog sheet, in a conditional-formatting or data-validation formula of such a sheet (any element f, formula, formula1 or formula2), or in a defined name (tests/fixtures/worker/external-functions.xlsx)"
+  ],
+  "checked_after_excel_starts": [
+   "an add-in that is open or installed, a COM add-in that is connected, an add-in whose state cannot be read, and registered XLL functions: the capture is refused before the workbook is opened, and no add-in is switched off",
+   "links to other workbooks: kept, opened with UpdateLinks 0, which never refreshes them, and recorded in the external_links setting",
+   "an OLE or DDE link that Excel reports, and a data connection that Excel reports as refreshing on open or whose setting cannot be read: isolation failures that refuse the capture"
+  ],
+  "not_modeled": [
+   "an ActiveX control (xl/activeX/)",
+   "an OLE object embedded in a sheet",
+   "a linked data type (rich values, such as Stocks or Geography)",
+   "a function of an add-in, or a user-defined function, whose name is not in the list above",
+   "a formula outside the parts listed above (a chart series, a pivot table calculated field, an XML map, a Power Query mashup without a connection that refreshes on load)",
+   "an external-data function added to Excel after the list above was written",
+   "any other route not listed under checked"
+  ]
+ },
+ "fixtures": {
+  "generator": "platform/calc-oracle-excel/tests/fixtures/make-fixtures.ps1 (sha256 c9da396ac8a4c0e6b1b6b7fdc1b2ed37cbcef10d46de6a30e63736ce635662c9) writes each package marked make-fixtures.ps1 below as UTF-8 XML parts, stored (ZIP method 0) with the timestamp 1980-01-01 00:00, by a ZIP writer in the script; run with -OutDir platform/calc-oracle-excel/tests/fixtures it rewrites them. The unit test fixtures_are_the_output_of_their_generator (src/worker_tests.rs) runs it into a fresh directory and compares every file with the committed one byte for byte. Round 3 replaced the round 1 and 2 files, which scripts outside the repository had written, with this output: the parts keep their cells, formulas, links, connections and sheets, and differ in namespace declarations, the styles part, override order and relationship IDs.",
+  "files": [
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx",
+    "sha256": "d39bd9653704097d68772e0f095d00bad22aa43efa87c28cb9913837a8dddc17",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/untrusted-link.xlsx",
+    "sha256": "cd2651fb1b5fcbd0a55e2906dad7fc0f477f09dc62464188cf9bc53c5cfb1dd3",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/link-target.xlsx",
+    "sha256": "dc2141749ad459346b66610c6ae4eeb391212b708af7a075841e6ea02ca0c223",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/macro-sheet.xlsm",
+    "sha256": "4fa3c24e94c5c070ee27e91bb61101b19542dd0bcd07ff1dc589447f4429a506",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/external-content.xlsx",
+    "sha256": "c333938cc44c69f22d9afdc7a0ec73254ba85847f2bc3cf6131baa07ac413d52",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/pivot-refresh.xlsx",
+    "sha256": "cae8f8477b27654280a163da22e7421fc9a001d06a60ad33b0ca0e67a74bdff6",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/query-table-refresh.xlsx",
+    "sha256": "30f00a97fbe509739f5454b5092e63c2432239bbb67058d68282e0da941abeec",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/external-functions.xlsx",
+    "sha256": "68be76fcbea047288ff79424484ba42338ce5cd9867f61b87e3e6b01d4b678d6",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/dynamic-array.xlsx",
+    "sha256": "c73cf7f96b423a6d7c6094742085af0d7bd0687e8ebcc7b1ef8b118da3927151",
+    "made_by": "make-fixtures.ps1"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/standin-worker.ps1",
+    "sha256": "b463105725e565ff812747bf0868935e2c635c544469fa8d9a8047b009e4da4b",
+    "made_by": "written by hand in this bead: the stand-in worker of the isolation part of infra_m1_2__untrusted_workbook"
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/untrusted-macro.xlsm",
+    "sha256": null,
+    "made_by": "not committed yet: the owner authors it in Excel by the steps at the top of platform/calc-oracle-excel/tests/acceptance.rs, and its hash is recorded when it is committed"
+   }
+  ]
+ }
+}

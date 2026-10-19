@@ -18,15 +18,30 @@
 //! - [`VerdictReport::encode`]: the report as JSON, headline first.
 //! - [`EvidenceLabels`]: the acquisition labels of a legacy evidence record, which decide what a
 //!   record converted from that evidence may certify.
+//! - [`CaptureSession`]: what a version 2 CaptureRecord adds about how a live capture was taken
+//!   (authored revision and operations, the [`CalculationContext`] fingerprint, the capture
+//!   tool's revision, package hashes, failures, shared-formula ranges and the save and reopen
+//!   round trip). [`CaptureRecord::encode`] writes version 2; the decoder reads versions 1 and 2.
+//! - [`file_cache_replay`]: a version 2 live capture judged against the file-cache reading of the
+//!   package Excel saved during it, and [`MissingCapture`], the typed answer for a capture
+//!   artifact path whose capture has not been taken.
+//! - [`sha256_hex`]: the content hash a version 2 record names its packages and its capture
+//!   worker by.
 //!
 //! Records are JSON with numbers as binary64 bits in hex. The library reads and writes bytes and
-//! strings only; files are the caller's (`cargo xtask verdict` is the repository command).
+//! strings only; files are the caller's (`cargo xtask verdict` and `cargo xtask capture` are the
+//! repository commands).
 
 mod capture;
+#[cfg(test)]
+mod capture_v2_tests;
 mod evaluations;
 mod evidence;
 mod json;
+mod replay;
 mod result;
+mod session;
+mod sha256;
 mod typed;
 mod verdict;
 
@@ -36,16 +51,25 @@ pub use calc_value as value;
 
 pub use capture::{
     Acquisition, CAPTURE_FORMAT, CAPTURE_VERSION, CacheCellType, CaptureRecord, CellAddress,
-    CellObservation, ExcelEnvironment, FormulaCell, FormulaKind, Observation, SavedCache,
-    SheetEntry, SheetVisibility,
+    CellObservation, EncodeError, ExcelEnvironment, FormulaCell, FormulaKind, Observation,
+    SavedCache, SheetEntry, SheetVisibility,
 };
 pub use evaluations::{EVALUATION_FORMAT, EVALUATION_VERSION, Evaluation, EvaluationRecord};
 pub use evidence::{EVIDENCE_RECORD_FORMAT, EvidenceLabels};
+pub use replay::{
+    MISSING_CAPTURE_FORMAT, MISSING_CAPTURE_VERSION, MissingCapture, file_cache_replay,
+};
 pub use result::{CellResult, Provenance, RESULT_FORMAT, RESULT_VERSION, ResultSet, RunIdentity};
+pub use session::{
+    CalculationContext, CaptureFailure, CaptureSession, STAGE_ENVIRONMENT, STAGE_INVENTORY,
+    STAGE_ISOLATION, SharedRange,
+};
+pub use sha256::sha256_hex;
 pub use typed::MismatchClass;
 pub use verdict::{
-    CellVerdict, Certainty, Counts, OutsideResult, REPORT_FORMAT, REPORT_VERSION, StaleSource,
-    Strata, UncertifiedReason, Verdict, VerdictPolicy, VerdictReport, judge,
+    CaptureFailureCounts, CellVerdict, Certainty, Counts, OutsideResult, REPORT_FORMAT,
+    REPORT_VERSION, StaleSource, Strata, UncertifiedReason, Verdict, VerdictPolicy, VerdictReport,
+    judge,
 };
 
 use std::fmt;

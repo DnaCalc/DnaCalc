@@ -25,6 +25,25 @@
         "infra_m1_1__cached_value_trap": ["windows", "linux", "wasm"],
         "infra_m1_1__denominator_integrity": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "infra-m1.2",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-verdict", "--lib"],
+        ["cargo", "test", "-p", "calc-oracle-excel", "--lib"],
+        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.2", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.2", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.2", "--platform", "wasm", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.2", "--platform", "excel", "--require-all"]
+      ],
+      "cases": [
+        "infra_m1_2__capture_replays"
+      ],
+      "platforms": {
+        "infra_m1_2__capture_replays": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

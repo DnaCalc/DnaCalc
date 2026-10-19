@@ -2,7 +2,8 @@
 //! independently enumerated formula inventory that is the verdict's denominator.
 //!
 //! A file-cache replay, a live Excel capture and an import of legacy evidence all produce this one
-//! record; only its `acquisition` and the origin of each observation differ. The JSON form:
+//! record; only its `acquisition` and the origin of each observation differ. The JSON form of
+//! version 1:
 //!
 //! ```text
 //! {"format": "dnacalc-capture-record", "version": 1,
@@ -21,18 +22,44 @@
 //!                  | "unknown_freshness_cache": {"t": ..., "v": ...}}, ...]}
 //! ```
 //!
+//! Version 2 keeps every member of version 1 and adds how the capture was taken
+//! ([`CaptureSession`], `session.rs`): a `session` member after `environment`, an optional
+//! `"formula": "<formula text>"` on each `formulas` entry, an optional `"dynamic_array": true` on
+//! an ordinary entry the workbook saves as a dynamic-array formula over its own cell
+//! ([`FormulaCell::dynamic_array`]; written only when true), and three lists:
+//!
+//! ```text
+//!  "session": {"revision": <authored revision observed>, "operations": ["<operation>", ...],
+//!              "context": "<calculation-context fingerprint>", "tool": "<capture-tool revision>",
+//!              "packages": {"input": "<content hash>", "output": "<content hash>" | null},
+//!              "failures": [{"stage": "...", "message": "..."}
+//!                         | {"stage": "...", "sheet": "...", "row": r, "column": c,
+//!                            "message": "..."}, ...]},
+//!  "shared_ranges": [{"sheet": "Sheet1", "group": <si>, "ref": "C1:C3"}, ...]   (after formulas)
+//!  "saved": [{"sheet": ..., "row": ..., "column": ..., "excel_saved_cache": {"t": ..., "v": ...}}]
+//!  "reopened": [{"sheet": ..., "row": ..., "column": ..., "excel_raw": <value>}]
+//! ```
+//!
+//! `saved` and `reopened` follow `observations`: the cache each inventory cell has in the package
+//! Excel saved, and the raw `Value2` Excel read back after reopening that package. The decoder
+//! reads both versions; [`CaptureRecord::encode`] writes version 2 only.
+//!
 //! `<value>` is the canonical typed value of `typed.rs` (numbers as binary64 bits in hex). Rows and
 //! columns are 1-based. Each formula cell of the workbook is listed once, hidden sheets, every cell
 //! of a shared-formula range (its master and each child) and error-valued formulas included: the
 //! list is enumerated from the workbook itself, never from what an evaluator returned.
 
 use crate::DecodeError;
-use crate::json::{self, Fields, Node};
-use crate::typed::{decode_value, error_from_literal};
+use crate::json::{self, Fields, Node, Out};
+use crate::session::CaptureSession;
+use crate::typed::{decode_value, error_from_literal, representable, value_out};
 use crate::value::{CalcValue, ExcelText, MAX_COLUMNS, MAX_ROWS, NumericTargetId};
+use std::fmt;
 
 pub const CAPTURE_FORMAT: &str = "dnacalc-capture-record";
-pub const CAPTURE_VERSION: u64 = 1;
+/// The version [`CaptureRecord::encode`] writes. The decoder also reads version 1, which has no
+/// session.
+pub const CAPTURE_VERSION: u64 = 2;
 
 /// A cell named by its sheet's name and a 1-based row and column within Excel's grid.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -73,14 +100,16 @@ impl CellAddress {
 
     /// The A1 form of the row and column (`B7`), without the sheet.
     pub fn a1(&self) -> String {
-        let mut letters = Vec::new();
-        let mut n = self.column;
-        while n > 0 {
-            let digit = (n - 1) % 26;
-            letters.push(char::from(b'A' + digit as u8));
-            n = (n - 1) / 26;
-        }
-        letters.iter().rev().collect::<String>() + &self.row.to_string()
+        a1_text(self.row, self.column)
+    }
+
+    /// The `sheet`, `row` and `column` members of an output object.
+    pub(crate) fn out_members(&self) -> Vec<(&'static str, Out)> {
+        vec![
+            ("sheet", Out::text(self.sheet.as_str())),
+            ("row", Out::Unsigned(u64::from(self.row))),
+            ("column", Out::Unsigned(u64::from(self.column))),
+        ]
     }
 
     /// The `sheet`, `row` and `column` members of an object whose other members `fields` admits.
@@ -101,6 +130,39 @@ impl CellAddress {
                 )
             })
     }
+}
+
+/// The A1 form of a 1-based row and column (`B7`).
+pub(crate) fn a1_text(row: u32, column: u32) -> String {
+    let mut letters = Vec::new();
+    let mut n = column;
+    while n > 0 {
+        let digit = (n - 1) % 26;
+        letters.push(char::from(b'A' + digit as u8));
+        n = (n - 1) / 26;
+    }
+    letters.iter().rev().collect::<String>() + &row.to_string()
+}
+
+/// The 1-based row and column of a relative A1 reference (`B7`: upper-case column letters, then
+/// a row number without leading zeros), or `None` when the text is not one or names a cell
+/// outside Excel's grid.
+pub(crate) fn parse_a1(text: &str) -> Option<(u32, u32)> {
+    let split = text.find(|c: char| !c.is_ascii_uppercase())?;
+    let (letters, digits) = text.split_at(split);
+    if letters.is_empty()
+        || letters.len() > 3
+        || digits.is_empty()
+        || digits.starts_with('0')
+        || !digits.bytes().all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    let column = letters
+        .bytes()
+        .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
+    let row: u32 = digits.parse().ok()?;
+    ((1..=MAX_ROWS).contains(&row) && (1..=MAX_COLUMNS).contains(&column)).then_some((row, column))
 }
 
 /// How a CaptureRecord was acquired.
@@ -149,6 +211,15 @@ impl Acquisition {
             Acquisition::FileCacheReplay => "file_cache_replay",
             Acquisition::LegacyEvidence { .. } => "legacy_evidence",
         }
+    }
+
+    /// The acquisition as the record and the report write it.
+    pub(crate) fn out(&self) -> Out {
+        let mut members = vec![("kind", Out::text(self.name()))];
+        if let Acquisition::LegacyEvidence { entry } = self {
+            members.push(("entry", Out::text(entry.as_str())));
+        }
+        Out::Object(members)
     }
 }
 
@@ -199,6 +270,24 @@ impl ExcelEnvironment {
             })
             .collect::<Result<Vec<_>, DecodeError>>()?;
         Ok(Some(ExcelEnvironment { target, settings }))
+    }
+
+    fn out(&self) -> Out {
+        Out::Object(vec![
+            ("excel_build", Out::text(self.target.excel_build())),
+            ("channel", Out::text(self.target.channel())),
+            ("compatibility", Out::text(self.target.compatibility())),
+            ("numeric_environment", Out::text(self.target.environment())),
+            (
+                "settings",
+                Out::Members(
+                    self.settings
+                        .iter()
+                        .map(|(name, value)| (name.clone(), Out::text(value.as_str())))
+                        .collect(),
+                ),
+            ),
+        ])
     }
 }
 
@@ -295,6 +384,32 @@ impl FormulaKind {
 pub struct FormulaCell {
     pub cell: CellAddress,
     pub kind: FormulaKind,
+    /// The formula text Excel reported for the cell (a version 2 record of a live capture);
+    /// `None` when the record does not carry it, as no version 1 record does.
+    pub formula: Option<String>,
+    /// The workbook saves the formula as a dynamic-array formula over this one cell (an array
+    /// formula `t="array"` whose `ref` is the cell itself, with cell metadata `cm`), which Excel
+    /// with dynamic arrays writes for a formula that could return an array. Its kind is
+    /// [`FormulaKind::Ordinary`]: it is one formula cell of the inventory, with no spill range.
+    /// Always false in a version 1 record.
+    pub dynamic_array: bool,
+}
+
+impl FormulaCell {
+    fn out(&self) -> Out {
+        let mut members = self.cell.out_members();
+        members.push(("kind", Out::text(self.kind.name())));
+        if let Some(group) = self.kind.group() {
+            members.push(("group", Out::Unsigned(group)));
+        }
+        if let Some(formula) = &self.formula {
+            members.push(("formula", Out::text(formula.as_str())));
+        }
+        if self.dynamic_array {
+            members.push(("dynamic_array", Out::Bool(true)));
+        }
+        Out::Object(members)
+    }
 }
 
 /// The `t` of a saved cell cache: what kind of value its `<v>` text is. The canonical record
@@ -403,6 +518,13 @@ impl SavedCache {
         SavedCache::new(cell_type, text).map_err(|e| DecodeError::new(&fields.at("v"), e))
     }
 
+    pub(crate) fn out(&self) -> Out {
+        Out::Object(vec![
+            ("t", Out::text(self.cell_type.name())),
+            ("v", Out::text(self.text.as_str())),
+        ])
+    }
+
     pub fn cell_type(&self) -> CacheCellType {
         self.cell_type
     }
@@ -475,6 +597,15 @@ impl Observation {
             }
         }
     }
+
+    fn out(&self) -> Out {
+        match self {
+            Observation::ExcelRaw(value) => value_out(value),
+            Observation::ExcelSavedCache(cache) | Observation::UnknownFreshnessCache(cache) => {
+                cache.out()
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -483,9 +614,55 @@ pub struct CellObservation {
     pub observation: Observation,
 }
 
+impl CellObservation {
+    /// The entries of the list at `path`, each a cell and exactly one observation of the origins
+    /// `origins` admits.
+    pub(crate) fn decode_list(
+        node: &Node,
+        path: &str,
+        origins: &[&str],
+    ) -> Result<Vec<CellObservation>, DecodeError> {
+        json::array(node, path)?
+            .iter()
+            .enumerate()
+            .map(|(i, node)| {
+                let path = format!("{path}[{i}]");
+                let mut allowed = vec!["sheet", "row", "column"];
+                allowed.extend(origins);
+                let observation = Fields::new(node, &path, &allowed)?;
+                Ok(CellObservation {
+                    cell: CellAddress::decode(&observation)?,
+                    observation: Observation::decode(&observation, &path)?,
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn out(&self) -> Out {
+        let mut members = self.cell.out_members();
+        members.push((self.observation.origin(), self.observation.out()));
+        Out::Object(members)
+    }
+}
+
+/// Why a CaptureRecord cannot be written.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EncodeError {
+    pub message: String,
+}
+
+impl fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for EncodeError {}
+
 /// A canonical CaptureRecord. Its consistency (one entry per cell, known sheets, one master per
-/// shared group, observations only for inventory cells) is checked by [`crate::judge`], so a
-/// record built in memory gets the same checks as one decoded from JSON.
+/// shared group, observations only for inventory cells, and in version 2 each shared group's range
+/// covered by its cells) is checked by [`crate::judge`], so a record built in memory gets the same
+/// checks as one decoded from JSON.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CaptureRecord {
     pub case: String,
@@ -495,6 +672,8 @@ pub struct CaptureRecord {
     pub sheets: Vec<SheetEntry>,
     pub formulas: Vec<FormulaCell>,
     pub observations: Vec<CellObservation>,
+    /// How the capture was taken: present in a version 2 record, `None` in a version 1 record.
+    pub session: Option<CaptureSession>,
 }
 
 /// Checks the `format` and `version` members of a record.
@@ -520,26 +699,60 @@ pub(crate) fn check_format(
     Ok(())
 }
 
+/// The members of a version 1 record, in the order they are written.
+const VERSION_1_MEMBERS: [&str; 9] = [
+    "format",
+    "version",
+    "case",
+    "source",
+    "acquisition",
+    "environment",
+    "sheets",
+    "formulas",
+    "observations",
+];
+
+/// The members of a version 2 record, in the order they are written.
+const VERSION_2_MEMBERS: [&str; 13] = [
+    "format",
+    "version",
+    "case",
+    "source",
+    "acquisition",
+    "environment",
+    "session",
+    "sheets",
+    "formulas",
+    "shared_ranges",
+    "observations",
+    "saved",
+    "reopened",
+];
+
 impl CaptureRecord {
-    /// The record in `bytes` (its JSON form, described in this module's documentation).
+    /// The record in `bytes`, of version 1 or 2 (its JSON form, described in this module's
+    /// documentation).
     pub fn decode(bytes: &[u8]) -> Result<CaptureRecord, DecodeError> {
         let root = json::parse(bytes, "capture")?;
-        let fields = Fields::new(
-            &root,
-            "capture",
-            &[
-                "format",
-                "version",
-                "case",
-                "source",
-                "acquisition",
-                "environment",
-                "sheets",
-                "formulas",
-                "observations",
-            ],
-        )?;
-        check_format(&fields, CAPTURE_FORMAT, CAPTURE_VERSION)?;
+        let any = Fields::new(&root, "capture", &VERSION_2_MEMBERS)?;
+        let format = json::text(any.required("format")?, &any.at("format"))?;
+        if format != CAPTURE_FORMAT {
+            return Err(DecodeError::new(
+                &any.at("format"),
+                format!("is {format:?}, expected {CAPTURE_FORMAT:?}"),
+            ));
+        }
+        let version = json::unsigned(any.required("version")?, &any.at("version"))?;
+        let fields = match version {
+            1 => Fields::new(&root, "capture", &VERSION_1_MEMBERS)?,
+            2 => any,
+            other => {
+                return Err(DecodeError::new(
+                    &any.at("version"),
+                    format!("is {other}, expected 1 or {CAPTURE_VERSION}"),
+                ));
+            }
+        };
         let case = json::name(fields.required("case")?, &fields.at("case"))?.to_owned();
         let source = json::name(fields.required("source")?, &fields.at("source"))?.to_owned();
         let acquisition =
@@ -564,36 +777,71 @@ impl CaptureRecord {
             })
             .collect::<Result<Vec<_>, DecodeError>>()?;
 
+        let formula_members: &[&str] = if version == 1 {
+            &["sheet", "row", "column", "kind", "group"]
+        } else {
+            &[
+                "sheet",
+                "row",
+                "column",
+                "kind",
+                "group",
+                "formula",
+                "dynamic_array",
+            ]
+        };
         let formulas_at = fields.at("formulas");
         let formulas = json::array(fields.required("formulas")?, &formulas_at)?
             .iter()
             .enumerate()
             .map(|(i, node)| {
                 let path = format!("{formulas_at}[{i}]");
-                let formula =
-                    Fields::new(node, &path, &["sheet", "row", "column", "kind", "group"])?;
+                let formula = Fields::new(node, &path, formula_members)?;
+                let kind = FormulaKind::decode(&formula)?;
+                // Written only when true, so a record has one form; only an ordinary formula can
+                // be a dynamic-array formula over its own cell.
+                let dynamic_array = match formula.optional("dynamic_array") {
+                    None => false,
+                    Some(node) => {
+                        let at = formula.at("dynamic_array");
+                        if !json::boolean(node, &at)? {
+                            return Err(DecodeError::new(
+                                &at,
+                                "is false; the member is written only when true",
+                            ));
+                        }
+                        if kind != FormulaKind::Ordinary {
+                            return Err(DecodeError::new(
+                                &at,
+                                format!("is given for a {} formula", kind.name()),
+                            ));
+                        }
+                        true
+                    }
+                };
                 Ok(FormulaCell {
                     cell: CellAddress::decode(&formula)?,
-                    kind: FormulaKind::decode(&formula)?,
+                    kind,
+                    formula: formula
+                        .optional("formula")
+                        .map(|node| json::name(node, &formula.at("formula")).map(str::to_owned))
+                        .transpose()?,
+                    dynamic_array,
                 })
             })
             .collect::<Result<Vec<_>, DecodeError>>()?;
 
-        let observations_at = fields.at("observations");
-        let observations = json::array(fields.required("observations")?, &observations_at)?
-            .iter()
-            .enumerate()
-            .map(|(i, node)| {
-                let path = format!("{observations_at}[{i}]");
-                let mut allowed = vec!["sheet", "row", "column"];
-                allowed.extend(OBSERVATION_ORIGINS);
-                let observation = Fields::new(node, &path, &allowed)?;
-                Ok(CellObservation {
-                    cell: CellAddress::decode(&observation)?,
-                    observation: Observation::decode(&observation, &path)?,
-                })
-            })
-            .collect::<Result<Vec<_>, DecodeError>>()?;
+        let observations = CellObservation::decode_list(
+            fields.required("observations")?,
+            &fields.at("observations"),
+            &OBSERVATION_ORIGINS,
+        )?;
+
+        let session = if version == 1 {
+            None
+        } else {
+            Some(CaptureSession::decode(&fields)?)
+        };
 
         Ok(CaptureRecord {
             case,
@@ -603,7 +851,94 @@ impl CaptureRecord {
             sheets,
             formulas,
             observations,
+            session,
         })
+    }
+
+    /// The record as a version 2 JSON document (this module's documentation), members in the
+    /// order the documentation lists them. Refuses a record without a session (a version 1 record
+    /// is read, never written) and a raw observation of a value no cell holds (an omitted
+    /// argument or a reference), which the decoder would refuse.
+    pub fn encode(&self) -> Result<String, EncodeError> {
+        let Some(session) = &self.session else {
+            return Err(EncodeError {
+                message: format!(
+                    "the capture record of case {:?} has no session; a version 1 record is read, never written",
+                    self.case
+                ),
+            });
+        };
+        for (list, observations) in [
+            ("observations", &self.observations),
+            ("reopened", &session.reopened),
+        ] {
+            if let Some(observed) = observations.iter().find(|observed| {
+                matches!(&observed.observation, Observation::ExcelRaw(value) if !representable(value))
+            }) {
+                return Err(EncodeError {
+                    message: format!(
+                        "the {list} entry of {}!{} holds a value no cell holds",
+                        observed.cell.sheet(),
+                        observed.cell.a1()
+                    ),
+                });
+            }
+        }
+        let members = vec![
+            ("format", Out::text(CAPTURE_FORMAT)),
+            ("version", Out::Unsigned(CAPTURE_VERSION)),
+            ("case", Out::text(self.case.as_str())),
+            ("source", Out::text(self.source.as_str())),
+            ("acquisition", self.acquisition.out()),
+            (
+                "environment",
+                self.environment
+                    .as_ref()
+                    .map_or(Out::Null, ExcelEnvironment::out),
+            ),
+            ("session", session.out()),
+            (
+                "sheets",
+                Out::Array(
+                    self.sheets
+                        .iter()
+                        .map(|sheet| {
+                            Out::Object(vec![
+                                ("name", Out::text(sheet.name.as_str())),
+                                ("visibility", Out::text(sheet.visibility.name())),
+                            ])
+                        })
+                        .collect(),
+                ),
+            ),
+            (
+                "formulas",
+                Out::Array(self.formulas.iter().map(FormulaCell::out).collect()),
+            ),
+            (
+                "shared_ranges",
+                Out::Array(
+                    session
+                        .shared_ranges
+                        .iter()
+                        .map(|range| range.out())
+                        .collect(),
+                ),
+            ),
+            (
+                "observations",
+                Out::Array(self.observations.iter().map(CellObservation::out).collect()),
+            ),
+            (
+                "saved",
+                Out::Array(session.saved.iter().map(CellObservation::out).collect()),
+            ),
+            (
+                "reopened",
+                Out::Array(session.reopened.iter().map(CellObservation::out).collect()),
+            ),
+        ];
+        Ok(Out::Object(members).document())
     }
 }
 

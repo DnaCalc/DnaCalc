@@ -34,6 +34,11 @@
 //! environment>]` judges a canonical CaptureRecord, result set and evaluation record through
 //! calc-verdict, the one verdict path, and writes the CellVerdict report (`verdict.rs`).
 //!
+//! `cargo xtask capture --fixture <xlsx|xlsm> --out <capture.json> [--timeout <s>] [--case <id>]
+//! [--verdict <report.json>] ...` takes one live capture through calc-oracle-excel, the one Excel
+//! capture adapter, writes the CaptureRecord version 2 and, with `--verdict`, the verdict record of
+//! its file-cache replay (`capture.rs`). It needs Excel on Windows: the owner's command.
+//!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
 
@@ -44,6 +49,11 @@ compile_error!(
 
 mod accept;
 mod arch;
+// calc-oracle-excel, which the capture command calls, is not a dependency of a wasm32 build of
+// xtask (it refuses wasm32 itself), so neither is this command: such a build then fails through
+// xtask's own refusal alone, and compiles when that refusal is disabled.
+#[cfg(not(target_arch = "wasm32"))]
+mod capture;
 mod cargo;
 mod ci;
 mod ci_audit;
@@ -72,15 +82,23 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "ci-audit" => ci_audit::run(rest),
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
         Some((command, rest)) if command == "verdict" => verdict::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "capture" => capture::run(rest),
         _ => {
-            eprintln!(
-                "xtask: unknown or missing command {args:?}\n{}\n{}\n{}\n{}\n{}\n{}",
+            #[allow(unused_mut)]
+            let mut usages = vec![
                 accept::USAGE,
                 pin::USAGE,
                 ci::USAGE,
                 ci_audit::USAGE,
                 evidence::USAGE,
-                verdict::USAGE
+                verdict::USAGE,
+            ];
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(capture::USAGE);
+            eprintln!(
+                "xtask: unknown or missing command {args:?}\n{}",
+                usages.join("\n")
             );
             ExitCode::from(2)
         }

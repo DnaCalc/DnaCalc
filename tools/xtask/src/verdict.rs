@@ -14,12 +14,14 @@
 //! Exit codes: 0 when the report was written, whatever the report says; 1 when an input cannot be
 //! read or is refused as inconsistent, or the report cannot be written; 2 on a usage error; 3 when
 //! the capture record's formula inventory is empty, so that there is nothing to judge (no report is
-//! written: a report of calculated 0 of 0 would say nothing).
+//! written: a report of calculated 0 of 0 would say nothing); 4 when the capture path holds the
+//! absent-capture marker (calc-verdict's `MissingCapture`: the capture has not been taken, so the
+//! verdict is not run).
 
 use calc_verdict::value::{NumericMode, NumericTargetId};
 use calc_verdict::{
-    Acquisition, CaptureRecord, EvaluationRecord, EvidenceLabels, JudgeError, ResultSet,
-    VerdictPolicy, VerdictReport, judge,
+    Acquisition, CaptureRecord, EvaluationRecord, EvidenceLabels, JudgeError, MissingCapture,
+    ResultSet, VerdictPolicy, VerdictReport, judge,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,6 +32,7 @@ pub const USAGE: &str = "usage: cargo xtask verdict --capture <file> --results <
 const EXIT_REFUSED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
 const EXIT_EMPTY_INVENTORY: u8 = 3;
+const EXIT_MISSING_CAPTURE: u8 = 4;
 
 #[derive(Debug, PartialEq, Eq)]
 struct Request {
@@ -172,6 +175,12 @@ fn judge_bytes(
 /// Reads the request's files, judges them and writes the report; the report on success.
 fn verdict(request: Request) -> Result<VerdictReport, Failure> {
     let capture = read(&request.capture, "capture record")?;
+    if let Some(missing) = MissingCapture::recognize(&capture) {
+        return Err(Failure {
+            code: EXIT_MISSING_CAPTURE,
+            message: format!("{}: {missing}", request.capture.display()),
+        });
+    }
     let results = read(&request.results, "result set")?;
     let evaluations = read(&request.evaluations, "evaluation record")?;
     let evidence = request
@@ -406,6 +415,40 @@ mod tests {
             .code,
             EXIT_REFUSED
         );
+    }
+
+    /// A capture path that holds the absent-capture marker exits 4 with MissingCapture, before
+    /// the other inputs are read and without a report.
+    #[test]
+    fn a_capture_not_taken_exits_four_without_a_report() {
+        let dir = scratch("missing");
+        fs::create_dir_all(&dir).unwrap();
+        let marker = dir.join("capture.json");
+        fs::write(
+            &marker,
+            r#"{"format": "dnacalc-capture-absent", "version": 1, "case": "k", "artifact": "capture record", "fixture": "f.xlsx", "command": "cargo xtask capture --fixture f.xlsx --out capture.json"}"#,
+        )
+        .unwrap();
+        let out = dir.join("report.json");
+        let failure = verdict(Request {
+            capture: marker,
+            results: dir.join("absent-results.json"),
+            evaluations: dir.join("absent-evaluations.json"),
+            out: out.clone(),
+            evidence: None,
+            target: None,
+        })
+        .unwrap_err();
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(failure.code, EXIT_MISSING_CAPTURE);
+        assert!(
+            failure
+                .message
+                .contains("MissingCapture: no capture of f.xlsx has been taken for case k"),
+            "{}",
+            failure.message
+        );
+        assert!(!out.exists());
     }
 
     /// The certainty of the one cell of a report, as `<certainty>[/<reason>]`.

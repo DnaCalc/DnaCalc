@@ -1,0 +1,3 @@
+# The worker script's content hash is part of the capture tool's revision, so keep its bytes
+# unchanged across checkouts, including Windows core.autocrlf.
+* -text

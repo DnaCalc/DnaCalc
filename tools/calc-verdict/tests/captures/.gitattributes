@@ -1,0 +1,4 @@
+# Capture artifacts: their bytes are judged as committed on every platform, and the verdict record
+# beside each capture is compared byte for byte, so keep them unchanged across checkouts,
+# including Windows core.autocrlf.
+* -text

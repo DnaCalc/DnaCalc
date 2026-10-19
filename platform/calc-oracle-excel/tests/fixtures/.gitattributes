@@ -1,0 +1,3 @@
+# The fixtures are read as committed (the stand-in worker by PowerShell, the workbooks by Excel and
+# by the package reader), so keep their bytes unchanged across checkouts.
+* -text

@@ -1,0 +1,8 @@
+{
+  "format": "dnacalc-capture-absent",
+  "version": 1,
+  "case": "infra_m1_2__capture_replays",
+  "artifact": "verdict record (the file-cache replay of the capture record beside it)",
+  "fixture": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx",
+  "command": "cargo xtask capture --fixture platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx --case infra_m1_2__capture_replays --out tools/calc-verdict/tests/captures/infra_m1_2/replay.capture.json --verdict tools/calc-verdict/tests/captures/infra_m1_2/replay.verdict.json"
+}

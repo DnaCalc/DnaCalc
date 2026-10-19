@@ -13,12 +13,25 @@
 //! The evaluation records are authored here too: producing one from instrumented evaluator calls
 //! is bead `dc-qguw`. What these cases show is that the verdict counts a calculated claim only
 //! against that separate record, never against the result set's own claim.
+//!
+//! `infra_m1_2__capture_replays` reads the capture artifacts under `tests/captures/infra_m1_2/`,
+//! which no one here authors: `cargo xtask capture` writes them on the owner's Windows machine with
+//! Excel. Until it has, each path holds the absent-capture marker and the case reports
+//! `ACCEPT-NOT-RUN` with the library's typed `MissingCapture`, which the runner records as not run.
+//! Once it has, the case first ties the capture to its inputs as committed: the capture's input
+//! package hash and source must be the SHA-256 of
+//! `platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx`, and its capture-tool
+//! revision must name the SHA-256 of `platform/calc-oracle-excel/worker/capture-worker.ps1`, so a
+//! capture of another workbook, by another worker, or written by hand does not replay as passed.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
 use calc_verdict::value::{NumericMode, NumericTargetId};
-use calc_verdict::{CaptureRecord, EvaluationRecord, JudgeError, ResultSet, VerdictPolicy, judge};
+use calc_verdict::{
+    CalculationContext, CaptureRecord, EvaluationRecord, JudgeError, MissingCapture, ResultSet,
+    STAGE_ISOLATION, VerdictPolicy, file_cache_replay, judge, sha256_hex,
+};
 use serde_json::{Value, json};
 
 #[cfg(target_arch = "wasm32")]
@@ -544,4 +557,191 @@ fn infra_m1_1__denominator_integrity() {
         }
     );
     note!("ACCEPT-NOTE: {CASE}: variant with an empty formula inventory: refused ({refusal})");
+}
+
+const REPLAY_CAPTURE: &[u8] = include_bytes!("captures/infra_m1_2/replay.capture.json");
+const REPLAY_VERDICT: &[u8] = include_bytes!("captures/infra_m1_2/replay.verdict.json");
+/// The workbook the replay capture must be of, and the worker that must have taken it, as
+/// committed (both are kept byte for byte across checkouts by their `.gitattributes`).
+const REPLAY_WORKBOOK: &[u8] =
+    include_bytes!("../../../platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx");
+const CAPTURE_WORKER: &[u8] =
+    include_bytes!("../../../platform/calc-oracle-excel/worker/capture-worker.ps1");
+
+/// Whether a saved cache (`t`, `v`) holds the canonical raw value `raw`, decided here without the
+/// library: a number by the bits of the decimal's nearest binary64, a logical by `1` or `0`, an
+/// error by its literal, text by its UTF-16 code units.
+fn saved_equals_raw(saved: &Value, raw: &Value) -> bool {
+    let v = saved["v"].as_str().expect("a saved cache has v");
+    match saved["t"].as_str().expect("a saved cache has t") {
+        "n" => match (raw["number"].as_str(), v.parse::<f64>()) {
+            (Some(bits), Ok(number)) => format!("{:016x}", number.to_bits()) == bits,
+            _ => false,
+        },
+        "b" => raw["logical"]
+            .as_bool()
+            .is_some_and(|b| v == if b { "1" } else { "0" }),
+        "e" => {
+            let literal = match raw["error"].as_str() {
+                Some("null") => "#NULL!",
+                Some("div0") => "#DIV/0!",
+                Some("value") => "#VALUE!",
+                Some("ref") => "#REF!",
+                Some("name") => "#NAME?",
+                Some("num") => "#NUM!",
+                Some("na") => "#N/A",
+                Some("busy") => "#BUSY!",
+                Some("getting_data") => "#GETTING_DATA",
+                Some("spill") => "#SPILL!",
+                Some("calc") => "#CALC!",
+                Some("field") => "#FIELD!",
+                Some("blocked") => "#BLOCKED!",
+                Some("connect") => "#CONNECT!",
+                _ => return false,
+            };
+            v == literal
+        }
+        "str" => raw["text"].as_str().is_some_and(|units| {
+            units
+                == v.encode_utf16()
+                    .map(|unit| format!("{unit:04x}"))
+                    .collect::<String>()
+        }),
+        _ => false,
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn infra_m1_2__capture_replays() {
+    const CASE: &str = "infra_m1_2__capture_replays";
+
+    // The capture path: the record the owner's Excel run wrote, or the absent-capture marker.
+    if let Some(missing) = MissingCapture::recognize(REPLAY_CAPTURE) {
+        assert_eq!(missing.case, CASE, "the marker names this case");
+        note!("ACCEPT-NOT-RUN: {CASE}: {missing}");
+        return;
+    }
+    let capture = CaptureRecord::decode(REPLAY_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, CASE);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    if let Some(missing) = MissingCapture::recognize(REPLAY_VERDICT) {
+        panic!("the capture is committed but its verdict record is not: {missing}");
+    }
+
+    // The capture is of the committed workbook, taken by the committed worker.
+    let workbook = format!("sha256:{}", sha256_hex(REPLAY_WORKBOOK));
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not replay.xlsx as committed"
+    );
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not replay.xlsx as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+
+    // The replay on this platform, through the library route `cargo xtask capture --verdict` took
+    // on Windows when it wrote the verdict record: identical bytes.
+    let report = file_cache_replay(&capture, &VerdictPolicy::default())
+        .expect("the committed capture replays");
+    let encoded = report.encode();
+    assert!(
+        encoded.as_bytes() == REPLAY_VERDICT,
+        "the verdict record replayed here differs from the committed one\n--- replayed\n{encoded}\n--- committed\n{}",
+        String::from_utf8_lossy(REPLAY_VERDICT)
+    );
+
+    // What the record says, read without the library.
+    let raw: Value = serde_json::from_slice(REPLAY_CAPTURE).expect("capture JSON");
+    let key = |entry: &Value| {
+        (
+            entry["sheet"].as_str().unwrap_or_default().to_owned(),
+            entry["row"].as_u64().unwrap_or_default(),
+            entry["column"].as_u64().unwrap_or_default(),
+        )
+    };
+    let list = |name: &str| raw[name].as_array().cloned().unwrap_or_default();
+    let formulas = list("formulas");
+    let observed: std::collections::BTreeMap<_, Value> = list("observations")
+        .iter()
+        .map(|entry| (key(entry), entry["excel_raw"].clone()))
+        .collect();
+    let saved = list("saved");
+    let equal = saved
+        .iter()
+        .filter(|entry| {
+            observed
+                .get(&key(entry))
+                .is_some_and(|raw| saved_equals_raw(&entry["excel_saved_cache"], raw))
+        })
+        .count() as u64;
+    let (denominator, saved_count) = (formulas.len() as u64, saved.len() as u64);
+    assert_eq!(raw["acquisition"]["kind"], "live_capture");
+    assert!(denominator > 0, "the capture lists formula cells");
+    let replayed: Value = serde_json::from_str(&encoded).expect("report JSON");
+    assert_counts(
+        &replayed,
+        json!({
+            "denominator": denominator, "calculated": 0, "matched": 0, "mismatched": 0,
+            "not_run": 0, "strict_certified": 0, "uncertified": 0, "unproven": 0, "stale": 0,
+            "file_cached": saved_count, "not_modeled": 0, "failed": 0,
+            "missing": denominator - saved_count,
+            "not_calculated_equal_to_expectation": equal, "outside_inventory": 0,
+            "evaluator_calls": 0
+        }),
+        "the file-cache replay of the capture",
+    );
+    assert_eq!(
+        replayed["captured"],
+        json!({"revision": session.revision, "context": session.context})
+    );
+    assert_eq!(
+        replayed["capture_failures"]["total"],
+        json!(session.failures.len()),
+        "the replayed report counts every failure the capture records"
+    );
+    // `cargo xtask capture` refuses a capture with an isolation failure, so a committed one has
+    // none.
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+
+    // The context fingerprint the capture recorded is the one its own settings give.
+    let settings = &raw["environment"]["settings"];
+    let setting = |name: &str| {
+        settings[name]
+            .as_str()
+            .unwrap_or_else(|| panic!("the capture's settings have no {name}"))
+    };
+    let context = CalculationContext {
+        date1904: setting("date1904") == "true",
+        iteration: setting("iteration") == "true",
+        max_iterations: setting("max_iterations").parse().expect("max_iterations"),
+        max_change: f64::from_bits(
+            u64::from_str_radix(setting("max_change"), 16).expect("max_change bits"),
+        ),
+        precision_as_displayed: setting("precision_as_displayed") == "true",
+    };
+    assert_eq!(session.context, context.fingerprint());
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: the committed capture ({} formula cells, Excel {}, {} capture failures) replays to the committed verdict record byte for byte: calculated 0 of {denominator}, file_cached {saved_count}, missing {}, not_calculated_equal_to_expectation {equal}",
+        denominator,
+        raw["environment"]["excel_build"]
+            .as_str()
+            .unwrap_or("unknown"),
+        session.failures.len(),
+        denominator - saved_count
+    );
 }

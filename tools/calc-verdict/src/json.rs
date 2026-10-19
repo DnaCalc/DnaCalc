@@ -271,7 +271,8 @@ pub(crate) fn units_text(units: &[u16]) -> String {
     out
 }
 
-/// A JSON value to write. Object members keep the order they were pushed in.
+/// A JSON value to write. Object members keep the order they were pushed in. `Members` is an
+/// object whose member names are data (a record's settings by name), written like `Object`.
 pub(crate) enum Out {
     Null,
     Bool(bool),
@@ -279,6 +280,7 @@ pub(crate) enum Out {
     Text(String),
     Array(Vec<Out>),
     Object(Vec<(&'static str, Out)>),
+    Members(Vec<(String, Out)>),
 }
 
 impl Out {
@@ -304,14 +306,23 @@ impl Out {
         out
     }
 
+    /// The members of an object of either kind, names borrowed; `None` for any other value.
+    fn members(&self) -> Option<Vec<(&str, &Out)>> {
+        match self {
+            Out::Object(members) => Some(members.iter().map(|(n, v)| (*n, v)).collect()),
+            Out::Members(members) => Some(members.iter().map(|(n, v)| (n.as_str(), v)).collect()),
+            _ => None,
+        }
+    }
+
     fn write_layout(&self, out: &mut String, depth: usize) {
         let indent = |out: &mut String, depth: usize| {
             for _ in 0..depth {
                 out.push_str("  ");
             }
         };
-        match self {
-            Out::Object(members) if !members.is_empty() => {
+        match (self, self.members()) {
+            (_, Some(members)) if !members.is_empty() => {
                 out.push_str("{\n");
                 for (i, (name, value)) in members.iter().enumerate() {
                     indent(out, depth + 1);
@@ -326,8 +337,8 @@ impl Out {
                 indent(out, depth);
                 out.push('}');
             }
-            Out::Array(items)
-                if !items.is_empty() && items.iter().all(|item| matches!(item, Out::Object(_))) =>
+            (Out::Array(items), _)
+                if !items.is_empty() && items.iter().all(|item| item.members().is_some()) =>
             {
                 out.push_str("[\n");
                 for (i, item) in items.iter().enumerate() {
@@ -341,7 +352,7 @@ impl Out {
                 indent(out, depth);
                 out.push(']');
             }
-            other => other.write_compact(out),
+            (other, _) => other.write_compact(out),
         }
     }
 
@@ -363,9 +374,9 @@ impl Out {
                 }
                 out.push(']');
             }
-            Out::Object(members) => {
+            Out::Object(_) | Out::Members(_) => {
                 out.push('{');
-                for (i, (name, value)) in members.iter().enumerate() {
+                for (i, (name, value)) in self.members().unwrap_or_default().iter().enumerate() {
                     if i > 0 {
                         out.push(',');
                     }

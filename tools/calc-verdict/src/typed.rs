@@ -236,6 +236,21 @@ pub(crate) fn decode_value(node: &Node, path: &str) -> Result<CalcValue, DecodeE
     decode_scalar_or_array(node, path, true)
 }
 
+/// Whether the canonical form holds `value`: not an omitted argument or a reference (which no cell
+/// holds), and no array inside an array.
+pub(crate) fn representable(value: &CalcValue) -> bool {
+    match value.core() {
+        CoreValue::Missing | CoreValue::Reference(_) => false,
+        CoreValue::Array(array) => array.iter_row_major().all(|cell| {
+            !matches!(
+                cell.core(),
+                CoreValue::Missing | CoreValue::Reference(_) | CoreValue::Array(_)
+            )
+        }),
+        _ => true,
+    }
+}
+
 /// A value in its canonical form. A kind the canonical form cannot hold (an omitted argument or a
 /// reference, which no cell holds) is written as `{"unrepresentable": "<kind>"}`.
 pub(crate) fn value_out(value: &CalcValue) -> Out {

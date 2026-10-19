@@ -8,3 +8,18 @@ description = "The native-only package for the Excel oracle adapter: live captur
 
 [package.metadata.dnacalc]
 portability = "native-only"
+
+# calc-verdict defines the CaptureRecord this adapter writes (version 2) and the value model its
+# observations are typed in; serde_json reads the worker's result and writes its request.
+[dependencies]
+calc-verdict = { path = "../../tools/calc-verdict" }
+serde_json = "=1.0.154"
+
+# The isolation of the worker's Excel: the list of the Excel processes running before a capture
+# (ToolHelp), and a handle opened on the Excel process the worker reports, through which its image
+# is read and it is waited on and terminated, so that a timeout terminates exactly that process
+# (never an Excel that ran before the capture, and never a process that reused its PID).
+# windows-sys is already in the workspace lock (through winapi-util) under the reviewed license
+# expression MIT OR Apache-2.0.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }

@@ -39,7 +39,9 @@
 //!
 //! Platform routes: `windows` and `linux` run the cases natively on a host of that system; `excel`
 //! runs them natively on a Windows host where Excel is registered for automation, and records
-//! them as `not_run` where it is not; `wasm` runs the acceptance target for wasm32-unknown-unknown
+//! them as `not_run` where it is not. Every native case run carries `DNACALC_ACCEPT_PLATFORM` set
+//! to its route, so a case whose windows and excel parts share one name starts Excel only on the
+//! excel route; `wasm` runs the acceptance target for wasm32-unknown-unknown
 //! under wasm-bindgen-test-runner once with chromedriver and once with geckodriver, and records a
 //! browser whose runner or driver is missing as `not_run`. Every wasm run sets
 //! `WASM_BINDGEN_USE_BROWSER`, so a test target that configures no mode of its own runs in the
@@ -54,6 +56,10 @@
 use crate::arch::{self, CheckResult};
 use crate::cargo::{self, WASM_TARGET, Workspace};
 use crate::manifest::{self, BeadEntry, Platform};
+// Whether Excel is registered for automation on this host, or why the excel route cannot run:
+// the capture adapter's own probe, the one `cargo xtask capture` asks too.
+#[cfg(not(target_arch = "wasm32"))]
+use calc_oracle_excel::excel_available;
 use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -541,16 +547,10 @@ fn run_listed(
     runs
 }
 
-/// Whether Excel is registered for automation on this host, or why the excel route cannot run.
+/// A wasm32 build of xtask (which main.rs refuses) has no capture adapter, so no Excel.
+#[cfg(target_arch = "wasm32")]
 fn excel_available() -> Result<(), String> {
-    let key = r"HKCR\Excel.Application\CLSID";
-    match Command::new("reg").args(["query", key]).output() {
-        Ok(out) if out.status.success() => Ok(()),
-        Ok(_) => Err(format!(
-            "Excel is not registered for automation on this host ({key} is absent)"
-        )),
-        Err(e) => Err(format!("cannot run reg query {key}: {e}")),
-    }
+    Err("a wasm32 build of xtask has no Excel capture adapter".to_owned())
 }
 
 /// Why this host cannot run `platform` at all, or `None` when it can.
@@ -785,6 +785,16 @@ fn run_wasm(
         .collect()
 }
 
+/// The variable a native case run carries naming its platform route (`windows`, `linux` or
+/// `excel`), so that one case can hold a part only the owner's excel route runs: a case runs with
+/// Excel only when this says `excel`, never on the windows route of a host that has Excel too.
+pub(crate) const PLATFORM_VARIABLE: &str = "DNACALC_ACCEPT_PLATFORM";
+
+/// The variables a native route sets for each case it runs.
+fn native_environment(platform: Platform) -> Vec<(&'static str, String)> {
+    vec![(PLATFORM_VARIABLE, platform.as_str().to_owned())]
+}
+
 /// Runs the cases of `entry` selected for `platform` along its route, or records each as
 /// `not_run` with the reason this host cannot start that route: `mismatch` (a host that cannot run
 /// the platform at all), or what `probe` reports about Excel, the wasm runner and the drivers.
@@ -813,11 +823,12 @@ fn run_entry(
     match platform {
         Platform::Wasm => run_wasm(ws, entry, cases, out_dir, probe, problems),
         _ => {
+            let environment = native_environment(platform);
             let route = Route {
                 label: "",
                 extra: &[],
                 removed: &[],
-                environment: &[],
+                environment: &environment,
                 browser: None,
             };
             run_listed(ws, entry, cases, out_dir, &route, problems)
@@ -1867,6 +1878,39 @@ mod tests {
         assert_eq!(browser_checked("Chrome", node, not_run.clone()), not_run);
         let failed = (Outcome::Failed, Some("libtest".to_owned()));
         assert_eq!(browser_checked("Chrome", node, failed.clone()), failed);
+    }
+
+    #[test]
+    fn native_routes_name_their_platform_to_the_case() {
+        for platform in [Platform::Windows, Platform::Linux, Platform::Excel] {
+            assert_eq!(
+                native_environment(platform),
+                [("DNACALC_ACCEPT_PLATFORM", platform.as_str().to_owned())]
+            );
+        }
+        let environment = native_environment(Platform::Windows);
+        let route = Route {
+            label: "",
+            extra: &[],
+            removed: &[],
+            environment: &environment,
+            browser: None,
+        };
+        let mut command = Command::new("cargo");
+        route.apply(&mut command);
+        let set: Vec<(String, Option<String>)> = command
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.map(|value| value.to_string_lossy().into_owned()),
+                )
+            })
+            .collect();
+        assert_eq!(
+            set,
+            [(PLATFORM_VARIABLE.to_owned(), Some("windows".to_owned()))]
+        );
     }
 
     #[test]

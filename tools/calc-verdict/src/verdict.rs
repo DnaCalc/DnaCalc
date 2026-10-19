@@ -17,6 +17,12 @@
 //!   compared with the observation                    -> matched | mismatched
 //! ```
 //!
+//! "Another revision" and "another context" are measured against the run the result set declares
+//! and, for a version 2 capture record, also against the authored revision and the context
+//! fingerprint the capture recorded independently: a result set whose run is at revision R, judged
+//! against a capture of revision R+1, has every calculated cell stale. A version 1 record carries
+//! neither, so there the result set's declaration is all the judge has.
+//!
 //! Only the last two rungs count a cell as calculated, and only a calculated cell can be matched:
 //! a file-cached, stale or unproven value that equals the expectation is still not calculated (the
 //! report counts such values separately, as the false passes a value-only comparison would have
@@ -30,6 +36,12 @@
 //! Exact target is selected, the record's Excel environment is that target, and, for a record
 //! converted from legacy evidence, the evidence record's label for its entry names that target's
 //! build. Every other comparison is uncertified, with its reason.
+//!
+//! A version 2 record carries the failures of its capture. The report counts them, in total and by
+//! stage. A failure of the capture's isolation or of reading its environment leaves every
+//! comparison against the record uncertified, with the reason `capture_failure`, whatever the
+//! observation and the policy. A failure to establish the formula inventory makes the denominator
+//! unknown, so such a record is refused ([`JudgeError::Inconsistent`]), as an empty one is.
 
 use crate::JudgeError;
 use crate::capture::{
@@ -39,12 +51,15 @@ use crate::evaluations::EvaluationRecord;
 use crate::evidence::EvidenceLabels;
 use crate::json::Out;
 use crate::result::{CellResult, Provenance, ResultSet, RunIdentity};
+use crate::session::{CaptureSession, STAGE_ENVIRONMENT, STAGE_INVENTORY, STAGE_ISOLATION};
 use crate::typed::{MismatchClass, compare, value_out};
 use crate::value::{CalcValue, CoreValue, NumericMode};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const REPORT_FORMAT: &str = "dnacalc-verdict-report";
-pub const REPORT_VERSION: u64 = 1;
+/// Version 2 adds the `captured` and `capture_failures` members a report on a version 2 capture
+/// record carries, and the uncertified reason `capture_failure`.
+pub const REPORT_VERSION: u64 = 2;
 
 /// What a verdict run is judged against: the numeric mode whose Exact target strict-bit certainty
 /// needs, and the legacy evidence labels a record converted from legacy evidence needs.
@@ -76,6 +91,9 @@ pub enum UncertifiedReason {
     /// (by the rule of [`EvidenceLabels`]): a label of an unknown build names none, and a target
     /// whose `excel_build` holds no build number is named by no label.
     EvidenceLabelNotTarget,
+    /// The capture record's session records a failure of the capture's isolation or of reading
+    /// its environment, so none of its observations certifies any target.
+    CaptureFailure,
 }
 
 impl UncertifiedReason {
@@ -89,6 +107,7 @@ impl UncertifiedReason {
             UncertifiedReason::EvidenceRecordAbsent => "evidence_record_absent",
             UncertifiedReason::EvidenceEntryUnknown => "evidence_entry_unknown",
             UncertifiedReason::EvidenceLabelNotTarget => "evidence_label_not_target",
+            UncertifiedReason::CaptureFailure => "capture_failure",
         }
     }
 }
@@ -109,9 +128,11 @@ pub enum StaleSource {
         last_calculated: Option<u64>,
         cause: String,
     },
-    /// Calculated, but from the authored inputs of another revision than the run's.
+    /// Calculated from the authored inputs of `revision`, which is not the revision judged: the
+    /// run's, and for a version 2 capture record also the revision the capture observed.
     RevisionNotRun { revision: u64 },
-    /// Calculated, but under another calculation context than the run's.
+    /// Calculated under the context `context`, which is not the context judged: the run's, and
+    /// for a version 2 capture record also the context the capture calculated under.
     ContextNotRun { context: String },
 }
 
@@ -256,6 +277,14 @@ pub struct Strata {
     pub error_expected: u64,
 }
 
+/// The failures a version 2 capture record's session records: their number, and their number at
+/// each stage.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CaptureFailureCounts {
+    pub total: u64,
+    pub by_stage: BTreeMap<String, u64>,
+}
+
 /// The CellVerdict report of one verdict run.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VerdictReport {
@@ -264,6 +293,12 @@ pub struct VerdictReport {
     pub acquisition: Acquisition,
     pub numeric_mode: NumericMode,
     pub run: RunIdentity,
+    /// The authored revision and context fingerprint a version 2 capture record observed, which
+    /// the run was judged against; `None` for a version 1 record.
+    pub captured: Option<RunIdentity>,
+    /// The failures a version 2 capture record's session records, counted; `None` for a version 1
+    /// record, which records none.
+    pub capture_failures: Option<CaptureFailureCounts>,
     pub counts: Counts,
     pub strata: Strata,
     pub cells: Vec<CellVerdict>,
@@ -295,7 +330,12 @@ fn raw_certainty(capture: &CaptureRecord, policy: &VerdictPolicy<'_>) -> Certain
     Certainty::StrictBits
 }
 
-fn certainty_of(observation: &Observation, raw: Certainty) -> Certainty {
+/// The certainty of a comparison with `observation`, given the certainty a raw observation has
+/// (`raw`) and whether the capture recorded a failure of its isolation or environment.
+fn certainty_of(observation: &Observation, raw: Certainty, capture_failed: bool) -> Certainty {
+    if capture_failed {
+        return Certainty::Uncertified(UncertifiedReason::CaptureFailure);
+    }
     match observation {
         Observation::ExcelRaw(_) => raw,
         Observation::ExcelSavedCache(_) => Certainty::Uncertified(UncertifiedReason::SavedCache),
@@ -307,6 +347,60 @@ fn certainty_of(observation: &Observation, raw: Certainty) -> Certainty {
 
 fn place(cell: &CellAddress) -> String {
     format!("{}!{}", cell.sheet(), cell.a1())
+}
+
+/// Checks a version 2 record's shared ranges against its inventory: each range on a listed sheet,
+/// one range per shared group and one group per range, every cell of a group inside its range,
+/// and every cell of a range listed as a cell of its group. Without the last rule an inventory
+/// that leaves a child of `C1:C3` out would be judged with a denominator one short.
+fn check_shared_ranges(
+    session: &CaptureSession,
+    sheets: &BTreeMap<&str, SheetVisibility>,
+    group_cells: &BTreeMap<(&str, u64), BTreeSet<&CellAddress>>,
+) -> Result<(), JudgeError> {
+    let mut ranges: BTreeSet<(&str, u64)> = BTreeSet::new();
+    for range in &session.shared_ranges {
+        let (sheet, group, reference) = (range.sheet(), range.group(), range.reference());
+        if !sheets.contains_key(sheet) {
+            return Err(JudgeError::new(format!(
+                "the shared range {reference} of group {group} is on sheet {sheet:?}, which the capture record does not list"
+            )));
+        }
+        if !ranges.insert((sheet, group)) {
+            return Err(JudgeError::new(format!(
+                "the capture record lists two shared ranges for group {group} on sheet {sheet:?}"
+            )));
+        }
+        let Some(cells) = group_cells.get(&(sheet, group)) else {
+            return Err(JudgeError::new(format!(
+                "the shared range {sheet}!{reference} names group {group}, to which no formula cell of the inventory belongs"
+            )));
+        };
+        if let Some(outside) = cells.iter().find(|cell| !range.contains(cell)) {
+            return Err(JudgeError::new(format!(
+                "{} belongs to shared group {group} and lies outside the group's range {sheet}!{reference}",
+                place(outside)
+            )));
+        }
+        if cells.len() as u64 != range.cell_count() {
+            let uncovered = range
+                .cells()
+                .find(|cell| !cells.contains(cell))
+                .map_or_else(|| range.first_a1(), |cell| cell.a1());
+            return Err(JudgeError::new(format!(
+                "the listed cells of shared group {group} do not cover its range {sheet}!{reference}: {sheet}!{uncovered} is not listed as a cell of the group"
+            )));
+        }
+    }
+    if let Some((sheet, group)) = group_cells
+        .keys()
+        .find(|(sheet, group)| !ranges.contains(&(*sheet, *group)))
+    {
+        return Err(JudgeError::new(format!(
+            "shared formula group {group} on sheet {sheet:?} has no shared range in the capture record"
+        )));
+    }
+    Ok(())
 }
 
 /// The CellVerdict report for `results` judged against `capture`, with `evaluations` as the proof
@@ -360,6 +454,7 @@ pub fn judge(
 
     let mut inventory: BTreeSet<&CellAddress> = BTreeSet::new();
     let mut groups: BTreeMap<(&str, u64), (u64, u64)> = BTreeMap::new();
+    let mut group_cells: BTreeMap<(&str, u64), BTreeSet<&CellAddress>> = BTreeMap::new();
     for formula in &capture.formulas {
         if !sheets.contains_key(formula.cell.sheet()) {
             return Err(JudgeError::new(format!(
@@ -379,6 +474,10 @@ pub fn judge(
                 FormulaKind::SharedMaster { .. } => entry.0 += 1,
                 _ => entry.1 += 1,
             }
+            group_cells
+                .entry((formula.cell.sheet(), group))
+                .or_default()
+                .insert(&formula.cell);
         }
     }
     for ((sheet, group), (masters, children)) in &groups {
@@ -388,6 +487,45 @@ pub fn judge(
             )));
         }
     }
+    if let Some(session) = &capture.session {
+        if let Some(failure) = session.failures_at(STAGE_INVENTORY).next() {
+            let cell = failure
+                .cell
+                .as_ref()
+                .map(|cell| format!(" at {}", place(cell)))
+                .unwrap_or_default();
+            return Err(JudgeError::new(format!(
+                "the capture record of case {:?} records an inventory failure{cell} ({}), so its formula inventory, the denominator, is not known to be complete",
+                capture.case, failure.message
+            )));
+        }
+        check_shared_ranges(session, &sheets, &group_cells)?;
+        for (list, entries) in [("saved", &session.saved), ("reopened", &session.reopened)] {
+            let mut seen: BTreeSet<&CellAddress> = BTreeSet::new();
+            for entry in entries {
+                if !inventory.contains(&entry.cell) {
+                    return Err(JudgeError::new(format!(
+                        "the capture record's {list} list holds {}, which is not in its formula inventory",
+                        place(&entry.cell)
+                    )));
+                }
+                if !seen.insert(&entry.cell) {
+                    return Err(JudgeError::new(format!(
+                        "the capture record's {list} list holds {} twice",
+                        place(&entry.cell)
+                    )));
+                }
+            }
+        }
+    }
+    let captured = capture
+        .session
+        .as_ref()
+        .map(|session| (session.revision, session.context.as_str()));
+    let capture_failed = capture.session.as_ref().is_some_and(|session| {
+        session.failures_at(STAGE_ISOLATION).next().is_some()
+            || session.failures_at(STAGE_ENVIRONMENT).next().is_some()
+    });
 
     let mut observations: BTreeMap<&CellAddress, &Observation> = BTreeMap::new();
     for observed in &capture.observations {
@@ -526,7 +664,9 @@ pub fn judge(
                 revision,
                 context,
             }) => {
-                if *revision != results.run.revision {
+                if *revision != results.run.revision
+                    || captured.is_some_and(|(captured, _)| captured != results.run.revision)
+                {
                     (
                         Verdict::Stale {
                             source: StaleSource::RevisionNotRun {
@@ -535,7 +675,9 @@ pub fn judge(
                         },
                         equals(),
                     )
-                } else if *context != results.run.context {
+                } else if *context != results.run.context
+                    || captured.is_some_and(|(_, captured)| captured != results.run.context)
+                {
                     (
                         Verdict::Stale {
                             source: StaleSource::ContextNotRun {
@@ -551,7 +693,7 @@ pub fn judge(
                     let verdict = match observation.zip(value) {
                         None => Verdict::NotRun,
                         Some((observation, value)) => {
-                            let certainty = certainty_of(observation, raw);
+                            let certainty = certainty_of(observation, raw, capture_failed);
                             match compare(observation.expected(), value) {
                                 None => Verdict::Matched { certainty },
                                 Some(class) => Verdict::Mismatched {
@@ -657,6 +799,18 @@ pub fn judge(
         acquisition: capture.acquisition.clone(),
         numeric_mode: policy.numeric_mode.clone(),
         run: results.run.clone(),
+        captured: capture.session.as_ref().map(|session| RunIdentity {
+            revision: session.revision,
+            context: session.context.clone(),
+        }),
+        capture_failures: capture.session.as_ref().map(|session| {
+            let mut counts = CaptureFailureCounts::default();
+            for failure in &session.failures {
+                counts.total += 1;
+                *counts.by_stage.entry(failure.stage.clone()).or_default() += 1;
+            }
+            counts
+        }),
         counts,
         strata,
         cells,
@@ -782,16 +936,21 @@ impl VerdictReport {
         by_reason
     }
 
-    /// The report as a JSON document (`dnacalc-verdict-report`, version 1): the headline
+    /// The report as a JSON document (`dnacalc-verdict-report`, version 2): the headline
     /// (calculated of the denominator, then matched of the calculated), every count, the uncertified
     /// comparisons by reason, the strata, one line per inventory cell in inventory order, and the
-    /// results outside the inventory.
+    /// results outside the inventory. For a version 2 capture record a `captured` member after
+    /// `run` names the revision and context the capture observed, and a `capture_failures` member
+    /// after it counts the capture's failures (`{"total": n, "by_stage": {"<stage>": n, ...}}`); a
+    /// report on a version 1 record has neither member.
     pub fn encode(&self) -> String {
         let c = &self.counts;
-        let mut acquisition = vec![("kind", Out::text(self.acquisition.name()))];
-        if let Acquisition::LegacyEvidence { entry } = &self.acquisition {
-            acquisition.push(("entry", Out::text(entry.as_str())));
-        }
+        let run = |identity: &RunIdentity| {
+            Out::Object(vec![
+                ("revision", Out::Unsigned(identity.revision)),
+                ("context", Out::text(identity.context.as_str())),
+            ])
+        };
         let numeric_mode = match &self.numeric_mode {
             NumericMode::Fast => Out::Object(vec![("mode", Out::text("fast"))]),
             NumericMode::Exact(target) => Out::Object(vec![
@@ -804,20 +963,37 @@ impl VerdictReport {
         };
         let by_reason = self.uncertified_by_reason();
         let s = &self.strata;
-        Out::Object(vec![
+        let mut members = vec![
             ("format", Out::text(REPORT_FORMAT)),
             ("version", Out::Unsigned(REPORT_VERSION)),
             ("case", Out::text(self.case.as_str())),
             ("source", Out::text(self.source.as_str())),
-            ("acquisition", Out::Object(acquisition)),
+            ("acquisition", self.acquisition.out()),
             ("numeric_mode", numeric_mode),
-            (
-                "run",
+            ("run", run(&self.run)),
+        ];
+        if let Some(captured) = &self.captured {
+            members.push(("captured", run(captured)));
+        }
+        if let Some(failures) = &self.capture_failures {
+            members.push((
+                "capture_failures",
                 Out::Object(vec![
-                    ("revision", Out::Unsigned(self.run.revision)),
-                    ("context", Out::text(self.run.context.as_str())),
+                    ("total", Out::Unsigned(failures.total)),
+                    (
+                        "by_stage",
+                        Out::Members(
+                            failures
+                                .by_stage
+                                .iter()
+                                .map(|(stage, count)| (stage.clone(), Out::Unsigned(*count)))
+                                .collect(),
+                        ),
+                    ),
                 ]),
-            ),
+            ));
+        }
+        members.extend([
             (
                 "headline",
                 Out::Object(vec![
@@ -901,11 +1077,12 @@ impl VerdictReport {
                         .collect(),
                 ),
             ),
-        ])
-        .document()
+        ]);
+        Out::Object(members).document()
     }
 
-    /// The report's counts on one line, headline first, with the uncertified comparisons by reason.
+    /// The report's counts on one line, headline first, with the uncertified comparisons by reason
+    /// and, for a version 2 capture record, the capture's failures by stage.
     pub fn summary(&self) -> String {
         let c = &self.counts;
         let reasons: Vec<String> = self
@@ -918,8 +1095,28 @@ impl VerdictReport {
         } else {
             format!(" ({})", reasons.join(", "))
         };
+        let capture_failures = self
+            .capture_failures
+            .as_ref()
+            .map(|failures| {
+                let stages: Vec<String> = failures
+                    .by_stage
+                    .iter()
+                    .map(|(stage, count)| format!("{stage} {count}"))
+                    .collect();
+                if stages.is_empty() {
+                    "; 0 capture failures".to_owned()
+                } else {
+                    format!(
+                        "; {} capture failures ({})",
+                        failures.total,
+                        stages.join(", ")
+                    )
+                }
+            })
+            .unwrap_or_default();
         format!(
-            "{}: calculated {} of {} formula cells; matched {} of {} calculated, mismatched {}, not run {}; of the {} compared, strict-bit certified {}, uncertified {}{}; not calculated: unproven {}, stale {}, file-cached {}, not modeled {}, failed {}, missing {}; {} not-calculated values equal their expectation; {} results outside the inventory; {} evaluator calls",
+            "{}: calculated {} of {} formula cells; matched {} of {} calculated, mismatched {}, not run {}; of the {} compared, strict-bit certified {}, uncertified {}{}; not calculated: unproven {}, stale {}, file-cached {}, not modeled {}, failed {}, missing {}; {} not-calculated values equal their expectation; {} results outside the inventory; {} evaluator calls{}",
             self.case,
             c.calculated,
             c.denominator,
@@ -939,7 +1136,8 @@ impl VerdictReport {
             c.missing,
             c.not_calculated_equal_to_expectation,
             c.outside_inventory,
-            c.evaluator_calls
+            c.evaluator_calls,
+            capture_failures
         )
     }
 }
@@ -1632,6 +1830,8 @@ mod tests {
         other.formulas.push(FormulaCell {
             cell: CellAddress::new("Sheet1", 2, 1).unwrap(),
             kind: FormulaKind::SharedMaster { group: 4 },
+            formula: None,
+            dynamic_array: false,
         });
         refused(&other, &calculated, &proof, "has 2 masters");
         let mut other = live.clone();
@@ -1715,7 +1915,7 @@ mod tests {
         );
         assert!(CaptureRecord::decode(good.as_bytes()).is_ok());
         for (from, to, path) in [
-            ("\"version\": 1", "\"version\": 2", "capture.version"),
+            ("\"version\": 1", "\"version\": 3", "capture.version"),
             (
                 "dnacalc-capture-record",
                 "dnacalc-result-set",
