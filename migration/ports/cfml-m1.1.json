@@ -1,0 +1,1748 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfml-m1.1",
+  "written": "2026-10-19",
+  "about": "What cfml-m1.1 ported into crates/calc-fml/src/syntax from the pinned OxFml syntax sources, what it changed and why, what it left out with the beads that will need it (found by the search it records), and each OxFml test of that syntax whose expectation the port keeps, changes or drops. Only this bead writes this file.",
+  "sources": [
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/syntax/lexer.rs",
+      "blob": "cf6f8adc9d176d01fe70b0c204cb507718b7160e",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); the blob equals the pin's",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/syntax/lexer.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "lex",
+          "to": "crates/calc-fml/src/syntax/lexer.rs lex",
+          "kept": [
+            "every character lands in exactly one token and one Eof token ends the list",
+            "operator tokens, with <=, <> and >= as two-character tokens",
+            "error literals tried in the same order, matched without regard to ASCII case",
+            "string literals and quoted names with a doubled quote as an escaped quote; unterminated quoted text runs to the end of the input",
+            "bracket groups with ' escaping #, [, ], @ and ', followed by identifier-continue characters, as one BracketedQualifier",
+            "number literals: digits, an optional fraction, an exponent only when digits follow it; a '.' before a digit starts a number (except right after ':', see the changes)",
+            "identifier start (any letter, _, $, \\) and continue (letters, digits, combining marks, ., _, $) rules, embedded bracket groups, and the break before '.' followed by '@', '*' or '[' (and now ':', see the changes)",
+            "runs of ASCII whitespace as one Whitespace token; any other character as one Unknown token"
+          ],
+          "changes": [
+            {
+              "change": "Spans are UTF-16 code units of the input. The pinned lexer used char indices for tokens and the UTF-8 byte length for the Eof span, so the two disagreed for non-ASCII input.",
+              "reason": "The bead asks for UTF-16 editor offsets. Witnessed by cfml_m1_1__lossless_roundtrip (the UTF-16 slices of every token and trivia tile the input; '&' after the string \"\\u{1F600}x\" starts at 6)."
+            },
+            {
+              "change": "The error-literal spellings live in token.rs ERROR_LITERALS, each paired with its calc-value WorksheetErrorCode; Token::error_code maps a literal to its code.",
+              "reason": "The tree names the worksheet error a literal spells through the prerequisite value API (cfunc-m0.1). Witnessed by cfml_m1_1__lossless_roundtrip (all fourteen codes, upper and lower case)."
+            },
+            {
+              "change": "is_identifier_letter and is_identifier_word_char are folded into the private is_identifier_start and is_identifier_continue.",
+              "reason": "Their other users (the language service's completion scanners and the editor's name renderer) are not ported; see not_ported."
+            },
+            {
+              "change": "An identifier ends before a '.' followed by ':', a number literal stops before a '.' followed by ':', and a '.' right after ':' is a Dot token even before a digit. The pinned lexer read 'A1.' in 'A1.:B10' as one identifier, '1.' in '1.:3' as one number and '.3' in '1:.3' as one number, so those trim references parsed as ranges with no diagnostic.",
+              "reason": "Trim references ('A1.:B10', 'A1:.B10', 'A1.:.B10') are Excel syntax this bead does not parse; the lexer exposes the trim operator so the parser can refuse it (see the parser.rs changes). Witnessed by cfml_m1_1__lossless_roundtrip (the three A1 forms) and the calc-fml unit test trim_references_are_refused_as_unsupported_syntax (also 'A:.A', '1:.3', '1.:3' and 'Sheet1!A1.:B10'); with the identifier break removed, both fail."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/syntax/token.rs",
+      "blob": "419ac63eda2ba2a7197cbfbfec4e9565b87ff1fe",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); the blob equals the pin's",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/syntax/token.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "TextSpan",
+          "to": "crates/calc-fml/src/syntax/token.rs TextSpan",
+          "kept": [
+            "start and len with new, end and covering"
+          ],
+          "changes": [
+            {
+              "change": "The unit is the UTF-16 code unit; derives Default.",
+              "reason": "The bead asks for UTF-16 editor offsets."
+            }
+          ]
+        },
+        {
+          "symbol": "TokenKind",
+          "to": "crates/calc-fml/src/syntax/token.rs TokenKind",
+          "kept": [
+            "all 33 variants in order",
+            "is_trivia (Whitespace only)"
+          ],
+          "changes": []
+        },
+        {
+          "symbol": "Token",
+          "to": "crates/calc-fml/src/syntax/token.rs Token",
+          "kept": [
+            "kind, text and span",
+            "leading trivia",
+            "full_span"
+          ],
+          "changes": [
+            {
+              "change": "trailing_trivia is removed: whitespace is the leading trivia of the next token only, and whitespace after the last token is the leading trivia of the Eof token.",
+              "reason": "The pinned attach pass gave the whitespace between two tokens to both (trailing of the first, leading of the second), so a reprint had to pick one. Each piece of whitespace now appears once and the tree reprints by concatenation. Witnessed by cfml_m1_1__lossless_roundtrip."
+            },
+            {
+              "change": "A missing token has missing = true and an empty span at the insertion point (right after the last token taken). The pinned parser gave an expected-but-absent token empty text and the current token's span.",
+              "reason": "Spans then never decrease in tree order and never cover text the token does not hold. Witnessed by cfml_m1_1__lossless_roundtrip ('=SUM(A1,' has its missing ')' at 8)."
+            },
+            {
+              "change": "Fields are private with accessors; new and the trivia setter are crate-private; with_trivia is removed.",
+              "reason": "Only the lexer and parser build tokens, which keeps the lossless invariant."
+            },
+            {
+              "change": "error_code() is added.",
+              "reason": "See the lexer.rs changes."
+            }
+          ]
+        },
+        {
+          "symbol": "SyntaxTrivia, SyntaxTriviaKind",
+          "to": "crates/calc-fml/src/syntax/token.rs Trivia",
+          "kept": [
+            "text and span"
+          ],
+          "changes": [
+            {
+              "change": "SyntaxTriviaKind (Whitespace, Unknown) is dropped; trivia is whitespace.",
+              "reason": "Only Whitespace is trivia (TokenKind::is_trivia), so Unknown trivia was never produced."
+            }
+          ]
+        },
+        {
+          "symbol": "SyntaxDiagnostic, SyntaxDiagnosticKind",
+          "to": "crates/calc-fml/src/syntax/token.rs SyntaxDiagnostic, SyntaxDiagnosticKind",
+          "kept": [
+            "message, span and kind",
+            "Message and SpacedRangeColon { suggested }",
+            "suggested_correction"
+          ],
+          "changes": [
+            {
+              "change": "UnsupportedSyntax is added.",
+              "reason": "The bead refuses selector syntax at entry with a precise unsupported-syntax diagnostic. Witnessed by cfml_m1_1__tree_syntax_rejected."
+            },
+            {
+              "change": "SpaceBeforeCall is not ported; the Default derive and the public constructor new give way to the crate-private constructors message and unsupported.",
+              "reason": "SpaceBeforeCall needs the function catalogue (see not_ported); only the parser makes diagnostics."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/syntax/green.rs",
+      "blob": "cfd4d771ffc8462689fcd2f51caf26fb703917d3",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); the blob equals the pin's",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/syntax/green.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "SyntaxKind",
+          "to": "crates/calc-fml/src/syntax/tree.rs SyntaxKind",
+          "kept": [
+            "FormulaRoot, NumberLiteralExpr, StringLiteralExpr, ArrayLiteralExpr, IdentifierExpr, QuotedIdentifierExpr, QualifiedReferenceExpr, SheetSpan3DReferenceExpr, CallExpr, InvokeExpr, ArgumentList, BinaryExpr, PrefixExpr, PostfixExpr, GroupingExpr, RangeExpr, IntersectionExpr, UnionExpr, OmittedArgExpr, MissingExpr"
+          ],
+          "changes": [
+            {
+              "change": "HostMemberReferenceExpr and HostReferenceCollectionExpr are removed.",
+              "reason": "The bead removes the selector grammar at entry; no node kind can hold it."
+            },
+            {
+              "change": "ErrorLiteralExpr is added; the pinned parser put an error literal in an IdentifierExpr.",
+              "reason": "An error literal is a literal, not a name. Witnessed by cfml_m1_1__lossless_roundtrip."
+            },
+            {
+              "change": "UnsupportedExpr is added: the unstructured tokens of refused syntax, plus the operand before a '.' member selector or the two operands of a trim reference as structured child nodes.",
+              "reason": "The refused tokens stay in the tree so the source reprints. Witnessed by cfml_m1_1__tree_syntax_rejected (selectors) and cfml_m1_1__lossless_roundtrip (trim references)."
+            },
+            {
+              "change": "QualifiedReferenceExpr also holds '#REF!' followed by its target, with no separate '!' token, since the error-literal token holds the '!'.",
+              "reason": "See the parser.rs change on '#REF!'."
+            }
+          ]
+        },
+        {
+          "symbol": "GreenChild",
+          "to": "crates/calc-fml/src/syntax/tree.rs SyntaxChild",
+          "kept": [
+            "Node and Token"
+          ],
+          "changes": [
+            {
+              "change": "Renamed; Node holds the node without a Box.",
+              "reason": "No red projection is ported, so the green/red naming has no counterpart; the Vec of children already gives the indirection."
+            }
+          ]
+        },
+        {
+          "symbol": "GreenNode",
+          "to": "crates/calc-fml/src/syntax/tree.rs SyntaxNode",
+          "kept": [
+            "kind, span and children; the span runs from the first child's start to the last child's end, trivia excluded"
+          ],
+          "changes": [
+            {
+              "change": "A node without children has an empty span at its position (the pinned span_for_children gave (0, 0)).",
+              "reason": "Positions of omitted arguments and missing operands. Witnessed by cfml_m1_1__lossless_roundtrip."
+            },
+            {
+              "change": "Fields are private with accessors; child_nodes, tokens and text are added.",
+              "reason": "Only the parser builds nodes."
+            }
+          ]
+        },
+        {
+          "symbol": "GreenTreeRoot",
+          "to": "crates/calc-fml/src/syntax/tree.rs SyntaxTree",
+          "kept": [
+            "root and diagnostics"
+          ],
+          "changes": [
+            {
+              "change": "full_fidelity_tokens, green_tree_key and green_tree_fingerprint are not ported; expression, tokens and source_text are added.",
+              "reason": "The tree itself holds every token and its trivia, so a second token list is redundant; the fingerprint belongs to template identity (see not_ported)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/syntax/parser.rs",
+      "blob": "a4c115ab7bf944205b27de4ed88418dedb6987ca",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); the blob equals the pin's",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/syntax/parser.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "parse_formula, Parser",
+          "to": "crates/calc-fml/src/syntax/parser.rs parse_formula, Parser",
+          "kept": [
+            "an optional leading '='; trailing tokens kept with one diagnostic each",
+            "the precedence chain comparison, &, + -, * /, ^, postfix %, prefix + -, union, intersection, range, postfix # and invocation",
+            "the union comma only where commas separate nothing else (not in argument lists or array literals)",
+            "intersection as whitespace before the start of a reference; a range colon must follow its left operand immediately",
+            "the sheet-span lookahead ': Identifier !' (a quoted first sheet allowed, a quoted last sheet not)",
+            "qualified references, calls by name, invocation of any expression, grouping, array literals with ',' and ';', argument lists with omitted arguments",
+            "the spaced-range-colon recovery: a RangeExpr, one SpacedRangeColon diagnostic and a suggestion without the recovered whitespace"
+          ],
+          "changes": [
+            {
+              "change": "The input is the formula text (parse_formula(&str) -> SyntaxTree), not a ParseRequest over a FormulaSourceRecord; the worksheet-cell-entry literal path is not ported.",
+              "reason": "See not_ported."
+            },
+            {
+              "change": "The selector productions are gone. A '^' run (with an optional '.name') where an operand starts, a '.' selector where an operand starts, and a '.' member selector after an operand each become one UnsupportedExpr with one UnsupportedSyntax diagnostic spanning exactly the selector tokens. The pinned parser built HostReferenceCollectionExpr nodes (with synthetic SELF and PARENT tokens) and HostMemberReferenceExpr nodes, or, for a leading '.' with no selector syntax configured, an untyped diagnostic and a MissingExpr holding only the '.'.",
+              "reason": "The bead: remove the selector grammar at entry, not as a later rejection. Witnessed by cfml_m1_1__tree_syntax_rejected, which also checks that neighbouring Excel forms (2^3, 2^-1, @A1:A3, @Parent.Value, Base.Value, .5+1, Sheet1!A1#) parse without a diagnostic."
+            },
+            {
+              "change": "'@' always prefixes a full range operand. The pinned parser special-cased '@' before an identifier or '*': '@SEQUENCE(3)' became InvokeExpr(IdentifierExpr) instead of a call, '@*' became an IdentifierExpr over '*', and '@Sheet1!A1' left '!A1' unparsed.",
+              "reason": "Those branches served selector syntax; without it '@' is Excel's implicit-intersection prefix. pb_004 ('=@A1#' is a PrefixExpr) is kept, and '=@A1:A3' is asserted in both test suites."
+            },
+            {
+              "change": "An error literal parses as ErrorLiteralExpr, except '#REF!' (in any ASCII case) directly followed by an identifier or a number: that is a QualifiedReferenceExpr whose qualifier is the '#REF!' token, which holds the '!', and whose target is the reference, the form Excel writes after the referenced sheet is deleted. The pinned parser put every error literal in an IdentifierExpr, so '=#REF!A1' ended with a trailing-token diagnostic and '=SUM(#REF!A1:B2)' with a missing ')' and trailing tokens.",
+              "reason": "Real Excel files contain '#REF!A1' and '#REF!A1:B2'; refusing them would refuse those files' formulas. Evaluating the reference to #REF! belongs to binding and evaluation (cfml-m1.2, cfml-m1.3). Witnessed by cfml_m1_1__lossless_roundtrip ('=#REF!A1', '=SUM(#REF!A1:B2)', and the qualifier token's error code) and the calc-fml unit test deleted_sheet_ref_qualifies_a_reference ('=#ref!$B$2', '=SUM(#REF!1:3)'; '=#REF!', '=Sheet2!#REF!' and '=SUM(#REF!,A1)' stay error literals; '=#DIV/0!A1' does not qualify); with the qualifier rule changed to '#NAME?', both fail."
+            },
+            {
+              "change": "Intersections chain inside argument lists and array literals. The pinned parse_intersection returned after the first intersection when the union comma was disallowed, so '=SUM(A1:C3 B1:B5 A2:C2)' got a missing-')' diagnostic and trailing-token diagnostics, while the same operands chained at the top level. The early return dates from OxFml's bootstrap commit 0371210, which states no reason.",
+              "reason": "One operand grammar wherever an operand appears. No Excel capture witnesses the three-operand form in this bead; the parser's behaviour is witnessed by the calc-fml unit test intersections_chain_inside_an_argument_list."
+            },
+            {
+              "change": "Whitespace becomes leading trivia as the parser takes tokens; whitespace that does not turn out to be an intersection is given back by resetting the position. The pinned parser dropped skipped whitespace and re-attached it in a pass over the finished tree (attach_trivia_to_green_tree, rehydrate_green_node_tokens).",
+              "reason": "Each piece of whitespace is owned and reprinted once."
+            },
+            {
+              "change": "At the end of input an expected operand is an empty MissingExpr with the diagnostic 'expected an expression' at the insertion point. The pinned parser reported 'unexpected token Eof' and put a clone of the Eof token in the MissingExpr, so Eof appeared twice in the tree.",
+              "reason": "Lossless reprint of incomplete input. Witnessed by cfml_m1_1__lossless_roundtrip ('=', '', '=(1+', '=Sheet1!')."
+            },
+            {
+              "change": "Unterminated string literals and quoted names get a diagnostic ('unterminated string literal', 'unterminated quoted name') at the token's span; the pinned parser accepted them with no diagnostic.",
+              "reason": "Incomplete input must not parse as a well-formed formula. Witnessed by cfml_m1_1__lossless_roundtrip ('=\"abc', '=\"abc\"\"', \"='My Sheet\")."
+            },
+            {
+              "change": "The space-before-call recovery is not ported, so '=SUM (A1)' parses as the intersection of the name SUM and (A1) with no diagnostic (pinned: a CallExpr with one SpaceBeforeCall diagnostic).",
+              "reason": "It consults the function catalogue (semantics::lookup_function_meta over OxFunc), which calc-fml does not have yet; see not_ported. Witnessed by the calc-fml unit test space_before_call_is_an_intersection_without_the_catalogue."
+            },
+            {
+              "change": "The operand after a qualifier's '!' (a sheet qualifier, a sheet span or '#REF!') never starts a sheet span. The pinned parser let it, so '=SUM(Sheet1!A1:Sheet1!B2)' and '=SUM(Sheet1!A:Sheet1!C)' parsed as QualifiedReferenceExpr(Sheet1 ! SheetSpan3DReferenceExpr(A1 : Sheet1 ! B2)), the cell A1 read as a first sheet, with no diagnostic. They are now RangeExpr(QualifiedReferenceExpr, QualifiedReferenceExpr).",
+              "reason": "A1 references with a sheet qualifier are in the bead's Do. Witnessed by cfml_m1_1__lossless_roundtrip (both forms and \"'Annual Data'!A:'Annual Data'!C\") and the calc-fml unit test qualified_range_ends_are_two_qualified_references; with the rule removed, both fail. The quoted forms of sheet_span_3d_reference_tests.rs keep their expectations (sheet_spans_claim_their_colon_only_before_a_bang)."
+            },
+            {
+              "change": "A trim operator ('.:', ':.' or '.:.', with no whitespace inside it) after a range operand becomes an UnsupportedExpr over the left operand, the operator tokens and the right operand, with one UnsupportedSyntax diagnostic that names trim references and spans exactly the operator tokens. The pinned parser built a RangeExpr over the name 'A1.' for 'A1.:B10' and over the numbers '1.' and '.3' for '1.:3' and '1:.3', and gave 'A1:.B10' an untyped 'unexpected token Dot' diagnostic followed by further untyped diagnostics.",
+              "reason": "Excel reads these as trim references, which this bead does not parse: the parser refuses them precisely instead of building a wrong range. dc-2oc4 owns parsing and evaluating them. Witnessed by cfml_m1_1__lossless_roundtrip and trim_references_are_refused_as_unsupported_syntax; with the parser's trim check disabled, both fail."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/syntax/combining_marks.rs",
+      "blob": "603d6500d7813ffc1a5279efb739e4d03e4f2622",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); the blob equals the pin's",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/syntax/combining_marks.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "is_combining_mark, COMBINING_MARK_RANGES",
+          "to": "crates/calc-fml/src/syntax/combining_marks.rs",
+          "kept": [
+            "the Unicode 15.0.0 Mn and Mc table and its binary search, unchanged",
+            "the three unit tests"
+          ],
+          "changes": [
+            {
+              "change": "The unit tests are #[test] natively and #[wasm_bindgen_test] on wasm32; the module doc drops the OxFml work-item tags.",
+              "reason": "The repository's browser test pattern; provenance lives in this record."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/syntax/mod.rs",
+      "blob": "84654fabe71dcb442b29f4049cc0a40d82dec49b",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); the blob equals the pin's",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/syntax/mod.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "module layout",
+          "to": "crates/calc-fml/src/syntax/mod.rs",
+          "kept": [
+            "the modules combining_marks, lexer, parser and token"
+          ],
+          "changes": [
+            {
+              "change": "green becomes tree; the modules are private and their public items are re-exported from calc_fml::syntax (parse_formula also from the crate root).",
+              "reason": "One public path for the editing API."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "ReferenceSelectorSyntaxProfile",
+        "parse_formula_with_reference_selector_syntax",
+        "parse_formula_incremental_with_reference_selector_syntax",
+        "SyntaxKind::HostMemberReferenceExpr",
+        "SyntaxKind::HostReferenceCollectionExpr",
+        "Parser::parse_ancestor_anchor_expr",
+        "Parser::parse_host_member_reference_tails",
+        "Parser::split_reference_selector_tail_token",
+        "Parser::bump_reference_selector_token",
+        "normalize_reference_selector_token"
+      ],
+      "reason": "The selector (tree) grammar is removed at entry.",
+      "beads": [],
+      "beads_basis": "No bead needs it: BEAD_DETAILS.md tells cfml-m1.1 to remove it at entry, cfml-m2.5 and cfml-m6.2 not to copy the host-reference productions, the beads porting eval/mod.rs to discard the host-reference syntax and the tree profile, and every bead's Out of scope forbids a tree reference language."
+    },
+    {
+      "items": [
+        "worksheet_cell_entry_literal_root",
+        "literal_expr_node",
+        "is_single_quoted_string_literal_token",
+        "encode_string_literal_text"
+      ],
+      "reason": "Reading a cell entry that is not a formula (a number, TRUE/FALSE or text typed into a cell, selected by FormulaChannelKind::WorksheetA1) is entry parsing, not formula syntax.",
+      "beads": [
+        "cfml-m2.6",
+        "cfml-m6.1"
+      ],
+      "beads_basis": "cfml-m2.6 Do: 'Keep editable entry parsing separate from locale-invariant file numeric serialization'; cfml-m6.1 Do: 'Share the rounding/number-to-text policy with TEXT and entry parsing'."
+    },
+    {
+      "items": [
+        "parse_formula_incremental",
+        "parse_formula_incremental_arc",
+        "IncrementalParseResult",
+        "green_tree_reuse_matches",
+        "ParseRequest",
+        "ParseResult"
+      ],
+      "reason": "Reusing a previous tree for unchanged text, and the request wrapper over a source record, belong to the editing session; parse_formula(&str) replaces the wrapper.",
+      "beads": [
+        "cfml-m2.5"
+      ],
+      "beads_basis": "cfml-m2.5 Do: 'lossless incremental edits into an explicit EditSession', with version tags; the pin lists parser.rs for cfml-m1.1, cfml-m2.5 and cfml-m6.2."
+    },
+    {
+      "items": [
+        "GreenTreeRoot::green_tree_key",
+        "GreenTreeRoot::green_tree_fingerprint",
+        "GreenTreeRoot::full_fidelity_tokens"
+      ],
+      "reason": "The fingerprint (std DefaultHasher over token kinds, texts and spans) is a template identity, and DefaultHasher's output is not specified across Rust releases; the token list duplicates the tree.",
+      "beads": [
+        "cfml-m2.1"
+      ],
+      "beads_basis": "cfml-m2.1 Do: 'Normalize parsed formula structure, not raw strings. Key templates by typed R1C1 offsets/absolutes ...'."
+    },
+    {
+      "items": [
+        "SyntaxDiagnosticKind::SpaceBeforeCall",
+        "Parser::at_space_before_call",
+        "Parser::recover_space_before_call"
+      ],
+      "reason": "Excel refuses whitespace between a function name and '(' only for known functions; telling them apart needs the function catalogue (OxFml's semantics::lookup_function_meta over OxFunc), which calc-fml does not have.",
+      "beads": [
+        "cfml-m2.5",
+        "cfml-m6.2"
+      ],
+      "beads_basis": "cfml-m2.5 Do: 'function/name diagnostics ... reuse the function catalogue'; cfml-m6.2: 'Complete editor reference modes and diagnostics', case cfml_m6_2__incomplete_formula."
+    },
+    {
+      "items": [
+        "lexer::is_identifier_letter and lexer::is_identifier_word_char as helpers shared with other modules"
+      ],
+      "reason": "Their other users are the language service's completion-prefix and structured-column scanners and the editor's name renderer, which are not ported.",
+      "beads": [
+        "cfml-m2.5",
+        "cfml-m6.2"
+      ],
+      "beads_basis": "cfml-m2.5 Do: 'Port completion, signature help ...'; cfml-m6.2 Do: 'name/table completion'."
+    },
+    {
+      "source": {
+        "repository": "OxFml",
+        "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+        "path": "crates/oxfml_core/src/semantics/mod.rs",
+        "blob": "8195c5802d92da45fb7ebb6894fb88b35bf518bc",
+        "lookup": {
+          "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/semantics/mod.rs",
+          "exit": 6,
+          "calls_quarantined": [
+            "OxFunc crate oxfunc_core"
+          ]
+        }
+      },
+      "items": [
+        "the whole module (function metadata lookup over OxFunc, argument classification)"
+      ],
+      "reason": "The parser needs no function catalogue; the one parse feature that used it, the space-before-call recovery, is not ported (see above).",
+      "beads": [
+        "cfml-m2.4",
+        "cfml-m2.5",
+        "cfml-m6.2"
+      ],
+      "beads_basis": "The pin lists the file for cfml-m1.1, cfml-m2.4, cfml-m2.5 and cfml-m6.2; cfml-m2.4's Port from cites OxFml semantics/ for argument classification, cfml-m2.5's Do reuses the function catalogue for function/name diagnostics."
+    },
+    {
+      "source": {
+        "repository": "OxFml",
+        "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+        "path": "crates/oxfml_core/src/consumer/editor/mod.rs",
+        "blob": "588f60e7fecef92768d7b76af5b9e0a7cbdbc894",
+        "lookup": {
+          "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/consumer/editor/mod.rs",
+          "exit": 6,
+          "calls_quarantined": [
+            "OxFunc crate oxfunc_core"
+          ]
+        }
+      },
+      "items": [
+        "the editor consumer facade"
+      ],
+      "reason": "Editing services over the tree (edit application, completion, help) are not this bead's.",
+      "beads": [
+        "cfml-m2.5",
+        "cfml-m6.2"
+      ],
+      "beads_basis": "The pin lists the file for cfml-m1.1, cfml-m2.5 and cfml-m6.2; cfml-m2.5's Do ports completion, signature help and incremental edits into an EditSession, cfml-m6.2's the editor reference modes."
+    },
+    {
+      "source": {
+        "repository": "OxFml",
+        "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+        "path": "crates/oxfml_core/src/consumer/editor/types.rs",
+        "blob": "40086ac62cef3acfa55e6141f424fdeaaaa424b0",
+        "lookup": {
+          "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/consumer/editor/types.rs",
+          "exit": 0,
+          "calls_quarantined": []
+        }
+      },
+      "items": [
+        "the editor consumer facade's types"
+      ],
+      "reason": "As consumer/editor/mod.rs.",
+      "beads": [
+        "cfml-m2.5",
+        "cfml-m6.2"
+      ],
+      "beads_basis": "As consumer/editor/mod.rs."
+    },
+    {
+      "source": {
+        "repository": "OxFml",
+        "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+        "path": "crates/oxfml_core/src/language_service/mod.rs",
+        "blob": "a2ce95c2e0a8b8f0b05611ea85ebdac9de614ec3",
+        "lookup": {
+          "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/language_service/mod.rs",
+          "exit": 6,
+          "calls_quarantined": [
+            "OxFunc crate oxfunc_core"
+          ]
+        }
+      },
+      "items": [
+        "the language service (editor syntax snapshot, completion, signature help, live diagnostics)"
+      ],
+      "reason": "Not needed for the lossless tree; its tests are listed in legacy_tests.",
+      "beads": [
+        "cfml-m2.5",
+        "cfml-m6.2"
+      ],
+      "beads_basis": "The pin lists the file for cfml-m1.1, cfml-m2.5 and cfml-m6.2; cfml-m2.5's Do ports completion, signature help and diagnostics."
+    }
+  ],
+  "owner_search": {
+    "rule": "The beads of each not_ported entry are the beads the pin lists for the six syntax inputs (cfml-m1.1, cfml-m2.5, cfml-m6.2) whose Do names the item's job, plus the beads docs/plan/BEAD_DETAILS.md matches for its terms, found with grep -n -i -E \"incremental|host-reference|host reference|input pars|cell input|typed constant|entered|template id|canonical token|function/name diagnostics|editor reference|completion\" docs/plan/BEAD_DETAILS.md and grep -n -i -E \"CellInput|localized input|input text|typed value|cell entry|entry pars|numeric parsing\" docs/plan/BEAD_DETAILS.md.",
+    "inputs": "The pinned inputs assigned to cfml-m1.1 are the entries of migration/source-manifest.json whose beads include cfml-m1.1: 65 in all, 6 syntax sources (ported), 4 other sources (not ported), 26 test files and test helpers, and 29 fixtures. Each was looked up with cargo xtask pin-sources --lookup; the exits and calls_quarantined lists in this record come from those transcripts.",
+    "legacy_tests": "Test names are the #[test] functions of each pinned blob (git show 15daac56:<path> in OxFml). Owners are the CalcFml beads whose Do in docs/plan/BEAD_DETAILS.md names the test's subject, read bead by bead (cfml-m1.2 to cfml-m6.2), plus cfunc-m3.17 and onecalc-m2.1 found by name. Subjects no CalcFml Do names were searched, case-insensitively, in the text of every bead of BEAD_DETAILS.md: 'replay bundle|witness bundle|pack candidate|replay adapter|replay fixture' matched only ceng-m4.6, whose capture/replay adapter supplies external and RTD values, not OxFml's replay formats; 'managed session|formula token' and 'scheduler contract' matched nothing; 'reference profile|bind profile|ReferenceBindProfile|host-reference|host reference' matched only cfml-m1.1's removal of host-reference syntax and the Port-from lines that say to discard the tree profile. Those subjects therefore list no bead."
+  },
+  "legacy_tests": [
+    {
+      "file": "crates/oxfml_core/src/syntax/combining_marks.rs (its #[cfg(test)] module)",
+      "blob": "603d6500d7813ffc1a5279efb739e4d03e4f2622",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/syntax/combining_marks.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "table_is_sorted_and_non_overlapping",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::combining_marks::tests::table_is_sorted_and_non_overlapping"
+        },
+        {
+          "test": "recognises_marks_that_is_alphabetic_does_not",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::combining_marks::tests::recognises_marks_that_is_alphabetic_does_not"
+        },
+        {
+          "test": "rejects_letters_digits_punctuation_and_symbols",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::combining_marks::tests::rejects_letters_digits_punctuation_and_symbols"
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/parse_bind_fixture_tests.rs",
+      "blob": "999bbaa0ba4e12bcc31b3a7361111dcf74a00a0f",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/parse_bind_fixture_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "parse_and_bind_fixtures_match_initial_w002_slice (over tests/fixtures/parse_bind_cases.json, blob 69d269c15fd33102142ebbd989dc0eb5b5a8b1e1, lookup exit 0)",
+          "disposition": "changed",
+          "replaced_by": "calc-fml syntax::parser::tests::root_kinds_and_diagnostic_counts and space_before_call_is_an_intersection_without_the_catalogue",
+          "reason": "The parse half (root expression kind and parse-diagnostic count) is kept for every fixture case except pb_032 ('=SUM (A1)': IntersectionExpr with 0 diagnostics instead of CallExpr with 1; see the parser.rs changes). The red-view root-start assertion is subsumed by the tiling check of cfml_m1_1__lossless_roundtrip. The bind half (bound root kind, reference counts, bind diagnostics, normalized references, unresolved reasons, context names) is dropped for cfml-m1.2. No code of the test file is ported, so its run-time load (the fixture read) is not used."
+        },
+        {
+          "test": "parse_rejects_unbalanced_deep_parenthesis_family_for_ftc_0916_and_ftc_0987",
+          "disposition": "changed",
+          "replaced_by": "calc-fml syntax::parser::tests::token_kinds_and_unbalanced_nesting",
+          "reason": "The parse half is kept (one diagnostic, \"expected ')'\"); the bind half is dropped for cfml-m1.2."
+        },
+        {
+          "test": "unresolved_identifier_becomes_typed_bind_diagnostic, incremental_parse_red_and_bind_reuse_same_immutable_artifacts, incremental_reference_breadth_reuse_keeps_whole_row_bindings, incremental_bind_invalidates_when_bind_context_changes, bind_preserves_array_literal_multiplied_by_unary_negative_literal_shape, bind_prefers_builtin_function_over_colliding_helper_local_in_call_position, bind_surfaces_t_builtin_arity_authoring_reject_for_ftc_0444, bind_surfaces_generic_builtin_arity_authoring_reject_for_plain_gcd_zero_arity, bind_accepts_error_literal_inside_array_call_for_ftc_0837, bind_accepts_filterxml_embedded_quoted_xml_string_for_ftc_1041, bind_prefers_helper_local_name_over_cell_like_reference_text",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Binding, incremental reuse and catalogue facts: cfml-m1.2, cfml-m2.1, cfml-m2.5."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/w079_non_ascii_identifier_tests.rs",
+      "blob": "2b8f82df031692ae4b6223903a8c94791397d37c",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/w079_non_ascii_identifier_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "non_ascii_names_lex_as_one_identifier_token_each",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::parser::tests::non_ascii_names_lex_as_one_identifier_each"
+        },
+        {
+          "test": "identifier_token_span_counts_chars_like_every_other_token",
+          "disposition": "changed",
+          "replaced_by": "cfml_m1_1__lossless_roundtrip",
+          "reason": "Spans are UTF-16 code units, not chars. The pinned values for '=Größe*2' (start 1, len 5, '*' at 6) are the same in both units; outside the Basic Multilingual Plane they differ, as the case asserts."
+        },
+        {
+          "test": "identifier_continue_admits_digits_underscore_and_dot_after_a_non_ascii_start",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::parser::tests::token_kinds_and_unbalanced_nesting ('Größe_2.Wert') and non_ascii_names_lex_as_one_identifier_each ('a\\b')",
+          "reason": "The token kinds are kept; the trailing-token message for '=a\\b' comes from the same code but is not re-asserted."
+        },
+        {
+          "test": "digit_led_and_emoji_led_tokens_are_still_rejected_as_names",
+          "disposition": "kept",
+          "replaced_by": "root_kinds_and_diagnostic_counts (pb_030, pb_031)"
+        },
+        {
+          "test": "quoted_sheet_names_string_literals_and_bracketed_selectors_keep_their_token_kinds",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::parser::tests::token_kinds_and_unbalanced_nesting"
+        },
+        {
+          "test": "non_ascii_defined_names_bind_as_names, non_ascii_unquoted_sheet_qualifier_binds_as_a_qualified_reference, non_ascii_table_and_column_names_bind_as_structured_references, a_umlaut_one_is_a_name_and_a_one_stays_a_cell_reference, lambda_parameters_accept_non_ascii_names_in_required_and_optional_form, host_evaluates_non_ascii_defined_names_across_scripts, host_evaluates_sum_over_non_ascii_structured_column",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Binding and evaluation: cfml-m1.2, cfml-m1.3, cfml-m2.3, cfml-m3.1, cfml-m3.2."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/w079_entry_time_diagnostic_tests.rs",
+      "blob": "12aa56254b3c2f265844f19b4d0a38f47e4701c1",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/w079_entry_time_diagnostic_tests.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "space_before_call_is_one_typed_diagnostic_naming_the_call_without_the_space, space_before_call_recovers_into_call_expr_with_the_whitespace_as_trivia, space_before_call_only_fires_for_known_function_names",
+          "disposition": "dropped",
+          "replaced_by": "space_before_call_is_an_intersection_without_the_catalogue records the changed outcome",
+          "reason": "Needs the function catalogue: cfml-m2.5."
+        },
+        {
+          "test": "spaced_range_colon_is_one_typed_diagnostic_naming_the_range_without_the_spaces",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::parser::tests::spaced_range_colon_suggests_the_range_without_the_spaces"
+        },
+        {
+          "test": "spaced_range_colon_recovers_into_range_expr_with_the_spaces_as_trivia",
+          "disposition": "changed",
+          "replaced_by": "cfml_m1_1__lossless_roundtrip ('=A1 : A3')",
+          "reason": "The whitespace before the colon is the colon's leading trivia and the whitespace after it the next operand's; the pinned tree also listed it as trailing trivia of A1 (see the Token changes). The RangeExpr shape is kept."
+        },
+        {
+          "test": "colon_followed_by_space_was_always_accepted_and_still_is",
+          "disposition": "kept",
+          "replaced_by": "root_kinds_and_diagnostic_counts (pb_034: RangeExpr, 0 diagnostics); the shape equality with '=A1:A3' is not re-asserted"
+        },
+        {
+          "test": "nested_recoveries_carry_the_inner_correction_in_the_outer_suggestion",
+          "disposition": "changed",
+          "replaced_by": "spaced_range_colon_suggests_the_range_without_the_spaces",
+          "reason": "'=A1 : B2 : C3' (two diagnostics, outer suggestion 'A1:B2:C3') is kept; '=SUM (A1 : A3)' now has only the colon diagnostic, as SpaceBeforeCall is not ported."
+        },
+        {
+          "test": "genuine_intersections_still_parse_as_intersection_expr_without_diagnostics",
+          "disposition": "kept",
+          "replaced_by": "root_kinds_and_diagnostic_counts (root kind and no diagnostic for all four formulas); cfml_m1_1__lossless_roundtrip asserts the full shape of an intersection of two ranges"
+        },
+        {
+          "test": "unspaced_call_and_range_are_unaffected",
+          "disposition": "kept",
+          "replaced_by": "root_kinds_and_diagnostic_counts (root kinds of all five formulas); cfml_m1_1__lossless_roundtrip and cfml_m1_1__tree_syntax_rejected assert full shapes of calls, ranges and '=@A1:A3'"
+        },
+        {
+          "test": "untyped_diagnostics_keep_the_message_kind",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::parser::tests::token_kinds_and_unbalanced_nesting"
+        },
+        {
+          "test": "runtime_refuses_both_forms_at_entry_and_carries_the_typed_correction, drill_trace_links_the_typed_diagnostic_and_is_unchanged_for_the_correct_form",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "The runtime entry route and the drill trace are not ported (cfml-m2.5, cfml-m6.2)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/sheet_span_3d_reference_tests.rs",
+      "blob": "0642239432cea6636a917cf77b7fc860b04a63fe",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/sheet_span_3d_reference_tests.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "sheet_span_3d_parses_to_span_expr_not_range, sheet_span_3d_with_area_target_leaves_trailing_range_to_loop, plain_range_a1_a3_is_untouched, name_colon_name_is_untouched, bare_sheet_range_without_bang_stays_a_range, single_sheet_qualified_range_is_untouched, quoted_start_sheet_forms_a_span, quoted_end_sheet_is_a_typed_limitation_not_a_span",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::parser::tests::sheet_spans_claim_their_colon_only_before_a_bang"
+        },
+        {
+          "test": "authored_3d_source_round_trips_through_green_tree",
+          "disposition": "kept",
+          "replaced_by": "cfml_m1_1__lossless_roundtrip ('=Sheet1:Sheet3!A1') and root_kinds_and_diagnostic_counts ('=Sheet1:Sheet3!A1:B2' reprints exactly)"
+        },
+        {
+          "test": "flag_on_binds_distinct_sheet_span_3d_reference, flag_on_span_normal_form_is_stable_and_distinct_from_range, flag_off_rejects_span_with_typed_ref_error, no_profile_default_admits_the_span",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Binding of sheet spans: cfml-m3.2."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/w079_excel_file_form_prefix_tests.rs",
+      "blob": "76c17df8f571a7bd214b312f3396f49dfc298bf8",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/w079_excel_file_form_prefix_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "prefixed_names_lex_as_one_identifier_token_each",
+          "disposition": "kept",
+          "replaced_by": "calc-fml syntax::parser::tests::token_kinds_and_unbalanced_nesting"
+        },
+        {
+          "test": "the fifteen other tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "Prefix handling at bind time and evaluation: cfml-m1.2, cfml-m1.3, cfml-m2.3."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/language_service_tests.rs",
+      "blob": "3259501f9e48d0641320203b9b5dfb867608af31",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/language_service_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "green_tree_tokens_canonically_own_trivia, editor_syntax_snapshot_tracks_leading_and_trailing_trivia",
+          "disposition": "changed",
+          "replaced_by": "calc-fml syntax::parser::tests::whitespace_is_the_leading_trivia_of_the_next_token",
+          "reason": "On '=SUM( A1 ) ' the pinned green tree gave A1 and ')' one leading and one trailing space each, so the space between them belonged to both, and the editor snapshot test asserted the trailing space of ')'. Now the space after A1 is only the leading trivia of ')' and the space after ')' is only the leading trivia of the end-of-input token; A1 and ')' keep their one leading space, and no token has trailing trivia (see the Token changes). The editor snapshot itself is cfml-m2.5's."
+        },
+        {
+          "test": "editor_syntax_snapshot_preserves_tokens_after_leading_whitespace, editor_syntax_snapshot_preserves_unexpected_trailing_tokens, editor_syntax_snapshot_preserves_inter_reference_whitespace, editor_syntax_snapshot_tiles_source_text_for_broad_editor_inputs",
+          "disposition": "changed",
+          "replaced_by": "calc-fml syntax::parser::tests::editor_inputs_reprint_and_keep_their_tokens",
+          "reason": "The same inputs are asserted on the syntax tree instead of the editor snapshot (cfml-m2.5): all twenty tiling inputs reprint exactly; after leading whitespace the '=' token has that whitespace as leading trivia and its span starts after it; unexpected trailing tokens stay in the tree with an 'unexpected trailing token' diagnostic. Whitespace between references is the IntersectionExpr's token in the tree, as it was in the pinned green tree, where the editor snapshot moved it into trivia; the test compares the other tokens and the reprint."
+        },
+        {
+          "test": "editor_treats_non_formula_cell_entries_as_literals",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.6",
+            "cfml-m6.1"
+          ],
+          "reason": "Non-formula cell entries are entry parsing (see not_ported)."
+        },
+        {
+          "test": "apply_formula_edit_reuses_green_red_and_bind_when_text_is_unchanged, apply_formula_edit_reports_smallest_text_change_range, apply_formula_edit_surfaces_bind_diagnostics_in_live_snapshot, live_diagnostics_use_exact_symbol_spans_for_unknown_function_and_name, live_diagnostics_classify_arity_and_noncallable_symbols, live_diagnostics_classify_gated_function_surfaces, signature_help_context_tracks_active_argument_index, signature_help_context_is_absent_after_closed_call_close_paren, signature_help_context_still_shows_before_closed_call_close_paren, signature_help_context_still_shows_for_unclosed_call, function_help_packet_tracks_active_callee_and_snapshot, function_help_packet_uses_provider_current_snapshot_when_unpinned, function_help_packet_uses_oxfunc_registry_signatures, function_help_packet_is_absent_for_unknown_callee, function_help_packet_preserves_registry_signature_under_capability_overlay, function_help_packet_reflects_udf_registry_mutation, w068_editor_source_has_no_legacy_signature_synthesis",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.5"
+          ],
+          "reason": "Incremental edits, live function/name diagnostics and signature help: cfml-m2.5's Do."
+        },
+        {
+          "test": "completion_proposals_include_functions_defined_names_and_table_names, completion_proposals_use_registry_not_library_context_snapshot, completion_proposals_reflect_udf_registry_mutation, completion_proposals_filter_capability_denied_registry_entries, completion_proposals_include_structured_selectors_and_columns, completion_proposals_include_r1c1_syntax_assists_in_r1c1_channel, intelligent_completion_context_carries_scope_and_active_diagnostics, validate_completion_candidate_reenters_normal_edit_pipeline, apply_completion_proposal_preserves_proposal_identity",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.5",
+            "cfml-m6.2"
+          ],
+          "reason": "Completion: cfml-m2.5's Do (completion) and cfml-m6.2's (name/table completion)."
+        },
+        {
+          "test": "apply_formula_edit_uses_editor_environment_reference_profile, editor_reference_info_uses_profile_rendering_at_cursor, validate_completion_uses_editor_environment_reference_profile, completion_proposals_include_profile_reference_suggestions, profile_reference_completions_preserve_duplicate_display_texts",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "Reference profiles and host-reference syntax serve the selector grammar this bead removes at entry; BEAD_DETAILS.md tells the beads porting eval/mod.rs to discard the host-reference syntax and the tree profile, and no bead ports them."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/structured_reference_tests.rs",
+      "blob": "8059a0196ea4d6c813354ae3d0e4f09557527ad1",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/structured_reference_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 20 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m3.2"
+          ],
+          "reason": "Binding and evaluation of table sections, escaped column labels and row-context references: cfml-m3.2's Do. The parse side these tests rely on is kept: a table name with a bracketed column is one identifier ('=Umsatz[Betrag]' in root_kinds_and_diagnostic_counts) and '[@...]' is one bracketed qualifier (token_kinds_and_unbalanced_nesting). No code of the file is ported, so its calls into OxFunc are not used."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/callable_calls_callable_tests.rs",
+      "blob": "a25e355aa1f15f0f2f9adaacd09835b046958a5b",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/callable_calls_callable_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 1 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.3"
+          ],
+          "reason": "LAMBDA closures invoking a captured callable: cfml-m2.3's Do."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/callable_typed_value_tests.rs",
+      "blob": "eecc0e162ac02ff6714e0ceb2cb5d527895f9b1b",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/callable_typed_value_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core",
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 1 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.3"
+          ],
+          "reason": "Callable values over tests/fixtures/callable_typed_value_cases.json: cfml-m2.3's Do (opaque callable values)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/higher_order_callable_tests.rs",
+      "blob": "e64d340ecf299956ee30bb1225d327162fd1a887",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/higher_order_callable_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core",
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 1 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.3",
+            "cfunc-m3.17"
+          ],
+          "reason": "Higher-order callables over tests/fixtures/higher_order_callable_cases.json: invocation is cfml-m2.3's Do, the MAP/REDUCE/SCAN/BYROW family cfunc-m3.17's."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/ftc_builtin_callable_collision_boundary_tests.rs",
+      "blob": "01cb28bb56da477897b80579a52aa0d22240293e",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/ftc_builtin_callable_collision_boundary_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 3 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.3",
+            "cfml-m3.1"
+          ],
+          "reason": "Bind-time collisions between built-in functions and LET/LAMBDA or defined names: cfml-m2.3's and cfml-m3.1's Do."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/failure_stage_tests.rs",
+      "blob": "032462b21a14fe3051721500fc4125d1c7256dae",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/failure_stage_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 1 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m1.3",
+            "cfml-m3.1",
+            "cfml-m4.3"
+          ],
+          "reason": "Failure-stage classification over tests/fixtures/failure_stage_cases.json, whose four cases (an unresolved name, a function behind a feature flag, a capability-denied INFO, an unavailable provider) all parse; none is a parse-stage expectation. Evaluation is cfml-m1.3's, names cfml-m3.1's, registered and provider functions cfml-m4.3's."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/editor_consumer_facade_tests.rs",
+      "blob": "21bde8c75299e273623b86bc32f2c745903b2d96",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/editor_consumer_facade_tests.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "editor_edit_service_applies_edit_and_returns_document, editor_edit_service_interaction_uses_registry_for_completion_and_snapshot_for_help",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.5"
+          ],
+          "reason": "The editor edit service, completion and help: cfml-m2.5's Do."
+        },
+        {
+          "test": "editor_insert_host_reference_composes_profile_selector_and_rebinds, editor_insert_host_reference_escapes_bracketed_host_name_and_rebinds, editor_insert_host_reference_composes_collection_token_from_profile, editor_insert_host_reference_composes_star_collection_without_double_dot",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "Reference profiles and host-reference syntax serve the selector grammar this bead removes at entry; BEAD_DETAILS.md tells the beads porting eval/mod.rs to discard the host-reference syntax and the tree profile, and no bead ports them."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/reference_capability_gating_tests.rs",
+      "blob": "6bd1e19022c80ade3508f3dad881149984ae9a94",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/reference_capability_gating_tests.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "all 11 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "The file tests a reference profile's capability flags routing parsed shapes to its bind methods. Reference profiles and host-reference syntax serve the selector grammar this bead removes at entry; BEAD_DETAILS.md tells the beads porting eval/mod.rs to discard the host-reference syntax and the tree profile, and no bead ports them. Binding the shapes themselves is cfml-m1.2's (A1 and R1C1), cfml-m3.2's (structured references) and cfml-m3.3's (spill)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/w079_unicode_name_case_tests.rs",
+      "blob": "857895affcbbebae200e7ac670384a9e0f59e058",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/w079_unicode_name_case_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "ascii_defined_name_typed_in_another_case_evaluates, workbook_names_resolve_under_the_full_fold_across_scripts, accent_dropped_width_changed_and_turkish_i_variants_stay_unresolved, bound_name_carries_the_defined_spelling_and_the_host_record_keeps_the_typed_text, callable_defined_name_is_invoked_under_another_case",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m3.1"
+          ],
+          "reason": "Case folding when binding defined names: cfml-m3.1's Do."
+        },
+        {
+          "test": "let_and_lambda_parameters_match_under_the_simple_fold, let_parameter_does_not_match_a_full_fold_variant_so_the_workbook_name_takes_it, duplicate_parameter_detection_uses_the_parameter_rule",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.3"
+          ],
+          "reason": "LET and LAMBDA parameter matching: cfml-m2.3's Do."
+        },
+        {
+          "test": "table_and_column_names_match_under_the_full_fold",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m3.2"
+          ],
+          "reason": "Table and column binding: cfml-m3.2's Do."
+        },
+        {
+          "test": "completion_folds_the_prefix_for_names_tables_and_columns",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.5",
+            "cfml-m6.2"
+          ],
+          "reason": "Completion: cfml-m2.5's and cfml-m6.2's Do."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/w079_authoring_surface_non_ascii_tests.rs",
+      "blob": "4718f58d6ebe800613377588ffcb59058dc35f76",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/w079_authoring_surface_non_ascii_tests.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "completion_prefix_recovers_non_ascii_defined_name_prefix, completion_prefix_after_a_non_ascii_operand_starts_at_the_operator, column_completion_inside_a_non_ascii_table_recovers_the_table_name",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.5",
+            "cfml-m6.2"
+          ],
+          "reason": "Completion prefixes: cfml-m2.5's and cfml-m6.2's Do."
+        },
+        {
+          "test": "editor_insert_host_reference_renders_non_ascii_host_name_plain_and_rebinds, editor_insert_host_reference_keeps_bracketing_non_ascii_names_that_are_not_plain_identifiers, editor_insert_host_reference_composes_selector_on_non_ascii_base",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "Reference profiles and host-reference syntax serve the selector grammar this bead removes at entry; BEAD_DETAILS.md tells the beads porting eval/mod.rs to discard the host-reference syntax and the tree profile, and no bead ports them."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/w076_formula_drill_trace_tests.rs",
+      "blob": "72f6b1e3fbdcfc51ab299246550776c33be24aec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/w076_formula_drill_trace_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "w076_sum_trace_has_root_call_named_arguments_and_value, w076_nested_if_stays_under_sum_argument_and_false_branch_is_skipped, w076_same_named_nested_calls_keep_post_order_prepared_values, w076_if_false_skips_true_branch_and_evaluates_false_sum, w076_let_trace_exposes_bindings_body_and_name_reference_values, w076_divide_by_zero_trace_links_error_to_divide_node, w076_sequence_trace_exposes_typed_array_preview, w076_incomplete_sum_trace_links_diagnostics_to_partial_call",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "onecalc-m2.1",
+            "cfml-m2.5"
+          ],
+          "reason": "The formula drill trace is an evaluation trace for the editor: onecalc-m2.1's title names editing traces and it wires the formula-language service of cfml-m2.5. The parse half of w076_incomplete_sum_trace_links_diagnostics_to_partial_call (an incomplete SUM keeps its call with a missing ')' diagnostic) is asserted by cfml_m1_1__lossless_roundtrip ('=SUM(A1,')."
+        },
+        {
+          "test": "w079_ifs_skips_false_pair_value_and_everything_after_the_taken_pair, w079_choose_literal_index_takes_one_value_and_out_of_range_takes_none, w079_switch_literal_match_takes_one_result_and_skips_the_default, w079_ifna_literal_value_skips_fallback_and_call_value_leaves_it_not_reached",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.4"
+          ],
+          "reason": "Lazy IFS, CHOOSE, SWITCH and IFNA scheduling: cfml-m2.4's Do."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/w047_host_readiness_tests.rs",
+      "blob": "abdbeb7149aa04a2e11df1dd06c7c7a2df92b38f",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/w047_host_readiness_tests.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "cf_and_dv_carriers_preserve_host_fields_and_restrictions",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m5.1"
+          ],
+          "reason": "CF and DV rule contexts: cfml-m5.1's Do."
+        },
+        {
+          "test": "first_host_replay_capture_packet_surfaces_bind_boundary_execution_outcome",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "No CalcFml bead's Do names OxFml's managed sessions, commit bundles, replay bundles or witness packs; the plan's ownership table (section 3.1) gives sessions and publication to CalcHost and scheduling to CalcEngine, and calc_fml exposes compile and evaluate (cfml-m1.3)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/replay_fixture_tests.rs",
+      "blob": "5ea254f42fbae1b0ba12ea3f5704d8a0b23d8ae5",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/replay_fixture_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core",
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "semantic_plan_replay_fixtures_match_expected_snapshots, prepared_call_replay_fixtures_match_expected_snapshots, single_formula_host_replay_fixtures_match_expected_snapshots",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m1.3"
+          ],
+          "reason": "Snapshots of OxFml's semantic plans, prepared calls and single-formula runs: compiled plans and evaluation are cfml-m1.3's Do."
+        },
+        {
+          "test": "fec_commit_replay_fixtures_match_expected_snapshots, execution_contract_replay_fixtures_match_expected_snapshots",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "No CalcFml bead's Do names OxFml's managed sessions, commit bundles, replay bundles or witness packs; the plan's ownership table (section 3.1) gives sessions and publication to CalcHost and scheduling to CalcEngine, and calc_fml exposes compile and evaluate (cfml-m1.3)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/replay_consumer_facade_tests.rs",
+      "blob": "ed88debefe8f487a689f6e040c0d20854a761825",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/replay_consumer_facade_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core",
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "editor_edit_service_applies_completion_proposal_through_facade, editor_edit_service_validates_manual_completion_text_through_facade",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.5"
+          ],
+          "reason": "Completion through the editor service: cfml-m2.5's Do."
+        },
+        {
+          "test": "replay_projection_service_projects_runtime_and_host_outputs, replay_projection_service_preserves_first_host_capture_comparison_value_for_text_date_family, replay_projection_service_matches_dnaonecalc_exact_request_shape_for_runtime_text_date_family, replay_projection_service_prefers_first_host_capture_publication_surface_for_runtime_results, replay_projection_service_emits_comparison_value_and_visible_text_without_publication_context, replay_projection_service_surfaces_bind_boundary_execution_outcome, replay_projection_service_emits_effective_display_text_for_programmatic_verification_cases, replay_projection_service_preserves_full_array_contents_in_comparison_value, replay_projection_service_projects_runtime_managed_session_results, replay_projection_carries_oxfunc_bridge_versions_from_runtime_artifacts, replay_projection_carries_w074_host_reference_context, replay_projection_carries_host_namespace_version_without_explicit_host_reference, replay_projection_carries_w074_structured_table_identity, replay_projection_carries_escaped_structured_column_bind_packet, replay_projection_carries_zero_row_structured_table_packet, replay_projection_preserves_no_host_namespace_lexical_guardrail, replay_projection_carries_image_producer_capability_columns, replay_projection_service_projects_runtime_managed_termination_results, replay_projection_service_projects_fixture_family_metadata, replay_projection_service_projects_retained_witness_metadata",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "Replay projections of runtime and managed-session results. No CalcFml bead's Do names OxFml's managed sessions, commit bundles, replay bundles or witness packs; the plan's ownership table (section 3.1) gives sessions and publication to CalcHost and scheduling to CalcEngine, and calc_fml exposes compile and evaluate (cfml-m1.3)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/runtime_consumer_facade_tests.rs",
+      "blob": "2f8001a7b398737582c61e7706fb1a7d5b69fd3e",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/runtime_consumer_facade_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 72 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m1.3",
+            "cfml-m2.3",
+            "cfml-m2.6",
+            "cfml-m3.2",
+            "cfml-m4.3",
+            "cfml-m6.1"
+          ],
+          "reason": "Evaluation through OxFml's runtime environment and managed-session facade, no parse-level expectation beyond a formula parsing. By subject: direct evaluation and refusal of a formula with syntax diagnostics, cfml-m1.3; LAMBDA, recursion and callable collisions, cfml-m2.3; TEXT formats, locales and non-formula entries, cfml-m2.6 and cfml-m6.1; structured references and table identity, cfml-m3.2; registry, UDF, external, RTD and capability-overlay calls, cfml-m4.3. The managed-session, snapshot and host-name tests have no CalcFml bead: No CalcFml bead's Do names OxFml's managed sessions, commit bundles, replay bundles or witness packs; the plan's ownership table (section 3.1) gives sessions and publication to CalcHost and scheduling to CalcEngine, and calc_fml exposes compile and evaluate (cfml-m1.3). Reference profiles and host-reference syntax serve the selector grammar this bead removes at entry; BEAD_DETAILS.md tells the beads porting eval/mod.rs to discard the host-reference syntax and the tree profile, and no bead ports them."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/replay_adapter_and_witness_tests.rs",
+      "blob": "e06029e92e0a90fa648f8ecb3158ff8c6c1b2176",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/replay_adapter_and_witness_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core",
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 2 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "OxFml's replay adapter manifest and reduced witness and pack artifacts. No CalcFml bead's Do names OxFml's managed sessions, commit bundles, replay bundles or witness packs; the plan's ownership table (section 3.1) gives sessions and publication to CalcHost and scheduling to CalcEngine, and calc_fml exposes compile and evaluate (cfml-m1.3)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/session_replay_fixture_tests.rs",
+      "blob": "a9bfd477a3f0603cd202ae2676ee30b5a171df18",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/session_replay_fixture_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core",
+          "OxFml run-time loads"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 1 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "Session lifecycle replay. No CalcFml bead's Do names OxFml's managed sessions, commit bundles, replay bundles or witness packs; the plan's ownership table (section 3.1) gives sessions and publication to CalcHost and scheduling to CalcEngine, and calc_fml exposes compile and evaluate (cfml-m1.3)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/session_service_tests.rs",
+      "blob": "fa7d205b19af58aa322f5c4538ecf6158accaeb1",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/session_service_tests.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "all 9 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "Managed sessions through commit. No CalcFml bead's Do names OxFml's managed sessions, commit bundles, replay bundles or witness packs; the plan's ownership table (section 3.1) gives sessions and publication to CalcHost and scheduling to CalcEngine, and calc_fml exposes compile and evaluate (cfml-m1.3)."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/scheduler_tests.rs",
+      "blob": "b7baa99286b375e99d11ab84821e022eff15d439",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/scheduler_tests.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "all 4 tests of the file",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [],
+          "reason": "Per-function scheduler contracts (concurrency, serialization, host-query binding). No bead's Do names a per-function scheduler contract; the plan's ownership table (section 3.1) gives dirty/SCC scheduling state to CalcEngine."
+        }
+      ]
+    },
+    {
+      "file": "crates/oxfml_core/tests/common/mod.rs",
+      "blob": "2b9c4b04b69938b160e9f5ad4f920b2ade772c96",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/common/mod.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "tests": [
+        {
+          "test": "none: a helper module that parses, projects, binds and evaluates a formula for failure_stage_tests.rs",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m1.3"
+          ],
+          "reason": "It is test plumbing for its users; calc-fml's own route is compile and evaluate (cfml-m1.3)."
+        }
+      ]
+    },
+    {
+      "fixtures": [
+        {
+          "file": "crates/oxfml_core/tests/fixtures/callable_typed_value_cases.json",
+          "blob": "bf05dc302d4ec0dd8d40dae8062f51c9a1b4c51d",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/callable_typed_value_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/callable_typed_value_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/execution_contract_replay_cases.json",
+          "blob": "bbd62f525c61770d4351c404bbcfc1adb66e7018",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/execution_contract_replay_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_fixture_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/failure_stage_cases.json",
+          "blob": "be111a782fe36976ff09deaec121127b89d44283",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/failure_stage_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/failure_stage_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/fec_commit_replay_cases.json",
+          "blob": "515b44aadc5db3e03f087807b463092ac0e615ea",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/fec_commit_replay_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_fixture_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/higher_order_callable_cases.json",
+          "blob": "3e50bd1ab30e7e801e57880b91d5f9291593864e",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/higher_order_callable_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/higher_order_callable_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/prepared_call_replay_cases.json",
+          "blob": "eb81e3f1d0a414010f3698290a764733bbfedee6",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/prepared_call_replay_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_fixture_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/replay_bundle_normalization/fec_commit_pack_candidate_bundle.json",
+          "blob": "9b8c31b652d29db86d42e164aaf473b0c44eded2",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/replay_bundle_normalization/fec_commit_pack_candidate_bundle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/replay_bundle_normalization/pack_candidate_index.json",
+          "blob": "86927b7cc322ecc92d46796f204f95bcd7077adc",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/replay_bundle_normalization/pack_candidate_index.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/replay_bundle_normalization/session_lifecycle_pack_candidate_bundle.json",
+          "blob": "09373b7cb6b52721ad4bafc7159404ffc892755a",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/replay_bundle_normalization/session_lifecycle_pack_candidate_bundle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/semantic_plan_replay_cases.json",
+          "blob": "136425da30290f76481d5ed18c25f1d42327315a",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/semantic_plan_replay_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_fixture_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/session_lifecycle_replay_cases.json",
+          "blob": "70c18ad2f971f9c6d8a8d3d6a489c1e5ea7c84aa",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/session_lifecycle_replay_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs",
+            "tests/session_replay_fixture_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/single_formula_host_replay_cases.json",
+          "blob": "1adac30530d3b7cf89913d72f13905498cb7b33b",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/single_formula_host_replay_cases.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_fixture_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/execution_contract_host_query_lifecycle.json",
+          "blob": "0ef25e5b6e1b4017505c93e36fc0ce9b5fc8460d",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/execution_contract_host_query_lifecycle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/execution_contract_host_query_reduction_manifest.json",
+          "blob": "3e8a4b0772643348d14819a57bfec23115d9ef85",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/execution_contract_host_query_reduction_manifest.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/execution_contract_host_query_witness_bundle.json",
+          "blob": "f25da176319f78bea91e7e95f3e55262e0c61420",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/execution_contract_host_query_witness_bundle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/fec_accept_publication_lifecycle.json",
+          "blob": "991fef11786fd16e36009b9d34b954e0e0d01b08",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/fec_accept_publication_lifecycle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/fec_accept_publication_reduction_manifest.json",
+          "blob": "88eab2d7698600f8007649d899091f3418b09f07",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/fec_accept_publication_reduction_manifest.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/fec_accept_publication_witness_bundle.json",
+          "blob": "1a5e861302b9483c987eb0206ce89a2bee713b9c",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/fec_accept_publication_witness_bundle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/fec_reject_formula_token_lifecycle.json",
+          "blob": "79bbc7470994e0e1be669fb1c6d937f3bf55ba16",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/fec_reject_formula_token_lifecycle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/fec_reject_formula_token_reduction_manifest.json",
+          "blob": "0b02ca077545aa071c58198a15436f83357900b6",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/fec_reject_formula_token_reduction_manifest.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/fec_reject_formula_token_witness_bundle.json",
+          "blob": "f5607805426b658862322a974d6e066abd3dccba",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/fec_reject_formula_token_witness_bundle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/session_capability_denied_lifecycle.json",
+          "blob": "46efb4c62cef822263f7471ed426eb18000c1712",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/session_capability_denied_lifecycle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/session_capability_denied_reduction_manifest.json",
+          "blob": "6a5930e53149ac792f35ad7ffad0bba2332b0570",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/session_capability_denied_reduction_manifest.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/session_capability_denied_witness_bundle.json",
+          "blob": "a5847c13ac7ba05a6c00d7d3f7d7457168f8e0a7",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/session_capability_denied_witness_bundle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/session_contention_quarantine_lifecycle.json",
+          "blob": "2e3746c3ede5d6621823b3b4686e47dbc87fce3e",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/session_contention_quarantine_lifecycle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/session_contention_quarantine_reduction_manifest.json",
+          "blob": "b5289b6657f282c981d28621ef904137b0c7d279",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/session_contention_quarantine_reduction_manifest.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/witness_distillation/session_contention_quarantine_witness_bundle.json",
+          "blob": "200d7ec7e8f39f10596e4f9a6113119e77f94342",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/witness_distillation/session_contention_quarantine_witness_bundle.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_adapter_and_witness_tests.rs",
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        },
+        {
+          "file": "crates/oxfml_core/tests/fixtures/xml_verification_comparison_views_projection.json",
+          "blob": "ef25e4a15d18e089fc31b2aadabd9eb543c7208c",
+          "lookup": {
+            "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/tests/fixtures/xml_verification_comparison_views_projection.json",
+            "exit": 0,
+            "calls_quarantined": []
+          },
+          "read_by": [
+            "tests/replay_consumer_facade_tests.rs"
+          ]
+        }
+      ],
+      "disposition": "dropped",
+      "reason": "Each fixture follows the test files that read it, all dropped above with their owners; parse_bind_cases.json is listed with parse_bind_fixture_tests.rs."
+    }
+  ],
+  "fresh": [
+    {
+      "items": [
+        "SyntaxDiagnosticKind::UnsupportedSyntax",
+        "SyntaxKind::UnsupportedExpr",
+        "Parser::parse_unsupported_caret_selector",
+        "Parser::parse_unsupported_leading_selector",
+        "Parser::parse_unsupported_member_selector",
+        "Parser::unsupported"
+      ],
+      "file": "crates/calc-fml/src/syntax/parser.rs, token.rs, tree.rs",
+      "what": "The refusal of selector syntax at entry with one diagnostic spanning exactly its tokens, kept unstructured so the source reprints."
+    },
+    {
+      "items": [
+        "Token::error_code",
+        "ERROR_LITERALS paired with WorksheetErrorCode"
+      ],
+      "file": "crates/calc-fml/src/syntax/token.rs",
+      "what": "The worksheet error code an error literal spells, through calc-value's WorksheetErrorCode."
+    },
+    {
+      "items": [
+        "lexer::quoted_text_is_closed",
+        "the unterminated-text diagnostics in Parser::bump"
+      ],
+      "file": "crates/calc-fml/src/syntax/lexer.rs, parser.rs",
+      "what": "Unterminated string literals and quoted names are reported."
+    },
+    {
+      "items": [
+        "SyntaxTree::source_text",
+        "SyntaxTree::expression",
+        "SyntaxTree::tokens",
+        "SyntaxNode::tokens",
+        "SyntaxNode::text",
+        "SyntaxNode::child_nodes",
+        "Parser::insertion_point"
+      ],
+      "file": "crates/calc-fml/src/syntax/tree.rs, parser.rs",
+      "what": "Reading the lossless tree, and the position of missing tokens and empty nodes."
+    },
+    {
+      "items": [
+        "Parser::at_trim_range_operator",
+        "Parser::parse_unsupported_trim_range"
+      ],
+      "file": "crates/calc-fml/src/syntax/parser.rs",
+      "what": "The refusal of trim references with one unsupported-syntax diagnostic spanning the trim operator."
+    }
+  ],
+  "limits": [
+    "What this record says the pinned parser did comes from reading the pinned blobs; the OxFml tests were not run by this bead (the legacy repositories are read-only inputs).",
+    "No Excel capture is consulted by this bead. The grammar's agreement with Excel rests on the ported OxFml rules and their recorded expectations; the one grammar change made without the pin's backing is the intersection chain inside argument lists (see the parser.rs changes).",
+    "That Excel writes '#REF!A1' after a sheet is deleted and reads 'A1.:B10' as a trim reference comes from the round-1 review of this bead (2026-10-19), not from an Excel capture made by this bead.",
+    "'=SUM (A1)' parses without a diagnostic, as an intersection, until the function catalogue reaches the parser (cfml-m2.5).",
+    "Unbalanced brackets in a bracketed qualifier or a structured-reference identifier ('=[abc', '=Table1[Col') are not diagnosed at parse time; structured and external references are bound by cfml-m3.2 and cfml-m3.5.",
+    "Trim references ('A1.:B10', 'A1:.B10', 'A1.:.B10', and the same operators between rows, columns or a qualified reference) are refused with one UnsupportedSyntax diagnostic and an UnsupportedExpr, not parsed into a reference; dc-2oc4 owns parsing and evaluating them. A trim operator after whitespace ('=SUM(A1 :.B10)') is not named as one: the formula is refused with a SpacedRangeColon diagnostic, an 'unexpected token Dot' diagnostic and further untyped diagnostics, and no UnsupportedSyntax diagnostic (asserted by trim_references_are_refused_as_unsupported_syntax).",
+    "calc-fml's seams.json names callers inside calc-fml only (the lexer and parser functions); whether the registered case reaches each caller is unproven until dc-pz3u."
+  ]
+}

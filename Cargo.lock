@@ -51,6 +51,11 @@ version = "0.1.0"
 [[package]]
 name = "calc-fml"
 version = "0.1.0"
+dependencies = [
+ "calc-func",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
 
 [[package]]
 name = "calc-func"

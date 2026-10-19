@@ -8,3 +8,14 @@ description = "The package for CalcFml: the Excel formula language, reference bi
 
 [package.metadata.dnacalc]
 portability = "portable"
+
+[dependencies]
+calc-func = { path = "../calc-func" }
+
+# The acceptance cases and unit tests run in Chrome and Firefox under wasm-bindgen-test-runner
+# 0.2.117, which runs only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test
+# 0.3.67 is the release built on that wasm-bindgen (the pair the CI browser fixture pins).
+# Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"

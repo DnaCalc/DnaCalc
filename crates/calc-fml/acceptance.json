@@ -1,4 +1,24 @@
 {
   "package": "calc-fml",
-  "beads": []
+  "beads": [
+    {
+      "id": "cfml-m1.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-fml", "--test", "acceptance", "cfml_m1_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-fml", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cfml-m1.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfml-m1.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfml-m1.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfml_m1_1__lossless_roundtrip",
+        "cfml_m1_1__tree_syntax_rejected"
+      ],
+      "platforms": {
+        "cfml_m1_1__lossless_roundtrip": ["windows", "linux", "wasm"],
+        "cfml_m1_1__tree_syntax_rejected": ["windows", "linux", "wasm"]
+      }
+    }
+  ]
 }

@@ -1,0 +1,1140 @@
+{
+  "architecture": [
+    {
+      "check": "dependencies",
+      "details": {
+        "by_target": {
+          "wasm32-unknown-unknown": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": [
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-pc-windows-msvc": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": [
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-unknown-linux-gnu": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": [
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          }
+        },
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "7 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
+    },
+    {
+      "check": "os-imports",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": {
+          "calc-doc": 1,
+          "calc-doc-model": 10,
+          "calc-engine": 1,
+          "calc-fml": 7,
+          "calc-func": 1,
+          "calc-host": 1,
+          "calc-value": 5,
+          "calc-verdict": 11,
+          "dna-calc": 1,
+          "dna-onecalc": 1
+        },
+        "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "39 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+    },
+    {
+      "check": "wasm-refusal",
+      "details": {
+        "calc-oracle-excel": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cfml-m1.1/windows/arch/wasm-refusal-calc-oracle-excel.log",
+          "refusal": "calc-oracle-excel is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "calc-platform-desktop": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cfml-m1.1/windows/arch/wasm-refusal-calc-platform-desktop.log",
+          "refusal": "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "xtask": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cfml-m1.1/windows/arch/wasm-refusal-xtask.log",
+          "refusal": "xtask is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "3 native-only packages (calc-platform-desktop, calc-oracle-excel, xtask) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!"
+    },
+    {
+      "check": "tree-reference-tokens",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": 39,
+        "phrases": [
+          "tree reference",
+          "tree ref",
+          "reference profile",
+          "profile id",
+          "reference system provider",
+          "host reference"
+        ],
+        "scope": "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "39 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+    },
+    {
+      "check": "seams",
+      "details": {
+        "packages": {
+          "calc-doc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-doc-model": {
+            "entries": 51,
+            "entries_reach_unproven": 51,
+            "pub_enum_variants": 51,
+            "pub_traits": 0
+          },
+          "calc-engine": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-fml": {
+            "entries": 60,
+            "entries_reach_unproven": 60,
+            "pub_enum_variants": 60,
+            "pub_traits": 0
+          },
+          "calc-func": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-host": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-value": {
+            "entries": 32,
+            "entries_reach_unproven": 32,
+            "pub_enum_variants": 31,
+            "pub_traits": 1
+          },
+          "calc-verdict": {
+            "entries": 54,
+            "entries_reach_unproven": 54,
+            "pub_enum_variants": 54,
+            "pub_traits": 0
+          },
+          "dna-calc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "dna-onecalc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          }
+        },
+        "reach": {
+          "entries_reach_unproven": 197,
+          "owner": "dc-pz3u",
+          "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "10 portable packages declare 196 pub enum variants and 1 pub traits; their seams.json files list 197 entries, 197 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+    },
+    {
+      "check": "word-scan",
+      "details": {
+        "baseline_owner": "dc-0nvp",
+        "baseline_recorded": "2026-10-14",
+        "commits": {},
+        "excluded_identifiers": [
+          {
+            "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
+            "masked": {
+              "commit_messages": 1,
+              "files": 5,
+              "tracker_records": 9
+            },
+            "reason": "acceptance case name of infra-m0.5, a fixed identity"
+          },
+          {
+            "identifier_hex": "696e6672615f6d375f315f5f6c6963656e73655f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of infra-m7.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "6f6e6563616c635f6d315f315f5f646570656e64656e63795f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "646e6163616c632d617263682d6761746573",
+            "masked": {
+              "commit_messages": 0,
+              "files": 2,
+              "tracker_records": 0
+            },
+            "reason": "directory name of a crate in the read-only legacy repository DnaTreeCalc, cited as a path"
+          }
+        ],
+        "files": {
+          "docs/plan/BEAD_DETAILS.md": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/BEAD_GRAPH.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md": {
+            "baseline": 7,
+            "count": 7
+          },
+          "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md": {
+            "baseline": 2,
+            "count": 2
+          },
+          "docs/plan/beads.br.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/beads.plan.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/build_plan.py": {
+            "baseline": 13,
+            "count": 13
+          },
+          "docs/plan/coverage.json": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/topological-order.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/validate_plan.py": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "forms": 5,
+        "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
+        "scanned": {
+          "commit_messages": 43,
+          "files": 20,
+          "tracker_records": 316
+        },
+        "tracker": {
+          "ceng-m7.1": {
+            "baseline": 1,
+            "count": 1
+          },
+          "cfunc-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m0.3": {
+            "baseline": 3,
+            "count": 3
+          },
+          "infra-m3.20": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.21": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.22": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.23": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m7.5": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m8.2": {
+            "baseline": 2,
+            "count": 2
+          },
+          "onecalc-m2.1": {
+            "baseline": 1,
+            "count": 1
+          }
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 316 tracker records, 0 in 0 of 43 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+    },
+    {
+      "check": "numeric-provenance",
+      "details": {
+        "admitted_by_recomputation": 478,
+        "admitted_with_calls_quarantined": 165,
+        "allowlist": "migration/release-source-allowlist.json",
+        "allowlist_entries": 478,
+        "cross_repository_crate_edges": 61,
+        "dispositions": "migration/numeric-provenance.json",
+        "edges_into_files_not_pinned": {
+          "OxFunc": 2,
+          "elsewhere": 197
+        },
+        "edges_owner": "dc-4uy4",
+        "gaps": [
+          {
+            "owner": "dc-4uy4",
+            "what": "cross-repository edges (recorded at crate level, for example OxFunc crate oxfunc_core in OxFml's eval/mod.rs), run-time loads (recorded by repository) and the edges into files that are not pinned inputs (2 in OxFunc and 197 elsewhere when the ruling was made; the manifest summary counts them as edges_into_files_not_pinned) are not resolved to files"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the inputs the content rule leaves unresolved by class (citation sweep matches, changes by a listed tainted commit, includes of tainted or unresolved files), among them the test files the record leaves out, and the x87 ground-truth table entry, are not cleared file by file"
+          },
+          {
+            "owner": "dc-0huc",
+            "what": "the witness selections under migration/witnesses/ were made by a one-off script (target/accept/infra-m0.5/round2/select_witnesses.py), not by a repository command"
+          },
+          {
+            "owner": "dc-1c6a",
+            "what": "the include macros the pin cannot read (5 inputs: the four OxFunc tests w111_distribution_numeric_live_replay.rs, w111_integer_live_replay.rs, w111_numeric_publication_live_replay.rs and w111_radix_live_replay.rs, and tools/xll-addin/oxfunc_xll/src/lib.rs) are not resolved; summary.resolution_skipped counts the 5"
+          },
+          {
+            "owner": "dc-ime9",
+            "what": "a cleared entry does not lift the pin's quarantine of an excel_numeric path, and the infra-m0.5 acceptance case asserts today's outcome for the seven excel_numeric files, the research-x87 packages and the production replays (tools/xtask/tests/acceptance/infra_m0_5.rs)"
+          },
+          {
+            "owner": "dc-x3oi",
+            "what": "catalogue tests are not classified by where their expected values came from: the content rule catches a test only when a listed tainted commit changed it, it includes a tainted or unresolved file, or its text matches the citation sweep"
+          },
+          {
+            "owner": "dc-4546",
+            "what": "the licenses of the glibc-2.29 port (mod.rs exp_portable, log_portable and the kernels built on them; tables.rs; gen_tables.py), of the fdlibm and SPECFUN constants gammaln.rs cites, and OxDoc's missing license file are not reviewed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the w111-broad-20260929 evidence files are unresolved as one class (w111-broad-evidence), and the production replays are tainted as one class, not file by file"
+          },
+          {
+            "owner": "dc-43vt",
+            "what": "the files of the research-x87 tool packages are tainted as one class (x87-research-packages), not file by file"
+          },
+          {
+            "owner": "dc-jtlu",
+            "what": "cargo xtask pin-sources --lookup exit codes 5 (left out of the release source allowlist for its numeric provenance) and 6 (admitted only with its calls_quarantined list) are not yet part of a reviewed exit-code scheme"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the retention extended-numeric/numeric-outcomes.json has no write time, so the order of the retention and the freeze steps is not established (the commits review's retention_ordering, established false); witness independence rests on hash continuity instead"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "no raw-capture hash exists between the last extended capture (2026-09-29T12:57:54Z) and the snapshot-1735 report (17:34:45Z)"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "retain_numeric_campaign.py imports subprocess and what it runs was not checked (its code was not reviewed under the reading rule), so the record's earlier statement that it builds and runs nothing is not confirmed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "that CellRefBatch.psm1 blob 55085b4d is the one that ran rests on the extended run's source_status alone; no last-write time is recorded for it"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the 24 commits the commits review gives unresolved need file-by-file review of the files they changed"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "status.review.dispositions_hash was recorded by the dc-m33w implementer, not by a reviewer"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the hash-continuity check of cargo xtask accept trusts the hash_continuity record a witness declares; only the infra-m0.5 acceptance case reads the hashes from the pinned blobs"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "a witness_chain entry cleared on its file's own acquisition for a file that holds expected bits (since dc-m33w's round 3 only such entries, for the five answer captures and the retention, change a provenance) takes precedence over every class (tag in tools/xtask/src/provenance.rs), wider than the precedence change of dc-m33w; it must be narrowed before dc-1c6a pins w111-broad answer or retention files"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the numeric-provenance check of cargo xtask accept reads the tainted-commit rule's sets from the manifest without running git, so only the infra-m0.5 acceptance case, which recomputes them from git, catches a coordinated edit of the record, the manifest's sets and the hash"
+          }
+        ],
+        "inputs_by_entry": {
+          "calls-quarantined": 176,
+          "citation-sweep": 51,
+          "crt-citing-callers": 13,
+          "excel-numeric-gammaln": 1,
+          "excel-numeric-gen-tables": 1,
+          "excel-numeric-ground-truth": 1,
+          "excel-numeric-mod": 1,
+          "excel-numeric-research": 1,
+          "excel-numeric-tables": 1,
+          "include-of-quarantined": 34,
+          "odd-bond-family": 1,
+          "production-replay": 5,
+          "tainted-commit": 929,
+          "unread-include": 5,
+          "w111-broad-evidence": 234,
+          "w111-distribution-judgements": 8,
+          "x87": 1,
+          "x87-research-packages": 911
+        },
+        "inputs_with_cross_repository_crate_edges": 44,
+        "inputs_with_run_time_loads": 25,
+        "manifest": "migration/source-manifest.json",
+        "owned_entries": [
+          {
+            "disposition": "rule",
+            "entry": "calls-quarantined",
+            "inputs": 176,
+            "owner": "dc-4uy4",
+            "replacement": "every crate-level entry ('<Repo> crate <name>') and every '<Repo> run-time loads' entry resolved to the pinned files it reaches, and the edges into files that are not pinned inputs followed"
+          },
+          {
+            "disposition": "rule",
+            "entry": "citation-sweep",
+            "inputs": 51,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each matched file: tainted where the line cites the tainted chains, cleared only on positive evidence that it does not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "include-of-quarantined",
+            "inputs": 34,
+            "owner": "dc-2203",
+            "replacement": "nothing while the included file stays tainted or unresolved; a clearance of the included file lifts it"
+          },
+          {
+            "disposition": "rule",
+            "entry": "tainted-commit",
+            "inputs": 929,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each changed file: tainted where the change carried tainted material, cleared only on positive evidence that it did not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "unread-include",
+            "inputs": 5,
+            "owner": "dc-1c6a",
+            "replacement": "the included paths resolved and pinned, after which the include rule applies to them"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 tables the owner accepts; the probe file itself is not pinned, so a fresh implementation takes the tables from glibc-2.29's published source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-gen-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 origin the owner accepts; the generator is never a port source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-ground-truth",
+            "inputs": 1,
+            "owner": "dc-2203",
+            "replacement": "a reviewed disposition of the table with its acquisition established, or its exclusion confirmed; it is never a witness without fresh acquisition records"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "x87-research-packages",
+            "inputs": 911,
+            "owner": "dc-43vt",
+            "replacement": "a disposition per file: tainted where it calls or embeds a quarantined chain or its outputs, cleared only on positive evidence that it does neither, unresolved otherwise"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "production-replay",
+            "inputs": 5,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record (each pinned replay confirmed tainted or shown otherwise); the actual values are never witnesses"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "w111-broad-evidence",
+            "inputs": 234,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record: cleared for a black-box Excel capture with recorded settings, tainted for values computed through a quarantined chain, unresolved otherwise"
+          }
+        ],
+        "retained_witnesses": 5,
+        "tainted_commit_rule": {
+          "identification": 64,
+          "listed": 72,
+          "message-sweep": 18,
+          "review": 63,
+          "rule_found_recorded": 70
+        },
+        "test_files_tainted_or_unresolved": 51,
+        "trusted_facts": "the manifest's code_refs and content_facts (citation sweep matches and touched-by-commit lists) are trusted as recorded, and the calls_quarantined lists and the include rule rest on code_refs; the infra-m0.5 acceptance case recomputes the citation sweep and the touched-by-commit lists from git",
+        "witness_bytes": 55933,
+        "witness_chain_entries": [
+          {
+            "blob": "cc10a9ec20dc660db03e711570f55fd00500dcfe",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-exp",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json"
+          },
+          {
+            "blob": "5356055d00edbc8b92ba6daf87248216c3636d6f",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-ln",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json"
+          },
+          {
+            "blob": "6cb89b0cf250aecdee667fdd0d5932f9b1dfa218",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-log10",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json"
+          },
+          {
+            "blob": "d9e8978e54d425957c14bf1b002275f83fedc22e",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-power",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json"
+          },
+          {
+            "blob": "cea92ab3d0c956941b6d702d7d05977a256cdc5d",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-atan",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json"
+          },
+          {
+            "blob": "3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30",
+            "cleared_as": "acquisition",
+            "id": "chain-retention",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json"
+          },
+          {
+            "blob": "91b96b93671c2b575fafb4a1c0d1ba5d6a1c8dc8",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-retention-writer",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/retain_numeric_campaign.py"
+          },
+          {
+            "blob": "9fc3d4aec25b59e38f6d0635ac6bf87ccd95dde7",
+            "cleared_as": "acquisition",
+            "id": "chain-runner",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/Run-W109BulkBatch.ps1"
+          },
+          {
+            "blob": "55085b4d0381076dcfae90087ec35e75703c08e4",
+            "cleared_as": "acquisition",
+            "id": "chain-cellrefbatch",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/CellRefBatch.psm1"
+          },
+          {
+            "blob": "a08fb1161821d0c05afc69c9a776ef436b4f0ea5",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-oracle-cache",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/OracleCache.psm1"
+          },
+          {
+            "blob": "0e727499af37570fb48d8f1f88b0fed6278017c4",
+            "cleared_as": "acquisition",
+            "id": "chain-driver",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/run_numeric_campaign.py"
+          },
+          {
+            "blob": "54fda4264d59d415e82f300069c77fbc5620ff9a",
+            "cleared_as": "acquisition",
+            "id": "chain-input-generator",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py"
+          },
+          {
+            "blob": "331556e5ef0dd6b1e7e2056497684f3d93fcc6f1",
+            "cleared_as": "acquisition",
+            "id": "chain-corpus-helpers",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_w111_broad_20260929.py"
+          },
+          {
+            "blob": "4ebb3188a3f3192bf14e2e4f20491570d22d344a",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-snapshot",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/snapshot_numeric_20260929.py"
+          },
+          {
+            "blob": "5274a745d0b68b28f8163a5291b6946c60f6f588",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-freeze",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py"
+          }
+        ],
+        "witnesses": "migration/witnesses"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "tainted-commit list follows its stated rule (72 listed: 64 by the identification grep, 18 by the citation sweep of the message, 63 tied to the pass by a review; the manifest records 70 commits the rule finds at the pin); 15 reviewed witness_chain entries; release source allowlist 478 entries (478 admitted by the provenance recomputed from migration/numeric-provenance.json and the manifest's code_refs and content_facts, 165 of them only with a calls_quarantined list, 0 missing); 0 manifest inputs with stale numeric provenance; review record present, matching its review file and covering every cleared entry; 5 retained witness selections (55933 bytes), 0 witness findings; entries and rules with their owners: calls-quarantined (rule) on 176 inputs, owner dc-4uy4; citation-sweep (rule) on 51 inputs, owner dc-2203; include-of-quarantined (rule) on 34 inputs, owner dc-2203; tainted-commit (rule) on 929 inputs, owner dc-2203; unread-include (rule) on 5 inputs, owner dc-1c6a; excel-numeric-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-gen-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-ground-truth (unresolved) on 1 inputs, owner dc-2203; x87-research-packages (tainted) on 911 inputs, owner dc-43vt; production-replay (tainted) on 5 inputs, owner dc-z5ay; w111-broad-evidence (unresolved) on 234 inputs, owner dc-z5ay; edges counted for the calls_quarantined owner dc-4uy4: 61 cross-repository crate edges in 44 inputs, 25 inputs with run-time loads, and 199 edges into files that are not pinned inputs (2 in OxFunc, 197 elsewhere); 51 files under a tests directory are tainted or unresolved; gaps owned by dc-4uy4, dc-2203, dc-0huc, dc-1c6a, dc-ime9, dc-x3oi, dc-4546, dc-z5ay, dc-43vt, dc-jtlu, dc-z5ay, dc-z5ay, dc-z5ay, dc-z5ay, dc-2203, dc-qfqa, dc-qfqa, dc-qfqa, dc-qfqa"
+    }
+  ],
+  "bead": "cfml-m1.1",
+  "cargo_target_dir": "target/xtask-accept",
+  "cases": [
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--",
+        "--exact",
+        "cfml_m1_1__lossless_roundtrip",
+        "--nocapture"
+      ],
+      "case": "cfml_m1_1__lossless_roundtrip",
+      "duration_s": 0.125,
+      "exit_code": 0,
+      "log": "target/accept/cfml-m1.1/windows/cfml_m1_1__lossless_roundtrip.log",
+      "notes": [
+        "30 well-formed and 15 malformed or incomplete formulas plus 28 error-literal formulas reprinted exactly with UTF-16 spans tiling the input; 3 trim-reference formulas reprinted exactly with one unsupported-syntax diagnostic each; 21 node kinds and 32 token kinds exercised"
+      ],
+      "outcome": "passed",
+      "package": "calc-fml",
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s"
+    },
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--",
+        "--exact",
+        "cfml_m1_1__tree_syntax_rejected",
+        "--nocapture"
+      ],
+      "case": "cfml_m1_1__tree_syntax_rejected",
+      "duration_s": 0.127,
+      "exit_code": 0,
+      "log": "target/accept/cfml-m1.1/windows/cfml_m1_1__tree_syntax_rejected.log",
+      "notes": [
+        "12 legacy selector formulas each refused with one unsupported-syntax diagnostic spanning exactly the selector tokens, held unstructured in an UnsupportedExpr; 7 neighbouring Excel formulas parsed without a diagnostic"
+      ],
+      "outcome": "passed",
+      "package": "calc-fml",
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s"
+    }
+  ],
+  "command": [
+    "cargo",
+    "xtask",
+    "accept",
+    "--id",
+    "cfml-m1.1",
+    "--platform",
+    "windows",
+    "--require-all"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "cfml_m1_1",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 0.148,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "log": "target/accept/cfml-m1.1/windows/command-1.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "cfml_m1_1",
+        "--",
+        "--nocapture"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-fml",
+        "--lib"
+      ],
+      "duration_s": 0.128,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "log": "target/accept/cfml-m1.1/windows/command-2.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--lib"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cfml-m1.1",
+        "--platform",
+        "windows",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cfml-m1.1",
+        "--platform",
+        "linux",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cfml-m1.1",
+        "--platform",
+        "wasm",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    }
+  ],
+  "committed_copy": "accept-receipts/cfml-m1.1/windows.json",
+  "counts": {
+    "architecture_checks": 7,
+    "architecture_checks_passed": 7,
+    "commands_failed": 0,
+    "commands_not_run": 0,
+    "commands_registered": 5,
+    "commands_run": 2,
+    "commands_skipped": 3,
+    "failed": 0,
+    "ignored": 0,
+    "missing": 0,
+    "not_run": 0,
+    "passed": 2,
+    "selected": 2
+  },
+  "duration_s": 8.942,
+  "exit_code": 0,
+  "format": "dnacalc-accept-receipt/4",
+  "host": {
+    "arch": "x86_64",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "git": {
+      "branch": "master",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "4f6716d869ea077cf5a2931de4a7a344d706b9fd",
+          "path": "Cargo.lock",
+          "status": "M"
+        },
+        {
+          "blob": "56a745bfa697e94ce8f4a7de96f853e77ec65c42",
+          "path": "crates/calc-fml/Cargo.toml",
+          "status": "M"
+        },
+        {
+          "blob": "6e2988314bdab1a4ad9924c8d4bee07653b9de2c",
+          "path": "crates/calc-fml/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "fc551b2aceaa0ea0023a2f15b14320be65001912",
+          "path": "crates/calc-fml/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "ee48bff6306fd6c24af7ddaef0102f42f1da11b2",
+          "path": "crates/calc-fml/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "86ad01944ef63b7aa3976614de9efed1e548c7c1",
+          "path": "accept-receipts/cfml-m1.1/wasm.json",
+          "status": "??"
+        },
+        {
+          "blob": "e4302877a1b1269759a49d9f68a06fba6813b7ae",
+          "path": "crates/calc-fml/src/syntax/combining_marks.rs",
+          "status": "??"
+        },
+        {
+          "blob": "dce00199fe5176f42b252a35a48d845433cde568",
+          "path": "crates/calc-fml/src/syntax/lexer.rs",
+          "status": "??"
+        },
+        {
+          "blob": "41aa8be08dcc8da4fb0d05571e14e1345aea5372",
+          "path": "crates/calc-fml/src/syntax/mod.rs",
+          "status": "??"
+        },
+        {
+          "blob": "dc98fb6360a8cb0c9a2795fbc2eecd58d8ae0659",
+          "path": "crates/calc-fml/src/syntax/parser.rs",
+          "status": "??"
+        },
+        {
+          "blob": "e31d21a9a60103599970121d2ac7674131adaefa",
+          "path": "crates/calc-fml/src/syntax/token.rs",
+          "status": "??"
+        },
+        {
+          "blob": "431f29a5c083c931d176cb102a53b72e8e93192d",
+          "path": "crates/calc-fml/src/syntax/tree.rs",
+          "status": "??"
+        },
+        {
+          "blob": "9a3bcd5fbcfb7466ab79c593d6452948cc0565e7",
+          "path": "crates/calc-fml/tests/acceptance.rs",
+          "status": "??"
+        },
+        {
+          "blob": "3b799f73c8cea44a4ad173d11c5a3d54fbc6000a",
+          "path": "migration/ports/cfml-m1.1.json",
+          "status": "??"
+        }
+      ],
+      "head": "58ae32e63ab0673e0d38bb8defa1ece96951a877",
+      "receipt_paths_left_out": [
+        "accept-receipts/cfml-m1.1/windows.json"
+      ]
+    },
+    "legacy_root": {
+      "exists": true,
+      "from": "default: the workspace root's parent directory",
+      "path": ".."
+    },
+    "os": "windows",
+    "platform_matches_host": true,
+    "platform_mismatch": null,
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "rustc_host": "x86_64-pc-windows-msvc"
+  },
+  "manifests": {
+    "errors": [],
+    "files": [
+      "crates/calc-value/acceptance.json",
+      "crates/calc-func/acceptance.json",
+      "crates/calc-fml/acceptance.json",
+      "crates/calc-doc-model/acceptance.json",
+      "crates/calc-doc/acceptance.json",
+      "crates/calc-engine/acceptance.json",
+      "crates/calc-host/acceptance.json",
+      "apps/dna-onecalc/acceptance.json",
+      "apps/dna-calc/acceptance.json",
+      "platform/calc-platform-desktop/acceptance.json",
+      "platform/calc-oracle-excel/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
+      "tools/xtask/acceptance.json"
+    ]
+  },
+  "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it, and host.legacy_root.path is .. for the workspace root's parent or <legacy-root> for a directory elsewhere",
+  "platform": "windows",
+  "problems": [],
+  "receipt": "target/accept/cfml-m1.1/windows/receipt.json",
+  "require_all": true,
+  "result": "passed",
+  "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
+  "started_utc": "2026-10-19T20:57:15Z"
+}
