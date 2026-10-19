@@ -79,6 +79,17 @@ A bead that ports legacy code writes its migration record as `migration/ports/<b
 6. The machine is not the product: test the route the application actually runs, not a parallel route built for the test.
 7. Measure, do not assert. Claims never exceed the evidence; a status flag assigned by the code under test proves nothing.
 
+## Capability first (owner direction, 2026-10-19)
+
+The work here is the product: formulas that parse, functions that compute, workbooks that calculate, save and reopen. Process serves that and is never the product.
+
+- A process artifact (a ledger, matrix, report, speculative check, or a follow-up bead) is created only when it names who or what reads it, the capability that cannot ship without it, the defect actually observed that justifies it, and when it is retired. If running product code branches on it, it is product work; if only people and status reports read it, it is process and this rule applies. The one exception is a minimal integrity control, such as a provenance snapshot, that prevents a named evidence-loss mode.
+- Review scales with the bead. Hardening of the runner, the checks or the tracker is taken only when it blocks a capability bead or the owner asks for it.
+- No self-certification. A bead is closed on evidence at an exact revision that someone other than its implementer re-executed. Agreement between agents of the same model raises confidence; it is not independent evidence.
+- Refusal-only work never closes a capability bead; it stays open and says so.
+- A condition of a bead's own acceptance stays in that bead. Moving it into a follow-up bead in order to close the original is follow-up laundering.
+- Reports lead with what the product can now do, then the evidence. A truthful "nothing shipped" beats a list of process results.
+
 ## Writing
 
 - Reports, commit bodies, handovers and close reasons use Product status / Evidence / Still open and claim only what a tool result shows.
