@@ -1,0 +1,3 @@
+# The fixtures are read as committed (the packages by the acceptance cases, the manifest beside them),
+# so keep their bytes unchanged across checkouts.
+* -text

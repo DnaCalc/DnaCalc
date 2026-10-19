@@ -11,9 +11,16 @@
 //! from the wire format's description (`check_fixture_members`). The fixtures and the workspace's
 //! `Cargo.lock` are read with `include_bytes!` and `include_str!`, so native and browser runs read
 //! the same bytes.
+//!
+//! The cdoc-m1.1 cases read the packages under `tests/fixtures/cdoc_m1_1/`, written by the
+//! committed generator beside them, together with its `manifest.json`, which records what the
+//! generator wrote as .NET computed it. Every other package they open is built here by
+//! `cdoc_m1_1_support`, whose ZIP reader is also what inspects every saved package.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
+
+mod cdoc_m1_1_support;
 
 use calc_doc::model::value::{
     CellKey, ExcelText, GridArea, GridError, IdAllocator, MAX_COLUMNS, MAX_ROWS, SheetId,
@@ -3567,5 +3574,1418 @@ fn dc_73yy__page_sharing() {
 
     note!(
         "ACCEPT-NOTE: {CASE}: a one-cell change (R2) through encode, decode and ModelRoot::apply kept {shared} of 7 pages pointer-identical and made 1 new page; {same_address} cells on untouched pages read from the same address in both roots; 5 rectangle reads returned literal row-major lists"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cdoc-m1.1: bounded package reading and raw preservation.
+
+use calc_doc::{
+    MemorySource, OpenError, OpenPolicy, OpenedDocument, PackageLimits, PackageRead, PartReadError,
+    SinkError, SourceError, TargetMode, UnsafeName, WriteError, XmlError, XmlEvent, XmlLimits,
+    XmlPart, prepare_save,
+};
+use cdoc_m1_1_support::{
+    ChangingSource, FailingSource, FullSink, RawEntry, RecordingSource, UnreadableRangeSource, Zip,
+    ZipEntry, build_zip, end_record, parse_zip, sha256,
+};
+
+const M1_1_PACKAGE: &[u8] = include_bytes!("fixtures/cdoc_m1_1/package.xlsx");
+const M1_1_LYING_SIZE: &[u8] = include_bytes!("fixtures/cdoc_m1_1/lying-size.xlsx");
+const M1_1_MANIFEST: &str = include_str!("fixtures/cdoc_m1_1/manifest.json");
+
+const SPREADSHEET_MAIN: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const OFFICE_DOCUMENT: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
+
+fn memory(bytes: &[u8]) -> Arc<dyn PackageRead> {
+    Arc::new(MemorySource::new(bytes.to_vec()))
+}
+
+fn opened(source: Arc<dyn PackageRead>, policy: &OpenPolicy) -> OpenedDocument {
+    match calc_doc::open(source, policy) {
+        Ok(document) => document,
+        Err(error) => panic!("the package opens, but: {error}"),
+    }
+}
+
+fn refused(source: Arc<dyn PackageRead>, policy: &OpenPolicy) -> OpenError {
+    match calc_doc::open(source, policy) {
+        Ok(_) => panic!("the package is refused, but it opened"),
+        Err(error) => error,
+    }
+}
+
+/// Saves the document's snapshot unchanged into a new buffer.
+fn saved(document: &OpenedDocument) -> Vec<u8> {
+    let mut out = Vec::new();
+    let receipt = calc_doc::write(prepare_save(&document.snapshot()), &mut out).expect("a save");
+    assert_eq!(
+        receipt.bytes_written,
+        out.len() as u64,
+        "the receipt counts the bytes the sink received"
+    );
+    out
+}
+
+/// What the case's own pass over a part's XML events finds.
+#[derive(Debug, PartialEq)]
+struct XmlFacts {
+    namespace: Option<String>,
+    root: String,
+    elements: u64,
+    attributes: u64,
+    text_sha256: String,
+}
+
+fn xml_facts(part: &XmlPart) -> XmlFacts {
+    let mut reader = part.reader();
+    let mut root = None;
+    let (mut elements, mut attributes, mut text) = (0, 0, String::new());
+    while let Some(event) = reader.next_event().expect("well-formed XML") {
+        match event {
+            XmlEvent::Start(element) => {
+                root.get_or_insert_with(|| element.name.clone());
+                elements += 1;
+                attributes += element.attributes.len() as u64;
+            }
+            XmlEvent::Text(content) => text.push_str(&content),
+            XmlEvent::End(_) => {}
+        }
+    }
+    let root = root.expect("a document element");
+    XmlFacts {
+        namespace: root.namespace,
+        root: root.local,
+        elements,
+        attributes,
+        text_sha256: sha256(text.as_bytes()),
+    }
+}
+
+fn manifest_xml_facts(xml: &Value) -> XmlFacts {
+    XmlFacts {
+        namespace: Some(xml["namespace"].as_str().expect("namespace").to_owned())
+            .filter(|namespace| !namespace.is_empty()),
+        root: xml["root"].as_str().expect("root").to_owned(),
+        elements: xml["elements"].as_u64().expect("elements"),
+        attributes: xml["attributes"].as_u64().expect("attributes"),
+        text_sha256: xml["text_sha256"].as_str().expect("text_sha256").to_owned(),
+    }
+}
+
+/// The stored fields two archives' entries must share for the entry to count as preserved.
+fn preserved_fields(entry: &ZipEntry, archive: &[u8]) -> Vec<String> {
+    vec![
+        format!("name {}", entry.name),
+        format!(
+            "made by {} needs {}",
+            entry.version_made_by, entry.version_needed
+        ),
+        format!("flags {:#06x} method {}", entry.flags, entry.method),
+        format!("time {:#06x} date {:#06x}", entry.time, entry.date),
+        format!(
+            "crc {:08x} sizes {} {}",
+            entry.crc32, entry.compressed_size, entry.size
+        ),
+        format!(
+            "attributes {} {}",
+            entry.internal_attributes, entry.external_attributes
+        ),
+        format!("local header {:02x?}", &entry.local_header[4..26]),
+        format!("local extra {:02x?}", entry.local_extra),
+        format!("central extra {:02x?}", entry.central_extra),
+        format!("comment {:02x?}", entry.comment),
+        format!("descriptor {:02x?}", entry.descriptor),
+        format!("payload {}", sha256(entry.payload(archive))),
+    ]
+}
+
+fn names_in_stored_order(zip: &Zip) -> Vec<String> {
+    let mut entries: Vec<&ZipEntry> = zip.entries.iter().collect();
+    entries.sort_by_key(|entry| entry.local_offset);
+    entries.iter().map(|entry| entry.name.clone()).collect()
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m1_1__raw_preservation.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m1_1__raw_preservation() {
+    const CASE: &str = "cdoc_m1_1__raw_preservation";
+    assert_eq!(
+        sha256(b"abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "the case's SHA-256 matches FIPS 180-4's example"
+    );
+    let manifest: Value = serde_json::from_str(M1_1_MANIFEST).expect("manifest.json");
+    let fixture = &manifest["package"];
+    let entries = fixture["entries"].as_array().expect("entries");
+    let policy = OpenPolicy::default();
+
+    // The fixture as the case's own reader sees it agrees with what the generator recorded.
+    let input = parse_zip(M1_1_PACKAGE);
+    assert_eq!(
+        M1_1_PACKAGE.len() as u64,
+        fixture["length"].as_u64().unwrap()
+    );
+    assert_eq!(input.entries.len(), entries.len());
+    for (entry, recorded) in input.entries.iter().zip(entries) {
+        let field = |key: &str| recorded[key].as_u64().unwrap();
+        assert_eq!(entry.name, recorded["name"].as_str().unwrap());
+        assert_eq!(u64::from(entry.method), field("method"));
+        assert_eq!(u64::from(entry.flags), field("flags"));
+        assert_eq!(u64::from(entry.crc32), field("crc32"));
+        assert_eq!(u64::from(entry.compressed_size), field("compressed_size"));
+        assert_eq!(u64::from(entry.size), field("size"));
+        assert_eq!(u64::from(entry.local_offset), field("local_offset"));
+        assert_eq!(entry.descriptor.len() as u64, field("descriptor"));
+        assert_eq!(entry.local_extra.len() as u64, field("local_extra"));
+        assert_eq!(entry.central_extra.len() as u64, field("central_extra"));
+        assert_eq!(
+            entry.comment,
+            recorded["comment"].as_str().unwrap().as_bytes()
+        );
+        assert_eq!(
+            sha256(entry.payload(M1_1_PACKAGE)),
+            recorded["payload_sha256"].as_str().unwrap(),
+            "{}: the payload's SHA-256 as the generator recorded it",
+            entry.name
+        );
+    }
+    let gap_end = input.entry("xl/worksheets/sheet2.xml").local_offset as usize;
+    let gap = fixture["unreferenced_bytes"].as_u64().unwrap() as usize;
+    let before_gap = input
+        .entries
+        .iter()
+        .map(ZipEntry::end)
+        .filter(|&end| end <= gap_end)
+        .max()
+        .unwrap();
+    assert_eq!(gap_end - before_gap, gap, "no entry stores the gap's bytes");
+
+    // Open: the part directory, content types and relationships.
+    let document = opened(memory(M1_1_PACKAGE), &policy);
+    let package = document.package();
+    let recorded_parts: Vec<&Value> = entries
+        .iter()
+        .filter(|entry| entry["part"].as_bool().unwrap())
+        .collect();
+    let directory: Vec<(String, Option<String>, bool, u64, u64, u32)> = package
+        .parts()
+        .iter()
+        .map(|part| {
+            (
+                part.name().to_owned(),
+                part.content_type().map(str::to_owned),
+                part.compressed(),
+                part.compressed_size(),
+                part.size(),
+                part.crc32(),
+            )
+        })
+        .collect();
+    let expected_directory: Vec<(String, Option<String>, bool, u64, u64, u32)> = recorded_parts
+        .iter()
+        .map(|entry| {
+            (
+                entry["name"].as_str().unwrap().to_owned(),
+                entry["content_type"].as_str().map(str::to_owned),
+                entry["method"].as_u64() == Some(8),
+                entry["compressed_size"].as_u64().unwrap(),
+                entry["size"].as_u64().unwrap(),
+                entry["crc32"].as_u64().unwrap() as u32,
+            )
+        })
+        .collect();
+    assert_eq!(
+        directory, expected_directory,
+        "the part directory: every entry but [Content_Types].xml and the directory entry, with the content type the generator assigned"
+    );
+    let relationships: Vec<Value> = package
+        .relationships()
+        .iter()
+        .map(|set| {
+            json!({
+                "part": set.part(),
+                "source": set.source(),
+                "items": set.items().iter().map(|item| json!({
+                    "id": item.id,
+                    "type": item.kind,
+                    "target": item.target,
+                    "mode": match item.mode {
+                        TargetMode::Internal => "Internal",
+                        TargetMode::External => "External",
+                    },
+                    "resolved": item.resolved,
+                })).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    assert_eq!(
+        Value::Array(relationships),
+        fixture["relationships"],
+        "every relationships part, its source and each relationship with the part its target denotes"
+    );
+    let workbook_relationships = package
+        .relationships_of(Some("xl/workbook.xml"))
+        .expect("the workbook's relationships");
+    assert_eq!(workbook_relationships.items().len(), 4);
+
+    // Lazy reads: each part's content and, for XML parts, what its reader yields.
+    let mut xml_parts = 0;
+    for recorded in &recorded_parts {
+        let name = recorded["name"].as_str().unwrap();
+        let content = package.read_part(name).expect("a part's content");
+        assert_eq!(
+            sha256(&content),
+            recorded["content_sha256"].as_str().unwrap(),
+            "{name}: the content's SHA-256 as the generator recorded it before deflating"
+        );
+        if !recorded["xml"].is_null() {
+            let part = package.read_xml(name).expect("an XML part");
+            assert_eq!(
+                xml_facts(&part),
+                manifest_xml_facts(&recorded["xml"]),
+                "{name}: the document element, element and attribute counts and text .NET's XmlDocument reads"
+            );
+            xml_parts += 1;
+        }
+    }
+    assert_eq!(
+        package.read_part("XL/WORKBOOK.XML"),
+        package.read_part("xl/workbook.xml"),
+        "part names compare ignoring ASCII case"
+    );
+
+    // A no-op save, inspected by the case's own reader.
+    let plan = prepare_save(&document.snapshot());
+    assert_eq!(plan.copied_entries(), entries.len());
+    let out = saved(&document);
+    let output = parse_zip(&out);
+    assert_eq!(
+        output
+            .entries
+            .iter()
+            .map(|e| e.name.clone())
+            .collect::<Vec<_>>(),
+        input
+            .entries
+            .iter()
+            .map(|e| e.name.clone())
+            .collect::<Vec<_>>(),
+        "the central directory keeps its order"
+    );
+    assert_eq!(
+        names_in_stored_order(&output),
+        names_in_stored_order(&input),
+        "the entries keep the order they were stored in"
+    );
+    for ((before, after), recorded) in input.entries.iter().zip(&output.entries).zip(entries) {
+        assert_eq!(
+            preserved_fields(after, &out),
+            preserved_fields(before, M1_1_PACKAGE),
+            "{}: every stored field and the payload",
+            before.name
+        );
+        assert_eq!(
+            sha256(after.payload(&out)),
+            recorded["payload_sha256"].as_str().unwrap(),
+            "{}: the saved payload's SHA-256 is the one the generator recorded",
+            before.name
+        );
+        let shift = if (before.local_offset as usize) >= gap_end {
+            gap
+        } else {
+            0
+        };
+        assert_eq!(
+            after.local_offset as usize,
+            before.local_offset as usize - shift,
+            "{}: moved back by the unreferenced bytes before it, and no further",
+            before.name
+        );
+    }
+    assert_eq!(output.comment, input.comment, "the archive comment");
+    assert_eq!(out.len(), M1_1_PACKAGE.len() - gap);
+    assert_eq!(output.central_size, input.central_size);
+    assert_eq!(output.central_offset, input.central_offset - gap);
+
+    // The saved package reopens with the same structure and content, and saves to itself.
+    let reopened = opened(memory(&out), &policy);
+    let again = reopened.package();
+    assert_eq!(again.content_types(), package.content_types());
+    assert_eq!(again.relationships(), package.relationships());
+    assert_eq!(
+        again
+            .parts()
+            .iter()
+            .map(|part| (part.name(), part.content_type(), part.crc32()))
+            .collect::<Vec<_>>(),
+        package
+            .parts()
+            .iter()
+            .map(|part| (part.name(), part.content_type(), part.crc32()))
+            .collect::<Vec<_>>()
+    );
+    for recorded in &recorded_parts {
+        let name = recorded["name"].as_str().unwrap();
+        assert_eq!(
+            sha256(&again.read_part(name).expect("a part's content")),
+            recorded["content_sha256"].as_str().unwrap(),
+            "{name} after the save"
+        );
+    }
+    let second = saved(&reopened);
+    assert!(second == out, "saving the saved package changes no byte");
+
+    // A save proves it copied what was opened.
+    let changing = Arc::new(ChangingSource::new(M1_1_PACKAGE.to_vec()));
+    let source: Arc<dyn PackageRead> = changing.clone();
+    let changed = opened(source, &policy);
+    let sheet = input.entry("xl/worksheets/sheet1.xml");
+    changing.change(|bytes| bytes[sheet.payload_start + 100] ^= 0x01);
+    let mut partial = Vec::new();
+    let error = calc_doc::write(prepare_save(&changed.snapshot()), &mut partial)
+        .expect_err("a source changed since opening");
+    assert_eq!(
+        error,
+        WriteError::SourceChanged {
+            entry: "xl/worksheets/sheet1.xml".to_owned()
+        }
+    );
+    let lazy = changed
+        .package()
+        .read_part("xl/worksheets/sheet1.xml")
+        .expect_err("a changed payload");
+    changing.change(|bytes| bytes.truncate(1000));
+    let error = calc_doc::write(prepare_save(&changed.snapshot()), &mut Vec::new())
+        .expect_err("a source that shrank");
+    assert!(matches!(error, WriteError::Source(_)), "{error:?}");
+    let mut full = FullSink {
+        accepted: Vec::new(),
+        capacity: 10_000,
+    };
+    let error = calc_doc::write(prepare_save(&document.snapshot()), &mut full)
+        .expect_err("a sink that fills up");
+    assert_eq!(
+        error,
+        WriteError::Sink(SinkError::new("the medium is full"))
+    );
+    assert!(
+        full.accepted.len() <= 10_000 && out.starts_with(&full.accepted),
+        "the sink holds a prefix of the package"
+    );
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: package.xlsx ({} bytes, {} entries, {} parts, {} XML parts read lazily to the .NET XmlDocument counts, {} relationships parts) saved unchanged to {} bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the {gap} unreferenced bytes were dropped and the entries after them moved back by {gap}; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte",
+        M1_1_PACKAGE.len(),
+        entries.len(),
+        recorded_parts.len(),
+        xml_parts,
+        package.relationships().len(),
+        out.len()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: a payload byte changed after opening: the save refused with SourceChanged after {} bytes, and the lazy read with {lazy:?}; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of {} bytes",
+        partial.len(),
+        full.accepted.len()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m1_1__malformed_zip.
+
+fn base_content_types() -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="{}"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="bin" ContentType="application/octet-stream"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>"#,
+        calc_doc::CONTENT_TYPES_NAMESPACE
+    )
+}
+
+fn base_relationships() -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{}"><Relationship Id="rId1" Type="{OFFICE_DOCUMENT}" Target="xl/workbook.xml"/></Relationships>"#,
+        calc_doc::RELATIONSHIPS_NAMESPACE
+    )
+}
+
+fn base_workbook() -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="{SPREADSHEET_MAIN}"><sheets/></workbook>"#
+    )
+}
+
+/// The three entries of a minimal package that opens.
+fn base_entries() -> Vec<RawEntry> {
+    vec![
+        RawEntry::stored("[Content_Types].xml", base_content_types().as_bytes()),
+        RawEntry::stored("_rels/.rels", base_relationships().as_bytes()),
+        RawEntry::stored("xl/workbook.xml", base_workbook().as_bytes()),
+    ]
+}
+
+/// The minimal package with `extra` entries after its own.
+fn package_with(extra: Vec<RawEntry>) -> Vec<u8> {
+    let mut entries = base_entries();
+    entries.extend(extra);
+    build_zip(&entries)
+}
+
+/// The minimal package with one entry's content replaced.
+fn package_replacing(name: &str, content: &[u8]) -> Vec<u8> {
+    let entries: Vec<RawEntry> = base_entries()
+        .into_iter()
+        .map(|entry| {
+            if entry.name == name.as_bytes() {
+                RawEntry::stored(name, content)
+            } else {
+                entry
+            }
+        })
+        .collect();
+    build_zip(&entries)
+}
+
+/// The end record's offset in an archive without a comment.
+fn end_offset(bytes: &[u8]) -> usize {
+    bytes.len() - 22
+}
+
+/// The files in the case's working directory and its parent, where a naive extractor of the
+/// planted names would write. Browsers give the case no file system.
+#[cfg(not(target_arch = "wasm32"))]
+fn file_system_listing() -> Vec<String> {
+    let mut listing = Vec::new();
+    for directory in [".", ".."] {
+        for entry in std::fs::read_dir(directory).expect("a readable directory") {
+            let entry = entry.expect("a directory entry");
+            let size = entry.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+            listing.push(format!(
+                "{directory}/{} {size}",
+                entry.file_name().to_string_lossy()
+            ));
+        }
+    }
+    listing.sort();
+    listing
+}
+
+#[cfg(target_arch = "wasm32")]
+fn file_system_listing() -> Vec<String> {
+    Vec::new()
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m1_1__malformed_zip() {
+    const CASE: &str = "cdoc_m1_1__malformed_zip";
+    let manifest: Value = serde_json::from_str(M1_1_MANIFEST).expect("manifest.json");
+    let default = OpenPolicy::default();
+    let listing_before = file_system_listing();
+    let mut refusals: Vec<String> = Vec::new();
+    let mut expect = |label: &str, error: OpenError, expected: OpenError| {
+        assert_eq!(error, expected, "{label}");
+        refusals.push(format!("{label}: {error}"));
+    };
+
+    // Control: the minimal package opens, so each refusal below is its planted defect's.
+    let base_bytes = build_zip(&base_entries());
+    let base = opened(memory(&base_bytes), &default);
+    assert_eq!(
+        base.package()
+            .parts()
+            .iter()
+            .map(|part| part.name())
+            .collect::<Vec<_>>(),
+        ["_rels/.rels", "xl/workbook.xml"]
+    );
+    assert_eq!(
+        base.package().relationships()[0].items()[0]
+            .resolved
+            .as_deref(),
+        Some("xl/workbook.xml")
+    );
+
+    // Path traversal: names a naive extractor would write outside its directory.
+    let traversal = [
+        ("../cdoc_m1_1_zip_slip.xml", UnsafeName::DotSegment),
+        ("xl/../../cdoc_m1_1_zip_slip.xml", UnsafeName::DotSegment),
+        ("xl/./cdoc_m1_1_zip_slip.xml", UnsafeName::DotSegment),
+        ("/tmp/cdoc_m1_1_zip_slip.xml", UnsafeName::Absolute),
+        ("..\\cdoc_m1_1_zip_slip.xml", UnsafeName::Backslash),
+        ("C:/cdoc_m1_1_zip_slip.xml", UnsafeName::Colon),
+        ("xl/workbook.xml:cdoc_m1_1_zip_slip", UnsafeName::Colon),
+        ("xl//cdoc_m1_1_zip_slip.xml", UnsafeName::EmptySegment),
+        (
+            "xl/cdoc_m1_1\u{1}zip_slip.xml",
+            UnsafeName::ControlCharacter,
+        ),
+        ("", UnsafeName::Empty),
+    ];
+    #[cfg(not(target_arch = "wasm32"))]
+    let planted_targets: Vec<std::path::PathBuf> = traversal
+        .iter()
+        .filter(|(name, _)| !name.is_empty() && !name.contains('\u{1}'))
+        .map(|(name, _)| std::path::Path::new(".").join(name.replace('\\', "/")))
+        .collect();
+    #[cfg(not(target_arch = "wasm32"))]
+    for target in &planted_targets {
+        assert!(
+            !target.exists(),
+            "{} exists before the case",
+            target.display()
+        );
+    }
+    for (name, reason) in traversal {
+        let bytes = package_with(vec![RawEntry::stored(name, b"planted")]);
+        expect(
+            &format!("entry name {name:?}"),
+            refused(memory(&bytes), &default),
+            OpenError::UnsafeEntryName {
+                name: name.to_owned(),
+                reason,
+            },
+        );
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    for target in &planted_targets {
+        assert!(
+            !target.exists(),
+            "{} exists after the case",
+            target.display()
+        );
+    }
+    let mut unflagged = RawEntry::stored("x", b"planted");
+    unflagged.name = b"xl/caf\xe9.bin".to_vec();
+    let bytes = package_with(vec![unflagged.clone()]);
+    let end = end_offset(&bytes);
+    let central = u32::from_le_bytes(bytes[end + 16..end + 20].try_into().unwrap()) as u64;
+    let fourth_record = central
+        + base_entries()
+            .iter()
+            .map(|entry| 46 + entry.name.len() as u64)
+            .sum::<u64>();
+    expect(
+        "a Latin-1 name without the UTF-8 flag",
+        refused(memory(&bytes), &default),
+        OpenError::EntryNameEncoding {
+            offset: fourth_record,
+        },
+    );
+    let mut flagged = unflagged;
+    flagged.flags = 1 << 11;
+    expect(
+        "an invalid UTF-8 name with the UTF-8 flag",
+        refused(memory(&package_with(vec![flagged])), &default),
+        OpenError::EntryNameEncoding {
+            offset: fourth_record,
+        },
+    );
+
+    // Declared-size bombs, refused from the central directory before any payload is read.
+    let empty_deflate = [0x03u8, 0x00];
+    let mut bomb_entries = vec![RawEntry::deflated(
+        "xl/media/bomb.bin",
+        &empty_deflate,
+        0xFFFF_FFFE,
+        0,
+    )];
+    bomb_entries.push(RawEntry::stored(
+        "xl/media/filler.bin",
+        &vec![0x5Au8; 100_000],
+    ));
+    bomb_entries.extend(base_entries());
+    let bomb_bytes = build_zip(&bomb_entries);
+    let bomb_entry = parse_zip(&bomb_bytes).entry("xl/media/bomb.bin").clone();
+    let recording = Arc::new(RecordingSource::new(bomb_bytes.clone()));
+    let source: Arc<dyn PackageRead> = recording.clone();
+    expect(
+        "an entry declaring 4 GiB - 2 bytes",
+        refused(source, &default),
+        OpenError::PartTooLarge {
+            name: "xl/media/bomb.bin".to_owned(),
+            declared: 0xFFFF_FFFE,
+            limit: 1 << 30,
+        },
+    );
+    let reads = recording.reads();
+    let touched: Vec<&(u64, u64)> = reads
+        .iter()
+        .filter(|(start, end)| {
+            *start < bomb_entry.end() as u64 && *end > u64::from(bomb_entry.local_offset)
+        })
+        .collect();
+    assert_eq!(
+        touched,
+        Vec::<&(u64, u64)>::new(),
+        "no read reached the bomb entry's local header or payload"
+    );
+    let read_bytes: u64 = reads.iter().map(|(start, end)| end - start).sum();
+    let tight = OpenPolicy {
+        package: PackageLimits {
+            max_part_bytes: 1000,
+            ..PackageLimits::default()
+        },
+        ..OpenPolicy::default()
+    };
+    expect(
+        "a 2000-byte entry under a 1000-byte part limit",
+        refused(
+            memory(&package_with(vec![RawEntry::stored(
+                "xl/media/big.bin",
+                &[7u8; 2000],
+            )])),
+            &tight,
+        ),
+        OpenError::PartTooLarge {
+            name: "xl/media/big.bin".to_owned(),
+            declared: 2000,
+            limit: 1000,
+        },
+    );
+    let many: Vec<RawEntry> = (0..6)
+        .map(|i| {
+            RawEntry::deflated(
+                &format!("xl/media/big{i}.bin"),
+                &empty_deflate,
+                900_000_000,
+                0,
+            )
+        })
+        .collect();
+    let declared = 6 * 900_000_000
+        + base_entries()
+            .iter()
+            .map(|entry| u64::from(entry.size))
+            .sum::<u64>();
+    expect(
+        "six entries declaring 900 MB each",
+        refused(memory(&package_with(many)), &default),
+        OpenError::PackageExpansionTooLarge {
+            declared,
+            limit: 4 << 30,
+        },
+    );
+    let few = OpenPolicy {
+        package: PackageLimits {
+            max_entries: 4,
+            ..PackageLimits::default()
+        },
+        ..OpenPolicy::default()
+    };
+    expect(
+        "five entries under a four-entry limit",
+        refused(
+            memory(&package_with(vec![
+                RawEntry::stored("xl/a.bin", b"a"),
+                RawEntry::stored("xl/b.bin", b"b"),
+            ])),
+            &few,
+        ),
+        OpenError::TooManyEntries {
+            declared: 5,
+            limit: 4,
+        },
+    );
+    let small = OpenPolicy {
+        package: PackageLimits {
+            max_package_bytes: 100,
+            ..PackageLimits::default()
+        },
+        ..OpenPolicy::default()
+    };
+    expect(
+        "a package over a 100-byte package limit",
+        refused(memory(&base_bytes), &small),
+        OpenError::PackageTooLarge {
+            length: base_bytes.len() as u64,
+            limit: 100,
+        },
+    );
+
+    // Overlapping entries: the outer entry's payload is the inner entry, so the inner payload
+    // would be counted, and expanded, twice.
+    let inner = RawEntry::stored("xl/media/b.bin", b"the inner entry");
+    let outer = RawEntry::stored("xl/media/a.bin", &inner.local());
+    let mut overlap = Vec::new();
+    let mut centrals = Vec::new();
+    for entry in base_entries() {
+        let offset = overlap.len() as u32;
+        overlap.extend_from_slice(&entry.local());
+        centrals.extend_from_slice(&entry.central(offset));
+    }
+    let outer_offset = overlap.len() as u32;
+    overlap.extend_from_slice(&outer.local());
+    centrals.extend_from_slice(&outer.central(outer_offset));
+    centrals.extend_from_slice(&inner.central(outer_offset + 30 + outer.name.len() as u32));
+    let directory = overlap.len() as u32;
+    overlap.extend_from_slice(&centrals);
+    overlap.extend_from_slice(&end_record(5, centrals.len() as u32, directory));
+    expect(
+        "an entry stored inside another",
+        refused(memory(&overlap), &default),
+        OpenError::OverlappingEntries {
+            first: "xl/media/a.bin".to_owned(),
+            second: "xl/media/b.bin".to_owned(),
+        },
+    );
+
+    // Expansion past the declared size: refused when read, within the declared bound.
+    let lying = &manifest["lying_size"];
+    let declared_size = lying["declared_size"].as_u64().unwrap();
+    let expanded_size = lying["expanded_size"].as_u64().unwrap();
+    let document = opened(memory(M1_1_LYING_SIZE), &default);
+    let zeros = document
+        .package()
+        .part("xl/media/zeros.bin")
+        .expect("the part");
+    assert_eq!(zeros.size(), declared_size);
+    assert_eq!(
+        u64::from(zeros.crc32()),
+        lying["declared_crc32"].as_u64().unwrap()
+    );
+    assert_eq!(
+        cdoc_m1_1_support::crc32(&vec![0u8; declared_size as usize]),
+        zeros.crc32(),
+        "a reader that stopped at the declared size would find the declared CRC"
+    );
+    let before = cdoc_m1_1_support::allocated();
+    let result = document.package().read_part("xl/media/zeros.bin");
+    let allocated = cdoc_m1_1_support::allocated() - before;
+    assert_eq!(
+        result,
+        Err(PartReadError::ExpandsPastDeclaredSize {
+            declared: declared_size
+        })
+    );
+    assert!(
+        allocated < 1 << 20,
+        "reading a part that expands to {expanded_size} bytes allocated {allocated} bytes"
+    );
+    assert!(document.package().read_xml("xl/media/zeros.bin").is_err());
+    let lying_saved = saved(&document);
+    let lying_in = parse_zip(M1_1_LYING_SIZE);
+    let lying_out = parse_zip(&lying_saved);
+    assert_eq!(
+        sha256(lying_out.entry("xl/media/zeros.bin").payload(&lying_saved)),
+        sha256(
+            lying_in
+                .entry("xl/media/zeros.bin")
+                .payload(M1_1_LYING_SIZE)
+        ),
+        "the refused part's payload is still preserved by a save"
+    );
+
+    // Payloads that are short, corrupt or carry the wrong CRC. `stored_block` is a raw DEFLATE
+    // stream of one final stored block (RFC 1951 section 3.2.4) holding `content`.
+    let stored_block = |content: &[u8]| {
+        let len = content.len() as u16;
+        let mut stream = vec![0x01];
+        stream.extend_from_slice(&len.to_le_bytes());
+        stream.extend_from_slice(&(!len).to_le_bytes());
+        stream.extend_from_slice(content);
+        stream
+    };
+    let defects = package_with(vec![
+        RawEntry::deflated("xl/media/short.bin", &empty_deflate, 10, 0),
+        RawEntry::deflated("xl/media/reserved.bin", &[0x07], 1, 0),
+        RawEntry::deflated("xl/media/truncated.bin", &[0x02], 1, 0),
+        RawEntry {
+            crc32: 0,
+            ..RawEntry::stored("xl/media/crc.bin", b"content")
+        },
+        RawEntry::deflated("xl/media/deflated-crc.bin", &stored_block(b"content"), 7, 0),
+        RawEntry::deflated(
+            "xl/media/deflated.bin",
+            &stored_block(b"content"),
+            7,
+            cdoc_m1_1_support::crc32(b"content"),
+        ),
+        RawEntry::deflated(
+            "xl/media/one-past.bin",
+            &stored_block(b"content"),
+            6,
+            cdoc_m1_1_support::crc32(b"conten"),
+        ),
+    ]);
+    let document = opened(memory(&defects), &default);
+    let package = document.package();
+    assert_eq!(
+        package.read_part("xl/media/deflated.bin"),
+        Ok(b"content".to_vec()),
+        "control: a deflated payload of exactly its declared size and CRC reads"
+    );
+    assert_eq!(
+        package.read_part("xl/media/deflated-crc.bin"),
+        Err(PartReadError::CrcMismatch {
+            declared: 0,
+            actual: cdoc_m1_1_support::crc32(b"content")
+        }),
+        "a deflated payload of its declared size with the wrong CRC"
+    );
+    assert_eq!(
+        package.read_part("xl/media/one-past.bin"),
+        Err(PartReadError::ExpandsPastDeclaredSize { declared: 6 }),
+        "a deflated payload one byte past its declared size"
+    );
+    assert_eq!(
+        package.read_part("xl/media/short.bin"),
+        Err(PartReadError::ShorterThanDeclared {
+            declared: 10,
+            actual: 0
+        })
+    );
+    assert_eq!(
+        package.read_part("xl/media/reserved.bin"),
+        Err(PartReadError::CorruptDeflate {
+            detail: "the stream is not valid DEFLATE"
+        }),
+        "a final block of type 3, which DEFLATE reserves"
+    );
+    assert_eq!(
+        package.read_part("xl/media/truncated.bin"),
+        Err(PartReadError::CorruptDeflate {
+            detail: "the stream ends before its final block does"
+        }),
+        "a non-final fixed block cut off five bits in"
+    );
+    assert_eq!(
+        package.read_part("xl/media/crc.bin"),
+        Err(PartReadError::CrcMismatch {
+            declared: 0,
+            actual: cdoc_m1_1_support::crc32(b"content")
+        })
+    );
+    assert_eq!(
+        package.read_part("xl/missing.xml"),
+        Err(PartReadError::NotAPart {
+            name: "xl/missing.xml".to_owned()
+        })
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate); a stored payload with the wrong CRC (CrcMismatch)"
+    );
+    let mut wrong = base_entries();
+    let actual = wrong[0].crc32;
+    wrong[0].crc32 ^= 1;
+    expect(
+        "[Content_Types].xml with the wrong CRC",
+        refused(memory(&build_zip(&wrong)), &default),
+        OpenError::Part {
+            part: "[Content_Types].xml".to_owned(),
+            error: PartReadError::CrcMismatch {
+                declared: actual ^ 1,
+                actual,
+            },
+        },
+    );
+
+    // Entity expansion: a document type declaration is refused before any entity it declares.
+    let ct = calc_doc::CONTENT_TYPES_NAMESPACE;
+    let rels = calc_doc::RELATIONSHIPS_NAMESPACE;
+    let external_types = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE Types [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><Types xmlns="{ct}"><Default Extension="xml" ContentType="&xxe;"/></Types>"#
+    );
+    expect(
+        "[Content_Types].xml declaring an external entity",
+        refused(
+            memory(&package_replacing(
+                "[Content_Types].xml",
+                external_types.as_bytes(),
+            )),
+            &default,
+        ),
+        OpenError::Xml {
+            part: "[Content_Types].xml".to_owned(),
+            error: XmlError::DocumentTypeDeclaration,
+        },
+    );
+    let mut laughs = String::from(r#"<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol0 "lol">"#);
+    for level in 1..10 {
+        laughs.push_str(&format!(
+            "<!ENTITY lol{level} \"{}\">",
+            format!("&lol{};", level - 1).repeat(10)
+        ));
+    }
+    laughs.push_str(&format!(
+        r#"]><Relationships xmlns="{rels}">&lol9;</Relationships>"#
+    ));
+    expect(
+        "_rels/.rels expanding an entity to 10^9 copies",
+        refused(
+            memory(&package_replacing("_rels/.rels", laughs.as_bytes())),
+            &default,
+        ),
+        OpenError::Xml {
+            part: "_rels/.rels".to_owned(),
+            error: XmlError::DocumentTypeDeclaration,
+        },
+    );
+    let lazy_cases: Vec<(&str, String, XmlLimits, XmlError)> = vec![
+        (
+            "an external entity in a workbook",
+            format!(
+                r#"<?xml version="1.0"?><!DOCTYPE workbook [<!ENTITY xxe SYSTEM "http://example.invalid/xxe">]><workbook xmlns="{SPREADSHEET_MAIN}">&xxe;</workbook>"#
+            ),
+            XmlLimits::default(),
+            XmlError::DocumentTypeDeclaration,
+        ),
+        (
+            "an unterminated document type declaration",
+            r#"<?xml version="1.0"?><!DOCTYPE workbook [<!ENTITY xxe SYSTEM "http://example.invalid/xxe">"#
+                .to_owned(),
+            XmlLimits::default(),
+            XmlError::DocumentTypeDeclaration,
+        ),
+        (
+            "an undeclared entity in text",
+            format!(r#"<workbook xmlns="{SPREADSHEET_MAIN}">&xxe;</workbook>"#),
+            XmlLimits::default(),
+            XmlError::UndefinedEntity {
+                name: "xxe".to_owned(),
+            },
+        ),
+        (
+            "an undeclared entity in an attribute",
+            format!(r#"<workbook xmlns="{SPREADSHEET_MAIN}" a="&xxe;"/>"#),
+            XmlLimits::default(),
+            XmlError::UndefinedEntity {
+                name: "xxe".to_owned(),
+            },
+        ),
+        (
+            "five nested elements under a depth limit of four",
+            format!(r#"<workbook xmlns="{SPREADSHEET_MAIN}"><a><b><c><d/></c></b></a></workbook>"#),
+            XmlLimits {
+                max_depth: 4,
+                ..XmlLimits::default()
+            },
+            XmlError::DepthLimit { limit: 4 },
+        ),
+        (
+            "four attributes under a limit of three",
+            format!(r#"<workbook xmlns="{SPREADSHEET_MAIN}" a="1" b="2" c="3"/>"#),
+            XmlLimits {
+                max_attributes: 3,
+                ..XmlLimits::default()
+            },
+            XmlError::AttributeLimit { limit: 3 },
+        ),
+        (
+            "an undeclared prefix",
+            "<x:workbook/>".to_owned(),
+            XmlLimits::default(),
+            XmlError::UnboundPrefix {
+                prefix: "x".to_owned(),
+            },
+        ),
+        (
+            "a declared Latin-1 encoding",
+            format!(
+                r#"<?xml version="1.0" encoding="ISO-8859-1"?><workbook xmlns="{SPREADSHEET_MAIN}"/>"#
+            ),
+            XmlLimits::default(),
+            XmlError::UnsupportedEncoding {
+                encoding: "ISO-8859-1".to_owned(),
+            },
+        ),
+    ];
+    let mut lazy_refusals = Vec::new();
+    for (label, workbook, limits, expected) in lazy_cases {
+        let policy = OpenPolicy {
+            xml: limits,
+            ..OpenPolicy::default()
+        };
+        let document = opened(
+            memory(&package_replacing("xl/workbook.xml", workbook.as_bytes())),
+            &policy,
+        );
+        let part = document
+            .package()
+            .read_xml("xl/workbook.xml")
+            .expect("the part decompresses");
+        let mut reader = part.reader();
+        let error = loop {
+            match reader.next_event() {
+                Ok(Some(_)) => {}
+                Ok(None) => panic!("{label}: the reader refuses the part"),
+                Err(error) => break error,
+            }
+        };
+        assert_eq!(error, expected, "{label}");
+        assert_eq!(
+            reader.next_event(),
+            Err(expected),
+            "{label}: the refusal is repeated"
+        );
+        lazy_refusals.push(format!("{label}: {error}"));
+    }
+    let mut utf16 = vec![0xFF, 0xFE];
+    for unit in format!(r#"<workbook xmlns="{SPREADSHEET_MAIN}"/>"#).encode_utf16() {
+        utf16.extend_from_slice(&unit.to_le_bytes());
+    }
+    let document = opened(
+        memory(&package_replacing("xl/workbook.xml", &utf16)),
+        &default,
+    );
+    assert_eq!(
+        document
+            .package()
+            .read_xml("xl/workbook.xml")
+            .unwrap()
+            .reader()
+            .next_event(),
+        Err(XmlError::UnsupportedEncoding {
+            encoding: "UTF-16".to_owned()
+        })
+    );
+    lazy_refusals.push("a UTF-16 workbook: UnsupportedEncoding".to_owned());
+    let document = opened(
+        memory(&package_replacing(
+            "xl/workbook.xml",
+            format!(r#"<workbook xmlns="{SPREADSHEET_MAIN}"></sheets>"#).as_bytes(),
+        )),
+        &default,
+    );
+    let part = document.package().read_xml("xl/workbook.xml").unwrap();
+    let mut reader = part.reader();
+    assert!(matches!(reader.next_event(), Ok(Some(XmlEvent::Start(_)))));
+    assert!(
+        matches!(reader.next_event(), Err(XmlError::Malformed { .. })),
+        "a mismatched end tag"
+    );
+    lazy_refusals.push("a mismatched end tag: Malformed".to_owned());
+    // Control: the same limits admit a document within them.
+    let within = OpenPolicy {
+        xml: XmlLimits {
+            max_depth: 4,
+            max_attributes: 3,
+        },
+        ..OpenPolicy::default()
+    };
+    let document = opened(
+        memory(&package_replacing(
+            "xl/workbook.xml",
+            format!(
+                r#"<workbook xmlns="{SPREADSHEET_MAIN}" a="&amp;&#65;"><a><b><c/></b></a></workbook>"#
+            )
+            .as_bytes(),
+        )),
+        &within,
+    );
+    let part = document.package().read_xml("xl/workbook.xml").unwrap();
+    let mut reader = part.reader();
+    let Ok(Some(XmlEvent::Start(root))) = reader.next_event() else {
+        panic!("the document element");
+    };
+    assert_eq!(
+        root.attribute("a"),
+        Some("&A"),
+        "predefined and character references are replaced"
+    );
+    let mut elements = 1;
+    while let Some(event) = reader.next_event().expect("within the limits") {
+        if let XmlEvent::Start(_) = event {
+            elements += 1;
+        }
+    }
+    assert_eq!(elements, 4);
+
+    // Archive structure.
+    expect(
+        "a text file",
+        refused(memory(b"this is a text file, not a ZIP archive"), &default),
+        OpenError::NotAZipArchive,
+    );
+    expect(
+        "an empty source",
+        refused(memory(&[]), &default),
+        OpenError::NotAZipArchive,
+    );
+    let mut zip64 = base_bytes.clone();
+    let end = end_offset(&zip64);
+    zip64[end + 8..end + 12].copy_from_slice(&[0xFF; 4]);
+    expect(
+        "an end record whose entry counts are ZIP64's",
+        refused(memory(&zip64), &default),
+        OpenError::Zip64Archive,
+    );
+    let mut located = base_bytes.clone();
+    let end = end_offset(&located);
+    let mut locator = vec![0x50, 0x4b, 0x06, 0x07];
+    locator.extend_from_slice(&[0; 16]);
+    located.splice(end..end, locator);
+    expect(
+        "a ZIP64 locator before the end record",
+        refused(memory(&located), &default),
+        OpenError::Zip64Archive,
+    );
+    let mut spanned = base_bytes.clone();
+    let end = end_offset(&spanned);
+    spanned[end + 4] = 1;
+    expect(
+        "an end record on disk 1",
+        refused(memory(&spanned), &default),
+        OpenError::SpannedArchive,
+    );
+    let mut shifted = base_bytes.clone();
+    let end = end_offset(&shifted);
+    shifted[end + 16] = shifted[end + 16].wrapping_add(1);
+    expect(
+        "a central directory offset one byte off",
+        refused(memory(&shifted), &default),
+        OpenError::MalformedArchive {
+            offset: end as u64,
+            detail: "the central directory does not end where the end record starts",
+        },
+    );
+    let mut renamed = base_bytes.clone();
+    renamed[30] = b'{';
+    expect(
+        "a local header naming another entry",
+        refused(memory(&renamed), &default),
+        OpenError::MalformedArchive {
+            offset: 0,
+            detail: "a local header's name differs from its central record's",
+        },
+    );
+    expect(
+        "an encrypted entry",
+        refused(
+            memory(&package_with(vec![RawEntry {
+                flags: 1,
+                ..RawEntry::stored("xl/media/secret.bin", b"secret")
+            }])),
+            &default,
+        ),
+        OpenError::EncryptedEntry {
+            name: "xl/media/secret.bin".to_owned(),
+        },
+    );
+    expect(
+        "a bzip2 entry",
+        refused(
+            memory(&package_with(vec![RawEntry {
+                method: 12,
+                ..RawEntry::stored("xl/media/b.bz2", b"BZh")
+            }])),
+            &default,
+        ),
+        OpenError::UnsupportedCompression {
+            name: "xl/media/b.bz2".to_owned(),
+            method: 12,
+        },
+    );
+    expect(
+        "two names equal ignoring case",
+        refused(
+            memory(&package_with(vec![
+                RawEntry::stored("xl/media/a.bin", b"a"),
+                RawEntry::stored("XL/MEDIA/A.BIN", b"b"),
+            ])),
+            &default,
+        ),
+        OpenError::DuplicateEntryName {
+            name: "XL/MEDIA/A.BIN".to_owned(),
+        },
+    );
+    expect(
+        "a package without [Content_Types].xml",
+        refused(memory(&build_zip(&base_entries()[1..])), &default),
+        OpenError::MissingContentTypes,
+    );
+    expect(
+        "[Content_Types].xml whose document element is not Types",
+        refused(
+            memory(&package_replacing(
+                "[Content_Types].xml",
+                format!(r#"<Typez xmlns="{ct}"/>"#).as_bytes(),
+            )),
+            &default,
+        ),
+        OpenError::InvalidContentTypes {
+            detail: "the document element is not Types",
+        },
+    );
+    expect(
+        "a relationship whose TargetMode is neither Internal nor External",
+        refused(
+            memory(&package_replacing(
+                "_rels/.rels",
+                format!(
+                    r#"<Relationships xmlns="{rels}"><Relationship Id="rId1" Type="{OFFICE_DOCUMENT}" Target="xl/workbook.xml" TargetMode="Sideways"/></Relationships>"#
+                )
+                .as_bytes(),
+            )),
+            &default,
+        ),
+        OpenError::InvalidRelationships {
+            part: "_rels/.rels".to_owned(),
+            detail: "a TargetMode other than Internal or External",
+        },
+    );
+    expect(
+        "a source that fails every read",
+        refused(Arc::new(FailingSource { size: 1000 }), &default),
+        OpenError::Source(SourceError::new("the medium is unreadable")),
+    );
+
+    // Sources that fail at one place only. A 200 000-byte first entry puts its local header and
+    // most of its payload before the last 65 557 bytes, which the end record search reads.
+    let filler_first = {
+        let mut entries = vec![RawEntry::stored(
+            "xl/media/filler.bin",
+            &vec![0x5Au8; 200_000],
+        )];
+        entries.extend(base_entries());
+        build_zip(&entries)
+    };
+    let filler_zip = parse_zip(&filler_first);
+    assert_eq!(filler_zip.entry("xl/media/filler.bin").local_offset, 0);
+    let tail = (
+        (filler_first.len() - 65_557) as u64,
+        filler_first.len() as u64,
+    );
+    let central = (
+        filler_zip.central_offset as u64,
+        (filler_zip.central_offset + filler_zip.central_size) as u64,
+    );
+    let local_headers: Vec<(u64, u64)> = filler_zip
+        .entries
+        .iter()
+        .map(|entry| {
+            (
+                u64::from(entry.local_offset),
+                u64::from(entry.local_offset) + 30,
+            )
+        })
+        .collect();
+    let mut source_failures = Vec::new();
+    // (label, unreadable bytes, the failed read, the local headers read before it): the first
+    // is the first entry's local header, read right after the central directory; the second is
+    // the second 64 KiB chunk of the first entry's stored bytes, read after every local header,
+    // in the pass that records each entry's CRC-32 of its stored bytes.
+    for (label, unreadable, failed_read, headers_before) in [
+        (
+            "a source whose first entry's local header is unreadable",
+            0..30u64,
+            (0, 30),
+            0,
+        ),
+        (
+            "a source with one unreadable byte inside the first entry's payload",
+            100_000..100_001u64,
+            (65_536, 131_072),
+            local_headers.len(),
+        ),
+    ] {
+        let unreadable_source = Arc::new(UnreadableRangeSource::new(
+            filler_first.clone(),
+            unreadable.clone(),
+        ));
+        let source: Arc<dyn PackageRead> = unreadable_source.clone();
+        expect(
+            label,
+            refused(source, &default),
+            OpenError::Source(UnreadableRangeSource::error(&unreadable)),
+        );
+        let reads = unreadable_source.reads();
+        let (last, earlier) = reads.split_last().expect("reads");
+        assert_eq!(
+            (last.0, last.1, last.2),
+            (failed_read.0, failed_read.1, true),
+            "{label}: open stopped at the failed read"
+        );
+        let earlier: Vec<(u64, u64)> = earlier
+            .iter()
+            .map(|read| {
+                assert!(!read.2, "{label}: only the last read failed");
+                (read.0, read.1)
+            })
+            .collect();
+        assert_eq!(
+            earlier[..2],
+            [tail, central],
+            "{label}: the end record search, then the central directory"
+        );
+        assert_eq!(
+            local_headers
+                .iter()
+                .filter(|header| earlier.contains(header))
+                .count(),
+            headers_before,
+            "{label}: the local headers read before the failure"
+        );
+        source_failures.push(format!(
+            "{label}: refused with Source at bytes {}..{}, after {} successful reads ({headers_before} of {} local headers)",
+            failed_read.0,
+            failed_read.1,
+            earlier.len(),
+            local_headers.len()
+        ));
+    }
+    let changing_source = Arc::new(UnreadableRangeSource::new(base_bytes.clone(), 0..0));
+    let source: Arc<dyn PackageRead> = changing_source.clone();
+    let document = opened(source, &default);
+    let workbook = parse_zip(&base_bytes).entry("xl/workbook.xml").clone();
+    let payload = workbook.payload_start as u64..workbook.payload_end as u64;
+    changing_source.set_unreadable(payload.clone());
+    assert_eq!(
+        document.package().read_part("xl/workbook.xml"),
+        Err(PartReadError::Source(UnreadableRangeSource::error(
+            &payload
+        ))),
+        "a part whose payload became unreadable after open"
+    );
+    assert_eq!(
+        document.package().read_part("_rels/.rels"),
+        Ok(base_relationships().into_bytes()),
+        "a part outside the unreadable bytes still reads"
+    );
+    source_failures.push(format!(
+        "xl/workbook.xml read after its payload bytes {}..{} became unreadable: refused with Source; _rels/.rels still read",
+        payload.start, payload.end
+    ));
+
+    let listing_after = file_system_listing();
+    assert_eq!(
+        listing_after, listing_before,
+        "the files in the working directory and its parent are unchanged"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} packages refused at open with the expected typed error: {:?}",
+        refusals.len(),
+        refusals
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the 4 GiB declared-size bomb was refused after {} reads of {read_bytes} bytes of a {}-byte archive, none reaching its entry's bytes {}..{}",
+        reads.len(),
+        bomb_bytes.len(),
+        bomb_entry.local_offset,
+        bomb_entry.end()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: lying-size.xlsx opened; reading xl/media/zeros.bin (declared {declared_size} bytes, expands to {expanded_size}) refused with ExpandsPastDeclaredSize after this thread allocated {allocated} bytes; a no-op save kept its payload's SHA-256"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} parts opened, then refused when read: {:?}",
+        lazy_refusals.len(),
+        lazy_refusals
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: sources that fail at one place only, each read recorded by the source: {:?}",
+        source_failures
+    );
+    #[cfg(not(target_arch = "wasm32"))]
+    note!(
+        "ACCEPT-NOTE: {CASE}: the {} entries of . and .. are unchanged after every refusal, and none of the {} planted paths exists",
+        listing_after.len(),
+        planted_targets.len()
+    );
+    #[cfg(target_arch = "wasm32")]
+    note!(
+        "ACCEPT-NOTE: {CASE}: the browser gives the case no file system to inspect; calc-doc's non-test code names no std::fs (the os-imports architecture check)"
     );
 }

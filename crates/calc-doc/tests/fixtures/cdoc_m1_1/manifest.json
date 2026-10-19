@@ -1,0 +1,373 @@
+{
+    "format":  "cdoc-m1.1-fixture-manifest/1",
+    "generator":  "make-fixtures.ps1",
+    "package":  {
+                    "file":  "package.xlsx",
+                    "length":  56415,
+                    "archive_comment":  "cdoc-m1.1 package fixture",
+                    "unreferenced_bytes":  37,
+                    "entries":  [
+                                    {
+                                        "name":  "[Content_Types].xml",
+                                        "part":  false,
+                                        "method":  8,
+                                        "flags":  0,
+                                        "crc32":  1968232961,
+                                        "compressed_size":  331,
+                                        "size":  1182,
+                                        "local_offset":  55150,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "502194bfe93a3c1a25cee122d3cee9ad7d7cd046b9be08f6d37ed56722b32a4e",
+                                        "content_sha256":  "1ce7b09fca71a28f40be3eb77df0a8f31279a9601b25063b778321b58eb70277",
+                                        "content_type":  null,
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/package/2006/content-types",
+                                                    "root":  "Types",
+                                                    "elements":  10,
+                                                    "attributes":  18,
+                                                    "text_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                                }
+                                    },
+                                    {
+                                        "name":  "_rels/.rels",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  0,
+                                        "crc32":  1637512977,
+                                        "compressed_size":  216,
+                                        "size":  441,
+                                        "local_offset":  0,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "38259c4e7244c42d583cd5cd6761574e3e47d8f39486d2d1f852e71c258ee386",
+                                        "content_sha256":  "cf53234f4d1caa9d5b168a4bf9a351552b37dcb88b4ae11a3896adce5bbaf3d3",
+                                        "content_type":  "application/vnd.openxmlformats-package.relationships+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/package/2006/relationships",
+                                                    "root":  "Relationships",
+                                                    "elements":  3,
+                                                    "attributes":  6,
+                                                    "text_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                                }
+                                    },
+                                    {
+                                        "name":  "docProps/core.xml",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  0,
+                                        "crc32":  242222489,
+                                        "compressed_size":  273,
+                                        "size":  450,
+                                        "local_offset":  257,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "87d2885a22419cd6d59b98e6bcda7d33a7600243c7a96158d61c1e2915f0dd2c",
+                                        "content_sha256":  "f5c17ad3a6cea79bb6e8e6eacd4678d19f1622b44d80ab6b0f731fb146854243",
+                                        "content_type":  "application/vnd.openxmlformats-package.core-properties+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
+                                                    "root":  "coreProperties",
+                                                    "elements":  3,
+                                                    "attributes":  1,
+                                                    "text_sha256":  "4ac5e56a210b1006600aabf4e0af960ecf7f007306df66d6f383e0820aa592d7"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/workbook.xml",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  8,
+                                        "crc32":  3254925035,
+                                        "compressed_size":  260,
+                                        "size":  438,
+                                        "local_offset":  577,
+                                        "descriptor":  16,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "ada717bd17c318398f5f4c4e037b36e47198f92d4962482a13c7276e131f1bd4",
+                                        "content_sha256":  "f42b5ccfafcd1f175f0896c457a87107158b4c99337dbed583558b8e4f98f2b4",
+                                        "content_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+                                                    "root":  "workbook",
+                                                    "elements":  7,
+                                                    "attributes":  10,
+                                                    "text_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/_rels/workbook.xml.rels",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  8,
+                                        "crc32":  898206556,
+                                        "compressed_size":  230,
+                                        "size":  712,
+                                        "local_offset":  898,
+                                        "descriptor":  12,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "ce360c6684e93ff540974de6878776c7a74e9bb7a9533f8e44d78380ef92d528",
+                                        "content_sha256":  "2c5523d2a3f7c10180e7b3a5792446e43c34d78fd792636b0d72873884b2b0a4",
+                                        "content_type":  "application/vnd.openxmlformats-package.relationships+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/package/2006/relationships",
+                                                    "root":  "Relationships",
+                                                    "elements":  5,
+                                                    "attributes":  12,
+                                                    "text_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/worksheets/sheet1.xml",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  0,
+                                        "crc32":  39704052,
+                                        "compressed_size":  51654,
+                                        "size":  298742,
+                                        "local_offset":  1196,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "485e3cd23a630e2eb52493e27aefbe54939abd2946f0bf77dcb868d88533fc25",
+                                        "content_sha256":  "23d35cef11f20d99ecf5dd73e2ecb3286a9e12f946c61200683005c83ba96e4e",
+                                        "content_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+                                                    "root":  "worksheet",
+                                                    "elements":  20007,
+                                                    "attributes":  12012,
+                                                    "text_sha256":  "bcdb08e02277e11ff575fba945a98e6e9669c0b222e96524b47600c8a8560bf6"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/worksheets/_rels/sheet1.xml.rels",
+                                        "part":  true,
+                                        "method":  0,
+                                        "flags":  0,
+                                        "crc32":  2452846175,
+                                        "compressed_size":  501,
+                                        "size":  501,
+                                        "local_offset":  52904,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "bab3ec58d91421751671c4e1cd747c2bc316b6e4dd498fdc79a19e29bc9dce9e",
+                                        "content_sha256":  "bab3ec58d91421751671c4e1cd747c2bc316b6e4dd498fdc79a19e29bc9dce9e",
+                                        "content_type":  "application/vnd.openxmlformats-package.relationships+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/package/2006/relationships",
+                                                    "root":  "Relationships",
+                                                    "elements":  3,
+                                                    "attributes":  7,
+                                                    "text_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/worksheets/sheet2.xml",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  0,
+                                        "crc32":  986064193,
+                                        "compressed_size":  194,
+                                        "size":  250,
+                                        "local_offset":  53507,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "kept with its entry",
+                                        "payload_sha256":  "b7cad0cbcd60745fc26eb0f0645891b9937f9501a49a44cb6f7c82bbc5dd6c3f",
+                                        "content_sha256":  "bf79ff577e6feacfbf572aa991e815362aa077365cf582054b11d89500300861",
+                                        "content_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+                                                    "root":  "worksheet",
+                                                    "elements":  6,
+                                                    "attributes":  3,
+                                                    "text_sha256":  "2c806702665f6326c7b503f1c9b200f3ceca84ee63da228337c05c1c992e4ddc"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/styles.xml",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  0,
+                                        "crc32":  1289154006,
+                                        "compressed_size":  325,
+                                        "size":  694,
+                                        "local_offset":  53755,
+                                        "descriptor":  0,
+                                        "local_extra":  9,
+                                        "central_extra":  5,
+                                        "comment":  "",
+                                        "payload_sha256":  "e7d519ab00904e38f2d414ed47ac82a71445a57865dd74e12ad6639c1945bdca",
+                                        "content_sha256":  "4323cdfcda85942b9c9b28b4730a6d6865505647ebd74a1eeabbeb47367c01de",
+                                        "content_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+                                                    "root":  "styleSheet",
+                                                    "elements":  23,
+                                                    "attributes":  22,
+                                                    "text_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/sharedStrings.xml",
+                                        "part":  true,
+                                        "method":  8,
+                                        "flags":  0,
+                                        "crc32":  2066804007,
+                                        "compressed_size":  250,
+                                        "size":  325,
+                                        "local_offset":  54132,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "b3be47e1032a2c1d18d59d0c51c5562da939d6fff161647ab58787b4887c68ce",
+                                        "content_sha256":  "6e076c2ad0dea34dc3a4e955e032b573030355ac2401e7649f7957f98920a0fa",
+                                        "content_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml",
+                                        "xml":  {
+                                                    "namespace":  "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+                                                    "root":  "sst",
+                                                    "elements":  12,
+                                                    "attributes":  3,
+                                                    "text_sha256":  "bd073ab4ce8bfe129a9d96d1c1804db7bc3b75bcc90f2ba92e62dcafeb5d70b0"
+                                                }
+                                    },
+                                    {
+                                        "name":  "xl/printerSettings/",
+                                        "part":  false,
+                                        "method":  0,
+                                        "flags":  0,
+                                        "crc32":  0,
+                                        "compressed_size":  0,
+                                        "size":  0,
+                                        "local_offset":  54432,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                        "content_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                        "content_type":  null,
+                                        "xml":  null
+                                    },
+                                    {
+                                        "name":  "xl/printerSettings/printerSettings1.bin",
+                                        "part":  true,
+                                        "method":  0,
+                                        "flags":  0,
+                                        "crc32":  2114836954,
+                                        "compressed_size":  600,
+                                        "size":  600,
+                                        "local_offset":  54481,
+                                        "descriptor":  0,
+                                        "local_extra":  0,
+                                        "central_extra":  0,
+                                        "comment":  "",
+                                        "payload_sha256":  "f16aaff264fab38c4fef1719ad956f6e117007ef6837b44ca2156fd2e6205588",
+                                        "content_sha256":  "f16aaff264fab38c4fef1719ad956f6e117007ef6837b44ca2156fd2e6205588",
+                                        "content_type":  "application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings",
+                                        "xml":  null
+                                    }
+                                ],
+                    "relationships":  [
+                                          {
+                                              "part":  "_rels/.rels",
+                                              "source":  null,
+                                              "items":  [
+                                                            {
+                                                                "id":  "rId1",
+                                                                "type":  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+                                                                "target":  "xl/workbook.xml",
+                                                                "mode":  "Internal",
+                                                                "resolved":  "xl/workbook.xml"
+                                                            },
+                                                            {
+                                                                "id":  "rId2",
+                                                                "type":  "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties",
+                                                                "target":  "docProps/core.xml",
+                                                                "mode":  "Internal",
+                                                                "resolved":  "docProps/core.xml"
+                                                            }
+                                                        ]
+                                          },
+                                          {
+                                              "part":  "xl/_rels/workbook.xml.rels",
+                                              "source":  "xl/workbook.xml",
+                                              "items":  [
+                                                            {
+                                                                "id":  "rId1",
+                                                                "type":  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet",
+                                                                "target":  "worksheets/sheet1.xml",
+                                                                "mode":  "Internal",
+                                                                "resolved":  "xl/worksheets/sheet1.xml"
+                                                            },
+                                                            {
+                                                                "id":  "rId2",
+                                                                "type":  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet",
+                                                                "target":  "/xl/worksheets/sheet2.xml",
+                                                                "mode":  "Internal",
+                                                                "resolved":  "xl/worksheets/sheet2.xml"
+                                                            },
+                                                            {
+                                                                "id":  "rId3",
+                                                                "type":  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles",
+                                                                "target":  "styles.xml",
+                                                                "mode":  "Internal",
+                                                                "resolved":  "xl/styles.xml"
+                                                            },
+                                                            {
+                                                                "id":  "rId4",
+                                                                "type":  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings",
+                                                                "target":  "./sharedStrings.xml",
+                                                                "mode":  "Internal",
+                                                                "resolved":  "xl/sharedStrings.xml"
+                                                            }
+                                                        ]
+                                          },
+                                          {
+                                              "part":  "xl/worksheets/_rels/sheet1.xml.rels",
+                                              "source":  "xl/worksheets/sheet1.xml",
+                                              "items":  [
+                                                            {
+                                                                "id":  "rId1",
+                                                                "type":  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                                                                "target":  "https://example.com/report?a=1\u0026b=2",
+                                                                "mode":  "External",
+                                                                "resolved":  null
+                                                            },
+                                                            {
+                                                                "id":  "rId2",
+                                                                "type":  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings",
+                                                                "target":  "../printerSettings/printerSettings1.bin",
+                                                                "mode":  "Internal",
+                                                                "resolved":  "xl/printerSettings/printerSettings1.bin"
+                                                            }
+                                                        ]
+                                          }
+                                      ]
+                },
+    "lying_size":  {
+                       "file":  "lying-size.xlsx",
+                       "length":  66246,
+                       "entry":  "xl/media/zeros.bin",
+                       "declared_size":  4096,
+                       "declared_crc32":  3340501009,
+                       "expanded_size":  67108864,
+                       "compressed_size":  65232
+                   }
+}

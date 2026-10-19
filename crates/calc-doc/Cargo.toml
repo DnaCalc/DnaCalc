@@ -11,6 +11,16 @@ portability = "portable"
 
 [dependencies]
 calc-doc-model = { path = "../calc-doc-model" }
+# The XML tokenizer under the package's lazy part readers. It expands no entity a document
+# declares: the reader refuses any document type declaration before its first element, so only
+# the five predefined entities and character references are ever replaced. MIT; its one
+# dependency, memchr, was already in Cargo.lock.
+quick-xml = "=0.37.5"
+# The DEFLATE decoder under deflated part payloads, used only through its output-limited
+# decompression, so a payload never expands past the size its entry declares. MIT OR Zlib OR
+# Apache-2.0; its one non-optional dependency, adler2, is 0BSD OR MIT OR Apache-2.0. Pure Rust,
+# so it builds for wasm32-unknown-unknown.
+miniz_oxide = "=0.8.9"
 
 # The acceptance cases read the committed wire fixtures and the encoder's output with serde_json.
 # serde_json is also the codec's JSON tokenizer, so that reading is not independent of the codec;

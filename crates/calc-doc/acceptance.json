@@ -33,6 +33,24 @@
       "platforms": {
         "dc_73yy__page_sharing": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cdoc-m1.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-doc", "--test", "acceptance", "cdoc_m1_1", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cdoc_m1_1__raw_preservation",
+        "cdoc_m1_1__malformed_zip"
+      ],
+      "platforms": {
+        "cdoc_m1_1__raw_preservation": ["windows", "linux", "wasm"],
+        "cdoc_m1_1__malformed_zip": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

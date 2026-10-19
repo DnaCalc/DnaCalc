@@ -11,6 +11,8 @@
     {"expression": "MIT", "reviewed": "permissive"},
     {"expression": "Unlicense OR MIT", "reviewed": "public-domain dedication or MIT, at our choice"},
     {"expression": "Unlicense/MIT", "reviewed": "the older slash form of the same choice"},
-    {"expression": "(MIT OR Apache-2.0) AND Unicode-3.0", "reviewed": "unicode-ident: MIT or Apache-2.0 for the code, plus the permissive Unicode-3.0 license for its Unicode data tables"}
+    {"expression": "(MIT OR Apache-2.0) AND Unicode-3.0", "reviewed": "unicode-ident: MIT or Apache-2.0 for the code, plus the permissive Unicode-3.0 license for its Unicode data tables"},
+    {"expression": "MIT OR Zlib OR Apache-2.0", "reviewed": "miniz_oxide 0.8.9 (calc-doc's DEFLATE decoder, cdoc-m1.1, 2026-10-19): any of three permissive licenses, at our choice; we take MIT"},
+    {"expression": "0BSD OR MIT OR Apache-2.0", "reviewed": "adler2 2.0.1 (miniz_oxide's one non-optional dependency, cdoc-m1.1, 2026-10-19): any of three permissive licenses, at our choice; we take MIT"}
   ]
 }
