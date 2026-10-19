@@ -17,10 +17,14 @@ use calc_func::value::{
     NumericMode, NumericTargetId, OpaqueCallable, ReferenceError, ReferenceLike, SheetId, TableId,
     WorkbookId, WorksheetErrorCode,
 };
+use calc_func::{
+    ArgumentDemand, EvalServices, FunctionCallScratch, FunctionCallTarget, FunctionFault,
+    FunctionId, Notation, ParameterClass, PreparedArguments, RegistrationError, catalogue, invoke,
+};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::any::Any;
 use std::cell::Cell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::{BuildHasherDefault, DefaultHasher};
 use std::hint::black_box;
 use std::sync::Arc;
@@ -818,5 +822,708 @@ fn cfunc_m0_1__send_sync() {
         "ACCEPT-NOTE: {CASE}: {} values and {} worksheet error codes were copied through a function that accepts only Send + Sync types (on this thread); text, array, multi-area reference, callable and numeric target copies share their Arc payloads",
         values.len(),
         codes.len()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc-m1.1: the generated catalogue and the call interface, reached only through calc-func's
+// public API (catalogue(), invoke and FunctionCallTarget).
+
+/// The surfaces the thin slice admits, written here independently of the catalogue: the
+/// arithmetic, comparison and concatenation operators, SUM and IF.
+const ADMITTED: [(Notation, &str); 17] = [
+    (Notation::Infix, "+"),
+    (Notation::Infix, "-"),
+    (Notation::Infix, "*"),
+    (Notation::Infix, "/"),
+    (Notation::Infix, "^"),
+    (Notation::Prefix, "+"),
+    (Notation::Prefix, "-"),
+    (Notation::Postfix, "%"),
+    (Notation::Infix, "="),
+    (Notation::Infix, "<>"),
+    (Notation::Infix, "<"),
+    (Notation::Infix, "<="),
+    (Notation::Infix, ">"),
+    (Notation::Infix, ">="),
+    (Notation::Infix, "&"),
+    (Notation::Call, "SUM"),
+    (Notation::Call, "IF"),
+];
+
+/// Call-site arguments that record each argument the call interface asks for. `asked` is
+/// reserved up front, so recording allocates nothing.
+struct Recorded {
+    values: Vec<CalcValue>,
+    asked: Vec<usize>,
+}
+
+impl Recorded {
+    fn new(values: Vec<CalcValue>) -> Self {
+        Recorded {
+            values,
+            asked: Vec::with_capacity(16),
+        }
+    }
+
+    /// The numbers 1 to `count`.
+    fn numbers(count: usize) -> Self {
+        Self::new((1..=count).map(|n| CalcValue::number(n as f64)).collect())
+    }
+}
+
+impl PreparedArguments for Recorded {
+    fn count(&self) -> usize {
+        self.values.len()
+    }
+
+    fn argument(&mut self, index: usize) -> CalcValue {
+        self.asked.push(index);
+        self.values[index].clone()
+    }
+}
+
+/// One call through `calc_func::invoke` with fresh services and scratch.
+fn run(
+    target: FunctionCallTarget<'_>,
+    arguments: &mut Recorded,
+    mode: &NumericMode,
+) -> Result<CalcValue, FunctionFault> {
+    invoke(
+        target,
+        arguments,
+        &mut EvalServices::new(mode),
+        &mut FunctionCallScratch::new(),
+    )
+}
+
+fn surface(notation: Notation, spelling: &str) -> FunctionCallTarget<'static> {
+    catalogue()
+        .resolve_surface(notation, spelling)
+        .unwrap_or_else(|e| panic!("{notation:?} {spelling:?} does not resolve: {e:?}"))
+}
+
+fn a1_reference() -> CalcValue {
+    let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+    let sheet = sheets.issue().expect("a sheet");
+    CalcValue::reference(ReferenceLike::cell(CellKey::new(sheet, 1, 1).expect("A1")))
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m1_1__catalogue_consistency() {
+    const CASE: &str = "cfunc_m1_1__catalogue_consistency";
+    let catalogue = catalogue();
+    let fast = NumericMode::Fast;
+
+    // Dispatch: the ID-ordered table holds each ID once.
+    let dispatch: Vec<FunctionId> = catalogue.targets().map(FunctionCallTarget::id).collect();
+    assert!(
+        dispatch.windows(2).all(|pair| pair[0] < pair[1]),
+        "the dispatch table is not in strictly increasing ID order: {dispatch:?}"
+    );
+    let dispatch_ids: BTreeSet<FunctionId> = dispatch.iter().copied().collect();
+
+    // Names: the surface table holds exactly the admitted surfaces, and each surface and each ID
+    // resolves to the same entry; a named call also in lower case.
+    let mut surfaces = BTreeSet::new();
+    let mut named_ids = BTreeSet::new();
+    let mut help_ids = BTreeSet::new();
+    let mut oracle_ids = BTreeSet::new();
+    for target in catalogue.surfaces() {
+        assert!(
+            surfaces.insert((target.notation(), target.spelling().to_owned())),
+            "{target:?} appears twice in the surface table"
+        );
+        named_ids.insert(target.id());
+        assert_eq!(
+            catalogue.resolve_surface(target.notation(), target.spelling()),
+            Ok(target)
+        );
+        assert_eq!(
+            catalogue.resolve_surface(target.notation(), &target.spelling().to_ascii_lowercase()),
+            Ok(target)
+        );
+        let by_id = catalogue
+            .resolve(target.id())
+            .expect("a named entry resolves by ID");
+        assert_eq!(
+            (by_id.notation(), by_id.spelling()),
+            (target.notation(), target.spelling())
+        );
+
+        // Help: the parameters cover the arity; the last one repeats exactly when the arity
+        // admits more arguments than there are names.
+        let arity = target.arity();
+        let help = target.signature_help();
+        let required = help.parameters.iter().filter(|p| !p.optional).count();
+        let repeating: Vec<usize> = (0..help.parameters.len())
+            .filter(|&i| help.parameters[i].repeats)
+            .collect();
+        assert_eq!(required, arity.min, "{target:?}: required parameters");
+        assert!(
+            help.parameters.len() <= arity.max,
+            "{target:?}: too many names"
+        );
+        if arity.max > help.parameters.len() {
+            assert_eq!(repeating, [help.parameters.len() - 1], "{target:?}");
+        } else {
+            assert!(repeating.is_empty(), "{target:?}");
+        }
+        assert!(
+            help.display.contains(target.spelling()),
+            "{target:?}: {}",
+            help.display
+        );
+        help_ids.insert(target.id());
+
+        // Oracle selection: the arity's minimum number of operands gives a formula, one more
+        // than the maximum gives none.
+        let operands: Vec<String> = (1..=arity.min).map(|n| n.to_string()).collect();
+        let operands: Vec<&str> = operands.iter().map(String::as_str).collect();
+        let formula = target.oracle_formula(&operands).expect("an oracle formula");
+        assert!(formula.starts_with('=') && formula.contains(target.spelling()));
+        let too_many: Vec<&str> = vec!["1"; arity.max + 1];
+        assert_eq!(target.oracle_formula(&too_many), None, "{target:?}");
+        oracle_ids.insert(target.id());
+    }
+    let expected: BTreeSet<(Notation, String)> = ADMITTED
+        .iter()
+        .map(|(notation, spelling)| (*notation, (*spelling).to_owned()))
+        .collect();
+    assert_eq!(surfaces, expected, "the admitted surfaces");
+
+    // Arity and dispatch: every ID of the dispatch table, invoked with its arity's minimum,
+    // reaches its own entry; outside its arity no argument is asked for. Only SUM computes, only
+    // IF is lazy, and the eager entries are asked for each argument once, in order.
+    let mut arity_ids = BTreeSet::new();
+    let mut computed = Vec::new();
+    let mut lazy = Vec::new();
+    for target in catalogue.targets() {
+        let arity = target.arity();
+        match target.notation() {
+            Notation::Infix => assert_eq!((arity.min, arity.max), (2, 2), "{target:?}"),
+            Notation::Prefix | Notation::Postfix => {
+                assert_eq!((arity.min, arity.max), (1, 1), "{target:?}")
+            }
+            Notation::Call => assert!(arity.min <= arity.max),
+        }
+        assert!(
+            arity.min >= 1,
+            "{target:?}: every admitted entry takes an argument"
+        );
+        assert!(
+            target.parameter_class(arity.max - 1).is_some(),
+            "{target:?}"
+        );
+        assert_eq!(target.parameter_class(arity.max), None, "{target:?}");
+
+        let demand = target.argument_demand();
+        let mut at_minimum = Recorded::numbers(arity.min);
+        match run(target, &mut at_minimum, &fast) {
+            Ok(value) => computed.push((target.id(), value)),
+            Err(fault) => assert_eq!(
+                fault,
+                FunctionFault::NotImplemented {
+                    id: target.id(),
+                    argument: None
+                },
+                "{target:?}"
+            ),
+        }
+        let in_order: Vec<usize> = (0..arity.min).collect();
+        if demand.is_lazy() {
+            lazy.push(target.id());
+            assert!(
+                at_minimum.asked.is_empty(),
+                "{target:?} asked {:?}",
+                at_minimum.asked
+            );
+        } else {
+            assert_eq!(at_minimum.asked, in_order, "{target:?}");
+        }
+
+        let mut too_many = Recorded::numbers(arity.max + 1);
+        assert_eq!(
+            run(target, &mut too_many, &fast),
+            Err(FunctionFault::ArityMismatch {
+                id: target.id(),
+                supplied: arity.max + 1
+            })
+        );
+        let mut too_few = Recorded::numbers(arity.min - 1);
+        assert_eq!(
+            run(target, &mut too_few, &fast),
+            Err(FunctionFault::ArityMismatch {
+                id: target.id(),
+                supplied: arity.min - 1
+            })
+        );
+        assert!(too_many.asked.is_empty() && too_few.asked.is_empty());
+        arity_ids.insert(target.id());
+    }
+    assert_eq!(named_ids, dispatch_ids, "name table against dispatch table");
+    assert_eq!(help_ids, dispatch_ids, "help against dispatch");
+    assert_eq!(arity_ids, dispatch_ids, "arity against dispatch");
+    assert_eq!(
+        oracle_ids, dispatch_ids,
+        "oracle selection against dispatch"
+    );
+    assert_eq!(dispatch_ids.len(), ADMITTED.len());
+
+    let sum = surface(Notation::Call, "SUM");
+    let iff = surface(Notation::Call, "IF");
+    assert_eq!(
+        computed,
+        [(sum.id(), CalcValue::number(1.0))],
+        "only SUM computes"
+    );
+    assert_eq!(lazy, [iff.id()], "only IF is lazy");
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} admitted IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; computing entries {:?}; lazy entries {:?}",
+        dispatch_ids.len(),
+        dispatch_ids.len(),
+        computed.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        lazy
+    );
+
+    // SUM(1, 2, 3) through calc_func::invoke, by FunctionCallTarget::invoke.
+    let mut one_two_three = Recorded::numbers(3);
+    let six = sum.invoke(
+        &mut one_two_three,
+        &mut EvalServices::new(&fast),
+        &mut FunctionCallScratch::new(),
+    );
+    assert_eq!(
+        six.as_ref()
+            .map(|value| value.as_number().map(f64::to_bits)),
+        Ok(Some(6.0f64.to_bits()))
+    );
+    assert_eq!(one_two_three.asked, [0, 1, 2]);
+    assert_eq!(
+        (
+            sum.arity().min,
+            sum.arity().max,
+            iff.arity().min,
+            iff.arity().max
+        ),
+        (1, 255, 2, 3)
+    );
+
+    // The scratch is the caller's: a second call on the same scratch allocates nothing.
+    let mut scratch = FunctionCallScratch::new();
+    let mut first = Recorded::numbers(3);
+    let mut second = Recorded::numbers(3);
+    let (first_result, first_allocations) = allocations_during(|| {
+        black_box(invoke(
+            sum,
+            &mut first,
+            &mut EvalServices::new(&fast),
+            &mut scratch,
+        ))
+    });
+    let (second_result, second_allocations) = allocations_during(|| {
+        black_box(invoke(
+            sum,
+            &mut second,
+            &mut EvalServices::new(&fast),
+            &mut scratch,
+        ))
+    });
+    assert_eq!(first_result, Ok(CalcValue::number(6.0)));
+    assert_eq!(second_result, Ok(CalcValue::number(6.0)));
+    assert!(
+        first_allocations >= 1,
+        "the first call grows the fresh scratch, and the counter saw no allocation"
+    );
+    assert_eq!(
+        second_allocations, 0,
+        "a call on warm scratch allocated {second_allocations} times"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: SUM(1,2,3) through calc_func::invoke = {:?} (bits {:#018x}); arguments asked {:?}; allocation calls: {first_allocations} on fresh scratch, {second_allocations} on warm scratch",
+        six.as_ref().ok().and_then(CalcValue::as_number),
+        6.0f64.to_bits(),
+        one_two_three.asked
+    );
+
+    // Under Exact, SUM refuses instead of adding under Fast.
+    let target_id = NumericTargetId::new(
+        "test-build",
+        "test-channel",
+        "test-compatibility",
+        "test-environment",
+    )
+    .expect("a target");
+    let mut under_exact = Recorded::numbers(3);
+    assert_eq!(
+        run(sum, &mut under_exact, &NumericMode::Exact(target_id)),
+        Err(FunctionFault::ExactUnavailable { id: sum.id() })
+    );
+
+    // IF's demand holds its branches back, and the call interface asks for none of its
+    // arguments; the eager "=" is asked for both of the same kind of arguments.
+    let demand = iff.argument_demand();
+    assert_eq!(demand, ArgumentDemand::BranchOnCondition);
+    assert_eq!(demand.discriminator(), Some(0));
+    assert_eq!(
+        (
+            demand.holds_back(0),
+            demand.holds_back(1),
+            demand.holds_back(2)
+        ),
+        (false, true, true)
+    );
+    let mut branches = Recorded::new(vec![
+        CalcValue::logical(true),
+        CalcValue::error(WorksheetErrorCode::Div0),
+        CalcValue::error(WorksheetErrorCode::NA),
+    ]);
+    assert_eq!(
+        run(iff, &mut branches, &fast),
+        Err(FunctionFault::NotImplemented {
+            id: iff.id(),
+            argument: None
+        })
+    );
+    assert!(branches.asked.is_empty());
+    let equal = surface(Notation::Infix, "=");
+    assert_eq!(equal.argument_demand(), ArgumentDemand::Eager);
+    let mut operands = Recorded::new(vec![
+        CalcValue::logical(true),
+        CalcValue::error(WorksheetErrorCode::Div0),
+    ]);
+    assert_eq!(
+        run(equal, &mut operands, &fast),
+        Err(FunctionFault::NotImplemented {
+            id: equal.id(),
+            argument: None
+        })
+    );
+    assert_eq!(operands.asked, [0, 1]);
+    note!(
+        "ACCEPT-NOTE: {CASE}: IF demand {demand:?}, discriminator {:?}; invoke asked for {:?} of IF's 3 arguments and {:?} of the 2 arguments of the eager = operator",
+        demand.discriminator(),
+        branches.asked,
+        operands.asked
+    );
+
+    // Parameter classes: an operator's value parameter refuses a reference; SUM's and IF's
+    // branch parameters admit one, and SUM's kernel says it does not read references yet.
+    let plus = surface(Notation::Infix, "+");
+    assert_eq!(plus.parameter_class(0), Some(ParameterClass::Value));
+    assert_eq!(
+        (
+            iff.parameter_class(0),
+            iff.parameter_class(1),
+            iff.parameter_class(2)
+        ),
+        (
+            Some(ParameterClass::Value),
+            Some(ParameterClass::ValueOrReference),
+            Some(ParameterClass::ValueOrReference)
+        )
+    );
+    assert_eq!(
+        sum.parameter_class(254),
+        Some(ParameterClass::ValueOrReference)
+    );
+    let mut plus_reference = Recorded::new(vec![CalcValue::number(1.0), a1_reference()]);
+    assert_eq!(
+        run(plus, &mut plus_reference, &fast),
+        Err(FunctionFault::ReferenceArgument {
+            id: plus.id(),
+            index: 1
+        })
+    );
+    let mut sum_reference = Recorded::new(vec![CalcValue::number(1.0), a1_reference()]);
+    assert_eq!(
+        run(sum, &mut sum_reference, &fast),
+        Err(FunctionFault::NotImplemented {
+            id: sum.id(),
+            argument: Some(1)
+        })
+    );
+    // A direct array passes admission for a value parameter and for SUM's, and reaches SUM's
+    // kernel, which does not read arrays yet.
+    let array = CalcValue::array(CalcArray::from_scalar(CalcValue::number(2.0)));
+    let mut plus_array = Recorded::new(vec![CalcValue::number(1.0), array.clone()]);
+    assert_eq!(
+        run(plus, &mut plus_array, &fast),
+        Err(FunctionFault::NotImplemented {
+            id: plus.id(),
+            argument: None
+        })
+    );
+    let mut sum_array = Recorded::new(vec![array, CalcValue::number(1.0)]);
+    assert_eq!(
+        run(sum, &mut sum_array, &fast),
+        Err(FunctionFault::NotImplemented {
+            id: sum.id(),
+            argument: Some(0)
+        })
+    );
+
+    // Help text and oracle formulas for one entry of each notation.
+    let helps = [
+        (sum, "SUM(number1, [number2], ...)"),
+        (iff, "IF(logical_test, value_if_true, [value_if_false])"),
+        (plus, "number1 + number2"),
+        (surface(Notation::Prefix, "-"), "-number"),
+        (surface(Notation::Postfix, "%"), "number%"),
+        (surface(Notation::Infix, "&"), "text1 & text2"),
+    ];
+    for (target, display) in helps {
+        assert_eq!(target.signature_help().display, display);
+    }
+    let formulas = [
+        (sum, &["1", "2", "3"][..], "=SUM(1,2,3)"),
+        (iff, &["TRUE", "1", "2"][..], "=IF(TRUE,1,2)"),
+        (plus, &["1", "2"][..], "=1+2"),
+        (surface(Notation::Prefix, "-"), &["1"][..], "=-1"),
+        (surface(Notation::Postfix, "%"), &["50"][..], "=50%"),
+        (surface(Notation::Infix, "<>"), &["1", "2"][..], "=1<>2"),
+    ];
+    for (target, operands, formula) in formulas {
+        assert_eq!(target.oracle_formula(operands).as_deref(), Some(formula));
+    }
+    assert_eq!(sum.oracle_formula(&[]), None);
+    note!(
+        "ACCEPT-NOTE: {CASE}: help {:?}; oracle formula {:?}",
+        sum.signature_help().display,
+        sum.oracle_formula(&["1", "2", "3"])
+    );
+}
+
+/// calc-func's source files, read at compile time so the scan also runs in the browsers: the
+/// crate root, the modules it declares and the family fragments the catalogue declares. The case
+/// checks that this set equals the declared modules.
+const CALC_FUNC_SOURCES: [(&str, &str); 8] = [
+    ("lib", include_str!("../src/lib.rs")),
+    ("call", include_str!("../src/call.rs")),
+    ("catalogue", include_str!("../src/catalogue.rs")),
+    (
+        "catalogue/aggregate",
+        include_str!("../src/catalogue/aggregate.rs"),
+    ),
+    (
+        "catalogue/arithmetic",
+        include_str!("../src/catalogue/arithmetic.rs"),
+    ),
+    (
+        "catalogue/comparison",
+        include_str!("../src/catalogue/comparison.rs"),
+    ),
+    (
+        "catalogue/logical",
+        include_str!("../src/catalogue/logical.rs"),
+    ),
+    ("catalogue/text", include_str!("../src/catalogue/text.rs")),
+];
+
+/// The string literals of Rust source text outside its comments, each as written between its
+/// quotes. Char literals and lifetimes are skipped.
+fn string_literals(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut found = Vec::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'/' if bytes.get(at + 1) == Some(&b'/') => {
+                while at < bytes.len() && bytes[at] != b'\n' {
+                    at += 1;
+                }
+            }
+            b'/' if bytes.get(at + 1) == Some(&b'*') => {
+                let end = text[at + 2..]
+                    .find("*/")
+                    .expect("an unterminated block comment");
+                at += end + 4;
+            }
+            b'r' if (at == 0 || !word(bytes[at - 1]))
+                && matches!(bytes.get(at + 1), Some(b'"' | b'#')) =>
+            {
+                let mut quote = at + 1;
+                while bytes.get(quote) == Some(&b'#') {
+                    quote += 1;
+                }
+                if bytes.get(quote) != Some(&b'"') {
+                    at += 1;
+                    continue;
+                }
+                let closing = format!("\"{}", "#".repeat(quote - at - 1));
+                let start = quote + 1;
+                let end = start
+                    + text[start..]
+                        .find(&closing)
+                        .expect("an unterminated raw string");
+                found.push(&text[start..end]);
+                at = end + closing.len();
+            }
+            b'"' => {
+                let start = at + 1;
+                let mut end = start;
+                while bytes[end] != b'"' {
+                    if bytes[end] == b'\\' {
+                        end += 1;
+                    }
+                    end += 1;
+                }
+                found.push(&text[start..end]);
+                at = end + 1;
+            }
+            b'\'' => {
+                if bytes.get(at + 1) == Some(&b'\\') {
+                    let mut end = at + 3;
+                    while bytes[end] != b'\'' {
+                        end += 1;
+                    }
+                    at = end + 1;
+                } else {
+                    let after = text[at + 1..]
+                        .chars()
+                        .next()
+                        .map_or(at + 1, |c| at + 1 + c.len_utf8());
+                    at = if bytes.get(after) == Some(&b'\'') {
+                        after + 1
+                    } else {
+                        at + 1
+                    };
+                }
+            }
+            _ => at += 1,
+        }
+    }
+    found
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m1_1__unknown_function() {
+    const CASE: &str = "cfunc_m1_1__unknown_function";
+    let catalogue = catalogue();
+    let admitted: BTreeSet<u32> = catalogue.targets().map(|t| t.id().raw()).collect();
+    assert_eq!(admitted.len(), ADMITTED.len());
+
+    // Unknown IDs: the neighbours of every admitted ID, the IDs with the top bit of each member
+    // number flipped, and both extremes, wherever the catalogue does not admit them.
+    let mut unknown = BTreeSet::new();
+    for raw in &admitted {
+        for near in [raw.wrapping_sub(1), raw.wrapping_add(1), raw ^ 0x8000] {
+            unknown.insert(near);
+        }
+    }
+    unknown.extend([0, u32::MAX]);
+    unknown.retain(|raw| !admitted.contains(raw));
+    for raw in &unknown {
+        let id = FunctionId::from_raw(*raw);
+        assert_eq!(catalogue.resolve(id), Err(RegistrationError::UnknownId(id)));
+    }
+    for target in catalogue.targets() {
+        assert_eq!(
+            catalogue.resolve(FunctionId::from_raw(target.id().raw())),
+            Ok(target),
+            "an admitted ID round-trips through its raw value"
+        );
+    }
+
+    // Unknown surfaces, including a known spelling under another notation.
+    let unknown_surfaces = [
+        (Notation::Call, "NOSUCHFUNCTION"),
+        (Notation::Call, "SU"),
+        (Notation::Call, "SUMS"),
+        (Notation::Call, " SUM"),
+        (Notation::Call, "S.UM"),
+        (Notation::Call, ""),
+        (Notation::Call, "\u{FF33}\u{FF35}\u{FF2D}"),
+        (Notation::Call, "+"),
+        (Notation::Infix, "SUM"),
+        (Notation::Infix, "%"),
+        (Notation::Infix, "=="),
+        (Notation::Infix, "=<"),
+        (Notation::Prefix, "*"),
+        (Notation::Prefix, "&"),
+        (Notation::Postfix, "+"),
+    ];
+    for (notation, spelling) in unknown_surfaces {
+        assert_eq!(
+            catalogue.resolve_surface(notation, spelling),
+            Err(RegistrationError::UnknownSurface {
+                notation,
+                spelling: spelling.to_owned()
+            })
+        );
+    }
+    let sum = surface(Notation::Call, "SUM");
+    for spelling in ["sum", "Sum", "sUM"] {
+        assert_eq!(
+            catalogue
+                .resolve_surface(Notation::Call, spelling)
+                .map(FunctionCallTarget::id),
+            Ok(sum.id())
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} unknown IDs refused with UnknownId; {} unknown surfaces refused with UnknownSurface; {} admitted IDs round-trip through their raw values",
+        unknown.len(),
+        unknown_surfaces.len(),
+        admitted.len()
+    );
+
+    // No second string switch: the files read are exactly the crate root, its modules and the
+    // catalogue's fragments, and across them each admitted spelling occurs as a string literal
+    // exactly as often as catalogue entries declare it, so no other code matches on a name or a
+    // token.
+    let declared_by = |name: &str| {
+        let text = CALC_FUNC_SOURCES
+            .iter()
+            .find(|(module, _)| *module == name)
+            .map(|(_, text)| *text)
+            .unwrap_or_else(|| panic!("{name} was not read"));
+        let mut modules = out_of_line_modules(text);
+        modules.sort_unstable();
+        modules
+    };
+    assert_eq!(declared_by("lib"), ["call", "catalogue"]);
+    assert_eq!(
+        declared_by("catalogue"),
+        ["aggregate", "arithmetic", "comparison", "logical", "text"]
+    );
+    for (module, text) in CALC_FUNC_SOURCES {
+        assert!(!text.is_empty(), "{module} was not read");
+        if module != "lib" && module != "catalogue" {
+            assert!(
+                out_of_line_modules(text).is_empty(),
+                "{module} declares a module this case does not read"
+            );
+        }
+    }
+    let literals: Vec<&str> = CALC_FUNC_SOURCES
+        .iter()
+        .flat_map(|(_, text)| string_literals(text))
+        .collect();
+    let mut declared: BTreeMap<String, usize> = BTreeMap::new();
+    for target in catalogue.surfaces() {
+        *declared
+            .entry(target.spelling().to_ascii_uppercase())
+            .or_default() += 1;
+    }
+    for (spelling, entries) in &declared {
+        let occurrences = literals
+            .iter()
+            .filter(|literal| literal.eq_ignore_ascii_case(spelling))
+            .count();
+        assert_eq!(
+            occurrences, *entries,
+            "{spelling:?} occurs {occurrences} times as a string literal in calc-func's sources, but {entries} catalogue entries declare it"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: scanned {} string literals in {} calc-func source files; each of the {} distinct admitted spellings occurs exactly as often as entries declare it ({} declarations)",
+        literals.len(),
+        CALC_FUNC_SOURCES.len(),
+        declared.len(),
+        declared.values().sum::<usize>()
     );
 }

@@ -1,0 +1,146 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfunc-m1.1",
+  "written": "2026-10-19",
+  "about": "What cfunc-m1.1 took from the four OxFunc inputs its Port from section names, for calc-func's catalogue (crates/calc-func/src/catalogue.rs and its family fragments under crates/calc-func/src/catalogue/) and call interface (crates/calc-func/src/call.rs). function.rs, registry.rs and function_call.rs were read at their pinned blobs (git cat-file -p) and the symbols listed under ported were rewritten fresh, slimmed to the thin slice; no text was copied. surface_dispatch.rs was not read: the dispatch is generated fresh from the catalogue. Only this bead writes this file.",
+  "not_ported_search": "docs/plan/BEAD_DETAILS.md, split at its '## <bead>' headings, searched on 2026-10-19 for: UDF; volatil; callable; error propagation|error order; non-finite|overflow|#NUM; parity|verified-on-corpus; thread-safe|thread safety; determinis; array lift|lifting|broadcast; signature help|tooltip; rich value|RichValue|IMAGE; CSV|catalogue export; hoist; reference reader|ReferenceReader; locale; RTD|external provider. Each beads list below is the hits of the terms named in its basis.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function.rs",
+      "blob": "9acb95927fe737f54d8dfbb17047b8c4ad9195ff",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m1.1/lookup-function-rs.log (exit in lookup-function-rs.exit; target/ is not committed)",
+        "calls_quarantined": []
+      },
+      "ported": [
+        {"symbol": "FunctionMeta", "to": "CatalogueEntry (crate-private) read through FunctionCallTarget"},
+        {"symbol": "Arity", "to": "calc-value's CallableArityShape, which has the same min, max, exact and accepts"},
+        {"symbol": "ArgPreparationProfile", "to": "ParameterClass, declared per parameter"},
+        {"symbol": "ArgumentLazinessProfile (Eager, BranchOnCondition, is_lazy, discriminator_index)", "to": "ArgumentDemand (Eager, BranchOnCondition, is_lazy, discriminator, holds_back)"}
+      ],
+      "semantic_changes": [
+        {"change": "The string function_id (\"FUNC.SUM\") with a surface name derived by stripping its prefix becomes an explicit FunctionId (family code and member number, written in the family fragment) and a separately declared spelling and Notation.", "reason": "The bead asks for explicit stable IDs, and operators are catalogue entries here, which a stripped name cannot spell."},
+        {"change": "ArgPreparationProfile's two per-function values (ValuesOnlyPreAdapter, RefsVisibleInAdapter) become three per-parameter classes (Value, ValueOrReference, Reference), checked by invoke when an argument is admitted.", "reason": "IF's condition is a value while its branches may be references, and the reference-only class carries cfunc-m0.1's dropped witness reference_boundary_only_allows_reference_like."},
+        {"change": "Only the Eager and BranchOnCondition laziness shapes are carried, and a lazy entry may not declare an eager kernel (the build fails).", "reason": "IF is the only lazy entry of the thin slice; an eager kernel would receive held-back arguments evaluated."}
+      ],
+      "not_ported": [
+        {"items": ["DeterminismClass", "VolatilityClass", "HostInteractionClass", "ThreadSafetyClass", "FecDependencyProfile"], "reason": "No admitted entry is volatile, nondeterministic, host-dependent or context-dependent.", "beads": ["cfunc-m3.19", "cfunc-m4.1", "ceng-m3.6"], "basis": "volatil; thread-safe|thread safety; RTD|external provider"},
+        {"items": ["CoercionLiftProfile", "LiftBroadcastProfile", "LiftPositionMask", "KernelSignatureClass"], "reason": "Coercion and array lifting are not modelled in this bead.", "beads": ["cfunc-m1.2", "cfml-m3.4"], "basis": "cfunc-m1.2's Do (base coercions); array lift|lifting|broadcast"},
+        {"items": ["ExcelRealPolicy", "NonFinite", "PrecisionRoundingProfile"], "reason": "Non-finite publication and the integer-exponent rule of ^ belong to the arithmetic kernels; SUM refuses a non-finite total with NotImplemented.", "beads": ["cfunc-m1.2", "cfunc-m3.2", "cfunc-m3.3", "cfunc-m3.22"], "basis": "non-finite|overflow|#NUM; cfunc-m1.2's Do (scalar arithmetic); cfunc-m3.22's Do (numerical sensitivity)"},
+        {"items": ["ErrorCollapseProfile", "ErrorAlgebra"], "reason": "Error precedence is a kernel semantic with retained witnesses.", "beads": ["cfunc-m1.2", "cfml-m2.4", "cfunc-m3.17"], "basis": "error propagation|error order"},
+        {"items": ["ArgumentLazinessProfile::ConditionValuePairs", "IndexedChoice", "MatchedCase", "FallbackOnError"], "reason": "IFS, CHOOSE, SWITCH, IFERROR and IFNA are not admitted.", "beads": ["cfml-m2.4", "cfunc-m3.21"], "basis": "cfml-m2.4's Do names their scheduling; cfunc-m3.21's Do names IFNA"},
+        {"items": ["ExcelParity", "ExcelParityStatus", "DivergenceSeverity"], "reason": "No admitted entry has oracle evidence yet.", "beads": ["cfunc-m3.1 to cfunc-m3.21", "infra-m7.6"], "basis": "parity|verified-on-corpus"},
+        {"items": ["function_spec!", "FunctionMeta::DEFAULTS_BASE and the DEFAULT_* constants"], "reason": "Entries are struct literals plus one const constructor for operators; there are no defaulted axes to fill.", "beads": [], "basis": "nothing needs it"}
+      ],
+      "semantic_witnesses": [
+        {"tests": ["function_spec_macro_tests::omitted_defaultable_axes_take_their_defaults", "function_spec_macro_tests::a_named_override_changes_only_that_axis", "function_spec_macro_tests::usable_in_const_context", "function_spec_macro_tests::new_axis_is_one_default_line_plus_only_the_overriding_call_site"], "disposition": "dropped", "reason": "function_spec! is not ported. The catalogue is still built in const context; the build itself is the check that it evaluates there."}
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/registry.rs",
+      "blob": "d5cb5795f7a4d13ba23b2fcfcbae61b5304d0b82",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/registry.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m1.1/lookup-registry-rs.log (exit in lookup-registry-rs.exit)",
+        "calls_quarantined": []
+      },
+      "ported": [
+        {"symbol": "FunctionRegistry::built_ins, lookup_by_id, lookup_by_surface_name", "to": "catalogue(), Catalogue::resolve, Catalogue::resolve_surface, Catalogue::targets, Catalogue::surfaces"},
+        {"symbol": "RegistryError::UnknownFunctionId", "to": "RegistrationError::UnknownId, plus RegistrationError::UnknownSurface"},
+        {"symbol": "SignatureForm, ParameterDescriptor, signature_from_seed", "to": "SignatureHelp, HelpParameter, FunctionCallTarget::signature_help"}
+      ],
+      "semantic_changes": [
+        {"change": "The registry is no longer a Vec built at run time behind a OnceLock and searched linearly; the compiler builds an ID-ordered and a surface-ordered table from the family fragments, searched by binary search, and fails the build on a duplicate ID, a duplicate notation and spelling, an ID outside its family's code or parameters that do not cover the arity.", "reason": "Plan section 2.2: built-in catalogue tables are generated immutable data; the bead asks for per-family fragments, not one registry source."},
+        {"change": "Signature help is rendered from the declared parameter names and the arity instead of authored display text. optional (position at or after the arity's minimum) and repeats (last name, when the arity admits more arguments than names) keep signature_from_seed's rule.", "reason": "One declaration per entry; no separate seed table that could drift from the arity."},
+        {"change": "A surface is a notation and a spelling, so the same token can name two entries (infix and prefix + and -). Named calls match in any ASCII case, as lookup_by_surface_name did.", "reason": "Operators are admitted in the thin slice."}
+      ],
+      "not_ported": [
+        {"items": ["FunctionSource", "UdfRegistrationRequest and the Udf* types", "RegistryChangeSet", "FunctionRegistrySnapshotIdentity", "CapabilityOverlay", "FunctionAvailability", "register_udf and unregister_udf"], "reason": "The mutable, caller-owned registry is a later bead.", "beads": ["cfunc-m4.1", "cfml-m4.3", "infra-m8.1"], "basis": "UDF"},
+        {"items": ["FunctionRegistryMetadata (lane, XLL builtin symbol and code, category and the rest)", "short_description and long_description"], "reason": "No consumer in the thin slice; help text beyond the signature belongs to the editor.", "beads": ["cfml-m2.5", "cdoc-m6.3"], "basis": "signature help|tooltip"},
+        {"items": ["SemanticKernelMetadata", "ArgAdmissionMetadata", "FunctionSpecAxesMetadata and their version keys"], "reason": "Their axes are not ported (see function.rs).", "beads": ["cfunc-m3.22"], "basis": "cfunc-m3.22's Do (numerical sensitivity metadata)"},
+        {"items": ["RichValueUsage", "producer_capability_set_keys_for_id"], "reason": "No admitted entry produces a rich value.", "beads": ["cfunc-m3.19", "cdoc-m1.3"], "basis": "rich value|RichValue|IMAGE"},
+        {"items": ["render_registry_metadata_csv", "catalog_conformance_rows"], "reason": "No consumer.", "beads": [], "basis": "CSV|catalogue export: no hit"}
+      ],
+      "semantic_witnesses": [
+        {"tests": ["tests::builtin_registry_count_matches_function_catalog"], "disposition": "changed", "replaced_by": "cfunc_m1_1__catalogue_consistency", "reason": "The dispatch, name, help, arity and oracle views each enumerate the same 17 IDs, which equal an independently written list of the admitted surfaces."},
+        {"tests": ["tests::builtin_registry_round_trips_surface_and_id_lookup"], "disposition": "kept", "replaced_by": "cfunc_m1_1__catalogue_consistency", "reason": "Every surface (and a lower-case named call) and every ID resolve to the same entry."},
+        {"tests": ["tests::every_builtin_signature_is_consistent_with_arity"], "disposition": "kept", "replaced_by": "cfunc_m1_1__catalogue_consistency", "reason": "Required names equal the arity's minimum and the last name repeats exactly when the arity admits more arguments than names; the synthesized argN check is moot because names are declared."},
+        {"tests": ["tests::argument_laziness_axis_agrees_with_selector_branch_over_the_catalog"], "disposition": "changed", "replaced_by": "cfunc_m1_1__catalogue_consistency", "reason": "Only IF is lazy among the admitted entries; there is no error-collapse axis for it to agree with."},
+        {"tests": ["tests::now_signature_is_zero_argument"], "disposition": "dropped", "reason": "NOW is not admitted."},
+        {"tests": ["tests::builtin_registry_carries_library_context_metadata", "tests::every_builtin_registry_metadata_matches_runtime_function_id"], "disposition": "dropped", "reason": "FunctionRegistryMetadata is not ported."},
+        {"tests": ["tests::reducer_registry_metadata_publishes_semantic_kernel_version", "tests::selector_registry_metadata_publishes_error_algebra_without_reduction_policy", "tests::semantic_kernel_version_changes_when_selector_metadata_changes", "tests::error_collapse_axis_is_single_source", "tests::arg_admission_version_changes_when_admission_metadata_changes", "tests::rich_arg_admission_metadata_validates_required_capability_keys", "tests::image_registry_entry_publishes_webimage_producer_capabilities", "tests::registry_metadata_csv_exports_version_and_capability_columns", "tests::registry_metadata_csv_appends_function_spec_axes_columns", "tests::function_spec_axes_version_changes_when_a_projected_axis_changes", "tests::excel_parity_is_exported_outside_the_axes_version_key"], "disposition": "dropped", "reason": "Their metadata, version keys and CSV export are not ported (see not_ported)."},
+        {"tests": ["tests::udf_registration_round_trips_after_builtins", "tests::udf_registration_does_not_mutate_builtin_registry_singleton", "tests::duplicate_udf_surface_requires_explicit_builtin_replacement", "tests::capability_overlay_projects_without_mutating_registry", "tests::udf_registration_request_emits_snapshot_change_set", "tests::rejected_udf_registration_does_not_advance_snapshot_identity", "tests::same_source_registration_update_replaces_surface_metadata", "tests::same_source_registration_update_rejects_other_udf_surface_collision", "tests::unregister_udf_emits_snapshot_change_set_and_removes_target", "tests::invocation_target_preserves_opaque_reference_and_host_values", "tests::descriptor_only_change_set_does_not_advance_snapshot_identity"], "disposition": "dropped", "reason": "UDF registration belongs to cfunc-m4.1."}
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function_call.rs",
+      "blob": "426cf6877cc60ce74caddc55a66bb287510baaec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function_call.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m1.1/lookup-function_call-rs.log (exit in lookup-function_call-rs.exit)",
+        "calls_quarantined": ["crates/oxfunc_core/src/functions/surface_dispatch.rs"],
+        "how_the_record_meets_it": "Ported only against a fresh dispatch: invoke reaches an entry's kernel through the catalogue's generated ID table, and no code calls, copies or reads surface_dispatch.rs."
+      },
+      "ported": [
+        {"symbol": "FunctionCallTarget (from_function_id, from_surface_name, arity, arg_preparation_profile, argument_laziness_profile, invoke)", "to": "FunctionCallTarget (via Catalogue::resolve and resolve_surface; id, spelling, notation, arity, parameter_class, argument_demand, signature_help, oracle_formula, invoke)"},
+        {"symbol": "FunctionCallScratch", "to": "FunctionCallScratch, now filled and cleared by invoke itself"},
+        {"symbol": "FunctionExecutionContextBundle", "to": "EvalServices, carrying the NumericMode only"},
+        {"symbol": "FunctionCallTargetResolveError", "to": "RegistrationError"}
+      ],
+      "semantic_changes": [
+        {"change": "invoke takes the arguments as a PreparedArguments source it asks for values, instead of a slice evaluated beforehand: the arity is checked first, an eager entry's arguments are asked for once each in order, and a lazy entry's are not asked for at all.", "reason": "The bead: expose the lazy argument policy rather than eager-evaluating IF."},
+        {"change": "invoke returns Result<CalcValue, FunctionFault> instead of Result<CalcValue, WorksheetErrorCode>.", "reason": "Plan section 2.2: a fault (arity, admission, not implemented, Exact unavailable) is distinct from a computed worksheet error value."},
+        {"change": "The services carry the NumericMode, and SUM refuses NumericMode::Exact with ExactUnavailable instead of adding under Fast.", "reason": "Plan section 5: no process-global mode and no hidden fallback; no Exact implementation exists."},
+        {"change": "invoke refuses a kernel's Missing return (MissingReturned) and admits Empty; a null value is not representable in CalcValue.", "reason": "Carries cfunc-m0.1's dropped witness raw_function_return_allows_empty_but_not_missing_or_null."}
+      ],
+      "not_ported": [
+        {"items": ["CallableArgumentSpec", "InvocablePassthrough", "requires_invoker", "callable_argument_ordinals_for_arity"], "reason": "No admitted entry takes or passes through a callable.", "beads": ["cfunc-m3.17", "cfml-m2.3"], "basis": "callable"},
+        {"items": ["now, random, locale, host-info, callable-invoker, RTD and registered-external providers of FunctionExecutionContextBundle"], "reason": "No admitted entry needs them.", "beads": ["cfunc-m3.19", "cfunc-m3.18", "cfunc-m3.20", "cfml-m2.6", "cfunc-m3.17"], "basis": "RTD|external provider; locale; callable"},
+        {"items": ["FunctionExecutionContext", "FunctionExecutionContextRef", "the legacy reference resolver they wrap"], "reason": "References are read through calc-fml's typed reader.", "beads": ["cfml-m1.2"], "basis": "reference reader|ReferenceReader"},
+        {"items": ["ExpressionHoistPolicy", "is_context_free_pure", "is_hoistable_under"], "reason": "No context-dependent entry is admitted.", "beads": [], "basis": "hoist: no hit"},
+        {"items": ["FunctionCallTarget::invoke_scratch", "invoke_with_scratch_builder", "new_scratch"], "reason": "invoke fills the scratch itself.", "beads": [], "basis": "nothing needs them"}
+      ],
+      "semantic_witnesses": [
+        {"tests": ["tests::function_call_target_resolves_from_id_and_surface_name"], "disposition": "changed", "replaced_by": "cfunc_m1_1__catalogue_consistency and cfunc_m1_1__unknown_function", "reason": "Resolution by FunctionId and by notation and spelling, a named call in any ASCII case, for every admitted entry; HSTACK is not admitted."},
+        {"tests": ["tests::every_builtin_registry_entry_resolves_to_uniform_dispatch_key"], "disposition": "changed", "replaced_by": "cfunc_m1_1__catalogue_consistency", "reason": "Every admitted ID is invoked through calc_func::invoke and reaches its own entry: SUM computes, the others report NotImplemented naming their own ID."},
+        {"tests": ["tests::function_call_target_exposes_stable_planning_metadata"], "disposition": "changed", "replaced_by": "cfunc_m1_1__catalogue_consistency", "reason": "The planning metadata asserted is arity, parameter classes and argument demand; volatility, host interaction and callable specs are not ported."},
+        {"tests": ["tests::function_call_scratch_reuses_argument_storage_for_repeated_invocation"], "disposition": "changed", "replaced_by": "cfunc_m1_1__catalogue_consistency", "reason": "Measured with a counting allocator: SUM(1,2,3) on fresh scratch allocates, the same call on the same scratch makes 0 allocation calls."},
+        {"tests": ["tests::function_call_boundary_uses_calcvalue_for_missing_empty_and_reference_arguments", "tests::function_call_boundary_preserves_direct_array_vs_reference_visible_arguments"], "disposition": "changed", "replaced_by": "cfunc_m1_1__catalogue_consistency and call::tests::a_reference_only_parameter_admits_only_references", "reason": "Arguments are CalcValues. A value parameter refuses a reference (ReferenceArgument), SUM's parameters admit a reference and a direct array, which reach its kernel, and a reference-only parameter refuses a number, Empty, Missing and an error."},
+        {"tests": ["tests::requires_invoker_is_derived_from_callable_argument_specs", "tests::invocable_passthrough_is_populated_for_selectors", "tests::if_passes_a_callable_argument_through_unchanged"], "disposition": "dropped", "reason": "Callable specs are not ported, and IF has no kernel."},
+        {"tests": ["tests::function_call_target_invocation_matches_dispatcher_for_representative_functions", "tests::function_call_target_invocation_matches_dispatcher_for_host_and_helper_calls", "tests::function_call_target_invocation_matches_dispatcher_for_provider_and_locale_cases"], "disposition": "dropped", "reason": "They compare invoke with surface_dispatch.rs, which is quarantined; there is no second dispatcher to compare with."},
+        {"tests": ["tests::function_execution_context_bundle_defaults_to_null_reference_system_provider", "tests::function_execution_context_ref_defaults_to_null_reference_system_provider", "tests::function_call_target_exposes_generic_hoistability_gate"], "disposition": "dropped", "reason": "The legacy reference resolver and the hoist policy are not ported."}
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+      "blob": "76520e4100ce8eaccecd0b4c180ef33a9754cb07",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m1.1/lookup-functions-surface_dispatch-rs.log (exit in lookup-functions-surface_dispatch-rs.exit)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": []
+      },
+      "ported": [],
+      "read": "Not read, as the lookup instructs. The dispatch is generated fresh: each catalogue entry carries its kernel, and invoke reaches it through the ID table.",
+      "not_ported": [],
+      "semantic_witnesses": []
+    }
+  ],
+  "carried_witnesses": [
+    {"from": "migration/ports/cfunc-m0.1.json", "oxfunc_test": "tests::raw_function_return_allows_empty_but_not_missing_or_null", "carried_by": "call::tests::a_raw_return_may_be_empty_but_never_missing (cargo test -p calc-func --lib)", "change": "A kernel returning Missing gives FunctionFault::MissingReturned and Empty is returned; null is not representable in CalcValue, so no check is needed for it."},
+    {"from": "migration/ports/cfunc-m0.1.json", "oxfunc_test": "tests::reference_boundary_only_allows_reference_like", "carried_by": "call::tests::a_reference_only_parameter_admits_only_references (cargo test -p calc-func --lib)", "change": "A ParameterClass::Reference parameter refuses a number, Empty, Missing and an error with FunctionFault::ReferenceRequired and admits a ReferenceLike. No admitted entry declares a reference-only parameter yet, so only this unit test reaches the refusal."}
+  ]
+}

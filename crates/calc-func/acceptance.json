@@ -19,6 +19,25 @@
         "cfunc_m0_1__send_sync": ["windows", "linux", "wasm"],
         "cfunc_m0_1__grid_edges": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cfunc-m1.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m1_1", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m1.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m1.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m1.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfunc_m1_1__catalogue_consistency",
+        "cfunc_m1_1__unknown_function"
+      ],
+      "platforms": {
+        "cfunc_m1_1__catalogue_consistency": ["windows", "linux", "wasm"],
+        "cfunc_m1_1__unknown_function": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

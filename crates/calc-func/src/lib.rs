@@ -4,5 +4,20 @@
 //!
 //! Its value API is the calc-value package, exposed as the module [`value`]: identities, checked
 //! grid coordinates, worksheet values and the numeric policy.
+//!
+//! The catalogue ([`catalogue`]) is generated at compile time from per-family fragments, each
+//! entry with an explicit stable [`FunctionId`]. A caller resolves an ID or a surface to a
+//! [`FunctionCallTarget`], reads its metadata (arity, parameter classes, [`ArgumentDemand`],
+//! signature help, oracle formula) and runs it with [`invoke`], supplying the arguments through
+//! [`PreparedArguments`] and owning the [`EvalServices`] and [`FunctionCallScratch`].
 
 pub use calc_value as value;
+
+mod call;
+mod catalogue;
+
+pub use call::{EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, invoke};
+pub use catalogue::{
+    ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
+    ParameterClass, RegistrationError, SignatureHelp, catalogue,
+};
