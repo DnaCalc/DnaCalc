@@ -1,0 +1,1941 @@
+{
+  "architecture": [
+    {
+      "check": "dependencies",
+      "details": {
+        "by_target": {
+          "wasm32-unknown-unknown": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-pc-windows-msvc": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-unknown-linux-gnu": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          }
+        },
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "7 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
+    },
+    {
+      "check": "os-imports",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": {
+          "calc-doc": 24,
+          "calc-doc-model": 12,
+          "calc-engine": 7,
+          "calc-fml": 15,
+          "calc-func": 10,
+          "calc-host": 1,
+          "calc-value": 5,
+          "calc-verdict": 11,
+          "dna-calc": 1,
+          "dna-onecalc": 5
+        },
+        "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "91 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+    },
+    {
+      "check": "wasm-refusal",
+      "details": {
+        "calc-oracle-excel": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cfunc-m3.4/wasm/arch/wasm-refusal-calc-oracle-excel.log",
+          "refusal": "calc-oracle-excel is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "calc-platform-desktop": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cfunc-m3.4/wasm/arch/wasm-refusal-calc-platform-desktop.log",
+          "refusal": "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "xtask": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cfunc-m3.4/wasm/arch/wasm-refusal-xtask.log",
+          "refusal": "xtask is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "3 native-only packages (calc-platform-desktop, calc-oracle-excel, xtask) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!"
+    },
+    {
+      "check": "tree-reference-tokens",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": 91,
+        "phrases": [
+          "tree reference",
+          "tree ref",
+          "reference profile",
+          "profile id",
+          "reference system provider",
+          "host reference"
+        ],
+        "scope": "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "91 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+    },
+    {
+      "check": "seams",
+      "details": {
+        "packages": {
+          "calc-doc": {
+            "entries": 92,
+            "entries_reach_unproven": 92,
+            "pub_enum_variants": 90,
+            "pub_traits": 2
+          },
+          "calc-doc-model": {
+            "entries": 61,
+            "entries_reach_unproven": 61,
+            "pub_enum_variants": 61,
+            "pub_traits": 0
+          },
+          "calc-engine": {
+            "entries": 36,
+            "entries_reach_unproven": 36,
+            "pub_enum_variants": 35,
+            "pub_traits": 1
+          },
+          "calc-fml": {
+            "entries": 100,
+            "entries_reach_unproven": 100,
+            "pub_enum_variants": 98,
+            "pub_traits": 2
+          },
+          "calc-func": {
+            "entries": 20,
+            "entries_reach_unproven": 20,
+            "pub_enum_variants": 18,
+            "pub_traits": 2
+          },
+          "calc-host": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-value": {
+            "entries": 32,
+            "entries_reach_unproven": 32,
+            "pub_enum_variants": 31,
+            "pub_traits": 1
+          },
+          "calc-verdict": {
+            "entries": 54,
+            "entries_reach_unproven": 54,
+            "pub_enum_variants": 54,
+            "pub_traits": 0
+          },
+          "dna-calc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "dna-onecalc": {
+            "entries": 13,
+            "entries_reach_unproven": 13,
+            "pub_enum_variants": 13,
+            "pub_traits": 0
+          }
+        },
+        "reach": {
+          "entries_reach_unproven": 408,
+          "owner": "dc-pz3u",
+          "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "10 portable packages declare 400 pub enum variants and 8 pub traits; their seams.json files list 408 entries, 408 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+    },
+    {
+      "check": "word-scan",
+      "details": {
+        "baseline_owner": "dc-0nvp",
+        "baseline_recorded": "2026-10-14",
+        "commits": {
+          "e24e1e355d92950513eee0bd91722729ef6bbb12": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "excluded_identifiers": [
+          {
+            "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
+            "masked": {
+              "commit_messages": 1,
+              "files": 5,
+              "tracker_records": 9
+            },
+            "reason": "acceptance case name of infra-m0.5, a fixed identity"
+          },
+          {
+            "identifier_hex": "696e6672615f6d375f315f5f6c6963656e73655f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of infra-m7.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "6f6e6563616c635f6d315f315f5f646570656e64656e63795f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 2
+            },
+            "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "646e6163616c632d617263682d6761746573",
+            "masked": {
+              "commit_messages": 0,
+              "files": 2,
+              "tracker_records": 0
+            },
+            "reason": "directory name of a crate in the read-only legacy repository DnaTreeCalc, cited as a path"
+          }
+        ],
+        "files": {
+          "docs/plan/BEAD_DETAILS.md": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/BEAD_GRAPH.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md": {
+            "baseline": 7,
+            "count": 7
+          },
+          "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md": {
+            "baseline": 2,
+            "count": 2
+          },
+          "docs/plan/beads.br.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/beads.plan.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/build_plan.py": {
+            "baseline": 13,
+            "count": 13
+          },
+          "docs/plan/coverage.json": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/topological-order.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/validate_plan.py": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "forms": 5,
+        "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
+        "scanned": {
+          "commit_messages": 118,
+          "files": 20,
+          "tracker_records": 333
+        },
+        "tracker": {
+          "ceng-m7.1": {
+            "baseline": 1,
+            "count": 1
+          },
+          "cfunc-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m0.3": {
+            "baseline": 3,
+            "count": 3
+          },
+          "infra-m3.20": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.21": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.22": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.23": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m7.5": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m8.2": {
+            "baseline": 2,
+            "count": 2
+          },
+          "onecalc-m2.1": {
+            "baseline": 1,
+            "count": 1
+          }
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 333 tracker records, 1 in 1 of 118 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+    },
+    {
+      "check": "numeric-provenance",
+      "details": {
+        "admitted_by_recomputation": 478,
+        "admitted_with_calls_quarantined": 165,
+        "allowlist": "migration/release-source-allowlist.json",
+        "allowlist_entries": 478,
+        "cross_repository_crate_edges": 61,
+        "dispositions": "migration/numeric-provenance.json",
+        "edges_into_files_not_pinned": {
+          "OxFunc": 2,
+          "elsewhere": 197
+        },
+        "edges_owner": "dc-4uy4",
+        "gaps": [
+          {
+            "owner": "dc-4uy4",
+            "what": "cross-repository edges (recorded at crate level, for example OxFunc crate oxfunc_core in OxFml's eval/mod.rs), run-time loads (recorded by repository) and the edges into files that are not pinned inputs (2 in OxFunc and 197 elsewhere when the ruling was made; the manifest summary counts them as edges_into_files_not_pinned) are not resolved to files"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the inputs the content rule leaves unresolved by class (citation sweep matches, changes by a listed tainted commit, includes of tainted or unresolved files), among them the test files the record leaves out, and the x87 ground-truth table entry, are not cleared file by file"
+          },
+          {
+            "owner": "dc-0huc",
+            "what": "the witness selections under migration/witnesses/ were made by a one-off script (target/accept/infra-m0.5/round2/select_witnesses.py), not by a repository command"
+          },
+          {
+            "owner": "dc-1c6a",
+            "what": "the include macros the pin cannot read (5 inputs: the four OxFunc tests w111_distribution_numeric_live_replay.rs, w111_integer_live_replay.rs, w111_numeric_publication_live_replay.rs and w111_radix_live_replay.rs, and tools/xll-addin/oxfunc_xll/src/lib.rs) are not resolved; summary.resolution_skipped counts the 5"
+          },
+          {
+            "owner": "dc-ime9",
+            "what": "a cleared entry does not lift the pin's quarantine of an excel_numeric path, and the infra-m0.5 acceptance case asserts today's outcome for the seven excel_numeric files, the research-x87 packages and the production replays (tools/xtask/tests/acceptance/infra_m0_5.rs)"
+          },
+          {
+            "owner": "dc-x3oi",
+            "what": "catalogue tests are not classified by where their expected values came from: the content rule catches a test only when a listed tainted commit changed it, it includes a tainted or unresolved file, or its text matches the citation sweep"
+          },
+          {
+            "owner": "dc-4546",
+            "what": "the licenses of the glibc-2.29 port (mod.rs exp_portable, log_portable and the kernels built on them; tables.rs; gen_tables.py), of the fdlibm and SPECFUN constants gammaln.rs cites, and OxDoc's missing license file are not reviewed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the w111-broad-20260929 evidence files are unresolved as one class (w111-broad-evidence), and the production replays are tainted as one class, not file by file"
+          },
+          {
+            "owner": "dc-43vt",
+            "what": "the files of the research-x87 tool packages are tainted as one class (x87-research-packages), not file by file"
+          },
+          {
+            "owner": "dc-jtlu",
+            "what": "cargo xtask pin-sources --lookup exit codes 5 (left out of the release source allowlist for its numeric provenance) and 6 (admitted only with its calls_quarantined list) are not yet part of a reviewed exit-code scheme"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the retention extended-numeric/numeric-outcomes.json has no write time, so the order of the retention and the freeze steps is not established (the commits review's retention_ordering, established false); witness independence rests on hash continuity instead"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "no raw-capture hash exists between the last extended capture (2026-09-29T12:57:54Z) and the snapshot-1735 report (17:34:45Z)"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "retain_numeric_campaign.py imports subprocess and what it runs was not checked (its code was not reviewed under the reading rule), so the record's earlier statement that it builds and runs nothing is not confirmed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "that CellRefBatch.psm1 blob 55085b4d is the one that ran rests on the extended run's source_status alone; no last-write time is recorded for it"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the 24 commits the commits review gives unresolved need file-by-file review of the files they changed"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "status.review.dispositions_hash was recorded by the dc-m33w implementer, not by a reviewer"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the hash-continuity check of cargo xtask accept trusts the hash_continuity record a witness declares; only the infra-m0.5 acceptance case reads the hashes from the pinned blobs"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "a witness_chain entry cleared on its file's own acquisition for a file that holds expected bits (since dc-m33w's round 3 only such entries, for the five answer captures and the retention, change a provenance) takes precedence over every class (tag in tools/xtask/src/provenance.rs), wider than the precedence change of dc-m33w; it must be narrowed before dc-1c6a pins w111-broad answer or retention files"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the numeric-provenance check of cargo xtask accept reads the tainted-commit rule's sets from the manifest without running git, so only the infra-m0.5 acceptance case, which recomputes them from git, catches a coordinated edit of the record, the manifest's sets and the hash"
+          }
+        ],
+        "inputs_by_entry": {
+          "calls-quarantined": 176,
+          "citation-sweep": 51,
+          "crt-citing-callers": 13,
+          "excel-numeric-gammaln": 1,
+          "excel-numeric-gen-tables": 1,
+          "excel-numeric-ground-truth": 1,
+          "excel-numeric-mod": 1,
+          "excel-numeric-research": 1,
+          "excel-numeric-tables": 1,
+          "include-of-quarantined": 34,
+          "odd-bond-family": 1,
+          "production-replay": 5,
+          "tainted-commit": 929,
+          "unread-include": 5,
+          "w111-broad-evidence": 234,
+          "w111-distribution-judgements": 8,
+          "x87": 1,
+          "x87-research-packages": 911
+        },
+        "inputs_with_cross_repository_crate_edges": 44,
+        "inputs_with_run_time_loads": 25,
+        "manifest": "migration/source-manifest.json",
+        "owned_entries": [
+          {
+            "disposition": "rule",
+            "entry": "calls-quarantined",
+            "inputs": 176,
+            "owner": "dc-4uy4",
+            "replacement": "every crate-level entry ('<Repo> crate <name>') and every '<Repo> run-time loads' entry resolved to the pinned files it reaches, and the edges into files that are not pinned inputs followed"
+          },
+          {
+            "disposition": "rule",
+            "entry": "citation-sweep",
+            "inputs": 51,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each matched file: tainted where the line cites the tainted chains, cleared only on positive evidence that it does not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "include-of-quarantined",
+            "inputs": 34,
+            "owner": "dc-2203",
+            "replacement": "nothing while the included file stays tainted or unresolved; a clearance of the included file lifts it"
+          },
+          {
+            "disposition": "rule",
+            "entry": "tainted-commit",
+            "inputs": 929,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each changed file: tainted where the change carried tainted material, cleared only on positive evidence that it did not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "unread-include",
+            "inputs": 5,
+            "owner": "dc-1c6a",
+            "replacement": "the included paths resolved and pinned, after which the include rule applies to them"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 tables the owner accepts; the probe file itself is not pinned, so a fresh implementation takes the tables from glibc-2.29's published source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-gen-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 origin the owner accepts; the generator is never a port source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-ground-truth",
+            "inputs": 1,
+            "owner": "dc-2203",
+            "replacement": "a reviewed disposition of the table with its acquisition established, or its exclusion confirmed; it is never a witness without fresh acquisition records"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "x87-research-packages",
+            "inputs": 911,
+            "owner": "dc-43vt",
+            "replacement": "a disposition per file: tainted where it calls or embeds a quarantined chain or its outputs, cleared only on positive evidence that it does neither, unresolved otherwise"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "production-replay",
+            "inputs": 5,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record (each pinned replay confirmed tainted or shown otherwise); the actual values are never witnesses"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "w111-broad-evidence",
+            "inputs": 234,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record: cleared for a black-box Excel capture with recorded settings, tainted for values computed through a quarantined chain, unresolved otherwise"
+          }
+        ],
+        "retained_witnesses": 5,
+        "tainted_commit_rule": {
+          "identification": 64,
+          "listed": 72,
+          "message-sweep": 18,
+          "review": 63,
+          "rule_found_recorded": 70
+        },
+        "test_files_tainted_or_unresolved": 51,
+        "trusted_facts": "the manifest's code_refs and content_facts (citation sweep matches and touched-by-commit lists) are trusted as recorded, and the calls_quarantined lists and the include rule rest on code_refs; the infra-m0.5 acceptance case recomputes the citation sweep and the touched-by-commit lists from git",
+        "witness_bytes": 55933,
+        "witness_chain_entries": [
+          {
+            "blob": "cc10a9ec20dc660db03e711570f55fd00500dcfe",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-exp",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json"
+          },
+          {
+            "blob": "5356055d00edbc8b92ba6daf87248216c3636d6f",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-ln",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json"
+          },
+          {
+            "blob": "6cb89b0cf250aecdee667fdd0d5932f9b1dfa218",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-log10",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json"
+          },
+          {
+            "blob": "d9e8978e54d425957c14bf1b002275f83fedc22e",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-power",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json"
+          },
+          {
+            "blob": "cea92ab3d0c956941b6d702d7d05977a256cdc5d",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-atan",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json"
+          },
+          {
+            "blob": "3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30",
+            "cleared_as": "acquisition",
+            "id": "chain-retention",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json"
+          },
+          {
+            "blob": "91b96b93671c2b575fafb4a1c0d1ba5d6a1c8dc8",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-retention-writer",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/retain_numeric_campaign.py"
+          },
+          {
+            "blob": "9fc3d4aec25b59e38f6d0635ac6bf87ccd95dde7",
+            "cleared_as": "acquisition",
+            "id": "chain-runner",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/Run-W109BulkBatch.ps1"
+          },
+          {
+            "blob": "55085b4d0381076dcfae90087ec35e75703c08e4",
+            "cleared_as": "acquisition",
+            "id": "chain-cellrefbatch",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/CellRefBatch.psm1"
+          },
+          {
+            "blob": "a08fb1161821d0c05afc69c9a776ef436b4f0ea5",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-oracle-cache",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/OracleCache.psm1"
+          },
+          {
+            "blob": "0e727499af37570fb48d8f1f88b0fed6278017c4",
+            "cleared_as": "acquisition",
+            "id": "chain-driver",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/run_numeric_campaign.py"
+          },
+          {
+            "blob": "54fda4264d59d415e82f300069c77fbc5620ff9a",
+            "cleared_as": "acquisition",
+            "id": "chain-input-generator",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py"
+          },
+          {
+            "blob": "331556e5ef0dd6b1e7e2056497684f3d93fcc6f1",
+            "cleared_as": "acquisition",
+            "id": "chain-corpus-helpers",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_w111_broad_20260929.py"
+          },
+          {
+            "blob": "4ebb3188a3f3192bf14e2e4f20491570d22d344a",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-snapshot",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/snapshot_numeric_20260929.py"
+          },
+          {
+            "blob": "5274a745d0b68b28f8163a5291b6946c60f6f588",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-freeze",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py"
+          }
+        ],
+        "witnesses": "migration/witnesses"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "tainted-commit list follows its stated rule (72 listed: 64 by the identification grep, 18 by the citation sweep of the message, 63 tied to the pass by a review; the manifest records 70 commits the rule finds at the pin); 15 reviewed witness_chain entries; release source allowlist 478 entries (478 admitted by the provenance recomputed from migration/numeric-provenance.json and the manifest's code_refs and content_facts, 165 of them only with a calls_quarantined list, 0 missing); 0 manifest inputs with stale numeric provenance; review record present, matching its review file and covering every cleared entry; 5 retained witness selections (55933 bytes), 0 witness findings; entries and rules with their owners: calls-quarantined (rule) on 176 inputs, owner dc-4uy4; citation-sweep (rule) on 51 inputs, owner dc-2203; include-of-quarantined (rule) on 34 inputs, owner dc-2203; tainted-commit (rule) on 929 inputs, owner dc-2203; unread-include (rule) on 5 inputs, owner dc-1c6a; excel-numeric-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-gen-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-ground-truth (unresolved) on 1 inputs, owner dc-2203; x87-research-packages (tainted) on 911 inputs, owner dc-43vt; production-replay (tainted) on 5 inputs, owner dc-z5ay; w111-broad-evidence (unresolved) on 234 inputs, owner dc-z5ay; edges counted for the calls_quarantined owner dc-4uy4: 61 cross-repository crate edges in 44 inputs, 25 inputs with run-time loads, and 199 edges into files that are not pinned inputs (2 in OxFunc, 197 elsewhere); 51 files under a tests directory are tainted or unresolved; gaps owned by dc-4uy4, dc-2203, dc-0huc, dc-1c6a, dc-ime9, dc-x3oi, dc-4546, dc-z5ay, dc-43vt, dc-jtlu, dc-z5ay, dc-z5ay, dc-z5ay, dc-z5ay, dc-2203, dc-qfqa, dc-qfqa, dc-qfqa, dc-qfqa"
+    }
+  ],
+  "bead": "cfunc-m3.4",
+  "cargo_target_dir": "target/xtask-accept",
+  "cases": [
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-func",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--",
+        "--exact",
+        "cfunc_m3_4__sparse_blanks",
+        "--nocapture"
+      ],
+      "browsers": [
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-func",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cfunc_m3_4__sparse_blanks",
+            "--nocapture"
+          ],
+          "browser": "chromium",
+          "case": "cfunc_m3_4__sparse_blanks@chromium",
+          "duration_s": 18.089,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Chrome",
+          "exit_code": 0,
+          "log": "target/accept/cfunc-m3.4/wasm/cfunc_m3_4__sparse_blanks@chromium.log",
+          "notes": [
+            "the sheet holds A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10; every other cell is blank",
+            "oracle sparse_blanks!D1 =COUNTBLANK(B:B) with B1 = 2, B1048576 = 10 -> number 1048574.0 (bits 0x412ffffc00000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+            "oracle sparse_blanks!D2 =COUNTBLANK(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 1048572.0 (bits 0x412ffff800000000) (hand-derived; unmeasured choice: A2's empty text is a constant, counted as the page counts a formula's empty text; not compared with Excel)",
+            "oracle sparse_blanks!D3 =COUNTBLANK(A:C) with A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10 -> number 3145721.0 (bits 0x4147fffc80000000) (hand-derived; unmeasured choice: three whole columns less the 7 cells with a value; A2's constant empty text counts; not compared with Excel)",
+            "oracle sparse_blanks!D4 =COUNT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; not compared with Excel)",
+            "oracle sparse_blanks!D5 =COUNTA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; not compared with Excel)",
+            "oracle sparse_blanks!D6 =SUM(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 15.0 (bits 0x402e000000000000) (hand-derived from the documented rule: SUM ignores the text of the cells it reads; not compared with Excel)",
+            "oracle sparse_blanks!D7 =PRODUCT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 105.0 (bits 0x405a400000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; not compared with Excel)",
+            "oracle sparse_blanks!D8 =SUMSQ(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 83.0 (bits 0x4054c00000000000) (hand-derived from the documented rule: only the numbers of a reference count; not compared with Excel)",
+            "oracle sparse_blanks!D9 =AVERAGE(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: the text and empty cells of a reference are ignored; not compared with Excel)",
+            "oracle sparse_blanks!D10 =AVERAGEA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a reference's text and empty text are 0 and its empty cells are skipped: 15 over 5; not compared with Excel)",
+            "oracle sparse_blanks!D11 =MIN(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+            "oracle sparse_blanks!D12 =MAX(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+            "oracle sparse_blanks!D13 =MINA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says; not compared with Excel)",
+            "oracle sparse_blanks!D14 =MAXA(B:B) with B1 = 2, B1048576 = 10 -> number 10.0 (bits 0x4024000000000000) (hand-derived from the documented rule: the empty cells of a reference are ignored; not compared with Excel)",
+            "oracle sparse_blanks!D15 =SUMPRODUCT(A:A,B:B) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7, B1 = 2, B1048576 = 10 -> number 76.0 (bits 0x4053000000000000) (hand-derived from the documented rule: a non-numeric entry, a blank cell included, is treated as 0; not compared with Excel)",
+            "instrumented reader: COUNTBLANK(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+            "instrumented reader: COUNTBLANK(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: COUNTBLANK(A:C): 1 read per column, 3145728 cells, 8 visited, 160 bytes allocated",
+            "instrumented reader: COUNT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: COUNTA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: SUM(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: PRODUCT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: SUMSQ(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: AVERAGE(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: AVERAGEA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MIN(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MAX(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MINA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MAXA(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+            "instrumented reader: SUMPRODUCT(A:A,B:B): 1 read per column, 2097152 cells, 7 visited, 360 bytes allocated",
+            "COUNTBLANK(A1:XFD1048576) through calc_func::invoke = 17179869177 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+            "COUNTA(A1:XFD1048576) through calc_func::invoke = 8 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+            "COUNT(A1:XFD1048576) through calc_func::invoke = 5 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+            "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet sparse_blanks holds exactly the 15 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+            "15 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet sparse_blanks of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 11 from documented rules, 4 unmeasured choices, 0 refused; none is compared with Excel until the owner captures that workbook"
+          ],
+          "outcome": "passed",
+          "package": "calc-func",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.06s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:64009/`"
+        },
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-func",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cfunc_m3_4__sparse_blanks",
+            "--nocapture"
+          ],
+          "browser": "firefox",
+          "case": "cfunc_m3_4__sparse_blanks@firefox",
+          "duration_s": 9.59,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Firefox",
+          "exit_code": 0,
+          "log": "target/accept/cfunc-m3.4/wasm/cfunc_m3_4__sparse_blanks@firefox.log",
+          "notes": [
+            "the sheet holds A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10; every other cell is blank",
+            "oracle sparse_blanks!D1 =COUNTBLANK(B:B) with B1 = 2, B1048576 = 10 -> number 1048574.0 (bits 0x412ffffc00000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+            "oracle sparse_blanks!D2 =COUNTBLANK(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 1048572.0 (bits 0x412ffff800000000) (hand-derived; unmeasured choice: A2's empty text is a constant, counted as the page counts a formula's empty text; not compared with Excel)",
+            "oracle sparse_blanks!D3 =COUNTBLANK(A:C) with A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10 -> number 3145721.0 (bits 0x4147fffc80000000) (hand-derived; unmeasured choice: three whole columns less the 7 cells with a value; A2's constant empty text counts; not compared with Excel)",
+            "oracle sparse_blanks!D4 =COUNT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; not compared with Excel)",
+            "oracle sparse_blanks!D5 =COUNTA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; not compared with Excel)",
+            "oracle sparse_blanks!D6 =SUM(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 15.0 (bits 0x402e000000000000) (hand-derived from the documented rule: SUM ignores the text of the cells it reads; not compared with Excel)",
+            "oracle sparse_blanks!D7 =PRODUCT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 105.0 (bits 0x405a400000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; not compared with Excel)",
+            "oracle sparse_blanks!D8 =SUMSQ(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 83.0 (bits 0x4054c00000000000) (hand-derived from the documented rule: only the numbers of a reference count; not compared with Excel)",
+            "oracle sparse_blanks!D9 =AVERAGE(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: the text and empty cells of a reference are ignored; not compared with Excel)",
+            "oracle sparse_blanks!D10 =AVERAGEA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a reference's text and empty text are 0 and its empty cells are skipped: 15 over 5; not compared with Excel)",
+            "oracle sparse_blanks!D11 =MIN(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+            "oracle sparse_blanks!D12 =MAX(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+            "oracle sparse_blanks!D13 =MINA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says; not compared with Excel)",
+            "oracle sparse_blanks!D14 =MAXA(B:B) with B1 = 2, B1048576 = 10 -> number 10.0 (bits 0x4024000000000000) (hand-derived from the documented rule: the empty cells of a reference are ignored; not compared with Excel)",
+            "oracle sparse_blanks!D15 =SUMPRODUCT(A:A,B:B) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7, B1 = 2, B1048576 = 10 -> number 76.0 (bits 0x4053000000000000) (hand-derived from the documented rule: a non-numeric entry, a blank cell included, is treated as 0; not compared with Excel)",
+            "instrumented reader: COUNTBLANK(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+            "instrumented reader: COUNTBLANK(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: COUNTBLANK(A:C): 1 read per column, 3145728 cells, 8 visited, 160 bytes allocated",
+            "instrumented reader: COUNT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: COUNTA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: SUM(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: PRODUCT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: SUMSQ(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: AVERAGE(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: AVERAGEA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MIN(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MAX(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MINA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+            "instrumented reader: MAXA(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+            "instrumented reader: SUMPRODUCT(A:A,B:B): 1 read per column, 2097152 cells, 7 visited, 360 bytes allocated",
+            "COUNTBLANK(A1:XFD1048576) through calc_func::invoke = 17179869177 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+            "COUNTA(A1:XFD1048576) through calc_func::invoke = 8 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+            "COUNT(A1:XFD1048576) through calc_func::invoke = 5 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+            "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet sparse_blanks holds exactly the 15 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+            "15 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet sparse_blanks of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 11 from documented rules, 4 unmeasured choices, 0 refused; none is compared with Excel until the owner captures that workbook"
+          ],
+          "outcome": "passed",
+          "package": "calc-func",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.02s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:62065/`"
+        }
+      ],
+      "case": "cfunc_m3_4__sparse_blanks",
+      "duration_s": 27.678,
+      "exit_code": 0,
+      "log": null,
+      "notes": [
+        "the sheet holds A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10; every other cell is blank",
+        "oracle sparse_blanks!D1 =COUNTBLANK(B:B) with B1 = 2, B1048576 = 10 -> number 1048574.0 (bits 0x412ffffc00000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+        "oracle sparse_blanks!D2 =COUNTBLANK(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 1048572.0 (bits 0x412ffff800000000) (hand-derived; unmeasured choice: A2's empty text is a constant, counted as the page counts a formula's empty text; not compared with Excel)",
+        "oracle sparse_blanks!D3 =COUNTBLANK(A:C) with A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10 -> number 3145721.0 (bits 0x4147fffc80000000) (hand-derived; unmeasured choice: three whole columns less the 7 cells with a value; A2's constant empty text counts; not compared with Excel)",
+        "oracle sparse_blanks!D4 =COUNT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; not compared with Excel)",
+        "oracle sparse_blanks!D5 =COUNTA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; not compared with Excel)",
+        "oracle sparse_blanks!D6 =SUM(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 15.0 (bits 0x402e000000000000) (hand-derived from the documented rule: SUM ignores the text of the cells it reads; not compared with Excel)",
+        "oracle sparse_blanks!D7 =PRODUCT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 105.0 (bits 0x405a400000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; not compared with Excel)",
+        "oracle sparse_blanks!D8 =SUMSQ(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 83.0 (bits 0x4054c00000000000) (hand-derived from the documented rule: only the numbers of a reference count; not compared with Excel)",
+        "oracle sparse_blanks!D9 =AVERAGE(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: the text and empty cells of a reference are ignored; not compared with Excel)",
+        "oracle sparse_blanks!D10 =AVERAGEA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a reference's text and empty text are 0 and its empty cells are skipped: 15 over 5; not compared with Excel)",
+        "oracle sparse_blanks!D11 =MIN(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+        "oracle sparse_blanks!D12 =MAX(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+        "oracle sparse_blanks!D13 =MINA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says; not compared with Excel)",
+        "oracle sparse_blanks!D14 =MAXA(B:B) with B1 = 2, B1048576 = 10 -> number 10.0 (bits 0x4024000000000000) (hand-derived from the documented rule: the empty cells of a reference are ignored; not compared with Excel)",
+        "oracle sparse_blanks!D15 =SUMPRODUCT(A:A,B:B) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7, B1 = 2, B1048576 = 10 -> number 76.0 (bits 0x4053000000000000) (hand-derived from the documented rule: a non-numeric entry, a blank cell included, is treated as 0; not compared with Excel)",
+        "instrumented reader: COUNTBLANK(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+        "instrumented reader: COUNTBLANK(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: COUNTBLANK(A:C): 1 read per column, 3145728 cells, 8 visited, 160 bytes allocated",
+        "instrumented reader: COUNT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: COUNTA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: SUM(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: PRODUCT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: SUMSQ(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: AVERAGE(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: AVERAGEA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MIN(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MAX(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MINA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MAXA(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+        "instrumented reader: SUMPRODUCT(A:A,B:B): 1 read per column, 2097152 cells, 7 visited, 360 bytes allocated",
+        "COUNTBLANK(A1:XFD1048576) through calc_func::invoke = 17179869177 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+        "COUNTA(A1:XFD1048576) through calc_func::invoke = 8 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+        "COUNT(A1:XFD1048576) through calc_func::invoke = 5 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+        "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet sparse_blanks holds exactly the 15 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+        "15 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet sparse_blanks of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 11 from documented rules, 4 unmeasured choices, 0 refused; none is compared with Excel until the owner captures that workbook",
+        "the sheet holds A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10; every other cell is blank",
+        "oracle sparse_blanks!D1 =COUNTBLANK(B:B) with B1 = 2, B1048576 = 10 -> number 1048574.0 (bits 0x412ffffc00000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+        "oracle sparse_blanks!D2 =COUNTBLANK(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 1048572.0 (bits 0x412ffff800000000) (hand-derived; unmeasured choice: A2's empty text is a constant, counted as the page counts a formula's empty text; not compared with Excel)",
+        "oracle sparse_blanks!D3 =COUNTBLANK(A:C) with A1 = 3, B1 = 2, A2 = empty text, A3 = text \"x\", C500 = TRUE, A1000 = 5, A1048576 = 7, B1048576 = 10 -> number 3145721.0 (bits 0x4147fffc80000000) (hand-derived; unmeasured choice: three whole columns less the 7 cells with a value; A2's constant empty text counts; not compared with Excel)",
+        "oracle sparse_blanks!D4 =COUNT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; not compared with Excel)",
+        "oracle sparse_blanks!D5 =COUNTA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; not compared with Excel)",
+        "oracle sparse_blanks!D6 =SUM(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 15.0 (bits 0x402e000000000000) (hand-derived from the documented rule: SUM ignores the text of the cells it reads; not compared with Excel)",
+        "oracle sparse_blanks!D7 =PRODUCT(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 105.0 (bits 0x405a400000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; not compared with Excel)",
+        "oracle sparse_blanks!D8 =SUMSQ(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 83.0 (bits 0x4054c00000000000) (hand-derived from the documented rule: only the numbers of a reference count; not compared with Excel)",
+        "oracle sparse_blanks!D9 =AVERAGE(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: the text and empty cells of a reference are ignored; not compared with Excel)",
+        "oracle sparse_blanks!D10 =AVERAGEA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a reference's text and empty text are 0 and its empty cells are skipped: 15 over 5; not compared with Excel)",
+        "oracle sparse_blanks!D11 =MIN(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+        "oracle sparse_blanks!D12 =MAX(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; not compared with Excel)",
+        "oracle sparse_blanks!D13 =MINA(A:A) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7 -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says; not compared with Excel)",
+        "oracle sparse_blanks!D14 =MAXA(B:B) with B1 = 2, B1048576 = 10 -> number 10.0 (bits 0x4024000000000000) (hand-derived from the documented rule: the empty cells of a reference are ignored; not compared with Excel)",
+        "oracle sparse_blanks!D15 =SUMPRODUCT(A:A,B:B) with A1 = 3, A2 = empty text, A3 = text \"x\", A1000 = 5, A1048576 = 7, B1 = 2, B1048576 = 10 -> number 76.0 (bits 0x4053000000000000) (hand-derived from the documented rule: a non-numeric entry, a blank cell included, is treated as 0; not compared with Excel)",
+        "instrumented reader: COUNTBLANK(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+        "instrumented reader: COUNTBLANK(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: COUNTBLANK(A:C): 1 read per column, 3145728 cells, 8 visited, 160 bytes allocated",
+        "instrumented reader: COUNT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: COUNTA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: SUM(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: PRODUCT(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: SUMSQ(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: AVERAGE(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: AVERAGEA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MIN(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MAX(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MINA(A:A): 1 read per column, 1048576 cells, 5 visited, 160 bytes allocated",
+        "instrumented reader: MAXA(B:B): 1 read per column, 1048576 cells, 2 visited, 160 bytes allocated",
+        "instrumented reader: SUMPRODUCT(A:A,B:B): 1 read per column, 2097152 cells, 7 visited, 360 bytes allocated",
+        "COUNTBLANK(A1:XFD1048576) through calc_func::invoke = 17179869177 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+        "COUNTA(A1:XFD1048576) through calc_func::invoke = 8 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+        "COUNT(A1:XFD1048576) through calc_func::invoke = 5 over 17179869184 cells; the reader was asked for 1 area and visited 8 cells; 160 bytes allocated",
+        "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet sparse_blanks holds exactly the 15 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+        "15 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet sparse_blanks of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 11 from documented rules, 4 unmeasured choices, 0 refused; none is compared with Excel until the owner captures that workbook"
+      ],
+      "outcome": "passed",
+      "package": "calc-func",
+      "reason": null,
+      "result_line": null
+    },
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-func",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--",
+        "--exact",
+        "cfunc_m3_4__argument_classes",
+        "--nocapture"
+      ],
+      "browsers": [
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-func",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cfunc_m3_4__argument_classes",
+            "--nocapture"
+          ],
+          "browser": "chromium",
+          "case": "cfunc_m3_4__argument_classes@chromium",
+          "duration_s": 9.394,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Chrome",
+          "exit_code": 0,
+          "log": "target/accept/cfunc-m3.4/wasm/cfunc_m3_4__argument_classes@chromium.log",
+          "notes": [
+            "the sheet holds A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10; A5 is blank",
+            "oracle argument_classes!D1 =SUM(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: only the numbers a reference holds are added: the SUM page states that its text is ignored, and cfunc-m1.2 skips its logicals and blank cells the same way; not compared with Excel)",
+            "oracle argument_classes!D2 =SUM(1E16,1,-1E16) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: the sequential left fold in reading order: 1E16+1 rounds to 1E16 before -1E16 is added (the reduction order cfunc-m3.23 is to document); not compared with Excel)",
+            "oracle argument_classes!D3 =SUM(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the SUM page is silent; not compared with Excel)",
+            "oracle argument_classes!D4 =SUM(2,TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a logical typed as an argument is read as a number, TRUE as 1, where a logical a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+            "oracle argument_classes!D5 =SUM(2,\"3\") -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: number text typed as an argument is read as a number, where number text a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+            "oracle argument_classes!D6 =PRODUCT(2,3,4) -> number 24.0 (bits 0x4038000000000000) (hand-derived from the documented rule: PRODUCT multiplies the numbers given as its arguments; not compared with Excel)",
+            "oracle argument_classes!D7 =PRODUCT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D8 =PRODUCT({2,\"x\",TRUE}) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of an array are multiplied; its logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D9 =PRODUCT(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: logicals and number text typed as arguments are read as numbers, as the SUMSQ, MIN and MAX pages state; the PRODUCT page is silent; not compared with Excel)",
+            "oracle argument_classes!D10 =PRODUCT(\"a\") -> #VALUE! (hand-derived; unmeasured choice: typed text that does not read as a number is #VALUE!, as the SUMSQ page states; the PRODUCT page is silent; not compared with Excel)",
+            "oracle argument_classes!D11 =PRODUCT(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: no number to multiply gives 0; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D12 =PRODUCT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D13 =PRODUCT(2,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+            "oracle argument_classes!D14 =PRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+            "oracle argument_classes!D15 =SUMSQ(2,3,4) -> number 29.0 (bits 0x403d000000000000) (hand-derived from the documented rule: SUMSQ adds the squares of its numbers; not compared with Excel)",
+            "oracle argument_classes!D16 =SUMSQ(\"2\",TRUE) -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D17 =SUMSQ(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D18 =SUMSQ(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 17.0 (bits 0x4031000000000000) (hand-derived from the documented rule: only the numbers of a reference count; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D19 =SUMSQ({3,TRUE}) -> number 9.0 (bits 0x4022000000000000) (hand-derived from the documented rule: only the numbers of an array count; not compared with Excel)",
+            "oracle argument_classes!D20 =SUMSQ(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: divergent from the SUMSQ page, which says an error value in a reference is ignored: this kernel returns it, as every other aggregate here does; not compared with Excel)",
+            "oracle argument_classes!D21 =SUMSQ(1E-200) -> NotImplemented (argument None) (refused as not modelled: a square of a non-zero number that underflows; not compared with Excel)",
+            "oracle argument_classes!D22 =SUMPRODUCT({1,2},{3,4}) -> number 11.0 (bits 0x4026000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products; not compared with Excel)",
+            "oracle argument_classes!D23 =SUMPRODUCT({1,4,9}) -> number 14.0 (bits 0x402c000000000000) (hand-derived from the documented rule: the products of corresponding entries of the arrays given, here one, are added; not compared with Excel)",
+            "oracle argument_classes!D24 =SUMPRODUCT({1,TRUE},{3,4}) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+            "oracle argument_classes!D25 =SUMPRODUCT(A1:A8,C1:C8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE, C1 = 10, C2 = 10, C3 = 10, C4 = 10, C5 = 10, C6 = 10, C7 = 0.5, C8 = 10 -> number 12.0 (bits 0x4028000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+            "oracle argument_classes!D26 =SUMPRODUCT(A7:A8,C6:C7) with A7 = 4, A8 = FALSE, C6 = 10, C7 = 0.5 -> number 40.0 (bits 0x4044000000000000) (hand-derived from the documented rule: corresponding entries are those at one position of each array, here of areas that start on different rows: A7 times C6, plus A8, a logical and so 0, times C7; not compared with Excel)",
+            "oracle argument_classes!D27 =SUMPRODUCT({1,2},3) -> #VALUE! (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array, so its dimensions differ from {1,2}'s, and arrays of different dimensions are #VALUE! (documented); not compared with Excel)",
+            "oracle argument_classes!D28 =SUMPRODUCT(B1:B3,C1:C3) with B1 = 5, B2 = #DIV/0!, B3 = -3, C1 = 10, C2 = 10, C3 = 10 -> #DIV/0! (hand-derived; unmeasured choice: an error entry is the result; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D29 =SUMPRODUCT({1,2},{1,2,3},{1,#N/A}) -> #N/A (hand-derived; unmeasured choice: every argument is read before the dimensions are compared, so an error entry of the third array comes before the #VALUE! of the first two; not compared with Excel)",
+            "oracle argument_classes!D30 =SUMPRODUCT(2,3) -> number 6.0 (bits 0x4018000000000000) (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array; not compared with Excel)",
+            "oracle argument_classes!D31 =SUMPRODUCT(\"3\") -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: text given directly, number text included, is a non-numeric 1-by-1 entry, so 0; not compared with Excel)",
+            "oracle argument_classes!D32 =SUMPRODUCT(A1:A2,) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived; unmeasured choice: an omitted argument is #VALUE!; not compared with Excel)",
+            "oracle argument_classes!D33 =SUMPRODUCT((A1,A7)) with A1 = 1, A7 = 4 -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D34 =SUMPRODUCT(A1:A3,C1:C2) with A1 = 1, A2 = text \"2\", A3 = TRUE, C1 = 10, C2 = 10 -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a reference of three rows and one of two; not compared with Excel)",
+            "oracle argument_classes!D35 =SUMPRODUCT(A1:A2,{1,2}) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a column of two cells and a row of two entries; not compared with Excel)",
+            "oracle argument_classes!D36 =SUMPRODUCT(C1:C2,{1;2}) with C1 = 10, C2 = 10 -> number 30.0 (bits 0x403e000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products, here of a column of two cells and a column of two entries; not compared with Excel)",
+            "oracle argument_classes!D37 =SUMPRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+            "oracle argument_classes!D38 =COUNT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; its empty cells, logicals, text and errors are not; not compared with Excel)",
+            "oracle argument_classes!D39 =COUNT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: an error value in a reference is not counted; not compared with Excel)",
+            "oracle argument_classes!D40 =COUNT((A1:A2,B2:B3)) with A1 = 1, A2 = text \"2\", B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: only the numbers of each area are counted: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D41 =COUNT(1,\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: numbers, number text and logicals typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D42 =COUNT(\"a\",#N/A,\"\") -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: errors and text that cannot be read as a number are not counted; not compared with Excel)",
+            "oracle argument_classes!D43 =COUNT({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of an array are counted; not compared with Excel)",
+            "oracle argument_classes!D44 =COUNT(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+            "oracle argument_classes!D45 =COUNT(\"1/2\") -> NotImplemented (argument Some(0)) (refused as not modelled: typed text that Excel's number-text rules may read as a date (cfml-m2.6); not compared with Excel)",
+            "oracle argument_classes!D46 =COUNTA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; an empty cell is not; not compared with Excel)",
+            "oracle argument_classes!D47 =COUNTA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: error values are counted; not compared with Excel)",
+            "oracle argument_classes!D48 =COUNTA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is not counted; not compared with Excel)",
+            "oracle argument_classes!D49 =COUNTA(\"a\",#N/A,FALSE,\"\") -> number 4.0 (bits 0x4010000000000000) (hand-derived; unmeasured choice: every value typed as an argument is counted; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D50 =COUNTA({1,\"2\",TRUE}) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: every element of an array is counted; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D51 =COUNTA(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+            "oracle argument_classes!D52 =COUNTBLANK(A5) with A5 blank -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+            "oracle argument_classes!D53 =COUNTBLANK(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only empty cells and cells whose formula gives empty text are counted; not compared with Excel)",
+            "oracle argument_classes!D54 =COUNTBLANK(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: the empty A5 counts (documented), and so does A6, whose empty text is a constant, as the page counts a formula's empty text; not compared with Excel)",
+            "oracle argument_classes!D55 =COUNTBLANK(A1:C8) with A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10 -> number 7.0 (bits 0x401c000000000000) (hand-derived; unmeasured choice: A5, A6 and the empty B4:B8 count; A6 holds empty text as a constant; not compared with Excel)",
+            "oracle argument_classes!D56 =COUNTBLANK((A5,A6)) with A6 = empty text -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D57 =COUNTBLANK(#REF!) -> ReferenceRequired (argument 0) (refused with ReferenceRequired { id: FunctionId(4.7), index: 0 }: an error value given for the reference-only parameter is refused at admission; Excel likely returns the error (unmeasured); not compared with Excel)",
+            "oracle argument_classes!D58 =AVERAGE(1,2,5) -> number 2.6666666666666665 (bits 0x4005555555555555) (hand-derived from the documented rule: the arithmetic mean of its numbers: 8 divided by 3, rounded once; not compared with Excel)",
+            "oracle argument_classes!D59 =AVERAGE(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.5 (bits 0x4004000000000000) (hand-derived from the documented rule: the text, logicals and empty cells of a reference are ignored; not compared with Excel)",
+            "oracle argument_classes!D60 =AVERAGE((A7,B3)) with B3 = -3, A7 = 4 -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: the numbers of every area are averaged: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D61 =AVERAGE(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D62 =AVERAGE(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D63 =AVERAGE(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived; unmeasured choice: divergent from the AVERAGE page, which says logicals and number text typed as arguments are not counted: this kernel counts them, as the MIN, MAX, COUNT, SUMSQ and AVERAGEA pages state for those functions; not compared with Excel)",
+            "oracle argument_classes!D64 =AVERAGE(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> #DIV/0! (hand-derived; unmeasured choice: with nothing counted the total is divided by 0, #DIV/0!; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D65 =AVERAGE({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells; not compared with Excel)",
+            "oracle argument_classes!D66 =AVERAGE(1,) -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+            "oracle argument_classes!D67 =AVERAGE(1E308,1E308) -> #NUM! (hand-derived; unmeasured choice: a total that overflows is #NUM!; not compared with Excel)",
+            "oracle argument_classes!D68 =AVERAGEA(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D69 =AVERAGEA((A3,A8)) with A3 = TRUE, A8 = FALSE -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1 and its FALSE 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D70 =AVERAGEA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 0.8571428571428571 (bits 0x3feb6db6db6db6db) (hand-derived; unmeasured choice: a reference's text and empty text are 0, as the page's worked example computes although another remark there calls text ignored; TRUE is 1, FALSE 0 and the empty A5 is skipped: 6 divided by 7, rounded once; not compared with Excel)",
+            "oracle argument_classes!D71 =AVERAGEA(A5) with A5 blank -> #DIV/0! (hand-derived; unmeasured choice: an empty cell is ignored (documented); with nothing counted the result is #DIV/0!; not compared with Excel)",
+            "oracle argument_classes!D72 =AVERAGEA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D73 =AVERAGEA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D74 =AVERAGEA({1,\"2\",TRUE}) -> number 0.6666666666666666 (bits 0x3fe5555555555555) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells: text 0, TRUE 1; not compared with Excel)",
+            "oracle argument_classes!D75 =MIN(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D76 =MIN(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D77 =MIN(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+            "oracle argument_classes!D78 =MIN(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D79 =MIN(5,\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D80 =MIN({TRUE,\"1\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only the numbers of an array are used, and with none the result is 0; not compared with Excel)",
+            "oracle argument_classes!D81 =MIN(1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+            "oracle argument_classes!D82 =MAX(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D83 =MAX(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D84 =MAX((A4,B3)) with B3 = -3, A4 = text \"a\" -> number -3.0 (bits 0xc008000000000000) (hand-derived; unmeasured choice: only the numbers of each area are used, so its text is not 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D85 =MAX(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D86 =MAX(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+            "oracle argument_classes!D87 =MAX(-1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+            "oracle argument_classes!D88 =MINA((A3,A7)) with A3 = TRUE, A7 = 4 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D89 =MINA(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D90 =MINA(A1:A4) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says while another calls it ignored; not compared with Excel)",
+            "oracle argument_classes!D91 =MINA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is ignored, and with no values the result is 0; not compared with Excel)",
+            "oracle argument_classes!D92 =MINA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D93 =MAXA((A3,B3)) with A3 = TRUE, B3 = -3 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D94 =MAXA(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D95 =MAXA((A4,B3)) with B3 = -3, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, which exceeds -3; were it ignored, as another remark of the page says, the result would be -3; not compared with Excel)",
+            "oracle argument_classes!D96 =MAXA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D97 =MAXA({-1,\"a\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an array's text is 0, as the rule for a reference's cells reads it; not compared with Excel)",
+            "the catalogue's family 4 holds exactly the 13 entries [\"SUM\", \"PRODUCT\", \"SUMSQ\", \"SUMPRODUCT\", \"COUNT\", \"COUNTA\", \"COUNTBLANK\", \"AVERAGE\", \"AVERAGEA\", \"MIN\", \"MAX\", \"MINA\", \"MAXA\"], each eager; COUNTBLANK takes one reference-only argument and the others 1 to 255 values or references; the per-ID manifest of migration/ports/cfunc-m3.4.json lists the same IDs and spellings",
+            "through the call interface alone: COUNTBLANK refuses a number, an array and an omitted argument with ReferenceRequired; a direct Empty reads as an omitted argument (unmeasured choice); each aggregate refuses an array held in an array naming it, COUNT and COUNTA refuse NaN and infinity naming them; 26 calls over a reference without a reader or with a refusing one ended in ReferenceUnreadable naming the argument",
+            "under NumericMode::Exact 8 calls that round (sums, products, averages over A1:A8, SUMPRODUCT(C1:C8), which adds with no multiplication, and MIN reading number text) were refused with ExactUnavailable, and 10 calls that reach no arithmetic site (counts, extremes, an average and a product of nothing) computed the value of their Fast oracle row",
+            "12 calls over a reader that also visits every blank cell as Empty gave the values of their Fast oracle rows",
+            "SUM(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+            "COUNT(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+            "SUMPRODUCT(C6:C7) = 10.5 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Reversed",
+            "COUNTBLANK(A1) = 0 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Twice",
+            "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet argument_classes holds exactly the 97 oracle rows' formulas in column D, in row order, and the 18 cells the rows read",
+            "the generator runs under Windows PowerShell, so the check that the committed aggregate oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
+            "97 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet argument_classes of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 48 from documented rules, 42 unmeasured choices, 7 refused; none is compared with Excel until the owner captures that workbook"
+          ],
+          "outcome": "passed",
+          "package": "calc-func",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.11s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60638/`"
+        },
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-func",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cfunc_m3_4__argument_classes",
+            "--nocapture"
+          ],
+          "browser": "firefox",
+          "case": "cfunc_m3_4__argument_classes@firefox",
+          "duration_s": 13.481,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Firefox",
+          "exit_code": 0,
+          "log": "target/accept/cfunc-m3.4/wasm/cfunc_m3_4__argument_classes@firefox.log",
+          "notes": [
+            "the sheet holds A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10; A5 is blank",
+            "oracle argument_classes!D1 =SUM(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: only the numbers a reference holds are added: the SUM page states that its text is ignored, and cfunc-m1.2 skips its logicals and blank cells the same way; not compared with Excel)",
+            "oracle argument_classes!D2 =SUM(1E16,1,-1E16) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: the sequential left fold in reading order: 1E16+1 rounds to 1E16 before -1E16 is added (the reduction order cfunc-m3.23 is to document); not compared with Excel)",
+            "oracle argument_classes!D3 =SUM(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the SUM page is silent; not compared with Excel)",
+            "oracle argument_classes!D4 =SUM(2,TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a logical typed as an argument is read as a number, TRUE as 1, where a logical a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+            "oracle argument_classes!D5 =SUM(2,\"3\") -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: number text typed as an argument is read as a number, where number text a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+            "oracle argument_classes!D6 =PRODUCT(2,3,4) -> number 24.0 (bits 0x4038000000000000) (hand-derived from the documented rule: PRODUCT multiplies the numbers given as its arguments; not compared with Excel)",
+            "oracle argument_classes!D7 =PRODUCT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D8 =PRODUCT({2,\"x\",TRUE}) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of an array are multiplied; its logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D9 =PRODUCT(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: logicals and number text typed as arguments are read as numbers, as the SUMSQ, MIN and MAX pages state; the PRODUCT page is silent; not compared with Excel)",
+            "oracle argument_classes!D10 =PRODUCT(\"a\") -> #VALUE! (hand-derived; unmeasured choice: typed text that does not read as a number is #VALUE!, as the SUMSQ page states; the PRODUCT page is silent; not compared with Excel)",
+            "oracle argument_classes!D11 =PRODUCT(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: no number to multiply gives 0; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D12 =PRODUCT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D13 =PRODUCT(2,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+            "oracle argument_classes!D14 =PRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+            "oracle argument_classes!D15 =SUMSQ(2,3,4) -> number 29.0 (bits 0x403d000000000000) (hand-derived from the documented rule: SUMSQ adds the squares of its numbers; not compared with Excel)",
+            "oracle argument_classes!D16 =SUMSQ(\"2\",TRUE) -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D17 =SUMSQ(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D18 =SUMSQ(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 17.0 (bits 0x4031000000000000) (hand-derived from the documented rule: only the numbers of a reference count; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D19 =SUMSQ({3,TRUE}) -> number 9.0 (bits 0x4022000000000000) (hand-derived from the documented rule: only the numbers of an array count; not compared with Excel)",
+            "oracle argument_classes!D20 =SUMSQ(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: divergent from the SUMSQ page, which says an error value in a reference is ignored: this kernel returns it, as every other aggregate here does; not compared with Excel)",
+            "oracle argument_classes!D21 =SUMSQ(1E-200) -> NotImplemented (argument None) (refused as not modelled: a square of a non-zero number that underflows; not compared with Excel)",
+            "oracle argument_classes!D22 =SUMPRODUCT({1,2},{3,4}) -> number 11.0 (bits 0x4026000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products; not compared with Excel)",
+            "oracle argument_classes!D23 =SUMPRODUCT({1,4,9}) -> number 14.0 (bits 0x402c000000000000) (hand-derived from the documented rule: the products of corresponding entries of the arrays given, here one, are added; not compared with Excel)",
+            "oracle argument_classes!D24 =SUMPRODUCT({1,TRUE},{3,4}) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+            "oracle argument_classes!D25 =SUMPRODUCT(A1:A8,C1:C8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE, C1 = 10, C2 = 10, C3 = 10, C4 = 10, C5 = 10, C6 = 10, C7 = 0.5, C8 = 10 -> number 12.0 (bits 0x4028000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+            "oracle argument_classes!D26 =SUMPRODUCT(A7:A8,C6:C7) with A7 = 4, A8 = FALSE, C6 = 10, C7 = 0.5 -> number 40.0 (bits 0x4044000000000000) (hand-derived from the documented rule: corresponding entries are those at one position of each array, here of areas that start on different rows: A7 times C6, plus A8, a logical and so 0, times C7; not compared with Excel)",
+            "oracle argument_classes!D27 =SUMPRODUCT({1,2},3) -> #VALUE! (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array, so its dimensions differ from {1,2}'s, and arrays of different dimensions are #VALUE! (documented); not compared with Excel)",
+            "oracle argument_classes!D28 =SUMPRODUCT(B1:B3,C1:C3) with B1 = 5, B2 = #DIV/0!, B3 = -3, C1 = 10, C2 = 10, C3 = 10 -> #DIV/0! (hand-derived; unmeasured choice: an error entry is the result; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D29 =SUMPRODUCT({1,2},{1,2,3},{1,#N/A}) -> #N/A (hand-derived; unmeasured choice: every argument is read before the dimensions are compared, so an error entry of the third array comes before the #VALUE! of the first two; not compared with Excel)",
+            "oracle argument_classes!D30 =SUMPRODUCT(2,3) -> number 6.0 (bits 0x4018000000000000) (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array; not compared with Excel)",
+            "oracle argument_classes!D31 =SUMPRODUCT(\"3\") -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: text given directly, number text included, is a non-numeric 1-by-1 entry, so 0; not compared with Excel)",
+            "oracle argument_classes!D32 =SUMPRODUCT(A1:A2,) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived; unmeasured choice: an omitted argument is #VALUE!; not compared with Excel)",
+            "oracle argument_classes!D33 =SUMPRODUCT((A1,A7)) with A1 = 1, A7 = 4 -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D34 =SUMPRODUCT(A1:A3,C1:C2) with A1 = 1, A2 = text \"2\", A3 = TRUE, C1 = 10, C2 = 10 -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a reference of three rows and one of two; not compared with Excel)",
+            "oracle argument_classes!D35 =SUMPRODUCT(A1:A2,{1,2}) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a column of two cells and a row of two entries; not compared with Excel)",
+            "oracle argument_classes!D36 =SUMPRODUCT(C1:C2,{1;2}) with C1 = 10, C2 = 10 -> number 30.0 (bits 0x403e000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products, here of a column of two cells and a column of two entries; not compared with Excel)",
+            "oracle argument_classes!D37 =SUMPRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+            "oracle argument_classes!D38 =COUNT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; its empty cells, logicals, text and errors are not; not compared with Excel)",
+            "oracle argument_classes!D39 =COUNT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: an error value in a reference is not counted; not compared with Excel)",
+            "oracle argument_classes!D40 =COUNT((A1:A2,B2:B3)) with A1 = 1, A2 = text \"2\", B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: only the numbers of each area are counted: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D41 =COUNT(1,\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: numbers, number text and logicals typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D42 =COUNT(\"a\",#N/A,\"\") -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: errors and text that cannot be read as a number are not counted; not compared with Excel)",
+            "oracle argument_classes!D43 =COUNT({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of an array are counted; not compared with Excel)",
+            "oracle argument_classes!D44 =COUNT(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+            "oracle argument_classes!D45 =COUNT(\"1/2\") -> NotImplemented (argument Some(0)) (refused as not modelled: typed text that Excel's number-text rules may read as a date (cfml-m2.6); not compared with Excel)",
+            "oracle argument_classes!D46 =COUNTA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; an empty cell is not; not compared with Excel)",
+            "oracle argument_classes!D47 =COUNTA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: error values are counted; not compared with Excel)",
+            "oracle argument_classes!D48 =COUNTA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is not counted; not compared with Excel)",
+            "oracle argument_classes!D49 =COUNTA(\"a\",#N/A,FALSE,\"\") -> number 4.0 (bits 0x4010000000000000) (hand-derived; unmeasured choice: every value typed as an argument is counted; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D50 =COUNTA({1,\"2\",TRUE}) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: every element of an array is counted; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D51 =COUNTA(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+            "oracle argument_classes!D52 =COUNTBLANK(A5) with A5 blank -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+            "oracle argument_classes!D53 =COUNTBLANK(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only empty cells and cells whose formula gives empty text are counted; not compared with Excel)",
+            "oracle argument_classes!D54 =COUNTBLANK(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: the empty A5 counts (documented), and so does A6, whose empty text is a constant, as the page counts a formula's empty text; not compared with Excel)",
+            "oracle argument_classes!D55 =COUNTBLANK(A1:C8) with A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10 -> number 7.0 (bits 0x401c000000000000) (hand-derived; unmeasured choice: A5, A6 and the empty B4:B8 count; A6 holds empty text as a constant; not compared with Excel)",
+            "oracle argument_classes!D56 =COUNTBLANK((A5,A6)) with A6 = empty text -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D57 =COUNTBLANK(#REF!) -> ReferenceRequired (argument 0) (refused with ReferenceRequired { id: FunctionId(4.7), index: 0 }: an error value given for the reference-only parameter is refused at admission; Excel likely returns the error (unmeasured); not compared with Excel)",
+            "oracle argument_classes!D58 =AVERAGE(1,2,5) -> number 2.6666666666666665 (bits 0x4005555555555555) (hand-derived from the documented rule: the arithmetic mean of its numbers: 8 divided by 3, rounded once; not compared with Excel)",
+            "oracle argument_classes!D59 =AVERAGE(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.5 (bits 0x4004000000000000) (hand-derived from the documented rule: the text, logicals and empty cells of a reference are ignored; not compared with Excel)",
+            "oracle argument_classes!D60 =AVERAGE((A7,B3)) with B3 = -3, A7 = 4 -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: the numbers of every area are averaged: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D61 =AVERAGE(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D62 =AVERAGE(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D63 =AVERAGE(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived; unmeasured choice: divergent from the AVERAGE page, which says logicals and number text typed as arguments are not counted: this kernel counts them, as the MIN, MAX, COUNT, SUMSQ and AVERAGEA pages state for those functions; not compared with Excel)",
+            "oracle argument_classes!D64 =AVERAGE(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> #DIV/0! (hand-derived; unmeasured choice: with nothing counted the total is divided by 0, #DIV/0!; the page is silent; not compared with Excel)",
+            "oracle argument_classes!D65 =AVERAGE({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells; not compared with Excel)",
+            "oracle argument_classes!D66 =AVERAGE(1,) -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+            "oracle argument_classes!D67 =AVERAGE(1E308,1E308) -> #NUM! (hand-derived; unmeasured choice: a total that overflows is #NUM!; not compared with Excel)",
+            "oracle argument_classes!D68 =AVERAGEA(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D69 =AVERAGEA((A3,A8)) with A3 = TRUE, A8 = FALSE -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1 and its FALSE 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D70 =AVERAGEA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 0.8571428571428571 (bits 0x3feb6db6db6db6db) (hand-derived; unmeasured choice: a reference's text and empty text are 0, as the page's worked example computes although another remark there calls text ignored; TRUE is 1, FALSE 0 and the empty A5 is skipped: 6 divided by 7, rounded once; not compared with Excel)",
+            "oracle argument_classes!D71 =AVERAGEA(A5) with A5 blank -> #DIV/0! (hand-derived; unmeasured choice: an empty cell is ignored (documented); with nothing counted the result is #DIV/0!; not compared with Excel)",
+            "oracle argument_classes!D72 =AVERAGEA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D73 =AVERAGEA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D74 =AVERAGEA({1,\"2\",TRUE}) -> number 0.6666666666666666 (bits 0x3fe5555555555555) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells: text 0, TRUE 1; not compared with Excel)",
+            "oracle argument_classes!D75 =MIN(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D76 =MIN(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D77 =MIN(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+            "oracle argument_classes!D78 =MIN(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D79 =MIN(5,\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D80 =MIN({TRUE,\"1\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only the numbers of an array are used, and with none the result is 0; not compared with Excel)",
+            "oracle argument_classes!D81 =MIN(1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+            "oracle argument_classes!D82 =MAX(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+            "oracle argument_classes!D83 =MAX(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D84 =MAX((A4,B3)) with B3 = -3, A4 = text \"a\" -> number -3.0 (bits 0xc008000000000000) (hand-derived; unmeasured choice: only the numbers of each area are used, so its text is not 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D85 =MAX(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D86 =MAX(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+            "oracle argument_classes!D87 =MAX(-1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+            "oracle argument_classes!D88 =MINA((A3,A7)) with A3 = TRUE, A7 = 4 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D89 =MINA(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D90 =MINA(A1:A4) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says while another calls it ignored; not compared with Excel)",
+            "oracle argument_classes!D91 =MINA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is ignored, and with no values the result is 0; not compared with Excel)",
+            "oracle argument_classes!D92 =MINA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+            "oracle argument_classes!D93 =MAXA((A3,B3)) with A3 = TRUE, B3 = -3 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+            "oracle argument_classes!D94 =MAXA(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+            "oracle argument_classes!D95 =MAXA((A4,B3)) with B3 = -3, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, which exceeds -3; were it ignored, as another remark of the page says, the result would be -3; not compared with Excel)",
+            "oracle argument_classes!D96 =MAXA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+            "oracle argument_classes!D97 =MAXA({-1,\"a\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an array's text is 0, as the rule for a reference's cells reads it; not compared with Excel)",
+            "the catalogue's family 4 holds exactly the 13 entries [\"SUM\", \"PRODUCT\", \"SUMSQ\", \"SUMPRODUCT\", \"COUNT\", \"COUNTA\", \"COUNTBLANK\", \"AVERAGE\", \"AVERAGEA\", \"MIN\", \"MAX\", \"MINA\", \"MAXA\"], each eager; COUNTBLANK takes one reference-only argument and the others 1 to 255 values or references; the per-ID manifest of migration/ports/cfunc-m3.4.json lists the same IDs and spellings",
+            "through the call interface alone: COUNTBLANK refuses a number, an array and an omitted argument with ReferenceRequired; a direct Empty reads as an omitted argument (unmeasured choice); each aggregate refuses an array held in an array naming it, COUNT and COUNTA refuse NaN and infinity naming them; 26 calls over a reference without a reader or with a refusing one ended in ReferenceUnreadable naming the argument",
+            "under NumericMode::Exact 8 calls that round (sums, products, averages over A1:A8, SUMPRODUCT(C1:C8), which adds with no multiplication, and MIN reading number text) were refused with ExactUnavailable, and 10 calls that reach no arithmetic site (counts, extremes, an average and a product of nothing) computed the value of their Fast oracle row",
+            "12 calls over a reader that also visits every blank cell as Empty gave the values of their Fast oracle rows",
+            "SUM(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+            "COUNT(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+            "SUMPRODUCT(C6:C7) = 10.5 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Reversed",
+            "COUNTBLANK(A1) = 0 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Twice",
+            "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet argument_classes holds exactly the 97 oracle rows' formulas in column D, in row order, and the 18 cells the rows read",
+            "the generator runs under Windows PowerShell, so the check that the committed aggregate oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
+            "97 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet argument_classes of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 48 from documented rules, 42 unmeasured choices, 7 refused; none is compared with Excel until the owner captures that workbook"
+          ],
+          "outcome": "passed",
+          "package": "calc-func",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.06s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:62085/`"
+        }
+      ],
+      "case": "cfunc_m3_4__argument_classes",
+      "duration_s": 22.875,
+      "exit_code": 0,
+      "log": null,
+      "notes": [
+        "the sheet holds A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10; A5 is blank",
+        "oracle argument_classes!D1 =SUM(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: only the numbers a reference holds are added: the SUM page states that its text is ignored, and cfunc-m1.2 skips its logicals and blank cells the same way; not compared with Excel)",
+        "oracle argument_classes!D2 =SUM(1E16,1,-1E16) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: the sequential left fold in reading order: 1E16+1 rounds to 1E16 before -1E16 is added (the reduction order cfunc-m3.23 is to document); not compared with Excel)",
+        "oracle argument_classes!D3 =SUM(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the SUM page is silent; not compared with Excel)",
+        "oracle argument_classes!D4 =SUM(2,TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a logical typed as an argument is read as a number, TRUE as 1, where a logical a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+        "oracle argument_classes!D5 =SUM(2,\"3\") -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: number text typed as an argument is read as a number, where number text a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+        "oracle argument_classes!D6 =PRODUCT(2,3,4) -> number 24.0 (bits 0x4038000000000000) (hand-derived from the documented rule: PRODUCT multiplies the numbers given as its arguments; not compared with Excel)",
+        "oracle argument_classes!D7 =PRODUCT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D8 =PRODUCT({2,\"x\",TRUE}) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of an array are multiplied; its logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D9 =PRODUCT(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: logicals and number text typed as arguments are read as numbers, as the SUMSQ, MIN and MAX pages state; the PRODUCT page is silent; not compared with Excel)",
+        "oracle argument_classes!D10 =PRODUCT(\"a\") -> #VALUE! (hand-derived; unmeasured choice: typed text that does not read as a number is #VALUE!, as the SUMSQ page states; the PRODUCT page is silent; not compared with Excel)",
+        "oracle argument_classes!D11 =PRODUCT(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: no number to multiply gives 0; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D12 =PRODUCT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D13 =PRODUCT(2,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+        "oracle argument_classes!D14 =PRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+        "oracle argument_classes!D15 =SUMSQ(2,3,4) -> number 29.0 (bits 0x403d000000000000) (hand-derived from the documented rule: SUMSQ adds the squares of its numbers; not compared with Excel)",
+        "oracle argument_classes!D16 =SUMSQ(\"2\",TRUE) -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D17 =SUMSQ(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D18 =SUMSQ(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 17.0 (bits 0x4031000000000000) (hand-derived from the documented rule: only the numbers of a reference count; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D19 =SUMSQ({3,TRUE}) -> number 9.0 (bits 0x4022000000000000) (hand-derived from the documented rule: only the numbers of an array count; not compared with Excel)",
+        "oracle argument_classes!D20 =SUMSQ(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: divergent from the SUMSQ page, which says an error value in a reference is ignored: this kernel returns it, as every other aggregate here does; not compared with Excel)",
+        "oracle argument_classes!D21 =SUMSQ(1E-200) -> NotImplemented (argument None) (refused as not modelled: a square of a non-zero number that underflows; not compared with Excel)",
+        "oracle argument_classes!D22 =SUMPRODUCT({1,2},{3,4}) -> number 11.0 (bits 0x4026000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products; not compared with Excel)",
+        "oracle argument_classes!D23 =SUMPRODUCT({1,4,9}) -> number 14.0 (bits 0x402c000000000000) (hand-derived from the documented rule: the products of corresponding entries of the arrays given, here one, are added; not compared with Excel)",
+        "oracle argument_classes!D24 =SUMPRODUCT({1,TRUE},{3,4}) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+        "oracle argument_classes!D25 =SUMPRODUCT(A1:A8,C1:C8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE, C1 = 10, C2 = 10, C3 = 10, C4 = 10, C5 = 10, C6 = 10, C7 = 0.5, C8 = 10 -> number 12.0 (bits 0x4028000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+        "oracle argument_classes!D26 =SUMPRODUCT(A7:A8,C6:C7) with A7 = 4, A8 = FALSE, C6 = 10, C7 = 0.5 -> number 40.0 (bits 0x4044000000000000) (hand-derived from the documented rule: corresponding entries are those at one position of each array, here of areas that start on different rows: A7 times C6, plus A8, a logical and so 0, times C7; not compared with Excel)",
+        "oracle argument_classes!D27 =SUMPRODUCT({1,2},3) -> #VALUE! (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array, so its dimensions differ from {1,2}'s, and arrays of different dimensions are #VALUE! (documented); not compared with Excel)",
+        "oracle argument_classes!D28 =SUMPRODUCT(B1:B3,C1:C3) with B1 = 5, B2 = #DIV/0!, B3 = -3, C1 = 10, C2 = 10, C3 = 10 -> #DIV/0! (hand-derived; unmeasured choice: an error entry is the result; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D29 =SUMPRODUCT({1,2},{1,2,3},{1,#N/A}) -> #N/A (hand-derived; unmeasured choice: every argument is read before the dimensions are compared, so an error entry of the third array comes before the #VALUE! of the first two; not compared with Excel)",
+        "oracle argument_classes!D30 =SUMPRODUCT(2,3) -> number 6.0 (bits 0x4018000000000000) (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array; not compared with Excel)",
+        "oracle argument_classes!D31 =SUMPRODUCT(\"3\") -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: text given directly, number text included, is a non-numeric 1-by-1 entry, so 0; not compared with Excel)",
+        "oracle argument_classes!D32 =SUMPRODUCT(A1:A2,) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived; unmeasured choice: an omitted argument is #VALUE!; not compared with Excel)",
+        "oracle argument_classes!D33 =SUMPRODUCT((A1,A7)) with A1 = 1, A7 = 4 -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D34 =SUMPRODUCT(A1:A3,C1:C2) with A1 = 1, A2 = text \"2\", A3 = TRUE, C1 = 10, C2 = 10 -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a reference of three rows and one of two; not compared with Excel)",
+        "oracle argument_classes!D35 =SUMPRODUCT(A1:A2,{1,2}) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a column of two cells and a row of two entries; not compared with Excel)",
+        "oracle argument_classes!D36 =SUMPRODUCT(C1:C2,{1;2}) with C1 = 10, C2 = 10 -> number 30.0 (bits 0x403e000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products, here of a column of two cells and a column of two entries; not compared with Excel)",
+        "oracle argument_classes!D37 =SUMPRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+        "oracle argument_classes!D38 =COUNT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; its empty cells, logicals, text and errors are not; not compared with Excel)",
+        "oracle argument_classes!D39 =COUNT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: an error value in a reference is not counted; not compared with Excel)",
+        "oracle argument_classes!D40 =COUNT((A1:A2,B2:B3)) with A1 = 1, A2 = text \"2\", B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: only the numbers of each area are counted: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D41 =COUNT(1,\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: numbers, number text and logicals typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D42 =COUNT(\"a\",#N/A,\"\") -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: errors and text that cannot be read as a number are not counted; not compared with Excel)",
+        "oracle argument_classes!D43 =COUNT({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of an array are counted; not compared with Excel)",
+        "oracle argument_classes!D44 =COUNT(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+        "oracle argument_classes!D45 =COUNT(\"1/2\") -> NotImplemented (argument Some(0)) (refused as not modelled: typed text that Excel's number-text rules may read as a date (cfml-m2.6); not compared with Excel)",
+        "oracle argument_classes!D46 =COUNTA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; an empty cell is not; not compared with Excel)",
+        "oracle argument_classes!D47 =COUNTA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: error values are counted; not compared with Excel)",
+        "oracle argument_classes!D48 =COUNTA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is not counted; not compared with Excel)",
+        "oracle argument_classes!D49 =COUNTA(\"a\",#N/A,FALSE,\"\") -> number 4.0 (bits 0x4010000000000000) (hand-derived; unmeasured choice: every value typed as an argument is counted; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D50 =COUNTA({1,\"2\",TRUE}) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: every element of an array is counted; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D51 =COUNTA(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+        "oracle argument_classes!D52 =COUNTBLANK(A5) with A5 blank -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+        "oracle argument_classes!D53 =COUNTBLANK(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only empty cells and cells whose formula gives empty text are counted; not compared with Excel)",
+        "oracle argument_classes!D54 =COUNTBLANK(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: the empty A5 counts (documented), and so does A6, whose empty text is a constant, as the page counts a formula's empty text; not compared with Excel)",
+        "oracle argument_classes!D55 =COUNTBLANK(A1:C8) with A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10 -> number 7.0 (bits 0x401c000000000000) (hand-derived; unmeasured choice: A5, A6 and the empty B4:B8 count; A6 holds empty text as a constant; not compared with Excel)",
+        "oracle argument_classes!D56 =COUNTBLANK((A5,A6)) with A6 = empty text -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D57 =COUNTBLANK(#REF!) -> ReferenceRequired (argument 0) (refused with ReferenceRequired { id: FunctionId(4.7), index: 0 }: an error value given for the reference-only parameter is refused at admission; Excel likely returns the error (unmeasured); not compared with Excel)",
+        "oracle argument_classes!D58 =AVERAGE(1,2,5) -> number 2.6666666666666665 (bits 0x4005555555555555) (hand-derived from the documented rule: the arithmetic mean of its numbers: 8 divided by 3, rounded once; not compared with Excel)",
+        "oracle argument_classes!D59 =AVERAGE(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.5 (bits 0x4004000000000000) (hand-derived from the documented rule: the text, logicals and empty cells of a reference are ignored; not compared with Excel)",
+        "oracle argument_classes!D60 =AVERAGE((A7,B3)) with B3 = -3, A7 = 4 -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: the numbers of every area are averaged: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D61 =AVERAGE(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D62 =AVERAGE(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D63 =AVERAGE(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived; unmeasured choice: divergent from the AVERAGE page, which says logicals and number text typed as arguments are not counted: this kernel counts them, as the MIN, MAX, COUNT, SUMSQ and AVERAGEA pages state for those functions; not compared with Excel)",
+        "oracle argument_classes!D64 =AVERAGE(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> #DIV/0! (hand-derived; unmeasured choice: with nothing counted the total is divided by 0, #DIV/0!; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D65 =AVERAGE({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells; not compared with Excel)",
+        "oracle argument_classes!D66 =AVERAGE(1,) -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+        "oracle argument_classes!D67 =AVERAGE(1E308,1E308) -> #NUM! (hand-derived; unmeasured choice: a total that overflows is #NUM!; not compared with Excel)",
+        "oracle argument_classes!D68 =AVERAGEA(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D69 =AVERAGEA((A3,A8)) with A3 = TRUE, A8 = FALSE -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1 and its FALSE 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D70 =AVERAGEA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 0.8571428571428571 (bits 0x3feb6db6db6db6db) (hand-derived; unmeasured choice: a reference's text and empty text are 0, as the page's worked example computes although another remark there calls text ignored; TRUE is 1, FALSE 0 and the empty A5 is skipped: 6 divided by 7, rounded once; not compared with Excel)",
+        "oracle argument_classes!D71 =AVERAGEA(A5) with A5 blank -> #DIV/0! (hand-derived; unmeasured choice: an empty cell is ignored (documented); with nothing counted the result is #DIV/0!; not compared with Excel)",
+        "oracle argument_classes!D72 =AVERAGEA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D73 =AVERAGEA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D74 =AVERAGEA({1,\"2\",TRUE}) -> number 0.6666666666666666 (bits 0x3fe5555555555555) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells: text 0, TRUE 1; not compared with Excel)",
+        "oracle argument_classes!D75 =MIN(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D76 =MIN(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D77 =MIN(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+        "oracle argument_classes!D78 =MIN(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D79 =MIN(5,\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D80 =MIN({TRUE,\"1\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only the numbers of an array are used, and with none the result is 0; not compared with Excel)",
+        "oracle argument_classes!D81 =MIN(1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+        "oracle argument_classes!D82 =MAX(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D83 =MAX(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D84 =MAX((A4,B3)) with B3 = -3, A4 = text \"a\" -> number -3.0 (bits 0xc008000000000000) (hand-derived; unmeasured choice: only the numbers of each area are used, so its text is not 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D85 =MAX(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D86 =MAX(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+        "oracle argument_classes!D87 =MAX(-1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+        "oracle argument_classes!D88 =MINA((A3,A7)) with A3 = TRUE, A7 = 4 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D89 =MINA(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D90 =MINA(A1:A4) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says while another calls it ignored; not compared with Excel)",
+        "oracle argument_classes!D91 =MINA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is ignored, and with no values the result is 0; not compared with Excel)",
+        "oracle argument_classes!D92 =MINA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D93 =MAXA((A3,B3)) with A3 = TRUE, B3 = -3 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D94 =MAXA(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D95 =MAXA((A4,B3)) with B3 = -3, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, which exceeds -3; were it ignored, as another remark of the page says, the result would be -3; not compared with Excel)",
+        "oracle argument_classes!D96 =MAXA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D97 =MAXA({-1,\"a\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an array's text is 0, as the rule for a reference's cells reads it; not compared with Excel)",
+        "the catalogue's family 4 holds exactly the 13 entries [\"SUM\", \"PRODUCT\", \"SUMSQ\", \"SUMPRODUCT\", \"COUNT\", \"COUNTA\", \"COUNTBLANK\", \"AVERAGE\", \"AVERAGEA\", \"MIN\", \"MAX\", \"MINA\", \"MAXA\"], each eager; COUNTBLANK takes one reference-only argument and the others 1 to 255 values or references; the per-ID manifest of migration/ports/cfunc-m3.4.json lists the same IDs and spellings",
+        "through the call interface alone: COUNTBLANK refuses a number, an array and an omitted argument with ReferenceRequired; a direct Empty reads as an omitted argument (unmeasured choice); each aggregate refuses an array held in an array naming it, COUNT and COUNTA refuse NaN and infinity naming them; 26 calls over a reference without a reader or with a refusing one ended in ReferenceUnreadable naming the argument",
+        "under NumericMode::Exact 8 calls that round (sums, products, averages over A1:A8, SUMPRODUCT(C1:C8), which adds with no multiplication, and MIN reading number text) were refused with ExactUnavailable, and 10 calls that reach no arithmetic site (counts, extremes, an average and a product of nothing) computed the value of their Fast oracle row",
+        "12 calls over a reader that also visits every blank cell as Empty gave the values of their Fast oracle rows",
+        "SUM(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+        "COUNT(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+        "SUMPRODUCT(C6:C7) = 10.5 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Reversed",
+        "COUNTBLANK(A1) = 0 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Twice",
+        "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet argument_classes holds exactly the 97 oracle rows' formulas in column D, in row order, and the 18 cells the rows read",
+        "the generator runs under Windows PowerShell, so the check that the committed aggregate oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
+        "97 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet argument_classes of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 48 from documented rules, 42 unmeasured choices, 7 refused; none is compared with Excel until the owner captures that workbook",
+        "the sheet holds A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10; A5 is blank",
+        "oracle argument_classes!D1 =SUM(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: only the numbers a reference holds are added: the SUM page states that its text is ignored, and cfunc-m1.2 skips its logicals and blank cells the same way; not compared with Excel)",
+        "oracle argument_classes!D2 =SUM(1E16,1,-1E16) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: the sequential left fold in reading order: 1E16+1 rounds to 1E16 before -1E16 is added (the reduction order cfunc-m3.23 is to document); not compared with Excel)",
+        "oracle argument_classes!D3 =SUM(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the SUM page is silent; not compared with Excel)",
+        "oracle argument_classes!D4 =SUM(2,TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: a logical typed as an argument is read as a number, TRUE as 1, where a logical a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+        "oracle argument_classes!D5 =SUM(2,\"3\") -> number 5.0 (bits 0x4014000000000000) (hand-derived; unmeasured choice: number text typed as an argument is read as a number, where number text a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions; not compared with Excel)",
+        "oracle argument_classes!D6 =PRODUCT(2,3,4) -> number 24.0 (bits 0x4038000000000000) (hand-derived from the documented rule: PRODUCT multiplies the numbers given as its arguments; not compared with Excel)",
+        "oracle argument_classes!D7 =PRODUCT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are multiplied; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D8 =PRODUCT({2,\"x\",TRUE}) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of an array are multiplied; its logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D9 =PRODUCT(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: logicals and number text typed as arguments are read as numbers, as the SUMSQ, MIN and MAX pages state; the PRODUCT page is silent; not compared with Excel)",
+        "oracle argument_classes!D10 =PRODUCT(\"a\") -> #VALUE! (hand-derived; unmeasured choice: typed text that does not read as a number is #VALUE!, as the SUMSQ page states; the PRODUCT page is silent; not compared with Excel)",
+        "oracle argument_classes!D11 =PRODUCT(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: no number to multiply gives 0; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D12 =PRODUCT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: an error a reference holds is the result; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D13 =PRODUCT(2,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+        "oracle argument_classes!D14 =PRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+        "oracle argument_classes!D15 =SUMSQ(2,3,4) -> number 29.0 (bits 0x403d000000000000) (hand-derived from the documented rule: SUMSQ adds the squares of its numbers; not compared with Excel)",
+        "oracle argument_classes!D16 =SUMSQ(\"2\",TRUE) -> number 5.0 (bits 0x4014000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D17 =SUMSQ(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D18 =SUMSQ(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 17.0 (bits 0x4031000000000000) (hand-derived from the documented rule: only the numbers of a reference count; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D19 =SUMSQ({3,TRUE}) -> number 9.0 (bits 0x4022000000000000) (hand-derived from the documented rule: only the numbers of an array count; not compared with Excel)",
+        "oracle argument_classes!D20 =SUMSQ(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived; unmeasured choice: divergent from the SUMSQ page, which says an error value in a reference is ignored: this kernel returns it, as every other aggregate here does; not compared with Excel)",
+        "oracle argument_classes!D21 =SUMSQ(1E-200) -> NotImplemented (argument None) (refused as not modelled: a square of a non-zero number that underflows; not compared with Excel)",
+        "oracle argument_classes!D22 =SUMPRODUCT({1,2},{3,4}) -> number 11.0 (bits 0x4026000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products; not compared with Excel)",
+        "oracle argument_classes!D23 =SUMPRODUCT({1,4,9}) -> number 14.0 (bits 0x402c000000000000) (hand-derived from the documented rule: the products of corresponding entries of the arrays given, here one, are added; not compared with Excel)",
+        "oracle argument_classes!D24 =SUMPRODUCT({1,TRUE},{3,4}) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+        "oracle argument_classes!D25 =SUMPRODUCT(A1:A8,C1:C8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE, C1 = 10, C2 = 10, C3 = 10, C4 = 10, C5 = 10, C6 = 10, C7 = 0.5, C8 = 10 -> number 12.0 (bits 0x4028000000000000) (hand-derived from the documented rule: a non-numeric entry is treated as 0; not compared with Excel)",
+        "oracle argument_classes!D26 =SUMPRODUCT(A7:A8,C6:C7) with A7 = 4, A8 = FALSE, C6 = 10, C7 = 0.5 -> number 40.0 (bits 0x4044000000000000) (hand-derived from the documented rule: corresponding entries are those at one position of each array, here of areas that start on different rows: A7 times C6, plus A8, a logical and so 0, times C7; not compared with Excel)",
+        "oracle argument_classes!D27 =SUMPRODUCT({1,2},3) -> #VALUE! (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array, so its dimensions differ from {1,2}'s, and arrays of different dimensions are #VALUE! (documented); not compared with Excel)",
+        "oracle argument_classes!D28 =SUMPRODUCT(B1:B3,C1:C3) with B1 = 5, B2 = #DIV/0!, B3 = -3, C1 = 10, C2 = 10, C3 = 10 -> #DIV/0! (hand-derived; unmeasured choice: an error entry is the result; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D29 =SUMPRODUCT({1,2},{1,2,3},{1,#N/A}) -> #N/A (hand-derived; unmeasured choice: every argument is read before the dimensions are compared, so an error entry of the third array comes before the #VALUE! of the first two; not compared with Excel)",
+        "oracle argument_classes!D30 =SUMPRODUCT(2,3) -> number 6.0 (bits 0x4018000000000000) (hand-derived; unmeasured choice: a number given directly is a 1-by-1 array; not compared with Excel)",
+        "oracle argument_classes!D31 =SUMPRODUCT(\"3\") -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: text given directly, number text included, is a non-numeric 1-by-1 entry, so 0; not compared with Excel)",
+        "oracle argument_classes!D32 =SUMPRODUCT(A1:A2,) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived; unmeasured choice: an omitted argument is #VALUE!; not compared with Excel)",
+        "oracle argument_classes!D33 =SUMPRODUCT((A1,A7)) with A1 = 1, A7 = 4 -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D34 =SUMPRODUCT(A1:A3,C1:C2) with A1 = 1, A2 = text \"2\", A3 = TRUE, C1 = 10, C2 = 10 -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a reference of three rows and one of two; not compared with Excel)",
+        "oracle argument_classes!D35 =SUMPRODUCT(A1:A2,{1,2}) with A1 = 1, A2 = text \"2\" -> #VALUE! (hand-derived from the documented rule: arrays of different dimensions are #VALUE!, here a column of two cells and a row of two entries; not compared with Excel)",
+        "oracle argument_classes!D36 =SUMPRODUCT(C1:C2,{1;2}) with C1 = 10, C2 = 10 -> number 30.0 (bits 0x403e000000000000) (hand-derived from the documented rule: SUMPRODUCT multiplies corresponding entries and adds the products, here of a column of two cells and a column of two entries; not compared with Excel)",
+        "oracle argument_classes!D37 =SUMPRODUCT(1E-200,1E-200) -> NotImplemented (argument None) (refused as not modelled: a product of two non-zero factors that underflows; not compared with Excel)",
+        "oracle argument_classes!D38 =COUNT(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: only the numbers of a reference are counted; its empty cells, logicals, text and errors are not; not compared with Excel)",
+        "oracle argument_classes!D39 =COUNT(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: an error value in a reference is not counted; not compared with Excel)",
+        "oracle argument_classes!D40 =COUNT((A1:A2,B2:B3)) with A1 = 1, A2 = text \"2\", B2 = #DIV/0!, B3 = -3 -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: only the numbers of each area are counted: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D41 =COUNT(1,\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: numbers, number text and logicals typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D42 =COUNT(\"a\",#N/A,\"\") -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: errors and text that cannot be read as a number are not counted; not compared with Excel)",
+        "oracle argument_classes!D43 =COUNT({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of an array are counted; not compared with Excel)",
+        "oracle argument_classes!D44 =COUNT(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+        "oracle argument_classes!D45 =COUNT(\"1/2\") -> NotImplemented (argument Some(0)) (refused as not modelled: typed text that Excel's number-text rules may read as a date (cfml-m2.6); not compared with Excel)",
+        "oracle argument_classes!D46 =COUNTA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 7.0 (bits 0x401c000000000000) (hand-derived from the documented rule: every cell with content is counted, empty text included; an empty cell is not; not compared with Excel)",
+        "oracle argument_classes!D47 =COUNTA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 3.0 (bits 0x4008000000000000) (hand-derived from the documented rule: error values are counted; not compared with Excel)",
+        "oracle argument_classes!D48 =COUNTA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is not counted; not compared with Excel)",
+        "oracle argument_classes!D49 =COUNTA(\"a\",#N/A,FALSE,\"\") -> number 4.0 (bits 0x4010000000000000) (hand-derived; unmeasured choice: every value typed as an argument is counted; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D50 =COUNTA({1,\"2\",TRUE}) -> number 3.0 (bits 0x4008000000000000) (hand-derived; unmeasured choice: every element of an array is counted; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D51 =COUNTA(1,) -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+        "oracle argument_classes!D52 =COUNTBLANK(A5) with A5 blank -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: an empty cell is counted; not compared with Excel)",
+        "oracle argument_classes!D53 =COUNTBLANK(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only empty cells and cells whose formula gives empty text are counted; not compared with Excel)",
+        "oracle argument_classes!D54 =COUNTBLANK(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.0 (bits 0x4000000000000000) (hand-derived; unmeasured choice: the empty A5 counts (documented), and so does A6, whose empty text is a constant, as the page counts a formula's empty text; not compared with Excel)",
+        "oracle argument_classes!D55 =COUNTBLANK(A1:C8) with A1 = 1, B1 = 5, C1 = 10, A2 = text \"2\", B2 = #DIV/0!, C2 = 10, A3 = TRUE, B3 = -3, C3 = 10, A4 = text \"a\", C4 = 10, C5 = 10, A6 = empty text, C6 = 10, A7 = 4, C7 = 0.5, A8 = FALSE, C8 = 10 -> number 7.0 (bits 0x401c000000000000) (hand-derived; unmeasured choice: A5, A6 and the empty B4:B8 count; A6 holds empty text as a constant; not compared with Excel)",
+        "oracle argument_classes!D56 =COUNTBLANK((A5,A6)) with A6 = empty text -> NotImplemented (argument Some(0)) (refused as not modelled: a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D57 =COUNTBLANK(#REF!) -> ReferenceRequired (argument 0) (refused with ReferenceRequired { id: FunctionId(4.7), index: 0 }: an error value given for the reference-only parameter is refused at admission; Excel likely returns the error (unmeasured); not compared with Excel)",
+        "oracle argument_classes!D58 =AVERAGE(1,2,5) -> number 2.6666666666666665 (bits 0x4005555555555555) (hand-derived from the documented rule: the arithmetic mean of its numbers: 8 divided by 3, rounded once; not compared with Excel)",
+        "oracle argument_classes!D59 =AVERAGE(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 2.5 (bits 0x4004000000000000) (hand-derived from the documented rule: the text, logicals and empty cells of a reference are ignored; not compared with Excel)",
+        "oracle argument_classes!D60 =AVERAGE((A7,B3)) with B3 = -3, A7 = 4 -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: the numbers of every area are averaged: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D61 =AVERAGE(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D62 =AVERAGE(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D63 =AVERAGE(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived; unmeasured choice: divergent from the AVERAGE page, which says logicals and number text typed as arguments are not counted: this kernel counts them, as the MIN, MAX, COUNT, SUMSQ and AVERAGEA pages state for those functions; not compared with Excel)",
+        "oracle argument_classes!D64 =AVERAGE(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> #DIV/0! (hand-derived; unmeasured choice: with nothing counted the total is divided by 0, #DIV/0!; the page is silent; not compared with Excel)",
+        "oracle argument_classes!D65 =AVERAGE({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells; not compared with Excel)",
+        "oracle argument_classes!D66 =AVERAGE(1,) -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0, and counts; not compared with Excel)",
+        "oracle argument_classes!D67 =AVERAGE(1E308,1E308) -> #NUM! (hand-derived; unmeasured choice: a total that overflows is #NUM!; not compared with Excel)",
+        "oracle argument_classes!D68 =AVERAGEA(\"2\",TRUE) -> number 1.5 (bits 0x3ff8000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D69 =AVERAGEA((A3,A8)) with A3 = TRUE, A8 = FALSE -> number 0.5 (bits 0x3fe0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1 and its FALSE 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D70 =AVERAGEA(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 0.8571428571428571 (bits 0x3feb6db6db6db6db) (hand-derived; unmeasured choice: a reference's text and empty text are 0, as the page's worked example computes although another remark there calls text ignored; TRUE is 1, FALSE 0 and the empty A5 is skipped: 6 divided by 7, rounded once; not compared with Excel)",
+        "oracle argument_classes!D71 =AVERAGEA(A5) with A5 blank -> #DIV/0! (hand-derived; unmeasured choice: an empty cell is ignored (documented); with nothing counted the result is #DIV/0!; not compared with Excel)",
+        "oracle argument_classes!D72 =AVERAGEA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D73 =AVERAGEA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D74 =AVERAGEA({1,\"2\",TRUE}) -> number 0.6666666666666666 (bits 0x3fe5555555555555) (hand-derived; unmeasured choice: an array's elements follow the rule for a reference's cells: text 0, TRUE 1; not compared with Excel)",
+        "oracle argument_classes!D75 =MIN(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D76 =MIN(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D77 =MIN(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+        "oracle argument_classes!D78 =MIN(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D79 =MIN(5,\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D80 =MIN({TRUE,\"1\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: only the numbers of an array are used, and with none the result is 0; not compared with Excel)",
+        "oracle argument_classes!D81 =MIN(1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+        "oracle argument_classes!D82 =MAX(A1:A8) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\", A6 = empty text, A7 = 4, A8 = FALSE -> number 4.0 (bits 0x4010000000000000) (hand-derived from the documented rule: only the numbers of a reference are used; its empty cells, logicals and text are ignored; not compared with Excel)",
+        "oracle argument_classes!D83 =MAX(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D84 =MAX((A4,B3)) with B3 = -3, A4 = text \"a\" -> number -3.0 (bits 0xc008000000000000) (hand-derived; unmeasured choice: only the numbers of each area are used, so its text is not 0: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D85 =MAX(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D86 =MAX(A3:A6) with A3 = TRUE, A4 = text \"a\", A6 = empty text -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: with no numbers the result is 0; not compared with Excel)",
+        "oracle argument_classes!D87 =MAX(-1,) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an omitted argument is the number 0; not compared with Excel)",
+        "oracle argument_classes!D88 =MINA((A3,A7)) with A3 = TRUE, A7 = 4 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D89 =MINA(\"2\",TRUE) -> number 1.0 (bits 0x3ff0000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D90 =MINA(A1:A4) with A1 = 1, A2 = text \"2\", A3 = TRUE, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, as one remark of the page says while another calls it ignored; not compared with Excel)",
+        "oracle argument_classes!D91 =MINA(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-derived from the documented rule: an empty cell is ignored, and with no values the result is 0; not compared with Excel)",
+        "oracle argument_classes!D92 =MINA(B1:B3) with B1 = 5, B2 = #DIV/0!, B3 = -3 -> #DIV/0! (hand-derived from the documented rule: error values cause errors; not compared with Excel)",
+        "oracle argument_classes!D93 =MAXA((A3,B3)) with A3 = TRUE, B3 = -3 -> number 1.0 (bits 0x3ff0000000000000) (hand-derived; unmeasured choice: each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas; not compared with Excel)",
+        "oracle argument_classes!D94 =MAXA(\"2\",TRUE) -> number 2.0 (bits 0x4000000000000000) (hand-derived from the documented rule: logicals and number text typed as arguments are counted; not compared with Excel)",
+        "oracle argument_classes!D95 =MAXA((A4,B3)) with B3 = -3, A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: a reference's text is 0, which exceeds -3; were it ignored, as another remark of the page says, the result would be -3; not compared with Excel)",
+        "oracle argument_classes!D96 =MAXA(\"a\") -> #VALUE! (hand-derived from the documented rule: text that cannot be read as a number causes an error; not compared with Excel)",
+        "oracle argument_classes!D97 =MAXA({-1,\"a\"}) -> number 0.0 (bits 0x0000000000000000) (hand-derived; unmeasured choice: an array's text is 0, as the rule for a reference's cells reads it; not compared with Excel)",
+        "the catalogue's family 4 holds exactly the 13 entries [\"SUM\", \"PRODUCT\", \"SUMSQ\", \"SUMPRODUCT\", \"COUNT\", \"COUNTA\", \"COUNTBLANK\", \"AVERAGE\", \"AVERAGEA\", \"MIN\", \"MAX\", \"MINA\", \"MAXA\"], each eager; COUNTBLANK takes one reference-only argument and the others 1 to 255 values or references; the per-ID manifest of migration/ports/cfunc-m3.4.json lists the same IDs and spellings",
+        "through the call interface alone: COUNTBLANK refuses a number, an array and an omitted argument with ReferenceRequired; a direct Empty reads as an omitted argument (unmeasured choice); each aggregate refuses an array held in an array naming it, COUNT and COUNTA refuse NaN and infinity naming them; 26 calls over a reference without a reader or with a refusing one ended in ReferenceUnreadable naming the argument",
+        "under NumericMode::Exact 8 calls that round (sums, products, averages over A1:A8, SUMPRODUCT(C1:C8), which adds with no multiplication, and MIN reading number text) were refused with ExactUnavailable, and 10 calls that reach no arithmetic site (counts, extremes, an average and a product of nothing) computed the value of their Fast oracle row",
+        "12 calls over a reader that also visits every blank cell as Empty gave the values of their Fast oracle rows",
+        "SUM(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+        "COUNT(A1:A2) = 1 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Outside(\"C1\")",
+        "SUMPRODUCT(C6:C7) = 10.5 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Reversed",
+        "COUNTBLANK(A1) = 0 over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by Twice",
+        "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx (sha256 025fddcee92a9c160010c75beefd3f004da50a0f15244c9282bd963145187a52): sheet argument_classes holds exactly the 97 oracle rows' formulas in column D, in row order, and the 18 cells the rows read",
+        "the generator runs under Windows PowerShell, so the check that the committed aggregate oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
+        "97 rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet argument_classes of crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx: 48 from documented rules, 42 unmeasured choices, 7 refused; none is compared with Excel until the owner captures that workbook"
+      ],
+      "outcome": "passed",
+      "package": "calc-func",
+      "reason": null,
+      "result_line": null
+    }
+  ],
+  "command": [
+    "cargo",
+    "xtask",
+    "accept",
+    "--id",
+    "cfunc-m3.4",
+    "--platform",
+    "wasm",
+    "--require-all"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-func",
+        "--test",
+        "acceptance",
+        "cfunc_m3_4",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 1.514,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.16s"
+      ],
+      "log": "target/accept/cfunc-m3.4/wasm/command-1.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-func",
+        "--test",
+        "acceptance",
+        "cfunc_m3_4",
+        "--",
+        "--nocapture"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cfunc-m3.4",
+        "--platform",
+        "windows",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cfunc-m3.4",
+        "--platform",
+        "linux",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cfunc-m3.4",
+        "--platform",
+        "wasm",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    }
+  ],
+  "committed_copy": "accept-receipts/cfunc-m3.4/wasm.json",
+  "counts": {
+    "architecture_checks": 7,
+    "architecture_checks_passed": 7,
+    "commands_failed": 0,
+    "commands_not_run": 0,
+    "commands_registered": 4,
+    "commands_run": 1,
+    "commands_skipped": 3,
+    "failed": 0,
+    "ignored": 0,
+    "missing": 0,
+    "not_run": 0,
+    "passed": 2,
+    "selected": 2
+  },
+  "duration_s": 97.128,
+  "exit_code": 0,
+  "format": "dnacalc-accept-receipt/4",
+  "host": {
+    "arch": "x86_64",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "git": {
+      "branch": "master",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "325fd00a2160f3915b5bfd57e09cd0e4f9318b1e",
+          "path": "accept-receipts/cfml-m1.3/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "f9017921c80d8afba88d431457ff3bd03280c23b",
+          "path": "accept-receipts/cfunc-m1.1/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "5f63b3507389232b89182a374e31acc2beb0ba1a",
+          "path": "accept-receipts/cfunc-m1.2/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "06d1e1bfdb28273535a6c4bf78303b8da8fa502b",
+          "path": "crates/calc-func/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "6c39f971148216fde2b33ecb0a7a827ee7391eee",
+          "path": "crates/calc-func/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "97ed2ca5871c12415a70153c8a596c2870174a96",
+          "path": "crates/calc-func/src/call.rs",
+          "status": "M"
+        },
+        {
+          "blob": "f86b2af65df43e5679f7b702498e57e06a4521e7",
+          "path": "crates/calc-func/src/catalogue.rs",
+          "status": "M"
+        },
+        {
+          "blob": "8bc6b850903bbae164e34a68cc4d099f2093d6fd",
+          "path": "crates/calc-func/src/catalogue/aggregate.rs",
+          "status": "M"
+        },
+        {
+          "blob": "2c6352811324f79408f5710416b9c67c6083e61c",
+          "path": "crates/calc-func/src/coerce.rs",
+          "status": "M"
+        },
+        {
+          "blob": "e5cc42ea18db2e2c913c5c9cd2bfcf2e4432c46a",
+          "path": "crates/calc-func/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "80d875bdb53ffd9b85f5b8143f780c3a21bcc737",
+          "path": "crates/calc-func/tests/fixtures/make-fixtures.ps1",
+          "status": "M"
+        },
+        {
+          "blob": "bd61d4f08f29de4e55e5761b941fd98d2817537b",
+          "path": "accept-receipts/cfunc-m3.4/windows.json",
+          "status": "??"
+        },
+        {
+          "blob": "d19f3239bdbf4415d00a1719625648fd7fd10184",
+          "path": "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "83a30e8b6c6b25cfaa9fc2073208502ddd306cdd",
+          "path": "migration/ports/cfunc-m3.4.json",
+          "status": "??"
+        }
+      ],
+      "head": "8f1f30b4ec06a303611f09936599b44da11b4a7a",
+      "receipt_paths_left_out": [
+        "accept-receipts/cfunc-m3.4/wasm.json"
+      ]
+    },
+    "legacy_root": {
+      "exists": true,
+      "from": "default: the workspace root's parent directory",
+      "path": ".."
+    },
+    "os": "windows",
+    "platform_matches_host": true,
+    "platform_mismatch": null,
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "rustc_host": "x86_64-pc-windows-msvc"
+  },
+  "manifests": {
+    "errors": [],
+    "files": [
+      "crates/calc-value/acceptance.json",
+      "crates/calc-func/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
+      "crates/calc-fml/acceptance.json",
+      "crates/calc-doc-model/acceptance.json",
+      "crates/calc-doc/acceptance.json",
+      "crates/calc-engine/acceptance.json",
+      "crates/calc-host/acceptance.json",
+      "apps/dna-onecalc/acceptance.json",
+      "apps/dna-calc/acceptance.json",
+      "platform/calc-platform-desktop/acceptance.json",
+      "platform/calc-oracle-excel/acceptance.json",
+      "tools/xtask/acceptance.json"
+    ]
+  },
+  "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it, and host.legacy_root.path is .. for the workspace root's parent or <legacy-root> for a directory elsewhere",
+  "platform": "wasm",
+  "problems": [],
+  "receipt": "target/accept/cfunc-m3.4/wasm/receipt.json",
+  "require_all": true,
+  "result": "passed",
+  "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
+  "started_utc": "2026-10-20T19:28:13Z"
+}

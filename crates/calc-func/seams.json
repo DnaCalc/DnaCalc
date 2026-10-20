@@ -2,11 +2,11 @@
   "package": "calc-func",
   "seams": [
     {"item": "call::PreparedArguments", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "invoke"}], "case": "cfunc_m1_1__catalogue_consistency"},
-    {"item": "call::CellReader", "callers": [{"file": "crates/calc-func/src/catalogue/aggregate.rs", "fn": "add_reference"}], "case": "cfunc_m1_2__mixed_operands"},
+    {"item": "call::CellReader", "callers": [{"file": "crates/calc-func/src/catalogue/aggregate.rs", "fn": "read_reference"}], "case": "cfunc_m3_4__argument_classes"},
     {"item": "call::FunctionFault::ArityMismatch", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "invoke"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "call::FunctionFault::ReferenceArgument", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "admit_argument"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "call::FunctionFault::ReferenceRequired", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "admit_argument"}], "case": "cfunc_m1_1__catalogue_consistency"},
-    {"item": "call::FunctionFault::ReferenceUnreadable", "callers": [{"file": "crates/calc-func/src/catalogue/aggregate.rs", "fn": "total"}, {"file": "crates/calc-func/src/catalogue/aggregate.rs", "fn": "add_reference"}], "case": "cfunc_m1_2__mixed_operands"},
+    {"item": "call::FunctionFault::ReferenceUnreadable", "callers": [{"file": "crates/calc-func/src/catalogue/aggregate.rs", "fn": "reader"}, {"file": "crates/calc-func/src/catalogue/aggregate.rs", "fn": "read_reference"}], "case": "cfunc_m3_4__argument_classes"},
     {"item": "call::FunctionFault::NotImplemented", "callers": [{"file": "crates/calc-func/src/kernel.rs", "fn": "Site::not_modelled"}], "case": "cfunc_m1_2__mixed_operands"},
     {"item": "call::FunctionFault::ExactUnavailable", "callers": [{"file": "crates/calc-func/src/kernel.rs", "fn": "Site::rounding"}], "case": "cfunc_m1_2__mixed_operands"},
     {"item": "call::FunctionFault::MissingReturned", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "admit_return"}], "case": "cfunc_m1_1__catalogue_consistency"},

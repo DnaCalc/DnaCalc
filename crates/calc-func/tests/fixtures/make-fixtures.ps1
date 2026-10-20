@@ -2,16 +2,18 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
-# writes <directory>/cfunc_m1_2/oracle.xlsx. Run with this directory as -OutDir it rewrites the
-# committed fixture; the acceptance case cfunc_m1_2__mixed_operands runs it into a fresh directory
-# on Windows and compares its output with the committed workbook byte for byte.
+# writes <directory>/cfunc_m1_2/oracle.xlsx and <directory>/cfunc_m3_4/oracle.xlsx. Run with this
+# directory as -OutDir it rewrites the committed fixtures; the acceptance cases
+# cfunc_m1_2__mixed_operands and cfunc_m3_4__argument_classes run it into a fresh directory on
+# Windows and compare its output with the committed workbooks byte for byte.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
-# (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`). It
-# has one sheet per case, named after the case: the cells the case's rows read, as the case's test
-# sheet holds them, and in column D one formula per oracle row, from row 1, in the order the case
-# runs its rows. Each case checks that its sheet holds exactly those formulas and cells. No formula
-# cell carries a cache: Excel calculates them.
+# (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`), and
+# cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads. Each has one
+# sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
+# holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
+# its rows. Each case checks that its sheet holds exactly those formulas and cells. No formula cell
+# carries a cache: Excel calculates them.
 #
 # The package is a minimal SpreadsheetML package written as text: every part is UTF-8 XML, stored
 # (ZIP method 0, no compression) with the timestamp 1980-01-01 00:00 and no extra fields, by the
@@ -277,4 +279,80 @@ foreach ($formula in @(
 Write-Workbook (Join-Path $OutDir 'cfunc_m1_2/oracle.xlsx') @(
     @('mixed_operands', (New-OracleSheet $mixedInputs $mixedFormulas)),
     @('error_order', (New-OracleSheet $orderInputs $orderFormulas))
+)
+
+# --- cfunc_m3_4/oracle.xlsx ---------------------------------------------------------------------
+
+# Sheet argument_classes: the cells of cfunc_m3_4__argument_classes' test sheet (A1:A8 one of each
+# class, A5 blank and A6 empty text held as a constant; B1:B3 an error between two numbers; C1:C8
+# numbers), and its oracle rows' formulas in its order.
+$classInputs = @(
+    (New-Number 'A1' '1'),
+    (New-Text 'A2' '2'),
+    (New-Logical 'A3' $true),
+    (New-Text 'A4' 'a'),
+    (New-Text 'A6' ''),
+    (New-Number 'A7' '4'),
+    (New-Logical 'A8' $false),
+    (New-Number 'B1' '5'),
+    (New-Error 'B2' '#DIV/0!'),
+    (New-Number 'B3' '-3'),
+    (New-Number 'C1' '10'),
+    (New-Number 'C2' '10'),
+    (New-Number 'C3' '10'),
+    (New-Number 'C4' '10'),
+    (New-Number 'C5' '10'),
+    (New-Number 'C6' '10'),
+    (New-Number 'C7' '0.5'),
+    (New-Number 'C8' '10')
+)
+$classFormulas = @(
+    'SUM(A1:A8)', 'SUM(1E16,1,-1E16)', 'SUM(B1:B3)', 'SUM(2,TRUE)', 'SUM(2,"3")',
+    'PRODUCT(2,3,4)', 'PRODUCT(A1:A8)', 'PRODUCT({2,"x",TRUE})', 'PRODUCT("2",TRUE)', 'PRODUCT("a")',
+    'PRODUCT(A3:A6)', 'PRODUCT(B1:B3)', 'PRODUCT(2,)', 'PRODUCT(1E-200,1E-200)',
+    'SUMSQ(2,3,4)', 'SUMSQ("2",TRUE)', 'SUMSQ("a")', 'SUMSQ(A1:A8)', 'SUMSQ({3,TRUE})', 'SUMSQ(B1:B3)',
+    'SUMSQ(1E-200)',
+    'SUMPRODUCT({1,2},{3,4})', 'SUMPRODUCT({1,4,9})', 'SUMPRODUCT({1,TRUE},{3,4})',
+    'SUMPRODUCT(A1:A8,C1:C8)', 'SUMPRODUCT(A7:A8,C6:C7)', 'SUMPRODUCT({1,2},3)',
+    'SUMPRODUCT(B1:B3,C1:C3)', 'SUMPRODUCT({1,2},{1,2,3},{1,#N/A})', 'SUMPRODUCT(2,3)', 'SUMPRODUCT("3")',
+    'SUMPRODUCT(A1:A2,)', 'SUMPRODUCT((A1,A7))',
+    'SUMPRODUCT(A1:A3,C1:C2)', 'SUMPRODUCT(A1:A2,{1,2})', 'SUMPRODUCT(C1:C2,{1;2})', 'SUMPRODUCT(1E-200,1E-200)',
+    'COUNT(A1:A8)', 'COUNT(B1:B3)', 'COUNT((A1:A2,B2:B3))', 'COUNT(1,"2",TRUE)', 'COUNT("a",#N/A,"")',
+    'COUNT({1,"2",TRUE})', 'COUNT(1,)', 'COUNT("1/2")',
+    'COUNTA(A1:A8)', 'COUNTA(B1:B3)', 'COUNTA(A5)', 'COUNTA("a",#N/A,FALSE,"")', 'COUNTA({1,"2",TRUE})',
+    'COUNTA(1,)',
+    'COUNTBLANK(A5)', 'COUNTBLANK(B1:B3)', 'COUNTBLANK(A1:A8)', 'COUNTBLANK(A1:C8)', 'COUNTBLANK((A5,A6))',
+    'COUNTBLANK(#REF!)',
+    'AVERAGE(1,2,5)', 'AVERAGE(A1:A8)', 'AVERAGE((A7,B3))', 'AVERAGE(B1:B3)', 'AVERAGE("a")',
+    'AVERAGE("2",TRUE)', 'AVERAGE(A3:A6)', 'AVERAGE({1,"2",TRUE})', 'AVERAGE(1,)', 'AVERAGE(1E308,1E308)',
+    'AVERAGEA("2",TRUE)', 'AVERAGEA((A3,A8))', 'AVERAGEA(A1:A8)', 'AVERAGEA(A5)', 'AVERAGEA("a")',
+    'AVERAGEA(B1:B3)', 'AVERAGEA({1,"2",TRUE})',
+    'MIN(A1:A8)', 'MIN("2",TRUE)', 'MIN(A3:A6)', 'MIN(B1:B3)', 'MIN(5,"a")', 'MIN({TRUE,"1"})', 'MIN(1,)',
+    'MAX(A1:A8)', 'MAX("2",TRUE)', 'MAX((A4,B3))', 'MAX(B1:B3)', 'MAX(A3:A6)', 'MAX(-1,)',
+    'MINA((A3,A7))', 'MINA("2",TRUE)', 'MINA(A1:A4)', 'MINA(A5)', 'MINA(B1:B3)',
+    'MAXA((A3,B3))', 'MAXA("2",TRUE)', 'MAXA((A4,B3))', 'MAXA("a")', 'MAXA({-1,"a"})'
+)
+
+# Sheet sparse_blanks: the cells of cfunc_m3_4__sparse_blanks' test sheet (column A down to its
+# last row, A2 empty text held as a constant; two cells of column B; one of column C), and its
+# oracle rows' formulas, which read whole columns, in its order.
+$sparseInputs = @(
+    (New-Number 'A1' '3'),
+    (New-Text 'A2' ''),
+    (New-Text 'A3' 'x'),
+    (New-Number 'A1000' '5'),
+    (New-Number 'A1048576' '7'),
+    (New-Number 'B1' '2'),
+    (New-Number 'B1048576' '10'),
+    (New-Logical 'C500' $true)
+)
+$sparseFormulas = @(
+    'COUNTBLANK(B:B)', 'COUNTBLANK(A:A)', 'COUNTBLANK(A:C)', 'COUNT(A:A)', 'COUNTA(A:A)', 'SUM(A:A)',
+    'PRODUCT(A:A)', 'SUMSQ(A:A)', 'AVERAGE(A:A)', 'AVERAGEA(A:A)', 'MIN(A:A)', 'MAX(A:A)', 'MINA(A:A)',
+    'MAXA(B:B)', 'SUMPRODUCT(A:A,B:B)'
+)
+
+Write-Workbook (Join-Path $OutDir 'cfunc_m3_4/oracle.xlsx') @(
+    @('argument_classes', (New-OracleSheet $classInputs $classFormulas)),
+    @('sparse_blanks', (New-OracleSheet $sparseInputs $sparseFormulas))
 )

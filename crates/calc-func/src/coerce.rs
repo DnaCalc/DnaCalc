@@ -1,6 +1,7 @@
 //! Worksheet coercion: how an operand or a direct function argument is read as a number, a
 //! logical or text. A value that a reference or an array supplies to an aggregate is not coerced
-//! here; the kernel reading it decides (SUM skips text and logicals there).
+//! here; the kernel reading it decides (SUM skips text and logicals there, AVERAGEA reads them as
+//! numbers).
 //!
 //! Empty (a blank cell), Missing (an omitted argument) and empty text stay distinct: the first two
 //! read as 0, FALSE and empty text, while empty text read as a number or a logical is #VALUE!.

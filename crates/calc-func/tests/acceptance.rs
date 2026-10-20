@@ -61,30 +61,33 @@ thread_local! {
     /// Allocation calls (alloc, alloc_zeroed, realloc) made on this thread. Constant-initialized
     /// with no destructor, so reading it never allocates.
     static ALLOCATIONS: Cell<u64> = const { Cell::new(0) };
+    /// The bytes those calls asked for (a reallocation's new size), counted the same way.
+    static ALLOCATED_BYTES: Cell<u64> = const { Cell::new(0) };
 }
 
 struct CountingAllocator;
 
-fn count_allocation() {
+fn count_allocation(size: usize) {
     let _ = ALLOCATIONS.try_with(|count| count.set(count.get() + 1));
+    let _ = ALLOCATED_BYTES.try_with(|bytes| bytes.set(bytes.get() + size as u64));
 }
 
 // SAFETY: every method forwards to `System` with the caller's arguments unchanged.
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        count_allocation();
+        count_allocation(layout.size());
         // SAFETY: forwarded unchanged; the caller upholds `GlobalAlloc::alloc`'s contract.
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        count_allocation();
+        count_allocation(layout.size());
         // SAFETY: forwarded unchanged; the caller upholds `GlobalAlloc::alloc_zeroed`'s contract.
         unsafe { System.alloc_zeroed(layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        count_allocation();
+        count_allocation(new_size);
         // SAFETY: forwarded unchanged; the caller upholds `GlobalAlloc::realloc`'s contract.
         unsafe { System.realloc(ptr, layout, new_size) }
     }
@@ -104,6 +107,15 @@ fn allocations_during<R>(body: impl FnOnce() -> R) -> (R, u64) {
     let before = ALLOCATIONS.with(Cell::get);
     let result = body();
     let after = ALLOCATIONS.with(Cell::get);
+    (result, after - before)
+}
+
+/// Runs `body` and returns its result with the number of bytes this thread's allocation calls
+/// asked for while it ran.
+fn bytes_allocated_during<R>(body: impl FnOnce() -> R) -> (R, u64) {
+    let before = ALLOCATED_BYTES.with(Cell::get);
+    let result = body();
+    let after = ALLOCATED_BYTES.with(Cell::get);
     (result, after - before)
 }
 
@@ -1042,6 +1054,16 @@ fn cfunc_m1_1__catalogue_consistency() {
                 assert_eq!(id, target.id(), "{target:?} refused under another ID");
                 refused.push(target.id());
             }
+            // A reference-only parameter refuses a number at admission, before the kernel runs.
+            Err(FunctionFault::ReferenceRequired { id, index }) => {
+                assert_eq!(id, target.id(), "{target:?} refused under another ID");
+                assert_eq!(
+                    target.parameter_class(index),
+                    Some(ParameterClass::Reference),
+                    "{target:?} refused a number at a parameter that admits one"
+                );
+                refused.push(target.id());
+            }
             Err(fault) => panic!("{target:?} at its minimum arity: {fault:?}"),
         }
         if demand.is_lazy() {
@@ -1480,6 +1502,10 @@ const CAPTURE_CASE: &str = "cfunc_m1_2__mixed_operands";
 const CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx --case cfunc_m1_2__mixed_operands --out crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json";
 /// The column (D) of the oracle sheets that holds the formulas, one row per oracle row from row 1.
 const FORMULA_COLUMN: u32 = 4;
+/// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
+/// under `tests/fixtures`, in path order.
+#[cfg(all(windows, not(target_arch = "wasm32")))]
+const GENERATED_WORKBOOKS: [&str; 2] = ["cfunc_m1_2/oracle.xlsx", "cfunc_m3_4/oracle.xlsx"];
 
 /// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
 /// the number of cells visited are recorded.
@@ -1700,6 +1726,8 @@ enum Expect {
     Error(WorksheetErrorCode),
     /// `FunctionFault::NotImplemented` under the entry's own ID, naming this argument.
     Refused(Option<usize>),
+    /// `FunctionFault::ReferenceRequired` under the entry's own ID, naming this argument.
+    Required(usize),
 }
 
 use Expect::{Error as E, Logical as L, Number as N, Refused};
@@ -1726,6 +1754,10 @@ impl Expect {
                     argument: at,
                 }),
             ) => *refused == id && at == argument,
+            (
+                Expect::Required(argument),
+                Err(FunctionFault::ReferenceRequired { id: refused, index }),
+            ) => *refused == id && index == argument,
             _ => false,
         }
     }
@@ -1740,6 +1772,7 @@ impl Expect {
             Expect::Text(text) => format!("text {text:?}"),
             E(code) => spelled(*code).to_owned(),
             Refused(argument) => format!("NotImplemented (argument {argument:?})"),
+            Expect::Required(argument) => format!("ReferenceRequired (argument {argument})"),
         }
     }
 }
@@ -2180,7 +2213,12 @@ fn worksheet_cells(xml: &str) -> BTreeMap<(u32, u32), FixtureCell> {
 /// Asserts that the oracle workbook's sheet for this case holds exactly the test sheet's cells
 /// and the case's oracle formulas, each in column D at its row, and nothing else.
 fn assert_oracle_sheet(rows: &Rows, sheet: &TestSheet) {
-    let parts = stored_parts(ORACLE_WORKBOOK);
+    assert_workbook_sheet(ORACLE_WORKBOOK, ORACLE_WORKBOOK_PATH, rows, sheet);
+}
+
+/// [`assert_oracle_sheet`] for the committed workbook `package`, at `path`.
+fn assert_workbook_sheet(package: &[u8], path: &str, rows: &Rows, sheet: &TestSheet) {
+    let parts = stored_parts(package);
     let workbook = part_text(&parts, "xl/workbook.xml");
     let relationships = part_text(&parts, "xl/_rels/workbook.xml.rels");
     let id = start_tags(workbook, "sheet")
@@ -2255,9 +2293,9 @@ fn assert_oracle_sheet(rows: &Rows, sheet: &TestSheet) {
     );
     if !rows.quiet {
         note!(
-            "ACCEPT-NOTE: {}: {ORACLE_WORKBOOK_PATH} (sha256 {}): sheet {} holds exactly the {} oracle rows' formulas in column D, in row order, and the {} cells the rows read",
+            "ACCEPT-NOTE: {}: {path} (sha256 {}): sheet {} holds exactly the {} oracle rows' formulas in column D, in row order, and the {} cells the rows read",
             rows.case,
-            sha256_hex(ORACLE_WORKBOOK),
+            sha256_hex(package),
             rows.sheet,
             expected.len(),
             sheet.cells.len()
@@ -2266,16 +2304,23 @@ fn assert_oracle_sheet(rows: &Rows, sheet: &TestSheet) {
 }
 
 /// Runs the committed generator under Windows PowerShell into a new directory and returns what it
-/// wrote, by path relative to that directory.
+/// wrote, by path relative to that directory. Each call has a directory of its own, so cases that
+/// run the generator at the same time in one test process do not share one.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
 fn generated_fixtures() -> BTreeMap<String, Vec<u8>> {
     use std::path::Path;
     use std::process::{Command, Stdio};
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static RUNS: AtomicU32 = AtomicU32::new(0);
     let generator = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fixtures")
         .join("make-fixtures.ps1");
-    let out = std::env::temp_dir().join(format!("calc-func-fixtures-{}", std::process::id()));
+    let out = std::env::temp_dir().join(format!(
+        "calc-func-fixtures-{}-{}",
+        std::process::id(),
+        RUNS.fetch_add(1, Ordering::Relaxed)
+    ));
     let _ = std::fs::remove_dir_all(&out);
     let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
     let powershell = Path::new(&system_root)
@@ -3451,9 +3496,8 @@ fn cfunc_m1_2__mixed_operands() {
         let generated = generated_fixtures();
         let names: Vec<&str> = generated.keys().map(String::as_str).collect();
         assert_eq!(
-            names,
-            ["cfunc_m1_2/oracle.xlsx"],
-            "the generator writes the oracle workbook and nothing else"
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
         );
         let regenerated = &generated["cfunc_m1_2/oracle.xlsx"];
         assert!(
@@ -4027,4 +4071,1944 @@ fn cfunc_m1_2__excel_comparison() {
         changed.len(),
         mixed.oracle.len() - mixed.elsewhere()
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc-m3.4: the aggregate and counting functions (SUM, PRODUCT, SUMSQ, SUMPRODUCT, COUNT,
+// COUNTA, COUNTBLANK, AVERAGE, AVERAGEA, MIN, MAX, MINA and MAXA) through calc_func::invoke on
+// catalogue targets.
+//
+// Each oracle row runs one call and asserts a value derived here by hand, and says how. A
+// `documented` row applies a rule that Microsoft's page for the function states, named in the
+// row. An `unmeasured choice` row applies a rule that no page settles: the page is silent, it
+// contradicts itself (text in an AVERAGEA, MINA or MAXA reference), or its text disagrees with
+// the rule this implementation follows (logicals and number text typed into AVERAGE, an error in
+// a SUMSQ reference); each such disagreement is listed as divergent in the per-ID manifest of
+// `migration/ports/cfunc-m3.4.json`. A `refused` row is a call that ends in a fault, listed there
+// as unsupported: the kernel refuses it as not modelled, or the call interface refuses its
+// argument at admission. No row has been compared with Excel.
+//
+// `tests/fixtures/cfunc_m3_4/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of a sheet named after
+// its case, in the order the case runs its rows, beside the cells the rows read, so that the owner
+// can capture Excel's values; each case checks that its sheet holds exactly those formulas and
+// cells. The cases do not wait for that capture: green shows the rules as written here, not
+// agreement with Excel.
+
+/// The aggregate oracle workbook, as committed (its bytes are kept across checkouts by
+/// `.gitattributes`).
+const AGGREGATE_WORKBOOK: &[u8] = include_bytes!("fixtures/cfunc_m3_4/oracle.xlsx");
+const AGGREGATE_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx";
+/// The bead's migration record, whose per-ID manifest the argument-class case checks against the
+/// catalogue.
+const AGGREGATE_RECORD: &str = include_str!("../../../migration/ports/cfunc-m3.4.json");
+
+/// The family's entries: each spelling and the member number of its FunctionId in family 4.
+const AGGREGATES: [(&str, u32); 13] = [
+    ("SUM", 1),
+    ("PRODUCT", 2),
+    ("SUMSQ", 3),
+    ("SUMPRODUCT", 4),
+    ("COUNT", 5),
+    ("COUNTA", 6),
+    ("COUNTBLANK", 7),
+    ("AVERAGE", 8),
+    ("AVERAGEA", 9),
+    ("MIN", 10),
+    ("MAX", 11),
+    ("MINA", 12),
+    ("MAXA", 13),
+];
+
+/// A named call's surface.
+const fn named(spelling: &'static str) -> (Notation, &'static str) {
+    (Notation::Call, spelling)
+}
+
+/// Why a cfunc-m3.4 row expects its value.
+#[derive(Clone, Copy, Debug)]
+enum Basis {
+    /// Derived by hand from this rule, which the function's documentation states.
+    Documented(&'static str),
+    /// Derived by hand from this rule, which no documentation settles.
+    Choice(&'static str),
+    /// Refused, for this reason: as not modelled by the kernel, or at admission.
+    Unsupported(&'static str),
+}
+
+use Basis::{Choice, Documented, Unsupported};
+
+/// Runs the named call `surface` on `args` through calc_func::invoke under Fast with the test
+/// sheet as the cell reader and asserts `expect`, that the eager call asked for each argument once
+/// in order, and that the result fits `basis` (a value, or a refusal for an unsupported row). Then
+/// records the row with the next cell of column D and prints it with its basis.
+fn aggregate_row(
+    rows: &mut Rows,
+    sheet: &mut TestSheet,
+    surface: (Notation, &str),
+    args: &[Arg],
+    expect: Expect,
+    basis: Basis,
+) {
+    let (formula, asked, result, tick) =
+        call_and_assert(sheet, &NumericMode::Fast, surface, args, &expect);
+    let in_order: Vec<usize> = (0..args.len()).collect();
+    assert_eq!(asked, in_order, "{formula}: the arguments asked for");
+    match basis {
+        Unsupported(_) => assert!(
+            result.is_err(),
+            "{formula}: an unsupported row computed {result:?}"
+        ),
+        Documented(_) | Choice(_) => assert!(
+            result.is_ok(),
+            "{formula}: a row of cfunc-m3.4 computes a value"
+        ),
+    }
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    if !rows.quiet {
+        let reads: Vec<&str> = args
+            .iter()
+            .flat_map(|a| a.reads.iter().map(String::as_str))
+            .collect();
+        let cells = if reads.is_empty() {
+            String::new()
+        } else {
+            format!(" with {}", reads.join(", "))
+        };
+        let at = format!("{}!{}", rows.sheet, encode_a1(row, FORMULA_COLUMN));
+        let label = match basis {
+            Documented(rule) => format!("hand-derived from the documented rule: {rule}"),
+            Choice(rule) => format!("hand-derived; unmeasured choice: {rule}"),
+            Unsupported(reason) => match &result {
+                Err(FunctionFault::NotImplemented { .. }) => {
+                    format!("refused as not modelled: {reason}")
+                }
+                Err(fault) => format!("refused with {fault:?}: {reason}"),
+                Ok(value) => unreachable!("an unsupported row computed {value:?}"),
+            },
+        };
+        note!(
+            "ACCEPT-NOTE: {}: oracle {at} {formula}{cells} -> {} ({label}; not compared with Excel)",
+            rows.case,
+            expect.shown()
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice: match basis {
+            Choice(rule) => Some(rule),
+            Documented(_) | Unsupported(_) => None,
+        },
+        owner: None,
+        tick,
+    });
+}
+
+/// Runs a row of cfunc-m3.4: `agg!(rows, sheet, "SPELLING", [args], expect, basis)`.
+macro_rules! agg {
+    ($rows:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], $expect:expr, $basis:expr) => {{
+        let args = [$($arg),*];
+        aggregate_row($rows, $sheet, named($spelling), &args, $expect, $basis)
+    }};
+}
+
+/// An array constant, as a formula writes it and as the caller supplies it.
+fn array_arg(excel: &str, rows: Vec<Vec<CalcValue>>) -> Arg {
+    arg(
+        excel,
+        CalcValue::array(CalcArray::from_rows(rows).expect("a rectangular array")),
+    )
+}
+
+/// A reader over the test sheet's cells that also visits every blank cell of an area, as Empty,
+/// which the CellReader contract allows.
+struct DenseReader<'s>(&'s TestSheet);
+
+impl CellReader for DenseReader<'_> {
+    fn read_area(
+        &mut self,
+        area: GridArea,
+        visit: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
+    ) -> Result<(), Unreadable> {
+        let (first, last) = (area.first(), area.last());
+        for row in first.row()..=last.row() {
+            for column in first.column()..=last.column() {
+                let key = CellKey::new(area.sheet(), row, column).expect("a cell of the area");
+                let value = self
+                    .0
+                    .cells
+                    .get(&(row, column))
+                    .cloned()
+                    .unwrap_or_else(CalcValue::empty);
+                if visit(key, &value).is_break() {
+                    return Ok(());
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// How a reader breaks the CellReader contract.
+#[derive(Clone, Copy, Debug)]
+enum Breach {
+    /// After the held cells of the area, it also visits this cell, which lies outside the area.
+    Outside(&'static str),
+    /// It visits the held cells of the area in reverse row-major order.
+    Reversed,
+    /// It visits every held cell of the area twice.
+    Twice,
+}
+
+/// A reader over the test sheet's cells that breaks the CellReader contract by `breach`.
+struct BreachingReader<'s> {
+    sheet: &'s TestSheet,
+    breach: Breach,
+}
+
+impl CellReader for BreachingReader<'_> {
+    fn read_area(
+        &mut self,
+        area: GridArea,
+        visit: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
+    ) -> Result<(), Unreadable> {
+        let sheet = self.sheet;
+        let mut cells: Vec<(CellKey, CalcValue)> = sheet
+            .cells
+            .iter()
+            .filter_map(|(&(row, column), value)| {
+                let key = CellKey::new(sheet.id, row, column).expect("a held cell");
+                area.contains(key).then(|| (key, value.clone()))
+            })
+            .collect();
+        match self.breach {
+            Breach::Outside(a1) => {
+                let key = sheet.key(a1);
+                assert!(!area.contains(key), "{a1} lies outside the area");
+                cells.push((key, sheet.value(a1)));
+            }
+            Breach::Reversed => cells.reverse(),
+            Breach::Twice => {
+                let again = cells.clone();
+                cells.extend(again);
+            }
+        }
+        for (key, value) in &cells {
+            if visit(*key, value).is_break() {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The value an oracle row of `rows` computed for `formula`.
+fn row_value<'r>(rows: &'r Rows, formula: &str) -> &'r CalcValue {
+    rows.oracle
+        .iter()
+        .find(|row| row.formula == formula)
+        .and_then(|row| row.outcome.as_ref().ok())
+        .unwrap_or_else(|| panic!("no oracle row computes {formula}"))
+}
+
+/// Prints how many rows a case ran and on what basis each expects its value.
+fn aggregate_rows_note(rows: &Rows) {
+    let (choices, refused) = (rows.choices(), rows.refused());
+    note!(
+        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet {} of {AGGREGATE_WORKBOOK_PATH}: {} from documented rules, {} unmeasured choices, {} refused; none is compared with Excel until the owner captures that workbook",
+        rows.case,
+        rows.oracle.len(),
+        rows.sheet,
+        rows.oracle.len() - choices - refused,
+        choices,
+        refused
+    );
+}
+
+// Rules the rows apply, as the functions' pages state them.
+const TYPED_COUNTED: &str = "logicals and number text typed as arguments are counted";
+const UNREADABLE_TEXT: &str = "text that cannot be read as a number causes an error";
+const ERRORS_ERROR: &str = "error values cause errors";
+const OMITTED_ZERO: &str = "an omitted argument is the number 0";
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_4__argument_classes
+
+/// The cells the argument-class rows read: A1:A8 hold one of each class (A5 is blank and A6 holds
+/// empty text), B1:B3 hold an error between two numbers, and C1:C8 hold numbers.
+fn argument_classes_sheet() -> TestSheet {
+    let ten = || CalcValue::number(10.0);
+    TestSheet::new(&[
+        ("A1", "1", CalcValue::number(1.0)),
+        ("A2", "text \"2\"", text_value("2")),
+        ("A3", "TRUE", CalcValue::logical(true)),
+        ("A4", "text \"a\"", text_value("a")),
+        ("A6", "empty text", text_value("")),
+        ("A7", "4", CalcValue::number(4.0)),
+        ("A8", "FALSE", CalcValue::logical(false)),
+        ("B1", "5", CalcValue::number(5.0)),
+        ("B2", "#DIV/0!", CalcValue::error(WorksheetErrorCode::Div0)),
+        ("B3", "-3", CalcValue::number(-3.0)),
+        ("C1", "10", ten()),
+        ("C2", "10", ten()),
+        ("C3", "10", ten()),
+        ("C4", "10", ten()),
+        ("C5", "10", ten()),
+        ("C6", "10", ten()),
+        ("C7", "0.5", CalcValue::number(0.5)),
+        ("C8", "10", ten()),
+    ])
+}
+
+/// The rows of cfunc_m3_4__argument_classes, run through calc_func::invoke on `s`, in the order
+/// the aggregate oracle workbook's sheet `argument_classes` holds their formulas.
+fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
+    const CASE: &str = "cfunc_m3_4__argument_classes";
+    let mut rows = Rows::new(CASE, "argument_classes", quiet);
+    let r = &mut rows;
+    use WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
+    let mixed = |s: &TestSheet| reference(s, &["A1:A8"]);
+    let with_error = |s: &TestSheet| reference(s, &["B1:B3"]);
+    let typed_array = || {
+        array_arg(
+            "{1,\"2\",TRUE}",
+            vec![vec![
+                CalcValue::number(1.0),
+                text_value("2"),
+                CalcValue::logical(true),
+            ]],
+        )
+    };
+
+    // SUM keeps cfunc-m1.2's rules and order; these rows add the reduction order and the
+    // classes of A1:A8.
+    agg!(
+        r,
+        s,
+        "SUM",
+        [mixed(s)],
+        N(5.0),
+        Choice(
+            "only the numbers a reference holds are added: the SUM page states that its text is ignored, and cfunc-m1.2 skips its logicals and blank cells the same way"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUM",
+        [num("1E16"), num("1"), num("-1E16")],
+        N(0.0),
+        Choice(
+            "the sequential left fold in reading order: 1E16+1 rounds to 1E16 before -1E16 is added (the reduction order cfunc-m3.23 is to document)"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUM",
+        [with_error(s)],
+        E(Div0),
+        Choice("an error a reference holds is the result; the SUM page is silent")
+    );
+    agg!(
+        r,
+        s,
+        "SUM",
+        [num("2"), logical(true)],
+        N(3.0),
+        Choice(
+            "a logical typed as an argument is read as a number, TRUE as 1, where a logical a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUM",
+        [num("2"), txt("3")],
+        N(5.0),
+        Choice(
+            "number text typed as an argument is read as a number, where number text a reference holds is skipped (row SUM(A1:A8)); as cfunc-m1.2's SUM reads it and the SUMSQ, MIN and MAX pages state for those functions"
+        )
+    );
+
+    // PRODUCT.
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [num("2"), num("3"), num("4")],
+        N(24.0),
+        Documented("PRODUCT multiplies the numbers given as its arguments")
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [mixed(s)],
+        N(4.0),
+        Documented(
+            "only the numbers of a reference are multiplied; its empty cells, logicals and text are ignored"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [array_arg(
+            "{2,\"x\",TRUE}",
+            vec![vec![
+                CalcValue::number(2.0),
+                text_value("x"),
+                CalcValue::logical(true)
+            ]]
+        )],
+        N(2.0),
+        Documented(
+            "only the numbers of an array are multiplied; its logicals and text are ignored"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [txt("2"), logical(true)],
+        N(2.0),
+        Choice(
+            "logicals and number text typed as arguments are read as numbers, as the SUMSQ, MIN and MAX pages state; the PRODUCT page is silent"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [txt("a")],
+        E(Value),
+        Choice(
+            "typed text that does not read as a number is #VALUE!, as the SUMSQ page states; the PRODUCT page is silent"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [reference(s, &["A3:A6"])],
+        N(0.0),
+        Choice("no number to multiply gives 0; the page is silent")
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [with_error(s)],
+        E(Div0),
+        Choice("an error a reference holds is the result; the page is silent")
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [num("2"), omitted()],
+        N(0.0),
+        Choice(OMITTED_ZERO)
+    );
+    agg!(
+        r,
+        s,
+        "PRODUCT",
+        [num("1E-200"), num("1E-200")],
+        Refused(None),
+        Unsupported("a product of two non-zero factors that underflows")
+    );
+
+    // SUMSQ.
+    agg!(
+        r,
+        s,
+        "SUMSQ",
+        [num("2"), num("3"), num("4")],
+        N(29.0),
+        Documented("SUMSQ adds the squares of its numbers")
+    );
+    agg!(
+        r,
+        s,
+        "SUMSQ",
+        [txt("2"), logical(true)],
+        N(5.0),
+        Documented(TYPED_COUNTED)
+    );
+    agg!(
+        r,
+        s,
+        "SUMSQ",
+        [txt("a")],
+        E(Value),
+        Documented(UNREADABLE_TEXT)
+    );
+    agg!(
+        r,
+        s,
+        "SUMSQ",
+        [mixed(s)],
+        N(17.0),
+        Documented(
+            "only the numbers of a reference count; its empty cells, logicals and text are ignored"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMSQ",
+        [array_arg(
+            "{3,TRUE}",
+            vec![vec![CalcValue::number(3.0), CalcValue::logical(true)]]
+        )],
+        N(9.0),
+        Documented("only the numbers of an array count")
+    );
+    agg!(
+        r,
+        s,
+        "SUMSQ",
+        [with_error(s)],
+        E(Div0),
+        Choice(
+            "divergent from the SUMSQ page, which says an error value in a reference is ignored: this kernel returns it, as every other aggregate here does"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMSQ",
+        [num("1E-200")],
+        Refused(None),
+        Unsupported("a square of a non-zero number that underflows")
+    );
+
+    // SUMPRODUCT.
+    let one_two = || {
+        array_arg(
+            "{1,2}",
+            vec![vec![CalcValue::number(1.0), CalcValue::number(2.0)]],
+        )
+    };
+    let three_four = || {
+        array_arg(
+            "{3,4}",
+            vec![vec![CalcValue::number(3.0), CalcValue::number(4.0)]],
+        )
+    };
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [one_two(), three_four()],
+        N(11.0),
+        Documented("SUMPRODUCT multiplies corresponding entries and adds the products")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [array_arg(
+            "{1,4,9}",
+            vec![vec![
+                CalcValue::number(1.0),
+                CalcValue::number(4.0),
+                CalcValue::number(9.0)
+            ]]
+        )],
+        N(14.0),
+        Documented(
+            "the products of corresponding entries of the arrays given, here one, are added"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [
+            array_arg(
+                "{1,TRUE}",
+                vec![vec![CalcValue::number(1.0), CalcValue::logical(true)]]
+            ),
+            three_four()
+        ],
+        N(3.0),
+        Documented("a non-numeric entry is treated as 0")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [mixed(s), reference(s, &["C1:C8"])],
+        N(12.0),
+        Documented("a non-numeric entry is treated as 0")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [reference(s, &["A7:A8"]), reference(s, &["C6:C7"])],
+        N(40.0),
+        Documented(
+            "corresponding entries are those at one position of each array, here of areas that start on different rows: A7 times C6, plus A8, a logical and so 0, times C7"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [one_two(), num("3")],
+        E(Value),
+        Choice(
+            "a number given directly is a 1-by-1 array, so its dimensions differ from {1,2}'s, and arrays of different dimensions are #VALUE! (documented)"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [with_error(s), reference(s, &["C1:C3"])],
+        E(Div0),
+        Choice("an error entry is the result; the page is silent")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [
+            one_two(),
+            array_arg(
+                "{1,2,3}",
+                vec![vec![
+                    CalcValue::number(1.0),
+                    CalcValue::number(2.0),
+                    CalcValue::number(3.0)
+                ]]
+            ),
+            array_arg(
+                "{1,#N/A}",
+                vec![vec![CalcValue::number(1.0), CalcValue::error(NA)]]
+            )
+        ],
+        E(NA),
+        Choice(
+            "every argument is read before the dimensions are compared, so an error entry of the third array comes before the #VALUE! of the first two"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [num("2"), num("3")],
+        N(6.0),
+        Choice("a number given directly is a 1-by-1 array")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [txt("3")],
+        N(0.0),
+        Choice("text given directly, number text included, is a non-numeric 1-by-1 entry, so 0")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [reference(s, &["A1:A2"]), omitted()],
+        E(Value),
+        Choice("an omitted argument is #VALUE!")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [reference(s, &["A1", "A7"])],
+        Refused(Some(0)),
+        Unsupported("a reference of several areas")
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [reference(s, &["A1:A3"]), reference(s, &["C1:C2"])],
+        E(Value),
+        Documented(
+            "arrays of different dimensions are #VALUE!, here a reference of three rows and one of two"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [reference(s, &["A1:A2"]), one_two()],
+        E(Value),
+        Documented(
+            "arrays of different dimensions are #VALUE!, here a column of two cells and a row of two entries"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [
+            reference(s, &["C1:C2"]),
+            array_arg(
+                "{1;2}",
+                vec![vec![CalcValue::number(1.0)], vec![CalcValue::number(2.0)]]
+            )
+        ],
+        N(30.0),
+        Documented(
+            "SUMPRODUCT multiplies corresponding entries and adds the products, here of a column of two cells and a column of two entries"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "SUMPRODUCT",
+        [num("1E-200"), num("1E-200")],
+        Refused(None),
+        Unsupported("a product of two non-zero factors that underflows")
+    );
+
+    // COUNT.
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [mixed(s)],
+        N(2.0),
+        Documented(
+            "only the numbers of a reference are counted; its empty cells, logicals, text and errors are not"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [with_error(s)],
+        N(2.0),
+        Documented("an error value in a reference is not counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [reference(s, &["A1:A2", "B2:B3"])],
+        N(2.0),
+        Choice(
+            "only the numbers of each area are counted: the page states the rule for an array or a reference and is silent on a reference of several areas"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [num("1"), txt("2"), logical(true)],
+        N(3.0),
+        Documented("numbers, number text and logicals typed as arguments are counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [txt("a"), err(NA), txt("")],
+        N(0.0),
+        Documented("errors and text that cannot be read as a number are not counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [typed_array()],
+        N(1.0),
+        Documented("only the numbers of an array are counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [num("1"), omitted()],
+        N(2.0),
+        Choice("an omitted argument is the number 0, and counts")
+    );
+    agg!(
+        r,
+        s,
+        "COUNT",
+        [txt("1/2")],
+        Refused(Some(0)),
+        Unsupported("typed text that Excel's number-text rules may read as a date (cfml-m2.6)")
+    );
+
+    // COUNTA.
+    agg!(
+        r,
+        s,
+        "COUNTA",
+        [mixed(s)],
+        N(7.0),
+        Documented("every cell with content is counted, empty text included; an empty cell is not")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTA",
+        [with_error(s)],
+        N(3.0),
+        Documented("error values are counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTA",
+        [reference(s, &["A5"])],
+        N(0.0),
+        Documented("an empty cell is not counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTA",
+        [txt("a"), err(NA), logical(false), txt("")],
+        N(4.0),
+        Choice("every value typed as an argument is counted; the page is silent")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTA",
+        [typed_array()],
+        N(3.0),
+        Choice("every element of an array is counted; the page is silent")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTA",
+        [num("1"), omitted()],
+        N(2.0),
+        Choice("an omitted argument is the number 0, and counts")
+    );
+
+    // COUNTBLANK.
+    agg!(
+        r,
+        s,
+        "COUNTBLANK",
+        [reference(s, &["A5"])],
+        N(1.0),
+        Documented("an empty cell is counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTBLANK",
+        [with_error(s)],
+        N(0.0),
+        Documented("only empty cells and cells whose formula gives empty text are counted")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTBLANK",
+        [mixed(s)],
+        N(2.0),
+        Choice(
+            "the empty A5 counts (documented), and so does A6, whose empty text is a constant, as the page counts a formula's empty text"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "COUNTBLANK",
+        [reference(s, &["A1:C8"])],
+        N(7.0),
+        Choice("A5, A6 and the empty B4:B8 count; A6 holds empty text as a constant")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTBLANK",
+        [reference(s, &["A5", "A6"])],
+        Refused(Some(0)),
+        Unsupported("a reference of several areas")
+    );
+    agg!(
+        r,
+        s,
+        "COUNTBLANK",
+        [err(Ref)],
+        Expect::Required(0),
+        Unsupported(
+            "an error value given for the reference-only parameter is refused at admission; Excel likely returns the error (unmeasured)"
+        )
+    );
+
+    // AVERAGE.
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [num("1"), num("2"), num("5")],
+        N(8.0 / 3.0),
+        Documented("the arithmetic mean of its numbers: 8 divided by 3, rounded once")
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [mixed(s)],
+        N(2.5),
+        Documented("the text, logicals and empty cells of a reference are ignored")
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [reference(s, &["A7", "B3"])],
+        N(0.5),
+        Choice(
+            "the numbers of every area are averaged: the page states the rule for an array or a reference and is silent on a reference of several areas"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [with_error(s)],
+        E(Div0),
+        Documented(ERRORS_ERROR)
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [txt("a")],
+        E(Value),
+        Documented(UNREADABLE_TEXT)
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [txt("2"), logical(true)],
+        N(1.5),
+        Choice(
+            "divergent from the AVERAGE page, which says logicals and number text typed as arguments are not counted: this kernel counts them, as the MIN, MAX, COUNT, SUMSQ and AVERAGEA pages state for those functions"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [reference(s, &["A3:A6"])],
+        E(Div0),
+        Choice("with nothing counted the total is divided by 0, #DIV/0!; the page is silent")
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [typed_array()],
+        N(1.0),
+        Choice("an array's elements follow the rule for a reference's cells")
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [num("1"), omitted()],
+        N(0.5),
+        Choice("an omitted argument is the number 0, and counts")
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGE",
+        [num("1E308"), num("1E308")],
+        E(Num),
+        Choice("a total that overflows is #NUM!")
+    );
+
+    // AVERAGEA.
+    agg!(
+        r,
+        s,
+        "AVERAGEA",
+        [txt("2"), logical(true)],
+        N(1.5),
+        Documented(TYPED_COUNTED)
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGEA",
+        [reference(s, &["A3", "A8"])],
+        N(0.5),
+        Choice(
+            "each area's TRUE is 1 and its FALSE 0: the page states the rule for an array or a reference and is silent on a reference of several areas"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGEA",
+        [mixed(s)],
+        N(6.0 / 7.0),
+        Choice(
+            "a reference's text and empty text are 0, as the page's worked example computes although another remark there calls text ignored; TRUE is 1, FALSE 0 and the empty A5 is skipped: 6 divided by 7, rounded once"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGEA",
+        [reference(s, &["A5"])],
+        E(Div0),
+        Choice("an empty cell is ignored (documented); with nothing counted the result is #DIV/0!")
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGEA",
+        [txt("a")],
+        E(Value),
+        Documented(UNREADABLE_TEXT)
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGEA",
+        [with_error(s)],
+        E(Div0),
+        Documented(ERRORS_ERROR)
+    );
+    agg!(
+        r,
+        s,
+        "AVERAGEA",
+        [typed_array()],
+        N(2.0 / 3.0),
+        Choice("an array's elements follow the rule for a reference's cells: text 0, TRUE 1")
+    );
+
+    // MIN and MAX.
+    agg!(
+        r,
+        s,
+        "MIN",
+        [mixed(s)],
+        N(1.0),
+        Documented(
+            "only the numbers of a reference are used; its empty cells, logicals and text are ignored"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "MIN",
+        [txt("2"), logical(true)],
+        N(1.0),
+        Documented(TYPED_COUNTED)
+    );
+    agg!(
+        r,
+        s,
+        "MIN",
+        [reference(s, &["A3:A6"])],
+        N(0.0),
+        Documented("with no numbers the result is 0")
+    );
+    agg!(
+        r,
+        s,
+        "MIN",
+        [with_error(s)],
+        E(Div0),
+        Documented(ERRORS_ERROR)
+    );
+    agg!(
+        r,
+        s,
+        "MIN",
+        [num("5"), txt("a")],
+        E(Value),
+        Documented(UNREADABLE_TEXT)
+    );
+    agg!(
+        r,
+        s,
+        "MIN",
+        [array_arg(
+            "{TRUE,\"1\"}",
+            vec![vec![CalcValue::logical(true), text_value("1")]]
+        )],
+        N(0.0),
+        Documented("only the numbers of an array are used, and with none the result is 0")
+    );
+    agg!(
+        r,
+        s,
+        "MIN",
+        [num("1"), omitted()],
+        N(0.0),
+        Choice(OMITTED_ZERO)
+    );
+    agg!(
+        r,
+        s,
+        "MAX",
+        [mixed(s)],
+        N(4.0),
+        Documented(
+            "only the numbers of a reference are used; its empty cells, logicals and text are ignored"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "MAX",
+        [txt("2"), logical(true)],
+        N(2.0),
+        Documented(TYPED_COUNTED)
+    );
+    agg!(
+        r,
+        s,
+        "MAX",
+        [reference(s, &["A4", "B3"])],
+        N(-3.0),
+        Choice(
+            "only the numbers of each area are used, so its text is not 0: the page states the rule for an array or a reference and is silent on a reference of several areas"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "MAX",
+        [with_error(s)],
+        E(Div0),
+        Documented(ERRORS_ERROR)
+    );
+    agg!(
+        r,
+        s,
+        "MAX",
+        [reference(s, &["A3:A6"])],
+        N(0.0),
+        Documented("with no numbers the result is 0")
+    );
+    agg!(
+        r,
+        s,
+        "MAX",
+        [num("-1"), omitted()],
+        N(0.0),
+        Choice(OMITTED_ZERO)
+    );
+
+    // MINA and MAXA.
+    agg!(
+        r,
+        s,
+        "MINA",
+        [reference(s, &["A3", "A7"])],
+        N(1.0),
+        Choice(
+            "each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "MINA",
+        [txt("2"), logical(true)],
+        N(1.0),
+        Documented(TYPED_COUNTED)
+    );
+    agg!(
+        r,
+        s,
+        "MINA",
+        [reference(s, &["A1:A4"])],
+        N(0.0),
+        Choice(
+            "a reference's text is 0, as one remark of the page says while another calls it ignored"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "MINA",
+        [reference(s, &["A5"])],
+        N(0.0),
+        Documented("an empty cell is ignored, and with no values the result is 0")
+    );
+    agg!(
+        r,
+        s,
+        "MINA",
+        [with_error(s)],
+        E(Div0),
+        Documented(ERRORS_ERROR)
+    );
+    agg!(
+        r,
+        s,
+        "MAXA",
+        [reference(s, &["A3", "B3"])],
+        N(1.0),
+        Choice(
+            "each area's TRUE is 1: the page states the rule for an array or a reference and is silent on a reference of several areas"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "MAXA",
+        [txt("2"), logical(true)],
+        N(2.0),
+        Documented(TYPED_COUNTED)
+    );
+    agg!(
+        r,
+        s,
+        "MAXA",
+        [reference(s, &["A4", "B3"])],
+        N(0.0),
+        Choice(
+            "a reference's text is 0, which exceeds -3; were it ignored, as another remark of the page says, the result would be -3"
+        )
+    );
+    agg!(
+        r,
+        s,
+        "MAXA",
+        [txt("a")],
+        E(Value),
+        Documented(UNREADABLE_TEXT)
+    );
+    agg!(
+        r,
+        s,
+        "MAXA",
+        [array_arg(
+            "{-1,\"a\"}",
+            vec![vec![CalcValue::number(-1.0), text_value("a")]]
+        )],
+        N(0.0),
+        Choice("an array's text is 0, as the rule for a reference's cells reads it")
+    );
+    rows
+}
+
+/// The pairs `(id, spelling)` of the per-ID manifest in the migration record: each function's
+/// object there starts `{"id": "<family>.<member>", "spelling": "<SPELLING>"`.
+fn manifest_ids(record: &str) -> BTreeSet<(String, String)> {
+    const ID: &str = "{\"id\": \"";
+    const SPELLING: &str = "\", \"spelling\": \"";
+    let mut ids = BTreeSet::new();
+    let mut rest = record;
+    while let Some(at) = rest.find(ID) {
+        rest = &rest[at + ID.len()..];
+        let Some(end) = rest.find('"') else { break };
+        let id = rest[..end].to_owned();
+        if let Some(spelling) = rest[end..].strip_prefix(SPELLING) {
+            let close = spelling.find('"').expect("a spelling ends");
+            assert!(
+                ids.insert((id, spelling[..close].to_owned())),
+                "the per-ID manifest repeats an entry"
+            );
+        }
+    }
+    ids
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_4__argument_classes() {
+    const CASE: &str = "cfunc_m3_4__argument_classes";
+    let fast = NumericMode::Fast;
+    let mut sheet = argument_classes_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; A5 is blank",
+        sheet.described()
+    );
+    let rows = argument_classes_rows(&mut sheet, false);
+    let s = &mut sheet;
+
+    // Metadata and dispatch come from the one generated catalogue: family 4 holds exactly these
+    // entries, each eager, with Excel's arity, its parameter classes and its signature help.
+    let family: BTreeSet<(u32, String)> = catalogue()
+        .targets()
+        .filter(|target| target.id().raw() >> 16 == 4)
+        .map(|target| (target.id().raw(), target.spelling().to_owned()))
+        .collect();
+    let expected: BTreeSet<(u32, String)> = AGGREGATES
+        .iter()
+        .map(|(spelling, member)| ((4 << 16) | member, (*spelling).to_owned()))
+        .collect();
+    assert_eq!(family, expected, "the aggregate family in the catalogue");
+    for (spelling, _) in AGGREGATES {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            target.argument_demand(),
+            ArgumentDemand::Eager,
+            "{spelling}"
+        );
+        let arity = target.arity();
+        if spelling == "COUNTBLANK" {
+            assert_eq!((arity.min, arity.max), (1, 1));
+            assert_eq!(target.parameter_class(0), Some(ParameterClass::Reference));
+        } else {
+            assert_eq!((arity.min, arity.max), (1, 255), "{spelling}");
+            for index in [0, 1, 254] {
+                assert_eq!(
+                    target.parameter_class(index),
+                    Some(ParameterClass::ValueOrReference),
+                    "{spelling} argument {index}"
+                );
+            }
+        }
+    }
+    let helps = [
+        ("SUM", "SUM(number1, [number2], ...)"),
+        ("PRODUCT", "PRODUCT(number1, [number2], ...)"),
+        ("SUMPRODUCT", "SUMPRODUCT(array1, [array2], ...)"),
+        ("COUNT", "COUNT(value1, [value2], ...)"),
+        ("COUNTBLANK", "COUNTBLANK(range)"),
+        ("AVERAGEA", "AVERAGEA(value1, [value2], ...)"),
+        ("MAX", "MAX(number1, [number2], ...)"),
+    ];
+    for (spelling, display) in helps {
+        assert_eq!(
+            surface(Notation::Call, spelling).signature_help().display,
+            display
+        );
+    }
+    let manifest = manifest_ids(AGGREGATE_RECORD);
+    let listed: BTreeSet<(String, String)> = AGGREGATES
+        .iter()
+        .map(|(spelling, member)| (format!("4.{member}"), (*spelling).to_owned()))
+        .collect();
+    assert_eq!(
+        manifest, listed,
+        "the per-ID manifest of migration/ports/cfunc-m3.4.json against the catalogue"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the catalogue's family 4 holds exactly the {} entries {:?}, each eager; COUNTBLANK takes one reference-only argument and the others 1 to 255 values or references; the per-ID manifest of migration/ports/cfunc-m3.4.json lists the same IDs and spellings",
+        family.len(),
+        AGGREGATES.map(|(spelling, _)| spelling)
+    );
+
+    // COUNTBLANK's reference-only parameter refuses any other value at admission, before its
+    // kernel runs.
+    let countblank = surface(Notation::Call, "COUNTBLANK");
+    for refused in [
+        CalcValue::number(1.0),
+        CalcValue::array(CalcArray::from_scalar(CalcValue::empty())),
+        CalcValue::missing(),
+    ] {
+        let mut given = Recorded::new(vec![refused.clone()]);
+        assert_eq!(
+            run(countblank, &mut given, &fast),
+            Err(FunctionFault::ReferenceRequired {
+                id: countblank.id(),
+                index: 0
+            }),
+            "COUNTBLANK({refused:?})"
+        );
+    }
+
+    // Through the call interface alone (no formula writes a direct blank): a direct Empty reads as
+    // an omitted argument does, the number 0 (an unmeasured choice).
+    let direct_empty: [(&str, Vec<CalcValue>, Result<f64, WorksheetErrorCode>); 7] = [
+        ("COUNT", vec![CalcValue::empty()], Ok(1.0)),
+        ("COUNTA", vec![CalcValue::empty()], Ok(1.0)),
+        (
+            "AVERAGE",
+            vec![CalcValue::empty(), CalcValue::number(2.0)],
+            Ok(1.0),
+        ),
+        (
+            "MIN",
+            vec![CalcValue::empty(), CalcValue::number(2.0)],
+            Ok(0.0),
+        ),
+        (
+            "MAXA",
+            vec![CalcValue::empty(), CalcValue::number(-2.0)],
+            Ok(0.0),
+        ),
+        (
+            "PRODUCT",
+            vec![CalcValue::empty(), CalcValue::number(2.0)],
+            Ok(0.0),
+        ),
+        (
+            "SUMPRODUCT",
+            vec![CalcValue::empty()],
+            Err(WorksheetErrorCode::Value),
+        ),
+    ];
+    for (spelling, values, expected) in direct_empty {
+        let target = surface(Notation::Call, spelling);
+        let result = run(target, &mut Recorded::new(values), &fast);
+        let observed = result
+            .as_ref()
+            .map(|value| value.as_number().ok_or(value.as_error()));
+        assert_eq!(
+            observed,
+            Ok(expected.map_err(Some)),
+            "{spelling} on a direct Empty: {result:?}"
+        );
+    }
+
+    // Values that no formula writes, each refused naming its argument: an array held inside an
+    // array argument, and a NaN or an infinity given to a count.
+    let nested = CalcValue::array(
+        CalcArray::from_rows(vec![vec![
+            CalcValue::number(1.0),
+            CalcValue::array(CalcArray::from_scalar(CalcValue::number(2.0))),
+        ]])
+        .expect("a 1-by-2 array"),
+    );
+    for (spelling, _) in AGGREGATES
+        .iter()
+        .filter(|(spelling, _)| *spelling != "COUNTBLANK")
+    {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            run(target, &mut Recorded::new(vec![nested.clone()]), &fast),
+            Err(FunctionFault::NotImplemented {
+                id: target.id(),
+                argument: Some(0)
+            }),
+            "{spelling} of an array holding an array"
+        );
+    }
+    for spelling in ["COUNT", "COUNTA"] {
+        let target = surface(Notation::Call, spelling);
+        for n in [f64::NAN, f64::INFINITY] {
+            assert_eq!(
+                run(
+                    target,
+                    &mut Recorded::new(vec![CalcValue::number(1.0), CalcValue::number(n)]),
+                    &fast
+                ),
+                Err(FunctionFault::NotImplemented {
+                    id: target.id(),
+                    argument: Some(1)
+                }),
+                "{spelling}(1, {n:?})"
+            );
+        }
+    }
+
+    // A reference with no cell reader, or one the reader refuses, ends the call in
+    // ReferenceUnreadable naming the argument, never in blanks.
+    let range = reference(s, &["A1:A8"]).value;
+    let mut unreadable = 0;
+    for (spelling, _) in AGGREGATES {
+        let target = surface(Notation::Call, spelling);
+        let (values, index) = if spelling == "COUNTBLANK" {
+            (vec![range.clone()], 0)
+        } else {
+            (vec![CalcValue::number(1.0), range.clone()], 1)
+        };
+        let fault = Err(FunctionFault::ReferenceUnreadable {
+            id: target.id(),
+            index,
+        });
+        assert_eq!(
+            run(target, &mut Recorded::new(values.clone()), &fast),
+            fault,
+            "{spelling} without a cell reader"
+        );
+        s.refuse = true;
+        let refused = invoke(
+            target,
+            &mut Recorded::new(values),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        );
+        s.refuse = false;
+        assert_eq!(refused, fault, "{spelling} over a refusing reader");
+        unreadable += 2;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: through the call interface alone: COUNTBLANK refuses a number, an array and an omitted argument with ReferenceRequired; a direct Empty reads as an omitted argument (unmeasured choice); each aggregate refuses an array held in an array naming it, COUNT and COUNTA refuse NaN and infinity naming them; {unreadable} calls over a reference without a reader or with a refusing one ended in ReferenceUnreadable naming the argument"
+    );
+
+    // NumericMode reaches every arithmetic site. Under Exact each call that adds, multiplies,
+    // divides or converts number text is refused; the counts and the extremes, which choose and
+    // count without rounding, compute the value of their Fast row, and so does an average or a
+    // product that reaches no arithmetic site.
+    let exact = exact_mode();
+    let mut exact_refused = 0;
+    for (spelling, args) in [
+        ("SUM", vec![reference(s, &["A1:A8"])]),
+        ("PRODUCT", vec![reference(s, &["A1:A8"])]),
+        ("SUMSQ", vec![reference(s, &["A1:A8"])]),
+        (
+            "SUMPRODUCT",
+            vec![reference(s, &["A1:A8"]), reference(s, &["C1:C8"])],
+        ),
+        // One argument: each entry is added with no multiplication before it.
+        ("SUMPRODUCT", vec![reference(s, &["C1:C8"])]),
+        ("AVERAGE", vec![reference(s, &["A1:A8"])]),
+        ("AVERAGEA", vec![reference(s, &["A1:A8"])]),
+        ("MIN", vec![txt("2"), logical(true)]),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let result = invoke(
+            target,
+            &mut Recorded::new(args.iter().map(|a| a.value.clone()).collect()),
+            &mut EvalServices::with_cells(&exact, s),
+            &mut FunctionCallScratch::new(),
+        );
+        assert_eq!(
+            result,
+            Err(FunctionFault::ExactUnavailable { id: target.id() }),
+            "{spelling} under Exact"
+        );
+        exact_refused += 1;
+    }
+    let mut exact_computed = 0;
+    for (spelling, args) in [
+        ("COUNT", vec![reference(s, &["A1:A8"])]),
+        ("COUNT", vec![num("1"), txt("2"), logical(true)]),
+        ("COUNTA", vec![reference(s, &["A1:A8"])]),
+        ("COUNTBLANK", vec![reference(s, &["A1:A8"])]),
+        ("MIN", vec![reference(s, &["A1:A8"])]),
+        ("MAX", vec![reference(s, &["A1:A8"])]),
+        ("MINA", vec![reference(s, &["A1:A4"])]),
+        ("MAXA", vec![reference(s, &["A4", "B3"])]),
+        ("AVERAGE", vec![reference(s, &["A3:A6"])]),
+        ("PRODUCT", vec![reference(s, &["A3:A6"])]),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+        let formula = target.oracle_formula(&texts).expect("a formula");
+        let under_fast = row_value(&rows, &formula);
+        let under_exact = invoke(
+            target,
+            &mut Recorded::new(args.iter().map(|a| a.value.clone()).collect()),
+            &mut EvalServices::with_cells(&exact, s),
+            &mut FunctionCallScratch::new(),
+        );
+        assert!(
+            under_exact
+                .as_ref()
+                .is_ok_and(|value| identical(value, under_fast)),
+            "{formula} under Exact gives {under_exact:?}, under Fast {under_fast:?}"
+        );
+        exact_computed += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: under NumericMode::Exact {exact_refused} calls that round (sums, products, averages over A1:A8, SUMPRODUCT(C1:C8), which adds with no multiplication, and MIN reading number text) were refused with ExactUnavailable, and {exact_computed} calls that reach no arithmetic site (counts, extremes, an average and a product of nothing) computed the value of their Fast oracle row"
+    );
+
+    // A reader may also visit a blank cell, as Empty: over such a reader every count, blank
+    // count and average gives the value of its Fast oracle row.
+    let mut dense_calls = 0;
+    for (spelling, areas) in [
+        ("COUNT", &[&["A1:A8"][..]][..]),
+        ("COUNTA", &[&["A1:A8"][..]][..]),
+        ("COUNTA", &[&["A5"][..]][..]),
+        ("COUNTBLANK", &[&["A1:A8"][..]][..]),
+        ("COUNTBLANK", &[&["A1:C8"][..]][..]),
+        ("AVERAGE", &[&["A1:A8"][..]][..]),
+        ("AVERAGEA", &[&["A1:A8"][..]][..]),
+        ("AVERAGEA", &[&["A5"][..]][..]),
+        ("MINA", &[&["A5"][..]][..]),
+        ("MAXA", &[&["A4", "B3"][..]][..]),
+        ("PRODUCT", &[&["A3:A6"][..]][..]),
+        ("SUMPRODUCT", &[&["A1:A8"][..], &["C1:C8"][..]][..]),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let args: Vec<Arg> = areas.iter().map(|texts| reference(s, texts)).collect();
+        let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+        let formula = target.oracle_formula(&texts).expect("a formula");
+        let mut dense = DenseReader(s);
+        let visited_blanks = invoke(
+            target,
+            &mut Recorded::new(args.iter().map(|a| a.value.clone()).collect()),
+            &mut EvalServices::with_cells(&fast, &mut dense),
+            &mut FunctionCallScratch::new(),
+        );
+        let under_fast = row_value(&rows, &formula);
+        assert!(
+            visited_blanks
+                .as_ref()
+                .is_ok_and(|value| identical(value, under_fast)),
+            "{formula} over a reader that visits blank cells gives {visited_blanks:?}, the row {under_fast:?}"
+        );
+        dense_calls += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {dense_calls} calls over a reader that also visits every blank cell as Empty gave the values of their Fast oracle rows"
+    );
+
+    // A reader that breaks the CellReader contract cannot supply the area, and the call ends in
+    // ReferenceUnreadable naming the argument: a visit outside the area asked for, cells out of
+    // row-major order where the order places each entry (SUMPRODUCT), and more cells than the
+    // area holds where their number is subtracted from its size (COUNTBLANK). Each call first
+    // gives a value over the test sheet's reader, which keeps the contract.
+    let breaches: [(&str, &str, Breach, f64); 4] = [
+        ("SUM", "A1:A2", Breach::Outside("C1"), 1.0),
+        ("COUNT", "A1:A2", Breach::Outside("C1"), 1.0),
+        ("SUMPRODUCT", "C6:C7", Breach::Reversed, 10.5),
+        ("COUNTBLANK", "A1", Breach::Twice, 0.0),
+    ];
+    for (spelling, area, breach, kept) in breaches {
+        let target = surface(Notation::Call, spelling);
+        let values = vec![reference(s, &[area]).value];
+        let honest = invoke(
+            target,
+            &mut Recorded::new(values.clone()),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        );
+        assert_eq!(
+            honest
+                .as_ref()
+                .map(|value| value.as_number().map(f64::to_bits)),
+            Ok(Some(kept.to_bits())),
+            "{spelling}({area}) over the test sheet's reader: {honest:?}"
+        );
+        let mut breaching = BreachingReader { sheet: s, breach };
+        let broken = invoke(
+            target,
+            &mut Recorded::new(values),
+            &mut EvalServices::with_cells(&fast, &mut breaching),
+            &mut FunctionCallScratch::new(),
+        );
+        assert_eq!(
+            broken,
+            Err(FunctionFault::ReferenceUnreadable {
+                id: target.id(),
+                index: 0
+            }),
+            "{spelling}({area}) over a reader that breaks the contract by {breach:?}"
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: {spelling}({area}) = {kept} over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by {breach:?}"
+        );
+    }
+
+    // The oracle workbook: this case's sheet holds exactly its rows and cells, and the committed
+    // workbook is its generator's output.
+    assert_workbook_sheet(AGGREGATE_WORKBOOK, AGGREGATE_WORKBOOK_PATH, &rows, s);
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["cfunc_m3_4/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == AGGREGATE_WORKBOOK,
+            "the committed aggregate oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(AGGREGATE_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed aggregate oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the generator runs under Windows PowerShell, so the check that the committed aggregate oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+    aggregate_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_4__sparse_blanks
+
+/// The cells the sparse rows read: column A holds five cells down to its last row (A2 holds
+/// empty text), column B two, and column C one; every other cell is blank.
+fn sparse_blanks_sheet() -> TestSheet {
+    TestSheet::new(&[
+        ("A1", "3", CalcValue::number(3.0)),
+        ("A2", "empty text", text_value("")),
+        ("A3", "text \"x\"", text_value("x")),
+        ("A1000", "5", CalcValue::number(5.0)),
+        ("A1048576", "7", CalcValue::number(7.0)),
+        ("B1", "2", CalcValue::number(2.0)),
+        ("B1048576", "10", CalcValue::number(10.0)),
+        ("C500", "TRUE", CalcValue::logical(true)),
+    ])
+}
+
+/// Above this many bytes, a call over a whole column would be materializing it: a column of
+/// 1,048,576 binary64 values alone takes 8 MiB.
+const SPARSE_BYTES: u64 = 64 * 1024;
+
+/// Runs a sparse row over the whole columns `columns` and checks, by the test sheet's own
+/// instruments, that the call asked the reader for exactly those areas, once each, and was
+/// visited only with their held cells; then calls it again and counts the bytes this thread
+/// allocated during the call. Returns the cells of the areas, the cells visited and the bytes.
+fn sparse_row(
+    rows: &mut Rows,
+    s: &mut TestSheet,
+    spelling: &'static str,
+    columns: &[&str],
+    expect: Expect,
+    basis: Basis,
+) -> (u64, usize, u64) {
+    s.reads.clear();
+    s.visited = 0;
+    let args: Vec<Arg> = columns
+        .iter()
+        .map(|column| reference(s, &[*column]))
+        .collect();
+    aggregate_row(rows, s, named(spelling), &args, expect.clone(), basis);
+    let areas: Vec<GridArea> = columns.iter().map(|column| s.area(column)).collect();
+    let held = s
+        .cells
+        .keys()
+        .filter(|(row, column)| {
+            let key = CellKey::new(s.id, *row, *column).expect("a held cell");
+            areas.iter().any(|area| area.contains(key))
+        })
+        .count();
+    assert_eq!(
+        (s.reads.as_slice(), s.visited),
+        (areas.as_slice(), held),
+        "{spelling}({}) asks for each column once and is visited only with its held cells",
+        columns.join(",")
+    );
+    let cells: u64 = areas.iter().map(|area| area.cell_count()).sum();
+    let mut again = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+    let target = surface(Notation::Call, spelling);
+    let fast = NumericMode::Fast;
+    let (result, bytes) = bytes_allocated_during(|| {
+        black_box(invoke(
+            target,
+            &mut again,
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        ))
+    });
+    assert!(
+        expect.holds(target.id(), &result),
+        "{spelling} again: {result:?}"
+    );
+    assert!(
+        bytes < SPARSE_BYTES,
+        "{spelling}({}) allocated {bytes} bytes over {cells} cells",
+        columns.join(",")
+    );
+    (cells, held, bytes)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_4__sparse_blanks() {
+    const CASE: &str = "cfunc_m3_4__sparse_blanks";
+    let mut sheet = sparse_blanks_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; every other cell is blank",
+        sheet.described()
+    );
+    let s = &mut sheet;
+    let mut rows = Rows::new(CASE, "sparse_blanks", false);
+    let r = &mut rows;
+    let mut measured = Vec::new();
+    let mut measure = |r: &mut Rows,
+                       s: &mut TestSheet,
+                       spelling,
+                       columns: &[&str],
+                       expect,
+                       basis| {
+        let (cells, visited, bytes) = sparse_row(r, s, spelling, columns, expect, basis);
+        measured.push(format!(
+                "{spelling}({}): 1 read per column, {cells} cells, {visited} visited, {bytes} bytes allocated",
+                columns.join(",")
+            ));
+    };
+
+    // COUNTBLANK's blank cardinality is the area's size less the cells visited with a value that
+    // is not empty text.
+    measure(
+        r,
+        s,
+        "COUNTBLANK",
+        &["B:B"],
+        N(1_048_574.0),
+        Documented("an empty cell is counted"),
+    );
+    measure(
+        r,
+        s,
+        "COUNTBLANK",
+        &["A:A"],
+        N(1_048_572.0),
+        Choice("A2's empty text is a constant, counted as the page counts a formula's empty text"),
+    );
+    measure(
+        r,
+        s,
+        "COUNTBLANK",
+        &["A:C"],
+        N(3_145_721.0),
+        Choice(
+            "three whole columns less the 7 cells with a value; A2's constant empty text counts",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "COUNT",
+        &["A:A"],
+        N(3.0),
+        Documented("only the numbers of a reference are counted"),
+    );
+    measure(
+        r,
+        s,
+        "COUNTA",
+        &["A:A"],
+        N(5.0),
+        Documented("every cell with content is counted, empty text included"),
+    );
+    measure(
+        r,
+        s,
+        "SUM",
+        &["A:A"],
+        N(15.0),
+        Documented("SUM ignores the text of the cells it reads"),
+    );
+    measure(
+        r,
+        s,
+        "PRODUCT",
+        &["A:A"],
+        N(105.0),
+        Documented("only the numbers of a reference are multiplied"),
+    );
+    measure(
+        r,
+        s,
+        "SUMSQ",
+        &["A:A"],
+        N(83.0),
+        Documented("only the numbers of a reference count"),
+    );
+    measure(
+        r,
+        s,
+        "AVERAGE",
+        &["A:A"],
+        N(5.0),
+        Documented("the text and empty cells of a reference are ignored"),
+    );
+    measure(
+        r,
+        s,
+        "AVERAGEA",
+        &["A:A"],
+        N(3.0),
+        Choice(
+            "a reference's text and empty text are 0 and its empty cells are skipped: 15 over 5",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "MIN",
+        &["A:A"],
+        N(3.0),
+        Documented("only the numbers of a reference are used"),
+    );
+    measure(
+        r,
+        s,
+        "MAX",
+        &["A:A"],
+        N(7.0),
+        Documented("only the numbers of a reference are used"),
+    );
+    measure(
+        r,
+        s,
+        "MINA",
+        &["A:A"],
+        N(0.0),
+        Choice("a reference's text is 0, as one remark of the page says"),
+    );
+    measure(
+        r,
+        s,
+        "MAXA",
+        &["B:B"],
+        N(10.0),
+        Documented("the empty cells of a reference are ignored"),
+    );
+    measure(
+        r,
+        s,
+        "SUMPRODUCT",
+        &["A:A", "B:B"],
+        N(76.0),
+        Documented("a non-numeric entry, a blank cell included, is treated as 0"),
+    );
+    for line in &measured {
+        note!("ACCEPT-NOTE: {CASE}: instrumented reader: {line}");
+    }
+
+    // The whole sheet, through the call interface alone (no formula on the sheet can read all of
+    // it without reading itself): 2^34 cells, of which the reader visits the 8 held.
+    let whole = GridArea::full_sheet(s.id);
+    let whole_sheet = CalcValue::reference(ReferenceLike::area(whole));
+    let fast = NumericMode::Fast;
+    for (spelling, expected) in [
+        ("COUNTBLANK", 17_179_869_177.0_f64),
+        ("COUNTA", 8.0),
+        ("COUNT", 5.0),
+    ] {
+        s.reads.clear();
+        s.visited = 0;
+        let target = surface(Notation::Call, spelling);
+        let mut given = Recorded::new(vec![whole_sheet.clone()]);
+        let (result, bytes) = bytes_allocated_during(|| {
+            black_box(invoke(
+                target,
+                &mut given,
+                &mut EvalServices::with_cells(&fast, s),
+                &mut FunctionCallScratch::new(),
+            ))
+        });
+        assert_eq!(
+            result
+                .as_ref()
+                .map(|value| value.as_number().map(f64::to_bits)),
+            Ok(Some(expected.to_bits())),
+            "{spelling} of the whole sheet: {result:?}"
+        );
+        assert_eq!((s.reads.as_slice(), s.visited), (&[whole][..], 8));
+        assert!(bytes < SPARSE_BYTES, "{spelling} allocated {bytes} bytes");
+        note!(
+            "ACCEPT-NOTE: {CASE}: {spelling}(A1:XFD1048576) through calc_func::invoke = {expected} over {} cells; the reader was asked for 1 area and visited 8 cells; {bytes} bytes allocated",
+            whole.cell_count()
+        );
+    }
+
+    assert_workbook_sheet(AGGREGATE_WORKBOOK, AGGREGATE_WORKBOOK_PATH, &rows, s);
+    aggregate_rows_note(&rows);
 }

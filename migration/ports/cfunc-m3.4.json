@@ -1,0 +1,1052 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfunc-m3.4",
+  "written": "2026-10-20",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings, on 2026-10-20 over .beads/issues.jsonl of master commit 88decbd23ad117bb35c58248ff9785df74b8afb0: SUMX2MY2, SUMX2PY2, SUMXMY2, SERIESSUM, FunctionMeta, reduction, underflow, subnormal, multi-area, union reference, several areas, NumberTextService, value-parsing, ReferenceSystemProvider, CellReader (transcript target/accept/cfunc-m3.4/owner-search/owner-search.log; target/ is not committed). Each beads list below is the hits of the terms named in its basis, without a hit the basis names as not doing the work.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+      "blob": "76520e4100ce8eaccecd0b4c180ef33a9754cb07",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-surface_dispatch-rs.log (exit in lookup-functions-surface_dispatch-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/acos.rs",
+          "crates/oxfunc_core/src/functions/acot.rs",
+          "crates/oxfunc_core/src/functions/acoth.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/array_text_split_family.rs",
+          "crates/oxfunc_core/src/functions/asin.rs",
+          "crates/oxfunc_core/src/functions/atan.rs",
+          "crates/oxfunc_core/src/functions/atanh.rs",
+          "crates/oxfunc_core/src/functions/base_fn.rs",
+          "crates/oxfunc_core/src/functions/bessel_convert_family.rs",
+          "crates/oxfunc_core/src/functions/beta_gamma_stats_family.rs",
+          "crates/oxfunc_core/src/functions/bitand_fn.rs",
+          "crates/oxfunc_core/src/functions/bitlshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitor_fn.rs",
+          "crates/oxfunc_core/src/functions/bitrshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitxor_fn.rs",
+          "crates/oxfunc_core/src/functions/bond_core_family.rs",
+          "crates/oxfunc_core/src/functions/cashflow_rate_family.rs",
+          "crates/oxfunc_core/src/functions/chi_f_t_family.rs",
+          "crates/oxfunc_core/src/functions/combin.rs",
+          "crates/oxfunc_core/src/functions/combina.rs",
+          "crates/oxfunc_core/src/functions/complex_family.rs",
+          "crates/oxfunc_core/src/functions/cos.rs",
+          "crates/oxfunc_core/src/functions/cosh.rs",
+          "crates/oxfunc_core/src/functions/cot.rs",
+          "crates/oxfunc_core/src/functions/coth.rs",
+          "crates/oxfunc_core/src/functions/count.rs",
+          "crates/oxfunc_core/src/functions/counta.rs",
+          "crates/oxfunc_core/src/functions/countblank_fn.rs",
+          "crates/oxfunc_core/src/functions/csc.rs",
+          "crates/oxfunc_core/src/functions/csch.rs",
+          "crates/oxfunc_core/src/functions/cumulative_finance_family.rs",
+          "crates/oxfunc_core/src/functions/date_fn.rs",
+          "crates/oxfunc_core/src/functions/date_parts_family.rs",
+          "crates/oxfunc_core/src/functions/date_week_family.rs",
+          "crates/oxfunc_core/src/functions/depreciation_family.rs",
+          "crates/oxfunc_core/src/functions/devsq_fn.rs",
+          "crates/oxfunc_core/src/functions/discrete_dist_family.rs",
+          "crates/oxfunc_core/src/functions/engineering_radix_family.rs",
+          "crates/oxfunc_core/src/functions/exact_fn.rs",
+          "crates/oxfunc_core/src/functions/exp_fn.rs",
+          "crates/oxfunc_core/src/functions/fact.rs",
+          "crates/oxfunc_core/src/functions/financial_time_value_family.rs",
+          "crates/oxfunc_core/src/functions/fisher_fn.rs",
+          "crates/oxfunc_core/src/functions/gcd_fn.rs",
+          "crates/oxfunc_core/src/functions/harmean_fn.rs",
+          "crates/oxfunc_core/src/functions/if_fn.rs",
+          "crates/oxfunc_core/src/functions/iferror.rs",
+          "crates/oxfunc_core/src/functions/ifna_fn.rs",
+          "crates/oxfunc_core/src/functions/int_fn.rs",
+          "crates/oxfunc_core/src/functions/is_predicates_family.rs",
+          "crates/oxfunc_core/src/functions/iseven_fn.rs",
+          "crates/oxfunc_core/src/functions/lcm_fn.rs",
+          "crates/oxfunc_core/src/functions/ln_fn.rs",
+          "crates/oxfunc_core/src/functions/log10_fn.rs",
+          "crates/oxfunc_core/src/functions/log_fn.rs",
+          "crates/oxfunc_core/src/functions/matrix_family.rs",
+          "crates/oxfunc_core/src/functions/median_fn.rs",
+          "crates/oxfunc_core/src/functions/misc_conversion_family.rs",
+          "crates/oxfunc_core/src/functions/mod_fn.rs",
+          "crates/oxfunc_core/src/functions/mround.rs",
+          "crates/oxfunc_core/src/functions/normal_log_family.rs",
+          "crates/oxfunc_core/src/functions/not_fn.rs",
+          "crates/oxfunc_core/src/functions/odd_bond_family.rs",
+          "crates/oxfunc_core/src/functions/permut_fn.rs",
+          "crates/oxfunc_core/src/functions/permutationa_fn.rs",
+          "crates/oxfunc_core/src/functions/phi_fn.rs",
+          "crates/oxfunc_core/src/functions/power_fn.rs",
+          "crates/oxfunc_core/src/functions/quotient_fn.rs",
+          "crates/oxfunc_core/src/functions/radians.rs",
+          "crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+          "crates/oxfunc_core/src/functions/regression_forecast_family.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs",
+          "crates/oxfunc_core/src/functions/rounddown_fn.rs",
+          "crates/oxfunc_core/src/functions/roundup_fn.rs",
+          "crates/oxfunc_core/src/functions/sec.rs",
+          "crates/oxfunc_core/src/functions/sech.rs",
+          "crates/oxfunc_core/src/functions/sin.rs",
+          "crates/oxfunc_core/src/functions/sinh.rs",
+          "crates/oxfunc_core/src/functions/special_dist_family.rs",
+          "crates/oxfunc_core/src/functions/sqrt_fn.rs",
+          "crates/oxfunc_core/src/functions/standardize_fn.rs",
+          "crates/oxfunc_core/src/functions/statistical_tests_family.rs",
+          "crates/oxfunc_core/src/functions/tan.rs",
+          "crates/oxfunc_core/src/functions/tanh.rs",
+          "crates/oxfunc_core/src/functions/text_b_compat_family.rs",
+          "crates/oxfunc_core/src/functions/text_slice_family.rs",
+          "crates/oxfunc_core/src/functions/trunc_fn.rs",
+          "crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+          "crates/oxfunc_core/src/functions/web_text_xml_family.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. The catalogue entries of the 13 IDs are written fresh in crates/calc-func/src/catalogue/aggregate.rs from Microsoft's pages (arity 1 to 255, COUNTBLANK exactly 1 reference).",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function_call.rs",
+      "blob": "426cf6877cc60ce74caddc55a66bb287510baaec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function_call.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-function_call-rs.log (exit in lookup-function_call-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 6: admitted only against clean replacements of surface_dispatch.rs, which is itself exit 5 and not read). Nothing of it is ported: FunctionCallTarget has been calc_func's own since cfunc-m1.1 and cfunc-m1.2, and this bead adds catalogue entries and no call-interface symbol.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/sum.rs",
+      "blob": "4ea3c50971e1ded7a83416cd1c7175928be7a1e1",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/sum.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-sum-rs.log (exit in lookup-functions-sum-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions. SUM's kernel keeps cfunc-m1.2's rules and arithmetic order; it now reads through the shared each_number.",
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        },
+        {
+          "items": [
+            "NumericalReductionPolicy::SequentialLeftFold and reduce_numeric_sum"
+          ],
+          "reason": "The sequential left fold from 0 in reading order is written once in aggregate.rs and used by every kernel here; the reduction order as declared metadata, and its documentation, belong to the numeric backend and its routing.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.23"
+          ],
+          "basis": "reduction (descriptions: cfunc-m3.22, cfunc-m3.23; dc-8abf is the deferred scope epic and holds no work; notes: cfunc-m3.23, whose owner note asks it to document the reduction order the aggregates use, and cfunc-m3.4 itself)"
+        },
+        {
+          "items": [
+            "ReferenceSystemProvider and its dereference and enumerate_values requests"
+          ],
+          "reason": "A kernel reads a reference only through calc_func::CellReader, which visits the held cells of each area; resolving names, tables and other reference forms to grid areas is calc-fml's before the call.",
+          "beads": [
+            "cfml-m3.1",
+            "cfml-m3.2",
+            "cfml-m3.3",
+            "cfml-m3.5"
+          ],
+          "basis": "ReferenceSystemProvider (descriptions: cfml-m1.2 (closed), cfml-m3.1, cfml-m3.2, cfml-m3.3, cfml-m3.5, cfml-m4.1, cfml-m4.2; the cfml-m4 hits transform references and resolve none)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_sum_on_numbers"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m1_1__catalogue_consistency (SUM(1,2,3) has bits 0x4018000000000000)"
+        },
+        {
+          "tests": [
+            "tests::eval_sum_coerces_direct_logical_and_numeric_text",
+            "tests::eval_sum_rejects_direct_non_numeric_text",
+            "tests::eval_sum_treats_missing_and_empty_direct_args_as_zero",
+            "tests::eval_sum_combines_direct_scalar_and_reference_derived_policies"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m1_2__mixed_operands rows SUM(\"2\",TRUE)=3, SUM(\"a\")=#VALUE!, SUM(1,)=1 with its Missing and Empty calls, SUM(A1:A3,\"2\",TRUE)=8; cfunc_m3_4__argument_classes rows SUM(2,TRUE)=3 and SUM(2,\"3\")=5 beside SUM(A1:A8)=5, whose held TRUE and number text are skipped"
+        },
+        {
+          "tests": [
+            "tests::eval_sum_propagates_direct_scalar_error",
+            "tests::eval_sum_preserves_provider_materialized_multi_area_error_cells"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m1_2__error_order rows SUM(#N/A,#DIV/0!) and SUM((A2:B2,A1:B1))"
+        },
+        {
+          "tests": [
+            "tests::eval_sum_accepts_provider_materialized_multi_area_reference"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m1_2__mixed_operands row SUM((A3,A7))=15",
+          "reason": "The areas are read one by one through CellReader, not materialized as one array by a provider."
+        },
+        {
+          "tests": [
+            "tests::eval_sum_ignores_reference_derived_text_and_logical",
+            "tests::eval_sum_reference_derived_empty_cells_are_ignored"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_4__argument_classes row SUM(A1:A8)=5 and cfunc_m1_2__mixed_operands rows SUM(A1:A3)=5, SUM(A5)=0"
+        },
+        {
+          "tests": [
+            "tests::eval_sum_direct_array_literal_uses_array_scan_policy",
+            "tests::eval_sum_direct_arrays_use_range_like_policy",
+            "tests::eval_sum_propagates_errors_from_range_like_inputs"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m1_2__mixed_operands row SUM({1,\"2\",TRUE})=1 and cfunc_m3_4__argument_classes row SUM(B1:B3)=#DIV/0!",
+          "reason": "One held-value rule serves a reference's cells and an array's elements, so the array cases are carried by one array row and one reference row."
+        },
+        {
+          "tests": [
+            "tests::eval_sum_opaque_array_fallback_uses_array_scan_policy",
+            "tests::eval_sum_admits_opaque_reference_value_through_generic_resolver"
+          ],
+          "disposition": "dropped",
+          "reason": "calc-func has no array provenance (literal against opaque) and no name-backed reference: an array follows the held-value rule, and a name reaches the call as a grid reference resolved by calc-fml."
+        },
+        {
+          "tests": [
+            "tests::eval_sum_exercises_sequential_left_fold_reduction_policy"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_4__argument_classes row SUM(1E16,1,-1E16)=0 (unmeasured choice)"
+        },
+        {
+          "tests": [
+            "tests::eval_sum_consumes_sparse_reference_values_without_dense_resolution"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__sparse_blanks row SUM(A:A)=15 and cfunc_m1_2__mixed_operands row SUM(A:A)=15",
+          "reason": "Sparseness is shown by the test reader's own counts (one read of the column, only its held cells visited) and the bytes the call allocates."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "SUM reads a reference through read_reference, which ends the call in FunctionFault::ReferenceUnreadable naming the argument when the reader visits a cell outside the area asked for; cfunc-m1.2's add_reference added such a cell.",
+          "reason": "A reader that visits a cell outside the area breaks the CellReader contract and cannot supply the area; adding the cell would count a value the reference does not hold. Shown by cfunc_m3_4__argument_classes: SUM(A1:A2) = 1 over the test sheet's reader and ReferenceUnreadable over a reader that also visits C1."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/product.rs",
+      "blob": "fcda2bdd1f111af0e8a10bf94704ff5b8fe0a270",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/product.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-product-rs.log (exit in lookup-functions-product-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions.",
+      "ported": [
+        "eval_product_aggregate: the product from 1 of the numbers in reading order, 0 when there is none"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_product_multiplies_direct_numbers",
+            "tests::eval_product_counts_direct_numeric_text_and_logical",
+            "tests::eval_product_rejects_direct_non_numeric_text"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_4__argument_classes rows PRODUCT(2,3,4)=24, PRODUCT(\"2\",TRUE)=2, PRODUCT(\"a\")=#VALUE!"
+        },
+        {
+          "tests": [
+            "tests::eval_product_ignores_reference_derived_text_and_logical",
+            "tests::eval_product_propagates_reference_derived_errors"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes rows PRODUCT(A3:A6)=0 and PRODUCT(B1:B3)=#DIV/0!",
+          "reason": "The test sheet's cells replace the mock resolver's arrays ({\"x\",TRUE} and {2,#N/A})."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "Each multiplication is an arithmetic site: refused with ExactUnavailable under Exact.",
+          "reason": "NumericMode reaches every arithmetic site (plan 5)."
+        },
+        {
+          "change": "A product of two non-zero factors that underflows to 0 or a subnormal is refused (NotImplemented).",
+          "reason": "Excel's handling of an underflow is not modelled; the legacy kernel multiplied on."
+        },
+        {
+          "change": "An argument count outside the arity is FunctionFault::ArityMismatch at the call interface, before any argument is asked for, where the legacy surface returned an error that its map function turned into #VALUE!.",
+          "reason": "Admission belongs to the call interface (cfunc-m1.1)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/sumsq.rs",
+      "blob": "59a03bbe43b1bc5938c5924d88961593c52eda8d",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/sumsq.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-sumsq-rs.log (exit in lookup-functions-sumsq-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions.",
+      "ported": [
+        "eval_sumsq_aggregate: each number squared and the squares added from 0, in reading order"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_sumsq_accumulates_direct_numbers",
+            "tests::eval_sumsq_counts_direct_numeric_text_and_logical",
+            "tests::eval_sumsq_rejects_direct_non_numeric_text"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_4__argument_classes rows SUMSQ(2,3,4)=29, SUMSQ(\"2\",TRUE)=5, SUMSQ(\"a\")=#VALUE!"
+        },
+        {
+          "tests": [
+            "tests::eval_sumsq_ignores_reference_derived_text_and_logical",
+            "tests::eval_sumsq_propagates_reference_derived_errors"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes rows SUMSQ(A1:A8)=17 and SUMSQ(B1:B3)=#DIV/0!",
+          "reason": "The test sheet's cells replace the mock resolver's arrays. The error row is an unmeasured choice: Microsoft's SUMSQ page says an error in a reference is ignored, the legacy test and this kernel return it."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "Each square and each addition is an arithmetic site (ExactUnavailable under Exact), and a square that underflows is refused (NotImplemented).",
+          "reason": "As for PRODUCT."
+        },
+        {
+          "change": "An argument count outside the arity is FunctionFault::ArityMismatch at the call interface, before any argument is asked for, where the legacy surface returned an error that its map function turned into #VALUE!.",
+          "reason": "Admission belongs to the call interface (cfunc-m1.1)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/sumproduct_family.rs",
+      "blob": "22ce42d7e43df204f1cfb88e9f3ab80601713c27",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/sumproduct_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-sumproduct_family-rs.log (exit in lookup-functions-sumproduct_family-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against a clean replacement of the one module its calls_quarantined list names, which was not read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh) and by number_of in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's page for SUMPRODUCT.",
+      "ported": [
+        "eval_sumproduct: arguments of one shape multiplied entry by entry and the products added from 0 in row-major order; a non-numeric entry is 0, an error entry is the result, every argument is read before the shapes are compared, a scalar is 1-by-1, an omitted or blank scalar is #VALUE!"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        },
+        {
+          "items": [
+            "SUMX2MY2",
+            "SUMX2PY2",
+            "SUMXMY2",
+            "SERIESSUM"
+          ],
+          "reason": "Not this bead's family: its Do names SUMPRODUCT only.",
+          "beads": [
+            "cfunc-m3.25"
+          ],
+          "basis": "SUMX2MY2, SUMX2PY2, SUMXMY2, SERIESSUM have no hit; the source manifest's families assign them to no family bead, and cfunc-m3.25's Do requires a disposition for every source ID"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::sumproduct_matches_excel_seed_rows",
+            "tests::sumproduct_coerces_non_numeric_array_cells_to_zero",
+            "tests::sumproduct_rejects_shape_mismatch",
+            "tests::sumproduct_single_array_argument_sums_elements"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_4__argument_classes rows SUMPRODUCT({1,2},{3,4})=11, SUMPRODUCT({1,TRUE},{3,4})=3, SUMPRODUCT({1,2},3)=#VALUE!, SUMPRODUCT({1,4,9})=14"
+        },
+        {
+          "tests": [
+            "tests::sumproduct_resolves_reference_arrays_and_propagates_errors"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes rows SUMPRODUCT(A1:A8,C1:C8)=12 and SUMPRODUCT(B1:B3,C1:C3)=#DIV/0!",
+          "reason": "References are read through CellReader from the test sheet."
+        },
+        {
+          "tests": [
+            "tests::sumx_family_matches_excel_seed_rows",
+            "tests::sumx_family_resolves_reference_pairs_and_ignores_non_numeric_positions",
+            "tests::sumx_family_ignores_non_numeric_pairs_and_div0_when_none_survive",
+            "tests::sumx_family_reports_shape_mismatch_as_na",
+            "tests::seriessum_matches_excel_seed_rows",
+            "tests::seriessum_allows_numeric_text_scalars_but_not_logicals",
+            "tests::seriessum_resolves_reference_coefficients_row_major",
+            "tests::seriessum_rejects_non_numeric_coefficients"
+          ],
+          "disposition": "dropped",
+          "reason": "Functions outside this family (see not_ported)."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "A reference is read sparsely: only entries where some argument holds a number are multiplied and added.",
+          "reason": "An entry whose factors are all 0 has the product +0 and adds nothing (a zero total's sign aside, which publication removes), so the result equals the dense fold while a whole column costs what the reader visits in it."
+        },
+        {
+          "change": "A reference of several areas, and an array or reference held in an array, are refused (NotImplemented) where the legacy kernel materialized the union or read the nested value as 0.",
+          "reason": "Excel's result for them is not modelled."
+        },
+        {
+          "change": "Multiplications and additions are arithmetic sites (ExactUnavailable under Exact); an underflowing product of non-zero factors is refused.",
+          "reason": "As for PRODUCT."
+        },
+        {
+          "change": "Number text given directly is a non-numeric entry, 0, as before; text is no longer converted through the legacy coercion module.",
+          "reason": "The legacy module is not a clean input."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/average.rs",
+      "blob": "e683c9f8e99e3cc45a813c6bf933e50b0fd2d72b",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/average.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-average-rs.log (exit in lookup-functions-average-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions.",
+      "ported": [
+        "eval_average_aggregate: the numbers added from 0 and divided by their count; #DIV/0! when there is none"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_average_on_numbers",
+            "tests::eval_average_counts_direct_numeric_text_and_logical"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_4__argument_classes rows AVERAGE(1,2,5)=8/3 and AVERAGE(\"2\",TRUE)=1.5 (an unmeasured choice: Microsoft's AVERAGE page says typed logicals and number text are not counted)"
+        },
+        {
+          "tests": [
+            "tests::eval_average_ignores_reference_derived_text_and_logical",
+            "tests::eval_average_returns_div0_when_no_numeric_values_survive",
+            "tests::eval_average_direct_array_uses_range_like_policy"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes rows AVERAGE(A1:A8)=2.5, AVERAGE(A3:A6)=#DIV/0!, AVERAGE({1,\"2\",TRUE})=1",
+          "reason": "The test sheet's cells and an array with one number replace the mock resolver's arrays."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "Each addition and the division are arithmetic sites (ExactUnavailable under Exact); a division by a count of 0 is #DIV/0! without rounding, so it computes under Exact.",
+          "reason": "NumericMode reaches every arithmetic site (plan 5)."
+        },
+        {
+          "change": "An argument count outside the arity is FunctionFault::ArityMismatch at the call interface, before any argument is asked for, where the legacy surface returned an error that its map function turned into #VALUE!.",
+          "reason": "Admission belongs to the call interface (cfunc-m1.1)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/averagea_fn.rs",
+      "blob": "6f263835eb86cbd84f6cb9da476e3c45f2523e9e",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/averagea_fn.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-averagea_fn-rs.log (exit in lookup-functions-averagea_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions.",
+      "ported": [
+        "eval_averagea_aggregate: AVERAGE with held text 0 and held logicals 1 and 0"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_averagea_counts_direct_numeric_text_and_logical",
+            "tests::eval_averagea_ignores_empty_cells"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_4__argument_classes rows AVERAGEA(\"2\",TRUE)=1.5 and AVERAGEA(A5)=#DIV/0!"
+        },
+        {
+          "tests": [
+            "tests::eval_averagea_counts_reference_derived_text_as_zero_and_logical_as_one"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes rows AVERAGEA((A3,A8))=0.5 and AVERAGEA(A1:A8)=6/7",
+          "reason": "The test sheet's cells replace the mock resolver's array {\"x\",TRUE}."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "As for AVERAGE.",
+          "reason": "As for AVERAGE."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/min_fn.rs",
+      "blob": "8d41f9e690ffce93b21988f527ba8173b044f677",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/min_fn.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-min_fn-rs.log (exit in lookup-functions-min_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions.",
+      "ported": [
+        "eval_min_aggregate: the smallest number in reading order, 0 when there is none"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_min_counts_direct_numeric_text_and_logical",
+            "tests::eval_min_ignores_reference_derived_text_and_logical",
+            "tests::eval_min_propagates_reference_derived_errors"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes rows MIN(\"2\",TRUE)=1, MIN(A3:A6)=0, MIN(B1:B3)=#DIV/0!",
+          "reason": "The test sheet's cells replace the mock resolver's arrays."
+        },
+        {
+          "tests": [
+            "tests::eval_min_accumulates_direct_numbers"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes row MIN(A1:A8)",
+          "reason": "The numbers are read from the test sheet."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "A strict comparison keeps the first of equal numbers where the legacy kernel used f64::min or f64::max; the results are the same for worksheet numbers (no NaN, and publication makes every zero +0). Choosing needs no rounding, so a call reading no number text computes under Exact.",
+          "reason": "No arithmetic site is reached by a comparison."
+        },
+        {
+          "change": "An argument count outside the arity is FunctionFault::ArityMismatch at the call interface, before any argument is asked for, where the legacy surface returned an error that its map function turned into #VALUE!.",
+          "reason": "Admission belongs to the call interface (cfunc-m1.1)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/max_fn.rs",
+      "blob": "1c3cd675546177f6ddbc2e575d7f14aaf9f1b16c",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/max_fn.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-max_fn-rs.log (exit in lookup-functions-max_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions.",
+      "ported": [
+        "eval_max_aggregate: the largest number in reading order, 0 when there is none"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_max_counts_direct_numeric_text_and_logical",
+            "tests::eval_max_ignores_reference_derived_text_and_logical",
+            "tests::eval_max_propagates_reference_derived_errors"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes rows MAX(\"2\",TRUE)=2, MAX(A3:A6)=0, MAX(B1:B3)=#DIV/0!",
+          "reason": "The test sheet's cells replace the mock resolver's arrays."
+        },
+        {
+          "tests": [
+            "tests::eval_max_accumulates_direct_numbers"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_4__argument_classes row MAX(A1:A8)",
+          "reason": "The numbers are read from the test sheet."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "A strict comparison keeps the first of equal numbers where the legacy kernel used f64::min or f64::max; the results are the same for worksheet numbers (no NaN, and publication makes every zero +0). Choosing needs no rounding, so a call reading no number text computes under Exact.",
+          "reason": "No arithmetic site is reached by a comparison."
+        },
+        {
+          "change": "An argument count outside the arity is FunctionFault::ArityMismatch at the call interface, before any argument is asked for, where the legacy surface returned an error that its map function turned into #VALUE!.",
+          "reason": "Admission belongs to the call interface (cfunc-m1.1)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/mina_fn.rs",
+      "blob": "fd4cfa4ec6b229eaf08506f89572855ac34f32ab",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/mina_fn.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-mina_fn-rs.log (exit in lookup-functions-mina_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions. The file holds no tests.",
+      "ported": [
+        "eval_mina_aggregate: the extreme of the values with held text 0 and held logicals 1 and 0, 0 when there is none"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [],
+      "semantic_changes": [
+        {
+          "change": "As for MIN and MAX.",
+          "reason": "As for MIN and MAX."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/maxa_fn.rs",
+      "blob": "39edc39fe26ff165a9cc163f09981cd3ddffde8d",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/maxa_fn.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-maxa_fn-rs.log (exit in lookup-functions-maxa_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh), adapters.rs and aggregate_common.rs by each_value, number_of and read_reference in crates/calc-func/src/catalogue/aggregate.rs, written fresh from Microsoft's pages for these functions. The file holds no tests.",
+      "ported": [
+        "eval_maxa_aggregate: the extreme of the values with held text 0 and held logicals 1 and 0, 0 when there is none"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [],
+      "semantic_changes": [
+        {
+          "change": "As for MIN and MAX.",
+          "reason": "As for MIN and MAX."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/count.rs",
+      "blob": "67d2671b88f0f74fae90af7f2f42eb8342cd4022",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/count.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-count-rs.log (exit in lookup-functions-count-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. COUNT is written fresh from Microsoft's COUNT page.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/counta.rs",
+      "blob": "b92256d70bacdcc5bb87e527f28ad6b10687395a",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/counta.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-counta-rs.log (exit in lookup-functions-counta-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. COUNTA is written fresh from Microsoft's COUNTA page.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/countblank_fn.rs",
+      "blob": "aa52755936815cebefd74220bbf3c7cfbea1bfff",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/countblank_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-countblank_fn-rs.log (exit in lookup-functions-countblank_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. COUNTBLANK is written fresh from Microsoft's COUNTBLANK page.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/aggregate_common.rs",
+      "blob": "0390323eeb9cd41a400c967f11b78fe0f58d756a",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/aggregate_common.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-aggregate_common-rs.log (exit in lookup-functions-aggregate_common-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. Its helpers (the direct and held value rules) are replaced by each_value and number_of in aggregate.rs, written fresh.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/adapters.rs",
+      "blob": "09ce48dfbcea33cc597226ec02ce4aecbee7ab50",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/adapters.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-functions-adapters-rs.log (exit in lookup-functions-adapters-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/numeric_text.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. expand_aggregate_arg is replaced by each_value and read_reference over calc_func::CellReader, written fresh.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/coercion.rs",
+      "blob": "3b3d42dc3aa83ddfbca7945ef9abd76234e4ead2",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/coercion.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.4/lookups/lookup-coercion-rs.log (exit in lookup-coercion-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion_decimal.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. Replaced by calc-func's coerce.rs, written fresh by cfunc-m1.2.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "a reference of several areas given to SUMPRODUCT or COUNTBLANK"
+      ],
+      "reason": "Refused with NotImplemented naming the argument: Excel's result is not modelled.",
+      "beads": [
+        "dc-4eid"
+      ],
+      "basis": "multi-area (descriptions: cdoc-m5.2 models conditional-format anchors and dnacalc-m6.2 selects ranges in the UI; notes: cfunc-m0.1, closed, defines the reference value); union reference and several areas have no hit. No bead owned it at the search; reported as a gap, it is now owned by dc-4eid (Compute SUMPRODUCT and COUNTBLANK over references with several areas), created 2026-10-20 to depend on cfunc-m3.4."
+    },
+    {
+      "items": [
+        "an error value given directly to COUNTBLANK, such as COUNTBLANK(#REF!)"
+      ],
+      "reason": "Ends in FunctionFault::ReferenceRequired at admission (crates/calc-func/src/call.rs, admit_argument); Excel's result is unmeasured until the owner captures the oracle workbook's row COUNTBLANK(#REF!).",
+      "beads": [
+        "dc-35gz"
+      ],
+      "basis": "Reported by cfunc-m3.4's round-2 judge; dc-35gz (Return COUNTBLANK(#REF!) as Excel does instead of refusing it at admission) was created 2026-10-20 to depend on cfunc-m3.4."
+    },
+    {
+      "items": [
+        "a product of two non-zero factors that underflows (PRODUCT, SUMSQ, SUMPRODUCT)"
+      ],
+      "reason": "Refused with NotImplemented: Excel's handling of an underflow is not modelled.",
+      "beads": [
+        "cfunc-m3.23"
+      ],
+      "basis": "underflow has no hit; subnormal (descriptions: cfunc-m3.23, whose Do standardizes rounding, subnormal and error handling; notes: cdoc-m0.1 keeps subnormal cell inputs and computes nothing)"
+    },
+    {
+      "items": [
+        "typed text that Excel's number-text rules may read as a number"
+      ],
+      "reason": "Refused by worksheet coercion, as in cfunc-m1.2.",
+      "beads": [
+        "cfml-m2.6"
+      ],
+      "basis": "NumberTextService, value-parsing (cfml-m2.6)"
+    }
+  ],
+  "functions_evidence": "Per-ID manifest of the 13 IDs: what each implements, where its rule departs from Microsoft's page for it (divergent), and what it refuses (unsupported). '(documented)' marks a rule the page states and '(unmeasured)' one no page settles. No entry has been compared with Excel: crates/calc-func/tests/fixtures/cfunc_m3_4/oracle.xlsx holds every row of the two cfunc_m3_4 cases for the owner's capture, so no parity is claimed.",
+  "functions": [
+    {"id": "4.1", "spelling": "SUM",
+     "implemented": ["typed numbers, logicals and number text read as numbers (unmeasured: kept from cfunc-m1.2)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)", "a reference's or an array's numbers only, read area by area and row-major through CellReader, so the cost follows the cells the reader visits (its held cells, and any blank cell it visits as Empty) and not the area's size", "the first error in reading order is the result", "sequential left fold in reading order, each operation an arithmetic site from 0", "an overflowing total is #NUM!"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable)"]},
+    {"id": "4.2", "spelling": "PRODUCT",
+     "implemented": ["typed numbers, logicals and number text read as numbers (unmeasured: the page is silent)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)", "a reference's or an array's numbers only (documented)", "the first error in reading order is the result (unmeasured)", "sequential left fold in reading order, each operation an arithmetic site from 1", "0 when there is no number (unmeasured)"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result", "a product of two non-zero factors that underflows to 0 or a subnormal; subnormal handling is cfunc-m3.23's", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable)"]},
+    {"id": "4.3", "spelling": "SUMSQ",
+     "implemented": ["typed numbers, logicals and number text read as numbers (documented)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)", "a reference's or an array's numbers only (documented)", "the first error in reading order is the result", "sequential left fold in reading order, each operation an arithmetic site from 0, each square and each addition"],
+     "divergent": ["an error held in a reference is the result; the SUMSQ page says it is ignored (unmeasured)"],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result", "a square of a non-zero number that underflows to 0 or a subnormal, such as SUMSQ(1E-200); subnormal handling is cfunc-m3.23's", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable)"]},
+    {"id": "4.4", "spelling": "SUMPRODUCT",
+     "implemented": ["arguments of one shape multiplied entry by entry and the products added in row-major order (documented)", "a non-numeric entry is 0 (documented)", "different shapes are #VALUE! (documented), decided after every argument is read (unmeasured)", "an error entry is the result (unmeasured)", "a direct scalar is a 1-by-1 array, number text in it 0 (unmeasured)", "an omitted or blank argument is #VALUE! (unmeasured)", "whole columns are read sparsely"],
+     "divergent": [],
+     "unsupported": ["a reference of several areas", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result", "a product of two non-zero factors that underflows to 0 or a subnormal; subnormal handling is cfunc-m3.23's", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable)"]},
+    {"id": "4.5", "spelling": "COUNT",
+     "implemented": ["typed numbers, logicals and number text count (documented)", "typed errors and other text do not count (documented)", "a reference's or an array's numbers only count (documented)", "the numbers of each area of a reference of several areas count (unmeasured: the page states the rule for an array or a reference)", "an omitted (or direct blank) argument counts (unmeasured choice)", "no error is ever the result; counting reaches no arithmetic site, so it computes under Exact"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN or infinite number"]},
+    {"id": "4.6", "spelling": "COUNTA",
+     "implemented": ["every held value counts unless its cell is blank: errors and empty text count (documented)", "every typed value counts, an omitted one included (unmeasured: the page is silent)", "every element of an array counts (unmeasured)", "computes under Exact"],
+     "divergent": [],
+     "unsupported": ["an array or a reference held inside an array argument", "a NaN or infinite number"]},
+    {"id": "4.7", "spelling": "COUNTBLANK",
+     "implemented": ["one reference-only argument: anything else is ReferenceRequired at admission", "an area's size less the cells the reader visits with a value other than empty text, so the cost follows the reader's visits and not the area's size (documented: empty cells and a formula's empty text count, zeros do not)", "a constant empty text counts as blank (unmeasured)", "computes under Exact"],
+     "divergent": [],
+     "unsupported": ["a reference of several areas", "an error value given directly, such as COUNTBLANK(#REF!), ends in FunctionFault::ReferenceRequired at admission (unmeasured: Excel likely returns the error; the oracle workbook's row COUNTBLANK(#REF!) lets the capture settle it; owned by dc-35gz)"]},
+    {"id": "4.8", "spelling": "AVERAGE",
+     "implemented": ["a reference's numbers only; its text, logicals and empty cells are ignored (documented)", "the numbers of every area of a reference of several areas are averaged (unmeasured: the page states the rule for an array or a reference)", "errors and text that cannot be read as a number are errors (documented)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)", "sequential left fold in reading order, each operation an arithmetic site from 0, then one division by the count", "#DIV/0! when nothing is counted (unmeasured: the page is silent)", "an overflowing total is #NUM! (unmeasured)"],
+     "divergent": ["typed logicals and number text are counted; the AVERAGE page says they are not (unmeasured; the MIN, MAX, COUNT, SUMSQ and AVERAGEA pages count them)"],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable)"]},
+    {"id": "4.9", "spelling": "AVERAGEA",
+     "implemented": ["typed numbers, logicals and number text read as numbers (documented)", "a reference's TRUE is 1 and FALSE 0 (documented)", "the numbers of each area of a reference of several areas are read (unmeasured: the page states the rule for an array or a reference)", "a reference's text and empty text are 0 (unmeasured: the page's example computes 0, another remark calls text ignored)", "empty cells are skipped (documented)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)", "#DIV/0! when nothing is counted (unmeasured)"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable)"]},
+    {"id": "4.10", "spelling": "MIN",
+     "implemented": ["typed numbers, logicals and number text read as numbers (documented)", "a reference's or an array's numbers only (documented)", "0 when there is no number (documented)", "the first error in reading order is the result (unmeasured choice: the page says only that error values cause errors)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)", "choosing reaches no arithmetic site: computes under Exact unless number text is converted"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result"]},
+    {"id": "4.11", "spelling": "MAX",
+     "implemented": ["typed numbers, logicals and number text read as numbers (documented)", "a reference's or an array's numbers only (documented)", "the numbers of each area of a reference of several areas are read (unmeasured: the page states the rule for an array or a reference)", "0 when there is no number (documented)", "the first error in reading order is the result (unmeasured choice: the page says only that error values cause errors)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)", "choosing reaches no arithmetic site: computes under Exact unless number text is converted"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result"]},
+    {"id": "4.12", "spelling": "MINA",
+     "implemented": ["typed numbers, logicals and number text read as numbers (documented)", "a reference's TRUE is 1 and FALSE 0 (documented)", "the numbers of each area of a reference of several areas are read (unmeasured: the page states the rule for an array or a reference)", "a reference's or an array's text is 0 (unmeasured: the page also calls it ignored)", "empty cells are skipped and 0 is the result with no values (documented)", "the first error in reading order is the result (unmeasured choice: the page says only that error values cause errors)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result"]},
+    {"id": "4.13", "spelling": "MAXA",
+     "implemented": ["typed numbers, logicals and number text read as numbers (documented)", "a reference's TRUE is 1 and FALSE 0 (documented)", "the numbers of each area of a reference of several areas are read (unmeasured: the page states the rule for an array or a reference)", "a reference's or an array's text is 0 (unmeasured: the page also calls it ignored)", "empty cells are skipped and 0 is the result with no values (documented)", "the first error in reading order is the result (unmeasured choice: the page says only that error values cause errors)", "an omitted (or direct blank) argument is the number 0 (unmeasured choice)"],
+     "divergent": [],
+     "unsupported": ["typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "an array or a reference held inside an array argument", "a NaN, infinite or subnormal operand, and a subnormal result"]}
+  ]
+}

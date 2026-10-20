@@ -244,9 +244,9 @@ impl FunctionCallTarget<'_> {
     }
 }
 
-/// The two boundary rules no admitted entry can reach yet: no entry declares a reference-only
-/// parameter and no kernel returns Missing, so these entries exist only here. Each test runs
-/// natively and, as a wasm-bindgen test, in Chrome and Firefox.
+/// Two boundary rules, on test entries that exist only here: no admitted kernel returns Missing,
+/// and a reference-only parameter, like COUNTBLANK's, admits a reference and refuses every other
+/// kind of value. Each test runs natively and, as a wasm-bindgen test, in Chrome and Firefox.
 #[cfg(test)]
 mod tests {
     use super::*;

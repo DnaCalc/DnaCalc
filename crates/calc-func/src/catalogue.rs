@@ -162,6 +162,13 @@ impl Parameter {
             class: ParameterClass::ValueOrReference,
         }
     }
+
+    pub(crate) const fn reference(name: &'static str) -> Self {
+        Parameter {
+            name,
+            class: ParameterClass::Reference,
+        }
+    }
 }
 
 /// One entry as its family fragment declares it.
