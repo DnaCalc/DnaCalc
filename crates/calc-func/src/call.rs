@@ -4,11 +4,14 @@
 //!
 //! The entry's declarations decide the order of work: the arity is checked before any argument
 //! is asked for; an eager entry's arguments are asked for once each, in order, and admitted
-//! against their parameter classes before its kernel runs; a lazy entry's arguments are not asked
-//! for here at all, because only the entry may select which of them is evaluated.
+//! against their parameter classes before its kernel runs; a lazy entry's kernel asks for the
+//! arguments it selects itself, each admitted when it is asked for, so an argument it does not
+//! select is never evaluated.
 
-use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, ParameterClass};
-use crate::value::{CalcValue, CoreValue, NumericMode};
+use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
+use crate::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode};
+use std::fmt;
+use std::ops::ControlFlow;
 
 /// The arguments of one call. The caller produces each value when the call interface asks for
 /// it, so a lazy entry's held-back arguments are never evaluated by the interface.
@@ -21,20 +24,64 @@ pub trait PreparedArguments {
     fn argument(&mut self, index: usize) -> CalcValue;
 }
 
-/// The services a call runs with, owned by the caller: for now the numeric policy, which every
-/// arithmetic site reads instead of assuming one.
-#[derive(Debug)]
+/// Typed read access to the cells that a reference argument names, supplied by the caller with
+/// the services. A kernel reads a reference only through it and never reaches workbook state.
+pub trait CellReader {
+    /// Calls `visit` for the cells of `area` that hold a value, in row-major order (each row left
+    /// to right, rows top to bottom), until `visit` returns [`ControlFlow::Break`]; it then
+    /// returns `Ok`. A cell it does not visit is blank, and it may also visit a blank cell as
+    /// [`CoreValue::Empty`]. [`Unreadable`] when it cannot supply the values of `area`.
+    fn read_area(
+        &mut self,
+        area: GridArea,
+        visit: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
+    ) -> Result<(), Unreadable>;
+}
+
+/// A [`CellReader`]'s refusal to supply the values of an area.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unreadable;
+
+/// The services a call runs with, owned by the caller: the numeric policy, which every
+/// arithmetic site reads instead of assuming one, and the typed reader of reference arguments.
 pub struct EvalServices<'s> {
     numeric: &'s NumericMode,
+    cells: Option<&'s mut dyn CellReader>,
 }
 
 impl<'s> EvalServices<'s> {
+    /// Services without a cell reader: a reference argument that a kernel must read is refused
+    /// with [`FunctionFault::ReferenceUnreadable`].
     pub fn new(numeric: &'s NumericMode) -> Self {
-        EvalServices { numeric }
+        EvalServices {
+            numeric,
+            cells: None,
+        }
+    }
+
+    /// Services whose kernels read reference arguments through `cells`.
+    pub fn with_cells(numeric: &'s NumericMode, cells: &'s mut dyn CellReader) -> Self {
+        EvalServices {
+            numeric,
+            cells: Some(cells),
+        }
     }
 
     pub fn numeric_mode(&self) -> &'s NumericMode {
         self.numeric
+    }
+
+    pub(crate) fn cells(&mut self) -> Option<&mut (dyn CellReader + 's)> {
+        self.cells.as_deref_mut()
+    }
+}
+
+impl fmt::Debug for EvalServices<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EvalServices")
+            .field("numeric", self.numeric)
+            .field("cells", &self.cells.is_some())
+            .finish()
     }
 }
 
@@ -61,13 +108,17 @@ pub enum FunctionFault {
     ReferenceArgument { id: FunctionId, index: usize },
     /// A reference-only parameter received something other than a reference.
     ReferenceRequired { id: FunctionId, index: usize },
-    /// The entry has no kernel, or its kernel does not model this call; `argument` names the
-    /// first argument it does not model when one is responsible.
+    /// The kernel must read the reference at argument `index`, and the services have no
+    /// [`CellReader`] or the reader refused an area of it.
+    ReferenceUnreadable { id: FunctionId, index: usize },
+    /// The kernel does not model Excel's result for this call; `argument` names the argument
+    /// responsible when one is.
     NotImplemented {
         id: FunctionId,
         argument: Option<usize>,
     },
-    /// The call runs under [`NumericMode::Exact`], for which the entry has no implementation.
+    /// The call reaches an arithmetic site under [`NumericMode::Exact`], for which no
+    /// implementation exists.
     ExactUnavailable { id: FunctionId },
     /// The kernel returned [`CoreValue::Missing`], which marks an omitted argument and is never a
     /// function's result ([`CoreValue::Empty`] is).
@@ -77,6 +128,32 @@ pub enum FunctionFault {
 /// The kernel of an eager entry: its arguments, all evaluated and admitted, and the services.
 pub(crate) type EagerKernel =
     fn(&[CalcValue], &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault>;
+
+/// The kernel of a lazy entry: the arguments it selects from, and the services.
+pub(crate) type LazyKernel =
+    fn(&mut LazyArguments<'_>, &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault>;
+
+/// The arguments of a lazy entry's call. The caller evaluates each one only when the kernel asks
+/// for it, and it is admitted against its parameter class before the kernel sees it.
+pub(crate) struct LazyArguments<'a> {
+    entry: &'a CatalogueEntry,
+    source: &'a mut dyn PreparedArguments,
+    count: usize,
+}
+
+impl LazyArguments<'_> {
+    /// The number of arguments at the call site, omitted ones included.
+    pub(crate) fn count(&self) -> usize {
+        self.count
+    }
+
+    /// Argument `index`, below [`LazyArguments::count`], evaluated now.
+    pub(crate) fn argument(&mut self, index: usize) -> Result<CalcValue, FunctionFault> {
+        let value = self.source.argument(index);
+        admit_argument(self.entry, index, &value)?;
+        Ok(value)
+    }
+}
 
 /// Runs the entry `target` resolved to. See the module documentation for the order of work.
 pub fn invoke(
@@ -93,35 +170,36 @@ pub fn invoke(
             supplied,
         });
     }
-    if entry.demand.is_lazy() {
-        // No lazy kernel exists yet; whichever arrives receives `arguments` itself.
-        return Err(FunctionFault::NotImplemented {
-            id: entry.id,
-            argument: None,
-        });
+    match entry.kernel {
+        Kernel::Lazy(kernel) => {
+            let mut selectable = LazyArguments {
+                entry,
+                source: arguments,
+                count: supplied,
+            };
+            admit_return(entry.id, kernel(&mut selectable, services)?)
+        }
+        Kernel::Eager(kernel) => {
+            scratch.arguments.clear();
+            let result = run_eager(entry, kernel, arguments, services, &mut scratch.arguments);
+            scratch.arguments.clear();
+            result
+        }
     }
-    scratch.arguments.clear();
-    let result = run_eager(entry, supplied, arguments, services, &mut scratch.arguments);
-    scratch.arguments.clear();
-    result
 }
 
 fn run_eager(
     entry: &CatalogueEntry,
-    supplied: usize,
+    kernel: EagerKernel,
     arguments: &mut dyn PreparedArguments,
     services: &mut EvalServices<'_>,
     evaluated: &mut Vec<CalcValue>,
 ) -> Result<CalcValue, FunctionFault> {
-    for index in 0..supplied {
+    for index in 0..arguments.count() {
         let value = arguments.argument(index);
         admit_argument(entry, index, &value)?;
         evaluated.push(value);
     }
-    let kernel = entry.kernel.ok_or(FunctionFault::NotImplemented {
-        id: entry.id,
-        argument: None,
-    })?;
     admit_return(entry.id, kernel(evaluated, services)?)
 }
 
@@ -220,7 +298,7 @@ mod tests {
                 }],
             },
             demand: ArgumentDemand::Eager,
-            kernel: Some(kernel),
+            kernel: Kernel::Eager(kernel),
         }
     }
 

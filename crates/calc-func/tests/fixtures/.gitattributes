@@ -1,0 +1,4 @@
+# The oracle workbook is read as committed (by Excel, by the capture worker and by the
+# acceptance cases, which compare it with its generator's output and name it by its SHA-256), so
+# keep the bytes of everything here unchanged across checkouts, including Windows core.autocrlf.
+* -text

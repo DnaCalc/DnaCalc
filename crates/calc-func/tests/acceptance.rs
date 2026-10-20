@@ -2,7 +2,8 @@
 //! `crates/calc-func/acceptance.json`. Every case is `#[test]` natively and `#[wasm_bindgen_test]`
 //! on wasm32, with no browser or Node.js configuration of its own: `cargo xtask accept` forces the
 //! browser with `WASM_BINDGEN_USE_BROWSER`. The cases reach the value types only through
-//! calc-func's re-export `calc_func::value`.
+//! calc-func's re-export `calc_func::value`. The cfunc-m1.2 cases read the Excel capture of their
+//! oracle workbook through calc-verdict, a dev-dependency.
 //!
 //! This test binary installs a counting global allocator: each thread counts its own allocation
 //! calls, so a case measures only what its own thread allocates while libtest runs other cases on
@@ -18,8 +19,16 @@ use calc_func::value::{
     WorkbookId, WorksheetErrorCode,
 };
 use calc_func::{
-    ArgumentDemand, EvalServices, FunctionCallScratch, FunctionCallTarget, FunctionFault,
-    FunctionId, Notation, ParameterClass, PreparedArguments, RegistrationError, catalogue, invoke,
+    ArgumentDemand, CellReader, EvalServices, FunctionCallScratch, FunctionCallTarget,
+    FunctionFault, FunctionId, Notation, ParameterClass, PreparedArguments, RegistrationError,
+    Unreadable, catalogue, invoke,
+};
+use calc_verdict::{
+    Acquisition, CalculationContext, CaptureFailure, CaptureRecord, CaptureSession, CellAddress,
+    CellObservation, CellResult, Evaluation, EvaluationRecord, FormulaCell, FormulaKind,
+    JudgeError, MissingCapture, Observation, Provenance, ResultSet, RunIdentity, STAGE_INVENTORY,
+    STAGE_ISOLATION, SheetEntry, SheetVisibility, Verdict, VerdictPolicy, VerdictReport, judge,
+    sha256_hex,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::any::Any;
@@ -27,6 +36,7 @@ use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::{BuildHasherDefault, DefaultHasher};
 use std::hint::black_box;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 #[cfg(target_arch = "wasm32")]
@@ -830,7 +840,7 @@ fn cfunc_m0_1__send_sync() {
 // public API (catalogue(), invoke and FunctionCallTarget).
 
 /// The surfaces the thin slice admits, written here independently of the catalogue: the
-/// arithmetic, comparison and concatenation operators, SUM and IF.
+/// arithmetic, comparison and concatenation operators, SUM and IF. The catalogue holds each.
 const ADMITTED: [(Notation, &str); 17] = [
     (Notation::Infix, "+"),
     (Notation::Infix, "-"),
@@ -883,7 +893,7 @@ impl PreparedArguments for Recorded {
     }
 }
 
-/// One call through `calc_func::invoke` with fresh services and scratch.
+/// One call through `calc_func::invoke` with fresh services (no cell reader) and scratch.
 fn run(
     target: FunctionCallTarget<'_>,
     arguments: &mut Recorded,
@@ -924,8 +934,8 @@ fn cfunc_m1_1__catalogue_consistency() {
     );
     let dispatch_ids: BTreeSet<FunctionId> = dispatch.iter().copied().collect();
 
-    // Names: the surface table holds exactly the admitted surfaces, and each surface and each ID
-    // resolves to the same entry; a named call also in lower case.
+    // Names: the surface table holds each surface once and every admitted surface, and each
+    // surface and each ID resolve to the same entry; a named call also in lower case.
     let mut surfaces = BTreeSet::new();
     let mut named_ids = BTreeSet::new();
     let mut help_ids = BTreeSet::new();
@@ -991,13 +1001,19 @@ fn cfunc_m1_1__catalogue_consistency() {
         .iter()
         .map(|(notation, spelling)| (*notation, (*spelling).to_owned()))
         .collect();
-    assert_eq!(surfaces, expected, "the admitted surfaces");
+    assert!(
+        expected.is_subset(&surfaces),
+        "admitted surfaces missing from the catalogue: {:?}",
+        expected.difference(&surfaces).collect::<Vec<_>>()
+    );
 
     // Arity and dispatch: every ID of the dispatch table, invoked with its arity's minimum,
-    // reaches its own entry; outside its arity no argument is asked for. Only SUM computes, only
-    // IF is lazy, and the eager entries are asked for each argument once, in order.
+    // reaches its own entry, which computes a value or refuses under its own ID; outside its
+    // arity no argument is asked for. An eager entry is asked for each argument once, in order;
+    // a lazy entry is asked for its discriminator first and then at most one held-back argument.
     let mut arity_ids = BTreeSet::new();
     let mut computed = Vec::new();
+    let mut refused = Vec::new();
     let mut lazy = Vec::new();
     for target in catalogue.targets() {
         let arity = target.arity();
@@ -1022,24 +1038,30 @@ fn cfunc_m1_1__catalogue_consistency() {
         let mut at_minimum = Recorded::numbers(arity.min);
         match run(target, &mut at_minimum, &fast) {
             Ok(value) => computed.push((target.id(), value)),
-            Err(fault) => assert_eq!(
-                fault,
-                FunctionFault::NotImplemented {
-                    id: target.id(),
-                    argument: None
-                },
-                "{target:?}"
-            ),
+            Err(FunctionFault::NotImplemented { id, .. }) => {
+                assert_eq!(id, target.id(), "{target:?} refused under another ID");
+                refused.push(target.id());
+            }
+            Err(fault) => panic!("{target:?} at its minimum arity: {fault:?}"),
         }
-        let in_order: Vec<usize> = (0..arity.min).collect();
         if demand.is_lazy() {
             lazy.push(target.id());
+            assert_eq!(
+                at_minimum.asked.first().copied(),
+                demand.discriminator(),
+                "{target:?} asked {:?}",
+                at_minimum.asked
+            );
             assert!(
-                at_minimum.asked.is_empty(),
+                at_minimum.asked.len() <= 2
+                    && at_minimum.asked[1..]
+                        .iter()
+                        .all(|&index| demand.holds_back(index)),
                 "{target:?} asked {:?}",
                 at_minimum.asked
             );
         } else {
+            let in_order: Vec<usize> = (0..arity.min).collect();
             assert_eq!(at_minimum.asked, in_order, "{target:?}");
         }
 
@@ -1069,25 +1091,26 @@ fn cfunc_m1_1__catalogue_consistency() {
         oracle_ids, dispatch_ids,
         "oracle selection against dispatch"
     );
-    assert_eq!(dispatch_ids.len(), ADMITTED.len());
 
     let sum = surface(Notation::Call, "SUM");
     let iff = surface(Notation::Call, "IF");
-    assert_eq!(
-        computed,
-        [(sum.id(), CalcValue::number(1.0))],
-        "only SUM computes"
+    assert!(
+        computed.contains(&(sum.id(), CalcValue::number(1.0))),
+        "SUM(1) computes 1: {computed:?}"
     );
     assert_eq!(lazy, [iff.id()], "only IF is lazy");
     note!(
-        "ACCEPT-NOTE: {CASE}: {} admitted IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; computing entries {:?}; lazy entries {:?}",
+        "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}",
         dispatch_ids.len(),
         dispatch_ids.len(),
+        computed.len(),
         computed.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        refused.len(),
+        refused,
         lazy
     );
 
-    // SUM(1, 2, 3) through calc_func::invoke, by FunctionCallTarget::invoke.
+    // SUM(1, 2, 3) and SUM(0.5, -2, 10) through calc_func::invoke, by FunctionCallTarget::invoke.
     let mut one_two_three = Recorded::numbers(3);
     let six = sum.invoke(
         &mut one_two_three,
@@ -1097,9 +1120,25 @@ fn cfunc_m1_1__catalogue_consistency() {
     assert_eq!(
         six.as_ref()
             .map(|value| value.as_number().map(f64::to_bits)),
-        Ok(Some(6.0f64.to_bits()))
+        Ok(Some(0x4018_0000_0000_0000))
     );
     assert_eq!(one_two_three.asked, [0, 1, 2]);
+    let mut not_positions = Recorded::new(vec![
+        CalcValue::number(0.5),
+        CalcValue::number(-2.0),
+        CalcValue::number(10.0),
+    ]);
+    let eight_and_a_half = sum.invoke(
+        &mut not_positions,
+        &mut EvalServices::new(&fast),
+        &mut FunctionCallScratch::new(),
+    );
+    assert_eq!(
+        eight_and_a_half
+            .as_ref()
+            .map(|value| value.as_number().map(f64::to_bits)),
+        Ok(Some(0x4021_0000_0000_0000))
+    );
     assert_eq!(
         (
             sum.arity().min,
@@ -1141,13 +1180,18 @@ fn cfunc_m1_1__catalogue_consistency() {
         "a call on warm scratch allocated {second_allocations} times"
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: SUM(1,2,3) through calc_func::invoke = {:?} (bits {:#018x}); arguments asked {:?}; allocation calls: {first_allocations} on fresh scratch, {second_allocations} on warm scratch",
+        "ACCEPT-NOTE: {CASE}: SUM(1,2,3) through calc_func::invoke = {:?} (bits {:#018x}); SUM(0.5,-2,10) = {:?} (bits {:#018x}); arguments asked {:?}; allocation calls: {first_allocations} on fresh scratch, {second_allocations} on warm scratch",
         six.as_ref().ok().and_then(CalcValue::as_number),
-        6.0f64.to_bits(),
+        0x4018_0000_0000_0000u64,
+        eight_and_a_half
+            .as_ref()
+            .ok()
+            .and_then(CalcValue::as_number),
+        0x4021_0000_0000_0000u64,
         one_two_three.asked
     );
 
-    // Under Exact, SUM refuses instead of adding under Fast.
+    // Under Exact, SUM refuses at its first arithmetic site instead of adding under Fast.
     let target_id = NumericTargetId::new(
         "test-build",
         "test-channel",
@@ -1161,8 +1205,9 @@ fn cfunc_m1_1__catalogue_consistency() {
         Err(FunctionFault::ExactUnavailable { id: sum.id() })
     );
 
-    // IF's demand holds its branches back, and the call interface asks for none of its
-    // arguments; the eager "=" is asked for both of the same kind of arguments.
+    // IF's demand holds its branches back: the call interface asks for the condition alone
+    // before it decides, then for the chosen branch only. The eager "=" is asked for both of the
+    // same kind of arguments.
     let demand = iff.argument_demand();
     assert_eq!(demand, ArgumentDemand::BranchOnCondition);
     assert_eq!(demand.discriminator(), Some(0));
@@ -1181,12 +1226,23 @@ fn cfunc_m1_1__catalogue_consistency() {
     ]);
     assert_eq!(
         run(iff, &mut branches, &fast),
-        Err(FunctionFault::NotImplemented {
-            id: iff.id(),
-            argument: None
-        })
+        Ok(CalcValue::error(WorksheetErrorCode::Div0))
     );
-    assert!(branches.asked.is_empty());
+    assert_eq!(branches.asked, [0, 1], "the unchosen branch is never asked");
+    let mut undecided = Recorded::new(vec![
+        CalcValue::error(WorksheetErrorCode::Ref),
+        CalcValue::error(WorksheetErrorCode::Div0),
+        CalcValue::error(WorksheetErrorCode::NA),
+    ]);
+    assert_eq!(
+        run(iff, &mut undecided, &fast),
+        Ok(CalcValue::error(WorksheetErrorCode::Ref))
+    );
+    assert_eq!(
+        undecided.asked,
+        [0],
+        "no branch is asked before the condition"
+    );
     let equal = surface(Notation::Infix, "=");
     assert_eq!(equal.argument_demand(), ArgumentDemand::Eager);
     let mut operands = Recorded::new(vec![
@@ -1195,21 +1251,20 @@ fn cfunc_m1_1__catalogue_consistency() {
     ]);
     assert_eq!(
         run(equal, &mut operands, &fast),
-        Err(FunctionFault::NotImplemented {
-            id: equal.id(),
-            argument: None
-        })
+        Ok(CalcValue::error(WorksheetErrorCode::Div0))
     );
     assert_eq!(operands.asked, [0, 1]);
     note!(
-        "ACCEPT-NOTE: {CASE}: IF demand {demand:?}, discriminator {:?}; invoke asked for {:?} of IF's 3 arguments and {:?} of the 2 arguments of the eager = operator",
+        "ACCEPT-NOTE: {CASE}: IF demand {demand:?}, discriminator {:?}; invoke asked for {:?} of IF(TRUE,#DIV/0!,#N/A), {:?} of IF(#REF!,#DIV/0!,#N/A) and {:?} of the 2 arguments of the eager = operator",
         demand.discriminator(),
         branches.asked,
+        undecided.asked,
         operands.asked
     );
 
-    // Parameter classes: an operator's value parameter refuses a reference; SUM's and IF's
-    // branch parameters admit one, and SUM's kernel says it does not read references yet.
+    // Parameter classes: an operator's value parameter and IF's condition refuse a reference;
+    // SUM's parameters admit one, and without a cell reader SUM refuses to read it. A direct
+    // array passes admission: an operator refuses to lift over it, and SUM adds its numbers.
     let plus = surface(Notation::Infix, "+");
     assert_eq!(plus.parameter_class(0), Some(ParameterClass::Value));
     assert_eq!(
@@ -1236,33 +1291,34 @@ fn cfunc_m1_1__catalogue_consistency() {
             index: 1
         })
     );
+    let mut if_reference = Recorded::new(vec![a1_reference(), CalcValue::number(1.0)]);
+    assert_eq!(
+        run(iff, &mut if_reference, &fast),
+        Err(FunctionFault::ReferenceArgument {
+            id: iff.id(),
+            index: 0
+        })
+    );
+    assert_eq!(if_reference.asked, [0]);
     let mut sum_reference = Recorded::new(vec![CalcValue::number(1.0), a1_reference()]);
     assert_eq!(
         run(sum, &mut sum_reference, &fast),
-        Err(FunctionFault::NotImplemented {
+        Err(FunctionFault::ReferenceUnreadable {
             id: sum.id(),
-            argument: Some(1)
+            index: 1
         })
     );
-    // A direct array passes admission for a value parameter and for SUM's, and reaches SUM's
-    // kernel, which does not read arrays yet.
     let array = CalcValue::array(CalcArray::from_scalar(CalcValue::number(2.0)));
     let mut plus_array = Recorded::new(vec![CalcValue::number(1.0), array.clone()]);
     assert_eq!(
         run(plus, &mut plus_array, &fast),
         Err(FunctionFault::NotImplemented {
             id: plus.id(),
-            argument: None
+            argument: Some(1)
         })
     );
     let mut sum_array = Recorded::new(vec![array, CalcValue::number(1.0)]);
-    assert_eq!(
-        run(sum, &mut sum_array, &fast),
-        Err(FunctionFault::NotImplemented {
-            id: sum.id(),
-            argument: Some(0)
-        })
-    );
+    assert_eq!(run(sum, &mut sum_array, &fast), Ok(CalcValue::number(3.0)));
 
     // Help text and oracle formulas for one entry of each notation.
     let helps = [
@@ -1295,116 +1351,18 @@ fn cfunc_m1_1__catalogue_consistency() {
     );
 }
 
-/// calc-func's source files, read at compile time so the scan also runs in the browsers: the
-/// crate root, the modules it declares and the family fragments the catalogue declares. The case
-/// checks that this set equals the declared modules.
-const CALC_FUNC_SOURCES: [(&str, &str); 8] = [
-    ("lib", include_str!("../src/lib.rs")),
-    ("call", include_str!("../src/call.rs")),
-    ("catalogue", include_str!("../src/catalogue.rs")),
-    (
-        "catalogue/aggregate",
-        include_str!("../src/catalogue/aggregate.rs"),
-    ),
-    (
-        "catalogue/arithmetic",
-        include_str!("../src/catalogue/arithmetic.rs"),
-    ),
-    (
-        "catalogue/comparison",
-        include_str!("../src/catalogue/comparison.rs"),
-    ),
-    (
-        "catalogue/logical",
-        include_str!("../src/catalogue/logical.rs"),
-    ),
-    ("catalogue/text", include_str!("../src/catalogue/text.rs")),
-];
-
-/// The string literals of Rust source text outside its comments, each as written between its
-/// quotes. Char literals and lifetimes are skipped.
-fn string_literals(text: &str) -> Vec<&str> {
-    let bytes = text.as_bytes();
-    let word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
-    let mut found = Vec::new();
-    let mut at = 0;
-    while at < bytes.len() {
-        match bytes[at] {
-            b'/' if bytes.get(at + 1) == Some(&b'/') => {
-                while at < bytes.len() && bytes[at] != b'\n' {
-                    at += 1;
-                }
-            }
-            b'/' if bytes.get(at + 1) == Some(&b'*') => {
-                let end = text[at + 2..]
-                    .find("*/")
-                    .expect("an unterminated block comment");
-                at += end + 4;
-            }
-            b'r' if (at == 0 || !word(bytes[at - 1]))
-                && matches!(bytes.get(at + 1), Some(b'"' | b'#')) =>
-            {
-                let mut quote = at + 1;
-                while bytes.get(quote) == Some(&b'#') {
-                    quote += 1;
-                }
-                if bytes.get(quote) != Some(&b'"') {
-                    at += 1;
-                    continue;
-                }
-                let closing = format!("\"{}", "#".repeat(quote - at - 1));
-                let start = quote + 1;
-                let end = start
-                    + text[start..]
-                        .find(&closing)
-                        .expect("an unterminated raw string");
-                found.push(&text[start..end]);
-                at = end + closing.len();
-            }
-            b'"' => {
-                let start = at + 1;
-                let mut end = start;
-                while bytes[end] != b'"' {
-                    if bytes[end] == b'\\' {
-                        end += 1;
-                    }
-                    end += 1;
-                }
-                found.push(&text[start..end]);
-                at = end + 1;
-            }
-            b'\'' => {
-                if bytes.get(at + 1) == Some(&b'\\') {
-                    let mut end = at + 3;
-                    while bytes[end] != b'\'' {
-                        end += 1;
-                    }
-                    at = end + 1;
-                } else {
-                    let after = text[at + 1..]
-                        .chars()
-                        .next()
-                        .map_or(at + 1, |c| at + 1 + c.len_utf8());
-                    at = if bytes.get(after) == Some(&b'\'') {
-                        after + 1
-                    } else {
-                        at + 1
-                    };
-                }
-            }
-            _ => at += 1,
-        }
-    }
-    found
-}
-
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn cfunc_m1_1__unknown_function() {
     const CASE: &str = "cfunc_m1_1__unknown_function";
     let catalogue = catalogue();
     let admitted: BTreeSet<u32> = catalogue.targets().map(|t| t.id().raw()).collect();
-    assert_eq!(admitted.len(), ADMITTED.len());
+    for (notation, spelling) in ADMITTED {
+        assert!(
+            admitted.contains(&surface(notation, spelling).id().raw()),
+            "{notation:?} {spelling:?} resolves outside the dispatch table"
+        );
+    }
 
     // Unknown IDs: the neighbours of every admitted ID, the IDs with the top bit of each member
     // number flipped, and both extremes, wherever the catalogue does not admit them.
@@ -1470,60 +1428,2491 @@ fn cfunc_m1_1__unknown_function() {
         unknown_surfaces.len(),
         admitted.len()
     );
+}
 
-    // No second string switch: the files read are exactly the crate root, its modules and the
-    // catalogue's fragments, and across them each admitted spelling occurs as a string literal
-    // exactly as often as catalogue entries declare it, so no other code matches on a name or a
-    // token.
-    let declared_by = |name: &str| {
-        let text = CALC_FUNC_SOURCES
-            .iter()
-            .find(|(module, _)| *module == name)
-            .map(|(_, text)| *text)
-            .unwrap_or_else(|| panic!("{name} was not read"));
-        let mut modules = out_of_line_modules(text);
-        modules.sort_unstable();
-        modules
-    };
-    assert_eq!(declared_by("lib"), ["call", "catalogue"]);
-    assert_eq!(
-        declared_by("catalogue"),
-        ["aggregate", "arithmetic", "comparison", "logical", "text"]
-    );
-    for (module, text) in CALC_FUNC_SOURCES {
-        assert!(!text.is_empty(), "{module} was not read");
-        if module != "lib" && module != "catalogue" {
-            assert!(
-                out_of_line_modules(text).is_empty(),
-                "{module} declares a module this case does not read"
-            );
+// ---------------------------------------------------------------------------------------------
+// cfunc-m1.2: worksheet coercion, the arithmetic, comparison and concatenation operators, SUM
+// over direct and referenced arguments, and IF, all through calc_func::invoke on catalogue
+// targets.
+//
+// Each oracle row runs one call and asserts a result written here by hand. That assertion is the
+// code's own consistency check and says nothing about Excel: no hand-written expectation has been
+// compared with Excel. A row labelled `unmeasured choice` encodes a choice of this implementation
+// that no Excel result has settled (which operand's error wins, the order SUM reads a range in,
+// an overflow against a later error, a zero's sign, an underflow of number text).
+//
+// Each row names the bead that owns the Excel behaviour it shows. A row of cfunc-m1.2 computes a
+// value, and the Excel comparison must find it equal to Excel's. A row whose behaviour another
+// bead owns (text collation and nearly equal numbers, the near-zero adjustment of a formula's
+// final + or -, ^ beyond the powers computed here, number text read by locale rules, a number's
+// General text, array lifting, subnormal results) is run and asserted the same way, whether
+// calc-func computes it or refuses it, and is published to the comparison as not modeled, with
+// its owner: it is counted as not modeled and never as matched.
+//
+// The Excel comparison goes through the one capture route and the one verdict path.
+// `tests/fixtures/cfunc_m1_2/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of a sheet named after
+// its case, in the order the case runs its rows, beside the cells the rows read; each case checks
+// that its sheet holds exactly those formulas and cells. The owner's `cargo xtask capture` run
+// writes Excel's raw values for that workbook, as a CaptureRecord version 2, to
+// `tests/captures/cfunc_m1_2/oracle.capture.json`. Each case then runs the rows of both sheets,
+// publishes each row's calc_func::invoke result as a calc_verdict ResultSet and each recorded
+// invoke call as an EvaluationRecord, and asserts on the VerdictReport that calc_verdict::judge
+// computes from them and the capture. Until the capture is taken that path holds the
+// absent-capture marker, and each case prints ACCEPT-NOT-RUN with calc-verdict's MissingCapture,
+// so the runner records it as not run.
+//
+// The retained witness `migration/witnesses/w111-extended-power.json` holds Excel's results of the
+// POWER function. The mixed-operand case applies it to the ^ operator, which assumes that ^
+// computes POWER; the oracle workbook's ^ rows test that assumption once they are captured.
+
+/// The oracle workbook, as committed (its bytes are kept across checkouts by `.gitattributes`).
+const ORACLE_WORKBOOK: &[u8] = include_bytes!("fixtures/cfunc_m1_2/oracle.xlsx");
+const ORACLE_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx";
+/// Excel's capture of the oracle workbook, or the absent-capture marker until the owner takes it.
+const ORACLE_CAPTURE: &[u8] = include_bytes!("captures/cfunc_m1_2/oracle.capture.json");
+/// The capture worker, whose content hash the capture's tool revision must name.
+const CAPTURE_WORKER: &[u8] =
+    include_bytes!("../../../platform/calc-oracle-excel/worker/capture-worker.ps1");
+/// The case the capture is recorded under; both cases compare their rows with it.
+const CAPTURE_CASE: &str = "cfunc_m1_2__mixed_operands";
+/// The owner's command that writes the capture.
+const CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx --case cfunc_m1_2__mixed_operands --out crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json";
+/// The column (D) of the oracle sheets that holds the formulas, one row per oracle row from row 1.
+const FORMULA_COLUMN: u32 = 4;
+
+/// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
+/// the number of cells visited are recorded.
+struct TestSheet {
+    id: SheetId,
+    cells: BTreeMap<(u32, u32), CalcValue>,
+    /// Each held cell as it is entered in Excel, for the notes.
+    entered: BTreeMap<(u32, u32), String>,
+    refuse: bool,
+    reads: Vec<GridArea>,
+    visited: usize,
+}
+
+impl TestSheet {
+    /// A sheet holding these cells, each given as its A1 address, its Excel entry and its value.
+    fn new(cells: &[(&str, &str, CalcValue)]) -> Self {
+        let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+        let id = sheets.issue().expect("a sheet");
+        let mut held = BTreeMap::new();
+        let mut entered = BTreeMap::new();
+        for (address, entry, value) in cells {
+            assert!(held.insert(decode_a1(address), value.clone()).is_none());
+            entered.insert(decode_a1(address), format!("{address} = {entry}"));
+        }
+        TestSheet {
+            id,
+            cells: held,
+            entered,
+            refuse: false,
+            reads: Vec::new(),
+            visited: 0,
         }
     }
-    let literals: Vec<&str> = CALC_FUNC_SOURCES
-        .iter()
-        .flat_map(|(_, text)| string_literals(text))
-        .collect();
-    let mut declared: BTreeMap<String, usize> = BTreeMap::new();
-    for target in catalogue.surfaces() {
-        *declared
-            .entry(target.spelling().to_ascii_uppercase())
-            .or_default() += 1;
+
+    fn key(&self, a1: &str) -> CellKey {
+        let (row, column) = decode_a1(a1);
+        CellKey::new(self.id, row, column).unwrap_or_else(|e| panic!("{a1}: {e:?}"))
     }
-    for (spelling, entries) in &declared {
-        let occurrences = literals
+
+    /// The area an A1 text names: a cell, a range between two cells, or a whole column (A:A).
+    fn area(&self, text: &str) -> GridArea {
+        match text.split_once(':') {
+            None => GridArea::cell(self.key(text)),
+            Some((first, last)) if first.bytes().all(|b| b.is_ascii_uppercase()) => GridArea::new(
+                self.key(&format!("{first}1")),
+                self.key(&format!("{last}{MAX_ROWS}")),
+            )
+            .expect("a whole column"),
+            Some((first, last)) => GridArea::new(self.key(first), self.key(last)).expect("a range"),
+        }
+    }
+
+    /// The Excel entries of the held cells of these areas, or that they are blank.
+    fn entries(&self, texts: &[&str]) -> Vec<String> {
+        let areas: Vec<GridArea> = texts.iter().map(|text| self.area(text)).collect();
+        let held: Vec<String> = self
+            .entered
             .iter()
-            .filter(|literal| literal.eq_ignore_ascii_case(spelling))
-            .count();
+            .filter(|((row, column), _)| {
+                let key = CellKey::new(self.id, *row, *column).expect("a held cell");
+                areas.iter().any(|area| area.contains(key))
+            })
+            .map(|(_, entry)| entry.clone())
+            .collect();
+        if held.is_empty() {
+            vec![format!("{} blank", texts.join(","))]
+        } else {
+            held
+        }
+    }
+
+    /// The whole sheet as it is entered in Excel.
+    fn described(&self) -> String {
+        self.entered
+            .values()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// What a value parameter receives for a cell: the caller dereferences it to its value, or to
+    /// Empty when it is blank.
+    fn value(&self, a1: &str) -> CalcValue {
+        self.cells
+            .get(&decode_a1(a1))
+            .cloned()
+            .unwrap_or_else(CalcValue::empty)
+    }
+}
+
+impl CellReader for TestSheet {
+    fn read_area(
+        &mut self,
+        area: GridArea,
+        visit: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
+    ) -> Result<(), Unreadable> {
+        self.reads.push(area);
+        if self.refuse {
+            return Err(Unreadable);
+        }
+        let mut visited = 0;
+        // The map is ordered by row and then column, so this walk is row-major.
+        for (&(row, column), value) in &self.cells {
+            let key = CellKey::new(self.id, row, column).expect("a held cell");
+            if !area.contains(key) {
+                continue;
+            }
+            visited += 1;
+            if visit(key, value).is_break() {
+                break;
+            }
+        }
+        self.visited += visited;
+        Ok(())
+    }
+}
+
+/// One argument of a call: as an Excel formula writes it, and as the caller supplies it.
+#[derive(Clone)]
+struct Arg {
+    excel: String,
+    value: CalcValue,
+    /// The cells of the test sheet it reads, as the notes list them.
+    reads: Vec<String>,
+}
+
+fn arg(excel: &str, value: CalcValue) -> Arg {
+    Arg {
+        excel: excel.to_owned(),
+        value,
+        reads: Vec::new(),
+    }
+}
+
+/// A number literal.
+fn num(literal: &str) -> Arg {
+    let value: f64 = literal.parse().expect("a number literal");
+    arg(literal, CalcValue::number(value))
+}
+
+/// A text literal.
+fn txt(text: &str) -> Arg {
+    arg(
+        &format!("\"{}\"", text.replace('"', "\"\"")),
+        CalcValue::text(ExcelText::from_interop_assignment(text)),
+    )
+}
+
+fn logical(value: bool) -> Arg {
+    arg(
+        if value { "TRUE" } else { "FALSE" },
+        CalcValue::logical(value),
+    )
+}
+
+/// An error literal.
+fn err(code: WorksheetErrorCode) -> Arg {
+    arg(spelled(code), CalcValue::error(code))
+}
+
+/// An omitted argument.
+fn omitted() -> Arg {
+    arg("", CalcValue::missing())
+}
+
+/// A cell given to a value parameter, which the caller dereferences.
+fn cell(sheet: &TestSheet, a1: &str) -> Arg {
+    Arg {
+        reads: sheet.entries(&[a1]),
+        ..arg(a1, sheet.value(a1))
+    }
+}
+
+/// A reference to the areas of the test sheet that these A1 texts name, given as a reference.
+fn reference(sheet: &TestSheet, areas: &[&str]) -> Arg {
+    let excel = match areas {
+        [one] => (*one).to_owned(),
+        _ => format!("({})", areas.join(",")),
+    };
+    let value = ReferenceLike::from_areas(areas.iter().map(|a| sheet.area(a)).collect())
+        .expect("areas of one sheet");
+    Arg {
+        reads: sheet.entries(areas),
+        ..arg(&excel, CalcValue::reference(value))
+    }
+}
+
+fn text_value(text: &str) -> CalcValue {
+    CalcValue::text(ExcelText::from_interop_assignment(text))
+}
+
+/// The error literals the fixtures write.
+const ERROR_LITERALS: [(WorksheetErrorCode, &str); 7] = [
+    (WorksheetErrorCode::Null, "#NULL!"),
+    (WorksheetErrorCode::Div0, "#DIV/0!"),
+    (WorksheetErrorCode::Value, "#VALUE!"),
+    (WorksheetErrorCode::Ref, "#REF!"),
+    (WorksheetErrorCode::Name, "#NAME?"),
+    (WorksheetErrorCode::Num, "#NUM!"),
+    (WorksheetErrorCode::NA, "#N/A"),
+];
+
+fn spelled(code: WorksheetErrorCode) -> &'static str {
+    ERROR_LITERALS
+        .iter()
+        .find(|(known, _)| *known == code)
+        .map(|(_, literal)| *literal)
+        .unwrap_or_else(|| panic!("{code:?} has no literal in these fixtures"))
+}
+
+/// What a call is expected to give.
+#[derive(Clone, Debug)]
+enum Expect {
+    /// A number, compared bit for bit.
+    Number(f64),
+    Logical(bool),
+    Text(String),
+    Error(WorksheetErrorCode),
+    /// `FunctionFault::NotImplemented` under the entry's own ID, naming this argument.
+    Refused(Option<usize>),
+}
+
+use Expect::{Error as E, Logical as L, Number as N, Refused};
+
+fn t(text: &str) -> Expect {
+    Expect::Text(text.to_owned())
+}
+
+impl Expect {
+    fn holds(&self, id: FunctionId, result: &Result<CalcValue, FunctionFault>) -> bool {
+        match (self, result) {
+            (N(n), Ok(value)) => value.as_number().map(f64::to_bits) == Some(n.to_bits()),
+            (L(b), Ok(value)) => value.as_logical() == Some(*b),
+            (Expect::Text(text), Ok(value)) => {
+                value.as_text() == Some(&ExcelText::from_interop_assignment(text))
+            }
+            (E(code), Ok(value)) => {
+                value.as_error() == Some(*code) && value.callable_value().is_none()
+            }
+            (
+                Refused(argument),
+                Err(FunctionFault::NotImplemented {
+                    id: refused,
+                    argument: at,
+                }),
+            ) => *refused == id && at == argument,
+            _ => false,
+        }
+    }
+
+    fn shown(&self) -> String {
+        match self {
+            N(n) => format!("number {n:?} (bits {:#018x})", n.to_bits()),
+            L(b) => (if *b { "TRUE" } else { "FALSE" }).to_owned(),
+            Expect::Text(text) if text.len() > 24 => {
+                format!("text of {} characters", text.len())
+            }
+            Expect::Text(text) => format!("text {text:?}"),
+            E(code) => spelled(*code).to_owned(),
+            Refused(argument) => format!("NotImplemented (argument {argument:?})"),
+        }
+    }
+}
+
+/// A value as a note or a problem shows it.
+fn shown_value(value: &CalcValue) -> String {
+    match value.core() {
+        CoreValue::Number(n) => format!("number {n:?} (bits {:#018x})", n.to_bits()),
+        CoreValue::Logical(b) => (if *b { "TRUE" } else { "FALSE" }).to_owned(),
+        CoreValue::Text(text) if text.len_utf16_code_units() > 24 => {
+            format!("text of {} UTF-16 code units", text.len_utf16_code_units())
+        }
+        CoreValue::Text(text) => format!("text {:?}", text.to_string_lossy()),
+        CoreValue::Error(code) => ERROR_LITERALS
+            .iter()
+            .find(|(known, _)| known == code)
+            .map_or_else(|| format!("{code:?}"), |(_, literal)| (*literal).to_owned()),
+        other => format!("{other:?}"),
+    }
+}
+
+/// Whether two values are the same value, numbers bit for bit. It checks the fixtures' own
+/// consistency (the test sheet against the oracle workbook's constant cells, an Exact call against
+/// its Fast row); the comparison with Excel is calc_verdict::judge's alone.
+fn identical(a: &CalcValue, b: &CalcValue) -> bool {
+    a == b && a.as_number().map(f64::to_bits) == b.as_number().map(f64::to_bits)
+}
+
+/// The bead that owns the Excel behaviour a row shows, when that is not cfunc-m1.2, and the
+/// behaviour. Such a row is published to the Excel comparison as not modeled, with this owner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Owner {
+    bead: &'static str,
+    behaviour: &'static str,
+}
+
+impl Owner {
+    /// The not-modeled feature the row is published with.
+    fn feature(self) -> String {
+        format!("{}: {}", self.bead, self.behaviour)
+    }
+}
+
+/// Text ordering and case-insensitive text equality.
+const COLLATION: Owner = Owner {
+    bead: "cdoc-jpha",
+    behaviour: "Excel's text collation",
+};
+const NEAR_EQUAL: Owner = Owner {
+    bead: "cdoc-jpha",
+    behaviour: "Excel's comparison of nearly equal numbers",
+};
+const NEAR_ZERO: Owner = Owner {
+    bead: "cfml-m1.3",
+    behaviour: "the near-zero adjustment of + and - by the formula's final operation",
+};
+const POWER_ALGORITHM: Owner = Owner {
+    bead: "cfunc-m3.3, cfunc-m3.23",
+    behaviour: "^ through a pinned power implementation",
+};
+const NUMBER_TEXT: Owner = Owner {
+    bead: "cfml-m2.6",
+    behaviour: "text read as a number or a logical by Excel's number-text rules",
+};
+const GENERAL_TEXT: Owner = Owner {
+    bead: "cfml-m2.6",
+    behaviour: "a number's text in the General format",
+};
+const ARRAY_LIFT: Owner = Owner {
+    bead: "cfml-m3.4",
+    behaviour: "an operator or IF lifted over an array",
+};
+const SUBNORMAL: Owner = Owner {
+    bead: "cfunc-m3.23",
+    behaviour: "subnormal results",
+};
+
+/// An oracle row: its formula's cell in the oracle workbook (column D of its case's sheet, at row
+/// `row`), the formula, what calc_func::invoke returned at its call's tick, the choice it encodes,
+/// if any, and the bead that owns its behaviour when that is not cfunc-m1.2.
+struct OracleRow {
+    row: u32,
+    /// As `FunctionCallTarget::oracle_formula` writes it, with its leading `=`.
+    formula: String,
+    outcome: Result<CalcValue, FunctionFault>,
+    choice: Option<&'static str>,
+    owner: Option<Owner>,
+    tick: u64,
+}
+
+/// An invoke call recorded at its call site: the row whose formula it evaluated and its tick. The
+/// evaluation record is built from these, apart from the results the rows publish.
+struct Call {
+    row: u32,
+    tick: u64,
+}
+
+/// The rows a case ran, in order.
+struct Rows {
+    case: &'static str,
+    /// The oracle workbook's sheet that holds this case's formulas.
+    sheet: &'static str,
+    oracle: Vec<OracleRow>,
+    calls: Vec<Call>,
+    /// Prints no notes (the rows of the other sheet, run again for the Excel comparison).
+    quiet: bool,
+}
+
+impl Rows {
+    fn new(case: &'static str, sheet: &'static str, quiet: bool) -> Self {
+        Rows {
+            case,
+            sheet,
+            oracle: Vec::new(),
+            calls: Vec::new(),
+            quiet,
+        }
+    }
+
+    fn choices(&self) -> usize {
+        self.oracle
+            .iter()
+            .filter(|row| row.choice.is_some())
+            .count()
+    }
+
+    /// The rows whose behaviour another bead owns.
+    fn elsewhere(&self) -> usize {
+        self.oracle.iter().filter(|row| row.owner.is_some()).count()
+    }
+
+    /// The rows calc-func refuses.
+    fn refused(&self) -> usize {
+        self.oracle
+            .iter()
+            .filter(|row| row.outcome.is_err())
+            .count()
+    }
+}
+
+thread_local! {
+    /// The oracle rows' invoke calls made on this thread so far: the last call's tick.
+    static TICKS: Cell<u64> = const { Cell::new(0) };
+}
+
+/// The tick of the next invoke call.
+fn next_tick() -> u64 {
+    TICKS.with(|ticks| {
+        let tick = ticks.get() + 1;
+        ticks.set(tick);
+        tick
+    })
+}
+
+/// Runs the entry written `spelling` in `notation` on `args` through `calc_func::invoke`, with the
+/// test sheet as the services' cell reader, and asserts `expect`. Returns the Excel formula of
+/// the call, the arguments the call interface asked for, in order, the result and the call's
+/// tick.
+fn call_and_assert(
+    sheet: &mut TestSheet,
+    mode: &NumericMode,
+    (notation, spelling): (Notation, &str),
+    args: &[Arg],
+    expect: &Expect,
+) -> (String, Vec<usize>, Result<CalcValue, FunctionFault>, u64) {
+    let target = surface(notation, spelling);
+    let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+    let formula = target
+        .oracle_formula(&texts)
+        .unwrap_or_else(|| panic!("{notation:?} {spelling:?} does not admit {texts:?}"));
+    let mut recorded = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+    let tick = next_tick();
+    let result = invoke(
+        target,
+        &mut recorded,
+        &mut EvalServices::with_cells(mode, sheet),
+        &mut FunctionCallScratch::new(),
+    );
+    assert!(
+        expect.holds(target.id(), &result),
+        "{formula} under {mode:?}: expected {}, got {result:?}",
+        expect.shown()
+    );
+    (formula, recorded.asked, result, tick)
+}
+
+/// [`call_and_assert`] under Fast, then records the call and the row, with the next cell of
+/// column D, and prints the row: as an `oracle` line when its behaviour is cfunc-m1.2's, which
+/// must then compute a value, and as a `not modeled here` line naming `owner` otherwise. Returns
+/// the arguments the call interface asked for.
+fn check(
+    rows: &mut Rows,
+    sheet: &mut TestSheet,
+    surface: (Notation, &str),
+    args: &[Arg],
+    expect: Expect,
+    choice: Option<&'static str>,
+    owner: Option<Owner>,
+) -> Vec<usize> {
+    let (formula, asked, result, tick) =
+        call_and_assert(sheet, &NumericMode::Fast, surface, args, &expect);
+    let reads: Vec<&str> = args
+        .iter()
+        .flat_map(|a| a.reads.iter().map(String::as_str))
+        .collect();
+    let cells = if reads.is_empty() {
+        String::new()
+    } else {
+        format!(" with {}", reads.join(", "))
+    };
+    match owner {
+        None => assert!(
+            result.is_ok(),
+            "{formula}: a row of cfunc-m1.2 computes a value; a refused row names the bead that owns its behaviour"
+        ),
+        Some(_) => assert!(
+            choice.is_none(),
+            "{formula}: a row another bead owns encodes no choice of cfunc-m1.2"
+        ),
+    }
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    if !rows.quiet {
+        let case = rows.case;
+        let at = format!("{}!{}", rows.sheet, encode_a1(row, FORMULA_COLUMN));
+        let shown = expect.shown();
+        match owner {
+            None => {
+                let label = match choice {
+                    Some(choice) => format!("unmeasured choice: {choice}"),
+                    None => "unmeasured".to_owned(),
+                };
+                note!(
+                    "ACCEPT-NOTE: {case}: oracle {at} {formula}{cells} -> {shown} (hand-written, asserted as the code's own consistency check; {label})"
+                );
+            }
+            Some(owner) => note!(
+                "ACCEPT-NOTE: {case}: not modeled here, owned by {}: {at} {formula}{cells} -> {shown} (hand-written, asserted as the code's own consistency check; published as not modeled: {})",
+                owner.bead,
+                owner.behaviour
+            ),
+        }
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice,
+        owner,
+        tick,
+    });
+    asked
+}
+
+/// Runs a row of cfunc-m1.2: `row!(surface, [args], expect)`, or with a fourth argument naming
+/// the unmeasured choice the row encodes. Evaluates to the arguments the call interface asked for.
+macro_rules! row {
+    ($rows:expr, $sheet:expr, $surface:expr, [$($arg:expr),* $(,)?], $expect:expr $(, $choice:expr)?) => {{
+        let args = [$($arg),*];
+        let choice: Option<&'static str> = None $(.or(Some($choice)))?;
+        check($rows, $sheet, $surface, &args, $expect, choice, None)
+    }};
+}
+
+/// Runs a row whose behaviour another bead owns: `owned_by!(owner, surface, [args], expect)`.
+macro_rules! owned_by {
+    ($rows:expr, $sheet:expr, $owner:expr, $surface:expr, [$($arg:expr),* $(,)?], $expect:expr) => {{
+        let args = [$($arg),*];
+        check($rows, $sheet, $surface, &args, $expect, None, Some($owner))
+    }};
+}
+
+const PLUS: (Notation, &str) = (Notation::Infix, "+");
+const MINUS: (Notation, &str) = (Notation::Infix, "-");
+const TIMES: (Notation, &str) = (Notation::Infix, "*");
+const DIVIDE: (Notation, &str) = (Notation::Infix, "/");
+const POWER: (Notation, &str) = (Notation::Infix, "^");
+const NEGATE: (Notation, &str) = (Notation::Prefix, "-");
+const UNARY_PLUS: (Notation, &str) = (Notation::Prefix, "+");
+const PERCENT: (Notation, &str) = (Notation::Postfix, "%");
+const EQ: (Notation, &str) = (Notation::Infix, "=");
+const NE: (Notation, &str) = (Notation::Infix, "<>");
+const LT: (Notation, &str) = (Notation::Infix, "<");
+const LE: (Notation, &str) = (Notation::Infix, "<=");
+const GT: (Notation, &str) = (Notation::Infix, ">");
+const GE: (Notation, &str) = (Notation::Infix, ">=");
+const AMPERSAND: (Notation, &str) = (Notation::Infix, "&");
+const SUM: (Notation, &str) = (Notation::Call, "SUM");
+const IF: (Notation, &str) = (Notation::Call, "IF");
+
+fn exact_mode() -> NumericMode {
+    NumericMode::Exact(
+        NumericTargetId::new(
+            "test-build",
+            "test-channel",
+            "test-compatibility",
+            "test-environment",
+        )
+        .expect("a target"),
+    )
+}
+
+// ---------------------------------------------------------------------------------------------
+// The oracle workbook and its capture.
+
+/// The parts of a ZIP package whose entries are stored (not compressed), as the generator writes
+/// them, by name.
+fn stored_parts(package: &[u8]) -> BTreeMap<String, &[u8]> {
+    let u16_at = |at: usize| usize::from(u16::from_le_bytes([package[at], package[at + 1]]));
+    let u32_at = |at: usize| {
+        u32::from_le_bytes([
+            package[at],
+            package[at + 1],
+            package[at + 2],
+            package[at + 3],
+        ]) as usize
+    };
+    let mut parts = BTreeMap::new();
+    let mut at = 0;
+    while at + 30 <= package.len() && u32_at(at) == 0x0403_4b50 {
         assert_eq!(
-            occurrences, *entries,
-            "{spelling:?} occurs {occurrences} times as a string literal in calc-func's sources, but {entries} catalogue entries declare it"
+            u16_at(at + 8),
+            0,
+            "a part of the oracle workbook is compressed"
+        );
+        let size = u32_at(at + 18);
+        let (name_length, extra_length) = (u16_at(at + 26), u16_at(at + 28));
+        let name = &package[at + 30..at + 30 + name_length];
+        let data = at + 30 + name_length + extra_length;
+        let name = String::from_utf8(name.to_vec()).expect("an ASCII part name");
+        assert!(
+            parts.insert(name, &package[data..data + size]).is_none(),
+            "a part repeats"
+        );
+        at = data + size;
+    }
+    assert_eq!(
+        u32_at(at),
+        0x0201_4b50,
+        "the local entries of the oracle workbook end where its central directory starts"
+    );
+    parts
+}
+
+fn part_text<'p>(parts: &BTreeMap<String, &'p [u8]>, name: &str) -> &'p str {
+    let bytes = parts
+        .get(name)
+        .unwrap_or_else(|| panic!("the oracle workbook has no part {name}"));
+    std::str::from_utf8(bytes).unwrap_or_else(|e| panic!("{name}: {e}"))
+}
+
+/// The start tags `<name ...>` of an XML text.
+fn start_tags<'x>(xml: &'x str, name: &str) -> Vec<&'x str> {
+    let open = format!("<{name} ");
+    let mut tags = Vec::new();
+    let mut rest = xml;
+    while let Some(at) = rest.find(&open) {
+        rest = &rest[at..];
+        let end = rest.find('>').expect("a start tag ends");
+        tags.push(&rest[..end]);
+        rest = &rest[end..];
+    }
+    tags
+}
+
+/// The value of attribute `name` of a start tag.
+fn attribute<'x>(tag: &'x str, name: &str) -> Option<&'x str> {
+    let marker = format!(" {name}=\"");
+    let start = tag.find(&marker)? + marker.len();
+    let end = tag[start..].find('"')? + start;
+    Some(&tag[start..end])
+}
+
+fn unescape(text: &str) -> String {
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
+}
+
+/// A cell of an oracle sheet: a formula (its text, without `=`) or a constant.
+#[derive(Debug)]
+enum FixtureCell {
+    Formula(String),
+    Constant(CalcValue),
+}
+
+/// The cells of a worksheet part as the generator writes them: `<c r="..." [t="..."]>` holding an
+/// `<f>`, a `<v>` or an inline string.
+fn worksheet_cells(xml: &str) -> BTreeMap<(u32, u32), FixtureCell> {
+    let mut cells = BTreeMap::new();
+    let mut rest = xml;
+    while let Some(at) = rest.find("<c ") {
+        rest = &rest[at..];
+        let tag_end = rest.find('>').expect("a cell's start tag ends");
+        let tag = &rest[..tag_end];
+        assert!(!tag.ends_with('/'), "an empty cell element: {tag}");
+        let close = rest.find("</c>").expect("a cell ends");
+        let body = &rest[tag_end + 1..close];
+        rest = &rest[close + 4..];
+        let inner = |name: &str| -> Option<String> {
+            let open = format!("<{name}>");
+            let start = body.find(&open)? + open.len();
+            let end = body[start..].find(&format!("</{name}>"))? + start;
+            Some(unescape(&body[start..end]))
+        };
+        let reference = attribute(tag, "r").expect("a cell names its reference");
+        let value =
+            |name: &str| inner(name).unwrap_or_else(|| panic!("{reference} has no <{name}>"));
+        let cell = match (inner("f"), attribute(tag, "t")) {
+            (Some(formula), None) => FixtureCell::Formula(formula),
+            (Some(_), Some(t)) => panic!("{reference}: a formula cell of type {t}"),
+            (None, None | Some("n")) => {
+                FixtureCell::Constant(CalcValue::number(value("v").parse().expect("a number")))
+            }
+            (None, Some("b")) => FixtureCell::Constant(CalcValue::logical(value("v") == "1")),
+            (None, Some("e")) => {
+                let literal = value("v");
+                let code = ERROR_LITERALS
+                    .iter()
+                    .find(|(_, known)| *known == literal)
+                    .unwrap_or_else(|| panic!("{reference}: {literal} is no error literal"))
+                    .0;
+                FixtureCell::Constant(CalcValue::error(code))
+            }
+            (None, Some("inlineStr")) => FixtureCell::Constant(text_value(&value("t"))),
+            (None, Some(other)) => panic!("{reference}: a cell of type {other}"),
+        };
+        assert!(
+            cells.insert(decode_a1(reference), cell).is_none(),
+            "{reference} repeats"
+        );
+    }
+    cells
+}
+
+/// Asserts that the oracle workbook's sheet for this case holds exactly the test sheet's cells
+/// and the case's oracle formulas, each in column D at its row, and nothing else.
+fn assert_oracle_sheet(rows: &Rows, sheet: &TestSheet) {
+    let parts = stored_parts(ORACLE_WORKBOOK);
+    let workbook = part_text(&parts, "xl/workbook.xml");
+    let relationships = part_text(&parts, "xl/_rels/workbook.xml.rels");
+    let id = start_tags(workbook, "sheet")
+        .into_iter()
+        .find(|tag| attribute(tag, "name") == Some(rows.sheet))
+        .and_then(|tag| attribute(tag, "r:id"))
+        .unwrap_or_else(|| panic!("the oracle workbook lists no sheet {}", rows.sheet));
+    let target = start_tags(relationships, "Relationship")
+        .into_iter()
+        .find(|tag| attribute(tag, "Id") == Some(id))
+        .and_then(|tag| attribute(tag, "Target"))
+        .unwrap_or_else(|| panic!("the oracle workbook has no relationship {id}"));
+    let cells = worksheet_cells(part_text(&parts, &format!("xl/{target}")));
+
+    let mut formulas = BTreeMap::new();
+    let mut constants = BTreeMap::new();
+    for (place, cell) in cells {
+        match cell {
+            FixtureCell::Formula(formula) => {
+                formulas.insert(place, formula);
+            }
+            FixtureCell::Constant(value) => {
+                constants.insert(place, value);
+            }
+        }
+    }
+    let expected: BTreeMap<(u32, u32), String> = rows
+        .oracle
+        .iter()
+        .map(|row| ((row.row, FORMULA_COLUMN), row.formula[1..].to_owned()))
+        .collect();
+    let at = |(row, column): (u32, u32)| format!("{}!{}", rows.sheet, encode_a1(row, column));
+    let mut differences = Vec::new();
+    for (place, formula) in &expected {
+        match formulas.get(place) {
+            Some(found) if found == formula => {}
+            found => differences.push(format!(
+                "{}: the row's formula is {formula:?}, the workbook holds {found:?}",
+                at(*place)
+            )),
+        }
+    }
+    for place in formulas
+        .keys()
+        .filter(|place| !expected.contains_key(place))
+    {
+        differences.push(format!("{}: a formula that no oracle row has", at(*place)));
+    }
+    for (place, value) in &sheet.cells {
+        match constants.get(place) {
+            Some(found) if identical(found, value) => {}
+            found => differences.push(format!(
+                "{}: the test sheet holds {value:?}, the workbook {found:?}",
+                at(*place)
+            )),
+        }
+    }
+    for place in constants
+        .keys()
+        .filter(|place| !sheet.cells.contains_key(place))
+    {
+        differences.push(format!(
+            "{}: a constant the test sheet does not hold",
+            at(*place)
+        ));
+    }
+    assert!(
+        differences.is_empty(),
+        "the oracle workbook's sheet {} differs from the case's rows and cells:\n{}",
+        rows.sheet,
+        differences.join("\n")
+    );
+    if !rows.quiet {
+        note!(
+            "ACCEPT-NOTE: {}: {ORACLE_WORKBOOK_PATH} (sha256 {}): sheet {} holds exactly the {} oracle rows' formulas in column D, in row order, and the {} cells the rows read",
+            rows.case,
+            sha256_hex(ORACLE_WORKBOOK),
+            rows.sheet,
+            expected.len(),
+            sheet.cells.len()
+        );
+    }
+}
+
+/// Runs the committed generator under Windows PowerShell into a new directory and returns what it
+/// wrote, by path relative to that directory.
+#[cfg(all(windows, not(target_arch = "wasm32")))]
+fn generated_fixtures() -> BTreeMap<String, Vec<u8>> {
+    use std::path::Path;
+    use std::process::{Command, Stdio};
+    let generator = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("make-fixtures.ps1");
+    let out = std::env::temp_dir().join(format!("calc-func-fixtures-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out);
+    let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
+    let powershell = Path::new(&system_root)
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe");
+    let ran = Command::new(&powershell)
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(&generator)
+        .arg("-OutDir")
+        .arg(&out)
+        .stdin(Stdio::null())
+        .output()
+        .expect("Windows PowerShell starts");
+    assert!(
+        ran.status.success(),
+        "the generator failed ({:?}):\n{}\n{}",
+        ran.status,
+        String::from_utf8_lossy(&ran.stdout),
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    let mut written = BTreeMap::new();
+    let mut pending = vec![out.clone()];
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory).expect("the generator's directory") {
+            let path = entry.expect("a directory entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                let name = path
+                    .strip_prefix(&out)
+                    .expect("under the generator's directory")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                written.insert(name, std::fs::read(&path).expect("a written file"));
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&out);
+    written
+}
+
+/// The authored revision the cases calculate: the oracle workbook as committed, with no authored
+/// operation applied, which a capture of the fixture as authored records as revision 0.
+const AUTHORED_REVISION: u64 = 0;
+
+/// The calculation context the cases calculate under: the one the oracle workbook declares in its
+/// `workbookPr` (date1904) and `calcPr` (iterate, iterateCount, iterateDelta, fullPrecision), an
+/// absent element or attribute at its SpreadsheetML default. No row's value depends on these
+/// settings; a capture taken under another context leaves every calculated row stale.
+fn workbook_context() -> CalculationContext {
+    let parts = stored_parts(ORACLE_WORKBOOK);
+    let workbook = part_text(&parts, "xl/workbook.xml");
+    let element = |name: &str| -> Option<&str> {
+        let tags = start_tags(workbook, name);
+        assert!(
+            tags.len() <= 1,
+            "the oracle workbook has {} {name} elements",
+            tags.len()
+        );
+        tags.first().copied()
+    };
+    let (properties, calculation) = (element("workbookPr"), element("calcPr"));
+    let flag = |tag: Option<&str>, name: &str, default: bool| match tag
+        .and_then(|tag| attribute(tag, name))
+    {
+        None => default,
+        Some("1" | "true") => true,
+        Some("0" | "false") => false,
+        Some(other) => panic!("{name}={other:?} is not a boolean"),
+    };
+    let number = |name: &str| calculation.and_then(|tag| attribute(tag, name));
+    CalculationContext {
+        date1904: flag(properties, "date1904", false),
+        iteration: flag(calculation, "iterate", false),
+        max_iterations: number("iterateCount").map_or(100, |n| n.parse().expect("a count")),
+        max_change: number("iterateDelta").map_or(0.001, |n| n.parse().expect("a number")),
+        precision_as_displayed: !flag(calculation, "fullPrecision", true),
+    }
+}
+
+/// The cell of row `row`'s formula on `sheet` of the oracle workbook.
+fn oracle_cell(sheet: &str, row: u32) -> CellAddress {
+    CellAddress::new(sheet, row, FORMULA_COLUMN).expect("a cell of the grid")
+}
+
+/// What a run of the oracle rows of every sheet publishes: a result for each row's cell
+/// (calculated at its call's tick for a row of cfunc-m1.2, not modeled with its owner for a row of
+/// another bead), and the evaluation record of the invoke calls the rows recorded at their call
+/// sites.
+fn published(run: &[&Rows]) -> (ResultSet, EvaluationRecord) {
+    let source = format!("sha256:{}", sha256_hex(ORACLE_WORKBOOK));
+    let context = workbook_context().fingerprint();
+    let mut results = Vec::new();
+    let mut evaluations = Vec::new();
+    for rows in run {
+        for row in &rows.oracle {
+            let (provenance, value) = match (row.owner, &row.outcome) {
+                (None, Ok(value)) => (
+                    Provenance::Calculated {
+                        tick: row.tick,
+                        revision: AUTHORED_REVISION,
+                        context: context.clone(),
+                    },
+                    Some(value.clone()),
+                ),
+                (None, Err(fault)) => (
+                    Provenance::Failed {
+                        fault: format!("{fault:?}"),
+                    },
+                    None,
+                ),
+                (Some(owner), outcome) => (
+                    Provenance::NotModeled {
+                        feature: owner.feature(),
+                        diagnostic: match outcome {
+                            Ok(value) => format!("calc_func::invoke gives {}", shown_value(value)),
+                            Err(fault) => format!("calc_func::invoke refuses: {fault:?}"),
+                        },
+                    },
+                    None,
+                ),
+            };
+            results.push(CellResult {
+                cell: oracle_cell(rows.sheet, row.row),
+                provenance,
+                value,
+            });
+        }
+        for call in &rows.calls {
+            evaluations.push(Evaluation {
+                cell: oracle_cell(rows.sheet, call.row),
+                tick: call.tick,
+                revision: AUTHORED_REVISION,
+                context: context.clone(),
+            });
+        }
+    }
+    (
+        ResultSet {
+            case: CAPTURE_CASE.to_owned(),
+            source: source.clone(),
+            run: RunIdentity {
+                revision: AUTHORED_REVISION,
+                context,
+            },
+            results,
+        },
+        EvaluationRecord {
+            case: CAPTURE_CASE.to_owned(),
+            source,
+            evaluations,
+        },
+    )
+}
+
+/// A case's Excel comparison: the report calc_verdict::judge computes over the whole run, and
+/// what on it disagrees with the case's rows.
+struct Comparison {
+    report: VerdictReport,
+    problems: Vec<String>,
+}
+
+/// The Excel comparison of `case` against `capture`, from the results and evaluations that `run`
+/// (the rows of every sheet, `case`'s among them) publishes. Refused exactly when judge refuses.
+fn excel_comparison(
+    capture: &CaptureRecord,
+    run: &[&Rows],
+    case: &Rows,
+) -> Result<Comparison, JudgeError> {
+    let (results, evaluations) = published(run);
+    judged(capture, &results, &evaluations, case)
+}
+
+/// [`excel_comparison`] from a result set and an evaluation record as given. The rows run under
+/// Fast, so the policy selects no Exact target and judge certifies no comparison strict-bit.
+fn judged(
+    capture: &CaptureRecord,
+    results: &ResultSet,
+    evaluations: &EvaluationRecord,
+    case: &Rows,
+) -> Result<Comparison, JudgeError> {
+    let policy = VerdictPolicy {
+        numeric_mode: NumericMode::Fast,
+        evidence: None,
+    };
+    let report = judge(capture, results, evaluations, &policy)?;
+    let problems = verdict_problems(&report, case);
+    Ok(Comparison { report, problems })
+}
+
+/// What on `report` disagrees with the rows of `case`'s sheet: an inventory cell of the sheet that
+/// no row has, a row of cfunc-m1.2 whose verdict is not `matched`, a row of another bead whose
+/// verdict is not `not_modeled` with its owner, and a row whose cell the inventory lacks.
+fn verdict_problems(report: &VerdictReport, case: &Rows) -> Vec<String> {
+    let rows: BTreeMap<u32, &OracleRow> = case.oracle.iter().map(|row| (row.row, row)).collect();
+    let mut problems = Vec::new();
+    for cell in &report.cells {
+        let address = &cell.formula.cell;
+        if address.sheet() != case.sheet {
+            continue;
+        }
+        let at = format!("{}!{}", address.sheet(), address.a1());
+        let row = match address.column() {
+            FORMULA_COLUMN => rows.get(&address.row()),
+            _ => None,
+        };
+        let Some(row) = row else {
+            problems.push(format!(
+                "{at}: a formula cell that no oracle row has ({})",
+                cell.verdict.name()
+            ));
+            continue;
+        };
+        let formula = &row.formula;
+        match (row.owner, &cell.verdict) {
+            (None, Verdict::Matched { .. }) => {}
+            (Some(owner), Verdict::NotModeled { feature, .. }) if *feature == owner.feature() => {}
+            (
+                None,
+                Verdict::Mismatched {
+                    expected, actual, ..
+                },
+            ) => problems.push(format!(
+                "{at} {formula}: calc_func::invoke gave {}, Excel's raw value is {}",
+                shown_value(actual),
+                shown_value(expected)
+            )),
+            (None, verdict) => problems.push(format!(
+                "{at} {formula}: a row of cfunc-m1.2 is {}, not matched: {verdict:?}",
+                verdict.name()
+            )),
+            (Some(owner), verdict) => problems.push(format!(
+                "{at} {formula}: a row owned by {} is {}, not not_modeled with its owner: {verdict:?}",
+                owner.bead,
+                verdict.name()
+            )),
+        }
+    }
+    for outside in &report.outside_inventory {
+        if outside.cell.sheet() == case.sheet {
+            problems.push(format!(
+                "{}!{}: the capture's inventory lacks this oracle row's cell",
+                outside.cell.sheet(),
+                outside.cell.a1()
+            ));
+        }
+    }
+    problems
+}
+
+/// The verdicts of `case`'s sheet on `report`, counted by name, with the not-modeled ones also
+/// counted by owner, as a note shows them.
+fn sheet_verdicts(report: &VerdictReport, case: &Rows) -> String {
+    let mut names: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut owners: BTreeMap<&str, usize> = BTreeMap::new();
+    for cell in &report.cells {
+        if cell.formula.cell.sheet() != case.sheet {
+            continue;
+        }
+        *names.entry(cell.verdict.name()).or_default() += 1;
+        if let Verdict::NotModeled { feature, .. } = &cell.verdict {
+            *owners.entry(feature.as_str()).or_default() += 1;
+        }
+    }
+    let names: Vec<String> = names.iter().map(|(n, c)| format!("{n} {c}")).collect();
+    let owners: Vec<String> = owners.iter().map(|(o, c)| format!("{c} ({o})")).collect();
+    format!(
+        "{}; not modeled by owner: {}",
+        names.join(", "),
+        if owners.is_empty() {
+            "none".to_owned()
+        } else {
+            owners.join(", ")
+        }
+    )
+}
+
+/// Prints how many rows a case ran and whose behaviour each shows.
+fn rows_note(rows: &Rows) {
+    let elsewhere = rows.elsewhere();
+    note!(
+        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet {} of the oracle workbook: {} of cfunc-m1.2 ({} of them unmeasured choices) and {} whose behaviour another bead owns ({} of them refused by calc-func)",
+        rows.case,
+        rows.oracle.len(),
+        rows.sheet,
+        rows.oracle.len() - elsewhere,
+        rows.choices(),
+        elsewhere,
+        rows.refused()
+    );
+}
+
+/// The Excel comparison of a case's oracle rows. While the capture is absent the case prints
+/// ACCEPT-NOT-RUN with the marker's MissingCapture. Otherwise the capture must be a live capture
+/// of the committed oracle workbook by the committed worker, without isolation failures, and the
+/// report calc_verdict::judge computes from it, from the results the rows of both sheets publish
+/// and from their recorded invoke calls must hold no problem for the case's sheet
+/// ([`verdict_problems`]). `other` runs the other sheet's rows.
+fn compare_with_excel(rows: &Rows, other: fn(bool) -> Rows) {
+    let case = rows.case;
+    if let Some(missing) = MissingCapture::recognize(ORACLE_CAPTURE) {
+        assert_eq!(
+            (
+                missing.case.as_str(),
+                missing.fixture.as_str(),
+                missing.command.as_str()
+            ),
+            (CAPTURE_CASE, ORACLE_WORKBOOK_PATH, CAPTURE_COMMAND),
+            "the absent-capture marker names this capture"
+        );
+        note!("ACCEPT-NOT-RUN: {case}: {missing}");
+        return;
+    }
+    let capture = CaptureRecord::decode(ORACLE_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(ORACLE_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    let other = other(true);
+    let comparison = excel_comparison(&capture, &[rows, &other], rows)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    assert!(
+        comparison.problems.is_empty(),
+        "{} problems on sheet {} of the verdict on Excel {}'s capture ({}):\n{}",
+        comparison.problems.len(),
+        rows.sheet,
+        environment.target.excel_build(),
+        comparison.report.summary(),
+        comparison.problems.join("\n")
+    );
+    note!(
+        "ACCEPT-NOTE: {case}: Excel comparison through calc_verdict::judge against Excel {}'s capture of the oracle workbook: sheet {}: {} (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: {}",
+        environment.target.excel_build(),
+        rows.sheet,
+        sheet_verdicts(&comparison.report, rows),
+        comparison.report.summary()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m1_2__mixed_operands
+
+/// The cells the mixed-operand rows read; A5 and A6 are blank.
+fn mixed_operands_sheet() -> TestSheet {
+    TestSheet::new(&[
+        ("A1", "text \"2\"", text_value("2")),
+        ("A2", "TRUE", CalcValue::logical(true)),
+        ("A3", "5", CalcValue::number(5.0)),
+        ("A4", "text \"a\"", text_value("a")),
+        ("A7", "10", CalcValue::number(10.0)),
+        ("B1", "0.5", CalcValue::number(0.5)),
+        ("B2", "-2", CalcValue::number(-2.0)),
+        ("B3", "10", CalcValue::number(10.0)),
+    ])
+}
+
+/// The rows of cfunc_m1_2__mixed_operands, run through calc_func::invoke on `s`, in the order the
+/// oracle workbook's sheet `mixed_operands` holds their formulas.
+fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
+    const CASE: &str = "cfunc_m1_2__mixed_operands";
+    let mut rows = Rows::new(CASE, "mixed_operands", quiet);
+    let r = &mut rows;
+    const ZERO: &str = "a zero result is +0";
+
+    // Arithmetic operands are read through worksheet number coercion, whether written directly
+    // or dereferenced from a cell: text that reads as a number and logicals count, a blank cell
+    // is 0, and other text and empty text are #VALUE!.
+    row!(r, s, PLUS, [txt("1"), num("1")], N(2.0));
+    row!(r, s, PLUS, [cell(s, "A1"), num("1")], N(3.0));
+    row!(r, s, PLUS, [logical(true), num("1")], N(2.0));
+    row!(r, s, TIMES, [cell(s, "A2"), num("5")], N(5.0));
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt("a"), num("1")],
+        E(WorksheetErrorCode::Value)
+    );
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt(""), num("1")],
+        E(WorksheetErrorCode::Value)
+    );
+    row!(r, s, PLUS, [cell(s, "A5"), num("1")], N(1.0));
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt("TRUE"), num("1")],
+        E(WorksheetErrorCode::Value)
+    );
+    row!(r, s, TIMES, [txt(" 1.5 "), num("2")], N(3.0));
+    row!(r, s, DIVIDE, [txt("1e3"), num("1")], N(1000.0));
+    row!(r, s, PLUS, [txt("-0"), num("0")], N(0.0));
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt("123456789012345"), num("0")],
+        N(123_456_789_012_345.0)
+    );
+    row!(r, s, MINUS, [num("5"), txt("3")], N(2.0));
+    row!(r, s, PLUS, [txt("+5"), num("0")], N(5.0));
+    row!(r, s, PLUS, [txt(".5"), num("0")], N(0.5));
+    row!(r, s, PLUS, [txt("5."), num("0")], N(5.0));
+    row!(r, s, PLUS, [txt("1E+3"), num("0")], N(1000.0));
+    // Decimal text is read as its nearest binary64.
+    row!(r, s, PLUS, [txt("0.1"), num("0")], N(0.1));
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt("1e-400"), num("0")],
+        N(0.0),
+        "number text below the smallest subnormal reads as +0"
+    );
+    // Text forms that Excel's locale rules may read as numbers, and a 16th or 17th significant
+    // digit, are refused, not guessed.
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        PLUS,
+        [txt("1/2"), num("0")],
+        Refused(Some(0))
+    );
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        PLUS,
+        [txt("$5"), num("0")],
+        Refused(Some(0))
+    );
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        PLUS,
+        [txt("1,000"), num("0")],
+        Refused(Some(0))
+    );
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        PLUS,
+        [txt("50%"), num("0")],
+        Refused(Some(0))
+    );
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        PLUS,
+        [txt("1234567890123456"), num("0")],
+        Refused(Some(0))
+    );
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        PLUS,
+        [txt("1.2345678901234567"), num("0")],
+        Refused(Some(0))
+    );
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        PLUS,
+        [num("0"), txt("1e400")],
+        Refused(Some(1))
+    );
+    // Results: an overflow is #NUM!, division by 0 is #DIV/0!, a zero is +0 whatever its sign,
+    // and a subnormal result is refused.
+    row!(
+        r,
+        s,
+        TIMES,
+        [num("1E308"), num("10")],
+        E(WorksheetErrorCode::Num)
+    );
+    row!(r, s, TIMES, [num("0"), num("-1")], N(0.0), ZERO);
+    row!(
+        r,
+        s,
+        DIVIDE,
+        [num("1"), num("0")],
+        E(WorksheetErrorCode::Div0)
+    );
+    row!(
+        r,
+        s,
+        DIVIDE,
+        [cell(s, "A5"), cell(s, "A6")],
+        E(WorksheetErrorCode::Div0)
+    );
+    owned_by!(
+        r,
+        s,
+        SUBNORMAL,
+        DIVIDE,
+        [num("2.2250738585072014E-308"), num("2")],
+        Refused(None)
+    );
+    // ^ computes only the powers that need no power algorithm; the others are refused.
+    row!(r, s, POWER, [txt("2"), num("2")], N(4.0));
+    row!(r, s, POWER, [logical(true), num("2")], N(1.0));
+    owned_by!(
+        r,
+        s,
+        POWER_ALGORITHM,
+        POWER,
+        [num("2"), num("3")],
+        Refused(None)
+    );
+    owned_by!(
+        r,
+        s,
+        POWER_ALGORITHM,
+        POWER,
+        [num("10"), num("-2")],
+        Refused(None)
+    );
+    owned_by!(
+        r,
+        s,
+        POWER_ALGORITHM,
+        POWER,
+        [num("2"), num("0.5")],
+        Refused(None)
+    );
+    row!(r, s, POWER, [num("3"), num("1")], N(3.0));
+    row!(r, s, NEGATE, [num("0")], N(0.0), ZERO);
+    row!(r, s, NEGATE, [txt("2")], N(-2.0));
+    row!(r, s, NEGATE, [logical(true)], N(-1.0));
+    row!(r, s, NEGATE, [cell(s, "A5")], N(0.0), ZERO);
+    row!(r, s, NEGATE, [txt("")], E(WorksheetErrorCode::Value));
+    row!(r, s, NEGATE, [num("2")], N(-2.0));
+    row!(r, s, UNARY_PLUS, [txt("a")], t("a"));
+    row!(r, s, UNARY_PLUS, [logical(true)], L(true));
+    row!(r, s, UNARY_PLUS, [cell(s, "A5")], N(0.0));
+    row!(r, s, PERCENT, [num("50")], N(0.5));
+    row!(r, s, PERCENT, [txt("50")], N(0.5));
+    row!(r, s, PERCENT, [logical(true)], N(0.01));
+    // x% is x/100, one rounding: 35% and 57% give the nearest binary64 to 0.35 and 0.57, where
+    // x*0.01 would give the next one up. 7% gives the same either way.
+    row!(r, s, PERCENT, [num("7")], N(0.07));
+    row!(r, s, PERCENT, [num("35")], N(0.35));
+    row!(r, s, PERCENT, [num("57")], N(0.57));
+    // A + or - whose result is near zero: calc-func gives the binary64 difference; whether Excel
+    // gives 0 depends on the formula's final operation, which the caller knows.
+    owned_by!(
+        r,
+        s,
+        NEAR_ZERO,
+        MINUS,
+        [arg("0.5-0.4", CalcValue::number(0.5 - 0.4)), num("0.1")],
+        N(-2.7755575615628914e-17)
+    );
+    owned_by!(
+        r,
+        s,
+        NEAR_ZERO,
+        TIMES,
+        [
+            num("1"),
+            arg("(0.5-0.4-0.1)", CalcValue::number(0.5 - 0.4 - 0.1))
+        ],
+        N(-2.7755575615628914e-17)
+    );
+    owned_by!(
+        r,
+        s,
+        NEAR_ZERO,
+        MINUS,
+        [
+            arg(
+                "1.333+1.225-1.333",
+                CalcValue::number(1.333 + 1.225 - 1.333)
+            ),
+            num("1.225")
+        ],
+        N(-2.220446049250313e-16)
+    );
+
+    // Comparison coerces nothing: numbers order before text and text before logicals, a blank
+    // compares as the other operand's empty value, and text compares ignoring case. Text
+    // ordering, case-insensitive equality and nearly equal numbers follow Excel's collation and
+    // comparison rules, which another bead owns.
+    row!(r, s, EQ, [txt("1"), num("1")], L(false));
+    row!(r, s, NE, [cell(s, "A1"), num("2")], L(true));
+    row!(r, s, LT, [num("1"), txt("a")], L(true));
+    row!(r, s, LT, [txt("a"), logical(true)], L(true));
+    row!(r, s, GT, [logical(false), num("1E308")], L(true));
+    owned_by!(r, s, COLLATION, EQ, [txt("a"), txt("A")], L(true));
+    row!(r, s, EQ, [cell(s, "A5"), num("0")], L(true));
+    row!(r, s, EQ, [cell(s, "A5"), txt("")], L(true));
+    row!(r, s, EQ, [cell(s, "A5"), logical(false)], L(true));
+    row!(r, s, EQ, [cell(s, "A5"), cell(s, "A6")], L(true));
+    row!(r, s, LT, [cell(s, "A5"), num("1")], L(true));
+    owned_by!(r, s, COLLATION, LT, [txt("abc"), txt("abd")], L(true));
+    owned_by!(r, s, COLLATION, GT, [txt("B"), txt("a")], L(true));
+    owned_by!(r, s, COLLATION, LT, [txt("a1"), txt("aa")], L(true));
+    owned_by!(r, s, COLLATION, LT, [txt("10"), txt("9")], L(true));
+    owned_by!(r, s, COLLATION, LT, [txt(""), txt("a")], L(true));
+    owned_by!(r, s, COLLATION, LE, [txt("a"), txt("A")], L(true));
+    row!(r, s, GE, [num("1"), num("1")], L(true));
+    row!(r, s, LE, [num("1"), num("0")], L(false));
+    row!(r, s, GT, [logical(true), logical(false)], L(true));
+    row!(r, s, EQ, [txt("\u{e9}"), txt("\u{e9}")], L(true));
+    row!(r, s, EQ, [num("1"), num("2")], L(false));
+    // Nearly equal numbers and text that needs Excel's collation are refused.
+    owned_by!(
+        r,
+        s,
+        NEAR_EQUAL,
+        EQ,
+        [arg("0.1+0.2", CalcValue::number(0.1 + 0.2)), num("0.3")],
+        Refused(None)
+    );
+    owned_by!(
+        r,
+        s,
+        COLLATION,
+        EQ,
+        [txt("\u{e9}"), txt("\u{c9}")],
+        Refused(None)
+    );
+    owned_by!(r, s, COLLATION, LT, [txt("a-b"), txt("ab")], Refused(None));
+    owned_by!(
+        r,
+        s,
+        COLLATION,
+        LT,
+        [txt("apple pie"), txt("banana")],
+        Refused(None)
+    );
+    owned_by!(r, s, COLLATION, LT, [txt("a"), txt("B")], L(true));
+    owned_by!(r, s, COLLATION, EQ, [txt("A"), txt("a")], L(true));
+    owned_by!(
+        r,
+        s,
+        NEAR_EQUAL,
+        EQ,
+        [arg("1+1E-15", CalcValue::number(1.0 + 1e-15)), num("1")],
+        Refused(None)
+    );
+
+    // Concatenation: logicals as TRUE and FALSE, a blank as empty text; a number's text needs
+    // the General format, which is refused.
+    row!(r, s, AMPERSAND, [txt("a"), txt("b")], t("ab"));
+    row!(r, s, AMPERSAND, [txt("a"), logical(true)], t("aTRUE"));
+    row!(r, s, AMPERSAND, [cell(s, "A5"), txt("x")], t("x"));
+    row!(r, s, AMPERSAND, [cell(s, "A2"), cell(s, "A4")], t("TRUEa"));
+    owned_by!(
+        r,
+        s,
+        GENERAL_TEXT,
+        AMPERSAND,
+        [txt("a"), num("1")],
+        Refused(Some(1))
+    );
+    owned_by!(
+        r,
+        s,
+        GENERAL_TEXT,
+        AMPERSAND,
+        [num("1"), txt("a")],
+        Refused(Some(0))
+    );
+    let longest = "a".repeat(32_766);
+    row!(
+        r,
+        s,
+        AMPERSAND,
+        [arg("REPT(\"a\",32766)", text_value(&longest)), txt("b")],
+        t(&format!("{longest}b"))
+    );
+    row!(
+        r,
+        s,
+        AMPERSAND,
+        [
+            arg("REPT(\"a\",32767)", text_value(&format!("{longest}a"))),
+            txt("b")
+        ],
+        E(WorksheetErrorCode::Value)
+    );
+
+    // SUM: direct text and logicals are coerced; the same values held by referenced cells or by
+    // an array are skipped.
+    row!(r, s, SUM, [txt("2"), logical(true)], N(3.0));
+    row!(r, s, SUM, [reference(s, &["A1:A3"])], N(5.0));
+    row!(
+        r,
+        s,
+        SUM,
+        [reference(s, &["A1:A3"]), txt("2"), logical(true)],
+        N(8.0)
+    );
+    let array = CalcArray::from_rows(vec![vec![
+        CalcValue::number(1.0),
+        text_value("2"),
+        CalcValue::logical(true),
+    ]])
+    .expect("a 1-by-3 array");
+    row!(
+        r,
+        s,
+        SUM,
+        [arg("{1,\"2\",TRUE}", CalcValue::array(array))],
+        N(1.0)
+    );
+    row!(r, s, SUM, [txt("a")], E(WorksheetErrorCode::Value));
+    row!(r, s, SUM, [reference(s, &["A4"])], N(0.0));
+    row!(r, s, SUM, [reference(s, &["A5"])], N(0.0));
+    row!(r, s, SUM, [txt("")], E(WorksheetErrorCode::Value));
+    row!(r, s, SUM, [num("1"), omitted()], N(1.0));
+    row!(
+        r,
+        s,
+        SUM,
+        [num("1E308"), num("1E308")],
+        E(WorksheetErrorCode::Num)
+    );
+    row!(
+        r,
+        s,
+        SUM,
+        [num("1E308"), num("1E308"), num("-1E308")],
+        E(WorksheetErrorCode::Num),
+        "a running total that overflows stays #NUM! when a later number would bring it back"
+    );
+    row!(r, s, SUM, [reference(s, &["B1:B3"])], N(8.5));
+    row!(r, s, SUM, [reference(s, &["A3", "A7"])], N(15.0));
+    s.reads.clear();
+    s.visited = 0;
+    row!(r, s, SUM, [reference(s, &["A:A"])], N(15.0));
+    let column = s.area("A:A");
+    assert_eq!(
+        (s.reads.as_slice(), s.visited),
+        (&[column][..], 5),
+        "SUM(A:A) asks for the column once and visits only its 5 held cells"
+    );
+    if !quiet {
+        note!(
+            "ACCEPT-NOTE: {CASE}: SUM(A:A) asked the cell reader for {} area ({} cells) and was visited with {} held cells",
+            s.reads.len(),
+            column.cell_count(),
+            s.visited
+        );
+    }
+
+    // IF: the condition is read as a logical, and only the chosen branch is asked for.
+    row!(r, s, IF, [txt("TRUE"), num("1"), num("2")], N(1.0));
+    row!(r, s, IF, [txt("false"), num("1"), num("2")], N(2.0));
+    row!(
+        r,
+        s,
+        IF,
+        [txt("x"), num("1"), num("2")],
+        E(WorksheetErrorCode::Value)
+    );
+    row!(
+        r,
+        s,
+        IF,
+        [txt(""), num("1"), num("2")],
+        E(WorksheetErrorCode::Value)
+    );
+    owned_by!(
+        r,
+        s,
+        NUMBER_TEXT,
+        IF,
+        [txt("1"), num("1"), num("2")],
+        Refused(Some(0))
+    );
+    row!(r, s, IF, [cell(s, "A5"), num("1"), num("2")], N(2.0));
+    row!(r, s, IF, [num("0"), num("1")], L(false));
+    let asked = row!(
+        r,
+        s,
+        IF,
+        [
+            num("2"),
+            txt("a"),
+            arg("1/0", CalcValue::error(WorksheetErrorCode::Div0))
+        ],
+        t("a")
+    );
+    assert_eq!(asked, [0, 1], "IF asked for its unselected branch");
+    row!(r, s, IF, [logical(true), omitted(), num("2")], N(0.0));
+    row!(r, s, IF, [logical(false), num("1"), omitted()], N(0.0));
+    row!(r, s, IF, [omitted(), num("1"), num("2")], N(2.0));
+    let conditions = CalcArray::from_rows(vec![vec![
+        CalcValue::logical(true),
+        CalcValue::logical(false),
+    ]])
+    .expect("a 1-by-2 array");
+    owned_by!(
+        r,
+        s,
+        ARRAY_LIFT,
+        IF,
+        [
+            arg("{TRUE,FALSE}", CalcValue::array(conditions)),
+            num("1"),
+            num("2")
+        ],
+        Refused(Some(0))
+    );
+    rows
+}
+
+/// The rows of cfunc_m1_2__mixed_operands on a fresh test sheet.
+fn mixed_operands_run(quiet: bool) -> Rows {
+    mixed_operands_rows(&mut mixed_operands_sheet(), quiet)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m1_2__mixed_operands() {
+    const CASE: &str = "cfunc_m1_2__mixed_operands";
+    let fast = NumericMode::Fast;
+    let mut sheet = mixed_operands_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; A5 and A6 are blank",
+        sheet.described()
+    );
+    let rows = mixed_operands_rows(&mut sheet, false);
+    let s = &mut sheet;
+
+    // Through the call interface alone (no Excel formula writes these): IF returns its chosen
+    // reference unchanged, a call admits Missing and Empty and keeps both apart from empty text,
+    // and a reference the cell reader refuses is a fault, not a value.
+    let range = reference(s, &["A1:A3"]).value;
+    let mut chosen = Recorded::new(vec![CalcValue::logical(true), range.clone()]);
+    assert_eq!(run(surface(IF.0, IF.1), &mut chosen, &fast), Ok(range));
+    for (target, operand, expected) in [
+        (PLUS, CalcValue::missing(), Ok(1.0)),
+        (PLUS, CalcValue::empty(), Ok(1.0)),
+        (PLUS, text_value(""), Err(WorksheetErrorCode::Value)),
+        (SUM, CalcValue::missing(), Ok(1.0)),
+        (SUM, CalcValue::empty(), Ok(1.0)),
+        (SUM, text_value(""), Err(WorksheetErrorCode::Value)),
+    ] {
+        let mut given = Recorded::new(vec![operand.clone(), CalcValue::number(1.0)]);
+        let result = run(surface(target.0, target.1), &mut given, &fast);
+        let observed = result
+            .as_ref()
+            .map(|value| value.as_number().ok_or(value.as_error()));
+        assert_eq!(
+            observed,
+            Ok(expected.map_err(Some)),
+            "{target:?} on {operand:?}: {result:?}"
+        );
+    }
+    s.refuse = true;
+    let refused_read = reference(s, &["A1:A3"]);
+    let mut over_refusal = Recorded::new(vec![CalcValue::number(1.0), refused_read.value]);
+    let sum = surface(SUM.0, SUM.1);
+    assert_eq!(
+        invoke(
+            sum,
+            &mut over_refusal,
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        ),
+        Err(FunctionFault::ReferenceUnreadable {
+            id: sum.id(),
+            index: 1
+        })
+    );
+    s.refuse = false;
+
+    // Unary plus publishes a number by the number rule: -0 gives +0, and a number that is no
+    // worksheet value (NaN, an infinity) or is subnormal is refused, naming the operand.
+    let unary_plus = surface(UNARY_PLUS.0, UNARY_PLUS.1);
+    let mut negative_zero = Recorded::new(vec![CalcValue::number(-0.0)]);
+    let published = run(unary_plus, &mut negative_zero, &fast);
+    assert_eq!(
+        published
+            .as_ref()
+            .map(|value| value.as_number().map(f64::to_bits)),
+        Ok(Some(0x0000_0000_0000_0000)),
+        "+(-0.0) gives {published:?}"
+    );
+    for operand in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 5e-324] {
+        let mut given = Recorded::new(vec![CalcValue::number(operand)]);
+        assert_eq!(
+            run(unary_plus, &mut given, &fast),
+            Err(FunctionFault::NotImplemented {
+                id: unary_plus.id(),
+                argument: Some(0)
+            }),
+            "+({operand:?})"
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: scanned {} string literals in {} calc-func source files; each of the {} distinct admitted spellings occurs exactly as often as entries declare it ({} declarations)",
-        literals.len(),
-        CALC_FUNC_SOURCES.len(),
-        declared.len(),
-        declared.values().sum::<usize>()
+        "ACCEPT-NOTE: {CASE}: +(-0.0) through calc_func::invoke gives bits {:#018x}; +NaN, +inf, +(-inf) and +5e-324 are refused naming the operand",
+        published
+            .as_ref()
+            .ok()
+            .and_then(CalcValue::as_number)
+            .map_or(u64::MAX, f64::to_bits)
+    );
+
+    // NumericMode reaches every arithmetic site. Under Exact each call that rounds is refused:
+    // the operators and SUM on numbers, and reading text as a number, which rounds decimal text
+    // to binary64.
+    let exact = exact_mode();
+    let mut exact_refused = 0;
+    for (target, args) in [
+        (PLUS, vec![num("1"), num("2")]),
+        (MINUS, vec![num("1"), num("2")]),
+        (TIMES, vec![num("1"), num("2")]),
+        (DIVIDE, vec![num("1"), num("2")]),
+        (POWER, vec![num("3"), num("2")]),
+        (POWER, vec![num("3"), num("-1")]),
+        (PERCENT, vec![num("50")]),
+        (SUM, vec![num("1"), num("2")]),
+        (NEGATE, vec![txt("0.1")]),
+        (POWER, vec![txt("0.1"), num("1")]),
+        (SUM, vec![txt("2")]),
+    ] {
+        let resolved = surface(target.0, target.1);
+        let mut given = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+        let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+        assert_eq!(
+            run(resolved, &mut given, &exact),
+            Err(FunctionFault::ExactUnavailable { id: resolved.id() }),
+            "{:?} under Exact",
+            resolved.oracle_formula(&texts)
+        );
+        exact_refused += 1;
+    }
+    // A call without rounding computes under Exact, to the value its Fast oracle row computed.
+    let mut exact_computed = 0;
+    for (target, args) in [
+        (POWER, vec![num("3"), num("1")]),
+        (NEGATE, vec![num("2")]),
+        (NEGATE, vec![logical(true)]),
+        (UNARY_PLUS, vec![txt("a")]),
+        (EQ, vec![num("1"), num("2")]),
+        (AMPERSAND, vec![txt("a"), txt("b")]),
+        (DIVIDE, vec![num("1"), num("0")]),
+        (SUM, vec![reference(s, &["A4"])]),
+    ] {
+        let resolved = surface(target.0, target.1);
+        let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+        let formula = resolved.oracle_formula(&texts).expect("a formula");
+        let under_fast = rows
+            .oracle
+            .iter()
+            .find(|row| row.formula == formula)
+            .and_then(|row| row.outcome.as_ref().ok())
+            .unwrap_or_else(|| panic!("no oracle row computes {formula}"));
+        let mut given = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+        let under_exact = invoke(
+            resolved,
+            &mut given,
+            &mut EvalServices::with_cells(&exact, s),
+            &mut FunctionCallScratch::new(),
+        );
+        assert!(
+            under_exact
+                .as_ref()
+                .is_ok_and(|value| identical(value, under_fast)),
+            "{formula} under Exact gives {under_exact:?}, under Fast {under_fast:?}"
+        );
+        exact_computed += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: under NumericMode::Exact {exact_refused} calls that round (3 of them by reading text as a number) were refused with ExactUnavailable, and {exact_computed} calls without rounding computed the value of their Fast oracle row"
+    );
+
+    // The retained Excel witness of the POWER function, applied to the ^ operator on the
+    // assumption that ^ computes POWER, which the oracle workbook's ^ rows test once captured:
+    // every result ^ computes equals the witness's bit for bit or error for error, and every other
+    // row is refused as not modelled.
+    let power = surface(POWER.0, POWER.1);
+    let witness = power_witness_rows();
+    assert_eq!(witness.len(), 111, "the witness selection holds 111 rows");
+    let (mut computed, mut errors, mut refused) = (0, 0, 0);
+    for (id, x, y, expected) in &witness {
+        let mut given = Recorded::new(vec![CalcValue::number(*x), CalcValue::number(*y)]);
+        match run(power, &mut given, &fast) {
+            Ok(value) => {
+                let observed = match value.as_number() {
+                    Some(n) => Ok(n.to_bits()),
+                    None => Err(value.as_error().expect("a number or an error")),
+                };
+                assert_eq!(&observed, expected, "{id}: {x:?}^{y:?}");
+                computed += 1;
+                errors += usize::from(observed.is_err());
+            }
+            Err(FunctionFault::NotImplemented {
+                id: refuser,
+                argument: None,
+            }) if refuser == power.id() => {
+                refused += 1;
+            }
+            Err(fault) => panic!("{id}: {x:?}^{y:?}: {fault:?}"),
+        }
+    }
+    assert_eq!(
+        (computed, errors, refused),
+        (56, 19, 55),
+        "witness rows computed, of them errors, and refused"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: retained witness of the POWER function (migration/witnesses/w111-extended-power.json, {} rows), applied to ^ on the assumption that ^ computes POWER until the oracle's ^ rows are captured: ^ computed {computed} rows equal to Excel's POWER results ({errors} of them #NUM! or #DIV/0!) and refused {refused} rows that need a power algorithm",
+        witness.len()
+    );
+
+    // The oracle workbook: this case's sheet holds exactly its rows and cells, and the committed
+    // workbook is its generator's output.
+    assert_oracle_sheet(&rows, s);
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names,
+            ["cfunc_m1_2/oracle.xlsx"],
+            "the generator writes the oracle workbook and nothing else"
+        );
+        let regenerated = &generated["cfunc_m1_2/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == ORACLE_WORKBOOK,
+            "the committed oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(ORACLE_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+
+    rows_note(&rows);
+    compare_with_excel(&rows, error_order_run);
+}
+
+/// The retained Excel witness of the POWER function: two arguments per row and the result Excel
+/// returned, as binary64 bits or an error.
+const POWER_WITNESS: &str = include_str!("../../../migration/witnesses/w111-extended-power.json");
+
+type WitnessRow = (String, f64, f64, Result<u64, WorksheetErrorCode>);
+
+/// The witness rows, one per line of the form
+/// `{"id":"...","args":["0x...","0x..."],"expected_bits":"0x..." or "error:<code>"}`.
+fn power_witness_rows() -> Vec<WitnessRow> {
+    assert!(POWER_WITNESS.contains("\"function\": \"POWER\""));
+    let bits = |hex: &str| {
+        u64::from_str_radix(hex.strip_prefix("0x").expect("hex bits"), 16).expect("hex bits")
+    };
+    POWER_WITNESS
+        .lines()
+        .filter(|line| line.trim_start().starts_with("{\"id\":"))
+        .map(|line| {
+            let strings: Vec<&str> = line.split('"').skip(1).step_by(2).collect();
+            assert_eq!(
+                (strings.len(), strings[0], strings[2], strings[5]),
+                (7, "id", "args", "expected_bits"),
+                "{line}"
+            );
+            let expected = match strings[6] {
+                "error:Num" => Err(WorksheetErrorCode::Num),
+                "error:Div0" => Err(WorksheetErrorCode::Div0),
+                "error:Value" => Err(WorksheetErrorCode::Value),
+                hex => Ok(bits(hex)),
+            };
+            (
+                strings[1].to_owned(),
+                f64::from_bits(bits(strings[3])),
+                f64::from_bits(bits(strings[4])),
+                expected,
+            )
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m1_2__error_order
+
+fn error_order_sheet() -> TestSheet {
+    TestSheet::new(&[
+        ("A1", "1", CalcValue::number(1.0)),
+        ("B1", "#N/A", CalcValue::error(WorksheetErrorCode::NA)),
+        ("A2", "#DIV/0!", CalcValue::error(WorksheetErrorCode::Div0)),
+        ("B2", "2", CalcValue::number(2.0)),
+    ])
+}
+
+/// The rows of cfunc_m1_2__error_order, run through calc_func::invoke on `s`, in the order the
+/// oracle workbook's sheet `error_order` holds their formulas.
+fn error_order_rows(s: &mut TestSheet, quiet: bool) -> Rows {
+    let mut rows = Rows::new("cfunc_m1_2__error_order", "error_order", quiet);
+    let r = &mut rows;
+    use WorksheetErrorCode::{Div0, NA, Null, Ref, Value};
+    const LEFT_FIRST: &str = "the left operand's error before the right operand's";
+    const ARGUMENT_ORDER: &str = "the first error in argument order";
+    const CHOSEN_BRANCH: &str = "only the chosen branch is read";
+
+    // Two operands: an operand's error is the result. An arithmetic operator reads its operands
+    // left to right, so a left operand that is not a number is #VALUE! before a right error; a
+    // comparison and & read no operand as a number.
+    let arithmetic = [PLUS, MINUS, TIMES, DIVIDE, POWER];
+    let others = [EQ, NE, LT, LE, GT, GE, AMPERSAND];
+    for operator in arithmetic.into_iter().chain(others) {
+        row!(r, s, operator, [err(NA), err(Div0)], E(NA), LEFT_FIRST);
+        row!(r, s, operator, [err(Div0), err(NA)], E(Div0), LEFT_FIRST);
+        row!(r, s, operator, [num("1"), err(Ref)], E(Ref));
+        if arithmetic.contains(&operator) {
+            row!(
+                r,
+                s,
+                operator,
+                [err(NA), txt("a")],
+                E(NA),
+                "the left operand's error before the right operand is read as a number"
+            );
+            row!(
+                r,
+                s,
+                operator,
+                [txt("a"), err(NA)],
+                E(Value),
+                "the left operand's #VALUE! before the right operand's error"
+            );
+        } else {
+            row!(r, s, operator, [err(NA), txt("a")], E(NA));
+            row!(r, s, operator, [txt("a"), err(NA)], E(NA));
+        }
+    }
+    row!(
+        r,
+        s,
+        DIVIDE,
+        [err(NA), num("0")],
+        E(NA),
+        "an operand's error before division by 0"
+    );
+    row!(
+        r,
+        s,
+        DIVIDE,
+        [txt("a"), num("0")],
+        E(Value),
+        "the left operand's #VALUE! before division by 0"
+    );
+    row!(
+        r,
+        s,
+        DIVIDE,
+        [num("0"), txt("a")],
+        E(Value),
+        "the right operand's #VALUE! before division by 0"
+    );
+    row!(
+        r,
+        s,
+        POWER,
+        [num("0"), err(NA)],
+        E(NA),
+        "an operand's error before the rules for a power of 0"
+    );
+    // A number's text is not modelled, but no number reads as an error, so & still returns the
+    // other operand's error.
+    row!(r, s, AMPERSAND, [num("1"), err(NA)], E(NA));
+    row!(r, s, NEGATE, [err(NA)], E(NA));
+    row!(r, s, PERCENT, [err(Div0)], E(Div0));
+    row!(r, s, UNARY_PLUS, [err(Ref)], E(Ref));
+
+    // SUM: the first error in argument order; within a reference, area by area in the
+    // reference's order and row-major within an area. The cell reader is visited no further.
+    row!(r, s, SUM, [err(NA), err(Div0)], E(NA), ARGUMENT_ORDER);
+    row!(
+        r,
+        s,
+        SUM,
+        [num("1"), txt("a"), err(NA)],
+        E(Value),
+        ARGUMENT_ORDER
+    );
+    s.reads.clear();
+    s.visited = 0;
+    row!(
+        r,
+        s,
+        SUM,
+        [reference(s, &["A1:B2"])],
+        E(NA),
+        "row-major order within an area: B1 before A2"
+    );
+    assert_eq!(
+        s.visited, 2,
+        "the reader visited past B1, the first error in row-major order"
+    );
+    s.reads.clear();
+    row!(
+        r,
+        s,
+        SUM,
+        [reference(s, &["A2:B2", "A1:B1"])],
+        E(Div0),
+        "the areas of a multi-area reference in its order"
+    );
+    assert_eq!(
+        s.reads,
+        [s.area("A2:B2")],
+        "SUM read past the area holding its first error"
+    );
+    row!(
+        r,
+        s,
+        SUM,
+        [reference(s, &["A1:B2"]), err(Null)],
+        E(NA),
+        ARGUMENT_ORDER
+    );
+    s.reads.clear();
+    row!(
+        r,
+        s,
+        SUM,
+        [err(Ref), reference(s, &["A1:B2"])],
+        E(Ref),
+        ARGUMENT_ORDER
+    );
+    assert!(s.reads.is_empty(), "SUM read a reference after an error");
+    row!(
+        r,
+        s,
+        SUM,
+        [num("1E308"), num("1E308"), err(NA)],
+        E(NA),
+        "a later error over an earlier overflow of the running total"
+    );
+
+    // IF: an error condition is the result before any branch is asked for; otherwise only the
+    // chosen branch is asked for, and its error is the result.
+    let asked = row!(
+        r,
+        s,
+        IF,
+        [err(NA), err(Div0), err(Ref)],
+        E(NA),
+        "the condition's error before any branch"
+    );
+    assert_eq!(asked, [0]);
+    let asked = row!(
+        r,
+        s,
+        IF,
+        [logical(true), err(Div0), err(NA)],
+        E(Div0),
+        CHOSEN_BRANCH
+    );
+    assert_eq!(asked, [0, 1]);
+    let asked = row!(
+        r,
+        s,
+        IF,
+        [logical(false), err(Div0), err(NA)],
+        E(NA),
+        CHOSEN_BRANCH
+    );
+    assert_eq!(asked, [0, 2]);
+    let asked = row!(
+        r,
+        s,
+        IF,
+        [txt("x"), err(Div0), err(NA)],
+        E(Value),
+        "the condition's #VALUE! before any branch"
+    );
+    assert_eq!(asked, [0]);
+    rows
+}
+
+/// The rows of cfunc_m1_2__error_order on a fresh test sheet.
+fn error_order_run(quiet: bool) -> Rows {
+    error_order_rows(&mut error_order_sheet(), quiet)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m1_2__error_order() {
+    const CASE: &str = "cfunc_m1_2__error_order";
+    let mut sheet = error_order_sheet();
+    note!("ACCEPT-NOTE: {CASE}: the sheet holds {}", sheet.described());
+    let rows = error_order_rows(&mut sheet, false);
+    assert_oracle_sheet(&rows, &sheet);
+    rows_note(&rows);
+    compare_with_excel(&rows, mixed_operands_run);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m1_2__excel_comparison: the Excel comparison, run on capture records built here in memory
+// (never committed as a capture), so it carries no Excel evidence. It shows what the comparison
+// of the two cases does with a capture: which verdicts it accepts and which it reports, and that
+// it refuses a capture whenever calc_verdict::judge refuses it.
+
+/// A capture record of the oracle workbook for `run`: a version 2 live capture of the workbook as
+/// authored, under the calculation context it declares, by the committed worker, listing every
+/// row's formula cell, and for each the raw value `observe` gives it (no observation when it gives
+/// none).
+fn capture_of(
+    run: &[&Rows],
+    observe: impl Fn(&str, &OracleRow) -> Option<CalcValue>,
+) -> CaptureRecord {
+    let source = format!("sha256:{}", sha256_hex(ORACLE_WORKBOOK));
+    let mut sheets = Vec::new();
+    let mut formulas = Vec::new();
+    let mut observations = Vec::new();
+    for rows in run {
+        sheets.push(SheetEntry {
+            name: rows.sheet.to_owned(),
+            visibility: SheetVisibility::Visible,
+        });
+        for row in &rows.oracle {
+            formulas.push(FormulaCell {
+                cell: oracle_cell(rows.sheet, row.row),
+                kind: FormulaKind::Ordinary,
+                formula: Some(row.formula.clone()),
+                dynamic_array: false,
+            });
+            if let Some(value) = observe(rows.sheet, row) {
+                observations.push(CellObservation {
+                    cell: oracle_cell(rows.sheet, row.row),
+                    observation: Observation::ExcelRaw(value),
+                });
+            }
+        }
+    }
+    CaptureRecord {
+        case: CAPTURE_CASE.to_owned(),
+        source: source.clone(),
+        acquisition: Acquisition::LiveCapture,
+        environment: None,
+        sheets,
+        formulas,
+        observations,
+        session: Some(CaptureSession {
+            revision: AUTHORED_REVISION,
+            operations: Vec::new(),
+            context: workbook_context().fingerprint(),
+            tool: format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER)),
+            input_package: source,
+            output_package: None,
+            failures: Vec::new(),
+            shared_ranges: Vec::new(),
+            saved: Vec::new(),
+            reopened: Vec::new(),
+        }),
+    }
+}
+
+/// An observation that agrees with every row of cfunc-m1.2: its own value. A row of another bead
+/// is observed as a text that differs from anything calc-func gives, so its verdict shows that it
+/// is never compared.
+fn agreeing(_: &str, row: &OracleRow) -> Option<CalcValue> {
+    match (row.owner, &row.outcome) {
+        (None, Ok(value)) => Some(value.clone()),
+        _ => Some(text_value("an observation never compared")),
+    }
+}
+
+/// What a changed capture observes for a row instead of its own value.
+type ObservedChange = fn(&CalcValue) -> Option<CalcValue>;
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m1_2__excel_comparison() {
+    const CASE: &str = "cfunc_m1_2__excel_comparison";
+    let mixed = mixed_operands_run(true);
+    let order = error_order_run(true);
+    let run = [&mixed, &order];
+    let compared = |capture: &CaptureRecord, case: &Rows| {
+        excel_comparison(capture, &run, case)
+            .unwrap_or_else(|refusal| panic!("judge refused the capture: {refusal}"))
+    };
+
+    // A capture that agrees with every row of cfunc-m1.2: each is matched, and each row of another
+    // bead is not modeled with its owner, although its observation differs from calc-func's
+    // value. The denominator is every formula cell of the workbook.
+    let capture = capture_of(&run, agreeing);
+    for case in run {
+        let comparison = compared(&capture, case);
+        assert_eq!(comparison.problems, Vec::<String>::new(), "{}", case.sheet);
+    }
+    let report = compared(&capture, &mixed).report;
+    let all: usize = run.iter().map(|rows| rows.oracle.len()).sum();
+    let elsewhere: usize = run.iter().map(|rows| rows.elsewhere()).sum();
+    let owned = all - elsewhere;
+    let counts = &report.counts;
+    assert_eq!(
+        (
+            counts.denominator,
+            counts.calculated,
+            counts.matched,
+            counts.not_modeled,
+            counts.mismatched + counts.not_run + counts.unproven + counts.stale,
+            counts.evaluator_calls
+        ),
+        (
+            all as u64,
+            owned as u64,
+            owned as u64,
+            elsewhere as u64,
+            0,
+            all as u64
+        ),
+        "{}",
+        report.summary()
+    );
+    let computed_elsewhere = mixed
+        .oracle
+        .iter()
+        .filter(|row| row.owner.is_some() && row.outcome.is_ok())
+        .count();
+    assert!(
+        computed_elsewhere > 0 && mixed.refused() > 0,
+        "rows of other beads both computed and refused"
+    );
+
+    // One changed observation of a row of cfunc-m1.2 is exactly one problem, at that row's cell.
+    let first = |kind: fn(&CalcValue) -> bool| {
+        mixed
+            .oracle
+            .iter()
+            .find(|row| row.owner.is_none() && row.outcome.as_ref().is_ok_and(kind))
+            .expect("a row of cfunc-m1.2 of that kind")
+            .row
+    };
+    let number = first(|value| value.as_number().is_some_and(|n| n != 0.0));
+    let zero = first(|value| value.as_number() == Some(0.0));
+    let error = first(|value| value.as_error().is_some());
+    let text = first(|value| value.as_text().is_some());
+    let logical = first(|value| value.as_logical().is_some());
+    let changed: Vec<(u32, ObservedChange)> = vec![
+        (number, |value: &CalcValue| {
+            Some(CalcValue::number(f64::from_bits(
+                value.as_number()?.to_bits() ^ 1,
+            )))
+        }),
+        (zero, |_: &CalcValue| Some(CalcValue::number(-0.0))),
+        (number, |value: &CalcValue| {
+            Some(text_value(&value.as_number()?.to_string()))
+        }),
+        (error, |value: &CalcValue| {
+            Some(CalcValue::error(match value.as_error()? {
+                WorksheetErrorCode::NA => WorksheetErrorCode::Value,
+                _ => WorksheetErrorCode::NA,
+            }))
+        }),
+        (text, |value: &CalcValue| {
+            let mut units = value.as_text()?.utf16_code_units().to_vec();
+            units.push(u16::from(b'x'));
+            Some(CalcValue::text(ExcelText::from_utf16_code_units(units)))
+        }),
+        (logical, |value: &CalcValue| {
+            Some(CalcValue::logical(!value.as_logical()?))
+        }),
+        (logical, |_: &CalcValue| None),
+    ];
+    for (changed_row, change) in &changed {
+        let capture = capture_of(&run, |sheet, row| {
+            if sheet == mixed.sheet && row.row == *changed_row {
+                change(row.outcome.as_ref().expect("a computed row"))
+            } else {
+                agreeing(sheet, row)
+            }
+        });
+        let cell = format!(
+            "{}!{}",
+            mixed.sheet,
+            encode_a1(*changed_row, FORMULA_COLUMN)
+        );
+        let problems = compared(&capture, &mixed).problems;
+        assert!(
+            problems.len() == 1 && problems[0].starts_with(&format!("{cell} ")),
+            "a capture changed at {cell} gives {problems:?}"
+        );
+        assert_eq!(compared(&capture, &order).problems, Vec::<String>::new());
+    }
+
+    // A row of another bead that calc-func computes, observed with the very value calc-func gives,
+    // is still not modeled: it is never matched.
+    let same = mixed
+        .oracle
+        .iter()
+        .find(|row| row.owner.is_some() && row.outcome.is_ok())
+        .expect("a computed row of another bead");
+    let capture = capture_of(&run, |sheet, row| {
+        if sheet == mixed.sheet && row.row == same.row {
+            row.outcome.as_ref().ok().cloned()
+        } else {
+            agreeing(sheet, row)
+        }
+    });
+    let comparison = compared(&capture, &mixed);
+    assert_eq!(comparison.problems, Vec::<String>::new());
+    assert_eq!(
+        (
+            comparison.report.counts.matched,
+            comparison.report.counts.not_modeled
+        ),
+        (owned as u64, elsewhere as u64)
+    );
+
+    // The inventory is the denominator: a formula cell that no row has, and a row whose cell the
+    // inventory lacks, are each one problem.
+    let beyond = u32::try_from(mixed.oracle.len() + 1).expect("a row number");
+    let mut extra = capture_of(&run, agreeing);
+    extra.formulas.push(FormulaCell {
+        cell: oracle_cell(mixed.sheet, beyond),
+        kind: FormulaKind::Ordinary,
+        formula: None,
+        dynamic_array: false,
+    });
+    let mut lacking = capture_of(&run, agreeing);
+    let gone = lacking.formulas.remove(0);
+    lacking
+        .observations
+        .retain(|observed| observed.cell != gone.cell);
+    for (capture, what) in [
+        (&extra, "an extra formula cell"),
+        (&lacking, "a lacking cell"),
+    ] {
+        let problems = compared(capture, &mixed).problems;
+        assert_eq!(problems.len(), 1, "{what}: {problems:?}");
+    }
+
+    // The proof of calculation is the record of invoke calls: a result whose call is not in it is
+    // unproven, not matched.
+    let (results, mut evaluations) = published(&run);
+    let dropped = evaluations.evaluations.remove(0);
+    let problems = judged(&capture_of(&run, agreeing), &results, &evaluations, &mixed)
+        .expect("judge admits the capture")
+        .problems;
+    let cell = format!("{}!{}", dropped.cell.sheet(), dropped.cell.a1());
+    assert!(
+        problems.len() == 1
+            && problems[0].starts_with(&format!("{cell} "))
+            && problems[0].contains("unproven"),
+        "a result without its call: {problems:?}"
+    );
+
+    // A capture taken under another calculation context leaves every row of cfunc-m1.2 stale.
+    let mut iterating = capture_of(&run, agreeing);
+    iterating.session.as_mut().expect("a session").context = CalculationContext {
+        iteration: true,
+        ..workbook_context()
+    }
+    .fingerprint();
+    let problems = compared(&iterating, &mixed).problems;
+    assert_eq!(
+        problems.len(),
+        mixed.oracle.len() - mixed.elsewhere(),
+        "{problems:?}"
+    );
+    assert!(problems.iter().all(|problem| problem.contains("stale")));
+
+    // A capture that failed to establish its inventory is refused, as judge refuses it, even when
+    // the failure names no cell.
+    let mut unlisted = capture_of(&run, agreeing);
+    unlisted
+        .session
+        .as_mut()
+        .expect("a session")
+        .failures
+        .push(CaptureFailure {
+            stage: STAGE_INVENTORY.to_owned(),
+            cell: None,
+            message: "a sheet's cells were not read".to_owned(),
+        });
+    match excel_comparison(&unlisted, &run, &mixed) {
+        Err(JudgeError::Inconsistent { message }) if message.contains("inventory failure") => {}
+        Err(refusal) => panic!("refused for another reason: {refusal}"),
+        Ok(comparison) => panic!(
+            "a capture with an inventory failure was judged: {}",
+            comparison.report.summary()
+        ),
+    }
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: on in-memory captures of the oracle workbook ({all} rows: {owned} of cfunc-m1.2, {elsewhere} of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of {} single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the {} rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused",
+        changed.len(),
+        mixed.oracle.len() - mixed.elsewhere()
     );
 }

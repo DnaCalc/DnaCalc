@@ -3,14 +3,14 @@
 //!
 //! Each family fragment (the child modules declared below, one file per family) declares its
 //! entries with explicit stable [`FunctionId`]s: an entry's spelling and [`Notation`], arity,
-//! parameters, [`ArgumentDemand`] and kernel. At compile time the generator below combines the
-//! fragments into an ID-ordered dispatch table and a surface-ordered name table, and the build
-//! fails when two entries share an ID or a surface, or when an entry's declaration contradicts
-//! itself. Signature help and the oracle formula are rendered from the same declarations. The
-//! catalogue is immutable data built by the compiler: nothing is assembled at run time and no
-//! table is mutable.
+//! parameters, [`ArgumentDemand`] and kernel, and holds the kernels themselves. At compile time
+//! the generator below combines the fragments into an ID-ordered dispatch table and a
+//! surface-ordered name table, and the build fails when two entries share an ID or a surface, or
+//! when an entry's declaration contradicts itself. Signature help and the oracle formula are
+//! rendered from the same declarations. The catalogue is immutable data built by the compiler:
+//! nothing is assembled at run time and no table is mutable.
 
-use crate::call::EagerKernel;
+use crate::call::{EagerKernel, LazyKernel};
 use crate::value::CallableArityShape;
 use std::cmp::Ordering;
 use std::fmt;
@@ -177,18 +177,27 @@ pub(crate) struct CatalogueEntry {
     /// parameter repeats.
     pub(crate) parameters: &'static [Parameter],
     pub(crate) demand: ArgumentDemand,
-    /// The kernel, which receives every argument evaluated; `None` while the entry has metadata
-    /// only. A lazy entry never has one.
-    pub(crate) kernel: Option<EagerKernel>,
+    /// The kernel: eager for an eager entry and lazy for a lazy one.
+    pub(crate) kernel: Kernel,
+}
+
+/// How an entry computes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Kernel {
+    /// Receives every argument evaluated and admitted.
+    Eager(EagerKernel),
+    /// Asks for the arguments it selects, so an argument it does not select is never evaluated.
+    Lazy(LazyKernel),
 }
 
 impl CatalogueEntry {
-    /// An eager operator without a kernel, whose arity is its parameter count.
+    /// An eager operator, whose arity is its parameter count.
     pub(crate) const fn operator(
         id: FunctionId,
         spelling: &'static str,
         notation: Notation,
         parameters: &'static [Parameter],
+        kernel: EagerKernel,
     ) -> Self {
         CatalogueEntry {
             id,
@@ -197,7 +206,7 @@ impl CatalogueEntry {
             arity: CallableArityShape::exact(parameters.len()),
             parameters,
             demand: ArgumentDemand::Eager,
-            kernel: None,
+            kernel: Kernel::Eager(kernel),
         }
     }
 
@@ -325,10 +334,14 @@ const fn check_declaration(family: u16, entry: &CatalogueEntry) {
     {
         panic!("a lazy entry's discriminator is not a required argument");
     }
-    if entry.demand.is_lazy() && entry.kernel.is_some() {
-        panic!(
+    match entry.kernel {
+        Kernel::Eager(_) if entry.demand.is_lazy() => panic!(
             "a lazy entry has an eager kernel, which would receive its held-back arguments evaluated"
-        );
+        ),
+        Kernel::Lazy(_) if !entry.demand.is_lazy() => {
+            panic!("an eager entry has a lazy kernel, against its declared argument demand")
+        }
+        Kernel::Eager(_) | Kernel::Lazy(_) => {}
     }
 }
 

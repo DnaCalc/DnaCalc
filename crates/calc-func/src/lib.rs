@@ -9,14 +9,20 @@
 //! entry with an explicit stable [`FunctionId`]. A caller resolves an ID or a surface to a
 //! [`FunctionCallTarget`], reads its metadata (arity, parameter classes, [`ArgumentDemand`],
 //! signature help, oracle formula) and runs it with [`invoke`], supplying the arguments through
-//! [`PreparedArguments`] and owning the [`EvalServices`] and [`FunctionCallScratch`].
+//! [`PreparedArguments`] and owning the [`EvalServices`] (the numeric mode and a [`CellReader`]
+//! for reference arguments) and the [`FunctionCallScratch`].
 
 pub use calc_value as value;
 
 mod call;
 mod catalogue;
+mod coerce;
+mod kernel;
 
-pub use call::{EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, invoke};
+pub use call::{
+    CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, Unreadable,
+    invoke,
+};
 pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
     ParameterClass, RegistrationError, SignatureHelp, catalogue,

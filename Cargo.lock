@@ -70,6 +70,7 @@ name = "calc-func"
 version = "0.1.0"
 dependencies = [
  "calc-value",
+ "calc-verdict",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

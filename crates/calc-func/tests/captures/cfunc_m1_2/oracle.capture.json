@@ -1,0 +1,8 @@
+{
+  "format": "dnacalc-capture-absent",
+  "version": 1,
+  "case": "cfunc_m1_2__mixed_operands",
+  "artifact": "capture record (Excel's raw values for the oracle rows of cfunc_m1_2__mixed_operands and cfunc_m1_2__error_order)",
+  "fixture": "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx",
+  "command": "cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx --case cfunc_m1_2__mixed_operands --out crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json"
+}

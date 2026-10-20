@@ -38,6 +38,27 @@
         "cfunc_m1_1__catalogue_consistency": ["windows", "linux", "wasm"],
         "cfunc_m1_1__unknown_function": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cfunc-m1.2",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m1_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m1.2", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m1.2", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m1.2", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfunc_m1_2__mixed_operands",
+        "cfunc_m1_2__error_order",
+        "cfunc_m1_2__excel_comparison"
+      ],
+      "platforms": {
+        "cfunc_m1_2__mixed_operands": ["windows", "linux", "wasm"],
+        "cfunc_m1_2__error_order": ["windows", "linux", "wasm"],
+        "cfunc_m1_2__excel_comparison": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }
