@@ -157,6 +157,7 @@ name = "calc-engine"
 version = "0.1.0"
 dependencies = [
  "calc-doc-model",
+ "calc-fml",
  "calc-value",
  "wasm-bindgen",
  "wasm-bindgen-test",

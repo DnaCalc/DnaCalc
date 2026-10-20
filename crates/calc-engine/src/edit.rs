@@ -338,8 +338,11 @@ impl CommitReceipt {
 
 /// Applies a change [`prepare_edit`] staged: the replaced nodes are unbound, the removed ones
 /// deleted with their edges and IDs, the added ones recorded unbound under the IDs reserved for
-/// them, and the state moves to the change's next revision. Nothing can change the state between
-/// preparing and committing, because the change holds it, so there is no refusal to return.
+/// them, and the state moves to the change's next revision. The added and replaced nodes and
+/// every seed's dependents become pending, to be calculated by the next recalculation; a removed
+/// node's published result stays until the next publication removes it. Nothing can change the
+/// state between preparing and committing, because the change holds it, so there is no refusal
+/// to return.
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
@@ -350,6 +353,7 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
         match node_change {
             NodeChange::Added { node, at } => {
                 state.add_node(node, at);
+                state.pending.insert(node);
                 added.push((at, node));
             }
             NodeChange::Replaced { node, .. } => {
@@ -359,6 +363,13 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
             NodeChange::Removed { node, .. } => {
                 state.remove_node(node);
                 removed.push(node);
+            }
+        }
+    }
+    for seed in &change.seeds {
+        match seed {
+            InputSeed::Cell { dependents, .. } | InputSeed::Area { dependents, .. } => {
+                state.pending.extend(dependents.iter().copied());
             }
         }
     }

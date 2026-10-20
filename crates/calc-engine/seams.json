@@ -1,9 +1,9 @@
 {
   "package": "calc-engine",
   "seams": [
-    {"item": "graph::Prerequisite::Cell", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
-    {"item": "graph::Prerequisite::Area", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
-    {"item": "graph::Prerequisite::AxisValue", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "graph::Prerequisite::Cell", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "prerequisites"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "graph::Prerequisite::Area", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "prerequisites"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "graph::Prerequisite::AxisValue", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "prerequisites"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
     {"item": "graph::Prerequisite::SheetSpan", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
     {"item": "state::PrerequisiteError::StaleInputs", "callers": [{"file": "crates/calc-engine/src/state.rs", "fn": "EngineState::set_prerequisites"}], "case": "ceng_m1_1__two_sheets_one_graph"},
     {"item": "state::PrerequisiteError::UnknownNode", "callers": [{"file": "crates/calc-engine/src/state.rs", "fn": "EngineState::set_prerequisites"}], "case": "ceng_m1_1__two_sheets_one_graph"},
@@ -16,6 +16,26 @@
     {"item": "edit::PrepareError::StaleBase", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
     {"item": "edit::PrepareError::RevisionExhausted", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
     {"item": "edit::PrepareError::UnknownSheet", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "require_sheet"}], "case": "ceng_m1_1__two_sheets_one_graph"},
-    {"item": "edit::PrepareError::StructuralEdit", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"}
+    {"item": "edit::PrepareError::StructuralEdit", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "result::NotModeled::FormulaText", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "bind"}, {"file": "crates/calc-engine/src/result.rs", "fn": "NotModeled::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "result::NotModeled::Compile", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "bind"}, {"file": "crates/calc-engine/src/result.rs", "fn": "NotModeled::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "result::NotModeled::Evaluation", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "evaluate_node"}, {"file": "crates/calc-engine/src/result.rs", "fn": "NotModeled::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "result::NotModeled::Result", "callers": [{"file": "crates/calc-engine/src/result.rs", "fn": "NotModeled::publishable"}, {"file": "crates/calc-engine/src/result.rs", "fn": "NotModeled::fmt"}], "case": "ceng_m1_2__chain_recalculates"},
+    {"item": "result::FormulaResult::Calculated", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "evaluate_node"}, {"file": "crates/calc-engine/src/result.rs", "fn": "FormulaResult::calculated"}], "case": "ceng_m1_2__chain_recalculates"},
+    {"item": "result::FormulaResult::FileCached", "callers": [{"file": "crates/calc-engine/src/state.rs", "fn": "EngineState::with_file_caches"}, {"file": "crates/calc-engine/src/result.rs", "fn": "FormulaResult::calculated"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "result::FormulaResult::NotModeled", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "evaluate_node"}, {"file": "crates/calc-engine/src/result.rs", "fn": "FormulaResult::calculated"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "result::ValueChange::Published", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "finish"}], "case": "ceng_m1_2__chain_recalculates"},
+    {"item": "result::ValueChange::Removed", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "finish"}], "case": "ceng_m1_2__chain_recalculates"},
+    {"item": "recalc::StartError::StaleInputs", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "begin_recalc"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "StartError::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "recalc::StartError::ForeignInputs", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "begin_recalc"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "StartError::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "recalc::StartError::Cycle", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "schedule"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "StartError::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "recalc::RecalcFailure::ReadFailed", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "evaluate_node"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "RecalcFailure::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "recalc::RecalcFailure::UnscheduledRead", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "evaluate_node"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "RecalcFailure::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "recalc::RecalcFailure::Superseded", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "step"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "finish"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "recalc::RecalcFailure::Incomplete", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "finish"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "RecalcFailure::fmt"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "recalc::RecalcProgress::Pending", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "RecalcWork::progress"}], "case": "ceng_m1_2__chain_recalculates"},
+    {"item": "recalc::RecalcProgress::Complete", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "RecalcWork::progress"}], "case": "ceng_m1_2__chain_recalculates"},
+    {"item": "recalc::RecalcProgress::Failed", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "RecalcWork::progress"}], "case": "ceng_m1_2__wrong_cache_not_pass"},
+    {"item": "read::ReadObserver", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "step"}, {"file": "crates/calc-engine/src/recalc.rs", "fn": "evaluate_node"}], "case": "ceng_m1_2__chain_recalculates"}
   ]
 }

@@ -107,8 +107,8 @@ pub enum Prerequisite {
     Cell(CellKey),
     /// The values of every cell of a rectangle. Its binding from a range is ceng-m1.2's.
     Area(GridArea),
-    /// The values of every cell of whole rows or whole columns. Its binding from a whole-axis
-    /// range is ceng-m3.1's.
+    /// The values of every cell of whole rows or whole columns. Its binding from a whole-row or
+    /// whole-column reference comes with ceng-m1.2; its other facets are ceng-m3.1's.
     AxisValue(AxisInterval),
     /// The values of a rectangle on every sheet of a span. Its binding from a 3D reference is
     /// cfml-m3.2's and its calculation ceng-m3.5's.

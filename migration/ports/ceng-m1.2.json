@@ -1,0 +1,138 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "ceng-m1.2",
+  "written": "2026-10-20",
+  "about": "What ceng-m1.2 ported into crates/calc-engine from the pinned legacy source, what it changed and why, what it left out with the beads that will need it (found by the search recorded in owner_search), what it wrote fresh, and each legacy test whose expectation the port keeps, changes or drops (found by the search recorded in witness_search). Only this bead writes this file.",
+  "sources": [
+    {
+      "repository": "OxCalc",
+      "commit": "1bd514efd522b3739ff02ede93eb033148859a34",
+      "path": "src/oxcalc-core/src/grid/machine/differential.rs",
+      "blob": "5dbb4342d0b8a9986db5ec3a1ae7a610ded46ed1",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15)",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxCalc/src/oxcalc-core/src/grid/machine/differential.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [],
+      "not_ported": [
+        {"items": ["GridSeededLaneOutcome (Incremental, NoRetainedValuation, BasisMismatch, TopologyGrowth, NotFullCoverage, GraphNotInstalled)", "GridSeededLaneOutcome::is_incremental", "GridSeededRecalcReport"], "beads": ["ceng-m4.5"], "beads_basis": "Nothing in calc-engine corresponds to the enum or the report: there is one recalculation route and it returns no outcome value. The behaviours four variants name are written fresh (see fresh: the pending nodes of a new state, of an edit and of a changed numeric mode, and the Superseded refusals); NotFullCoverage and GraphNotInstalled have no counterpart (only complete generations are published, and begin_recalc binds every unbound pending node before it orders the closure). ceng-m4.5's Do (typed RecalcFacts with full-recalculation reasons and escalation counts) is where a typed outcome of each recalculation belongs."},
+        {"items": ["reference-versus-optimized lane comparison (compare_grid_engine_readouts and the other compare_* functions)"], "beads": ["ceng-m7.1"], "beads_basis": "ceng-m7.1's Do: the differential harness comparing strategies"},
+        {"items": ["InjectedRecalcFault", "inject_recalc_fault_for_test"], "beads": [], "beads_basis": "no counterpart: the acceptance case injects a failure through the ReadObserver the product step takes, not a thread-local test registry"}
+      ]
+    },
+    {
+      "repository": "OxCalc",
+      "commit": "1bd514efd522b3739ff02ede93eb033148859a34",
+      "path": "src/oxcalc-core/src/grid/machine/workbook_nodes.rs",
+      "blob": "3fde3d1bd2d6e23ab97de7ae27cc4b16ddffc4d5",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15)",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxCalc/src/oxcalc-core/src/grid/machine/workbook_nodes.rs",
+        "exit": 6,
+        "calls_quarantined": ["OxFunc crate oxfunc_core"]
+      },
+      "clean_replacements": "The port calls no OxFunc code: every formula is compiled and evaluated through calc-fml, whose operators and functions run through calc-func (calc_func::invoke). The ported part (the tick's identity) uses no OxFunc symbol; the RandomProvider-based part that does is not ported.",
+      "ported": [
+        {
+          "symbol": "WorkbookRecalcTick (tick_id: one tick per recalculation transaction, observed by every evaluation in it and recorded with its results)",
+          "to": "crates/calc-engine/src/result.rs CalcTick and Calculation; crates/calc-engine/src/recalc.rs begin_recalc",
+          "kept": [
+            "one tick per recalculation, shared by every node it evaluates",
+            "the tick is recorded with each published result (Calculation::tick, ValueDelta::tick)"
+          ],
+          "changes": [
+            {"change": "The tick is a counter the engine state issues at begin_recalc (1, 2, ...), not minted from the wall clock; a recalculation that fails or is refused after it began has used its tick.", "reason": "Plan 2.2: computation state is supplied, not read from a hidden clock; a deterministic tick makes the provenance replayable, and portable packages read no clock (std::time panics on wasm32)."},
+            {"change": "timestamp_serial and rng_seed are not carried.", "reason": "No volatile function is in the catalogue this bead evaluates; time and random effect tapes are ceng-m3.6's."}
+          ]
+        }
+      ],
+      "not_ported": [
+        {"items": ["WorkbookRecalcTick::mint", "WorkbookRecalcTick::timestamp_serial", "WorkbookRecalcTick::rng_seed", "WorkbookRecalcTick::random_provider_for_node", "WorkbookVolatileRandomProvider", "splitmix64", "fnv1a64", "WorkbookDirtySeed::Volatile"], "beads": ["ceng-m3.6"], "beads_basis": "ceng-m3.6's Do: explicit tick/time/random effect tapes and node-stable RNG streams"},
+        {"items": ["WorkbookLocaleFormatSettings"], "beads": ["ceng-m4.3", "cfml-m2.6"], "beads_basis": "ceng-m4.3's Do: date systems and calcPr in EvalEnvironment; cfml-m2.6's Do: numeric text policy"},
+        {"items": ["WorkbookDirtySeed::Name"], "beads": ["ceng-m3.2"], "beads_basis": "names as definition/lookup nodes"},
+        {"items": ["WorkbookDirtySeed::External"], "beads": ["ceng-m4.6"], "beads_basis": "ceng-m4.6's Do: external, RTD and async operations"},
+        {"items": ["WorkbookDirtySeed::Setting"], "beads": ["ceng-m4.3"], "beads_basis": "ceng-m4.3's Do: calcPr and workbook setting policies"},
+        {"items": ["WorkbookDirtySeed::Sheet", "WorkbookDirtySeed::TreeNode", "OwningSheetIdentity"], "beads": [], "beads_basis": "no counterpart: one workbook-wide graph whose edges carry their sheets (ceng-m1.1), and no tree participants"}
+      ]
+    },
+    {
+      "repository": "OxCalc",
+      "commit": "1bd514efd522b3739ff02ede93eb033148859a34",
+      "path": "src/oxcalc-core/src/grid/authored.rs",
+      "blob": "275542c53a352e86c014a5247c28bfdd5726e4a2",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15)",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxCalc/src/oxcalc-core/src/grid/authored.rs",
+        "exit": 6,
+        "calls_quarantined": ["OxFunc crate oxfunc_core"]
+      },
+      "clean_replacements": "The ported concept uses no OxFunc symbol; the inputs it identifies are calc-doc-model's ModelRoot pages, and every evaluation runs through calc-fml and calc-func.",
+      "ported": [
+        {
+          "symbol": "GridInputSnapshotId",
+          "to": "crates/calc-engine/src/recalc.rs (RecalcWork::revision, the StartError::StaleInputs and RecalcFailure::Superseded checks) and crates/calc-engine/src/result.rs (Calculation::revision)",
+          "kept": [
+            "a recalculation's basis is the identity of the authored inputs it read, and its results are valid only on that basis",
+            "a calculated result records its basis"
+          ],
+          "changes": [
+            {"change": "The basis identity is calc-doc-model's AuthoredRevision of the input snapshot, a counter, not a 128-bit content digest of the authored records.", "reason": "The host is the single mutation owner and every authored change advances the revision (plan 3.3), so equal revisions of one document are equal content; hashing an unbounded record set per recalculation is not needed."},
+            {"change": "A snapshot at the state's revision that lacks a formula the state holds is refused (StartError::ForeignInputs).", "reason": "Two roots at one revision can come from different documents; the engine checks the content it binds from."}
+          ]
+        }
+      ],
+      "not_ported": [
+        {"items": ["GridInputState::identity digest fold (grid_input_basis_digest)", "GridInputCell"], "beads": [], "beads_basis": "no counterpart: calc-doc-model's ModelRoot and AuthoredRevision replace the authored grid state and its digest"}
+      ]
+    }
+  ],
+  "not_ported_files": [
+    {"path": "src/oxcalc-core/src/consumer.rs", "reason": "the bead's Port from: do not port"},
+    {"path": "src/oxcalc-core/src/grid/machine/r1c1_plan.rs", "reason": "the bead's Port from: do not port; formula plans are calc-fml's (cfml-m1.3)"}
+  ],
+  "fresh": [
+    "Binding: each unbound pending node's formula text (FormulaText, UTF-16; refused as NotModeled::FormulaText when it holds an unpaired surrogate) is parsed with calc_fml::parse_formula, compiled once with calc_fml::compile in A1 notation against a ReferenceCatalog of the snapshot's sheet names (compared without case by Unicode uppercase; Excel's folding is not measured, and bead dc-85qk measures it), placed with calc_fml::instantiate, and its placed references become prerequisites: a one-cell area a Cell, a rectangle an Area, whole rows or columns an AxisValue, a reference that cannot be placed none; a compile refusal reads nothing and is published as NotModeled::Compile.",
+    "Dirty closure over ceng-m1.1's reverse indexes from the pending nodes (each node of a new state, each added or replaced node, each seed's dependents), listed for a caller by EngineState::stale; a new state's nodes are all pending, so the first recalculation calculates every formula, and an added node is pending and bound before the closure is computed.",
+    "One numeric mode per published generation: when begin_recalc's mode differs from the published generation's (EngineState::published_mode, set by finish), the closure is every formula node, so no result calculated under one mode is read by a result published under another (plan 3.4).",
+    "Deterministic topological ready queue with maintained prerequisite counts; ties broken by the anchor (sheet ID, then row, then column); a closure that cannot be ordered is refused as StartError::Cycle.",
+    "The engine's ReferenceReader: literal inputs from the snapshot's pages, a formula cell's value from this recalculation's staged result or the calculated published one; a file cache, a not-modelled result or a scheduled formula not yet evaluated is never handed out (CellRun::Missing; the last fails the recalculation as RecalcFailure::UnscheduledRead).",
+    "ReadObserver/Unobserved: step shows the caller's observer each run the engine's reader reports, before the evaluation receives it; the observer gets no reader and no sink and can only stop the recalculation, which then fails as RecalcFailure::ReadFailed (plan 6.5: reads are instrumented apart from publication; plan 2.3: no caller installs its own answer as an engine result).",
+    "EngineState::instance: each bound node's placed plan, shared through the state's one PlanCache by normal form; a node is bound once and keeps its instance until its formula is replaced or removed.",
+    "Staging and publication: FormulaResult (Calculated with Calculation {revision, tick, mode}; FileCached; NotModeled), ValueDelta and ValueChange; nothing published before finish succeeds; RecalcFailure::ReadFailed, UnscheduledRead, Superseded (a state or snapshot at another revision, or another recalculation published since begin_recalc) and Incomplete publish nothing."
+  ],
+  "owner_search": {
+    "rule": "Each not_ported item was matched to the Do section of every bead in docs/plan/BEAD_DETAILS.md naming its concept (volatile, RAND/NOW, tick, locale, setting, escalation/broadening, differential, workload/performance, name, external/RTD), and to the beads ceng-m1.1's record assigns for the same concepts.",
+    "found": {"volatile/RAND/tick": ["ceng-m3.6"], "escalation and full-recalc reasons": ["ceng-m4.5"], "benchmarks": ["infra-m7.8"], "strategy differential": ["ceng-m7.1"], "settings and date systems": ["ceng-m4.3"], "numeric text and locale": ["cfml-m2.6"], "names": ["ceng-m3.2"], "external/RTD": ["ceng-m4.6"]}
+  },
+  "witness_search": {
+    "rule": "Every #[test] function at the pinned commit (every .rs file of OxCalc at 1bd514ef, by git ls-tree -r) whose own body names, as a whole word, GridSeededLaneOutcome, WorkbookRecalcTick or GridInputSnapshotId (the three symbols the bead's Port from names). A test's body runs from its #[test] attribute's fn line to the brace that closes it. Each .rs file was read with git show 1bd514ef:<path>; files that do not name a symbol anywhere hold no such test. Each found test's assertions were read to give its disposition.",
+    "found": 22,
+    "by_file": {"src/oxcalc-core/src/consumer.rs": 5, "src/oxcalc-core/src/grid/machine.rs": 8, "src/oxcalc-core/src/grid/machine/workbook_nodes.rs": 6, "src/oxcalc-core/src/treecalc.rs": 1, "src/oxcalc-core/src/workspace_revision.rs": 2}
+  },
+  "semantic_witnesses": [
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 2431, "legacy_test": "tests::seeded_lane_single_edit_evaluates_only_the_dirty_cone", "disposition": "changed", "replaced_by": "ceng_m1_2__chain_recalculates (the first recalculation evaluates all 7 formulas; the edit of Inputs!A2 evaluates the 5 formulas of its closure, and the instrumented reads show no read by Work!B1 or Report!C1, whose results keep tick 1)", "reason": "Kept: the first recalculation calculates every formula; an edit evaluates only its dirty closure and leaves the rest unchanged. Changed: evaluation counts are observed through the instrumented reads and the ticks of the published results, not through the engine's own counters; there is no reference lane to compare with (ceng-m7.1)."},
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 2557, "legacy_test": "tests::seeded_lane_escalations_are_typed_and_correct", "disposition": "changed", "replaced_by": "ceng_m1_2__chain_recalculates (a formula added at Report!D1 is calculated with its reader's closure only) and ceng_m1_2__wrong_cache_not_pass (a work superseded by a committed edit publishes nothing; the next recalculation publishes the correct values)", "reason": "Kept: values are correct after a basis change and after a formula is added. Changed: no outcome enum is recorded (GridSeededLaneOutcome is not ported, see not_ported); a basis change refuses the old work instead of escalating it; an added formula does not force a full recalculation."},
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 2768, "legacy_test": "tests::seeded_lane_escalates_on_partial_coverage_and_uninstalled_graph", "disposition": "dropped", "needed_by": [], "reason": "Partial (visible-first) valuations and an uninstalled graph have no counterpart: generations are complete, and binding precedes scheduling."},
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 3023, "legacy_test": "tests::dirty_cone_bar_single_edit_scales_with_cone_not_authored_cells", "disposition": "dropped", "needed_by": ["ceng-m4.5", "infra-m7.8"], "reason": "Exact engine counters against a checked-in baseline are a performance bar; performance tuning is out of this bead's scope, typed counters are ceng-m4.5's and product-path benchmarks infra-m7.8's."},
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 3219, "legacy_test": "tests::dirty_cone_edit_leaves_other_regions_untouched_and_differential_clean", "disposition": "changed", "replaced_by": "ceng_m1_2__chain_recalculates (Work!B1 and Report!C1, outside the closure of the Inputs!A2 edit, keep their values and tick-1 provenance)", "reason": "Kept: an edit leaves results outside its closure unchanged. Dropped here: the reference-lane differential (ceng-m7.1)."},
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 2633, "legacy_test": "tests::injected_tick_makes_now_coherent_and_volatile_differential_clean", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "NOW and RAND under an injected tick; volatile effect tapes are ceng-m3.6's and the catalogue holds no volatile function."},
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 2727, "legacy_test": "tests::rand_values_are_invariant_under_evaluation_order", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "Node-keyed RAND streams; ceng-m3.6's."},
+    {"path": "src/oxcalc-core/src/grid/machine.rs", "line": 28822, "legacy_test": "tests::coordinator_structural_and_trace_state_is_send", "disposition": "dropped", "needed_by": [], "reason": "A Send audit of legacy coordinator types; the engine state here holds Arc-shared plans and calc-value types, and threading is plan 3.5's later work."},
+    {"path": "src/oxcalc-core/src/grid/machine/workbook_nodes.rs", "line": 460, "legacy_test": "recalc_tick_tests::now_serial_is_coherent_for_every_node_in_one_tick", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "timestamp_serial is not carried (ceng-m3.6). The tick shared by every node of one recalculation is kept and checked by ceng_m1_2__chain_recalculates (every result of a recalculation carries its tick)."},
+    {"path": "src/oxcalc-core/src/grid/machine/workbook_nodes.rs", "line": 473, "legacy_test": "recalc_tick_tests::rand_draws_are_in_unit_interval", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "RAND streams; ceng-m3.6's."},
+    {"path": "src/oxcalc-core/src/grid/machine/workbook_nodes.rs", "line": 484, "legacy_test": "recalc_tick_tests::rand_is_deterministic_given_a_fixed_tick", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "RAND streams; ceng-m3.6's."},
+    {"path": "src/oxcalc-core/src/grid/machine/workbook_nodes.rs", "line": 494, "legacy_test": "recalc_tick_tests::rand_streams_differ_per_node", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "RAND streams; ceng-m3.6's."},
+    {"path": "src/oxcalc-core/src/grid/machine/workbook_nodes.rs", "line": 506, "legacy_test": "recalc_tick_tests::rand_is_order_independent", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "RAND streams; ceng-m3.6's."},
+    {"path": "src/oxcalc-core/src/grid/machine/workbook_nodes.rs", "line": 529, "legacy_test": "recalc_tick_tests::rng_seed_changes_the_streams", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "RAND streams; ceng-m3.6's."},
+    {"path": "src/oxcalc-core/src/treecalc.rs", "line": 10333, "legacy_test": "tests::local_treecalc_tree_node_observes_injected_transaction_tick", "disposition": "dropped", "needed_by": ["ceng-m3.6"], "reason": "A tree node's NOW and RAND under an injected tick; there are no tree participants here, and volatile effects are ceng-m3.6's."},
+    {"path": "src/oxcalc-core/src/workspace_revision.rs", "line": 1444, "legacy_test": "tests::workspace_revision_identity_matches_reference_bytes", "disposition": "dropped", "needed_by": [], "reason": "Byte-exact digest identities; the basis here is the AuthoredRevision counter, not a digest."},
+    {"path": "src/oxcalc-core/src/workspace_revision.rs", "line": 1474, "legacy_test": "tests::grid_input_snapshot_identity_folds_ids_and_empty_is_constant", "disposition": "dropped", "needed_by": [], "reason": "Digest folding of the grid input identity; no digest here."},
+    {"path": "src/oxcalc-core/src/consumer.rs", "line": 15207, "legacy_test": "tests::grid_edit_undo_redo_round_trip_restores_authored_grid_truth_exactly", "disposition": "dropped", "needed_by": ["chost-m1.1"], "reason": "consumer.rs is not ported (the bead's Port from); undo and redo of authored edits are the host's."},
+    {"path": "src/oxcalc-core/src/consumer.rs", "line": 15350, "legacy_test": "tests::grid_edit_rides_incremental_lane_and_navigation_escalates", "disposition": "dropped", "needed_by": ["chost-m1.1"], "reason": "consumer.rs is not ported; revision navigation is the host's. The incremental half is kept by ceng_m1_2__chain_recalculates."},
+    {"path": "src/oxcalc-core/src/consumer.rs", "line": 15608, "legacy_test": "tests::grid_formula_plan_cache_persists_across_recalcs", "disposition": "changed", "replaced_by": "ceng_m1_2__chain_recalculates (Report!D1 and its copy Report!D2 share one plan; Report!D1 keeps its placed instance through a recalculation that evaluates it, and Work!A2 keeps the instance bound at tick 1 through the recalculations of ticks 2 to 7, evaluated in three of them and outside the closure in the others)", "reason": "consumer.rs is not ported. Kept: plans persist across incremental recalculations, inside and outside the dirty closure, and are not compiled again. Changed: observed through the identity of each node's placed instance and shared plan, not a count of cached templates (calc-fml's PlanCache exposes none and never evicts; eviction is cfml-m2.2's)."},
+    {"path": "src/oxcalc-core/src/consumer.rs", "line": 33855, "legacy_test": "tests::workbook_incremental_counter_bar_exact", "disposition": "dropped", "needed_by": ["ceng-m4.5"], "reason": "consumer.rs is not ported; exact per-sheet counters are ceng-m4.5's counted facts."},
+    {"path": "src/oxcalc-core/src/consumer.rs", "line": 34551, "legacy_test": "tests::cross_sheet_cycle_in_the_propagation_rolls_back_the_committed_origin_recalc", "disposition": "changed", "replaced_by": "ceng_m1_2__wrong_cache_not_pass (a cycle in the dirty closure refuses the recalculation before anything is evaluated; the published generation is unchanged and the nodes stay pending)", "reason": "consumer.rs is not ported. Kept: a cycle leaves the previously published values as they were. Changed: one workbook graph sees the cycle before any evaluation, so nothing is committed and nothing needs rolling back."}
+  ]
+}

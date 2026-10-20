@@ -5,30 +5,38 @@
 //!
 //! The cases drive the engine through its public route over calc-doc-model snapshots: an edit is
 //! prepared against the base root with `prepare_edit`, calc-doc-model makes the next root with
-//! `ModelRoot::apply`, and the prepared change commits with `commit_edit`. What a formula node
-//! reads is stated with `EngineState::set_prerequisites`. In the product CalcFml's plan bindings
-//! are to state it, one per kind of prerequisite: cells and rectangles with ceng-m1.2 (direct
-//! references and ranges), whole rows or columns with ceng-m3.1 (whole-axis ranges), and sheet
-//! spans with cfml-m3.2 (3D span binding) and ceng-m3.5 (span calculation). Here the
-//! prerequisites are written by hand and do not come from the formula texts, which the engine
-//! never reads.
+//! `ModelRoot::apply`, and the prepared change commits with `commit_edit`.
+//!
+//! In the ceng-m1.1 cases what a formula node reads is stated by hand with
+//! `EngineState::set_prerequisites` and does not come from the formula texts. The ceng-m1.2 cases
+//! recalculate through `begin_recalc`, `step` and `finish`, which bind each formula's text
+//! through CalcFml and state its prerequisites from the placed references (cells, rectangles and
+//! whole rows or columns); sheet spans have no binding yet (cfml-m3.2's binding, ceng-m3.5's
+//! calculation).
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
 use calc_doc_model::value::{
-    CellKey, ExcelText, GridArea, GridError, IdAllocator, MAX_ROWS, NodeId, SheetId,
+    CalcValue, CellKey, ExcelText, GridArea, GridError, IdAllocator, MAX_COLUMNS, MAX_ROWS, NodeId,
+    NumericMode, NumericTargetId, SheetId,
 };
 use calc_doc_model::{
-    AuthoredRevision, Axis, AxisChange, AxisEdit, CellInput, CellText, FiniteNumber, FormulaText,
-    ModelRoot, OpBatch, SheetEdit, SheetEntry, SheetKey, SheetName, SheetVisibility, WorkbookOp,
+    AuthoredRevision, Axis, AxisChange, AxisEdit, CachedValue, CellInput, CellText, FileCached,
+    FiniteNumber, FormulaText, ModelRoot, OpBatch, SheetEdit, SheetEntry, SheetKey, SheetName,
+    SheetVisibility, SourcePart, WorkbookOp,
 };
 use calc_engine::{
-    AxisInterval, EngineState, FormulaNode, InputSeed, NodeChange, PrepareError, Prerequisite,
-    PrerequisiteError, SheetSpan, commit_edit, prepare_edit,
+    AxisInterval, CacheWithoutFormula, EngineState, FormulaNode, FormulaResult, InputSeed,
+    NodeChange, NotModeled, PrepareError, Prerequisite, PrerequisiteError, ReadObserver,
+    RecalcFailure, RecalcProgress, SheetSpan, StartError, Unobserved, ValueChange, ValueDelta,
+    WorkBudget, begin_recalc, commit_edit, finish, prepare_edit, step,
 };
+use calc_fml::reference::{BindError, CellRun};
+use calc_fml::{CompileError, CompiledPlan, EvalFault};
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 #[cfg(target_arch = "wasm32")]
@@ -293,32 +301,35 @@ fn ceng_m1_1__two_sheets_one_graph() {
     // 2. The edges of the one graph cross sheets. The prerequisites below are written by hand to
     //    reach each kind of edge; they do not come from the formula texts above.
     note!(
-        "ACCEPT-NOTE: {CASE}: the prerequisites of Alpha!A1 and Beta!A1 are written by hand in the case and do not come from the formula text; the engine does not read formula text"
+        "ACCEPT-NOTE: {CASE}: the prerequisites of Alpha!A1 and Beta!A1 are written by hand in the case and do not come from the formula text; this case does not recalculate, so nothing binds the formulas here (begin_recalc's binding is exercised by the ceng-m1.2 cases)"
     );
-    let first_binding = "the product callers of EngineState::set_prerequisites, of which ceng-m1.2's CalcFml binding of direct references and ranges is the first";
-    for (item, owner) in [
+    for (item, traffic) in [
         (
             "graph::Prerequisite::Cell",
-            "ceng-m1.2's CalcFml binding of direct references",
+            "product traffic from begin_recalc's CalcFml binding of direct references (ceng-m1.2); stated by hand here",
         ),
         (
             "graph::Prerequisite::Area",
-            "ceng-m1.2's CalcFml binding of ranges",
+            "product traffic from begin_recalc's CalcFml binding of ranges (ceng-m1.2); stated by hand here",
         ),
         (
             "graph::Prerequisite::AxisValue",
-            "ceng-m3.1's binding of whole-axis ranges",
+            "product traffic from begin_recalc's CalcFml binding of whole-row and whole-column references (ceng-m1.2); stated by hand here",
         ),
         (
             "graph::Prerequisite::SheetSpan",
-            "cfml-m3.2's 3D span binding and ceng-m3.5's span calculation",
+            "test-only traffic: CalcFml's binder refuses sheet spans; its product traffic is to come from cfml-m3.2's 3D span binding and ceng-m3.5's span calculation",
         ),
-        ("state::PrerequisiteError::StaleInputs", first_binding),
-        ("state::PrerequisiteError::UnknownNode", first_binding),
-        ("state::PrerequisiteError::UnknownSheet", first_binding),
+    ] {
+        note!("ACCEPT-NOTE: {CASE}: seams entry {item}: {traffic}");
+    }
+    for item in [
+        "state::PrerequisiteError::StaleInputs",
+        "state::PrerequisiteError::UnknownNode",
+        "state::PrerequisiteError::UnknownSheet",
     ] {
         note!(
-            "ACCEPT-NOTE: {CASE}: seams entry {item} has test-only traffic: no non-test code calls EngineState::set_prerequisites; its product traffic is to come from {owner}"
+            "ACCEPT-NOTE: {CASE}: seams entry {item} is produced only by this case: the product caller of EngineState::set_prerequisites, begin_recalc, passes the snapshot at the state's revision, a live node and sheets resolved from that snapshot"
         );
     }
     let alpha_rows_10_12 = AxisInterval::new(alpha, Axis::Rows, 12, 10).unwrap();
@@ -1190,4 +1201,1470 @@ fn ceng_m1_1__input_sharing() {
         in_page_z300
     );
     drop(prepared);
+}
+
+// ---------------------------------------------------------------------------------------------
+// ceng-m1.2: the workbook recalculates through CalcFml. The helpers below drive the product route
+// (prepare_edit and commit_edit, then begin_recalc, step and finish) and observe the runs the
+// engine's reader reports to the evaluations, through the ReadObserver that step takes.
+
+/// The run of a read, as an observer saw it.
+#[derive(Clone, Debug, PartialEq)]
+enum Run {
+    Values(Vec<CalcValue>),
+    Blank(u64),
+    Missing(u64),
+}
+
+impl Run {
+    fn of(run: CellRun<'_>) -> Run {
+        match run {
+            CellRun::Values(values) => Run::Values(values.to_vec()),
+            CellRun::Blank(count) => Run::Blank(count),
+            CellRun::Missing(count) => Run::Missing(count),
+        }
+    }
+
+    fn len(&self) -> u64 {
+        match self {
+            Run::Values(values) => values.len() as u64,
+            Run::Blank(count) | Run::Missing(count) => *count,
+        }
+    }
+}
+
+/// One area an evaluation read: the formula the engine said was reading, the area, and the runs
+/// the engine's reader reported for it.
+#[derive(Clone, Debug, PartialEq)]
+struct Read {
+    formula: CellKey,
+    area: GridArea,
+    runs: Vec<Run>,
+}
+
+/// An observer that records every run and never stops a recalculation.
+#[derive(Debug, Default)]
+struct Recorder {
+    reads: Vec<Read>,
+}
+
+impl ReadObserver for Recorder {
+    fn observe(
+        &mut self,
+        formula: CellKey,
+        area: GridArea,
+        offset: u64,
+        run: CellRun<'_>,
+    ) -> ControlFlow<()> {
+        if offset == 0 {
+            self.reads.push(Read {
+                formula,
+                area,
+                runs: Vec::new(),
+            });
+        }
+        let read = self.reads.last_mut().expect("a read begins at offset 0");
+        assert_eq!(
+            (read.formula, read.area),
+            (formula, area),
+            "a run continued another read"
+        );
+        assert_eq!(
+            offset,
+            read.runs.iter().map(Run::len).sum::<u64>(),
+            "a run did not start where the previous one ended"
+        );
+        read.runs.push(Run::of(run));
+        ControlFlow::Continue(())
+    }
+}
+
+impl Recorder {
+    /// The formulas in the order their evaluations read, each once: one evaluation runs at a
+    /// time, so a formula's reads are consecutive.
+    fn evaluation_order(&self) -> Vec<CellKey> {
+        let mut order: Vec<CellKey> = Vec::new();
+        for read in &self.reads {
+            if order.last() != Some(&read.formula) {
+                assert!(
+                    !order.contains(&read.formula),
+                    "{:?} read again after another formula read",
+                    read.formula
+                );
+                order.push(read.formula);
+            }
+        }
+        order
+    }
+
+    fn take(&mut self) -> Vec<Read> {
+        std::mem::take(&mut self.reads)
+    }
+}
+
+/// An observer that stops the recalculation at its `stop_at`-th observation (counting from 1) and
+/// records every observation before it.
+struct StopAt {
+    observations: usize,
+    stop_at: usize,
+    recorder: Recorder,
+}
+
+impl ReadObserver for StopAt {
+    fn observe(
+        &mut self,
+        formula: CellKey,
+        area: GridArea,
+        offset: u64,
+        run: CellRun<'_>,
+    ) -> ControlFlow<()> {
+        self.observations += 1;
+        if self.observations == self.stop_at {
+            return ControlFlow::Break(());
+        }
+        self.recorder.observe(formula, area, offset, run)
+    }
+}
+
+fn sheet_entry(id: SheetId, key: u32, name: &str) -> SheetEntry {
+    SheetEntry::new(
+        id,
+        SheetKey::new(key),
+        SheetName::new(ExcelText::from_interop_assignment(name)).unwrap(),
+        SheetVisibility::Visible,
+    )
+}
+
+fn cell_area(at: CellKey) -> GridArea {
+    GridArea::cell(at)
+}
+
+fn values(numbers: &[f64]) -> Run {
+    Run::Values(numbers.iter().map(|n| CalcValue::number(*n)).collect())
+}
+
+fn read(formula: CellKey, area: GridArea, runs: Vec<Run>) -> Read {
+    Read {
+        formula,
+        area,
+        runs,
+    }
+}
+
+fn excel_text(value: &str) -> CalcValue {
+    CalcValue::text(ExcelText::from_interop_assignment(value))
+}
+
+/// Commits the batch `operations` to the state and gives the next root.
+fn edit(
+    state: &mut EngineState,
+    root: &Arc<ModelRoot>,
+    operations: Vec<WorkbookOp>,
+) -> Arc<ModelRoot> {
+    let change = batch(root.revision().get(), operations);
+    let prepared = prepare_edit(state, root, &change).unwrap();
+    let next = root.apply(&change).unwrap();
+    commit_edit(prepared);
+    next
+}
+
+/// Recalculates under `mode` in one step, shown to `observer`, and publishes.
+fn recalc_under(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    mode: NumericMode,
+    observer: &mut dyn ReadObserver,
+) -> ValueDelta {
+    let mut work = begin_recalc(state, inputs, mode).unwrap();
+    assert_eq!(
+        step(state, inputs, &mut work, WorkBudget::UNLIMITED, observer),
+        RecalcProgress::Complete
+    );
+    finish(state, work).unwrap()
+}
+
+/// Recalculates under Fast in one step, shown to `observer`, and publishes.
+fn recalc(
+    state: &mut EngineState,
+    inputs: &ModelRoot,
+    observer: &mut dyn ReadObserver,
+) -> ValueDelta {
+    recalc_under(state, inputs, NumericMode::Fast, observer)
+}
+
+/// The plan a bound formula cell's node holds.
+fn plan_at(state: &EngineState, at: CellKey) -> Arc<CompiledPlan> {
+    let node = state.node_at(at).unwrap();
+    Arc::clone(state.instance(node).unwrap().plan())
+}
+
+/// The address of the placed areas of a bound formula cell's instance. Binding a bound node again
+/// would place a new instance, allocated while the node still holds the old one, so at another
+/// address: an unchanged address means the recalculations between were not compiling and placing
+/// its formula again.
+fn instance_address(state: &EngineState, at: CellKey) -> usize {
+    let node = state.node_at(at).unwrap();
+    state.instance(node).unwrap().areas().as_ptr() as usize
+}
+
+/// The calculated value of the formula cell `at`, with the revision and tick of its calculation;
+/// panics when its result is not calculated.
+fn calculated(state: &EngineState, at: CellKey) -> (CalcValue, u64, u64) {
+    match state.result(at) {
+        Some(FormulaResult::Calculated { value, calculation }) => (
+            value.clone(),
+            calculation.revision().get(),
+            calculation.tick().get(),
+        ),
+        other => panic!("{at:?} is not calculated: {other:?}"),
+    }
+}
+
+/// The cells whose published result is calculated.
+fn calculated_cells(state: &EngineState) -> Vec<CellKey> {
+    state
+        .results()
+        .filter(|(_, result)| result.calculated().is_some())
+        .map(|(at, _)| at)
+        .collect()
+}
+
+/// The cells each change of a delta names, in order, with `true` for a published result.
+fn delta_cells(delta: &ValueDelta) -> Vec<(CellKey, bool)> {
+    delta
+        .changes()
+        .iter()
+        .map(|change| match change {
+            ValueChange::Published { at, .. } => (*at, true),
+            ValueChange::Removed { at, .. } => (*at, false),
+        })
+        .collect()
+}
+
+/// The published generation, cloned: each cell's result, value and provenance.
+fn generation(state: &EngineState) -> Vec<(CellKey, FormulaResult)> {
+    state
+        .results()
+        .map(|(at, result)| (at, result.clone()))
+        .collect()
+}
+
+// ---------------------------------------------------------------------------------------------
+// ceng_m1_2__chain_recalculates
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn ceng_m1_2__chain_recalculates() {
+    const CASE: &str = "ceng_m1_2__chain_recalculates";
+    note!(
+        "ACCEPT-NOTE: {CASE}: every expected value, prerequisite, read and evaluation order below is derived by hand in the case from the literals and the formula texts (labelled 'hand-derived'); none is read back from the engine, a capture or Excel, and agreement with Excel is infra-m1.3's round trip"
+    );
+
+    // Three sheets in the order Inputs, Work, Report, whose IDs were issued in the order Report,
+    // Work, Inputs: the ready queue breaks ties by anchor, sheet ID first, so a ready Report
+    // formula comes before a ready Work formula although Report is the last sheet.
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let report = ids.issue().unwrap();
+    let work_sheet = ids.issue().unwrap();
+    let inputs = ids.issue().unwrap();
+    let sheets = vec![
+        sheet_entry(inputs, 1, "Inputs"),
+        sheet_entry(work_sheet, 2, "Work"),
+        sheet_entry(report, 3, "Report"),
+    ];
+    let i = |row, column| key(inputs, row, column);
+    let w = |row, column| key(work_sheet, row, column);
+    let r = |row, column| key(report, row, column);
+
+    // Literals on Inputs; formulas on Work and Report that read them and each other through
+    // direct references, a rectangle, a whole column, a cross-sheet reference and an IF. The
+    // texts are as an xlsx <f> element holds them, without the leading '='.
+    let load = batch(
+        0,
+        vec![
+            set(i(1, 1), number(10.0)),
+            set(i(2, 1), number(20.0)),
+            set(i(3, 1), number(30.0)),
+            set(i(1, 2), number(4.0)),
+            set(i(1, 3), number(2.5)),
+            set(i(5, 3), number(7.5)),
+            set(w(1, 1), formula("SUM(Inputs!A1:A3)")),
+            set(w(2, 1), formula("A1*Inputs!B1")),
+            set(w(1, 2), formula("SUM(Inputs!C:C)")),
+            set(w(1, 3), formula("Report!A1+1")),
+            set(r(1, 1), formula("IF(Work!A2>100,Work!A2-100,Work!B1)")),
+            set(r(1, 2), formula("SUM(Work!A1:A2)+Work!C1")),
+            set(r(1, 3), formula("inputs!B1*2")),
+        ],
+    );
+    let root1 = ModelRoot::new(rev(0), sheets)
+        .unwrap()
+        .apply(&load)
+        .unwrap();
+    let mut state = EngineState::new(&root1);
+    assert_eq!(state.node_count(), 7);
+    assert_eq!(
+        state.pending().count(),
+        7,
+        "every node of a new state is pending"
+    );
+    assert_eq!(state.results().count(), 0);
+    let node = |state: &EngineState, at: CellKey| state.node_at(at).unwrap();
+
+    // 1. The first recalculation binds each formula through CalcFml and calculates every node.
+    let mut recorder = Recorder::default();
+    let mut work = begin_recalc(&mut state, &root1, NumericMode::Fast).unwrap();
+    assert_eq!(
+        (work.revision(), work.tick().get(), work.scheduled()),
+        (rev(1), 1, 7)
+    );
+
+    // What each formula reads, hand-derived from its text: the placed references, one
+    // prerequisite each (Work!A2 appears twice in Report!A1's IF and is one edge). "inputs!" names
+    // the sheet Inputs: sheet names match without case.
+    let column_c = AxisInterval::new(inputs, Axis::Columns, 3, 3).unwrap();
+    for (at, expected) in [
+        (w(1, 1), vec![Prerequisite::Area(area(inputs, 1, 1, 3, 1))]),
+        (
+            w(2, 1),
+            vec![Prerequisite::Cell(w(1, 1)), Prerequisite::Cell(i(1, 2))],
+        ),
+        (w(1, 2), vec![Prerequisite::AxisValue(column_c)]),
+        (w(1, 3), vec![Prerequisite::Cell(r(1, 1))]),
+        (
+            r(1, 1),
+            vec![Prerequisite::Cell(w(2, 1)), Prerequisite::Cell(w(1, 2))],
+        ),
+        (
+            r(1, 2),
+            vec![
+                Prerequisite::Area(area(work_sheet, 1, 1, 2, 1)),
+                Prerequisite::Cell(w(1, 3)),
+            ],
+        ),
+        (r(1, 3), vec![Prerequisite::Cell(i(1, 2))]),
+    ] {
+        assert_eq!(
+            state.node(node(&state, at)).unwrap().prerequisites(),
+            Some(&expected[..]),
+            "prerequisites of {at:?}"
+        );
+    }
+
+    // Steps of three evaluations, then the rest; nothing is published before finish.
+    assert_eq!(
+        step(
+            &state,
+            &root1,
+            &mut work,
+            WorkBudget::evaluations(3),
+            &mut recorder
+        ),
+        RecalcProgress::Pending { remaining: 4 }
+    );
+    assert_eq!(
+        state.results().count(),
+        0,
+        "a result was published before finish"
+    );
+    assert_eq!(
+        step(
+            &state,
+            &root1,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut recorder
+        ),
+        RecalcProgress::Complete
+    );
+    assert_eq!(
+        state.results().count(),
+        0,
+        "a result was published before finish"
+    );
+    let delta = finish(&mut state, work).unwrap();
+    assert_eq!((delta.revision(), delta.tick().get()), (rev(1), 1));
+
+    // The reads, hand-derived: Report!C1 reads only a literal and is ready first (Report's sheet
+    // ID is the smallest); then Work!A1 and Work!B1 (row 1 before row 2); Work!A2 once Work!A1
+    // is evaluated; Report!A1 once Work!A2 and Work!B1 are; Work!C1 after Report!A1; Report!B1
+    // last. Each formula cell read hands over the value just calculated. Report!A1's IF reads
+    // Work!A2 for its condition and again for the branch it takes (240 > 100); it never reads
+    // Work!B1. The whole column C of Inputs is read as its two values and blank runs.
+    let first_reads = vec![
+        read(r(1, 3), cell_area(i(1, 2)), vec![values(&[4.0])]),
+        read(
+            w(1, 1),
+            area(inputs, 1, 1, 3, 1),
+            vec![values(&[10.0]), values(&[20.0]), values(&[30.0])],
+        ),
+        read(
+            w(1, 2),
+            area(inputs, 1, 3, MAX_ROWS, 3),
+            vec![
+                values(&[2.5]),
+                Run::Blank(3),
+                values(&[7.5]),
+                Run::Blank(u64::from(MAX_ROWS) - 5),
+            ],
+        ),
+        read(w(2, 1), cell_area(w(1, 1)), vec![values(&[60.0])]),
+        read(w(2, 1), cell_area(i(1, 2)), vec![values(&[4.0])]),
+        read(r(1, 1), cell_area(w(2, 1)), vec![values(&[240.0])]),
+        read(r(1, 1), cell_area(w(2, 1)), vec![values(&[240.0])]),
+        read(w(1, 3), cell_area(r(1, 1)), vec![values(&[140.0])]),
+        read(
+            r(1, 2),
+            area(work_sheet, 1, 1, 2, 1),
+            vec![values(&[60.0]), values(&[240.0])],
+        ),
+        read(r(1, 2), cell_area(w(1, 3)), vec![values(&[141.0])]),
+    ];
+    assert_eq!(
+        recorder.evaluation_order(),
+        [
+            r(1, 3),
+            w(1, 1),
+            w(1, 2),
+            w(2, 1),
+            r(1, 1),
+            w(1, 3),
+            r(1, 2)
+        ]
+    );
+    assert_eq!(recorder.take(), first_reads);
+
+    // The published values, hand-derived: Work!A1 = 10+20+30, Work!A2 = 60*4, Work!B1 = 2.5+7.5,
+    // Report!A1 = 240-100, Work!C1 = 140+1, Report!B1 = (60+240)+141, Report!C1 = 4*2. Each is
+    // calculated at revision 1 by tick 1 under Fast, which has no Excel target.
+    let first_values = [
+        (w(1, 1), 60.0),
+        (w(2, 1), 240.0),
+        (w(1, 2), 10.0),
+        (r(1, 1), 140.0),
+        (w(1, 3), 141.0),
+        (r(1, 2), 441.0),
+        (r(1, 3), 8.0),
+    ];
+    for (at, expected) in first_values {
+        assert_eq!(
+            calculated(&state, at),
+            (CalcValue::number(expected), 1, 1),
+            "{at:?}"
+        );
+        let Some((_, calculation)) = state.result(at).and_then(FormulaResult::calculated) else {
+            unreachable!()
+        };
+        assert_eq!(
+            (calculation.mode(), calculation.target()),
+            (&NumericMode::Fast, None)
+        );
+    }
+    // The delta lists the cells by sheet ID, then row, then column.
+    assert_eq!(
+        delta_cells(&delta),
+        [
+            (r(1, 1), true),
+            (r(1, 2), true),
+            (r(1, 3), true),
+            (w(1, 1), true),
+            (w(1, 2), true),
+            (w(1, 3), true),
+            (w(2, 1), true),
+        ]
+    );
+    for change in delta.changes() {
+        let ValueChange::Published {
+            at,
+            node: n,
+            result,
+        } = change
+        else {
+            panic!("unexpected {change:?}");
+        };
+        assert_eq!(Some(*n), state.node_at(*at));
+        assert_eq!(Some(result), state.result(*at));
+    }
+    assert_eq!(state.pending().count(), 0);
+    // Work!A2's bound plan, placed at its anchor. Steps 2, 3 and 7 evaluate it again; none binds
+    // it again (see the end of the case).
+    let w_a2_plan = plan_at(&state, w(2, 1));
+    let w_a2_address = instance_address(&state, w(2, 1));
+    note!(
+        "{CASE}: the first recalculation bound 7 formulas through CalcFml and published 7 calculated values equal to the hand-derived ones, read in the hand-derived order"
+    );
+
+    // 2. A literal edit: Inputs!A2 from 20 to 70. The seed lists Work!A1 (it reads the rectangle
+    //    Inputs!A1:A3 through the edge the binding filed); the dirty closure adds what reads
+    //    Work!A1 and onward: Work!A2, Report!A1, Work!C1 and Report!B1. Work!B1 and Report!C1 are
+    //    not dirty and keep their tick-1 results.
+    let change = batch(1, vec![set(i(2, 1), number(70.0))]);
+    let n_w_a1 = node(&state, w(1, 1));
+    let prepared = prepare_edit(&mut state, &root1, &change).unwrap();
+    assert_eq!(
+        prepared.seeds(),
+        [InputSeed::Cell {
+            at: i(2, 1),
+            before: Some(&number(20.0)),
+            dependents: vec![n_w_a1]
+        }]
+    );
+    let root2 = root1.apply(&change).unwrap();
+    commit_edit(prepared);
+    assert_eq!(state.pending().collect::<Vec<_>>(), [node(&state, w(1, 1))]);
+
+    let mut work = begin_recalc(&mut state, &root2, NumericMode::Fast).unwrap();
+    assert_eq!((work.tick().get(), work.scheduled()), (2, 5));
+    let mut remaining = 5;
+    loop {
+        match step(
+            &state,
+            &root2,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut recorder,
+        ) {
+            RecalcProgress::Pending { remaining: left } => {
+                remaining -= 1;
+                assert_eq!(left, remaining);
+                // Nothing of this recalculation is published while it runs.
+                assert_eq!(calculated(&state, w(1, 1)), (CalcValue::number(60.0), 1, 1));
+            }
+            RecalcProgress::Complete => break,
+            RecalcProgress::Failed => panic!("the recalculation failed"),
+        }
+    }
+    let delta = finish(&mut state, work).unwrap();
+    assert_eq!(
+        recorder.evaluation_order(),
+        [w(1, 1), w(2, 1), r(1, 1), w(1, 3), r(1, 2)]
+    );
+    assert_eq!(
+        recorder.take(),
+        [
+            read(
+                w(1, 1),
+                area(inputs, 1, 1, 3, 1),
+                vec![values(&[10.0]), values(&[70.0]), values(&[30.0])],
+            ),
+            read(w(2, 1), cell_area(w(1, 1)), vec![values(&[110.0])]),
+            read(w(2, 1), cell_area(i(1, 2)), vec![values(&[4.0])]),
+            read(r(1, 1), cell_area(w(2, 1)), vec![values(&[440.0])]),
+            read(r(1, 1), cell_area(w(2, 1)), vec![values(&[440.0])]),
+            read(w(1, 3), cell_area(r(1, 1)), vec![values(&[340.0])]),
+            read(
+                r(1, 2),
+                area(work_sheet, 1, 1, 2, 1),
+                vec![values(&[110.0]), values(&[440.0])],
+            ),
+            read(r(1, 2), cell_area(w(1, 3)), vec![values(&[341.0])]),
+        ]
+    );
+    // Hand-derived: Work!A1 = 10+70+30, Work!A2 = 110*4, Report!A1 = 440-100, Work!C1 = 341,
+    // Report!B1 = (110+440)+341.
+    for (at, expected) in [
+        (w(1, 1), 110.0),
+        (w(2, 1), 440.0),
+        (r(1, 1), 340.0),
+        (w(1, 3), 341.0),
+        (r(1, 2), 891.0),
+    ] {
+        assert_eq!(
+            calculated(&state, at),
+            (CalcValue::number(expected), 2, 2),
+            "{at:?}"
+        );
+    }
+    assert_eq!(calculated(&state, w(1, 2)), (CalcValue::number(10.0), 1, 1));
+    assert_eq!(calculated(&state, r(1, 3)), (CalcValue::number(8.0), 1, 1));
+    assert_eq!(delta.changes().len(), 5);
+    note!(
+        "{CASE}: Inputs!A2 20 -> 70 recalculated the 5 formulas of its closure one step at a time, published nothing before finish, and left Work!B1 and Report!C1 at tick 1"
+    );
+
+    // 3. Inputs!B1 from 4 to 0.5. Work!A2 and Report!C1 read it; Report!C1 is ordered first (the
+    //    smaller sheet ID). Work!A2 becomes 55, so Report!A1's IF takes its third argument: it
+    //    reads Work!A2 for the condition and Work!B1, never Work!A2 again.
+    let root3 = edit(&mut state, &root2, vec![set(i(1, 2), number(0.5))]);
+    recalc(&mut state, &root3, &mut recorder);
+    assert_eq!(
+        recorder.evaluation_order(),
+        [r(1, 3), w(2, 1), r(1, 1), w(1, 3), r(1, 2)]
+    );
+    let reads = recorder.take();
+    assert_eq!(
+        reads
+            .iter()
+            .filter(|read| read.formula == r(1, 1))
+            .cloned()
+            .collect::<Vec<_>>(),
+        [
+            read(r(1, 1), cell_area(w(2, 1)), vec![values(&[55.0])]),
+            read(r(1, 1), cell_area(w(1, 2)), vec![values(&[10.0])]),
+        ]
+    );
+    // Hand-derived: Report!C1 = 0.5*2, Work!A2 = 110*0.5, Report!A1 = Work!B1 = 10, Work!C1 = 11,
+    // Report!B1 = (110+55)+11.
+    for (at, expected) in [
+        (r(1, 3), 1.0),
+        (w(2, 1), 55.0),
+        (r(1, 1), 10.0),
+        (w(1, 3), 11.0),
+        (r(1, 2), 176.0),
+    ] {
+        assert_eq!(
+            calculated(&state, at),
+            (CalcValue::number(expected), 3, 3),
+            "{at:?}"
+        );
+    }
+
+    // 4. A clear of Inputs!C1:C5 empties both values of column C. Its seed is the area seed of
+    //    prepare_edit's clear path, listing Work!B1 through its whole-column edge; Work!B1 becomes
+    //    0, and Report!A1 (whose IF now returns Work!B1), Work!C1 and Report!B1 follow.
+    let clear_c = batch(3, vec![clear(area(inputs, 1, 3, 5, 3))]);
+    let n_w_b1 = node(&state, w(1, 2));
+    let prepared = prepare_edit(&mut state, &root3, &clear_c).unwrap();
+    assert_eq!(
+        prepared.seeds(),
+        [InputSeed::Area {
+            area: area(inputs, 1, 3, 5, 3),
+            dependents: vec![n_w_b1]
+        }]
+    );
+    let root4 = root3.apply(&clear_c).unwrap();
+    commit_edit(prepared);
+    recalc(&mut state, &root4, &mut recorder);
+    assert_eq!(
+        recorder.evaluation_order(),
+        [w(1, 2), r(1, 1), w(1, 3), r(1, 2)]
+    );
+    assert_eq!(
+        recorder.take()[0],
+        read(
+            w(1, 2),
+            area(inputs, 1, 3, MAX_ROWS, 3),
+            vec![Run::Blank(u64::from(MAX_ROWS))],
+        )
+    );
+    // Hand-derived: Work!B1 = SUM of an empty column = 0, Report!A1 = 0, Work!C1 = 0+1,
+    // Report!B1 = (110+55)+1.
+    for (at, expected) in [
+        (w(1, 2), 0.0),
+        (r(1, 1), 0.0),
+        (w(1, 3), 1.0),
+        (r(1, 2), 166.0),
+    ] {
+        assert_eq!(
+            calculated(&state, at),
+            (CalcValue::number(expected), 4, 4),
+            "{at:?}"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: the clear of Inputs!C1:C5 drove the dirty closure through prepare_edit's area path (ReverseIndex::dependents_of_cells_in_area) by a whole-column edge; the clear the ceng-m1.1 reviewer asked for, on the middle sheet of a sheet span (Alpha!J5 of Gamma:Beta!J5), is not reachable through a formula while CalcFml's binder refuses sheet spans (BindError::SheetSpan, see ceng_m1_2__wrong_cache_not_pass), so it stays with the span beads cfml-m3.2 and ceng-m3.5 and no span is stated by hand here"
+    );
+
+    // 5. Work!C1's formula is replaced by the literal 5, and formulas enter Report!D1 and, one row
+    //    down, Report!D2, a copy of it. The removed formula's result stays published until the
+    //    next publication removes it; the new nodes are bound and calculated, and Report!B1, which
+    //    read Work!C1, recalculates.
+    let n_c1 = node(&state, w(1, 3));
+    let root5 = edit(
+        &mut state,
+        &root4,
+        vec![
+            set(w(1, 3), number(5.0)),
+            set(r(1, 4), formula("Work!C1*2")),
+            set(r(2, 4), formula("Work!C2*2")),
+        ],
+    );
+    assert_eq!(state.node_at(w(1, 3)), None);
+    assert_eq!(calculated(&state, w(1, 3)), (CalcValue::number(1.0), 4, 4));
+    let delta = recalc(&mut state, &root5, &mut recorder);
+    assert_eq!(
+        state.node(node(&state, r(1, 4))).unwrap().prerequisites(),
+        Some(&[Prerequisite::Cell(w(1, 3))][..])
+    );
+    assert_eq!(
+        state.node(node(&state, r(2, 4))).unwrap().prerequisites(),
+        Some(&[Prerequisite::Cell(w(2, 3))][..])
+    );
+    assert_eq!(recorder.evaluation_order(), [r(1, 2), r(1, 4), r(2, 4)]);
+    assert_eq!(
+        recorder.take(),
+        [
+            read(
+                r(1, 2),
+                area(work_sheet, 1, 1, 2, 1),
+                vec![values(&[110.0]), values(&[55.0])],
+            ),
+            read(r(1, 2), cell_area(w(1, 3)), vec![values(&[5.0])]),
+            read(r(1, 4), cell_area(w(1, 3)), vec![values(&[5.0])]),
+            read(r(2, 4), cell_area(w(2, 3)), vec![Run::Blank(1)]),
+        ]
+    );
+    // Hand-derived: Report!B1 = (110+55)+5, Report!D1 = 5*2, Report!D2 = (blank Work!C2)*2 = 0.
+    assert_eq!(
+        calculated(&state, r(1, 2)),
+        (CalcValue::number(170.0), 5, 5)
+    );
+    assert_eq!(calculated(&state, r(1, 4)), (CalcValue::number(10.0), 5, 5));
+    assert_eq!(calculated(&state, r(2, 4)), (CalcValue::number(0.0), 5, 5));
+    assert_eq!(state.result(w(1, 3)), None);
+    assert_eq!(
+        delta_cells(&delta),
+        [
+            (r(1, 2), true),
+            (r(1, 4), true),
+            (r(2, 4), true),
+            (w(1, 3), false)
+        ]
+    );
+    assert_eq!(
+        delta.changes()[3],
+        ValueChange::Removed {
+            at: w(1, 3),
+            node: n_c1
+        }
+    );
+    // The engine's plan cache holds one plan per normal form: Report!D1 and its copy Report!D2
+    // were compiled to one shared plan, placed at two anchors; Report!B1's formula has another.
+    let d1_plan = plan_at(&state, r(1, 4));
+    assert!(
+        Arc::ptr_eq(&d1_plan, &plan_at(&state, r(2, 4))),
+        "a formula and its copy one row down did not share a plan"
+    );
+    assert!(!Arc::ptr_eq(&d1_plan, &plan_at(&state, r(1, 2))));
+    let placed = |at: CellKey| {
+        state
+            .instance(node(&state, at))
+            .unwrap()
+            .areas()
+            .iter()
+            .map(|placed| placed.unwrap())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(placed(r(1, 4)), [cell_area(w(1, 3))]);
+    assert_eq!(placed(r(2, 4)), [cell_area(w(2, 3))]);
+    let d1_address = instance_address(&state, r(1, 4));
+    note!(
+        "{CASE}: Report!D1 and its copy Report!D2 share one compiled plan (Arc {:p}) placed at two anchors",
+        Arc::as_ptr(&d1_plan)
+    );
+
+    // 6. Report!C1's formula is replaced by a different one, SUM(Inputs!2:2)-Work!C1, and Work!C1
+    //    changes from 5 to 6. The replaced node keeps its ID and is unbound until the
+    //    recalculation binds the new formula: its prerequisites become the whole row 2 of Inputs
+    //    and Work!C1, and no longer Inputs!B1. Report!D1 is evaluated again with the plan bound
+    //    in step 5.
+    let n_r_c1 = node(&state, r(1, 3));
+    let (n_r_b1, n_r_d1) = (node(&state, r(1, 2)), node(&state, r(1, 4)));
+    let change = batch(
+        5,
+        vec![
+            set(r(1, 3), formula("SUM(Inputs!2:2)-Work!C1")),
+            set(w(1, 3), number(6.0)),
+        ],
+    );
+    let prepared = prepare_edit(&mut state, &root5, &change).unwrap();
+    assert_eq!(
+        prepared.node_changes(),
+        [NodeChange::Replaced {
+            node: n_r_c1,
+            at: r(1, 3)
+        }]
+    );
+    assert_eq!(
+        cell_seed_map(prepared.seeds()),
+        BTreeMap::from([(r(1, 3), vec![]), (w(1, 3), vec![n_r_b1, n_r_d1])])
+    );
+    let root6 = root5.apply(&change).unwrap();
+    commit_edit(prepared);
+    assert_eq!(state.node_at(r(1, 3)), Some(n_r_c1));
+    assert_eq!(state.node(n_r_c1).unwrap().prerequisites(), None);
+    assert!(state.instance(n_r_c1).is_none());
+    let delta = recalc(&mut state, &root6, &mut recorder);
+    let row_2 = AxisInterval::new(inputs, Axis::Rows, 2, 2).unwrap();
+    assert_eq!(
+        state.node(n_r_c1).unwrap().prerequisites(),
+        Some(&[Prerequisite::AxisValue(row_2), Prerequisite::Cell(w(1, 3))][..])
+    );
+    assert_eq!(recorder.evaluation_order(), [r(1, 2), r(1, 3), r(1, 4)]);
+    assert_eq!(
+        recorder.take(),
+        [
+            read(
+                r(1, 2),
+                area(work_sheet, 1, 1, 2, 1),
+                vec![values(&[110.0]), values(&[55.0])],
+            ),
+            read(r(1, 2), cell_area(w(1, 3)), vec![values(&[6.0])]),
+            read(
+                r(1, 3),
+                area(inputs, 2, 1, 2, MAX_COLUMNS),
+                vec![values(&[70.0]), Run::Blank(u64::from(MAX_COLUMNS) - 1)],
+            ),
+            read(r(1, 3), cell_area(w(1, 3)), vec![values(&[6.0])]),
+            read(r(1, 4), cell_area(w(1, 3)), vec![values(&[6.0])]),
+        ]
+    );
+    // Hand-derived: Report!B1 = (110+55)+6, Report!C1 = SUM of row 2 of Inputs (Inputs!A2 = 70)
+    // - 6, Report!D1 = 6*2.
+    for (at, expected) in [(r(1, 2), 171.0), (r(1, 3), 64.0), (r(1, 4), 12.0)] {
+        assert_eq!(
+            calculated(&state, at),
+            (CalcValue::number(expected), 6, 6),
+            "{at:?}"
+        );
+    }
+    assert_eq!(delta.changes().len(), 3);
+    assert_eq!(
+        instance_address(&state, r(1, 4)),
+        d1_address,
+        "Report!D1 was bound again"
+    );
+    assert!(Arc::ptr_eq(&plan_at(&state, r(1, 4)), &d1_plan));
+
+    // 7. Inputs!B1 from 0.5 to 2 and Inputs!D2 from empty to 30. Inputs!B1's seed lists Work!A2
+    //    and no longer Report!C1, whose old formula read it; Inputs!D2's lists Report!C1 through
+    //    the whole-row edge of its new formula.
+    let n_w_a2 = node(&state, w(2, 1));
+    let change = batch(
+        6,
+        vec![set(i(1, 2), number(2.0)), set(i(2, 4), number(30.0))],
+    );
+    let prepared = prepare_edit(&mut state, &root6, &change).unwrap();
+    assert_eq!(
+        cell_seed_map(prepared.seeds()),
+        BTreeMap::from([(i(1, 2), vec![n_w_a2]), (i(2, 4), vec![n_r_c1])])
+    );
+    let root7 = root6.apply(&change).unwrap();
+    commit_edit(prepared);
+    recalc(&mut state, &root7, &mut recorder);
+    // Hand-derived order: Report!C1 and Work!A2 are ready first and Report's sheet ID is the
+    // smaller; Report!A1 and Report!B1 follow Work!A2. Work!C1 is a literal now, so nothing reads
+    // Report!A1.
+    assert_eq!(
+        recorder.evaluation_order(),
+        [r(1, 3), w(2, 1), r(1, 1), r(1, 2)]
+    );
+    let reads = recorder.take();
+    assert_eq!(
+        reads[0],
+        read(
+            r(1, 3),
+            area(inputs, 2, 1, 2, MAX_COLUMNS),
+            vec![
+                values(&[70.0]),
+                Run::Blank(2),
+                values(&[30.0]),
+                Run::Blank(u64::from(MAX_COLUMNS) - 4),
+            ],
+        )
+    );
+    // Hand-derived: Report!C1 = (70+30)-6, Work!A2 = 110*2, Report!A1 = 220-100 (220 > 100),
+    // Report!B1 = (110+220)+6.
+    for (at, expected) in [
+        (r(1, 3), 94.0),
+        (w(2, 1), 220.0),
+        (r(1, 1), 120.0),
+        (r(1, 2), 336.0),
+    ] {
+        assert_eq!(
+            calculated(&state, at),
+            (CalcValue::number(expected), 7, 7),
+            "{at:?}"
+        );
+    }
+    // Work!A2 was evaluated by the recalculations of ticks 1, 2, 3 and 7 with the plan bound at
+    // tick 1: no recalculation compiled or placed it again.
+    assert_eq!(
+        instance_address(&state, w(2, 1)),
+        w_a2_address,
+        "Work!A2 was bound again"
+    );
+    assert!(Arc::ptr_eq(&plan_at(&state, w(2, 1)), &w_a2_plan));
+    note!(
+        "{CASE}: seven recalculations over three sheets published the hand-derived values at ticks 1 to 7; a formula replaced by a literal had its result removed, a formula replaced by another was bound again with its new prerequisites (a whole row among them), and Work!A2 kept the instance bound at tick 1 through 4 evaluations"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// ceng_m1_2__wrong_cache_not_pass
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn ceng_m1_2__wrong_cache_not_pass() {
+    const CASE: &str = "ceng_m1_2__wrong_cache_not_pass";
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let data = ids.issue().unwrap();
+    let calc = ids.issue().unwrap();
+    let sheets = vec![sheet_entry(data, 1, "Data"), sheet_entry(calc, 2, "Calc")];
+    let d = |row, column| key(data, row, column);
+    let c = |row, column| key(calc, row, column);
+    let unpaired = CellInput::Formula(
+        FormulaText::new(ExcelText::from_utf16_code_units(vec![0x22, 0xD800, 0x22])).unwrap(),
+    );
+    let load = batch(
+        0,
+        vec![
+            set(d(1, 1), number(3.0)),
+            set(d(2, 1), number(4.0)),
+            set(c(1, 1), formula("Data!A1*Data!A2")),
+            set(c(2, 1), formula("A1+Data!A1")),
+            set(c(3, 1), formula("IF(A2>10,\"big\",\"small\")")),
+            set(c(4, 1), formula("2^0.5")),
+            set(c(5, 1), formula("A4+1")),
+            set(c(6, 1), formula("SUM(Data:Calc!A1)")),
+            set(c(7, 1), unpaired),
+            set(c(8, 1), formula("0.1+0.2-0.3")),
+            set(c(9, 1), formula("Data!A1:A2")),
+            set(c(1, 3), formula("A2*2")),
+        ],
+    );
+    let root1 = ModelRoot::new(rev(0), sheets.clone())
+        .unwrap()
+        .apply(&load)
+        .unwrap();
+    let all_formulas = vec![
+        c(1, 1),
+        c(1, 3),
+        c(2, 1),
+        c(3, 1),
+        c(4, 1),
+        c(5, 1),
+        c(6, 1),
+        c(7, 1),
+        c(8, 1),
+        c(9, 1),
+    ];
+
+    // The file's caches are deliberately wrong, except Calc!A4's, which holds the square root of
+    // 2 that Excel would show: a cache is not evidence of a calculation even when it is right.
+    let part = Arc::new(SourcePart::new(
+        "xl/worksheets/sheet2.xml".to_owned(),
+        0x5EED_CAFE,
+        4096,
+    ));
+    let cached_number = |value: f64| {
+        FileCached::new(
+            CachedValue::Number(FiniteNumber::new(value).unwrap()),
+            Arc::clone(&part),
+        )
+    };
+    let cached_text = |value: &str| {
+        FileCached::new(
+            CachedValue::Text(CellText::new(ExcelText::from_interop_assignment(value)).unwrap()),
+            Arc::clone(&part),
+        )
+    };
+    let caches = vec![
+        (c(1, 1), cached_number(999.0)),
+        (c(2, 1), cached_number(999.0)),
+        (c(3, 1), cached_text("wrong")),
+        (c(4, 1), cached_number(std::f64::consts::SQRT_2)),
+        (c(5, 1), cached_number(std::f64::consts::SQRT_2 + 1.0)),
+        (c(6, 1), cached_number(999.0)),
+        (c(7, 1), cached_text("wrong")),
+        (c(8, 1), cached_number(999.0)),
+        (c(9, 1), cached_number(999.0)),
+        (c(1, 3), cached_number(999.0)),
+    ];
+    let cache_values = [
+        CalcValue::number(999.0),
+        excel_text("wrong"),
+        CalcValue::number(std::f64::consts::SQRT_2),
+        CalcValue::number(std::f64::consts::SQRT_2 + 1.0),
+    ];
+    assert_eq!(
+        EngineState::with_file_caches(&root1, [(d(1, 1), cached_number(3.0))]).err(),
+        Some(CacheWithoutFormula { at: d(1, 1) })
+    );
+    let mut state = EngineState::with_file_caches(&root1, caches.clone()).unwrap();
+
+    // 1. As opened, every formula's result is the file's cache, FileCached and never calculated,
+    //    and every node is pending: every result is stale.
+    assert_eq!(state.pending().count(), 10);
+    for (at, cache) in &caches {
+        assert_eq!(
+            state.result(*at),
+            Some(&FormulaResult::FileCached(cache.clone()))
+        );
+        assert_eq!(state.result(*at).unwrap().calculated(), None);
+    }
+    assert_eq!(calculated_cells(&state), []);
+    assert_eq!(state.stale(&root1), Some(all_formulas.clone()));
+    let opened = generation(&state);
+
+    // Refusals before any calculation: a snapshot at another revision, and one at the state's
+    // revision that lacks a formula the state holds.
+    assert_eq!(
+        begin_recalc(
+            &mut state,
+            &ModelRoot::new(rev(0), sheets.clone()).unwrap(),
+            NumericMode::Fast
+        )
+        .err(),
+        Some(StartError::StaleInputs {
+            engine: rev(1),
+            inputs: rev(0)
+        })
+    );
+    assert!(matches!(
+        begin_recalc(
+            &mut state,
+            &ModelRoot::new(rev(1), sheets.clone()).unwrap(),
+            NumericMode::Fast
+        ),
+        Err(StartError::ForeignInputs { .. })
+    ));
+    assert_eq!(
+        state.stale(&ModelRoot::new(rev(0), sheets.clone()).unwrap()),
+        None
+    );
+
+    // 2. A graph that misses an edge. Calc!C1 reads Calc!A2, which comes after it in the order of
+    //    the cells. The first work binds every formula and is finished unevaluated, which is
+    //    refused as incomplete. Calc!C1's prerequisites are then stated as none, by hand, so the
+    //    next work orders Calc!C1 before Calc!A2. Its evaluation reads Calc!A2, which that work
+    //    calculates and had not evaluated: the reader hands over no value (not the cache 999) and
+    //    the recalculation fails. Nothing is published.
+    let work = begin_recalc(&mut state, &root1, NumericMode::Fast).unwrap();
+    assert_eq!((work.tick().get(), work.scheduled()), (1, 10));
+    assert_eq!(
+        finish(&mut state, work).err(),
+        Some(RecalcFailure::Incomplete { remaining: 10 })
+    );
+    let n_c1 = state.node_at(c(1, 3)).unwrap();
+    let c1_reads = state.node(n_c1).unwrap().prerequisites().unwrap().to_vec();
+    assert_eq!(c1_reads, [Prerequisite::Cell(c(2, 1))]);
+    state.set_prerequisites(&root1, n_c1, vec![]).unwrap();
+    let mut recorder = Recorder::default();
+    let mut work = begin_recalc(&mut state, &root1, NumericMode::Fast).unwrap();
+    assert_eq!(work.tick().get(), 2);
+    assert_eq!(
+        step(
+            &state,
+            &root1,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut recorder
+        ),
+        RecalcProgress::Failed
+    );
+    // Hand-derived: Calc!A1 is ready first and evaluated; Calc!C1 (row 1) is then ordered
+    // before Calc!A2 (row 2).
+    assert_eq!(
+        recorder.take(),
+        [
+            read(c(1, 1), cell_area(d(1, 1)), vec![values(&[3.0])]),
+            read(c(1, 1), cell_area(d(2, 1)), vec![values(&[4.0])]),
+            read(c(1, 3), cell_area(c(2, 1)), vec![Run::Missing(1)]),
+        ]
+    );
+    assert_eq!(
+        finish(&mut state, work).err(),
+        Some(RecalcFailure::UnscheduledRead {
+            formula: c(1, 3),
+            cell: c(2, 1)
+        })
+    );
+    assert_eq!(generation(&state), opened);
+    assert_eq!(state.pending().count(), 10);
+    state.set_prerequisites(&root1, n_c1, c1_reads).unwrap();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the missed edge of step 2 is made by hand through EngineState::set_prerequisites, which is public for ceng-m1.1's cases; begin_recalc's binding files an edge for every placed reference, so the product route makes no such graph"
+    );
+
+    // 3. The first recalculation to finish calculates every formula and replaces every cache.
+    let delta = recalc(&mut state, &root1, &mut recorder);
+    assert_eq!(delta.tick().get(), 3);
+    assert_eq!(delta.changes().len(), 10);
+    // Hand-derived: Calc!A1 = 3*4, Calc!A2 = 12+3, Calc!A3 = "big" (15 > 10), Calc!C1 = 15*2.
+    assert_eq!(calculated(&state, c(1, 1)), (CalcValue::number(12.0), 1, 3));
+    assert_eq!(calculated(&state, c(2, 1)), (CalcValue::number(15.0), 1, 3));
+    assert_eq!(calculated(&state, c(3, 1)), (excel_text("big"), 1, 3));
+    assert_eq!(calculated(&state, c(1, 3)), (CalcValue::number(30.0), 1, 3));
+    // The rest are typed refusals, published without a value, never their caches.
+    let refusal =
+        |state: &EngineState, at: CellKey, revision: u64, tick: u64| match state.result(at) {
+            Some(FormulaResult::NotModeled {
+                refusal,
+                calculation,
+            }) => {
+                assert_eq!(
+                    (calculation.revision(), calculation.tick().get()),
+                    (rev(revision), tick),
+                    "{at:?}"
+                );
+                refusal.clone()
+            }
+            other => panic!("{at:?} is not a refusal: {other:?}"),
+        };
+    let NotModeled::Evaluation(EvalFault::Function(power)) = refusal(&state, c(4, 1), 1, 3) else {
+        panic!("Calc!A4: {:?}", state.result(c(4, 1)));
+    };
+    assert!(
+        format!("{power:?}").starts_with("NotImplemented"),
+        "{power:?}"
+    );
+    assert_eq!(
+        refusal(&state, c(5, 1), 1, 3),
+        NotModeled::Evaluation(EvalFault::MissingInput { cell: c(4, 1) })
+    );
+    assert!(matches!(
+        refusal(&state, c(6, 1), 1, 3),
+        NotModeled::Compile(CompileError::Reference {
+            error: BindError::SheetSpan,
+            ..
+        })
+    ));
+    assert_eq!(refusal(&state, c(7, 1), 1, 3), NotModeled::FormulaText);
+    // Hand-derived in binary64: 0.1+0.2 is 0.30000000000000004, and that minus 0.3 is
+    // 5.551115123125783e-17, within the band CalcFml refuses.
+    assert_eq!(
+        refusal(&state, c(8, 1), 1, 3),
+        NotModeled::Evaluation(EvalFault::NearZeroFinalSum {
+            result: 0.1_f64 + 0.2 - 0.3
+        })
+    );
+    assert_eq!(
+        refusal(&state, c(9, 1), 1, 3),
+        NotModeled::Evaluation(EvalFault::AreaAsValue {
+            area: area(data, 1, 1, 2, 1)
+        })
+    );
+    assert_eq!(
+        calculated_cells(&state),
+        [c(1, 1), c(1, 3), c(2, 1), c(3, 1)]
+    );
+    assert!(
+        state
+            .results()
+            .all(|(_, result)| !matches!(result, FormulaResult::FileCached(_))),
+        "a file cache is still published after the recalculation"
+    );
+    assert_eq!(state.stale(&root1), Some(vec![]));
+    // No read handed over a cache: Calc!A2 read 12 from Calc!A1, Calc!A3 and Calc!C1 read 15
+    // from Calc!A2, and Calc!A5's read of Calc!A4, which is not modelled, was given no value.
+    let reads = recorder.take();
+    assert!(
+        reads
+            .iter()
+            .all(|read| read.runs.iter().all(|run| match run {
+                Run::Values(seen) => seen.iter().all(|value| !cache_values.contains(value)),
+                Run::Blank(_) | Run::Missing(_) => true,
+            }))
+    );
+    assert!(reads.contains(&read(c(2, 1), cell_area(c(1, 1)), vec![values(&[12.0])])));
+    assert!(reads.contains(&read(c(3, 1), cell_area(c(2, 1)), vec![values(&[15.0])])));
+    assert!(reads.contains(&read(c(1, 3), cell_area(c(2, 1)), vec![values(&[15.0])])));
+    assert!(reads.contains(&read(c(5, 1), cell_area(c(4, 1)), vec![Run::Missing(1)])));
+    note!(
+        "{CASE}: 10 formulas opened with wrong FileCached results; 0 counted calculated before the first recalculation, 4 after it (the hand-derived 12, 15, \"big\" and 30), 6 typed refusals with no value (a final sum near zero and a range as a value among them), and no read handed over a cache"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: NotModeled::Result (an array, callable, reference, empty or non-finite result) is not reachable through CalcFml's evaluator today (IF gives 0 for an omitted branch, and arithmetic overflow is calc-func's #NUM!); calc-engine's unit test result::tests::only_scalar_values_are_published exercises it"
+    );
+
+    // 4. An injected evaluation failure. Data!A1 from 3 to 5 makes Calc!A1, Calc!A2 and Calc!A9
+    //    pending, and the dirty closure adds Calc!A3 and Calc!C1. The observer stops the
+    //    recalculation at its third observation, Calc!A2's read of Calc!A1, after Calc!A1 was
+    //    evaluated and staged: the recalculation fails, and the published generation is
+    //    unchanged, value for value and provenance for provenance.
+    let calculated_once = generation(&state);
+    let root2 = edit(&mut state, &root1, vec![set(d(1, 1), number(5.0))]);
+    let pending_before = state.pending().collect::<Vec<_>>();
+    assert_eq!(pending_before.len(), 3);
+    let stale_before = vec![c(1, 1), c(1, 3), c(2, 1), c(3, 1), c(9, 1)];
+    assert_eq!(state.stale(&root2), Some(stale_before.clone()));
+    let mut stopper = StopAt {
+        observations: 0,
+        stop_at: 3,
+        recorder: Recorder::default(),
+    };
+    let mut work = begin_recalc(&mut state, &root2, NumericMode::Fast).unwrap();
+    assert_eq!((work.tick().get(), work.scheduled()), (4, 5));
+    assert_eq!(
+        step(
+            &state,
+            &root2,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut stopper
+        ),
+        RecalcProgress::Failed
+    );
+    assert_eq!(
+        stopper.recorder.reads,
+        [
+            read(c(1, 1), cell_area(d(1, 1)), vec![values(&[5.0])]),
+            read(c(1, 1), cell_area(d(2, 1)), vec![values(&[4.0])]),
+        ]
+    );
+    assert_eq!(
+        step(
+            &state,
+            &root2,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut stopper
+        ),
+        RecalcProgress::Failed
+    );
+    assert_eq!(
+        stopper.observations, 3,
+        "a step after the failure evaluated again"
+    );
+    assert_eq!(
+        finish(&mut state, work).err(),
+        Some(RecalcFailure::ReadFailed {
+            formula: c(2, 1),
+            area: cell_area(c(1, 1))
+        })
+    );
+    assert_eq!(generation(&state), calculated_once);
+    assert_eq!(state.pending().collect::<Vec<_>>(), pending_before);
+    assert_eq!(state.stale(&root2), Some(stale_before));
+    note!(
+        "{CASE}: an observer that stopped the recalculation at Calc!A2's read aborted it after Calc!A1 was staged; all {} published results are unchanged in value and provenance, and the 5 results of the closure are listed stale",
+        calculated_once.len()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: a caller cannot substitute what an evaluation reads: ReadObserver::observe is given each run the engine's reader reports, borrowed, and no reader or sink, and returns only whether to stop; stopping, its one effect, published nothing above. The round-1 ReadLayer, which reported runs of its own, is gone, so no substituting layer can be written"
+    );
+
+    // The same recalculation with no observer publishes, at tick 5. Hand-derived: Calc!A1 = 5*4,
+    // Calc!A2 = 20+5, Calc!A3 = "big", Calc!C1 = 25*2.
+    recalc(&mut state, &root2, &mut Unobserved);
+    assert_eq!(calculated(&state, c(1, 1)), (CalcValue::number(20.0), 2, 5));
+    assert_eq!(calculated(&state, c(2, 1)), (CalcValue::number(25.0), 2, 5));
+    assert_eq!(calculated(&state, c(3, 1)), (excel_text("big"), 2, 5));
+    assert_eq!(calculated(&state, c(1, 3)), (CalcValue::number(50.0), 2, 5));
+    assert!(matches!(
+        refusal(&state, c(9, 1), 2, 5),
+        NotModeled::Evaluation(EvalFault::AreaAsValue { .. })
+    ));
+
+    // 5. A cycle in the dirty closure refuses the recalculation: Calc!B1 and Calc!B2 read each
+    //    other and Calc!B3 reads Calc!B2. The published generation stays as it was and the nodes
+    //    stay pending, so the next recalculation is refused the same way. Replacing Calc!B2's
+    //    formula by a literal breaks the cycle.
+    let before_cycle = generation(&state);
+    let root3 = edit(
+        &mut state,
+        &root2,
+        vec![
+            set(c(1, 2), formula("B2+1")),
+            set(c(2, 2), formula("B1+1")),
+            set(c(3, 2), formula("B2*2")),
+        ],
+    );
+    let cycle = Some(StartError::Cycle {
+        cells: vec![c(1, 2), c(2, 2), c(3, 2)],
+    });
+    assert_eq!(
+        begin_recalc(&mut state, &root3, NumericMode::Fast).err(),
+        cycle
+    );
+    assert_eq!(generation(&state), before_cycle);
+    assert_eq!(state.pending().count(), 3);
+    assert_eq!(state.stale(&root3), Some(vec![c(1, 2), c(2, 2), c(3, 2)]));
+    assert_eq!(
+        begin_recalc(&mut state, &root3, NumericMode::Fast).err(),
+        cycle
+    );
+    let root4 = edit(&mut state, &root3, vec![set(c(2, 2), number(1.0))]);
+    let delta = recalc(&mut state, &root4, &mut Unobserved);
+    // Hand-derived: Calc!B1 = 1+1, Calc!B3 = 1*2; the refused recalculations used no tick.
+    assert_eq!(delta.tick().get(), 6);
+    assert_eq!(calculated(&state, c(1, 2)), (CalcValue::number(2.0), 4, 6));
+    assert_eq!(calculated(&state, c(3, 2)), (CalcValue::number(2.0), 4, 6));
+
+    // 6. A recalculation publishes nothing when it is finished before it evaluated everything,
+    //    when an edit is committed before a step, when an edit is committed after its last step
+    //    and before it finishes, and when another recalculation published after it began.
+    let root5 = edit(&mut state, &root4, vec![set(d(2, 1), number(6.0))]);
+    let before = generation(&state);
+    let work = begin_recalc(&mut state, &root5, NumericMode::Fast).unwrap();
+    assert_eq!(
+        finish(&mut state, work).err(),
+        Some(RecalcFailure::Incomplete { remaining: 5 })
+    );
+    let mut work = begin_recalc(&mut state, &root5, NumericMode::Fast).unwrap();
+    let root6 = edit(&mut state, &root5, vec![set(d(2, 1), number(7.0))]);
+    assert_eq!(
+        step(
+            &state,
+            &root6,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Failed
+    );
+    assert_eq!(
+        finish(&mut state, work).err(),
+        Some(RecalcFailure::Superseded { revision: rev(5) })
+    );
+    assert_eq!(generation(&state), before);
+    let mut work = begin_recalc(&mut state, &root6, NumericMode::Fast).unwrap();
+    assert_eq!(
+        step(
+            &state,
+            &root6,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    let root7 = edit(&mut state, &root6, vec![set(d(2, 1), number(8.0))]);
+    assert_eq!(
+        finish(&mut state, work).err(),
+        Some(RecalcFailure::Superseded { revision: rev(6) })
+    );
+    assert_eq!(generation(&state), before);
+    let mut first = begin_recalc(&mut state, &root7, NumericMode::Fast).unwrap();
+    let mut second = begin_recalc(&mut state, &root7, NumericMode::Fast).unwrap();
+    assert_eq!((first.tick().get(), second.tick().get()), (10, 11));
+    for work in [&mut first, &mut second] {
+        assert_eq!(
+            step(&state, &root7, work, WorkBudget::UNLIMITED, &mut Unobserved),
+            RecalcProgress::Complete
+        );
+    }
+    finish(&mut state, second).unwrap();
+    let published = generation(&state);
+    assert_eq!(
+        finish(&mut state, first).err(),
+        Some(RecalcFailure::Superseded { revision: rev(7) })
+    );
+    assert_eq!(generation(&state), published);
+    // Hand-derived: Calc!A1 = 5*8, Calc!A2 = 40+5, Calc!C1 = 45*2, by the second work's tick.
+    assert_eq!(
+        calculated(&state, c(1, 1)),
+        (CalcValue::number(40.0), 7, 11)
+    );
+    assert_eq!(
+        calculated(&state, c(2, 1)),
+        (CalcValue::number(45.0), 7, 11)
+    );
+    assert_eq!(
+        calculated(&state, c(1, 3)),
+        (CalcValue::number(90.0), 7, 11)
+    );
+    note!(
+        "{CASE}: a cycle (refused twice), an unfinished work, works superseded by an edit before a step and after the last step, and a work superseded by another's publication were refused with the generation unchanged"
+    );
+
+    // 7. One state, two numeric modes. Calc!A10 = A1 enters, reading Calc!A1, which was
+    //    calculated under Fast, and so does Calc!A11 = Data!A1. The recalculation under Exact
+    //    calculates every formula node, not only the two new ones, so no input calculated under
+    //    Fast is read by a result published under Exact. calc-func has no Exact arithmetic: Calc!A1
+    //    is refused under Exact and Calc!A10, which reads it, is refused too; the bare reference
+    //    Calc!A11 is calculated, with the Excel target in its provenance.
+    let target = NumericTargetId::new("16.0.19029.20000", "Current", "Excel 2016", "x64").unwrap();
+    let exact = NumericMode::Exact(target.clone());
+    let root8 = edit(
+        &mut state,
+        &root7,
+        vec![
+            set(c(10, 1), formula("A1")),
+            set(c(11, 1), formula("Data!A1")),
+        ],
+    );
+    assert_eq!(state.stale(&root8), Some(vec![c(10, 1), c(11, 1)]));
+    let mut work = begin_recalc(&mut state, &root8, exact.clone()).unwrap();
+    let scheduled = work.scheduled();
+    assert_eq!(
+        step(
+            &state,
+            &root8,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    let delta = finish(&mut state, work).unwrap();
+    assert_eq!(
+        refusal(&state, c(10, 1), 8, 12),
+        NotModeled::Evaluation(EvalFault::MissingInput { cell: c(1, 1) }),
+        "Calc!A10 under Exact read Calc!A1's Fast result"
+    );
+    let NotModeled::Evaluation(EvalFault::Function(fault)) = refusal(&state, c(1, 1), 8, 12) else {
+        panic!("Calc!A1 under Exact: {:?}", state.result(c(1, 1)));
+    };
+    assert!(
+        format!("{fault:?}").starts_with("ExactUnavailable"),
+        "{fault:?}"
+    );
+    let Some(FormulaResult::Calculated { value, calculation }) = state.result(c(11, 1)) else {
+        panic!("Calc!A11 under Exact: {:?}", state.result(c(11, 1)));
+    };
+    assert_eq!(value, &CalcValue::number(5.0));
+    assert_eq!(calculation.target(), Some(&target));
+    assert_eq!(calculated_cells(&state), [c(11, 1)]);
+    let node_count = state.node_count();
+    assert_eq!(node_count, 14);
+    assert_eq!(scheduled, node_count);
+    assert_eq!(delta.changes().len(), node_count);
+    for (at, result) in state.results() {
+        let calculation = match result {
+            FormulaResult::Calculated { calculation, .. }
+            | FormulaResult::NotModeled { calculation, .. } => calculation,
+            FormulaResult::FileCached(_) => panic!("{at:?} holds a file cache"),
+        };
+        assert_eq!(
+            (
+                calculation.revision(),
+                calculation.tick().get(),
+                calculation.mode()
+            ),
+            (rev(8), 12, &exact),
+            "{at:?}"
+        );
+    }
+    // Back under Fast, every node is calculated again, Calc!A10 from Calc!A1's Fast result.
+    // Hand-derived: Calc!A1 = 5*8, Calc!A10 = Calc!A1, Calc!A11 = Data!A1.
+    let mut work = begin_recalc(&mut state, &root8, NumericMode::Fast).unwrap();
+    assert_eq!(work.scheduled(), node_count);
+    assert_eq!(
+        step(
+            &state,
+            &root8,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, work).unwrap();
+    assert_eq!(
+        calculated(&state, c(1, 1)),
+        (CalcValue::number(40.0), 8, 13)
+    );
+    assert_eq!(
+        calculated(&state, c(10, 1)),
+        (CalcValue::number(40.0), 8, 13)
+    );
+    assert_eq!(
+        calculated(&state, c(11, 1)),
+        (CalcValue::number(5.0), 8, 13)
+    );
+    assert!(
+        state
+            .results()
+            .filter_map(|(_, result)| result.calculated())
+            .all(|(_, calculation)| calculation.mode() == &NumericMode::Fast)
+    );
+    // Under the published mode, with nothing pending, nothing is calculated.
+    let work = begin_recalc(&mut state, &root8, NumericMode::Fast).unwrap();
+    assert_eq!(work.scheduled(), 0);
+    assert_eq!(finish(&mut state, work).unwrap().changes(), []);
+    note!(
+        "{CASE}: under Exact after Fast, all {node_count} formula nodes were calculated again and none published as Calculated from a Fast result (Calc!A10 refused, Calc!A11 calculated with its target); back under Fast all {node_count} again"
+    );
 }

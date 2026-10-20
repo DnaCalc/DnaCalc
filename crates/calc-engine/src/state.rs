@@ -2,8 +2,11 @@
 //! workbook graph.
 
 use crate::graph::{Prerequisite, ReverseIndex};
-use calc_doc_model::{AuthoredRevision, CellInput, ModelRoot};
-use calc_value::{CellKey, GridArea, IdAllocator, NodeId, SheetId};
+use crate::recalc::{dirty_closure, live_anchor};
+use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
+use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
+use calc_fml::{FormulaInstance, PlanCache};
+use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -29,7 +32,9 @@ impl FormulaNode {
 
     /// What the node reads, or `None` while its formula's plan is not bound: a node adopted from
     /// a snapshot, or added or replaced by an edit, has no prerequisites until
-    /// [`EngineState::set_prerequisites`] states them.
+    /// [`EngineState::set_prerequisites`] states them, which [`crate::begin_recalc`] does when it
+    /// binds the node's formula. A node whose formula CalcFml refused to compile reads nothing:
+    /// its result is a refusal no input changes.
     pub fn prerequisites(&self) -> Option<&[Prerequisite]> {
         self.prerequisites.as_deref()
     }
@@ -70,14 +75,31 @@ impl fmt::Display for PrerequisiteError {
 
 impl std::error::Error for PrerequisiteError {}
 
+/// A formula node's bound plan: its compiled plan placed at its anchor, or CalcFml's refusal.
+#[derive(Debug)]
+pub(crate) enum Binding {
+    Placed(FormulaInstance),
+    Refused(NotModeled),
+}
+
 /// The engine's derived state for one workbook, owned by its caller (plan 3.1): node IDs interned
-/// from the cells whose formulas they are, the formula-node records, and one graph whose edges may
-/// cross sheets. It holds no authored input, no source bytes and no formatting; literal inputs
-/// are read through the pages of the immutable snapshot each call borrows.
+/// from the cells whose formulas they are, the formula-node records, one graph whose edges may
+/// cross sheets, each node's bound plan, and the published generation of formula results. It
+/// holds no authored input, no source bytes and no formatting; literal inputs are read through
+/// the pages of the immutable snapshot each call borrows.
 ///
 /// A node's ID is issued by the state's own [`IdAllocator`] and keyed by its anchor [`CellKey`],
 /// which carries the sheet, so equal rows and columns on two sheets are two nodes. A removed
 /// node's ID is released and never equals a later one.
+///
+/// A node is pending when a change reached it directly: each node of a new state, each node an
+/// edit adds or replaces, and each node that reads a cell an edit changes (the dependents of the
+/// edit's seeds). A node that reads a pending node's cell, directly or through other nodes, is
+/// not pending itself, but its published result is stale all the same: the pending nodes and
+/// those readers are the dirty closure, which [`EngineState::stale`] lists and the next
+/// recalculation calculates. Only a finished recalculation clears a node from pending, by
+/// publishing its result; after a recalculation fails or is refused, the pending nodes stay
+/// pending and [`EngineState::stale`] still lists every result it left stale.
 #[derive(Debug)]
 pub struct EngineState {
     revision: AuthoredRevision,
@@ -86,12 +108,30 @@ pub struct EngineState {
     /// Node records by ID slot.
     pub(crate) nodes: Vec<Option<FormulaNode>>,
     pub(crate) index: ReverseIndex,
+    /// The plans of every formula the state has compiled, one per normal form.
+    pub(crate) plans: PlanCache,
+    /// Each bound node's plan; a node without an entry is unbound, and pending.
+    pub(crate) bindings: BTreeMap<NodeId, Binding>,
+    /// The published generation: each formula cell's result, with the node it belongs to.
+    pub(crate) results: BTreeMap<CellKey, (NodeId, FormulaResult)>,
+    /// The nodes a change reached directly; the roots of the dirty closure.
+    pub(crate) pending: BTreeSet<NodeId>,
+    /// The anchors of nodes removed since the last publication, whose results it removes.
+    pub(crate) retired: BTreeSet<CellKey>,
+    /// The last tick a recalculation began with; 0 before the first.
+    pub(crate) last_tick: u64,
+    /// How many recalculations have published.
+    pub(crate) generation: u64,
+    /// The numeric mode of the last recalculation that published; `None` before the first. Every
+    /// node that is not pending was last calculated under it.
+    pub(crate) published_mode: Option<NumericMode>,
 }
 
 impl EngineState {
-    /// The state of the snapshot `inputs`, at its revision: one unbound node for each formula
-    /// cell, its ID issued in sheet order and then in row-major order, read through the
-    /// snapshot's pages. Literal cells get no node and nothing of them is copied.
+    /// The state of the snapshot `inputs`, at its revision: one unbound, pending node for each
+    /// formula cell, its ID issued in sheet order and then in row-major order, read through the
+    /// snapshot's pages. Literal cells get no node and nothing of them is copied. No result is
+    /// published until the first recalculation, which calculates every node.
     pub fn new(inputs: &ModelRoot) -> Self {
         let mut state = EngineState {
             revision: inputs.revision(),
@@ -99,16 +139,44 @@ impl EngineState {
             by_anchor: BTreeMap::new(),
             nodes: Vec::new(),
             index: ReverseIndex::default(),
+            plans: PlanCache::new(),
+            bindings: BTreeMap::new(),
+            results: BTreeMap::new(),
+            pending: BTreeSet::new(),
+            retired: BTreeSet::new(),
+            last_tick: 0,
+            generation: 0,
+            published_mode: None,
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
                 if let CellInput::Formula(_) = input {
                     let id = issue_node_id(&mut state.ids);
                     state.add_node(id, at);
+                    state.pending.insert(id);
                 }
             }
         }
         state
+    }
+
+    /// The state of an opened file's snapshot, as [`EngineState::new`] makes it, with the results
+    /// the file cached for its formulas published as [`FormulaResult::FileCached`]. A cache is
+    /// never a calculation input and never counts as calculated: every node stays pending, and
+    /// the first recalculation calculates each and replaces its cache. A cache for a cell that
+    /// holds no formula is refused.
+    pub fn with_file_caches(
+        inputs: &ModelRoot,
+        caches: impl IntoIterator<Item = (CellKey, FileCached)>,
+    ) -> Result<Self, CacheWithoutFormula> {
+        let mut state = EngineState::new(inputs);
+        for (at, cache) in caches {
+            let node = state.node_at(at).ok_or(CacheWithoutFormula { at })?;
+            state
+                .results
+                .insert(at, (node, FormulaResult::FileCached(cache)));
+        }
+        Ok(state)
     }
 
     /// The authored revision the graph matches.
@@ -138,10 +206,67 @@ impl EngineState {
         self.by_anchor.len()
     }
 
+    /// The published result of the formula cell `at`.
+    pub fn result(&self, at: CellKey) -> Option<&FormulaResult> {
+        self.results.get(&at).map(|(_, result)| result)
+    }
+
+    /// Every published result, in the order of the cells (sheet ID, then row, then column).
+    pub fn results(&self) -> impl Iterator<Item = (CellKey, &FormulaResult)> {
+        self.results.iter().map(|(at, (_, result))| (*at, result))
+    }
+
+    /// The nodes a change reached directly, in ID order: each node of a new state, each node an
+    /// edit added or replaced, and each node that reads a cell an edit changed. The nodes that
+    /// read them are not listed here; [`EngineState::stale`] lists the whole dirty closure.
+    pub fn pending(&self) -> impl Iterator<Item = NodeId> + '_ {
+        self.pending.iter().copied()
+    }
+
+    /// The formula cells whose published result is stale, in the order of the cells (sheet ID,
+    /// then row, then column): the anchors of the pending nodes and of every node that reads one
+    /// of them, directly or through other nodes. This is the dirty closure the next recalculation
+    /// under the published generation's numeric mode calculates. After a recalculation fails or
+    /// is refused nothing of it was published, so this lists every result it left stale. `None`
+    /// when `inputs` is not at the state's revision: a span's sheets are read from the
+    /// snapshot's sheet order.
+    pub fn stale(&self, inputs: &ModelRoot) -> Option<Vec<CellKey>> {
+        if inputs.revision() != self.revision {
+            return None;
+        }
+        let mut cells: Vec<CellKey> = dirty_closure(self, inputs, self.pending.clone())
+            .into_keys()
+            .map(|node| live_anchor(self, node))
+            .collect();
+        cells.sort();
+        Some(cells)
+    }
+
+    /// The bound plan of a live node: its compiled plan, shared through the state's plan cache
+    /// with every formula of the same normal form, placed at its anchor. `None` while the node is
+    /// unbound, and when CalcFml refused to compile its formula. A node is bound once, by the
+    /// first [`crate::begin_recalc`] that accepts the snapshot after the node was added or
+    /// replaced, and keeps its plan until an edit replaces or removes its formula.
+    pub fn instance(&self, node: NodeId) -> Option<&FormulaInstance> {
+        self.node(node)?;
+        match self.bindings.get(&node)? {
+            Binding::Placed(instance) => Some(instance),
+            Binding::Refused(_) => None,
+        }
+    }
+
     /// States what a live node reads, replacing what it read before, and files each prerequisite
-    /// in the graph's reverse indexes. Its product callers are CalcFml's plan bindings, which no
-    /// bead has built yet (each [`Prerequisite`] variant names its own); until then only tests
-    /// call it. Every sheet named must be in `inputs`, the snapshot at this state's revision.
+    /// in the graph's reverse indexes. Its product caller is [`crate::begin_recalc`], which binds
+    /// each unbound node's formula through CalcFml and states the cells, rectangles and whole
+    /// rows or columns its references name; sheet spans have no product caller yet (cfml-m3.2's
+    /// binding, ceng-m3.5's calculation). Every sheet named must be in `inputs`, the snapshot at
+    /// this state's revision.
+    ///
+    /// It is public because ceng-m1.1's acceptance cases state prerequisites with it by hand, the
+    /// spans included. Stating prerequisites other than a bound node's placed references leaves
+    /// the graph without edges its plan reads; ceng-m1.2's case does so on purpose to show that a
+    /// read the graph did not order fails the recalculation
+    /// ([`crate::RecalcFailure::UnscheduledRead`]) instead of reading an old value.
     pub fn set_prerequisites(
         &mut self,
         inputs: &ModelRoot,
@@ -216,7 +341,8 @@ impl EngineState {
         self.revision = revision;
     }
 
-    /// Removes a live node: its edges, its anchor entry and its record, and releases its ID.
+    /// Removes a live node: its edges, its plan, its anchor entry and its record, and releases its
+    /// ID. Its published result stays until the next publication removes it.
     pub(crate) fn remove_node(&mut self, node: NodeId) {
         if let Some(record) = self
             .nodes
@@ -226,6 +352,9 @@ impl EngineState {
             if let Some(prerequisites) = &record.prerequisites {
                 self.index.remove(node, prerequisites);
             }
+            self.bindings.remove(&node);
+            self.pending.remove(&node);
+            self.retired.insert(record.anchor);
             self.by_anchor.remove(&record.anchor);
             let released = self.ids.release(node);
             debug_assert_eq!(
@@ -236,20 +365,24 @@ impl EngineState {
         }
     }
 
-    /// Drops a live node's prerequisites, leaving it unbound.
+    /// Drops a live node's prerequisites and plan, leaving it unbound and pending.
     pub(crate) fn unbind_node(&mut self, node: NodeId) {
         if let Some(record) = self
             .nodes
             .get_mut(node.slot() as usize)
             .and_then(Option::as_mut)
             .filter(|record| record.id == node)
-            && let Some(prerequisites) = record.prerequisites.take()
         {
-            self.index.remove(node, &prerequisites);
+            if let Some(prerequisites) = record.prerequisites.take() {
+                self.index.remove(node, &prerequisites);
+            }
+            self.bindings.remove(&node);
+            self.pending.insert(node);
         }
     }
 
-    /// Records a node issued by this state's allocator at `anchor`, unbound.
+    /// Records a node issued by this state's allocator at `anchor`, unbound. The caller makes it
+    /// pending.
     pub(crate) fn add_node(&mut self, id: NodeId, anchor: CellKey) {
         let slot = id.slot() as usize;
         if self.nodes.len() <= slot {
