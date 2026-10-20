@@ -3,18 +3,31 @@
 //! - The package reader and the pre-open refusals: the embedded worker script is dot-sourced into
 //!   Windows PowerShell, which defines its functions and starts nothing, and `Read-Package` and
 //!   `Get-PackageRefusals` are run on the fixture packages under `tests/fixtures/`.
-//! - The main flow: the script is run as the adapter runs it (`-Request`, `-Result`), from a
-//!   harness that first shadows `New-Object` with a guard. The guard passes every .NET object
-//!   through and creates no COM object: `New-Object -ComObject` returns the test's stand-in
-//!   Application when the test gives one, and throws otherwise, so a regression that let a
-//!   refused package reach Excel's start fails the test instead of starting Excel. The script
-//!   creates its Excel through `New-Object -ComObject` only, which a test here checks.
+//! - The main flow: the script is called with the two parameters the adapter passes it
+//!   (`-Request`, `-Result`, with request and result files of the adapter's form) from a harness
+//!   that first shadows `New-Object` with a guard; [`crate::capture`]'s own start of the worker
+//!   (`powershell.exe -File` under [`crate::run_isolated`]) is not part of these tests. The guard
+//!   passes every .NET object through and creates no COM object: `New-Object -ComObject` returns
+//!   the test's stand-in Application when the test gives one, and throws otherwise, so a
+//!   regression that let a refused package reach Excel's start fails the test instead of starting
+//!   Excel. The script creates its Excel through `New-Object -ComObject` only, which a test here
+//!   checks. The harness and the fuller stand-in Excel are `tests/fixtures/standin-harness.ps1`
+//!   and `tests/fixtures/standin-excel.ps1`.
+//! - The spill scenarios (the section of that name below): the main flow against the stand-in
+//!   Excel on `worker/spill.xlsx`, each result converted with the conversion [`crate::capture`]
+//!   applies and judged by calc-verdict. The acceptance case `dc_xb26__spill_shape` runs them by
+//!   name.
 //! - Text checks of the script: the empty catches, and the settings it assigns.
 //! - The fixtures are the output of their committed generator, `tests/fixtures/make-fixtures.ps1`.
 
 use crate::convert::{self, Frame};
-use crate::{WORKER_SCRIPT, windows_powershell};
-use calc_verdict::FormulaKind;
+use crate::{STAGE_SPILL, WORKER_SCRIPT, windows_powershell};
+use calc_verdict::value::CalcValue;
+use calc_verdict::{
+    CaptureRecord, CellAddress, CellObservation, CellResult, Evaluation, EvaluationRecord,
+    FormulaKind, Observation, Provenance, ResultSet, RunIdentity, STAGE_INVENTORY, VerdictPolicy,
+    judge,
+};
 use serde_json::{Value, json};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -124,7 +137,7 @@ fn a_macro_sheet_is_an_inventory_failure_and_not_fatal() {
     );
     assert_eq!(
         read["formulas"],
-        json!([{"sheet": "Sheet1", "row": 1, "column": 1, "type": "normal", "si": null, "ref": null, "cm": null}])
+        json!([{"sheet": "Sheet1", "row": 1, "column": 1, "type": "normal", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false}])
     );
     assert_eq!(
         read["failures"],
@@ -333,16 +346,17 @@ fn units(text: &str) -> String {
 }
 
 /// The converter on the package reader's own output for `worker/dynamic-array.xlsx`: Sheet1!B1,
-/// saved as Excel with dynamic arrays saves a single-cell formula (t="array", cm="1", ref B1), is
-/// an ordinary formula flagged as dynamic; C1 is an ordinary formula, not flagged.
+/// saved as Excel with dynamic arrays saves a single-cell formula (t="array", ref B1, cm="1", which
+/// the reader resolves to the metadata part's dynamic-array metadata XLDAPR), is an ordinary
+/// formula flagged as dynamic; C1 is an ordinary formula, not flagged.
 #[test]
 fn a_package_with_a_single_cell_dynamic_array_formula_converts() {
     let read = read_package(&fixture("worker/dynamic-array.xlsx"));
     assert_eq!(
         read["formulas"],
         json!([
-            {"sheet": "Sheet1", "row": 1, "column": 2, "type": "array", "si": null, "ref": "B1", "cm": "1"},
-            {"sheet": "Sheet1", "row": 1, "column": 3, "type": "normal", "si": null, "ref": null, "cm": null}
+            {"sheet": "Sheet1", "row": 1, "column": 2, "type": "array", "si": null, "ref": "B1", "cm": "1", "dynamic_array_metadata": true},
+            {"sheet": "Sheet1", "row": 1, "column": 3, "type": "normal", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false}
         ])
     );
     assert_eq!(read["refusals"], json!([]));
@@ -357,10 +371,10 @@ fn a_package_with_a_single_cell_dynamic_array_formula_converts() {
         "sheets": read["sheets"],
         "formulas": read["formulas"],
         "cells": [
-            {"sheet": "Sheet1", "row": 1, "column": 2, "formula": units("=SUM(A1:A2*2)"), "value": {"number": format!("{:016x}", 6f64.to_bits())}},
-            {"sheet": "Sheet1", "row": 1, "column": 3, "formula": units("=A1+1"), "value": {"number": format!("{:016x}", 2f64.to_bits())}}
+            {"sheet": "Sheet1", "row": 1, "column": 2, "formula": units("=SUM(A1:A2*2)"), "value": {"number": format!("{:016x}", 6f64.to_bits())}, "spill": null},
+            {"sheet": "Sheet1", "row": 1, "column": 3, "formula": units("=A1+1"), "value": {"number": format!("{:016x}", 2f64.to_bits())}, "spill": null}
         ],
-        "saved": [], "reopened": [], "failures": []
+        "saved": [], "saved_formulas": read["formulas"], "spill_members": [], "reopened": [], "failures": []
     });
     let record = convert::convert(
         &result,
@@ -391,72 +405,11 @@ fn a_package_with_a_single_cell_dynamic_array_formula_converts() {
 
 // --- the main flow ------------------------------------------------------------------------------
 
-/// The harness every main-flow test runs: it shadows `New-Object` with the guard (module
-/// documentation), defines the stand-in builders, dot-sources the file `$Setup`, then runs the
-/// worker as the adapter
-/// runs it, and exits with the worker's exit code. Lines the guard and the stand-ins print start
-/// with `STANDIN:`.
-const HARNESS: &str = r#"param([string]$Worker, [string]$Request, [string]$Result, [string]$Setup)
-$global:StandinApplication = $null
-function global:Write-Standin([string]$Text) { [Console]::Out.WriteLine('STANDIN: ' + $Text); [Console]::Out.Flush() }
-function global:New-Object {
-    param(
-        [Parameter(Position = 0)][string]$TypeName,
-        [Parameter(Position = 1)][object[]]$ArgumentList,
-        [string]$ComObject,
-        [hashtable]$Property,
-        [switch]$Strict
-    )
-    if ($PSBoundParameters.ContainsKey('ComObject')) {
-        Write-Standin "New-Object -ComObject $ComObject"
-        if ($null -eq $global:StandinApplication) { throw "the test's guard creates no COM object ($ComObject)" }
-        return $global:StandinApplication
-    }
-    $made = Microsoft.PowerShell.Utility\New-Object @PSBoundParameters
-    return , $made
-}
-# A stand-in Excel Application: a hidden window of this process stands for Excel's, so its PID is
-# what the worker reports; Workbooks.Open and Quit print what they were called with.
-# Each setting named in $Unreadable is one whose read fails (a getter that throws, which
-# PowerShell reads as nothing) and whose write is ignored.
-function global:New-StandinApplication($ComAddIns, $AddIns, [string[]]$Unreadable = @()) {
-    Add-Type -AssemblyName System.Windows.Forms
-    $global:StandinForm = Microsoft.PowerShell.Utility\New-Object System.Windows.Forms.Form
-    $workbooks = [pscustomobject]@{}
-    $workbooks | Add-Member -MemberType ScriptMethod -Name Open -Value { Write-Standin ('Workbooks.Open ' + $args[0]); throw 'the stand-in Application opens no workbook' }
-    $application = [pscustomobject]@{
-        Hwnd = $global:StandinForm.Handle.ToInt64()
-        Visible = $true; ScreenUpdating = $true
-        COMAddIns = @($ComAddIns); AddIns2 = @($AddIns); RegisteredFunctions = $null
-        Workbooks = $workbooks
-    }
-    $settings = [ordered]@{ DisplayAlerts = $true; EnableEvents = $true; Interactive = $true; AutomationSecurity = 1 }
-    foreach ($name in $settings.Keys) {
-        if ($Unreadable -contains $name) {
-            $application | Add-Member -MemberType ScriptProperty -Name $name -Value { throw 'the stand-in cannot read this setting' } -SecondValue { }
-        } else {
-            $application | Add-Member -MemberType NoteProperty -Name $name -Value $settings[$name]
-        }
-    }
-    $application | Add-Member -MemberType ScriptMethod -Name Quit -Value { Write-Standin 'Quit' }
-    return $application
-}
-function global:New-StandinComAddIn([string]$ProgId, $Connect) {
-    $addIn = [pscustomobject]@{ ProgId = $ProgId }
-    if ($null -eq $Connect) {
-        $addIn | Add-Member -MemberType ScriptProperty -Name Connect -Value { throw 'the stand-in cannot read Connect' }
-    } else {
-        $addIn | Add-Member -MemberType NoteProperty -Name Connect -Value $Connect
-    }
-    return $addIn
-}
-function global:New-StandinAddIn([string]$FullName, [bool]$IsOpen, [bool]$Installed) {
-    return [pscustomobject]@{ FullName = $FullName; IsOpen = $IsOpen; Installed = $Installed }
-}
-. $Setup
-& $Worker -Request $Request -Result $Result
-exit $LASTEXITCODE
-"#;
+/// The harness every main-flow test runs, `tests/fixtures/standin-harness.ps1`: it shadows
+/// `New-Object` with the guard (module documentation), defines the stand-in builders, dot-sources
+/// the file `$Setup`, then calls the worker with `-Request` and `-Result`, and exits with the
+/// worker's exit code. Lines the guard and the stand-ins print start with `STANDIN:`.
+const HARNESS: &str = include_str!("../tests/fixtures/standin-harness.ps1");
 
 /// What the worker's main flow did with a copy of `package`, run from [`HARNESS`] after `setup`:
 /// its exit code, its standard output lines and its result file.
@@ -524,7 +477,7 @@ fn failure_messages(result: &Value, stage: &str) -> Vec<String> {
         .collect()
 }
 
-/// A package the worker refuses never reaches Excel's start: run as the adapter runs it, the
+/// A package the worker refuses never reaches Excel's start: called with a request for it, the
 /// worker prints no excel-pid line and asks for no COM object (the guard would print it), writes
 /// its result with the refusals as isolation failures and a fatal error, prints done and exits 1.
 #[test]
@@ -662,54 +615,12 @@ fn an_excel_without_loaded_add_ins_goes_on_to_open_the_workbook() {
     );
 }
 
-/// A fuller stand-in Excel for `infra_m1_2/untrusted-link.xlsx`: an Application with the settings
-/// and methods the main flow reads and calls, a workbook whose Sheet1!A1 and B1 hold 111 and 112
-/// and whose SaveAs copies the input package to the output path. The collections are a small C#
-/// class, so they can be both enumerated and indexed as Excel's are.
-const FULL_STANDIN: &str = r#"
-Add-Type -TypeDefinition @'
-using System.Collections;
-using System.Collections.Generic;
-public class StandinItems : IEnumerable {
-    private readonly List<object> order = new List<object>();
-    private readonly Dictionary<string, object> named = new Dictionary<string, object>();
-    public void Add(string key, object item) { order.Add(item); named[key] = item; }
-    public object Item(object key) { if (key is int) { return order[(int)key - 1]; } return named[(string)key]; }
-    public object Item(object row, object column) { return named[row + "," + column]; }
-    public IEnumerator GetEnumerator() { return order.GetEnumerator(); }
-}
-'@
-$global:StandinApplication = New-StandinApplication @() @()
-$app = $global:StandinApplication
-foreach ($pair in @(@('Calculation', -4105), @('Iteration', $false), @('MaxIterations', 100), @('MaxChange', 0.001), @('CalculationState', 0), @('Version', '16.0'), @('Build', 19127), @('OperatingSystem', 'Windows (64-bit) NT 10.00'), @('UseSystemSeparators', $true), @('CalculationVersion', 191029), @('AskToUpdateLinks', $true), @('IgnoreRemoteRequests', $false))) {
-    $app | Add-Member -MemberType NoteProperty -Name $pair[0] -Value $pair[1]
-}
-$app | Add-Member -MemberType ScriptMethod -Name CalculateFullRebuild -Value { Write-Standin 'CalculateFullRebuild' }
-$app | Add-Member -MemberType ScriptMethod -Name International -Value { param($index) return [string]$index }
-$languages = [pscustomobject]@{}
-$languages | Add-Member -MemberType ScriptMethod -Name LanguageID -Value { param($kind) return 1033 }
-$app | Add-Member -MemberType NoteProperty -Name LanguageSettings -Value $languages
-$cells = New-Object StandinItems
-$formulaCells = @()
-foreach ($spec in @(@(1, 1, '=[1]Sheet1!$A$1', 111.0), @(1, 2, '=A1+1', 112.0))) {
-    $cell = [pscustomobject]@{ Row = $spec[0]; Column = $spec[1]; HasFormula = $true; Formula2 = $spec[2]; Value2 = $spec[3] }
-    $cells.Add(([string]$spec[0] + ',' + [string]$spec[1]), $cell)
-    $formulaCells += $cell
-}
-$used = [pscustomobject]@{ HasFormula = $true }
-$used | Add-Member -MemberType NoteProperty -Name FormulaCells -Value $formulaCells
-$used | Add-Member -MemberType ScriptMethod -Name SpecialCells -Value { param($type) return [pscustomobject]@{ Cells = $this.FormulaCells } }
-$sheet = [pscustomobject]@{ Name = 'Sheet1'; Cells = $cells; UsedRange = $used }
-$sheets = New-Object StandinItems
-$sheets.Add('Sheet1', $sheet)
-$book = [pscustomobject]@{ Worksheets = $sheets; Connections = @(); CompatibilityVersion = 16; CalculationVersion = 191029; Date1904 = $false; PrecisionAsDisplayed = $false; HasVBProject = $false }
-$book | Add-Member -MemberType ScriptMethod -Name LinkSources -Value { param($kind) if ($kind -eq 1) { return , @('C:\nowhere\link-target.xlsx') } return $null }
-$book | Add-Member -MemberType ScriptMethod -Name SaveAs -Value { param($path, $format) Write-Standin "SaveAs $format"; Copy-Item -LiteralPath $global:StandinInput -Destination $path }
-$book | Add-Member -MemberType ScriptMethod -Name Close -Value { Write-Standin 'Close' }
-$global:StandinBook = $book
-$global:StandinInput = $null
-$app.Workbooks | Add-Member -MemberType ScriptMethod -Name Open -Value { Write-Standin ('Workbooks.Open ' + [System.IO.Path]::GetFileName($args[0]) + ' from ' + [System.IO.Path]::GetFileName([System.IO.Path]::GetDirectoryName($args[0]))); if ($null -eq $global:StandinInput) { $global:StandinInput = $args[0] }; return $global:StandinBook } -Force
-"#;
+/// A fuller stand-in Excel, `tests/fixtures/standin-excel.ps1`: an Application with the settings
+/// and methods the main flow reads and calls, a workbook whose Sheet1 holds the formula cells of
+/// `$global:StandinCells` (by default A1 and B1 of `infra_m1_2/untrusted-link.xlsx`, holding 111
+/// and 112, neither spilling) and whose SaveAs writes the package `$global:StandinSaved` (by
+/// default the input package) to the output path.
+const FULL_STANDIN: &str = include_str!("../tests/fixtures/standin-excel.ps1");
 
 /// The whole main flow, run against [`FULL_STANDIN`]: the worker reports the stand-in, sets the
 /// session settings, opens the input, rebuilds, reads the two formula cells and the settings,
@@ -736,7 +647,7 @@ fn the_main_flow_runs_to_a_record_against_a_stand_in_excel() {
             "New-Object -ComObject Excel.Application",
             "Workbooks.Open untrusted-link.xlsx from in",
             "CalculateFullRebuild",
-            "SaveAs 51",
+            "SaveAs 51 from untrusted-link.xlsx",
             "Close",
             "Workbooks.Open untrusted-link.xlsx from out",
             "Close",
@@ -951,6 +862,522 @@ fn a_calculation_state_that_is_not_an_integer_is_fatal() {
     assert_eq!(result["cells"], json!([]), "{result}");
 }
 
+// --- the spill scenarios -------------------------------------------------------------------------
+
+/// The setup of a stand-in Excel for `worker/spill.xlsx`: Sheet1!B1 =SEQUENCE(3,2) (Value2 1, the
+/// top-left value of its array) with the spill `b1` (a PowerShell value of `standin-excel.ps1`'s
+/// form), D1 =A1+1 (2) and E1 =SUM(A1:A2*2) (6), neither spilling. Its SaveAs writes the fixture
+/// `saved` (the input, spill.xlsx, when `None`), and its SpecialCells lists the cells `listed`
+/// (row, column) after the formula cells.
+fn spill_setup(b1: &str, saved: Option<&str>, listed: &[(u32, u32)]) -> String {
+    let saved = saved.map_or_else(
+        || "$null".to_owned(),
+        |path| quoted(&fixture(path).to_string_lossy()),
+    );
+    let listed: String = listed
+        .iter()
+        .map(|(row, column)| format!("[void]$global:StandinListed.Add(@({row}, {column}))\n"))
+        .collect();
+    format!(
+        "$global:StandinCells = @(@(1, 2, '=SEQUENCE(3,2)', 1.0, {b1}), @(1, 4, '=A1+1', 2.0, $null), @(1, 5, '=SUM(A1:A2*2)', 6.0, $null))\n$global:StandinSaved = {saved}\n$global:StandinListed = New-Object System.Collections.ArrayList\n{listed}{FULL_STANDIN}"
+    )
+}
+
+/// The frame the adapter gives the conversion, for a stand-in run of `worker/spill.xlsx`.
+fn spill_frame() -> Frame {
+    Frame {
+        case: "spill-standin".to_owned(),
+        source: format!(
+            "sha256:{}",
+            crate::sha256_hex(&std::fs::read(fixture("worker/spill.xlsx")).unwrap())
+        ),
+        tool: crate::capture_tool_revision(None),
+        revision: 0,
+        operations: Vec::new(),
+        output_package: None,
+        failures: Vec::new(),
+    }
+}
+
+/// The worker's result for `worker/spill.xlsx` against the stand-in Excel of [`spill_setup`], which
+/// must have asked the guard for its Excel and completed, the lines the stand-in printed, and the
+/// conversion of the result.
+fn spill_capture(
+    name: &str,
+    b1: &str,
+    saved: Option<&str>,
+    listed: &[(u32, u32)],
+) -> (Value, Vec<String>, Result<CaptureRecord, String>) {
+    let (code, lines, result) = run_main_flow(
+        name,
+        &fixture("worker/spill.xlsx"),
+        &spill_setup(b1, saved, listed),
+    );
+    assert_eq!(code, Some(0), "{lines:?}\n{result}");
+    assert_eq!(result["fatal"], Value::Null, "{result}");
+    let standin: Vec<String> = lines
+        .iter()
+        .filter_map(|line| line.strip_prefix("STANDIN: "))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(
+        standin.first().map(String::as_str),
+        Some("New-Object -ComObject Excel.Application"),
+        "{lines:?}"
+    );
+    let record = convert::convert(&result, spill_frame());
+    (result, standin, record)
+}
+
+fn sheet1(column: u32) -> CellAddress {
+    CellAddress::new("Sheet1", 1, column).unwrap()
+}
+
+/// The cells of `list`, in A1 form.
+fn a1s(list: &[CellObservation]) -> Vec<String> {
+    list.iter().map(|observed| observed.cell.a1()).collect()
+}
+
+/// The failures of `record` at Sheet1!`a1`, as (stage, message).
+fn failures_of(record: &CaptureRecord, a1: &str) -> Vec<(String, String)> {
+    record
+        .session
+        .as_ref()
+        .expect("a version 2 record")
+        .failures
+        .iter()
+        .filter(|failure| {
+            failure
+                .cell
+                .as_ref()
+                .is_some_and(|cell| cell.sheet() == "Sheet1" && cell.a1() == a1)
+        })
+        .map(|failure| (failure.stage.clone(), failure.message.clone()))
+        .collect()
+}
+
+/// The entry of the result's list `list` (`cells`, `reopened`, `saved_formulas`) at Sheet1 row 1
+/// and `column`.
+fn entry<'a>(result: &'a Value, list: &str, column: u64) -> &'a Value {
+    result[list]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["sheet"] == "Sheet1" && entry["row"] == 1 && entry["column"] == column)
+        .unwrap_or_else(|| panic!("{list} holds no Sheet1 row 1 column {column}: {result}"))
+}
+
+/// Each judged cell (A1) with its verdict's name, and the number of spill failures the report
+/// counts.
+type Verdicts = (Vec<(String, &'static str)>, u64);
+
+/// The verdict of each of B1, D1 and E1 when a run calculated B1 as 1 (the value its Value2
+/// shows), D1 as 2 and E1 as 6, with an evaluation of each in the evaluation record, and the
+/// number of spill failures the report counts; or why calc-verdict refuses to judge the record.
+fn verdicts(record: &CaptureRecord) -> Result<Verdicts, String> {
+    let session = record.session.as_ref().expect("a version 2 record");
+    let cells = [(2, 1.0), (4, 2.0), (5, 6.0)];
+    let results = ResultSet {
+        case: record.case.clone(),
+        source: record.source.clone(),
+        run: RunIdentity {
+            revision: session.revision,
+            context: session.context.clone(),
+        },
+        results: cells
+            .iter()
+            .map(|(column, value)| CellResult {
+                cell: sheet1(*column),
+                provenance: Provenance::Calculated {
+                    tick: 1,
+                    revision: session.revision,
+                    context: session.context.clone(),
+                },
+                value: Some(CalcValue::number(*value)),
+            })
+            .collect(),
+    };
+    let evaluations = EvaluationRecord {
+        case: record.case.clone(),
+        source: record.source.clone(),
+        evaluations: cells
+            .iter()
+            .map(|(column, _)| Evaluation {
+                cell: sheet1(*column),
+                tick: 1,
+                revision: session.revision,
+                context: session.context.clone(),
+            })
+            .collect(),
+    };
+    let report = judge(record, &results, &evaluations, &VerdictPolicy::default())
+        .map_err(|e| e.to_string())?;
+    let spill_failures = report
+        .capture_failures
+        .as_ref()
+        .and_then(|failures| failures.by_stage.get(STAGE_SPILL).copied())
+        .unwrap_or_default();
+    Ok((
+        report
+            .cells
+            .iter()
+            .map(|cell| (cell.formula.cell.a1(), cell.verdict.name()))
+            .collect(),
+        spill_failures,
+    ))
+}
+
+/// The spill failure of Sheet1!B1 spilling over B1:C3.
+const B1_SPILLS_OVER_B1_C3: &str = "Excel reports a spill over Sheet1!B1:C3 (3 rows by 2 columns) after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar";
+
+fn owned(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
+    pairs
+        .iter()
+        .map(|(a, b)| ((*a).to_owned(), (*b).to_owned()))
+        .collect()
+}
+
+/// Sheet1!B1 spills over B1:C3 after the full rebuild (the stand-in's HasSpill is True, and its
+/// SpillingToRange's Address(False, False), Rows.Count and Columns.Count are B1:C3, 3 and 2): the
+/// worker reads that spill after the rebuild and after reopening, and the saved package's formulas
+/// with B1's cell metadata resolved to the dynamic-array metadata; the record keeps B1 in the
+/// inventory with no raw observation, saved cache or reopened value and a spill failure naming its
+/// range, rows and columns; and a calculated B1 equal to the value its Value2 shows (1) is
+/// not_run, never matched, while D1 and E1 (a dynamic-array formula over its own cell, flagged) are
+/// matched.
+#[test]
+fn a_formula_that_spills_is_recorded_as_a_spill_never_as_a_scalar() {
+    let (result, _, record) = spill_capture("spill", "@('B1:C3', 3, 2)", None, &[]);
+    for list in ["cells", "reopened"] {
+        assert_eq!(
+            entry(&result, list, 2)["spill"],
+            json!({"ref": "B1:C3", "rows": 3, "columns": 2}),
+            "{list}"
+        );
+        assert_eq!(
+            entry(&result, list, 2)["value"],
+            json!({"number": format!("{:016x}", 1f64.to_bits())}),
+            "{list}"
+        );
+        for column in [4, 5] {
+            assert_eq!(entry(&result, list, column)["spill"], Value::Null, "{list}");
+        }
+    }
+    assert_eq!(
+        entry(&result, "saved_formulas", 2),
+        &json!({"sheet": "Sheet1", "row": 1, "column": 2, "type": "array", "si": null, "ref": "B1:C3", "cm": "1", "dynamic_array_metadata": true})
+    );
+    assert_eq!(
+        entry(&result, "saved_formulas", 4)["dynamic_array_metadata"],
+        false
+    );
+    assert_eq!(
+        entry(&result, "saved_formulas", 5)["dynamic_array_metadata"],
+        true
+    );
+    assert_eq!(result["spill_members"], json!([]));
+
+    let record = record.unwrap_or_else(|e| panic!("the spilling capture converts: {e}\n{result}"));
+    let session = record.session.as_ref().unwrap();
+    let inventory: Vec<(String, FormulaKind, bool)> = record
+        .formulas
+        .iter()
+        .map(|formula| (formula.cell.a1(), formula.kind, formula.dynamic_array))
+        .collect();
+    assert_eq!(
+        inventory,
+        [
+            ("B1".to_owned(), FormulaKind::Ordinary, false),
+            ("D1".to_owned(), FormulaKind::Ordinary, false),
+            ("E1".to_owned(), FormulaKind::Ordinary, true)
+        ]
+    );
+    assert_eq!(a1s(&record.observations), ["D1", "E1"]);
+    assert_eq!(a1s(&session.saved), ["D1", "E1"]);
+    assert_eq!(a1s(&session.reopened), ["D1", "E1"]);
+    assert_eq!(
+        failures_of(&record, "B1"),
+        owned(&[(STAGE_SPILL, B1_SPILLS_OVER_B1_C3)])
+    );
+    for a1 in ["D1", "E1"] {
+        assert_eq!(failures_of(&record, a1), [], "{a1}");
+    }
+    assert!(
+        session
+            .failures
+            .iter()
+            .all(|failure| failure.stage == "environment" || failure.stage == STAGE_SPILL),
+        "{:?}",
+        session.failures
+    );
+    let encoded = record.encode().unwrap();
+    assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
+    let (judged, spill_failures) = verdicts(&record).unwrap();
+    assert_eq!(
+        judged,
+        [
+            ("B1".to_owned(), "not_run"),
+            ("D1".to_owned(), "matched"),
+            ("E1".to_owned(), "matched")
+        ]
+    );
+    assert_eq!(spill_failures, 1);
+    println!(
+        "NOTE: B1 spilling over B1:C3 (HasSpill True; SpillingToRange B1:C3, 3 rows, 2 columns; Value2 1): the worker read the spill after the rebuild and after reopening, and the saved B1 as array B1:C3 with cm 1 resolved to XLDAPR; the record keeps B1 in the inventory with no raw observation, saved cache or reopened value and the failure {:?}; judged with calculated B1 = 1, D1 = 2, E1 = 6, B1 is not_run, and D1 and E1 are matched (E1 flagged dynamic, D1 not)",
+        failures_of(&record, "B1")[0].1
+    );
+}
+
+/// Sheet1!B1, which the input saved as a dynamic-array formula over B1:C3, does not spill after
+/// the full rebuild: it is recorded as Excel shows it (Value2 1), flagged as a dynamic-array
+/// formula, and judged matched; the saved package (here the input's bytes) that still declares a
+/// dynamic-array range B1:C3 is a save failure of B1.
+#[test]
+fn a_dynamic_array_formula_that_does_not_spill_is_recorded_as_excel_shows_it() {
+    let (result, _, record) = spill_capture("no-spill", "$null", None, &[]);
+    let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
+    assert_eq!(
+        (
+            record.formulas[0].cell.a1(),
+            record.formulas[0].dynamic_array
+        ),
+        ("B1".to_owned(), true)
+    );
+    assert_eq!(
+        record.observations[0],
+        CellObservation {
+            cell: sheet1(2),
+            observation: Observation::ExcelRaw(CalcValue::number(1.0)),
+        }
+    );
+    assert_eq!(
+        failures_of(&record, "B1"),
+        owned(&[(
+            "save",
+            "Excel reports no spill after the full rebuild, and the saved package holds the formula as type \"array\" with ref B1:C3 and cell metadata 1 (the dynamic-array metadata XLDAPR)"
+        )])
+    );
+    let (judged, spill_failures) = verdicts(&record).unwrap();
+    assert_eq!(judged[0], ("B1".to_owned(), "matched"));
+    assert_eq!(spill_failures, 0);
+    println!(
+        "NOTE: B1 not spilling (input ref B1:C3): recorded as Excel shows it (1), flagged dynamic, matched; the saved package still declaring B1:C3 is the save failure {:?}",
+        failures_of(&record, "B1")[0].1
+    );
+}
+
+/// The saved package is read from the package Excel saved, never from the input: the stand-in
+/// saves `worker/spill-saved-cm.xlsx`, whose B1 is held over B1:C3 with cell metadata 2, which
+/// names no dynamic-array metadata, while the input's B1 has cell metadata 1, which does. B1 then
+/// gets a save failure naming that cell metadata, and the same result with the input's formulas in
+/// place of the saved ones gives none. A spill Excel reports over B1:C4 while the saved package
+/// declares B1:C3 is a save failure too.
+#[test]
+fn a_saved_package_that_disagrees_with_the_spill_is_a_save_failure() {
+    let (result, standin, record) = spill_capture(
+        "saved-cm",
+        "@('B1:C3', 3, 2)",
+        Some("worker/spill-saved-cm.xlsx"),
+        &[],
+    );
+    assert!(
+        standin.contains(&"SaveAs 51 from spill-saved-cm.xlsx".to_owned()),
+        "{standin:?}"
+    );
+    let saved_failure = "Excel reports a spill over Sheet1!B1:C3 (3 rows by 2 columns) after the full rebuild, and the saved package holds the formula as type \"array\" with ref B1:C3 and cell metadata 2, which does not name the dynamic-array metadata XLDAPR";
+    let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
+    assert_eq!(
+        failures_of(&record, "B1"),
+        owned(&[(STAGE_SPILL, B1_SPILLS_OVER_B1_C3), ("save", saved_failure)])
+    );
+    // What the worker read of B1 in each package: cell metadata 2, naming no dynamic-array
+    // metadata, in the saved one, and 1, naming it, in the input.
+    assert_eq!(
+        (
+            &entry(&result, "saved_formulas", 2)["cm"],
+            &entry(&result, "saved_formulas", 2)["dynamic_array_metadata"]
+        ),
+        (&json!("2"), &json!(false))
+    );
+    assert_eq!(
+        (
+            &entry(&result, "formulas", 2)["cm"],
+            &entry(&result, "formulas", 2)["dynamic_array_metadata"]
+        ),
+        (&json!("1"), &json!(true))
+    );
+    // The input's formulas give no save failure: the one above comes from the saved package.
+    let mut input = result.clone();
+    input["saved_formulas"] = result["formulas"].clone();
+    let from_input = convert::convert(&input, spill_frame()).unwrap();
+    assert_eq!(
+        failures_of(&from_input, "B1"),
+        owned(&[(STAGE_SPILL, B1_SPILLS_OVER_B1_C3)])
+    );
+    println!(
+        "NOTE: with the stand-in saving spill-saved-cm.xlsx (B1 over B1:C3, cm 2, no XLDAPR block) for an input whose B1 has cm 1 (XLDAPR), B1 has the save failure {saved_failure:?}, and none when the input's formulas stand in for the saved ones"
+    );
+
+    let (result, _, record) = spill_capture("saved-ref", "@('B1:C4', 4, 2)", None, &[]);
+    let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
+    let failures = failures_of(&record, "B1");
+    assert_eq!(
+        failures,
+        owned(&[
+            (
+                STAGE_SPILL,
+                "Excel reports a spill over Sheet1!B1:C4 (4 rows by 2 columns) after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar"
+            ),
+            (
+                "save",
+                "Excel reports a spill over Sheet1!B1:C4 (4 rows by 2 columns) after the full rebuild, and the saved package holds the formula as type \"array\" with ref B1:C3 and cell metadata 1 (the dynamic-array metadata XLDAPR)"
+            )
+        ])
+    );
+    assert_eq!(a1s(&record.observations), ["D1", "E1"]);
+    assert_eq!(
+        verdicts(&record).unwrap().0[0],
+        ("B1".to_owned(), "not_run")
+    );
+    println!(
+        "NOTE: with the stand-in reporting B1 spilling over B1:C4 while the saved package declares B1:C3, B1 has no observation and the failures {failures:?}"
+    );
+}
+
+/// A spilling cell the saved package holds no formula for (the stand-in saves
+/// `worker/spill-saved-values.xlsx`, whose B1 holds only the value 1) gets the worker's save
+/// failure naming the cell, beside its spill failure.
+#[test]
+fn a_spilling_cell_without_a_saved_formula_is_a_save_failure_naming_it() {
+    let (result, _, record) = spill_capture(
+        "saved-values",
+        "@('B1:C3', 3, 2)",
+        Some("worker/spill-saved-values.xlsx"),
+        &[],
+    );
+    let save: Vec<&Value> = result["failures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|failure| failure["stage"] == "save")
+        .collect();
+    assert_eq!(
+        save,
+        [
+            &json!({"stage": "save", "sheet": "Sheet1", "row": 1, "column": 2, "message": "the saved package holds no formula for this formula cell"})
+        ]
+    );
+    let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
+    assert_eq!(
+        failures_of(&record, "B1"),
+        owned(&[
+            (STAGE_SPILL, B1_SPILLS_OVER_B1_C3),
+            (
+                "save",
+                "the saved package holds no formula for this formula cell"
+            )
+        ])
+    );
+    println!(
+        "NOTE: with the stand-in saving spill-saved-values.xlsx (B1 a value, no formula), the worker's save failure names Sheet1!B1: {}",
+        save[0]
+    );
+}
+
+/// A HasSpill or a SpillingToRange that cannot be read is written as unread, after the rebuild and
+/// after reopening, never as no spill, and the conversion refuses the capture.
+#[test]
+fn a_spill_that_cannot_be_read_refuses_the_capture() {
+    for (b1, why) in [
+        (
+            "'unreadable-range'",
+            "Range.HasSpill reads as True and Range.SpillingToRange as nothing",
+        ),
+        (
+            "'unreadable-hasspill'",
+            "Range.HasSpill reads as nothing, not a boolean",
+        ),
+    ] {
+        let (result, _, record) = spill_capture("spill-unread", b1, None, &[]);
+        for list in ["cells", "reopened"] {
+            assert_eq!(
+                entry(&result, list, 2)["spill"],
+                json!({"unread": why}),
+                "{b1} {list}"
+            );
+            assert_eq!(entry(&result, list, 4)["spill"], Value::Null, "{b1} {list}");
+        }
+        let refused = record.expect_err("a spill that cannot be read refuses the capture");
+        assert!(
+            refused.starts_with(&format!(
+                "Excel's spill state of Sheet1!B1 cannot be read: {why}; "
+            )),
+            "{b1}: {refused}"
+        );
+        println!("NOTE: {b1}: the conversion refused the capture: {refused}");
+    }
+}
+
+/// Cells Excel lists among its formula cells that lie in the spill range of B1 (C1, B2, C2, B3 and
+/// C3 of B1:C3) are spill members, never inventory failures: the record holds no inventory failure
+/// and calc-verdict judges it. A listed cell outside every spill (B4, below it) is still an
+/// inventory failure, and calc-verdict refuses the record.
+#[test]
+fn cells_excel_lists_in_a_spill_range_are_spill_members_not_inventory_failures() {
+    let children = [(1, 3), (2, 2), (2, 3), (3, 2), (3, 3)];
+    let members: Vec<Value> = children
+        .iter()
+        .map(|(row, column)| json!({"sheet": "Sheet1", "row": row, "column": column}))
+        .collect();
+    let (result, _, record) = spill_capture("listed", "@('B1:C3', 3, 2)", None, &children);
+    assert_eq!(result["spill_members"], json!(members));
+    assert_eq!(
+        failure_messages(&result, STAGE_INVENTORY),
+        Vec::<String>::new()
+    );
+    let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
+    assert!(
+        record
+            .session
+            .as_ref()
+            .unwrap()
+            .failures
+            .iter()
+            .all(|failure| failure.stage != STAGE_INVENTORY),
+        "{record:?}"
+    );
+    assert_eq!(record.formulas.len(), 3);
+    let (judged, _) = verdicts(&record).unwrap();
+    assert_eq!(judged[0], ("B1".to_owned(), "not_run"));
+
+    let mut beyond = children.to_vec();
+    beyond.push((4, 2));
+    let (result, _, record) = spill_capture("listed-beyond", "@('B1:C3', 3, 2)", None, &beyond);
+    assert_eq!(result["spill_members"], json!(members));
+    let inventory: Vec<&Value> = result["failures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|failure| failure["stage"] == STAGE_INVENTORY)
+        .collect();
+    assert_eq!(
+        inventory,
+        [
+            &json!({"stage": "inventory", "sheet": "Sheet1", "row": 4, "column": 2, "message": "Excel reports a formula here that the package does not hold"})
+        ]
+    );
+    let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
+    let refused = verdicts(&record).unwrap_err();
+    assert!(
+        refused.contains("records an inventory failure at Sheet1!B4"),
+        "{refused}"
+    );
+    println!(
+        "NOTE: SpecialCells listing C1, B2, C2, B3 and C3 of B1's spill B1:C3: spill members, no inventory failure, judged; a listed B4 outside it: the inventory failure {}, and calc-verdict refuses: {refused}",
+        inventory[0]["message"]
+    );
+}
+
 // --- text checks of the script ------------------------------------------------------------------
 
 /// The trimmed line on which each catch with an empty body starts: `catch {}`, `catch { }`, a
@@ -1161,7 +1588,7 @@ fn the_worker_creates_com_objects_only_through_new_object() {
 // --- fixture provenance -------------------------------------------------------------------------
 
 /// The files `tests/fixtures/make-fixtures.ps1` writes, relative to its output directory.
-const GENERATED: [&str; 9] = [
+const GENERATED: [&str; 12] = [
     "infra_m1_2/link-target.xlsx",
     "infra_m1_2/replay.xlsx",
     "infra_m1_2/untrusted-link.xlsx",
@@ -1171,6 +1598,9 @@ const GENERATED: [&str; 9] = [
     "worker/macro-sheet.xlsm",
     "worker/pivot-refresh.xlsx",
     "worker/query-table-refresh.xlsx",
+    "worker/spill-saved-cm.xlsx",
+    "worker/spill-saved-values.xlsx",
+    "worker/spill.xlsx",
 ];
 
 /// Every generated fixture under `tests/fixtures/` is, byte for byte, what the committed generator

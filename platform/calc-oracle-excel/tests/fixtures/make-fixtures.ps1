@@ -5,10 +5,10 @@
 #
 # writes <directory>/infra_m1_2/{replay,untrusted-link,link-target}.xlsx and
 # <directory>/worker/{macro-sheet.xlsm,external-content.xlsx,pivot-refresh.xlsx,
-# query-table-refresh.xlsx,external-functions.xlsx,dynamic-array.xlsx}. Run with this directory as
-# -OutDir it rewrites the committed fixtures; the unit test
-# fixtures_are_the_output_of_their_generator (src/worker_tests.rs) runs it into a fresh directory
-# and compares every file with the committed one byte for byte.
+# query-table-refresh.xlsx,external-functions.xlsx,dynamic-array.xlsx,spill.xlsx,
+# spill-saved-cm.xlsx,spill-saved-values.xlsx}. Run with this directory as -OutDir it rewrites the
+# committed fixtures; the unit test fixtures_are_the_output_of_their_generator (src/worker_tests.rs)
+# runs it into a fresh directory and compares every file with the committed one byte for byte.
 #
 # Each package is a minimal SpreadsheetML package written as text: every part is UTF-8 XML, stored
 # (ZIP method 0, no compression) with the timestamp 1980-01-01 00:00 and no extra fields, by the
@@ -310,12 +310,37 @@ $spec = New-Spec @(, @('Sheet1', '', (New-Worksheet @(
     @((New-Number 'A1' 1), '<c r="B1" cm="1"><f t="array" ref="B1">SUM(A1:A2*2)</f><v>6</v></c>', (New-Formula 'C1' 'A1+1' 2)),
     @(, (New-Number 'A2' 2))
 )), $null))
-$spec.extraRels = @(, @("$Rel/sheetMetadata", 'metadata.xml'))
-$spec.parts = @(, @('xl/metadata.xml', ($Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">' +
+# The metadata part whose cell metadata 1 (cm="1") names the dynamic-array property XLDAPR.
+$DynamicArrayMetadata = @('xl/metadata.xml', ($Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">' +
     '<metadataTypes count="1"><metadataType name="XLDAPR" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/></metadataTypes>' +
     '<futureMetadata name="XLDAPR" count="1"><bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk></futureMetadata>' +
-    '<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml'))
+    '<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml')
+$spec.extraRels = @(, @("$Rel/sheetMetadata", 'metadata.xml'))
+$spec.parts = @(, $DynamicArrayMetadata)
 $fixtures['worker/dynamic-array.xlsx'] = $spec
+
+# worker/spill.xlsx: Sheet1!A1:A2 = 1 and 2 (constants); B1 =SEQUENCE(3,2) as Excel with dynamic
+# arrays saves a formula that spills (t="array" over its spill range B1:C3, with cell metadata
+# cm="1" naming the dynamic-array property XLDAPR), C1, B2, C2, B3 and C3 holding the values of its
+# spill (2 to 6); D1 =A1+1, an ordinary formula; and E1 =SUM(A1:A2*2), a dynamic-array formula over
+# E1 alone. The two packages after it are what the worker's tests have their stand-in Excel save in
+# place of Excel; each differs from spill.xlsx in B1 only (New-SpillSpec's $B1).
+function New-SpillSpec([string]$B1) {
+    $spec = New-Spec @(, @('Sheet1', '', (New-Worksheet @(
+        @((New-Number 'A1' 1), $B1, (New-Number 'C1' 2), (New-Formula 'D1' 'A1+1' 2), '<c r="E1" cm="1"><f t="array" ref="E1">SUM(A1:A2*2)</f><v>6</v></c>'),
+        @((New-Number 'A2' 2), (New-Number 'B2' 3), (New-Number 'C2' 4)),
+        @((New-Number 'B3' 5), (New-Number 'C3' 6))
+    )), $null))
+    $spec.extraRels = @(, @("$Rel/sheetMetadata", 'metadata.xml'))
+    $spec.parts = @(, $DynamicArrayMetadata)
+    return $spec
+}
+$fixtures['worker/spill.xlsx'] = New-SpillSpec '<c r="B1" cm="1"><f t="array" ref="B1:C3">_xlfn.SEQUENCE(3,2)</f><v>1</v></c>'
+# worker/spill-saved-cm.xlsx: B1 over the same range with cell metadata cm="2", which names no block
+# of the metadata part's cell metadata (it holds one), so not the dynamic-array property.
+$fixtures['worker/spill-saved-cm.xlsx'] = New-SpillSpec '<c r="B1" cm="2"><f t="array" ref="B1:C3">_xlfn.SEQUENCE(3,2)</f><v>1</v></c>'
+# worker/spill-saved-values.xlsx: B1 holds the value 1 and no formula.
+$fixtures['worker/spill-saved-values.xlsx'] = New-SpillSpec (New-Number 'B1' 1)
 
 foreach ($name in ($fixtures.Keys | Sort-Object)) {
     Write-Workbook (Join-Path $OutDir $name) $fixtures[$name]

@@ -19,6 +19,21 @@
       "platforms": {
         "infra_m1_2__untrusted_workbook": ["windows", "excel"]
       }
+    },
+    {
+      "id": "dc-xb26",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-oracle-excel", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-xb26", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-xb26", "--platform", "excel", "--require-all"]
+      ],
+      "cases": [
+        "dc_xb26__spill_shape"
+      ],
+      "platforms": {
+        "dc_xb26__spill_shape": ["windows", "excel"]
+      }
     }
   ]
 }

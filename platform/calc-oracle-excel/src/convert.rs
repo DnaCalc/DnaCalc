@@ -1,58 +1,115 @@
 //! The worker's result file turned into a CaptureRecord version 2.
 //!
-//! The result (`dnacalc-capture-worker-result`, version 1) is what `worker/capture-worker.ps1`
+//! The result (`dnacalc-capture-worker-result`, version 2) is what `worker/capture-worker.ps1`
 //! writes:
 //!
 //! ```text
-//! {"format": "dnacalc-capture-worker-result", "version": 1, "excel_pid": <pid> | null,
+//! {"format": "dnacalc-capture-worker-result", "version": 2, "excel_pid": <pid> | null,
 //!  "fatal": null | "<message>",
 //!  "environment": null | {"excel_build": "...", "channel": "...", "compatibility": "...",
 //!                         "numeric_environment": "...", "settings": [["<name>", "<value>"], ...]},
 //!  "sheets": [{"name": "...", "visibility": "visible" | "hidden" | "very_hidden"}, ...],
 //!  "formulas": [{"sheet", "row", "column", "type": "normal" | "shared" | "array" | ...,
-//!                "si": n | null, "ref": "C1:C3" | null, "cm": "<cell metadata index>" | null}, ...],
-//!  "cells": [{"sheet", "row", "column", "formula": "<UTF-16 hex>" | null, "value": <raw>}, ...],
+//!                "si": n | null, "ref": "C1:C3" | null, "cm": "<cell metadata index>" | null,
+//!                "dynamic_array_metadata": b}, ...],
+//!  "cells": [{"sheet", "row", "column", "formula": "<UTF-16 hex>" | null, "value": <raw>,
+//!             "spill": <spill>}, ...],
 //!  "saved": [{"sheet", "row", "column", "t": "n" | "b" | "e" | "str" | ..., "v": "<UTF-16 hex>"}],
-//!  "reopened": [{"sheet", "row", "column", "value": <raw>}, ...],
+//!  "saved_formulas": [<as formulas, read from the package Excel saved>, ...],
+//!  "spill_members": [{"sheet", "row", "column"}, ...],
+//!  "reopened": [{"sheet", "row", "column", "value": <raw>, "spill": <spill>}, ...],
 //!  "failures": [{"stage", ["sheet", "row", "column",] "message"}, ...]}
 //! ```
 //!
-//! where `<raw>` is `{"empty": true}`, `{"number": "<16 hex digits: the binary64 bits>"}`,
+//! where `dynamic_array_metadata` says whether the formula cell's `cm` names a block of the
+//! package's cell metadata that marks it as a dynamic-array formula (the metadata type XLDAPR with
+//! `fDynamic`), `<raw>` is `{"empty": true}`, `{"number": "<16 hex digits: the binary64 bits>"}`,
 //! `{"text": "<UTF-16 hex>"}`, `{"logical": b}`, `{"error_code": <Excel's CVErr code>}`,
-//! `{"unsupported": "<.NET type of the Value2>"}` or `{"unread": "<why Value2 cannot be read>"}`.
+//! `{"unsupported": "<.NET type of the Value2>"}` or `{"unread": "<why Value2 cannot be read>"}`,
+//! `<spill>` is what Excel reports of the cell's spill: `null` (Range.HasSpill is False),
+//! `{"ref": "B1:C3", "rows": r, "columns": c}` (Range.SpillingToRange's relative address, rows and
+//! columns) or `{"unread": "<why the spill cannot be read>"}`, and `spill_members` are the cells
+//! Excel lists among its formula cells (SpecialCells) that the package holds no formula for and
+//! that lie in the spill range of an inventory cell. Version 1 had no spill, no
+//! `dynamic_array_metadata`, no `saved_formulas` and no `spill_members`.
 //!
 //! The inventory is the worker's `formulas`, read from the package. A cell value, cache or formula
 //! text that cannot be represented becomes a capture failure for that cell, so the record shows
-//! what was not observed. A single-cell dynamic-array formula (type `array` with cell metadata
-//! `cm`, its `ref` the cell itself), which Excel with dynamic arrays saves for a formula that
-//! could return an array, is an ordinary formula flagged as dynamic
-//! ([`FormulaCell::dynamic_array`]). A formula of a type the record has no kind for (a legacy
-//! array formula entered over one cell or many, a dynamic-array formula over a spill range, a
-//! data-table formula) refuses the whole conversion: a record without that cell would have a
-//! denominator one short, and one that called it ordinary would misreport it.
+//! what was not observed.
+//!
+//! Whether a formula spills is what Excel reports after the full rebuild, never what the input
+//! package's `ref` claims. A spilling cell's Value2 is only the top-left value of its array, and
+//! CaptureRecord version 2 has no array observation, so a cell that spills keeps its place in the
+//! inventory (the denominator) with no raw observation, saved cache or reopened value, and a
+//! failure of that cell at [`STAGE_SPILL`] names its spill range with its rows and columns; the
+//! verdict has nothing to compare it with, so a calculated result for it is `not_run`, never
+//! matched. The shape stays message text here: carrying the array in CaptureRecord and comparing
+//! it in calc-verdict is bead dc-dw44's, and until then a spilling cell is not comparable. Its
+//! shape must start at the cell and agree with the rows and columns Excel reports, and the package
+//! Excel saved must hold the formula as a dynamic-array formula (`array` whose cell metadata `cm`
+//! names the dynamic-array metadata XLDAPR, `dynamic_array_metadata`) whose `ref` is that range: a
+//! saved package that disagrees, or that declares a dynamic-array spill range for a cell Excel
+//! reports no spill for, is a `save` failure of that cell. The spill read again after reopening
+//! the saved package must be the one captured, or the cell gets a `reopen` failure, and a reopened
+//! value is recorded only for a cell that spills in neither. A spill that cannot be read after the
+//! rebuild, or whose shape is inconsistent, refuses the whole conversion, as does a formula cell
+//! the worker read nothing for: a spilling cell's value would otherwise pass for a scalar. An Excel
+//! without Range.HasSpill (one older than dynamic arrays) therefore refuses every capture that
+//! holds a formula: this adapter captures only an Excel with dynamic arrays.
+//!
+//! The cells a formula spills into are a separate population, never formula cells of the
+//! inventory: each of `spill_members` must lie in the spill range recorded for an inventory cell
+//! of its sheet (not that cell itself), and one that does not is an inventory failure, since Excel
+//! then lists a formula cell the package does not hold.
+//!
+//! A formula the input package holds as a dynamic-array formula (type `array` whose cell metadata
+//! `cm` names the dynamic-array metadata XLDAPR, `dynamic_array_metadata`, its `ref` starting at
+//! the cell), which Excel with dynamic arrays saves for a formula that
+//! could return an array, is an ordinary formula; when it does not spill after the rebuild it is
+//! recorded as Excel shows it and flagged as dynamic ([`FormulaCell::dynamic_array`], a formula
+//! over its one cell with no spill range), whatever range its input `ref` claimed. A formula of a
+//! type the record has no kind for (a legacy array formula entered over one cell or many, an
+//! `array` formula whose cell metadata does not name XLDAPR, a dynamic-array formula whose `ref`
+//! does not start at its cell, a data-table formula) refuses the
+//! whole conversion: a record without that cell would have a denominator one short, and one that
+//! called it ordinary would misreport it.
 
-use calc_verdict::value::{CalcValue, ExcelText, NumericTargetId, WorksheetErrorCode};
+use calc_verdict::value::{
+    CalcValue, ExcelText, MAX_COLUMNS, MAX_ROWS, NumericTargetId, WorksheetErrorCode,
+};
 use calc_verdict::{
     Acquisition, CacheCellType, CalculationContext, CaptureFailure, CaptureRecord, CaptureSession,
     CellAddress, CellObservation, ExcelEnvironment, FormulaCell, FormulaKind, Observation,
-    SavedCache, SharedRange, SheetEntry, SheetVisibility,
+    STAGE_INVENTORY, SavedCache, SharedRange, SheetEntry, SheetVisibility,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) const RESULT_FORMAT: &str = "dnacalc-capture-worker-result";
-pub(crate) const RESULT_VERSION: u64 = 1;
+pub(crate) const RESULT_VERSION: u64 = 2;
 
-/// What the adapter knows about a capture beside the worker's result.
+/// The stage of the failure a formula cell that spills after the full rebuild gets: its message
+/// names the spill range with its rows and columns, and the cell has no raw observation, saved
+/// cache or reopened value, since CaptureRecord version 2 holds no array (bead dc-dw44 carries
+/// arrays in CaptureRecord and compares them in calc-verdict; until then the cell is not
+/// comparable, and its verdict is `not_run`).
+pub const STAGE_SPILL: &str = "spill";
+
+/// Why a capture whose spill state of a formula cell after the full rebuild cannot be read is
+/// refused.
+const UNREAD_SPILL: &str = "a spilling cell's Value2 is only the top-left value of its array, so a capture whose spill cannot be read after the full rebuild is refused rather than written with that value passing for a scalar";
+
+/// What the adapter knows about a capture beside the worker's result. Crate-private, as
+/// [`convert`] is: the record it gives is stamped a live capture.
 pub(crate) struct Frame {
-    pub case: String,
-    pub source: String,
-    pub tool: String,
-    pub revision: u64,
-    pub operations: Vec<String>,
-    pub output_package: Option<String>,
+    pub(crate) case: String,
+    pub(crate) source: String,
+    pub(crate) tool: String,
+    pub(crate) revision: u64,
+    pub(crate) operations: Vec<String>,
+    pub(crate) output_package: Option<String>,
     /// Failures the adapter observed itself (an Excel that had to be terminated, say).
-    pub failures: Vec<CaptureFailure>,
+    pub(crate) failures: Vec<CaptureFailure>,
 }
 
 /// The Excel error value of a CVErr code (the `XlCVError` values of Excel's object model), or
@@ -160,13 +217,172 @@ fn place(cell: &CellAddress) -> String {
     format!("{}!{}", cell.sheet(), cell.a1())
 }
 
+/// The 1-based row and column of a relative A1 reference (`B7`), or `None` when the text is not
+/// one within Excel's grid.
+fn parse_a1(text: &str) -> Option<(u32, u32)> {
+    let split = text.find(|c: char| !c.is_ascii_uppercase())?;
+    let (letters, digits) = text.split_at(split);
+    if !(1..=3).contains(&letters.len())
+        || digits.is_empty()
+        || digits.starts_with('0')
+        || !digits.bytes().all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    let column = letters
+        .bytes()
+        .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
+    let row: u32 = digits.parse().ok()?;
+    ((1..=MAX_ROWS).contains(&row) && (1..=MAX_COLUMNS).contains(&column)).then_some((row, column))
+}
+
+/// The first and last cell of a ref (`B1`, `B1:B1` or `B1:C3`), first neither below nor right of
+/// last, or `None`.
+fn parse_range(reference: &str) -> Option<((u32, u32), (u32, u32))> {
+    let (first, last) = match reference.split_once(':') {
+        Some((first, last)) => (parse_a1(first)?, parse_a1(last)?),
+        None => {
+            let cell = parse_a1(reference)?;
+            (cell, cell)
+        }
+    };
+    (first.0 <= last.0 && first.1 <= last.1).then_some((first, last))
+}
+
+/// Whether a formula's `ref` is a range whose first cell is `cell` (`B1`, `B1:B1`, `B1:B3`).
+fn starts_at(reference: &str, cell: &CellAddress) -> bool {
+    parse_range(reference).is_some_and(|(first, _)| first == (cell.row(), cell.column()))
+}
+
 /// Whether a formula's `ref` names `cell` and no other cell (`B1`, or `B1:B1`).
 fn names_only(reference: &str, cell: &CellAddress) -> bool {
-    let own = cell.a1();
-    reference == own
-        || reference
-            .split_once(':')
-            .is_some_and(|(first, last)| first == own && last == own)
+    let own = (cell.row(), cell.column());
+    parse_range(reference) == Some((own, own))
+}
+
+/// "1 row", "3 rows".
+fn counted(n: u32, what: &str) -> String {
+    if n == 1 {
+        format!("1 {what}")
+    } else {
+        format!("{n} {what}s")
+    }
+}
+
+/// The spill range Excel reports for a formula cell: its ref (relative A1, starting at the cell)
+/// and its rows and columns.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Spill {
+    reference: String,
+    first: (u32, u32),
+    last: (u32, u32),
+    rows: u32,
+    columns: u32,
+}
+
+impl Spill {
+    /// `Sheet1!B1:B3 (3 rows by 1 column)`.
+    fn shape(&self, cell: &CellAddress) -> String {
+        format!(
+            "{}!{} ({} by {})",
+            cell.sheet(),
+            self.reference,
+            counted(self.rows, "row"),
+            counted(self.columns, "column")
+        )
+    }
+}
+
+/// What the worker read of `cell`'s spill in the entry `read` (a `cells` or `reopened` entry): no
+/// spill, a spill range, or why there is no spill to record (its member is absent or not of the
+/// result's form, Excel's spill state could not be read, or the range Excel reports does not start
+/// at the cell or does not have the rows and columns Excel reports).
+fn spill_of(read: &Value, cell: &CellAddress) -> Result<Option<Spill>, String> {
+    let at = place(cell);
+    let Some(spill) = read.as_object().and_then(|members| members.get("spill")) else {
+        return Err(format!("the worker read no spill state for {at}"));
+    };
+    if spill.is_null() {
+        return Ok(None);
+    }
+    if let Some(why) = spill
+        .as_object()
+        .filter(|members| members.len() == 1)
+        .and_then(|members| members.get("unread"))
+        .and_then(Value::as_str)
+    {
+        return Err(format!("Excel's spill state of {at} cannot be read: {why}"));
+    }
+    let shape = spill
+        .as_object()
+        .filter(|members| members.len() == 3)
+        .and_then(|_| {
+            Some((
+                spill["ref"].as_str()?,
+                u32::try_from(spill["rows"].as_u64()?).ok()?,
+                u32::try_from(spill["columns"].as_u64()?).ok()?,
+            ))
+        });
+    let Some((reference, rows, columns)) = shape else {
+        return Err(format!(
+            "the spill state the worker read for {at} ({spill}) is not a spill range of a ref, rows and columns"
+        ));
+    };
+    match parse_range(reference) {
+        Some((first, last))
+            if first == (cell.row(), cell.column())
+                && last.0 - first.0 + 1 == rows
+                && last.1 - first.1 + 1 == columns =>
+        {
+            Ok(Some(Spill {
+                reference: reference.to_owned(),
+                first,
+                last,
+                rows,
+                columns,
+            }))
+        }
+        _ => Err(format!(
+            "Excel reports {at} spilling over {reference:?} with {} and {}, which is not a range of that shape starting at the cell",
+            counted(rows, "row"),
+            counted(columns, "column")
+        )),
+    }
+}
+
+/// The failure of `cell`'s saved formula `saved` (the package Excel saved) against the spill Excel
+/// reported after the rebuild, or `None` when they agree: a spill must be saved as a
+/// dynamic-array formula (`array` whose cell metadata names the dynamic-array metadata XLDAPR)
+/// whose `ref` is the spill range, and a cell with no spill must not be saved as a dynamic-array
+/// formula with a `ref` beyond its own cell.
+fn saved_disagreement(saved: &Value, cell: &CellAddress, spill: Option<&Spill>) -> Option<String> {
+    let kind = saved["type"].as_str().unwrap_or("none");
+    let reference = saved["ref"].as_str();
+    let dynamic = saved["dynamic_array_metadata"] == true;
+    let metadata = match (saved["cm"].as_str(), dynamic) {
+        (None, _) => "cell metadata none".to_owned(),
+        (Some(cm), true) => format!("cell metadata {cm} (the dynamic-array metadata XLDAPR)"),
+        (Some(cm), false) => {
+            format!("cell metadata {cm}, which does not name the dynamic-array metadata XLDAPR")
+        }
+    };
+    let held = format!(
+        "the saved package holds the formula as type {kind:?} with ref {} and {metadata}",
+        reference.unwrap_or("none")
+    );
+    let dynamic_array = kind == "array" && dynamic;
+    match spill {
+        Some(spill) => (!dynamic_array
+            || reference.and_then(parse_range) != Some((spill.first, spill.last)))
+        .then(|| {
+            format!(
+                "Excel reports a spill over {} after the full rebuild, and {held}",
+                spill.shape(cell)
+            )
+        }),
+        None => (dynamic_array && reference.is_some_and(|reference| !names_only(reference, cell)))
+            .then(|| format!("Excel reports no spill after the full rebuild, and {held}")),
+    }
 }
 
 /// The calculation context the settings read back from Excel give.
@@ -229,7 +445,10 @@ fn environment(result: &Value) -> Result<ExcelEnvironment, String> {
     Ok(ExcelEnvironment { target, settings })
 }
 
-/// The CaptureRecord version 2 of a worker's result, or why there is none.
+/// The CaptureRecord version 2 of a worker's result (the module documentation describes both), or
+/// why there is none. [`crate::capture`] converts its worker's result with it; the record is
+/// stamped [`Acquisition::LiveCapture`], so nothing outside this crate may call it on a result
+/// that no live capture wrote.
 pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, String> {
     if result["format"] != RESULT_FORMAT || result["version"] != RESULT_VERSION {
         return Err(format!(
@@ -261,12 +480,19 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
     for (i, cell) in array(result, "cells")?.iter().enumerate() {
         cells.insert(address(cell, &format!("cells[{i}]"))?, cell);
     }
+    let mut saved_formulas: BTreeMap<CellAddress, &Value> = BTreeMap::new();
+    for (i, formula) in array(result, "saved_formulas")?.iter().enumerate() {
+        saved_formulas.insert(address(formula, &format!("saved_formulas[{i}]"))?, formula);
+    }
     let mut formulas = Vec::new();
     let mut shared_ranges = Vec::new();
     let mut observations = Vec::new();
+    // The cells that spill after the full rebuild, with their spill ranges.
+    let mut spills: BTreeMap<CellAddress, Spill> = BTreeMap::new();
     for (i, formula) in array(result, "formulas")?.iter().enumerate() {
         let at = format!("formulas[{i}]");
         let cell = address(formula, &at)?;
+        // The input package holds the formula as a dynamic-array formula.
         let mut dynamic_array = false;
         let kind = match (text(formula, "type", &at)?, formula["si"].as_u64()) {
             ("normal", _) => FormulaKind::Ordinary,
@@ -284,9 +510,10 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
             ("shared", None) => return Err(format!("{at}: a shared formula without a group")),
             ("array", _)
                 if formula["cm"].as_str().is_some()
+                    && formula["dynamic_array_metadata"] == true
                     && formula["ref"]
                         .as_str()
-                        .is_some_and(|reference| names_only(reference, &cell)) =>
+                        .is_some_and(|reference| starts_at(reference, &cell)) =>
             {
                 dynamic_array = true;
                 FormulaKind::Ordinary
@@ -302,11 +529,12 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
         };
         let mut text_formula = None;
         match cells.get(&cell) {
-            None => failures.push(failure(
-                "value",
-                &cell,
-                "the worker read no value for this formula cell".to_owned(),
-            )),
+            None => {
+                return Err(format!(
+                    "the worker read nothing for {}, neither its value nor its spill state; {UNREAD_SPILL}",
+                    place(&cell)
+                ));
+            }
             Some(read) => {
                 match read["formula"].as_str() {
                     Some(hex) => match units(hex).map(|units| String::from_utf16(&units)) {
@@ -323,12 +551,36 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
                         "the worker read no formula text".to_owned(),
                     )),
                 }
-                match raw_value(&read["value"]) {
-                    Ok(value) => observations.push(CellObservation {
-                        cell: cell.clone(),
-                        observation: Observation::ExcelRaw(value),
-                    }),
-                    Err(message) => failures.push(failure("value", &cell, message)),
+                let spill =
+                    spill_of(read, &cell).map_err(|why| format!("{why}; {UNREAD_SPILL}"))?;
+                let disagreement = saved_formulas
+                    .get(&cell)
+                    .and_then(|saved| saved_disagreement(saved, &cell, spill.as_ref()));
+                match spill {
+                    Some(spill) => {
+                        failures.push(failure(
+                            STAGE_SPILL,
+                            &cell,
+                            format!(
+                                "Excel reports a spill over {} after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar",
+                                spill.shape(&cell)
+                            ),
+                        ));
+                        // A dynamic-array formula flagged as such is one over its own cell, with
+                        // no spill range.
+                        dynamic_array = false;
+                        spills.insert(cell.clone(), spill);
+                    }
+                    None => match raw_value(&read["value"]) {
+                        Ok(value) => observations.push(CellObservation {
+                            cell: cell.clone(),
+                            observation: Observation::ExcelRaw(value),
+                        }),
+                        Err(message) => failures.push(failure("value", &cell, message)),
+                    },
+                }
+                if let Some(disagreement) = disagreement {
+                    failures.push(failure("save", &cell, disagreement));
                 }
             }
         }
@@ -340,10 +592,34 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
         });
     }
 
+    // The cells Excel lists among its formula cells that the worker found in a spill range: each
+    // must lie in a spill recorded above, off its anchor, or the inventory is not known to be
+    // complete.
+    for (i, entry) in array(result, "spill_members")?.iter().enumerate() {
+        let member = address(entry, &format!("spill_members[{i}]"))?;
+        let covered = spills.iter().any(|(anchor, spill)| {
+            anchor.sheet() == member.sheet()
+                && *anchor != member
+                && (spill.first.0..=spill.last.0).contains(&member.row())
+                && (spill.first.1..=spill.last.1).contains(&member.column())
+        });
+        if !covered {
+            failures.push(failure(
+                STAGE_INVENTORY,
+                &member,
+                "Excel lists a formula here that the package does not hold, as a cell of a spill, and no spill the capture recorded covers it".to_owned(),
+            ));
+        }
+    }
+
     let mut saved = Vec::new();
     for (i, entry) in array(result, "saved")?.iter().enumerate() {
         let at = format!("saved[{i}]");
         let cell = address(entry, &at)?;
+        if spills.contains_key(&cell) {
+            // The cache of a spilling cell holds only the top-left value of its array.
+            continue;
+        }
         let cell_type = match text(entry, "t", &at)? {
             "n" => Ok(CacheCellType::Number),
             "b" => Ok(CacheCellType::Logical),
@@ -379,6 +655,33 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
     let mut reopen_failures = Vec::new();
     for (i, entry) in array(result, "reopened")?.iter().enumerate() {
         let cell = address(entry, &format!("reopened[{i}]"))?;
+        // A reopened value is recorded only for a cell that spills neither after the rebuild nor
+        // after reopening; a spill that changed, or cannot be read, after reopening is a failure.
+        let captured = spills.get(&cell);
+        match (captured, spill_of(entry, &cell)) {
+            (None, Ok(None)) => {}
+            (Some(captured), Ok(Some(reopened))) if *captured == reopened => continue,
+            (captured, reopened) => {
+                let captured = captured.map_or_else(
+                    || "no spill".to_owned(),
+                    |spill| format!("a spill over {}", spill.shape(&cell)),
+                );
+                let message = match reopened {
+                    Ok(reopened) => format!(
+                        "after reopening the saved package Excel reports {}, where the capture read {captured}",
+                        reopened.map_or_else(
+                            || "no spill".to_owned(),
+                            |spill| format!("a spill over {}", spill.shape(&cell))
+                        )
+                    ),
+                    Err(why) => format!(
+                        "after reopening the saved package, {why}; the capture read {captured}"
+                    ),
+                };
+                reopen_failures.push(failure("reopen", &cell, message));
+                continue;
+            }
+        }
         match raw_value(&entry["value"]) {
             Ok(value) => {
                 if let Some(before) = raw.get(&cell)
@@ -472,7 +775,7 @@ mod tests {
     /// A worker result of the shape `worker/capture-worker.ps1` writes, for the conversion only.
     fn result() -> Value {
         json!({
-            "format": RESULT_FORMAT, "version": 1, "excel_pid": 4242, "fatal": null,
+            "format": RESULT_FORMAT, "version": RESULT_VERSION, "excel_pid": 4242, "fatal": null,
             "environment": {
                 "excel_build": "16.0.19127.20154", "channel": "current",
                 "compatibility": "calc-191029", "numeric_environment": "excel-x86-64/cpu-x86-64",
@@ -488,19 +791,26 @@ mod tests {
                 {"sheet": "H", "row": 1, "column": 1, "type": "normal", "si": null, "ref": null}
             ],
             "cells": [
-                {"sheet": "S", "row": 1, "column": 2, "formula": "003d0031002f0030", "value": {"error_code": 2007}},
-                {"sheet": "S", "row": 1, "column": 3, "formula": "003d00410031", "value": {"number": "3ff0000000000000"}},
-                {"sheet": "S", "row": 2, "column": 3, "formula": "003d00410032", "value": {"unsupported": "System.Object[,]"}},
-                {"sheet": "H", "row": 1, "column": 1, "formula": "003d00220061002200260022d83dde000022", "value": {"text": "0061d83d"}}
+                {"sheet": "S", "row": 1, "column": 2, "formula": "003d0031002f0030", "value": {"error_code": 2007}, "spill": null},
+                {"sheet": "S", "row": 1, "column": 3, "formula": "003d00410031", "value": {"number": "3ff0000000000000"}, "spill": null},
+                {"sheet": "S", "row": 2, "column": 3, "formula": "003d00410032", "value": {"unsupported": "System.Object[,]"}, "spill": null},
+                {"sheet": "H", "row": 1, "column": 1, "formula": "003d00220061002200260022d83dde000022", "value": {"text": "0061d83d"}, "spill": null}
             ],
             "saved": [
                 {"sheet": "S", "row": 1, "column": 2, "t": "e", "v": "0023004400490056002f00300021"},
                 {"sheet": "S", "row": 1, "column": 3, "t": "n", "v": "0031"},
                 {"sheet": "H", "row": 1, "column": 1, "t": "d", "v": "0031"}
             ],
+            "saved_formulas": [
+                {"sheet": "S", "row": 1, "column": 2, "type": "normal", "si": null, "ref": null, "cm": null},
+                {"sheet": "S", "row": 1, "column": 3, "type": "shared", "si": 0, "ref": "C1:C2", "cm": null},
+                {"sheet": "S", "row": 2, "column": 3, "type": "shared", "si": 0, "ref": null, "cm": null},
+                {"sheet": "H", "row": 1, "column": 1, "type": "normal", "si": null, "ref": null, "cm": null}
+            ],
+            "spill_members": [],
             "reopened": [
-                {"sheet": "S", "row": 1, "column": 2, "value": {"error_code": 2007}},
-                {"sheet": "S", "row": 1, "column": 3, "value": {"number": "3ff0000000000001"}}
+                {"sheet": "S", "row": 1, "column": 2, "value": {"error_code": 2007}, "spill": null},
+                {"sheet": "S", "row": 1, "column": 3, "value": {"number": "3ff0000000000001"}, "spill": null}
             ],
             "failures": [{"stage": "inventory", "sheet": "S", "row": 9, "column": 9, "message": "extra"}]
         })
@@ -610,8 +920,9 @@ mod tests {
     }
 
     /// A single-cell formula saved as a dynamic array (type array, cell metadata cm, a ref of the
-    /// cell itself) is an ordinary formula flagged as dynamic; a legacy array formula (no cm) over
-    /// one cell or several, and a dynamic array over a spill range, are refused.
+    /// cell itself) that does not spill is an ordinary formula flagged as dynamic; a legacy array
+    /// formula (no cm) over one cell or several, and a dynamic array whose ref does not start at
+    /// its cell or that has none, are refused.
     #[test]
     fn a_single_cell_dynamic_array_formula_is_ordinary_and_flagged() {
         for reference in ["B1", "B1:B1"] {
@@ -619,6 +930,7 @@ mod tests {
             dynamic["formulas"][0]["type"] = json!("array");
             dynamic["formulas"][0]["ref"] = json!(reference);
             dynamic["formulas"][0]["cm"] = json!("1");
+            dynamic["formulas"][0]["dynamic_array_metadata"] = json!(true);
             let record = convert(&dynamic, frame()).unwrap();
             assert_eq!(
                 record.formulas[0].kind,
@@ -634,21 +946,43 @@ mod tests {
             let encoded = record.encode().unwrap();
             assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
         }
-        for (reference, cm, what) in [
-            (Some("B1"), None, "a legacy array formula over its one cell"),
-            (Some("B1:B2"), None, "a legacy array formula over two cells"),
+        // Each refused row but the legacy ones says its cell metadata names XLDAPR, so the row is
+        // refused for its ref; the last row has a valid ref and cell metadata that does not name
+        // XLDAPR.
+        for (reference, cm, xldapr, what) in [
+            (
+                Some("B1"),
+                None,
+                false,
+                "a legacy array formula over its one cell",
+            ),
+            (
+                Some("B1:B2"),
+                None,
+                false,
+                "a legacy array formula over two cells",
+            ),
+            (Some("C1"), Some("1"), true, "a ref that names another cell"),
+            (
+                Some("A1:B3"),
+                Some("1"),
+                true,
+                "a ref that starts at another cell",
+            ),
+            (Some("B1:"), Some("1"), true, "a ref that is not a range"),
+            (None, Some("1"), true, "no ref"),
             (
                 Some("B1:B3"),
                 Some("1"),
-                "a dynamic array over a spill range",
+                false,
+                "cell metadata that does not name XLDAPR",
             ),
-            (Some("C1"), Some("1"), "a ref that names another cell"),
-            (None, Some("1"), "no ref"),
         ] {
             let mut array = result();
             array["formulas"][0]["type"] = json!("array");
             array["formulas"][0]["ref"] = json!(reference);
             array["formulas"][0]["cm"] = json!(cm);
+            array["formulas"][0]["dynamic_array_metadata"] = json!(xldapr);
             let error = convert(&array, frame()).err().unwrap();
             assert!(
                 error.starts_with(&format!(
@@ -658,6 +992,429 @@ mod tests {
                 )),
                 "{what}: {error}"
             );
+        }
+    }
+
+    fn spill(reference: &str, rows: u64, columns: u64) -> Value {
+        json!({"ref": reference, "rows": rows, "columns": columns})
+    }
+
+    /// S!B1's formula as the saved package holds it: a dynamic-array formula with `reference`
+    /// (cell metadata 1, which names the dynamic-array metadata XLDAPR).
+    fn saved_array(reference: &str) -> Value {
+        json!({"sheet": "S", "row": 1, "column": 2, "type": "array", "si": null, "ref": reference, "cm": "1", "dynamic_array_metadata": true})
+    }
+
+    /// [`result`] with S!B1 a dynamic-array formula whose input ref is `input`, the spill the
+    /// worker read for it after the rebuild (`captured`) and after reopening (`reopened`), and
+    /// the saved package's formula of it (`saved`).
+    fn with_spill(input: &str, captured: Value, reopened: Value, saved: Value) -> Value {
+        let mut with = result();
+        with["formulas"][0]["type"] = json!("array");
+        with["formulas"][0]["ref"] = json!(input);
+        with["formulas"][0]["cm"] = json!("1");
+        with["formulas"][0]["dynamic_array_metadata"] = json!(true);
+        with["cells"][0]["spill"] = captured;
+        with["reopened"][0]["spill"] = reopened;
+        with["saved_formulas"][0] = saved;
+        with
+    }
+
+    /// The failures of `record` at `sheet`!`a1`, as (stage, message).
+    fn failures_at(record: &CaptureRecord, sheet: &str, a1: &str) -> Vec<(String, String)> {
+        record
+            .session
+            .as_ref()
+            .unwrap()
+            .failures
+            .iter()
+            .filter(|f| {
+                f.cell
+                    .as_ref()
+                    .is_some_and(|c| c.sheet() == sheet && c.a1() == a1)
+            })
+            .map(|f| (f.stage.clone(), f.message.clone()))
+            .collect()
+    }
+
+    /// The cells `list` holds an entry for, as `sheet!A1`.
+    fn listed(list: &[CellObservation]) -> Vec<String> {
+        list.iter().map(|o| place(&o.cell)).collect()
+    }
+
+    const NOT_A_SCALAR: &str = "after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar";
+
+    /// A cell that spills after the full rebuild keeps its place in the inventory, gets a spill
+    /// failure naming its range, rows and columns, and has no raw observation, saved cache or
+    /// reopened value: its Value2 (here #DIV/0!, the top-left value) is never recorded as its
+    /// value. Whether it spills is Excel's report, whatever the input package says: H!A1, an
+    /// ordinary formula in the input, spills too, and its saved package, which holds it as an
+    /// ordinary formula, disagrees.
+    #[test]
+    fn a_cell_that_spills_is_recorded_as_a_spill_never_as_a_scalar() {
+        for (reference, rows, columns, shape) in [
+            ("B1:B3", 3, 1, "S!B1:B3 (3 rows by 1 column)"),
+            ("B1:D1", 1, 3, "S!B1:D1 (1 row by 3 columns)"),
+            ("B1:D2", 2, 3, "S!B1:D2 (2 rows by 3 columns)"),
+        ] {
+            let mut spilling = with_spill(
+                reference,
+                spill(reference, rows, columns),
+                spill(reference, rows, columns),
+                saved_array(reference),
+            );
+            spilling["cells"][3]["spill"] = spill("A1:A2", 2, 1);
+            spilling["reopened"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({"sheet": "H", "row": 1, "column": 1, "value": {"text": "0061"}, "spill": spill("A1:A2", 2, 1)}));
+            let record = convert(&spilling, frame()).unwrap();
+            let session = record.session.as_ref().unwrap();
+            // The inventory is unchanged: B1 is an ordinary formula, not flagged, since a flagged
+            // formula is one over its own cell with no spill range.
+            assert_eq!(record.formulas.len(), 4);
+            assert_eq!(
+                (record.formulas[0].kind, record.formulas[0].dynamic_array),
+                (FormulaKind::Ordinary, false)
+            );
+            assert_eq!(listed(&record.observations), ["S!C1"]);
+            assert_eq!(listed(&session.saved), ["S!C1"]);
+            assert_eq!(listed(&session.reopened), ["S!C1"]);
+            assert_eq!(
+                failures_at(&record, "S", "B1"),
+                [(
+                    STAGE_SPILL.to_owned(),
+                    format!("Excel reports a spill over {shape} {NOT_A_SCALAR}")
+                )]
+            );
+            assert_eq!(
+                failures_at(&record, "H", "A1"),
+                [
+                    (
+                        STAGE_SPILL.to_owned(),
+                        format!("Excel reports a spill over H!A1:A2 (2 rows by 1 column) {NOT_A_SCALAR}")
+                    ),
+                    (
+                        "save".to_owned(),
+                        "Excel reports a spill over H!A1:A2 (2 rows by 1 column) after the full rebuild, and the saved package holds the formula as type \"normal\" with ref none and cell metadata none".to_owned()
+                    )
+                ]
+            );
+            // The rest of the record is the one the plain result gives.
+            assert_eq!(failures_at(&record, "S", "C2").len(), 1);
+            let encoded = record.encode().unwrap();
+            assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
+        }
+    }
+
+    /// A spill that cannot be read after the rebuild, or whose shape is not a range starting at
+    /// the cell with the rows and columns Excel reports, refuses the whole conversion.
+    #[test]
+    fn a_spill_whose_shape_cannot_be_read_refuses_the_capture() {
+        let unread =
+            json!({"unread": "Range.HasSpill reads as True and Range.SpillingToRange as nothing"});
+        for (captured, expected) in [
+            (
+                unread,
+                "Excel's spill state of S!B1 cannot be read: Range.HasSpill reads as True and Range.SpillingToRange as nothing",
+            ),
+            (
+                spill("C1:C3", 3, 1),
+                "Excel reports S!B1 spilling over \"C1:C3\" with 3 rows and 1 column, which is not a range of that shape starting at the cell",
+            ),
+            (
+                spill("B1:B3", 4, 1),
+                "Excel reports S!B1 spilling over \"B1:B3\" with 4 rows and 1 column",
+            ),
+            (
+                spill("B1:B3", 3, 2),
+                "Excel reports S!B1 spilling over \"B1:B3\" with 3 rows and 2 columns",
+            ),
+            (
+                spill("B3:B1", 3, 1),
+                "Excel reports S!B1 spilling over \"B3:B1\"",
+            ),
+            (
+                spill("$B$1:$B$3", 3, 1),
+                "Excel reports S!B1 spilling over \"$B$1:$B$3\"",
+            ),
+            (
+                json!({"ref": "B1:B3"}),
+                "is not a spill range of a ref, rows and columns",
+            ),
+            (
+                json!(true),
+                "is not a spill range of a ref, rows and columns",
+            ),
+        ] {
+            let refused = with_spill("B1:B3", captured.clone(), Value::Null, saved_array("B1:B3"));
+            let error = convert(&refused, frame()).unwrap_err();
+            assert!(error.contains(expected), "{captured}: {error}");
+            assert!(
+                error.ends_with("so a capture whose spill cannot be read after the full rebuild is refused rather than written with that value passing for a scalar"),
+                "{error}"
+            );
+        }
+        // A cell entry without its spill member is refused as well: version 1 results had none.
+        let mut missing = result();
+        missing["cells"][1].as_object_mut().unwrap().remove("spill");
+        let error = convert(&missing, frame()).unwrap_err();
+        assert!(
+            error.starts_with("the worker read no spill state for S!C1;"),
+            "{error}"
+        );
+        // So is a formula cell the worker read nothing for.
+        let mut unread = result();
+        unread["cells"].as_array_mut().unwrap().remove(0);
+        let error = convert(&unread, frame()).unwrap_err();
+        assert!(
+            error.starts_with(
+                "the worker read nothing for S!B1, neither its value nor its spill state; a spilling cell's Value2"
+            ),
+            "{error}"
+        );
+        let mut first = result();
+        first["version"] = json!(1);
+        assert!(convert(&first, frame()).is_err());
+    }
+
+    /// The saved package must hold a spill as a dynamic-array formula (type array with cell
+    /// metadata) whose ref is the range Excel reports, and must not declare a spill range for a
+    /// cell Excel reports no spill for; a disagreement is a save failure of that cell, beside
+    /// the spill failure of a cell that spills.
+    #[test]
+    fn a_saved_ref_that_disagrees_with_the_spill_is_a_save_failure() {
+        let spilling = |saved: Value| {
+            let record = convert(
+                &with_spill("B1:B3", spill("B1:B3", 3, 1), spill("B1:B3", 3, 1), saved),
+                frame(),
+            )
+            .unwrap();
+            let failures = failures_at(&record, "S", "B1");
+            assert_eq!(failures[0].0, STAGE_SPILL, "{failures:?}");
+            assert!(!listed(&record.observations).contains(&"S!B1".to_owned()));
+            failures[1..].to_vec()
+        };
+        let held = |held: &str| {
+            vec![(
+                "save".to_owned(),
+                format!(
+                    "Excel reports a spill over S!B1:B3 (3 rows by 1 column) after the full rebuild, and the saved package holds the formula as {held}"
+                ),
+            )]
+        };
+        assert_eq!(
+            spilling(saved_array("B1:B4")),
+            held(
+                "type \"array\" with ref B1:B4 and cell metadata 1 (the dynamic-array metadata XLDAPR)"
+            )
+        );
+        let mut legacy = saved_array("B1:B3");
+        legacy["cm"] = Value::Null;
+        legacy["dynamic_array_metadata"] = json!(false);
+        assert_eq!(
+            spilling(legacy),
+            held("type \"array\" with ref B1:B3 and cell metadata none")
+        );
+        // Cell metadata that is present but does not name the dynamic-array metadata, and a saved
+        // formula that does not say whether it does, are not a dynamic-array formula.
+        let mut other = saved_array("B1:B3");
+        other["dynamic_array_metadata"] = json!(false);
+        assert_eq!(
+            spilling(other),
+            held(
+                "type \"array\" with ref B1:B3 and cell metadata 1, which does not name the dynamic-array metadata XLDAPR"
+            )
+        );
+        let mut unsaid = saved_array("B1:B3");
+        unsaid
+            .as_object_mut()
+            .unwrap()
+            .remove("dynamic_array_metadata");
+        assert_eq!(
+            spilling(unsaid),
+            held(
+                "type \"array\" with ref B1:B3 and cell metadata 1, which does not name the dynamic-array metadata XLDAPR"
+            )
+        );
+        let mut normal = saved_array("B1:B3");
+        normal["type"] = json!("normal");
+        normal["ref"] = Value::Null;
+        normal["cm"] = Value::Null;
+        assert_eq!(
+            spilling(normal),
+            held("type \"normal\" with ref none and cell metadata none")
+        );
+        // The range compared is the one the ref names, in either form.
+        assert_eq!(spilling(saved_array("B1:B3")), []);
+        // A cell with no saved formula is the worker's save failure to report, not this check's.
+        let mut unsaved = with_spill(
+            "B1:B3",
+            spill("B1:B3", 3, 1),
+            spill("B1:B3", 3, 1),
+            saved_array("B1:B3"),
+        );
+        unsaved["saved_formulas"].as_array_mut().unwrap().remove(0);
+        let record = convert(&unsaved, frame()).unwrap();
+        assert_eq!(failures_at(&record, "S", "B1").len(), 1);
+
+        // No spill, and the saved package declares one: a save failure; the value Excel shows is
+        // still recorded.
+        let record = convert(
+            &with_spill("B1", Value::Null, Value::Null, saved_array("B1:B3")),
+            frame(),
+        )
+        .unwrap();
+        assert_eq!(
+            failures_at(&record, "S", "B1"),
+            [(
+                "save".to_owned(),
+                "Excel reports no spill after the full rebuild, and the saved package holds the formula as type \"array\" with ref B1:B3 and cell metadata 1 (the dynamic-array metadata XLDAPR)".to_owned()
+            )]
+        );
+        assert_eq!(listed(&record.observations), ["S!B1", "S!C1", "H!A1"]);
+    }
+
+    /// The cells Excel lists among its formula cells that the worker found in a spill range are
+    /// never formula cells of the record: each that lies in a spill the conversion records, off
+    /// its anchor, leaves no trace; one outside every recorded spill (beside it, on another sheet,
+    /// the anchor itself, or in a range the conversion does not record as a spill) is an inventory
+    /// failure naming it, which calc-verdict refuses to judge.
+    #[test]
+    fn spill_members_must_lie_in_a_recorded_spill() {
+        let member = |sheet: &str, row: u32, column: u32| json!({"sheet": sheet, "row": row, "column": column});
+        let with_members = |captured: Value, members: Vec<Value>| {
+            let mut with = with_spill("B1:B3", captured.clone(), captured, saved_array("B1:B3"));
+            with["spill_members"] = json!(members);
+            convert(&with, frame()).unwrap()
+        };
+        // The inventory failures of a record, as `sheet!A1`; [`result`] carries one at S!I9.
+        let inventory = |record: &CaptureRecord| -> Vec<String> {
+            record
+                .session
+                .as_ref()
+                .unwrap()
+                .failures
+                .iter()
+                .filter(|f| f.stage == STAGE_INVENTORY)
+                .map(|f| place(f.cell.as_ref().unwrap()))
+                .collect()
+        };
+        let inside = vec![member("S", 2, 2), member("S", 3, 2)];
+        let record = with_members(spill("B1:B3", 3, 1), inside.clone());
+        assert_eq!(inventory(&record), ["S!I9"]);
+        assert_eq!(record.formulas.len(), 4);
+        for (outside, a1) in [
+            (member("S", 4, 2), "B4"),
+            (member("S", 2, 1), "A2"),
+            (member("H", 2, 2), "B2"),
+            (member("S", 1, 2), "B1"),
+        ] {
+            let sheet = outside["sheet"].as_str().unwrap().to_owned();
+            let mut members = inside.clone();
+            members.push(outside);
+            let record = with_members(spill("B1:B3", 3, 1), members);
+            let failures: Vec<(String, String)> = failures_at(&record, &sheet, a1)
+                .into_iter()
+                .filter(|(stage, _)| stage == STAGE_INVENTORY)
+                .collect();
+            assert_eq!(
+                failures,
+                [(
+                    STAGE_INVENTORY.to_owned(),
+                    "Excel lists a formula here that the package does not hold, as a cell of a spill, and no spill the capture recorded covers it".to_owned()
+                )],
+                "{sheet}!{a1}"
+            );
+            assert_eq!(record.formulas.len(), 4);
+        }
+        // With no spill recorded, every member is an inventory failure.
+        let record = with_members(Value::Null, inside);
+        assert_eq!(inventory(&record), ["S!B2", "S!B3", "S!I9"]);
+    }
+
+    /// A formula the input package holds as a dynamic array over a spill range that does not spill
+    /// after the rebuild is recorded as Excel shows it, flagged as a dynamic-array formula, with no
+    /// failure when the saved package holds it over its own cell.
+    #[test]
+    fn a_dynamic_array_input_that_no_longer_spills_is_recorded_as_excel_shows_it() {
+        let record = convert(
+            &with_spill("B1:B3", Value::Null, Value::Null, saved_array("B1")),
+            frame(),
+        )
+        .unwrap();
+        assert_eq!(
+            (record.formulas[0].kind, record.formulas[0].dynamic_array),
+            (FormulaKind::Ordinary, true)
+        );
+        assert_eq!(failures_at(&record, "S", "B1"), []);
+        assert_eq!(
+            record.observations[0],
+            CellObservation {
+                cell: CellAddress::new("S", 1, 2).unwrap(),
+                observation: Observation::ExcelRaw(CalcValue::error(WorksheetErrorCode::Div0)),
+            }
+        );
+        assert_eq!(
+            listed(&record.session.as_ref().unwrap().reopened),
+            ["S!B1", "S!C1"]
+        );
+    }
+
+    /// The spill read after reopening the saved package must be the one captured: a spill that
+    /// appears, disappears, changes or cannot be read after reopening is a reopen failure of the
+    /// cell, and its reopened value is not recorded.
+    #[test]
+    fn a_spill_that_changes_after_reopening_is_a_reopen_failure() {
+        let b1b3 = || spill("B1:B3", 3, 1);
+        for (captured, reopened, expected) in [
+            (
+                b1b3(),
+                Value::Null,
+                Some(
+                    "after reopening the saved package Excel reports no spill, where the capture read a spill over S!B1:B3 (3 rows by 1 column)",
+                ),
+            ),
+            (
+                b1b3(),
+                spill("B1:B4", 4, 1),
+                Some(
+                    "after reopening the saved package Excel reports a spill over S!B1:B4 (4 rows by 1 column), where the capture read a spill over S!B1:B3 (3 rows by 1 column)",
+                ),
+            ),
+            (
+                b1b3(),
+                json!({"unread": "x"}),
+                Some(
+                    "after reopening the saved package, Excel's spill state of S!B1 cannot be read: x; the capture read a spill over S!B1:B3 (3 rows by 1 column)",
+                ),
+            ),
+            (
+                Value::Null,
+                b1b3(),
+                Some(
+                    "after reopening the saved package Excel reports a spill over S!B1:B3 (3 rows by 1 column), where the capture read no spill",
+                ),
+            ),
+            (b1b3(), b1b3(), None),
+        ] {
+            let saved = if captured.is_null() {
+                saved_array("B1")
+            } else {
+                saved_array("B1:B3")
+            };
+            let record = convert(
+                &with_spill("B1:B3", captured.clone(), reopened, saved),
+                frame(),
+            )
+            .unwrap();
+            let reopen: Vec<String> = failures_at(&record, "S", "B1")
+                .into_iter()
+                .filter(|(stage, _)| stage == "reopen")
+                .map(|(_, message)| message)
+                .collect();
+            assert_eq!(reopen, expected.into_iter().collect::<Vec<_>>());
+            assert_eq!(listed(&record.session.as_ref().unwrap().reopened), ["S!C1"]);
         }
     }
 

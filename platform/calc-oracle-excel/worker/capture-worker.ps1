@@ -15,7 +15,8 @@
 # What it does, in order:
 #   1. reads the input package with .NET's ZIP and XML readers (no DTDs, no external resolution):
 #      the worksheets, their visibility, every formula cell with its formula type, shared group,
-#      range ref and cell metadata index (cm), the data connections with their refreshOnLoad flag,
+#      range ref and cell metadata index (cm, with whether it names the dynamic-array metadata
+#      XLDAPR of the metadata part), the data connections with their refreshOnLoad flag,
 #      the kind of each external link part, the root element and refreshOnLoad flag of every XML
 #      part, and the calls of the formulas it reads to the functions of $ExternalDataFunctions;
 #      this inventory comes from the package, not from Excel;
@@ -33,12 +34,19 @@
 #      quits without the workbook having been opened. An add-in that is installed in the profile
 #      but not open in this instance is recorded and does not refuse it. Nothing is switched off;
 #   5. opens the input read-only with UpdateLinks 0, sets the calculation policy of the request,
-#      forces a full rebuild, and reads each inventory cell's formula (Formula2 only) and raw
-#      Value2 (numbers as their binary64 bits), the environment and settings, the workbook's links
-#      (an OLE or DDE link is an isolation failure) and its data connections (one that refreshes on
-#      open, or whose setting cannot be read, is an isolation failure). Nothing is ever refreshed;
+#      forces a full rebuild, and reads each inventory cell's formula (Formula2 only), raw Value2
+#      (numbers as their binary64 bits) and spill (Read-Spill: Range.HasSpill, and for a spill the
+#      address, rows and columns of Range.SpillingToRange), the environment and settings, the
+#      workbook's links (an OLE or DDE link is an isolation failure) and its data connections (one
+#      that refreshes on open, or whose setting cannot be read, is an isolation failure), and
+#      cross-checks Excel's own formula cells against the inventory (a listed cell in the spill
+#      range of an inventory cell is a spill member, not an inventory failure). Nothing is ever
+#      refreshed;
 #   6. saves the workbook to the output path, closes it, reads the output package's caches for the
-#      inventory cells, reopens the output read-only and reads each inventory cell's Value2 again;
+#      inventory cells and its formulas (type, ref, cm and whether cm names the dynamic-array
+#      metadata, against which the conversion checks each spill; an inventory cell without a saved
+#      formula is a save failure of that cell), reopens the output read-only and reads each
+#      inventory cell's Value2 and spill again;
 #   7. quits Excel, writes the result file and prints "done".
 #
 # The routes to external data or another application that step 2 checks, and no others:
@@ -80,6 +88,7 @@ $Protocol = 'dnacalc-capture-worker/1'
 $MainNs = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 $OfficeRelNs = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 $RelPrefix = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/'
+$DynamicArrayNs = 'http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray'
 
 function Send-Line([string]$Text) {
     [Console]::Out.WriteLine("$Protocol $Text")
@@ -275,9 +284,43 @@ function Read-Root($Entry) {
     }
 }
 
+# The cell metadata blocks of a metadata part (cellMetadata/bk, in order: a cell's cm="n" names the
+# n-th), each $true when one of its records (rc: t, the 1-based index of a metadataType, and v, the
+# 0-based index of a block of that type's futureMetadata) names the type XLDAPR and a block whose
+# dynamicArrayProperties has fDynamic set, which is how Excel with dynamic arrays marks a
+# dynamic-array formula, and $false otherwise.
+function Read-DynamicArrayBlocks($Document) {
+    $names = New-Object System.Xml.XmlNamespaceManager($Document.NameTable)
+    $names.AddNamespace('x', $MainNs)
+    $types = @(foreach ($type in $Document.SelectNodes('/x:metadata/x:metadataTypes/x:metadataType', $names)) { $type.GetAttribute('name') })
+    $dynamic = @(foreach ($bk in $Document.SelectNodes("/x:metadata/x:futureMetadata[@name='XLDAPR']/x:bk", $names)) {
+        $properties = $bk.SelectSingleNode(".//*[local-name()='dynamicArrayProperties' and namespace-uri()='$DynamicArrayNs']")
+        ($null -ne $properties) -and (@('1', 'true') -contains $properties.GetAttribute('fDynamic'))
+    })
+    $blocks = New-Object System.Collections.ArrayList
+    foreach ($bk in $Document.SelectNodes('/x:metadata/x:cellMetadata/x:bk', $names)) {
+        $marked = $false
+        foreach ($rc in $bk.SelectNodes('x:rc', $names)) {
+            $t = Get-Index $rc.GetAttribute('t')
+            $v = Get-Index $rc.GetAttribute('v')
+            if ($null -ne $t -and $null -ne $v -and $t -ge 1 -and $t -le $types.Count -and $types[$t - 1] -eq 'XLDAPR' -and $v -lt $dynamic.Count -and $dynamic[$v]) { $marked = $true }
+        }
+        [void]$blocks.Add($marked)
+    }
+    return , $blocks
+}
+
+# An index written as decimal digits only, or $null.
+function Get-Index([string]$Text) {
+    $index = 0
+    if ([int]::TryParse($Text, [System.Globalization.NumberStyles]::None, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$index)) { return $index }
+    return $null
+}
+
 # The worksheets of a package with their visibility, every cell that holds a formula or a value
-# (formula type, shared group, ref and cell metadata index cm, and the cached value's type and
-# text), the data connections of its connections part with their refreshOnLoad flag, the kind of
+# (formula type, shared group, ref and cell metadata index cm with whether cm names the
+# dynamic-array metadata (Read-DynamicArrayBlocks), and the cached value's type and text), the
+# data connections of its connections part with their refreshOnLoad flag, the kind of
 # each external link part (the local name of its first element: externalBook, ddeLink or oleLink),
 # the root element of every XML part with its refreshOnLoad flag, and each formula of a sheet (cell,
 # conditional formatting, data validation) or defined name that calls a function of
@@ -302,6 +345,7 @@ function Read-Package([string]$Path) {
         $strings = New-Object System.Collections.ArrayList
         $connections = New-Object System.Collections.ArrayList
         $links = New-Object System.Collections.ArrayList
+        $cellMetadata = New-Object System.Collections.ArrayList
         foreach ($id in ($rels.Keys | Sort-Object)) {
             $rel = $rels[$id]
             if ($rel.type -eq ($RelPrefix + 'sharedStrings')) {
@@ -338,6 +382,11 @@ function Read-Package([string]$Path) {
                     }
                 }
                 [void]$links.Add([ordered]@{ part = $part; kind = $kind })
+            } elseif ($rel.type -eq ($RelPrefix + 'sheetMetadata')) {
+                $part = Resolve-Target $workbookPart $rel.target
+                $document = Read-Part $zip $part
+                if ($null -eq $document) { throw "the metadata part $part is missing" }
+                $cellMetadata = Read-DynamicArrayBlocks $document
             }
         }
 
@@ -393,10 +442,14 @@ function Read-Package([string]$Path) {
                 if ($null -ne $f) {
                     $type = $f.GetAttribute('t')
                     if ($type -eq '') { $type = 'normal' }
-                    $entry = [ordered]@{ sheet = $name; row = $place.row; column = $place.column; type = $type; si = $null; ref = $null; cm = $null }
+                    $entry = [ordered]@{ sheet = $name; row = $place.row; column = $place.column; type = $type; si = $null; ref = $null; cm = $null; dynamic_array_metadata = $false }
                     if ($f.HasAttribute('si')) { $entry.si = [int64]$f.GetAttribute('si') }
                     if ($f.HasAttribute('ref')) { $entry.ref = $f.GetAttribute('ref') }
-                    if ($c.HasAttribute('cm')) { $entry.cm = $c.GetAttribute('cm') }
+                    if ($c.HasAttribute('cm')) {
+                        $entry.cm = $c.GetAttribute('cm')
+                        $block = Get-Index $entry.cm
+                        if ($null -ne $block -and $block -ge 1 -and $block -le $cellMetadata.Count) { $entry.dynamic_array_metadata = [bool]$cellMetadata[$block - 1] }
+                    }
                     [void]$formulas.Add($entry)
                 }
                 $t = $c.GetAttribute('t')
@@ -590,6 +643,32 @@ function Read-Value($Cell) {
     return (Convert-Value $value)
 }
 
+# Whether a formula cell spills, read through Get-ComProperty: $null when Range.HasSpill reads as
+# False; the relative A1 address (Address(False, False)), Rows.Count and Columns.Count of
+# Range.SpillingToRange when it reads as True; or, as unread, why that cannot be read (a read that
+# fails or gives another type, a SpillingToRange that reads as nothing). A spilling cell's Value2 is
+# only the top-left value of its array, so the conversion records a spill, never that value, and
+# refuses the capture when a spill cannot be read.
+function Read-Spill($Cell) {
+    try {
+        $has = Get-ComProperty $Cell 'HasSpill'
+        if ($has -isnot [bool]) { throw ('Range.HasSpill reads as ' + (Get-Shown $has) + ', not a boolean') }
+        if (-not $has) { return $null }
+        $range = Get-ComProperty $Cell 'SpillingToRange'
+        if ($null -eq $range) { throw 'Range.HasSpill reads as True and Range.SpillingToRange as nothing' }
+        $address = Get-ComProperty $range 'Address' @($false, $false)
+        if ($address -isnot [string]) { throw ('Range.SpillingToRange.Address reads as ' + (Get-Shown $address) + ', not a text') }
+        $rows = Get-ComProperty (Get-ComProperty $range 'Rows') 'Count'
+        $columns = Get-ComProperty (Get-ComProperty $range 'Columns') 'Count'
+        if (-not ($rows -is [int] -and $columns -is [int])) {
+            throw ('the Rows.Count and Columns.Count of Range.SpillingToRange read as ' + (Get-Shown $rows) + ' and ' + (Get-Shown $columns))
+        }
+        return [ordered]@{ ref = $address; rows = $rows; columns = $columns }
+    } catch {
+        return [ordered]@{ unread = $_.Exception.Message }
+    }
+}
+
 # The add-ins of an Excel instance, read and never changed: in loaded, each COM add-in that is
 # connected, each add-in that is open in this instance (one installed in the profile but not open
 # is recorded only), each add-in or list whose state cannot be read,
@@ -666,7 +745,7 @@ if ([string]::IsNullOrEmpty($Request) -or [string]::IsNullOrEmpty($Result)) {
 
 $Output = [ordered]@{
     format = 'dnacalc-capture-worker-result'
-    version = 1
+    version = 2
     excel_pid = $null
     fatal = $null
     environment = $null
@@ -674,6 +753,8 @@ $Output = [ordered]@{
     formulas = @()
     cells = (New-Object System.Collections.ArrayList)
     saved = (New-Object System.Collections.ArrayList)
+    saved_formulas = @()
+    spill_members = (New-Object System.Collections.ArrayList)
     reopened = (New-Object System.Collections.ArrayList)
     failures = $Failures
 }
@@ -685,7 +766,7 @@ try {
     $Output.sheets = $package.sheets
     $Output.formulas = $package.formulas
     $inventory = @{}
-    foreach ($entry in $package.formulas) { $inventory[(Get-Key $entry.sheet $entry.row $entry.column)] = $true }
+    foreach ($entry in $package.formulas) { $inventory[(Get-Key $entry.sheet $entry.row $entry.column)] = $entry }
 
     $refusals = Get-PackageRefusals $package
     if ($refusals.Count -gt 0) {
@@ -950,11 +1031,23 @@ try {
         } catch {
             throw "Range.Formula2 cannot be read at $($entry.sheet)!R$($entry.row)C$($entry.column) ($($_.Exception.Message)); this capture reads formula text through Formula2 only, so it is refused"
         }
-        [void]$Output.cells.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; formula = (Get-Units $formula); value = (Read-Value $cell) })
+        [void]$Output.cells.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; formula = (Get-Units $formula); value = (Read-Value $cell); spill = (Read-Spill $cell) })
+    }
+    # The inventory cells that spill, by sheet, each covering the rows and columns of its
+    # SpillingToRange from itself.
+    $spilling = @{}
+    foreach ($read in $Output.cells) {
+        if ($null -eq $read.spill -or -not $read.spill.Contains('rows')) { continue }
+        if (-not $spilling.ContainsKey($read.sheet)) { $spilling[$read.sheet] = New-Object System.Collections.ArrayList }
+        [void]$spilling[$read.sheet].Add($read)
     }
     # Excel's own formula cells, cross-checked against the package's inventory. Range.HasFormula is
     # False when no cell of the range holds a formula, True when all do and null when some do; only
-    # Excel's own False skips the listing, and any error of the listing is an inventory failure.
+    # Excel's own False skips the listing, and any error of the listing is an inventory failure. A
+    # listed cell the package holds no formula for is a spill member when it lies in the spill range
+    # of an inventory cell read above (Excel may list the cells a dynamic-array formula spills into
+    # among its formula cells): it is recorded in spill_members, never in the inventory, and the
+    # conversion checks it against the spill it records. Any other is an inventory failure.
     try {
         $worksheets = Get-ComProperty $workbook 'Worksheets'
         if ($null -eq $worksheets) { throw 'Workbook.Worksheets reads as nothing' }
@@ -996,7 +1089,17 @@ try {
                 continue
             }
             if (-not $inventory.ContainsKey((Get-Key $sheetName $row $column))) {
-                Add-Failure 'inventory' ([ordered]@{ sheet = $sheetName; row = $row; column = $column }) 'Excel reports a formula here that the package does not hold'
+                $member = $false
+                if ($spilling.ContainsKey($sheetName)) {
+                    foreach ($read in $spilling[$sheetName]) {
+                        if ($row -ge $read.row -and $row -lt $read.row + $read.spill.rows -and $column -ge $read.column -and $column -lt $read.column + $read.spill.columns) { $member = $true }
+                    }
+                }
+                if ($member) {
+                    [void]$Output.spill_members.Add([ordered]@{ sheet = $sheetName; row = $row; column = $column })
+                } else {
+                    Add-Failure 'inventory' ([ordered]@{ sheet = $sheetName; row = $row; column = $column }) 'Excel reports a formula here that the package does not hold'
+                }
             }
         }
     }
@@ -1015,6 +1118,7 @@ try {
     $workbook = $null
 
     $saved = Read-Package $req.output
+    $Output.saved_formulas = $saved.formulas
     foreach ($entry in $package.formulas) {
         $cache = $saved.caches[(Get-Key $entry.sheet $entry.row $entry.column)]
         if ($null -eq $cache) {
@@ -1024,18 +1128,18 @@ try {
         }
     }
     $savedFormulas = @{}
-    foreach ($entry in $saved.formulas) { $savedFormulas[(Get-Key $entry.sheet $entry.row $entry.column)] = $true }
-    foreach ($key in $inventory.Keys) {
-        if (-not $savedFormulas.ContainsKey($key)) { Add-Failure 'save' $null "the saved package holds no formula at $key" }
+    foreach ($entry in $saved.formulas) { $savedFormulas[(Get-Key $entry.sheet $entry.row $entry.column)] = $entry }
+    foreach ($entry in $package.formulas) {
+        if (-not $savedFormulas.ContainsKey((Get-Key $entry.sheet $entry.row $entry.column))) { Add-Failure 'save' $entry 'the saved package holds no formula for this formula cell' }
     }
-    foreach ($key in $savedFormulas.Keys) {
-        if (-not $inventory.ContainsKey($key)) { Add-Failure 'save' $null "the saved package holds a formula at $key that the input did not" }
+    foreach ($entry in $saved.formulas) {
+        if (-not $inventory.ContainsKey((Get-Key $entry.sheet $entry.row $entry.column))) { Add-Failure 'save' $entry 'the saved package holds a formula here, which the input does not' }
     }
 
     $workbook = Open-Workbook $excel $req.output
     foreach ($entry in $package.formulas) {
         $cell = Read-Cell $workbook $entry
-        [void]$Output.reopened.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; value = (Read-Value $cell) })
+        [void]$Output.reopened.Add([ordered]@{ sheet = $entry.sheet; row = $entry.row; column = $entry.column; value = (Read-Value $cell); spill = (Read-Spill $cell) })
     }
     $workbook.Close($false)
     $workbook = $null

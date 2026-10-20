@@ -90,19 +90,61 @@
 //!    there.
 //!
 //! Until the workbook exists, the excel part reports not run.
+//!
+//! `dc_xb26__spill_shape` has two parts.
+//!
+//! - The stand-in part, on Windows (the `windows` and `excel` routes, and a plain `cargo test` on
+//!   Windows): the case runs, with cargo in a target directory of its own and by their exact
+//!   names, the crate's unit tests that hold the spill scenarios, and requires each to run and
+//!   pass. They are unit tests because the conversion of a worker's result is crate-private (the
+//!   record it gives is stamped a live capture). The worker scenarios (`src/worker_tests.rs`) call
+//!   the capture worker the adapter embeds with `-Request` and `-Result`, the parameters the
+//!   adapter passes it, from the guard of `tests/fixtures/standin-harness.ps1` (which creates no
+//!   COM object, so no Excel starts) against the stand-in Excel `tests/fixtures/standin-excel.ps1`
+//!   on `tests/fixtures/worker/spill.xlsx`; [`capture`]'s own start of the worker (its
+//!   `powershell.exe -File` under `run_isolated`) is not part of them. `spill.xlsx` holds
+//!   constants in A1:A2, Sheet1!B1 =SEQUENCE(3,2) saved as a dynamic-array formula spilling over
+//!   B1:C3, D1 an ordinary formula and E1 a dynamic-array formula over E1 alone. Each result is
+//!   converted with the conversion [`capture`] applies and judged by calc-verdict:
+//!   - B1 spilling over B1:C3: B1 stays in the inventory with no raw observation, saved cache or
+//!     reopened value, a spill failure names Sheet1!B1:C3 with 3 rows and 2 columns, and a
+//!     calculated B1 equal to the value its Value2 shows (1) is `not_run`, never matched;
+//!   - B1 not spilling, though the input saved it over B1:C3: recorded as Excel shows it, flagged
+//!     as a dynamic-array formula, with a save failure for the saved range;
+//!   - the stand-in saving `worker/spill-saved-cm.xlsx`, whose B1's cell metadata names no
+//!     dynamic-array metadata: a save failure only the saved package gives (the input's formulas
+//!     give none); a spill over B1:C4 against a saved B1:C3: a save failure; the stand-in saving
+//!     `worker/spill-saved-values.xlsx`, with no formula in B1: the worker's save failure names B1;
+//!   - a SpillingToRange or HasSpill that cannot be read: the conversion refuses the capture;
+//!   - SpecialCells listing the cells B1 spills into: spill members, no inventory failure, and the
+//!     record is judged; a listed cell outside the spill: an inventory failure.
+//!
+//!   What the stand-in part does not show is what Excel itself reports; the excel part shows it.
+//! - The excel part, only on the owner's `--platform excel` run (no agent runs it): a live capture
+//!   of `worker/spill.xlsx` through [`capture`]. It shows what the stand-in cannot: Range.HasSpill
+//!   True for B1 and False for D1 and E1; B1's SpillingToRange, read through Get-ComProperty with
+//!   arguments, as `Address(False, False)` B1:C3 with Rows.Count 3 and Columns.Count 2 of the
+//!   integer type the worker requires (any other type would have made the conversion refuse the
+//!   capture), after the rebuild and after reopening; the package Excel saved holding B1, read from
+//!   disk, as an array formula over B1:C3 with cell metadata that the worker resolves to XLDAPR;
+//!   and whether SpecialCells(xlCellTypeFormulas) lists the cells B1 spills into (reported either
+//!   way), none of them an inventory failure, so calc-verdict judges the record.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
 #[cfg(windows)]
 use calc_oracle_excel::{
-    CalculationPolicy, CaptureError, CaptureRequest, ReportedExcel, Worker, capture,
+    CalculationPolicy, CaptureError, CaptureRequest, ReportedExcel, STAGE_SPILL, Worker, capture,
     excel_available, run_isolated, sha256_hex, windows_powershell,
 };
 #[cfg(windows)]
-use calc_verdict::value::CoreValue;
+use calc_verdict::value::{CalcValue, CoreValue};
 #[cfg(windows)]
-use calc_verdict::{CacheCellType, CaptureRecord, CellAddress, CellObservation, Observation};
+use calc_verdict::{
+    CacheCellType, CaptureRecord, CellAddress, CellObservation, CellResult, Evaluation,
+    EvaluationRecord, Observation, Provenance, ResultSet, RunIdentity, VerdictPolicy, judge,
+};
 #[cfg(windows)]
 use std::collections::BTreeMap;
 #[cfg(windows)]
@@ -133,6 +175,29 @@ fn infra_m1_2__untrusted_workbook() {
             route => println!(
                 "ACCEPT-NOTE: {CASE}: the excel part (live captures of the untrusted fixtures: macros, the user-defined function and the external link) runs only on the owner's excel route; this run's route is {route:?}, so only the isolation part ran and no Excel was started"
             ),
+        }
+    }
+}
+
+const SPILL_CASE: &str = "dc_xb26__spill_shape";
+
+#[test]
+fn dc_xb26__spill_shape() {
+    #[cfg(not(windows))]
+    println!(
+        "ACCEPT-NOT-RUN: {SPILL_CASE}: the capture worker runs under Windows PowerShell; this host is {}",
+        std::env::consts::OS
+    );
+    #[cfg(windows)]
+    {
+        let route = std::env::var(PLATFORM_VARIABLE).unwrap_or_default();
+        windows::spill_standin_part(if route.is_empty() { "plain" } else { &route });
+        if route == "excel" {
+            windows::spill_excel_part();
+        } else {
+            println!(
+                "ACCEPT-NOTE: {SPILL_CASE}: the excel part (a live capture of worker/spill.xlsx: HasSpill, SpillingToRange's address, rows and columns, the saved package's ref and cell metadata, and whether SpecialCells lists the cells of a spill) runs only on the owner's excel route; this run's route is {route:?}, so only the stand-in part ran and no Excel was started"
+            );
         }
     }
 }
@@ -583,31 +648,8 @@ mod windows {
     /// through the workbook part, its relationships and the worksheet part, independently of the
     /// record the capture wrote.
     fn caches_on_disk(path: &Path, sheet: &str) -> BTreeMap<String, (String, String)> {
-        let parts: BTreeMap<String, String> = package_parts(path, "xl/").into_iter().collect();
-        let workbook = parts
-            .get("xl/workbook.xml")
-            .expect("the saved workbook part");
-        let rels = parts
-            .get("xl/_rels/workbook.xml.rels")
-            .expect("the saved workbook's relationships");
-        let id = elements(workbook, "sheet")
-            .into_iter()
-            .find(|(tag, _)| attribute(tag, "name").as_deref() == Some(sheet))
-            .and_then(|(tag, _)| attribute(tag, "r:id"))
-            .unwrap_or_else(|| panic!("the saved workbook has no sheet {sheet}"));
-        let target = elements(rels, "Relationship")
-            .into_iter()
-            .find(|(tag, _)| attribute(tag, "Id").as_deref() == Some(id.as_str()))
-            .and_then(|(tag, _)| attribute(tag, "Target"))
-            .unwrap_or_else(|| panic!("the saved workbook has no relationship {id}"));
-        let part = match target.strip_prefix('/') {
-            Some(absolute) => absolute.to_owned(),
-            None => format!("xl/{target}"),
-        };
-        let xml = parts
-            .get(&part)
-            .unwrap_or_else(|| panic!("the saved package has no part {part}"));
-        elements(xml, "c")
+        let (_, xml) = sheet_xml(path, sheet);
+        elements(&xml, "c")
             .into_iter()
             .filter_map(|(tag, body)| {
                 let start = body.find("<v>")? + 3;
@@ -818,5 +860,380 @@ mod windows {
             raw_at(&record.observations, "Sheet1", 1, 3)
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The unit tests that hold the spill scenarios, by their exact names: the worker's main flow
+    /// against the stand-in Excel, converted and judged (`src/worker_tests.rs`), the fixtures they
+    /// read as their generator's output, and the conversion's spill rules (`src/convert.rs`). They
+    /// are unit tests because the conversion is crate-private: the record it gives is stamped a
+    /// live capture.
+    const SPILL_UNIT_TESTS: [&str; 13] = [
+        "worker_tests::a_formula_that_spills_is_recorded_as_a_spill_never_as_a_scalar",
+        "worker_tests::a_dynamic_array_formula_that_does_not_spill_is_recorded_as_excel_shows_it",
+        "worker_tests::a_saved_package_that_disagrees_with_the_spill_is_a_save_failure",
+        "worker_tests::a_spilling_cell_without_a_saved_formula_is_a_save_failure_naming_it",
+        "worker_tests::a_spill_that_cannot_be_read_refuses_the_capture",
+        "worker_tests::cells_excel_lists_in_a_spill_range_are_spill_members_not_inventory_failures",
+        "worker_tests::fixtures_are_the_output_of_their_generator",
+        "convert::tests::a_cell_that_spills_is_recorded_as_a_spill_never_as_a_scalar",
+        "convert::tests::a_spill_whose_shape_cannot_be_read_refuses_the_capture",
+        "convert::tests::a_saved_ref_that_disagrees_with_the_spill_is_a_save_failure",
+        "convert::tests::a_dynamic_array_input_that_no_longer_spills_is_recorded_as_excel_shows_it",
+        "convert::tests::a_spill_that_changes_after_reopening_is_a_reopen_failure",
+        "convert::tests::spill_members_must_lie_in_a_recorded_spill",
+    ];
+
+    /// The stand-in part: runs [`SPILL_UNIT_TESTS`] by their exact names with cargo, in a target
+    /// directory of its own (the outer cargo owns its own), keeps the transcript under
+    /// `target/accept/dc-xb26/spill-shape-unit-<route>/`, and requires each to have run and passed.
+    /// The notes the tests print (`NOTE: ...`) are passed on as this case's notes; the inner
+    /// transcript's own lines are passed on only when the run fails, each prefixed, so this case's
+    /// transcript keeps one libtest result line.
+    pub(super) fn spill_standin_part(route: &str) {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+        let evidence = root
+            .join("target")
+            .join("accept")
+            .join("dc-xb26")
+            .join(format!("spill-shape-unit-{route}"));
+        std::fs::create_dir_all(&evidence).expect("the evidence directory");
+        // The cargo running this case (the CARGO variable), else cargo from PATH.
+        let (cargo, which) = match std::env::var_os("CARGO") {
+            Some(cargo) => (cargo, "the CARGO variable's cargo"),
+            None => ("cargo".into(), "cargo from PATH (CARGO is unset)"),
+        };
+        let args: Vec<&str> = ["test", "-p", "calc-oracle-excel", "--lib", "--locked", "--"]
+            .into_iter()
+            .chain(SPILL_UNIT_TESTS)
+            .chain(["--exact", "--show-output"])
+            .collect();
+        let mut command = Command::new(&cargo);
+        command
+            .args(&args)
+            .current_dir(&root)
+            .env_remove("CARGO_BUILD_TARGET_DIR")
+            .env(
+                "CARGO_TARGET_DIR",
+                root.join("target").join("calc-oracle-excel-unit"),
+            )
+            .stdin(Stdio::null())
+            .creation_flags(NO_WINDOW);
+        let shown = format!(
+            "cargo {} ({which}, CARGO_TARGET_DIR target/calc-oracle-excel-unit)",
+            args.join(" ")
+        );
+        let out = command.output().expect("cargo starts");
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+        std::fs::write(evidence.join("stdout.txt"), &stdout).expect("the transcript");
+        std::fs::write(evidence.join("stderr.txt"), &stderr).expect("the transcript");
+        std::fs::write(
+            evidence.join("exit.txt"),
+            format!("{shown}\nexit code: {:?}\n", out.status.code()),
+        )
+        .expect("the transcript");
+        let prefixed =
+            |text: &str| -> String { text.lines().map(|line| format!("unit| {line}\n")).collect() };
+        let results: Vec<&str> = stdout
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("test result: "))
+            .collect();
+        let expected = format!(
+            "test result: ok. {} passed; 0 failed; 0 ignored;",
+            SPILL_UNIT_TESTS.len()
+        );
+        let missing: Vec<&str> = SPILL_UNIT_TESTS
+            .iter()
+            .copied()
+            .filter(|name| {
+                !stdout
+                    .lines()
+                    .any(|line| line == format!("test {name} ... ok"))
+            })
+            .collect();
+        assert!(
+            out.status.success()
+                && results.len() == 1
+                && results[0].starts_with(&expected)
+                && missing.is_empty(),
+            "the spill unit tests did not all run and pass (exit {:?}; result lines {results:?}; not ok: {missing:?}); {shown}\n{}{}",
+            out.status.code(),
+            prefixed(&stdout),
+            prefixed(&stderr)
+        );
+        for line in stdout.lines() {
+            if let Some(note) = line.strip_prefix("NOTE: ") {
+                println!("ACCEPT-NOTE: {SPILL_CASE}: {note}");
+            }
+        }
+        println!(
+            "ACCEPT-NOTE: {SPILL_CASE}: the stand-in part ran the {} spill unit tests of src/worker_tests.rs and src/convert.rs by exact name ({}), each ok; transcript and exit code in {}",
+            SPILL_UNIT_TESTS.len(),
+            results[0],
+            evidence.strip_prefix(&root).unwrap_or(&evidence).display()
+        );
+    }
+
+    /// The cells of Sheet1, row 1, of `worker/spill.xlsx`: B1 =SEQUENCE(3,2), D1 =A1+1 and E1
+    /// =SUM(A1:A2*2).
+    const B1: u64 = 2;
+    const D1: u64 = 4;
+    const E1: u64 = 5;
+
+    /// The part of `sheet` of the package at `path` (found through the workbook part and its
+    /// relationships, as [`caches_on_disk`] finds it), with every `xl/` part by name.
+    fn sheet_xml(path: &Path, sheet: &str) -> (BTreeMap<String, String>, String) {
+        let parts: BTreeMap<String, String> = package_parts(path, "xl/").into_iter().collect();
+        let workbook = parts
+            .get("xl/workbook.xml")
+            .expect("the saved workbook part");
+        let rels = parts
+            .get("xl/_rels/workbook.xml.rels")
+            .expect("the saved workbook's relationships");
+        let id = elements(workbook, "sheet")
+            .into_iter()
+            .find(|(tag, _)| attribute(tag, "name").as_deref() == Some(sheet))
+            .and_then(|(tag, _)| attribute(tag, "r:id"))
+            .unwrap_or_else(|| panic!("the saved workbook has no sheet {sheet}"));
+        let target = elements(rels, "Relationship")
+            .into_iter()
+            .find(|(tag, _)| attribute(tag, "Id").as_deref() == Some(id.as_str()))
+            .and_then(|(tag, _)| attribute(tag, "Target"))
+            .unwrap_or_else(|| panic!("the saved workbook has no relationship {id}"));
+        let part = match target.strip_prefix('/') {
+            Some(absolute) => absolute.to_owned(),
+            None => format!("xl/{target}"),
+        };
+        let xml = parts
+            .get(&part)
+            .unwrap_or_else(|| panic!("the saved package has no part {part}"))
+            .clone();
+        (parts, xml)
+    }
+
+    /// The excel part, only on the owner's excel route: a live capture of `worker/spill.xlsx`
+    /// through [`capture`], the route `cargo xtask capture` takes, showing what the stand-in
+    /// cannot. Excel's own reports are read from the worker's result file in the capture's work
+    /// directory, and the saved package from the file on disk.
+    pub(super) fn spill_excel_part() {
+        if let Err(reason) = excel_available() {
+            println!("ACCEPT-NOT-RUN: {SPILL_CASE}: {reason}");
+            return;
+        }
+        let root = std::env::temp_dir().join(token("spill-excel"));
+        let work = root.join("capture");
+        let outcome = capture(&CaptureRequest {
+            case: SPILL_CASE.to_owned(),
+            fixture: fixtures().join("worker").join("spill.xlsx"),
+            companions: Vec::new(),
+            work_dir: work.clone(),
+            timeout: Duration::from_secs(300),
+            policy: CalculationPolicy::default(),
+            revision: 0,
+            operations: Vec::new(),
+            repository: None,
+        })
+        .unwrap_or_else(|e| panic!("the capture of worker/spill.xlsx failed: {e}"));
+        let record = &outcome.record;
+        assert_isolated(record, "spill.xlsx");
+        let result: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(work.join("result.json")).expect("the worker's result file"),
+        )
+        .expect("the worker's result is JSON");
+        let at = |list: &str, column: u64| -> serde_json::Value {
+            result[list]
+                .as_array()
+                .and_then(|entries| {
+                    entries.iter().find(|entry| {
+                        entry["sheet"] == "Sheet1" && entry["row"] == 1 && entry["column"] == column
+                    })
+                })
+                .cloned()
+                .unwrap_or_else(|| {
+                    panic!("the result's {list} holds no Sheet1 row 1 column {column}")
+                })
+        };
+
+        // 1-3. Range.HasSpill is True for B1 and False for D1 (ordinary) and E1 (a dynamic-array
+        // formula over its own cell); B1's Range.SpillingToRange, read through Get-ComProperty
+        // (Address with the arguments False, False; Rows.Count; Columns.Count), is B1:C3 with 3
+        // rows and 2 columns. The worker writes a spill as unread when HasSpill is not a boolean,
+        // the address not a text or a count not an integer, and the conversion then refuses the
+        // capture, so a capture taken shows each read of the type the worker expects.
+        for list in ["cells", "reopened"] {
+            assert_eq!(
+                at(list, B1)["spill"],
+                serde_json::json!({"ref": "B1:C3", "rows": 3, "columns": 2}),
+                "Sheet1!B1 in the result's {list}"
+            );
+            for column in [D1, E1] {
+                assert_eq!(
+                    at(list, column)["spill"],
+                    serde_json::Value::Null,
+                    "Sheet1 row 1 column {column} in the result's {list}"
+                );
+            }
+        }
+        let b1 = CellAddress::new("Sheet1", 1, 2).unwrap();
+        let b1_failures: Vec<(&str, &str)> = record
+            .session
+            .as_ref()
+            .expect("a version 2 record")
+            .failures
+            .iter()
+            .filter(|failure| failure.cell.as_ref() == Some(&b1))
+            .map(|failure| (failure.stage.as_str(), failure.message.as_str()))
+            .collect();
+        assert_eq!(
+            b1_failures,
+            [(
+                STAGE_SPILL,
+                "Excel reports a spill over Sheet1!B1:C3 (3 rows by 2 columns) after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar"
+            )],
+            "the failures of Sheet1!B1 (a save failure here would be the saved package disagreeing)"
+        );
+        assert_eq!(raw_at(&record.observations, "Sheet1", 1, 2), None);
+        assert_eq!(
+            raw_bits(&record.observations, "Sheet1", 1, 4),
+            Some(2f64.to_bits())
+        );
+        assert_eq!(
+            raw_bits(&record.observations, "Sheet1", 1, 5),
+            Some(6f64.to_bits())
+        );
+        println!(
+            "ACCEPT-NOTE: {SPILL_CASE}: Excel {} reports Sheet1!B1 (=SEQUENCE(3,2)) with HasSpill True and SpillingToRange B1:C3 (Address(False, False)), Rows.Count 3 and Columns.Count 2 as integers, after the full rebuild and after reopening; D1 and E1 with HasSpill False; the record has B1's spill failure and no observation for it, and D1 = 2, E1 = 6",
+            record
+                .environment
+                .as_ref()
+                .map_or("?", |environment| environment.target.excel_build())
+        );
+
+        // 4. The saved package's B1, read from the file on disk: an array formula over B1:C3 whose
+        // cell metadata the worker resolves to the dynamic-array metadata XLDAPR.
+        let (parts, xml) = sheet_xml(&outcome.output_package, "Sheet1");
+        let (tag, body) = elements(&xml, "c")
+            .into_iter()
+            .find(|(tag, _)| attribute(tag, "r").as_deref() == Some("B1"))
+            .expect("the saved package holds Sheet1!B1");
+        let cm = attribute(tag, "cm");
+        let formula = elements(body, "f").into_iter().next().map(|(f, _)| f);
+        assert!(
+            cm.is_some()
+                && formula.is_some_and(|f| {
+                    attribute(f, "t").as_deref() == Some("array")
+                        && attribute(f, "ref").as_deref() == Some("B1:C3")
+                }),
+            "the saved package's Sheet1!B1, read from disk: {tag}>{body}"
+        );
+        let metadata = parts
+            .iter()
+            .find(|(name, _)| name.ends_with("metadata.xml"))
+            .map(|(_, text)| text.as_str())
+            .unwrap_or_default();
+        assert!(
+            metadata.contains("\"XLDAPR\""),
+            "the saved package's metadata part names no XLDAPR: {metadata}"
+        );
+        assert_eq!(
+            at("saved_formulas", B1)["dynamic_array_metadata"],
+            serde_json::json!(true),
+            "the worker's reading of the saved B1's cell metadata"
+        );
+        println!(
+            "ACCEPT-NOTE: {SPILL_CASE}: the package Excel saved holds Sheet1!B1 as {} with cell metadata cm={}, which the worker resolves to the XLDAPR dynamic-array metadata; no save failure",
+            formula.unwrap_or_default(),
+            cm.unwrap_or_default()
+        );
+
+        // 5. Whether SpecialCells(xlCellTypeFormulas) lists the cells B1 spills into: either way,
+        // each it lists is a spill member inside B1:C3, never an inventory failure, and
+        // calc-verdict judges the record.
+        let members: Vec<(u64, u64)> = result["spill_members"]
+            .as_array()
+            .expect("the result's spill members")
+            .iter()
+            .map(|member| {
+                assert_eq!(member["sheet"], "Sheet1", "{member}");
+                (
+                    member["row"].as_u64().unwrap(),
+                    member["column"].as_u64().unwrap(),
+                )
+            })
+            .collect();
+        assert!(
+            members.iter().all(|&(row, column)| (1..=3).contains(&row)
+                && (2..=3).contains(&column)
+                && (row, column) != (1, 2)),
+            "spill members outside B1:C3: {members:?}"
+        );
+        let inventory: Vec<&str> = record
+            .session
+            .as_ref()
+            .unwrap()
+            .failures
+            .iter()
+            .filter(|failure| failure.stage == "inventory")
+            .map(|failure| failure.message.as_str())
+            .collect();
+        assert!(inventory.is_empty(), "inventory failures: {inventory:?}");
+        let judged =
+            judged(record).unwrap_or_else(|e| panic!("calc-verdict refuses the record: {e}"));
+        assert_eq!(judged[0], ("B1".to_owned(), "not_run"), "{judged:?}");
+        println!(
+            "ACCEPT-NOTE: {SPILL_CASE}: SpecialCells(xlCellTypeFormulas) listed {} of the cells B1 spills into ({members:?}, as (row, column)), each recorded as a spill member and none as an inventory failure; calc-verdict judges the record: {judged:?}",
+            if members.is_empty() { "none" } else { "some" }
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The verdicts calc-verdict gives `record`'s B1, D1 and E1 when a run calculated B1 as 1 (the
+    /// top-left value of its array), D1 as 2 and E1 as 6, with an evaluation of each, or why it
+    /// refuses to judge the record.
+    fn judged(record: &CaptureRecord) -> Result<Vec<(String, &'static str)>, String> {
+        let session = record.session.as_ref().expect("a version 2 record");
+        let cells = [(B1, 1.0), (D1, 2.0), (E1, 6.0)];
+        let cell = |column: u64| CellAddress::new("Sheet1", 1, column as u32).unwrap();
+        let results = ResultSet {
+            case: record.case.clone(),
+            source: record.source.clone(),
+            run: RunIdentity {
+                revision: session.revision,
+                context: session.context.clone(),
+            },
+            results: cells
+                .iter()
+                .map(|(column, value)| CellResult {
+                    cell: cell(*column),
+                    provenance: Provenance::Calculated {
+                        tick: 1,
+                        revision: session.revision,
+                        context: session.context.clone(),
+                    },
+                    value: Some(CalcValue::number(*value)),
+                })
+                .collect(),
+        };
+        let evaluations = EvaluationRecord {
+            case: record.case.clone(),
+            source: record.source.clone(),
+            evaluations: cells
+                .iter()
+                .map(|(column, _)| Evaluation {
+                    cell: cell(*column),
+                    tick: 1,
+                    revision: session.revision,
+                    context: session.context.clone(),
+                })
+                .collect(),
+        };
+        let report = judge(record, &results, &evaluations, &VerdictPolicy::default())
+            .map_err(|e| e.to_string())?;
+        Ok(report
+            .cells
+            .iter()
+            .map(|cell| (cell.formula.cell.a1(), cell.verdict.name()))
+            .collect())
     }
 }

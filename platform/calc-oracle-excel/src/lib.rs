@@ -1,9 +1,16 @@
 //! The one Excel capture adapter (plan sections 10.1, 10.2 and 3.3): opens a workbook in a fresh,
 //! isolated Excel instance, sets the calculation policy, forces a full rebuild, captures the raw
-//! `Value2` of every formula cell (numbers as their binary64 bits) with its formula text, Excel's
-//! build, compatibility, CPU, OS, locale, date system and calculation settings, saves the
-//! workbook, reopens it and captures it again, and writes the whole as a CaptureRecord version 2
-//! of calc-verdict.
+//! `Value2` of every formula cell (numbers as their binary64 bits) with its formula text and
+//! whether it spills, Excel's build, compatibility, CPU, OS, locale, date system and calculation
+//! settings, saves the workbook, reopens it and captures it again, and writes the whole as a
+//! CaptureRecord version 2 of calc-verdict. A formula cell that spills after the rebuild is
+//! recorded as a spill with its shape (a failure at [`STAGE_SPILL`] naming its range, rows and
+//! columns, checked against the saved package's `ref` and its cell metadata, which must name the
+//! dynamic-array metadata XLDAPR), never by the top-left value of its array as a scalar, and is
+//! not comparable until bead dc-dw44 carries arrays in CaptureRecord and calc-verdict; the cells it
+//! spills into never enter the formula inventory. A spill that cannot be read refuses the capture,
+//! so an Excel without Range.HasSpill (one older than dynamic arrays) refuses every capture that
+//! holds a formula (`convert.rs` holds the detail).
 //!
 //! What the isolation enforces, and how a capture shows it (`worker/capture-worker.ps1` holds the
 //! detail):
@@ -43,20 +50,21 @@
 //!   COM objects too, which would read as a value (an add-in as not connected, a setting as off, a
 //!   Value2 as empty). Every property the worker reads from Excel's objects (the settings read
 //!   back, each add-in's state, a connection's refresh-on-open, every setting the record carries,
-//!   Application.Hwnd, each worksheet's Name and UsedRange, HasFormula, Formula2, Value2, and the
-//!   Row and Column of a listed formula cell) goes through COM's own call (`InvokeMember`), where
-//!   a failed read throws, and is checked for its type: a read that fails, or gives another type,
-//!   is an isolation failure, a failure of that cell or of the inventory, or an environment
-//!   failure, never a value. A setting is never a default cast from nothing: one that cannot be
-//!   read is recorded as empty with an environment failure. The conversion refuses an empty
-//!   date1904, iteration, max_iterations, max_change or precision_as_displayed (the context
-//!   fingerprint rests on them) and an empty calculation version (the target's compatibility names
-//!   it); any other setting that cannot be read is kept empty, and its environment failure leaves
-//!   every comparison against the record uncertified. Two collections are read plainly because a
-//!   method is called on them at once: Application.Workbooks before Open, and Workbook.Worksheets
-//!   and Worksheet.Cells before Item. A failed read there gives nothing, and the method call on it
-//!   throws. The add-in states the record carries name each add-in by its file name, never by a
-//!   path.
+//!   Application.Hwnd, each worksheet's Name and UsedRange, HasFormula, Formula2, Value2,
+//!   HasSpill, SpillingToRange with its Address, Rows.Count and Columns.Count, and the Row and
+//!   Column of a listed formula cell) goes through COM's own call (`InvokeMember`), where a
+//!   failed read throws, and is checked for its type: a read that fails, or gives another type,
+//!   is an isolation failure, a refusal of the capture (a spill), a failure of that cell or of
+//!   the inventory, or an environment failure, never a value. A setting is never a default cast
+//!   from nothing: one that cannot be read is recorded as empty with an environment failure. The
+//!   conversion refuses an empty date1904, iteration, max_iterations, max_change or
+//!   precision_as_displayed (the context fingerprint rests on them) and an empty calculation
+//!   version (the target's compatibility names it); any other setting that cannot be read is
+//!   kept empty, and its environment failure leaves every comparison against the record
+//!   uncertified. Two collections are read plainly because a method is called on them at once:
+//!   Application.Workbooks before Open, and Workbook.Worksheets and Worksheet.Cells before Item.
+//!   A failed read there gives nothing, and the method call on it throws. The add-in states the
+//!   record carries name each add-in by its file name, never by a path.
 //! - Processes: one worker process per capture, a timeout, and termination only of that worker and
 //!   of the Excel process the adapter attributes to the capture ([`run_isolated`]): the PID the
 //!   worker reported, when no process had that PID in the snapshot of the Excel image's processes
@@ -103,6 +111,7 @@ pub use capture::{
     CalculationMode, CalculationPolicy, CaptureOutcome, CaptureRequest, capture,
     capture_tool_revision, excel_available, isolation_failures, windows_powershell,
 };
+pub use convert::STAGE_SPILL;
 pub use isolation::{
     EXCEL_IMAGE, PROTOCOL, ReportedExcel, TimeoutReport, Worker, WorkerRun, run_isolated,
 };
