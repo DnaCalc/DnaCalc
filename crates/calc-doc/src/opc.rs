@@ -63,6 +63,11 @@ impl Part {
     pub fn crc32(&self) -> u32 {
         self.crc32
     }
+
+    /// The index of the part's entry among the archive's entries.
+    pub(crate) fn entry(&self) -> usize {
+        self.entry
+    }
 }
 
 /// The content types of `[Content_Types].xml`.
@@ -204,6 +209,15 @@ fn resolve_target(source: Option<&str>, target: &str) -> Option<String> {
     (!segments.is_empty()).then(|| segments.join("/"))
 }
 
+impl std::fmt::Debug for Package {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Package")
+            .field("parts", &self.parts.len())
+            .field("relationships", &self.relationships.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Package {
     pub(crate) fn open(
         source: Arc<dyn PackageRead>,
@@ -303,6 +317,22 @@ impl Package {
         let bytes = self.read_part(name)?;
         let name = self.part(name).map_or(name, Part::name).to_owned();
         Ok(XmlPart::new(name, bytes, self.xml_limits))
+    }
+
+    /// The index of `[Content_Types].xml` among the archive's entries, which opening found.
+    pub(crate) fn content_types_entry(&self) -> usize {
+        self.archive
+            .entries
+            .iter()
+            .position(|entry| entry.name.eq_ignore_ascii_case(CONTENT_TYPES_ENTRY))
+            .expect("an opened package has [Content_Types].xml")
+    }
+
+    /// The content of `[Content_Types].xml`, read again from the source, ready to be read as XML.
+    pub(crate) fn content_types_xml(&self) -> Result<XmlPart, PartReadError> {
+        let entry = &self.archive.entries[self.content_types_entry()];
+        let bytes = zip::read_content(self.source(), entry)?;
+        Ok(XmlPart::new(entry.name.clone(), bytes, self.xml_limits))
     }
 
     fn structural_xml(&self, index: usize) -> Result<XmlPart, OpenError> {

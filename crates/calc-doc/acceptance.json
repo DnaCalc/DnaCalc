@@ -70,6 +70,25 @@
         "cdoc_m1_2__authored_vs_cache": ["windows", "linux", "wasm"],
         "cdoc_m1_2__sparse_extent": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cdoc-m1.3",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-doc", "--test", "acceptance", "cdoc_m1_3", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-doc", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.3", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.3", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.3", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cdoc_m1_3__formula_authoring",
+        "cdoc_m1_3__save_refusal"
+      ],
+      "platforms": {
+        "cdoc_m1_3__formula_authoring": ["windows", "linux", "wasm"],
+        "cdoc_m1_3__save_refusal": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

@@ -9,6 +9,14 @@ use calc_value::{CellKey, GridArea, SheetId};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// The lineage the next root made by [`ModelRoot::new`] or [`ModelRoot::with_cells`] starts.
+static NEXT_LINEAGE: AtomicU64 = AtomicU64::new(1);
+
+fn new_lineage() -> u64 {
+    NEXT_LINEAGE.fetch_add(1, Ordering::Relaxed)
+}
 
 /// One sheet of a [`ModelRoot`]: its session ID, its document-stable key, its name and its
 /// visibility.
@@ -157,13 +165,28 @@ impl std::error::Error for ApplyError {}
 /// It keeps no record of the keys that removed sheets held, so it cannot tell a reused key from a
 /// new one; whoever applies a [`crate::SheetEdit`] checks that a key is never reused within one
 /// document.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// Each root made by [`ModelRoot::new`] or [`ModelRoot::with_cells`] starts a lineage of its own,
+/// and every root [`ModelRoot::apply`] makes continues the lineage of the root it was applied to,
+/// so [`ModelRoot::same_lineage`] tells a revision of a document from a root built apart from it,
+/// such as another load of the same file. Equality compares the revision, the sheets and the
+/// cells, not the lineage.
+#[derive(Debug)]
 pub struct ModelRoot {
     revision: AuthoredRevision,
     sheets: Vec<SheetEntry>,
     /// The cells of the sheet at the same position of `sheets`.
     cells: Vec<SheetPages>,
+    lineage: u64,
 }
+
+impl PartialEq for ModelRoot {
+    fn eq(&self, other: &Self) -> bool {
+        self.revision == other.revision && self.sheets == other.sheets && self.cells == other.cells
+    }
+}
+
+impl Eq for ModelRoot {}
 
 impl ModelRoot {
     /// The root of these sheets, in this order, with no cells, at `revision`; refused when two
@@ -178,6 +201,7 @@ impl ModelRoot {
             revision,
             sheets,
             cells,
+            lineage: new_lineage(),
         }))
     }
 
@@ -220,11 +244,18 @@ impl ModelRoot {
             revision,
             sheets,
             cells: pages,
+            lineage: new_lineage(),
         }))
     }
 
     pub fn revision(&self) -> AuthoredRevision {
         self.revision
+    }
+
+    /// Whether `other` is of this root's lineage: one of them was made from the other by
+    /// [`ModelRoot::apply`], directly or through other roots, or both from a third root.
+    pub fn same_lineage(&self, other: &ModelRoot) -> bool {
+        self.lineage == other.lineage
     }
 
     /// The sheets in workbook order.
@@ -376,6 +407,7 @@ impl ModelRoot {
             revision,
             sheets: self.sheets.clone(),
             cells,
+            lineage: self.lineage,
         }))
     }
 
@@ -613,6 +645,20 @@ mod tests {
             })
             .unwrap();
         assert_eq!(*built, *applied, "the same revision, sheets and pages");
+        assert!(!built.same_lineage(&applied), "two roots built apart");
+        let next = applied
+            .apply(&OpBatch {
+                base: applied.revision(),
+                operations: vec![WorkbookOp::Clear {
+                    area: GridArea::full_sheet(sheets[0]),
+                }],
+            })
+            .unwrap();
+        assert!(
+            next.same_lineage(&applied),
+            "a root and the root applied to it"
+        );
+        assert!(!next.same_lineage(&built));
         for sheet in &sheets[..2] {
             assert!(
                 built

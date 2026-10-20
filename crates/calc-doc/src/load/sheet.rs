@@ -35,7 +35,7 @@ pub(super) struct SheetLoad {
 }
 
 /// The spelling of each worksheet error in a cell's `<v>`, matched exactly.
-const ERRORS: [(&str, WorksheetErrorCode); 14] = [
+pub(crate) const ERRORS: [(&str, WorksheetErrorCode); 14] = [
     ("#NULL!", WorksheetErrorCode::Null),
     ("#DIV/0!", WorksheetErrorCode::Div0),
     ("#VALUE!", WorksheetErrorCode::Value),
@@ -53,7 +53,7 @@ const ERRORS: [(&str, WorksheetErrorCode); 14] = [
 ];
 
 /// `text` without the XML whitespace around it, as an XML Schema number or boolean reads it.
-fn collapsed(text: &str) -> &str {
+pub(crate) fn collapsed(text: &str) -> &str {
     text.trim_matches(|c| matches!(c, ' ' | '\t' | '\r' | '\n'))
 }
 

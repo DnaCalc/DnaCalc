@@ -22,6 +22,10 @@
 //! styles, shared formula groups and caches it wrote, the formula texts it states each cell holds,
 //! the CRC-32 and size it computed of each sheet's part, and the date system and number of defined
 //! names of each workbook part. The other packages they load are built here and say so.
+//!
+//! The cdoc-m1.3 cases edit cdoc-m1.2's cells.xlsx and packages built here, save them through
+//! calc-doc's route, and read what was written with `cdoc_m1_1_support`'s ZIP reader and
+//! `cdoc_m1_3_support`'s own DEFLATE decoder and XML parser, against expectations written here.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -3622,10 +3626,16 @@ fn refused(source: Arc<dyn PackageRead>, policy: &OpenPolicy) -> OpenError {
     }
 }
 
+/// The plan of a save of a snapshot of an opened document as opened, which is never refused.
+fn unedited(snapshot: &calc_doc::DocumentSnapshot) -> calc_doc::SavePlan {
+    prepare_save(snapshot, &calc_doc::SavePolicy::default())
+        .expect("a snapshot of an opened document as opened is not refused")
+}
+
 /// Saves the document's snapshot unchanged into a new buffer.
 fn saved(document: &OpenedDocument) -> Vec<u8> {
     let mut out = Vec::new();
-    let receipt = calc_doc::write(prepare_save(&document.snapshot()), &mut out).expect("a save");
+    let receipt = calc_doc::write(unedited(&document.snapshot()), &mut out).expect("a save");
     assert_eq!(
         receipt.bytes_written,
         out.len() as u64,
@@ -3866,7 +3876,7 @@ fn cdoc_m1_1__raw_preservation() {
     );
 
     // A no-op save, inspected by the case's own reader.
-    let plan = prepare_save(&document.snapshot());
+    let plan = unedited(&document.snapshot());
     assert_eq!(plan.copied_entries(), entries.len());
     let out = saved(&document);
     let output = parse_zip(&out);
@@ -3953,7 +3963,7 @@ fn cdoc_m1_1__raw_preservation() {
     let sheet = input.entry("xl/worksheets/sheet1.xml");
     changing.change(|bytes| bytes[sheet.payload_start + 100] ^= 0x01);
     let mut partial = Vec::new();
-    let error = calc_doc::write(prepare_save(&changed.snapshot()), &mut partial)
+    let error = calc_doc::write(unedited(&changed.snapshot()), &mut partial)
         .expect_err("a source changed since opening");
     assert_eq!(
         error,
@@ -3966,14 +3976,14 @@ fn cdoc_m1_1__raw_preservation() {
         .read_part("xl/worksheets/sheet1.xml")
         .expect_err("a changed payload");
     changing.change(|bytes| bytes.truncate(1000));
-    let error = calc_doc::write(prepare_save(&changed.snapshot()), &mut Vec::new())
+    let error = calc_doc::write(unedited(&changed.snapshot()), &mut Vec::new())
         .expect_err("a source that shrank");
     assert!(matches!(error, WriteError::Source(_)), "{error:?}");
     let mut full = FullSink {
         accepted: Vec::new(),
         capacity: 10_000,
     };
-    let error = calc_doc::write(prepare_save(&document.snapshot()), &mut full)
+    let error = calc_doc::write(unedited(&document.snapshot()), &mut full)
         .expect_err("a sink that fills up");
     assert_eq!(
         error,
@@ -5825,5 +5835,1957 @@ fn cdoc_m1_2__sparse_extent() {
     note!(
         "ACCEPT-NOTE: {CASE}: calc_doc::load asked this thread's allocator for {extent_bytes} bytes for extent.xlsx (only XFD1048576) and {corner_bytes} bytes for corner.xlsx (only A1); a dense sheet of {MAX_ROWS} rows by {MAX_COLUMNS} columns has {} cells",
         u64::from(MAX_ROWS) * u64::from(MAX_COLUMNS)
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cdoc-m1.3: authored cell changes, saved into a workbook the case reads with its own instruments.
+//
+// Each case edits a loaded workbook through calc_doc::prepare_edit, saves the edited revision
+// through calc_doc::prepare_save and calc_doc::write, and reads the saved package with
+// `cdoc_m1_1_support`'s ZIP reader, `cdoc_m1_3_support`'s DEFLATE decoder and XML parser, and
+// expectations written here from the bead's rulings: never with calc-doc's loader, except to
+// reload the saved package at the end. That Excel opens the package without repair and computes
+// it is the owner's Excel step, which these cases do not show.
+
+mod cdoc_m1_3_support;
+
+use calc_doc::{DocumentSnapshot, EditError, SavePolicy, SaveReceipt, SaveRefusal, prepare_edit};
+use cdoc_m1_1_support::crc32;
+use cdoc_m1_3_support::{Element, inflate, parse_xml, xstring_units};
+
+const SHARED_STRINGS_RELATIONSHIP: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
+const SHARED_STRINGS_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml";
+const CALC_CHAIN_RELATIONSHIP: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
+const CALC_CHAIN_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml";
+const TABLE_RELATIONSHIP: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table";
+const TABLE_TYPE: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml";
+const WORKSHEET_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
+
+/// A part's content as the case's own instruments read it from a package: the stored payload,
+/// inflated by the case's own decoder when deflated, checked against the CRC-32 and the size its
+/// entry declares.
+fn m1_3_content(zip: &Zip, package: &[u8], name: &str) -> Vec<u8> {
+    let entry = zip.entry(name);
+    let payload = entry.payload(package);
+    let content = match entry.method {
+        0 => payload.to_vec(),
+        8 => inflate(payload),
+        method => panic!("{name}: the compression method {method}"),
+    };
+    assert_eq!(
+        content.len() as u32,
+        entry.size,
+        "{name}: the declared size"
+    );
+    assert_eq!(crc32(&content), entry.crc32, "{name}: the declared CRC-32");
+    content
+}
+
+/// The column letters of `column` (1 is A), written here.
+fn m1_3_letters(column: u32) -> String {
+    let mut letters = Vec::new();
+    let mut rest = column;
+    while rest > 0 {
+        letters.push(b'A' + ((rest - 1) % 26) as u8);
+        rest = (rest - 1) / 26;
+    }
+    letters.reverse();
+    String::from_utf8(letters).expect("letters")
+}
+
+/// Every occupied cell of every sheet of a model, by sheet position, as (row, column, input).
+fn m1_3_cells(model: &ModelRoot) -> Vec<Vec<(u32, u32, CellInput)>> {
+    model
+        .sheets()
+        .iter()
+        .map(|sheet| {
+            model
+                .sheet_cells(sheet.id())
+                .expect("the sheet's cells")
+                .map(|(at, input)| (at.row(), at.column(), input.clone()))
+                .collect()
+        })
+        .collect()
+}
+
+/// Each sheet's name, key and visibility, by position.
+fn m1_3_sheets(model: &ModelRoot) -> Vec<(String, u32, SheetVisibility)> {
+    model
+        .sheets()
+        .iter()
+        .map(|sheet| {
+            (
+                sheet.name().text().to_string_lossy(),
+                sheet.key().get(),
+                sheet.visibility(),
+            )
+        })
+        .collect()
+}
+
+/// The revision `operations` make of `model`, through calc_doc::prepare_edit.
+fn m1_3_edit(model: &ModelRoot, operations: Vec<WorkbookOp>) -> Arc<ModelRoot> {
+    let batch = OpBatch {
+        base: model.revision(),
+        operations,
+    };
+    match prepare_edit(model, &batch) {
+        Ok(prepared) => prepared.into_model(),
+        Err(error) => panic!("the edit is prepared, but: {error}"),
+    }
+}
+
+/// The save route a host runs: prepare under `policy`, then write to a sink of its own. Returns
+/// what the route ended with and every byte the sink received.
+fn m1_3_route(
+    snapshot: &DocumentSnapshot,
+    policy: &SavePolicy,
+) -> (Result<SaveReceipt, SaveRefusal>, Vec<u8>) {
+    let mut sink = Vec::new();
+    let result = calc_doc::prepare_save(snapshot, policy)
+        .map(|plan| calc_doc::write(plan, &mut sink).expect("a write to memory"));
+    (result, sink)
+}
+
+/// Saves a snapshot under the default policy.
+fn m1_3_save(snapshot: &DocumentSnapshot) -> (Vec<u8>, SaveReceipt) {
+    let (result, bytes) = m1_3_route(snapshot, &SavePolicy::default());
+    match result {
+        Ok(receipt) => {
+            assert_eq!(receipt.bytes_written, bytes.len() as u64);
+            (bytes, receipt)
+        }
+        Err(refusal) => panic!("the snapshot saves, but: {refusal}"),
+    }
+}
+
+/// The `<c>` elements of a worksheet's `<sheetData>` in document order, each with its (row,
+/// column), checking as it goes that every row and cell carries `r`, rows ascend, and cells ascend
+/// within their row and lie in it.
+fn m1_3_sheet_cells(worksheet: &Element) -> Vec<((u32, u32), &Element)> {
+    let data = worksheet.child("sheetData").expect("sheetData");
+    let mut cells = Vec::new();
+    let mut previous_row = 0;
+    for row in data.all("row") {
+        let number: u32 = row
+            .attribute("r")
+            .expect("a row with r")
+            .parse()
+            .expect("a row number");
+        assert!(
+            number > previous_row,
+            "row {number} after row {previous_row}"
+        );
+        previous_row = number;
+        let mut previous_column = 0;
+        for c in row.all("c") {
+            let (r, column) = a1(c.attribute("r").expect("a cell with r"));
+            assert_eq!(r, number, "a cell of row {number}");
+            assert!(
+                column > previous_column,
+                "{c:?} after column {previous_column}"
+            );
+            previous_column = column;
+            cells.push(((r, column), c));
+        }
+    }
+    cells
+}
+
+/// The dimension the case expects of cells at these addresses: their area, `A1` for none.
+fn m1_3_area(addresses: impl Iterator<Item = (u32, u32)>) -> String {
+    let mut area: Option<(u32, u32, u32, u32)> = None;
+    for (row, column) in addresses {
+        area = Some(match area {
+            None => (row, column, row, column),
+            Some((t, l, b, r)) => (t.min(row), l.min(column), b.max(row), r.max(column)),
+        });
+    }
+    match area {
+        None => "A1".to_owned(),
+        Some((t, l, b, r)) if (t, l) == (b, r) => format!("{}{t}", m1_3_letters(l)),
+        Some((t, l, b, r)) => format!("{}{t}:{}{b}", m1_3_letters(l), m1_3_letters(r)),
+    }
+}
+
+/// A package whose workbook part holds `workbook` (inside `<workbook>`), whose workbook part's
+/// relationships are `relationships` (ID, type, target), and which holds `parts`, each with the
+/// content type override given beside it (if any).
+fn m1_3_package(
+    workbook: &str,
+    relationships: &[(&str, &str, &str)],
+    parts: &[(&str, Option<&str>, String)],
+) -> Vec<u8> {
+    m1_3_package_marked("", workbook, relationships, parts)
+}
+
+/// The UTF-8 byte order mark a part may start with.
+const M1_3_BOM: &str = "\u{FEFF}";
+
+/// [`m1_3_package`] whose `[Content_Types].xml`, workbook part and workbook relationships part
+/// start with `mark` (nothing, or a byte order mark).
+fn m1_3_package_marked(
+    mark: &str,
+    workbook: &str,
+    relationships: &[(&str, &str, &str)],
+    parts: &[(&str, Option<&str>, String)],
+) -> Vec<u8> {
+    let mut overrides = r#"<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>"#
+        .to_owned();
+    for (name, content_type, _) in parts {
+        if let Some(content_type) = content_type {
+            overrides.push_str(&format!(
+                r#"<Override PartName="/{name}" ContentType="{content_type}"/>"#
+            ));
+        }
+    }
+    let content_types = format!(
+        r#"{mark}<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="{}"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>{overrides}</Types>"#,
+        calc_doc::CONTENT_TYPES_NAMESPACE
+    );
+    let workbook = format!(
+        r#"{mark}<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="{SPREADSHEET_MAIN}" xmlns:r="{RELATIONSHIP_ATTRIBUTES}">{workbook}</workbook>"#
+    );
+    let mut items = String::new();
+    for (id, kind, target) in relationships {
+        items.push_str(&format!(
+            r#"<Relationship Id="{id}" Type="{kind}" Target="{target}"/>"#
+        ));
+    }
+    let workbook_relationships = format!(
+        r#"{mark}<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="{}">{items}</Relationships>"#,
+        calc_doc::RELATIONSHIPS_NAMESPACE
+    );
+    let mut entries = vec![
+        RawEntry::stored("[Content_Types].xml", content_types.as_bytes()),
+        RawEntry::stored("_rels/.rels", base_relationships().as_bytes()),
+        RawEntry::stored("xl/workbook.xml", workbook.as_bytes()),
+        RawEntry::stored(
+            "xl/_rels/workbook.xml.rels",
+            workbook_relationships.as_bytes(),
+        ),
+    ];
+    for (name, _, content) in parts {
+        entries.push(RawEntry::stored(name, content.as_bytes()));
+    }
+    build_zip(&entries)
+}
+
+/// A worksheet part whose `<worksheet>` holds `inner`.
+fn m1_3_worksheet(inner: &str) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="{SPREADSHEET_MAIN}" xmlns:r="{RELATIONSHIP_ATTRIBUTES}">{inner}</worksheet>"#
+    )
+}
+
+/// numbers.xlsx, built here: one sheet "Numbers" holding A1 = 1 and A2 = A1+1 with the cached
+/// result 2, a calculation chain naming A2, no shared strings part, and a workbook part without
+/// `calcPr` whose `definedNames` is followed by an `extLst`.
+fn m1_3_numbers() -> Vec<u8> {
+    m1_3_package(
+        r#"<workbookPr/><sheets><sheet name="Numbers" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="Two">Numbers!$A$2</definedName></definedNames><extLst><ext uri="{00000000-0000-0000-0000-000000000000}"/></extLst>"#,
+        &[
+            ("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml"),
+            ("rId2", CALC_CHAIN_RELATIONSHIP, "calcChain.xml"),
+        ],
+        &[
+            (
+                "xl/worksheets/sheet1.xml",
+                Some(WORKSHEET_TYPE),
+                m1_3_worksheet(
+                    r#"<dimension ref="A1:A2"/><sheetData><row r="1"><c r="A1"><v>1</v></c></row><row r="2"><c r="A2"><f>A1+1</f><v>2</v></c></row></sheetData>"#,
+                ),
+            ),
+            (
+                "xl/calcChain.xml",
+                Some(CALC_CHAIN_TYPE),
+                format!(
+                    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><calcChain xmlns="{SPREADSHEET_MAIN}"><c r="A2" i="1"/></calcChain>"#
+                ),
+            ),
+        ],
+    )
+}
+
+/// shaped.xlsx, a package built here that adds a byte order mark, and `\r\n` after the
+/// declaration, to the workbook part, its relationships, the content types, the sheet "Shaped" and
+/// the shared strings, so a rewrite is shown to keep what precedes a part's document element;
+/// "Shaped" declares `mc:Ignorable` namespaces, carries `xr:uid` on the worksheet and on a data
+/// validation and `x14ac:dyDescent` on its rows and format, and holds A1 = 1, B1 = the shared
+/// string "label" and A2 = A1*2 with the cached result 2. The sheet "Empty" has an empty
+/// `<sheetData/>`. A calculation chain names A2.
+fn m1_3_shaped() -> Vec<u8> {
+    let declared = |root: String| {
+        format!("{M1_3_BOM}<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n{root}")
+    };
+    let shaped = declared(format!(
+        r#"<worksheet xmlns="{SPREADSHEET_MAIN}" xmlns:r="{RELATIONSHIP_ATTRIBUTES}" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac xr xr2 xr3" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac" xmlns:xr="http://schemas.microsoft.com/office/spreadsheetml/2014/revision" xmlns:xr2="http://schemas.microsoft.com/office/spreadsheetml/2015/revision2" xmlns:xr3="http://schemas.microsoft.com/office/spreadsheetml/2016/revision3" xr:uid="{{6A1B2C3D-0000-4000-8000-000000000001}}"><dimension ref="A1:B2"/><sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="14.4" x14ac:dyDescent="0.3"/><sheetData><row r="1" spans="1:2" x14ac:dyDescent="0.3"><c r="A1"><v>1</v></c><c r="B1" t="s"><v>0</v></c></row><row r="2" spans="1:2" x14ac:dyDescent="0.3"><c r="A2"><f>A1*2</f><v>2</v></c></row></sheetData><dataValidations count="1"><dataValidation type="whole" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="C1" xr:uid="{{6A1B2C3D-0000-4000-8000-000000000002}}"><formula1>0</formula1><formula2>10</formula2></dataValidation></dataValidations><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>"#
+    ));
+    m1_3_package_marked(
+        M1_3_BOM,
+        r#"<sheets><sheet name="Shaped" sheetId="1" r:id="rId1"/><sheet name="Empty" sheetId="2" r:id="rId2"/></sheets><calcPr calcId="191029"/>"#,
+        &[
+            ("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml"),
+            ("rId2", WORKSHEET_RELATIONSHIP, "worksheets/sheet2.xml"),
+            ("rId3", SHARED_STRINGS_RELATIONSHIP, "sharedStrings.xml"),
+            ("rId4", CALC_CHAIN_RELATIONSHIP, "calcChain.xml"),
+        ],
+        &[
+            ("xl/worksheets/sheet1.xml", Some(WORKSHEET_TYPE), shaped),
+            (
+                "xl/worksheets/sheet2.xml",
+                Some(WORKSHEET_TYPE),
+                m1_3_worksheet(r#"<dimension ref="A1"/><sheetData/>"#),
+            ),
+            (
+                "xl/sharedStrings.xml",
+                Some(SHARED_STRINGS_TYPE),
+                declared(format!(
+                    r#"<sst xmlns="{SPREADSHEET_MAIN}" count="1" uniqueCount="1"><si><t>label</t></si></sst>"#
+                )),
+            ),
+            (
+                "xl/calcChain.xml",
+                Some(CALC_CHAIN_TYPE),
+                declared(format!(
+                    r#"<calcChain xmlns="{SPREADSHEET_MAIN}"><c r="A2" i="1"/></calcChain>"#
+                )),
+            ),
+        ],
+    )
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m1_3__formula_authoring.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m1_3__formula_authoring() {
+    const CASE: &str = "cdoc_m1_3__formula_authoring";
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded = m1_2_load(M1_2_CELLS, &mut ids).expect("cells.xlsx loads");
+    let base = Arc::clone(loaded.model());
+    let base_cells = m1_3_cells(&base);
+    let sheet = base.sheets()[0].id();
+    assert_eq!(base.sheets()[0].name().text().to_string_lossy(), "Cells");
+    assert_eq!(base.cell(cell(sheet, 3, 10)), None, "J3 is absent");
+
+    // prepare_edit refuses a formula a save could not write, and a batch the model refuses.
+    let batch = |operations: Vec<WorkbookOp>| OpBatch {
+        base: base.revision(),
+        operations,
+    };
+    let refused = |operations: Vec<WorkbookOp>| match prepare_edit(&base, &batch(operations)) {
+        Ok(_) => panic!("the edit is refused, but it was prepared"),
+        Err(error) => error,
+    };
+    let unclosed = refused(vec![set(sheet, 3, 10, formula("SUM(A6:A10"))]);
+    assert!(
+        matches!(unclosed, EditError::FormulaSyntax { operation: 0, .. }),
+        "{unclosed:?}"
+    );
+    let marked = refused(vec![
+        set(sheet, 3, 10, number(1.0)),
+        set(sheet, 3, 11, formula("=A1")),
+    ]);
+    assert!(
+        matches!(marked, EditError::FormulaSyntax { operation: 1, .. }),
+        "a formula's text written with its = is refused: {marked:?}"
+    );
+    let long: String = "1+".repeat(4_096) + "1";
+    assert_eq!(
+        refused(vec![set(sheet, 3, 10, formula(&long))]),
+        EditError::FormulaTooLong {
+            operation: 0,
+            units: 8_193
+        }
+    );
+    // The deep chain `1+1+...+1` of 4,095 additions, 8,191 code units: prepared, saved (where
+    // prepare_save checks it again), read back by the case's own reader and reloaded.
+    let deep = "1".to_owned() + &"+1".repeat(4_095);
+    assert_eq!(deep.len(), 8_191);
+    let deep_model = m1_3_edit(&base, vec![set(sheet, 3, 10, formula(&deep))]);
+    let (deep_out, _) = m1_3_save(&loaded.snapshot(&deep_model));
+    let deep_zip = parse_zip(&deep_out);
+    let deep_sheet = m1_3_content(&deep_zip, &deep_out, "xl/worksheets/sheet2.xml");
+    let deep_root = parse_xml(&deep_sheet);
+    let deep_cells = m1_3_sheet_cells(&deep_root);
+    let (_, deep_cell) = deep_cells
+        .iter()
+        .find(|(at, _)| *at == (3, 10))
+        .expect("the saved sheet has J3");
+    assert_eq!(
+        deep_cell.child("f").map(|f| f.text()),
+        Some(deep.clone()),
+        "J3's <f> holds the deep chain"
+    );
+    assert!(deep_cell.child("v").is_none());
+    let mut deep_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let deep_reloaded = m1_2_load(&deep_out, &mut deep_ids).expect("the saved package loads");
+    assert_eq!(
+        m1_3_cells(deep_reloaded.model()),
+        m1_3_cells(&deep_model),
+        "the reloaded package holds the deep chain"
+    );
+    let stale = prepare_edit(
+        &base,
+        &OpBatch {
+            base: AuthoredRevision::new(5),
+            operations: vec![set(sheet, 3, 10, number(1.0))],
+        },
+    )
+    .expect_err("a stale batch");
+    assert_eq!(
+        stale,
+        EditError::Model(ApplyError::StaleBase {
+            batch: AuthoredRevision::new(5),
+            root: AuthoredRevision::INITIAL
+        })
+    );
+    assert_eq!(
+        refused(vec![WorkbookOp::EditSheet(SheetEdit::Remove { sheet })]),
+        EditError::Model(ApplyError::SheetEdit { operation: 0 })
+    );
+    assert_eq!(
+        m1_3_cells(&base),
+        base_cells,
+        "a refused edit changed nothing"
+    );
+
+    // The edit: a formula into an absent cell of an existing row, and every other kind of change.
+    let new_formula = "SUM(A6:A10)*2";
+    let escaped_formula = r#"IF(A1<1,"a&b_x0041_","")"#;
+    let operations = vec![
+        set(sheet, 3, 10, formula(new_formula)),
+        set(sheet, 11, 2, formula(escaped_formula)),
+        set(sheet, 14, 3, text(units("new text"))),
+        set(sheet, 1, 9, text(units(" Grüße, 数据 "))),
+        set(sheet, 2, 9, text(units("boldplain"))),
+        set(sheet, 1, 1, number(42.0)),
+        set(sheet, 5, 1, formula("A1*3")),
+        set(sheet, 8, 3, number(7.0)),
+        set(sheet, 1, 11, CellInput::Logical(true)),
+        set(sheet, 2, 11, CellInput::Error(WorksheetErrorCode::NA)),
+        WorkbookOp::Clear {
+            area: GridArea::new(cell(sheet, 1, 2), cell(sheet, 1, 3)).unwrap(),
+        },
+        WorkbookOp::Clear {
+            area: GridArea::new(cell(sheet, 2, 3), cell(sheet, 2, 3)).unwrap(),
+        },
+    ];
+    let model = m1_3_edit(&base, operations);
+    assert_eq!(model.revision(), AuthoredRevision::new(1));
+    assert_eq!(
+        model.cell(cell(sheet, 3, 10)),
+        Some(&formula(new_formula)),
+        "the edited revision holds the new formula"
+    );
+    assert_eq!(
+        m1_3_cells(&base),
+        base_cells,
+        "the loaded revision is unchanged"
+    );
+    let edited_cells = m1_3_cells(&model);
+
+    let snapshot = loaded.snapshot(&model);
+    assert!(Arc::ptr_eq(snapshot.model().expect("a model"), &model));
+    let (out, receipt) = m1_3_save(&snapshot);
+    assert_eq!(receipt.revision, Some(AuthoredRevision::new(1)));
+
+    // The package, entry by entry, with the case's own ZIP reader.
+    let input = parse_zip(M1_2_CELLS);
+    let output = parse_zip(&out);
+    let names = |zip: &Zip| -> Vec<String> { zip.entries.iter().map(|e| e.name.clone()).collect() };
+    assert_eq!(
+        names(&output),
+        names(&input),
+        "the central directory keeps its entries and order"
+    );
+    assert_eq!(
+        names_in_stored_order(&output),
+        names_in_stored_order(&input),
+        "the entries keep the order they were stored in"
+    );
+    let rewritten: BTreeSet<&str> = [
+        "xl/workbook.xml",
+        "xl/worksheets/sheet1.xml",
+        "xl/worksheets/sheet2.xml",
+        "xl/sharedStrings.xml",
+    ]
+    .into();
+    let mut untouched = Vec::new();
+    for source in &input.entries {
+        let saved = output.entry(&source.name);
+        if rewritten.contains(source.name.as_str()) {
+            assert_eq!(
+                (saved.method, saved.flags, saved.time, saved.date),
+                (source.method, source.flags, source.time, source.date),
+                "{}: a rewritten part keeps its method, flags and timestamp",
+                source.name
+            );
+            assert!(saved.descriptor.is_empty() && saved.local_extra.is_empty());
+            assert_ne!(
+                m1_3_content(&output, &out, &source.name),
+                m1_3_content(&input, M1_2_CELLS, &source.name),
+                "{} is rewritten",
+                source.name
+            );
+        } else {
+            assert_eq!(
+                preserved_fields(saved, &out),
+                preserved_fields(source, M1_2_CELLS),
+                "{}: an untouched part keeps every stored byte",
+                source.name
+            );
+            untouched.push(source.name.clone());
+        }
+    }
+    assert_eq!(receipt.entries_copied, untouched.len());
+    assert_eq!(receipt.parts_written, rewritten.len());
+
+    // The edited sheet, with the case's own XML parser.
+    let source_sheet = m1_3_content(&input, M1_2_CELLS, "xl/worksheets/sheet2.xml");
+    let saved_sheet = m1_3_content(&output, &out, "xl/worksheets/sheet2.xml");
+    let (before, after) = (parse_xml(&source_sheet), parse_xml(&saved_sheet));
+    assert_eq!(
+        &saved_sheet[..after.start_tag.1],
+        &source_sheet[..before.start_tag.1],
+        "the declaration and the worksheet start tag"
+    );
+    let outside = |root: &Element, bytes: &[u8]| -> Vec<(String, Vec<u8>)> {
+        root.elements()
+            .filter(|element| !matches!(element.local(), "sheetData" | "dimension"))
+            .map(|element| (element.name.clone(), element.bytes(bytes).to_vec()))
+            .collect()
+    };
+    assert_eq!(
+        outside(&after, &saved_sheet),
+        outside(&before, &source_sheet),
+        "every element outside sheetData but the dimension keeps its bytes"
+    );
+    assert_eq!(
+        after.elements().map(|e| e.name.clone()).collect::<Vec<_>>(),
+        before
+            .elements()
+            .map(|e| e.name.clone())
+            .collect::<Vec<_>>(),
+        "the worksheet's elements keep their order"
+    );
+    let saved_cells = m1_3_sheet_cells(&after);
+    let source_cells = m1_3_sheet_cells(&before);
+    assert_eq!(
+        before
+            .child("sheetData")
+            .unwrap()
+            .all("row")
+            .filter(|row| row.attribute("spans").is_some())
+            .count(),
+        1,
+        "the source's row 1 carries spans"
+    );
+    assert!(
+        after
+            .child("sheetData")
+            .unwrap()
+            .all("row")
+            .all(|row| row.attribute("spans").is_none()),
+        "no saved row carries spans, a hint of the columns the source's rows held"
+    );
+    let dimension = after.child("dimension").expect("a dimension");
+    assert_eq!(
+        dimension.attribute("ref"),
+        Some(m1_3_area(saved_cells.iter().map(|(at, _)| *at)).as_str()),
+        "the dimension is the area of the cells written"
+    );
+    assert_eq!(dimension.attribute("ref"), Some("A1:K14"));
+    let rows: Vec<u32> = after
+        .child("sheetData")
+        .unwrap()
+        .all("row")
+        .map(|row| row.attribute("r").unwrap().parse().unwrap())
+        .collect();
+    assert_eq!(
+        rows,
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14],
+        "rows in order"
+    );
+    let saved_at: BTreeMap<(u32, u32), &Element> = saved_cells.iter().copied().collect();
+    let bytes_at = |at: &str| -> String {
+        let element = saved_at
+            .get(&a1(at))
+            .unwrap_or_else(|| panic!("the saved sheet has a cell {at}"));
+        String::from_utf8(element.bytes(&saved_sheet).to_vec()).unwrap()
+    };
+
+    // The new formula: <f> holds its text, and no <v> or t claims a result nothing calculated.
+    let new = saved_at[&a1("J3")];
+    assert_eq!(new.attributes, [("r".to_owned(), "J3".to_owned())]);
+    assert_eq!(
+        new.elements().map(|e| e.name.clone()).collect::<Vec<_>>(),
+        ["f"]
+    );
+    assert_eq!(new.child("f").unwrap().text(), new_formula);
+    assert!(new.child("f").unwrap().attributes.is_empty());
+    assert_eq!(
+        bytes_at("J3"),
+        format!("<c r=\"J3\"><f>{new_formula}</f></c>")
+    );
+
+    // Every other change, as the rulings write it.
+    let expected = [
+        (
+            "B11",
+            r#"<c r="B11"><f>IF(A1&lt;1,"a&amp;b_x005F_x0041_","")</f></c>"#,
+        ),
+        ("C14", r#"<c r="C14" t="s"><v>5</v></c>"#),
+        ("I1", r#"<c r="I1" t="s"><v>1</v></c>"#),
+        ("I2", r#"<c r="I2" t="s"><v>4</v></c>"#),
+        ("A1", r#"<c r="A1"><v>42</v></c>"#),
+        ("A5", r#"<c r="A5"><f>A1*3</f></c>"#),
+        ("C8", r#"<c r="C8"><v>7</v></c>"#),
+        ("K1", r#"<c r="K1" t="b"><v>1</v></c>"#),
+        ("K2", r#"<c r="K2" t="e"><v>#N/A</v></c>"#),
+        ("B1", r#"<c r="B1" s="1"/>"#),
+        // The shared group C6:C10, one of whose cells changed, as individual formulas.
+        ("C6", r#"<c r="C6"><f>A6*2+$A$1</f></c>"#),
+        ("C7", r#"<c r="C7"><f>A7*2+$A$1</f></c>"#),
+        ("C9", r#"<c r="C9"><f>A9*2+$A$1</f></c>"#),
+        ("C10", r#"<c r="C10"><f>A10*2+$A$1</f></c>"#),
+    ];
+    for (at, xml) in expected {
+        assert_eq!(bytes_at(at), xml, "{at}");
+    }
+    assert_eq!(
+        xstring_units(&saved_at[&a1("B11")].child("f").unwrap().text()),
+        units(escaped_formula),
+        "the escaped formula reads back as authored"
+    );
+    for gone in ["C1", "C2"] {
+        assert!(!saved_at.contains_key(&a1(gone)), "{gone} is removed");
+    }
+    let row = |number: u32| {
+        after
+            .child("sheetData")
+            .unwrap()
+            .all("row")
+            .find(|row| row.attribute("r") == Some(&number.to_string()))
+            .unwrap_or_else(|| panic!("row {number}"))
+            .clone()
+    };
+    assert_eq!(row(11).attributes, [("r".to_owned(), "11".to_owned())]);
+    assert_eq!(
+        row(3).attributes,
+        [
+            ("r".to_owned(), "3".to_owned()),
+            ("ht".to_owned(), "20".to_owned()),
+            ("customHeight".to_owned(), "1".to_owned())
+        ],
+        "row 3 keeps its height"
+    );
+    assert_eq!(
+        String::from_utf8(row(12).bytes(&saved_sheet).to_vec()).unwrap(),
+        r#"<row r="12" ht="30" customHeight="1"/>"#
+    );
+
+    // Every other cell: a formula keeps its <f> (as the file wrote it, for a group none of whose
+    // cells changed) and loses its <v> and t; any other cell keeps its bytes.
+    let changed: BTreeSet<(u32, u32)> = [
+        "J3", "B11", "C14", "I1", "I2", "A1", "A5", "C8", "K1", "K2", "B1", "C1", "C2", "C6", "C7",
+        "C9", "C10",
+    ]
+    .iter()
+    .map(|at| a1(at))
+    .collect();
+    let mut kept_formulas = 0;
+    let mut kept_values = 0;
+    for (at, source) in &source_cells {
+        if changed.contains(at) {
+            continue;
+        }
+        let saved = saved_at[at];
+        match source.child("f") {
+            Some(source_f) => {
+                let saved_f = saved.child("f").expect("the formula is kept");
+                assert_eq!(
+                    saved_f.bytes(&saved_sheet),
+                    source_f.bytes(&source_sheet),
+                    "{at:?}"
+                );
+                assert_eq!(
+                    saved.child("v").map(|v| v.text()),
+                    None,
+                    "{at:?}: no cached result"
+                );
+                assert_eq!(saved.attribute("t"), None, "{at:?}: no result type");
+                assert_eq!(
+                    saved.attribute("s"),
+                    source.attribute("s"),
+                    "{at:?}: its style"
+                );
+                kept_formulas += 1;
+            }
+            None => {
+                assert_eq!(
+                    saved.bytes(&saved_sheet),
+                    source.bytes(&source_sheet),
+                    "{at:?}"
+                );
+                kept_values += 1;
+            }
+        }
+    }
+    for (at, saved) in &saved_cells {
+        if saved.child("f").is_some() {
+            assert!(
+                saved.child("v").is_none() && saved.attribute("t").is_none(),
+                "{at:?}: no formula keeps a cached result"
+            );
+        }
+    }
+
+    // The shared strings: the held items keep their bytes and indices; new text is appended,
+    // except text a plain item already holds; the counts follow.
+    let source_strings = m1_3_content(&input, M1_2_CELLS, "xl/sharedStrings.xml");
+    let saved_strings = m1_3_content(&output, &out, "xl/sharedStrings.xml");
+    let (sst_before, sst_after) = (parse_xml(&source_strings), parse_xml(&saved_strings));
+    let items = |root: &Element, bytes: &[u8]| -> Vec<String> {
+        root.all("si")
+            .map(|si| String::from_utf8(si.bytes(bytes).to_vec()).unwrap())
+            .collect()
+    };
+    let held = items(&sst_before, &source_strings);
+    let now = items(&sst_after, &saved_strings);
+    assert_eq!(held.len(), 4);
+    assert_eq!(&now[..4], &held[..], "the held items keep their bytes");
+    assert_eq!(
+        &now[4..],
+        ["<si><t>boldplain</t></si>", "<si><t>new text</t></si>"],
+        "new text is appended in the order the rows meet it; the rich item that reads boldplain is not reused"
+    );
+    assert_eq!(sst_before.attribute("count"), Some("5"));
+    assert_eq!(
+        sst_after.attribute("count"),
+        Some("7"),
+        "5 references, 3 added (C14, I1, I2) and 1 removed (C2)"
+    );
+    assert_eq!(sst_after.attribute("uniqueCount"), Some("6"));
+
+    // The workbook part: fullCalcOnLoad on its calcPr, every other byte kept.
+    let source_workbook = m1_3_content(&input, M1_2_CELLS, "xl/workbook.xml");
+    let saved_workbook = m1_3_content(&output, &out, "xl/workbook.xml");
+    let (book_before, book_after) = (parse_xml(&source_workbook), parse_xml(&saved_workbook));
+    let (calc_before, calc_after) = (
+        book_before.child("calcPr").unwrap(),
+        book_after.child("calcPr").unwrap(),
+    );
+    assert_eq!(calc_before.attribute("fullCalcOnLoad"), None);
+    assert_eq!(calc_after.attribute("fullCalcOnLoad"), Some("1"));
+    assert_eq!(calc_after.attribute("calcId"), Some("191029"));
+    assert_eq!(
+        &saved_workbook[..calc_after.span.0],
+        &source_workbook[..calc_before.span.0]
+    );
+    assert_eq!(
+        &saved_workbook[calc_after.span.1..],
+        &source_workbook[calc_before.span.1..]
+    );
+
+    // The other sheet, untouched by the edit, loses its formula's cached result only.
+    let saved_second = m1_3_content(&output, &out, "xl/worksheets/sheet1.xml");
+    let source_second = m1_3_content(&input, M1_2_CELLS, "xl/worksheets/sheet1.xml");
+    let second = parse_xml(&saved_second);
+    let second_cells = m1_3_sheet_cells(&second);
+    assert_eq!(
+        String::from_utf8(second_cells[0].1.bytes(&saved_second).to_vec()).unwrap(),
+        "<c r=\"A1\"><f>Cells!A1+1</f></c>"
+    );
+    assert_eq!(
+        second_cells[1].1.bytes(&saved_second),
+        m1_3_sheet_cells(&parse_xml(&source_second))[1]
+            .1
+            .bytes(&source_second)
+    );
+    assert_eq!(
+        second.child("dimension").unwrap().attribute("ref"),
+        Some("A1:B1")
+    );
+
+    // The caches dropped, counted from the source parts with the case's own parser: every formula
+    // cell holding a <v> that the edit neither set nor cleared, on both sheets. The second sheet
+    // holds no edited cell, so it was rewritten only to drop its formula's cache.
+    let edited: BTreeSet<(u32, u32)> = [
+        "J3", "B11", "C14", "I1", "I2", "A1", "A5", "C8", "K1", "K2", "B1", "C1", "C2",
+    ]
+    .iter()
+    .map(|at| a1(at))
+    .collect();
+    let cached = |cells: &[((u32, u32), &Element)], edited: &BTreeSet<(u32, u32)>| {
+        cells
+            .iter()
+            .filter(|(at, c)| {
+                !edited.contains(at) && c.child("f").is_some() && c.child("v").is_some()
+            })
+            .count()
+    };
+    let source_second_root = parse_xml(&source_second);
+    let dropped = cached(&source_cells, &edited)
+        + cached(&m1_3_sheet_cells(&source_second_root), &BTreeSet::new());
+    assert_eq!(
+        dropped, 16,
+        "15 formula caches on Cells and 1 on Second Sheet"
+    );
+    assert_eq!(
+        (receipt.caches_dropped, receipt.sheets_rewritten_for_caches),
+        (dropped, 1),
+        "the receipt counts the caches dropped and the sheet rewritten only for its caches"
+    );
+
+    // Reloaded through calc_doc::open and calc_doc::load, the package holds the edited revision.
+    let mut reload_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let reloaded = m1_2_load(&out, &mut reload_ids).expect("the saved package loads");
+    assert_eq!(m1_3_sheets(reloaded.model()), m1_3_sheets(&model));
+    assert_eq!(
+        m1_3_cells(reloaded.model()),
+        edited_cells,
+        "the saved package holds the edited revision's cells"
+    );
+    for loaded_sheet in reloaded.sheets() {
+        for (row, column, record) in loaded_sheet.formulas() {
+            assert_eq!(
+                record.cache(),
+                None,
+                "({row}, {column}) has no cached result"
+            );
+        }
+    }
+    let cells_sheet = &reloaded.sheets()[0];
+    assert_eq!(cells_sheet.style(1, 2), 1, "B1 keeps its style");
+    assert_eq!(cells_sheet.style(1, 8), 2, "H1 keeps its style");
+    assert_eq!(cells_sheet.formula(6, 3).unwrap().shared(), None);
+    assert_eq!(
+        cells_sheet
+            .formula(6, 5)
+            .unwrap()
+            .shared()
+            .map(|group| group.index()),
+        Some(1),
+        "a group none of whose cells changed stays shared"
+    );
+
+    // numbers.xlsx: a workbook without shared strings and with a calculation chain.
+    let numbers = m1_3_numbers();
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded_numbers = m1_2_load(&numbers, &mut ids).expect("numbers.xlsx loads");
+    let numbers_sheet = loaded_numbers.model().sheets()[0].id();
+
+    // A changed value leaves the set of formula cells, and so the chain, as it was.
+    let value_only = m1_3_edit(
+        loaded_numbers.model(),
+        vec![set(numbers_sheet, 1, 1, number(5.0))],
+    );
+    let (value_out, value_receipt) = m1_3_save(&loaded_numbers.snapshot(&value_only));
+    assert_eq!(
+        (
+            value_receipt.caches_dropped,
+            value_receipt.sheets_rewritten_for_caches
+        ),
+        (1, 0),
+        "A2's cache is dropped on the sheet the edit changed"
+    );
+    let (numbers_zip, value_zip) = (parse_zip(&numbers), parse_zip(&value_out));
+    assert_eq!(names(&value_zip), names(&numbers_zip));
+    for name in [
+        "[Content_Types].xml",
+        "xl/_rels/workbook.xml.rels",
+        "xl/calcChain.xml",
+    ] {
+        assert_eq!(
+            preserved_fields(value_zip.entry(name), &value_out),
+            preserved_fields(numbers_zip.entry(name), &numbers),
+            "{name} is kept when no formula cell came or went"
+        );
+    }
+
+    // A text and a formula added: a shared strings part is added, the chain is removed.
+    let added = m1_3_edit(
+        loaded_numbers.model(),
+        vec![
+            set(numbers_sheet, 1, 2, text(units("hello"))),
+            set(numbers_sheet, 2, 2, formula("A2*2")),
+        ],
+    );
+    let (added_out, added_receipt) = m1_3_save(&loaded_numbers.snapshot(&added));
+    let added_zip = parse_zip(&added_out);
+    assert_eq!(
+        names(&added_zip),
+        [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "xl/workbook.xml",
+            "xl/_rels/workbook.xml.rels",
+            "xl/worksheets/sheet1.xml",
+            "xl/sharedStrings.xml"
+        ],
+        "the chain is gone and the shared strings part is added last"
+    );
+    assert_eq!(added_receipt.entries_copied, 1);
+    assert_eq!(added_receipt.parts_written, 5);
+    assert_eq!(
+        preserved_fields(added_zip.entry("_rels/.rels"), &added_out),
+        preserved_fields(numbers_zip.entry("_rels/.rels"), &numbers)
+    );
+    let types = parse_xml(&m1_3_content(&added_zip, &added_out, "[Content_Types].xml"));
+    let overrides: Vec<(String, String)> = types
+        .all("Override")
+        .map(|o| {
+            (
+                o.attribute("PartName").unwrap().to_owned(),
+                o.attribute("ContentType").unwrap().to_owned(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        overrides,
+        [
+            (
+                "/xl/workbook.xml".to_owned(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+                    .to_owned()
+            ),
+            (
+                "/xl/worksheets/sheet1.xml".to_owned(),
+                WORKSHEET_TYPE.to_owned()
+            ),
+            (
+                "/xl/sharedStrings.xml".to_owned(),
+                SHARED_STRINGS_TYPE.to_owned()
+            ),
+        ]
+    );
+    let relationships = parse_xml(&m1_3_content(
+        &added_zip,
+        &added_out,
+        "xl/_rels/workbook.xml.rels",
+    ));
+    let items: Vec<(String, String, String)> = relationships
+        .all("Relationship")
+        .map(|r| {
+            (
+                r.attribute("Id").unwrap().to_owned(),
+                r.attribute("Type").unwrap().to_owned(),
+                r.attribute("Target").unwrap().to_owned(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        items,
+        [
+            (
+                "rId1".to_owned(),
+                WORKSHEET_RELATIONSHIP.to_owned(),
+                "worksheets/sheet1.xml".to_owned()
+            ),
+            (
+                "rId3".to_owned(),
+                SHARED_STRINGS_RELATIONSHIP.to_owned(),
+                "sharedStrings.xml".to_owned()
+            ),
+        ]
+    );
+    let strings_entry = added_zip.entry("xl/sharedStrings.xml");
+    assert_eq!(strings_entry.method, 8, "the added part is deflated");
+    let strings = parse_xml(&m1_3_content(
+        &added_zip,
+        &added_out,
+        "xl/sharedStrings.xml",
+    ));
+    assert_eq!(
+        (strings.local(), strings.attribute("xmlns")),
+        ("sst", Some(SPREADSHEET_MAIN))
+    );
+    assert_eq!(
+        (strings.attribute("count"), strings.attribute("uniqueCount")),
+        (Some("1"), Some("1"))
+    );
+    assert_eq!(
+        strings.all("si").map(|si| si.text()).collect::<Vec<_>>(),
+        ["hello"]
+    );
+    let book = parse_xml(&m1_3_content(&added_zip, &added_out, "xl/workbook.xml"));
+    assert_eq!(
+        book.elements().map(|e| e.name.clone()).collect::<Vec<_>>(),
+        ["workbookPr", "sheets", "definedNames", "calcPr", "extLst"],
+        "a calcPr is added where the schema places it"
+    );
+    assert_eq!(
+        book.child("calcPr").unwrap().attributes,
+        [("fullCalcOnLoad".to_owned(), "1".to_owned())]
+    );
+    let numbers_xml = m1_3_content(&added_zip, &added_out, "xl/worksheets/sheet1.xml");
+    let numbers_root = parse_xml(&numbers_xml);
+    let numbers_cells: Vec<(String, String)> = m1_3_sheet_cells(&numbers_root)
+        .iter()
+        .map(|(_, c)| {
+            (
+                c.attribute("r").unwrap().to_owned(),
+                String::from_utf8(c.bytes(&numbers_xml).to_vec()).unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        numbers_cells,
+        [
+            ("A1".to_owned(), r#"<c r="A1"><v>1</v></c>"#.to_owned()),
+            (
+                "B1".to_owned(),
+                r#"<c r="B1" t="s"><v>0</v></c>"#.to_owned()
+            ),
+            ("A2".to_owned(), r#"<c r="A2"><f>A1+1</f></c>"#.to_owned()),
+            ("B2".to_owned(), r#"<c r="B2"><f>A2*2</f></c>"#.to_owned()),
+        ]
+    );
+    assert_eq!(
+        numbers_root.child("dimension").unwrap().attribute("ref"),
+        Some("A1:B2")
+    );
+    let mut reload_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let reloaded_numbers = m1_2_load(&added_out, &mut reload_ids).expect("it loads");
+    assert_eq!(m1_3_cells(reloaded_numbers.model()), m1_3_cells(&added));
+
+    // The formula cleared: the set of formula cells changed by a removal alone, so the chain goes
+    // with its relationship and its content type override, and no part is added.
+    let removed = m1_3_edit(
+        loaded_numbers.model(),
+        vec![WorkbookOp::Clear {
+            area: GridArea::new(cell(numbers_sheet, 2, 1), cell(numbers_sheet, 2, 1)).unwrap(),
+        }],
+    );
+    assert_eq!(removed.cell(cell(numbers_sheet, 2, 1)), None);
+    let (removed_out, removed_receipt) = m1_3_save(&loaded_numbers.snapshot(&removed));
+    let removed_zip = parse_zip(&removed_out);
+    assert_eq!(
+        names(&removed_zip),
+        [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "xl/workbook.xml",
+            "xl/_rels/workbook.xml.rels",
+            "xl/worksheets/sheet1.xml"
+        ],
+        "the chain is gone and nothing is added"
+    );
+    assert_eq!(
+        (
+            removed_receipt.caches_dropped,
+            removed_receipt.sheets_rewritten_for_caches
+        ),
+        (0, 0),
+        "the only formula was cleared, not kept with its cache dropped"
+    );
+    let removed_types = parse_xml(&m1_3_content(
+        &removed_zip,
+        &removed_out,
+        "[Content_Types].xml",
+    ));
+    let removed_overrides: Vec<&str> = removed_types
+        .all("Override")
+        .map(|o| o.attribute("PartName").unwrap())
+        .collect();
+    assert_eq!(
+        removed_overrides,
+        ["/xl/workbook.xml", "/xl/worksheets/sheet1.xml"],
+        "the chain's override is gone"
+    );
+    assert!(
+        removed_types
+            .all("Override")
+            .all(|o| o.attribute("ContentType") != Some(CALC_CHAIN_TYPE))
+    );
+    let removed_relationships = parse_xml(&m1_3_content(
+        &removed_zip,
+        &removed_out,
+        "xl/_rels/workbook.xml.rels",
+    ));
+    let removed_items: Vec<(&str, &str)> = removed_relationships
+        .all("Relationship")
+        .map(|r| (r.attribute("Id").unwrap(), r.attribute("Type").unwrap()))
+        .collect();
+    assert_eq!(
+        removed_items,
+        [("rId1", WORKSHEET_RELATIONSHIP)],
+        "the chain's relationship is gone"
+    );
+    let removed_sheet = m1_3_content(&removed_zip, &removed_out, "xl/worksheets/sheet1.xml");
+    let removed_root = parse_xml(&removed_sheet);
+    let removed_cells: Vec<String> = m1_3_sheet_cells(&removed_root)
+        .iter()
+        .map(|(_, c)| String::from_utf8(c.bytes(&removed_sheet).to_vec()).unwrap())
+        .collect();
+    assert_eq!(removed_cells, [r#"<c r="A1"><v>1</v></c>"#]);
+    assert_eq!(
+        removed_root.child("dimension").unwrap().attribute("ref"),
+        Some("A1")
+    );
+    let mut reload_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let reloaded_removed = m1_2_load(&removed_out, &mut reload_ids).expect("it loads");
+    assert_eq!(m1_3_cells(reloaded_removed.model()), m1_3_cells(&removed));
+
+    // shaped.xlsx: a test-built package to whose parts the test adds a byte order mark, and a
+    // sheet with an empty sheetData. Both sheets are edited.
+    let shaped = m1_3_shaped();
+    let shaped_zip = parse_zip(&shaped);
+    for name in [
+        "[Content_Types].xml",
+        "xl/workbook.xml",
+        "xl/_rels/workbook.xml.rels",
+        "xl/worksheets/sheet1.xml",
+        "xl/sharedStrings.xml",
+    ] {
+        assert!(
+            m1_3_content(&shaped_zip, &shaped, name).starts_with(&[0xEF, 0xBB, 0xBF]),
+            "the source's {name} starts with a byte order mark"
+        );
+    }
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded_shaped = m1_2_load(&shaped, &mut ids).expect("shaped.xlsx loads");
+    let (shaped_sheet, empty_sheet) = (
+        loaded_shaped.model().sheets()[0].id(),
+        loaded_shaped.model().sheets()[1].id(),
+    );
+    let shaped_model = m1_3_edit(
+        loaded_shaped.model(),
+        vec![
+            set(shaped_sheet, 1, 1, number(3.0)),
+            set(shaped_sheet, 2, 2, formula("A2+1")),
+            set(shaped_sheet, 3, 1, text(units("added"))),
+            set(empty_sheet, 2, 3, number(5.0)),
+            set(empty_sheet, 4, 4, formula("C2*2")),
+        ],
+    );
+    let (shaped_out, shaped_receipt) = m1_3_save(&loaded_shaped.snapshot(&shaped_model));
+    assert_eq!(
+        (
+            shaped_receipt.caches_dropped,
+            shaped_receipt.sheets_rewritten_for_caches
+        ),
+        (1, 0),
+        "A2's cache"
+    );
+    let shaped_out_zip = parse_zip(&shaped_out);
+    assert_eq!(
+        names(&shaped_out_zip),
+        [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "xl/workbook.xml",
+            "xl/_rels/workbook.xml.rels",
+            "xl/worksheets/sheet1.xml",
+            "xl/worksheets/sheet2.xml",
+            "xl/sharedStrings.xml"
+        ],
+        "formulas were added, so the chain is gone"
+    );
+    // Each rewritten part keeps its byte order mark and its declaration, and each but the shared
+    // strings, whose counts change, its document element's start tag.
+    for name in [
+        "[Content_Types].xml",
+        "xl/workbook.xml",
+        "xl/_rels/workbook.xml.rels",
+        "xl/worksheets/sheet1.xml",
+        "xl/sharedStrings.xml",
+    ] {
+        let (source, saved) = (
+            m1_3_content(&shaped_zip, &shaped, name),
+            m1_3_content(&shaped_out_zip, &shaped_out, name),
+        );
+        assert_ne!(saved, source, "{name} is rewritten");
+        let root = parse_xml(&source).start_tag;
+        let end = if name == "xl/sharedStrings.xml" {
+            root.0
+        } else {
+            root.1
+        };
+        assert_eq!(
+            &saved[..end],
+            &source[..end],
+            "{name}: the byte order mark, the declaration and the root start tag"
+        );
+    }
+    let (source_book, saved_book) = (
+        m1_3_content(&shaped_zip, &shaped, "xl/workbook.xml"),
+        m1_3_content(&shaped_out_zip, &shaped_out, "xl/workbook.xml"),
+    );
+    let (shaped_calc_before, shaped_calc_after) = (
+        parse_xml(&source_book).child("calcPr").unwrap().clone(),
+        parse_xml(&saved_book).child("calcPr").unwrap().clone(),
+    );
+    assert_eq!(
+        shaped_calc_after.attributes,
+        [
+            ("fullCalcOnLoad".to_owned(), "1".to_owned()),
+            ("calcId".to_owned(), "191029".to_owned())
+        ]
+    );
+    assert_eq!(
+        &saved_book[..shaped_calc_after.span.0],
+        &source_book[..shaped_calc_before.span.0]
+    );
+    assert_eq!(
+        &saved_book[shaped_calc_after.span.1..],
+        &source_book[shaped_calc_before.span.1..]
+    );
+    let shaped_types = parse_xml(&m1_3_content(
+        &shaped_out_zip,
+        &shaped_out,
+        "[Content_Types].xml",
+    ));
+    assert!(
+        shaped_types
+            .all("Override")
+            .all(|o| o.attribute("PartName") != Some("/xl/calcChain.xml")),
+        "the chain's override is gone"
+    );
+    let shaped_relationships = parse_xml(&m1_3_content(
+        &shaped_out_zip,
+        &shaped_out,
+        "xl/_rels/workbook.xml.rels",
+    ));
+    assert_eq!(
+        shaped_relationships
+            .all("Relationship")
+            .map(|r| r.attribute("Id").unwrap())
+            .collect::<Vec<_>>(),
+        ["rId1", "rId2", "rId3"],
+        "the chain's relationship is gone"
+    );
+    let shaped_strings = parse_xml(&m1_3_content(
+        &shaped_out_zip,
+        &shaped_out,
+        "xl/sharedStrings.xml",
+    ));
+    assert_eq!(
+        shaped_strings
+            .all("si")
+            .map(|si| si.text())
+            .collect::<Vec<_>>(),
+        ["label", "added"]
+    );
+    assert_eq!(
+        (
+            shaped_strings.attribute("count"),
+            shaped_strings.attribute("uniqueCount")
+        ),
+        (Some("2"), Some("2"))
+    );
+
+    // The sheet "Shaped": rows keep x14ac:dyDescent and lose spans, every element outside
+    // sheetData but the dimension keeps its bytes (the xr:uid attributes among them).
+    let (source_shaped, saved_shaped) = (
+        m1_3_content(&shaped_zip, &shaped, "xl/worksheets/sheet1.xml"),
+        m1_3_content(&shaped_out_zip, &shaped_out, "xl/worksheets/sheet1.xml"),
+    );
+    let (shaped_before, shaped_after) = (parse_xml(&source_shaped), parse_xml(&saved_shaped));
+    assert_eq!(
+        shaped_after.attribute("xr:uid"),
+        Some("{6A1B2C3D-0000-4000-8000-000000000001}")
+    );
+    assert_eq!(
+        outside(&shaped_after, &saved_shaped),
+        outside(&shaped_before, &source_shaped),
+        "every element outside sheetData but the dimension keeps its bytes"
+    );
+    assert_eq!(
+        shaped_after.child("dimension").unwrap().attribute("ref"),
+        Some("A1:B3")
+    );
+    let shaped_rows: Vec<String> = shaped_after
+        .child("sheetData")
+        .unwrap()
+        .all("row")
+        .map(|row| String::from_utf8(row.bytes(&saved_shaped).to_vec()).unwrap())
+        .collect();
+    assert_eq!(
+        shaped_rows,
+        [
+            r#"<row r="1" x14ac:dyDescent="0.3"><c r="A1"><v>3</v></c><c r="B1" t="s"><v>0</v></c></row>"#,
+            r#"<row r="2" x14ac:dyDescent="0.3"><c r="A2"><f>A1*2</f></c><c r="B2"><f>A2+1</f></c></row>"#,
+            r#"<row r="3"><c r="A3" t="s"><v>1</v></c></row>"#,
+        ]
+    );
+
+    // The sheet whose sheetData was empty.
+    let saved_empty = m1_3_content(&shaped_out_zip, &shaped_out, "xl/worksheets/sheet2.xml");
+    let empty_root = parse_xml(&saved_empty);
+    assert_eq!(
+        String::from_utf8(
+            empty_root
+                .child("sheetData")
+                .unwrap()
+                .bytes(&saved_empty)
+                .to_vec()
+        )
+        .unwrap(),
+        r#"<sheetData><row r="2"><c r="C2"><v>5</v></c></row><row r="4"><c r="D4"><f>C2*2</f></c></row></sheetData>"#
+    );
+    assert_eq!(
+        empty_root.child("dimension").unwrap().attribute("ref"),
+        Some("C2:D4")
+    );
+    let mut reload_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let reloaded_shaped = m1_2_load(&shaped_out, &mut reload_ids).expect("it loads");
+    assert_eq!(
+        m1_3_sheets(reloaded_shaped.model()),
+        m1_3_sheets(&shaped_model)
+    );
+    assert_eq!(
+        m1_3_cells(reloaded_shaped.model()),
+        m1_3_cells(&shaped_model),
+        "the saved shaped.xlsx holds the edited revision"
+    );
+
+    // extlst.xlsx: a row and the shared strings table that each end in an extLst. CT_Row is c*
+    // then extLst?, and CT_Sst si* then extLst?, so the cells added to the row go before its
+    // extLst and the appended item before the table's.
+    let ext = r#"<extLst><ext uri="{00000000-0000-0000-0000-000000000001}"/></extLst>"#;
+    let extlst = m1_3_package(
+        r#"<sheets><sheet name="Ext" sheetId="1" r:id="rId1"/></sheets>"#,
+        &[
+            ("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml"),
+            ("rId2", SHARED_STRINGS_RELATIONSHIP, "sharedStrings.xml"),
+        ],
+        &[
+            (
+                "xl/worksheets/sheet1.xml",
+                Some(WORKSHEET_TYPE),
+                m1_3_worksheet(&format!(
+                    r#"<dimension ref="A1"/><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c>{ext}</row></sheetData>"#
+                )),
+            ),
+            (
+                "xl/sharedStrings.xml",
+                Some(SHARED_STRINGS_TYPE),
+                format!(
+                    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="{SPREADSHEET_MAIN}" count="1" uniqueCount="1"><si><t>a</t></si>{ext}</sst>"#
+                ),
+            ),
+        ],
+    );
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded_ext = m1_2_load(&extlst, &mut ids).expect("extlst.xlsx loads");
+    let ext_sheet = loaded_ext.model().sheets()[0].id();
+    let ext_model = m1_3_edit(
+        loaded_ext.model(),
+        vec![
+            set(ext_sheet, 1, 2, text(units("b"))),
+            set(ext_sheet, 1, 3, formula("A1&B1")),
+        ],
+    );
+    let (ext_out, _) = m1_3_save(&loaded_ext.snapshot(&ext_model));
+    let ext_zip = parse_zip(&ext_out);
+    let ext_xml = m1_3_content(&ext_zip, &ext_out, "xl/worksheets/sheet1.xml");
+    let ext_root = parse_xml(&ext_xml);
+    let ext_row = ext_root
+        .child("sheetData")
+        .and_then(|data| data.child("row"))
+        .expect("row 1");
+    let row_children: Vec<(String, Option<String>)> = ext_row
+        .elements()
+        .map(|e| (e.name.clone(), e.attribute("r").map(str::to_owned)))
+        .collect();
+    assert_eq!(
+        row_children,
+        [
+            ("c".to_owned(), Some("A1".to_owned())),
+            ("c".to_owned(), Some("B1".to_owned())),
+            ("c".to_owned(), Some("C1".to_owned())),
+            ("extLst".to_owned(), None),
+        ],
+        "the cells added to row 1 come before its extLst"
+    );
+    assert_eq!(
+        ext_row.child("extLst").map(|e| e.bytes(&ext_xml)),
+        Some(ext.as_bytes()),
+        "the row's extLst keeps its bytes"
+    );
+    let ext_strings_xml = m1_3_content(&ext_zip, &ext_out, "xl/sharedStrings.xml");
+    let ext_strings = parse_xml(&ext_strings_xml);
+    let sst_children: Vec<(String, String)> = ext_strings
+        .elements()
+        .map(|e| (e.name.clone(), e.text()))
+        .collect();
+    assert_eq!(
+        sst_children,
+        [
+            ("si".to_owned(), "a".to_owned()),
+            ("si".to_owned(), "b".to_owned()),
+            ("extLst".to_owned(), String::new()),
+        ],
+        "the appended item comes before the table's extLst"
+    );
+    assert_eq!(
+        ext_strings
+            .child("extLst")
+            .map(|e| e.bytes(&ext_strings_xml)),
+        Some(ext.as_bytes()),
+        "the table's extLst keeps its bytes"
+    );
+    let mut reload_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let reloaded_ext = m1_2_load(&ext_out, &mut reload_ids).expect("it loads");
+    assert_eq!(m1_3_cells(reloaded_ext.model()), m1_3_cells(&ext_model));
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: cells.xlsx edited at revision 1 (formula SUM(A6:A10)*2 into the absent J3, a formula in a new row 11, texts, a value, a formula, a shared-group member, a logical and an error set, B1:C1 and C2 cleared) saved to {} bytes: the case's own reader finds J3 as <c r=\"J3\"><f>{new_formula}</f></c> with no <v>, rows 1-12 and 14 in order, the dimension A1:K14 equal to the cells' area, 2 strings appended to 4 held ones, calcPr fullCalcOnLoad=\"1\" beside calcId, {kept_formulas} other formulas with their <f> kept and their <v> dropped, {kept_values} other cells byte for byte, and {} untouched parts byte for byte ({:?}); reloaded, the model equals the edited revision",
+        out.len(),
+        untouched.len(),
+        untouched
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: cells.xlsx: the receipt counts {} caches dropped and {} sheet rewritten only for its caches, equal to the {dropped} formula cells with a <v> the edit did not set or clear that the case counts in the source parts",
+        receipt.caches_dropped,
+        receipt.sheets_rewritten_for_caches
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: numbers.xlsx (no shared strings, a calculation chain): a value edit keeps the chain, rels and content types byte for byte (1 cache dropped); a text and a formula added write a deflated xl/sharedStrings.xml with rId3 and its override, drop xl/calcChain.xml with its relationship and override, and add calcPr before extLst; the formula A2 cleared drops the chain, its relationship and its override with nothing added (0 caches dropped); prepare_edit refused SUM(A6:A10 and =A1 (FormulaSyntax), an 8,193-unit formula (FormulaTooLong), a stale base and a sheet removal (Model)"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the deep chain 1+1+...+1 (4,095 additions, {} UTF-16 code units) set in J3 of cells.xlsx was prepared by prepare_edit, checked again and saved by prepare_save and write ({} bytes), read back by the case's own reader as J3's <f> with no <v>, and reloaded to the edited revision",
+        deep.len(),
+        deep_out.len()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: extlst.xlsx (row 1 and the sst each end in an extLst): B1 = \"b\" and C1 = A1&B1 added; the case's own reader finds row 1's children c A1, c B1, c C1, extLst and the sst's si \"a\", si \"b\", extLst, both extLst elements byte for byte; reloaded, the model equals the edited revision"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: shaped.xlsx (test-built; a byte order mark added to the content types, workbook, its rels, the sheet Shaped and the shared strings; mc:Ignorable, xr:uid and x14ac:dyDescent on the sheet; a second sheet with <sheetData/>): both sheets edited and saved to {} bytes; each rewritten part keeps its mark, declaration and root start tag, calcPr gets fullCalcOnLoad=\"1\" beside calcId, rows keep x14ac:dyDescent and lose spans, the empty sheetData holds rows 2 and 4, the chain is dropped; reloaded, the model equals the edited revision",
+        shaped_out.len()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m1_3__save_refusal.
+
+/// Checks a refused save: the route's sink received no byte (observed), and the snapshot held the
+/// caller's revision itself. That the caller's revision keeps its number and cells holds by type
+/// (the snapshot and the save hold an immutable `Arc<ModelRoot>`); the comparisons below restate
+/// it rather than measure it.
+fn m1_3_refused(
+    snapshot: &DocumentSnapshot,
+    policy: &SavePolicy,
+    model: &Arc<ModelRoot>,
+    cells: &[Vec<(u32, u32, CellInput)>],
+) -> SaveRefusal {
+    let revision = model.revision();
+    let (result, sink) = m1_3_route(snapshot, policy);
+    let refusal = match result {
+        Ok(_) => panic!("the save is refused, but it wrote {} bytes", sink.len()),
+        Err(refusal) => refusal,
+    };
+    assert!(sink.is_empty(), "{refusal}: no byte reached the sink");
+    assert!(Arc::ptr_eq(snapshot.model().expect("a model"), model));
+    assert_eq!(
+        model.revision(),
+        revision,
+        "{refusal}: the revision is the one held"
+    );
+    assert_eq!(
+        m1_3_cells(model),
+        cells,
+        "{refusal}: the revision's cells are unchanged"
+    );
+    refusal
+}
+
+/// Every byte of a source, read through its own `read_at`.
+fn m1_3_source_bytes(source: &dyn PackageRead) -> Vec<u8> {
+    let mut bytes = vec![0; source.size() as usize];
+    source
+        .read_at(0, &mut bytes)
+        .expect("the test's source reads");
+    bytes
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m1_3__save_refusal() {
+    const CASE: &str = "cdoc_m1_3__save_refusal";
+    let default = SavePolicy::default();
+
+    // A part the save rewrites changed in the source after opening.
+    let changing = Arc::new(ChangingSource::new(M1_2_CELLS.to_vec()));
+    let source: Arc<dyn PackageRead> = changing.clone();
+    let document = opened(source, &OpenPolicy::default());
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded = calc_doc::load(&document, &mut ids).expect("cells.xlsx loads");
+    let sheet = loaded.model().sheets()[0].id();
+    let model = m1_3_edit(
+        loaded.model(),
+        vec![set(sheet, 3, 10, formula("SUM(A6:A10)*2"))],
+    );
+    let cells = m1_3_cells(&model);
+    let input = parse_zip(M1_2_CELLS);
+    let payload = input.entry("xl/worksheets/sheet2.xml").payload_start + 10;
+    changing.change(|bytes| bytes[payload] ^= 0x40);
+    let snapshot = loaded.snapshot(&model);
+    let part = m1_3_refused(&snapshot, &default, &model, &cells);
+    assert!(
+        matches!(&part, SaveRefusal::Part { part, .. } if part == "xl/worksheets/sheet2.xml"),
+        "{part:?}"
+    );
+    // The source image, read through the test's own source: the refused save changed no byte of
+    // it but the one the test changed.
+    let mut changed_image = M1_2_CELLS.to_vec();
+    changed_image[payload] ^= 0x40;
+    assert!(
+        m1_3_source_bytes(&*changing) == changed_image,
+        "the source holds cells.xlsx with only the test's change"
+    );
+    changing.change(|bytes| bytes[payload] ^= 0x40);
+    assert!(
+        m1_3_source_bytes(&*changing) == M1_2_CELLS,
+        "restored, the source holds cells.xlsx byte for byte"
+    );
+    // The refused save left nothing behind in the snapshot: with the byte restored it saves.
+    let (retried, _) = m1_3_save(&snapshot);
+    // Loaded with the same allocator, so its sheets have other IDs than `loaded`'s.
+    let fresh = m1_2_load(M1_2_CELLS, &mut ids).expect("cells.xlsx loads");
+    let fresh_sheet = fresh.model().sheets()[0].id();
+    let fresh_model = m1_3_edit(
+        fresh.model(),
+        vec![set(fresh_sheet, 3, 10, formula("SUM(A6:A10)*2"))],
+    );
+    let (unrefused, _) = m1_3_save(&fresh.snapshot(&fresh_model));
+    assert!(
+        retried == unrefused,
+        "the retried save equals a save never refused"
+    );
+
+    // A model that is not a revision of the loaded workbook: one another load of the same file
+    // made with the same allocator (other sheet IDs), and one a load with an allocator of its own
+    // made, whose sheets equal `loaded`'s in ID, key, name and visibility, so only the lineage each
+    // load gave its model tells it apart.
+    let foreign = m1_3_refused(
+        &loaded.snapshot(&fresh_model),
+        &default,
+        &fresh_model,
+        &m1_3_cells(&fresh_model),
+    );
+    assert_eq!(foreign, SaveRefusal::ForeignModel);
+    let mut own_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let twin = m1_2_load(M1_2_CELLS, &mut own_ids).expect("cells.xlsx loads");
+    assert_eq!(
+        twin.model().sheets(),
+        loaded.model().sheets(),
+        "the twin's sheets equal the loaded ones, IDs included"
+    );
+    let twin_sheet = twin.model().sheets()[0].id();
+    let twin_model = m1_3_edit(
+        twin.model(),
+        vec![set(twin_sheet, 3, 10, formula("SUM(A6:A10)*3"))],
+    );
+    let twin_refusal = m1_3_refused(
+        &loaded.snapshot(&twin_model),
+        &default,
+        &twin_model,
+        &m1_3_cells(&twin_model),
+    );
+    assert_eq!(twin_refusal, SaveRefusal::ForeignModel);
+    let (twin_out, _) = m1_3_save(&twin.snapshot(&twin_model));
+    assert!(
+        !twin_out.is_empty(),
+        "the twin's own snapshot of the same revision saves"
+    );
+
+    // A package past the policy's bound, then within the default one.
+    let small = SavePolicy {
+        max_package_bytes: 1_000,
+    };
+    let too_large = m1_3_refused(
+        &fresh.snapshot(&fresh_model),
+        &small,
+        &fresh_model,
+        &m1_3_cells(&fresh_model),
+    );
+    assert!(
+        matches!(
+            too_large,
+            SaveRefusal::PackageTooLarge {
+                bytes,
+                entries: 8,
+                limit: 1_000
+            } if bytes == unrefused.len() as u64
+        ),
+        "{too_large:?}"
+    );
+
+    // Revisions made by ModelRoot::apply, not prepare_edit: a formula of 9,001 code units, which
+    // calc_doc::load refuses on reopen, and an unclosed SUM( are refused by the save as
+    // prepare_edit refuses the same batch.
+    let applied = |text: &str| {
+        let batch = OpBatch {
+            base: fresh.model().revision(),
+            operations: vec![set(fresh_sheet, 3, 10, formula(text))],
+        };
+        let edit = prepare_edit(fresh.model(), &batch).expect_err("prepare_edit refuses it");
+        let model = fresh.model().apply(&batch).expect("the model applies it");
+        (edit, model)
+    };
+    let over = "1+".repeat(4_500) + "1";
+    assert_eq!(over.len(), 9_001);
+    let (over_edit, over_model) = applied(&over);
+    assert_eq!(
+        over_edit,
+        EditError::FormulaTooLong {
+            operation: 0,
+            units: 9_001
+        }
+    );
+    let over_refusal = m1_3_refused(
+        &fresh.snapshot(&over_model),
+        &default,
+        &over_model,
+        &m1_3_cells(&over_model),
+    );
+    assert_eq!(
+        over_refusal,
+        SaveRefusal::FormulaTooLong {
+            part: "xl/worksheets/sheet2.xml".to_owned(),
+            row: 3,
+            column: 10,
+            units: 9_001
+        }
+    );
+    let (open_edit, open_model) = applied("SUM(");
+    let EditError::FormulaSyntax {
+        operation: 0,
+        message: edit_message,
+    } = open_edit
+    else {
+        panic!("prepare_edit reads SUM( with a diagnostic, but: {open_edit:?}");
+    };
+    let open_refusal = m1_3_refused(
+        &fresh.snapshot(&open_model),
+        &default,
+        &open_model,
+        &m1_3_cells(&open_model),
+    );
+    assert_eq!(
+        open_refusal,
+        SaveRefusal::FormulaSyntax {
+            part: "xl/worksheets/sheet2.xml".to_owned(),
+            row: 3,
+            column: 10,
+            message: edit_message.clone()
+        }
+    );
+
+    // An entry the save copies untouched, xl/styles.xml, changed in the source after the package
+    // was opened: prepare_save, which does not read it, plans the save, and write refuses it
+    // before the sink receives a byte. Then a source cut short: the same.
+    let copying = Arc::new(ChangingSource::new(M1_2_CELLS.to_vec()));
+    let copying_source: Arc<dyn PackageRead> = copying.clone();
+    let copying_document = opened(copying_source, &OpenPolicy::default());
+    let mut copying_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let copying_loaded = calc_doc::load(&copying_document, &mut copying_ids).expect("it loads");
+    let copying_sheet = copying_loaded.model().sheets()[0].id();
+    let copying_model = m1_3_edit(
+        copying_loaded.model(),
+        vec![set(copying_sheet, 3, 10, formula("SUM(A6:A10)*2"))],
+    );
+    let styles = input.entry("xl/styles.xml");
+    let styles_byte = styles.payload_start + 10;
+    copying.change(|bytes| bytes[styles_byte] ^= 0x40);
+    let mut copied_sink = Vec::new();
+    let plan = calc_doc::prepare_save(&copying_loaded.snapshot(&copying_model), &default)
+        .expect("the save is planned without reading xl/styles.xml");
+    let copied_error =
+        calc_doc::write(plan, &mut copied_sink).expect_err("a copied entry changed in the source");
+    assert_eq!(
+        copied_error,
+        WriteError::SourceChanged {
+            entry: "xl/styles.xml".to_owned()
+        }
+    );
+    assert!(
+        copied_sink.is_empty(),
+        "{copied_error}: no byte reached the sink, but {} did",
+        copied_sink.len()
+    );
+    let mut copied_image = M1_2_CELLS.to_vec();
+    copied_image[styles_byte] ^= 0x40;
+    assert!(
+        m1_3_source_bytes(&*copying) == copied_image,
+        "the source holds cells.xlsx with only the test's change"
+    );
+    // A package whose last stored entry, which nothing reads and the save copies, is cut short in
+    // the source after opening.
+    let tail = m1_3_package(
+        r#"<sheets><sheet name="One" sheetId="1" r:id="rId1"/></sheets>"#,
+        &[("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml")],
+        &[
+            (
+                "xl/worksheets/sheet1.xml",
+                Some(WORKSHEET_TYPE),
+                m1_3_worksheet(r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#),
+            ),
+            (
+                "docProps/extra.xml",
+                None,
+                "<extra>copied</extra>".to_owned(),
+            ),
+        ],
+    );
+    let tail_zip = parse_zip(&tail);
+    let extra = tail_zip.entry("docProps/extra.xml");
+    assert_eq!(
+        names_in_stored_order(&tail_zip).last().map(String::as_str),
+        Some("docProps/extra.xml")
+    );
+    let cut = Arc::new(ChangingSource::new(tail.clone()));
+    let cut_source: Arc<dyn PackageRead> = cut.clone();
+    let cut_document = opened(cut_source, &OpenPolicy::default());
+    let mut cut_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let cut_loaded = calc_doc::load(&cut_document, &mut cut_ids).expect("it loads");
+    let cut_sheet = cut_loaded.model().sheets()[0].id();
+    let cut_model = m1_3_edit(cut_loaded.model(), vec![set(cut_sheet, 1, 1, number(2.0))]);
+    let cut_at = extra.payload_start + 3;
+    cut.change(|bytes| bytes.truncate(cut_at));
+    let mut short_sink = Vec::new();
+    let plan = calc_doc::prepare_save(&cut_loaded.snapshot(&cut_model), &default)
+        .expect("the save is planned without reading docProps/extra.xml");
+    let short_error = calc_doc::write(plan, &mut short_sink).expect_err("a source cut short");
+    assert!(
+        matches!(short_error, WriteError::Source(_)),
+        "{short_error:?}"
+    );
+    assert!(
+        short_sink.is_empty(),
+        "{short_error}: no byte reached the sink, but {} did",
+        short_sink.len()
+    );
+    assert!(
+        m1_3_source_bytes(&*cut) == tail[..cut_at],
+        "the source holds the package's first {cut_at} bytes"
+    );
+
+    // A table of A1:B4 with a header row and a totals row: a change in either is refused, since the
+    // table part names the header row's cells and the totals row's functions; a change in its data
+    // rows or beside it is saved, and the table part and the sheet's rels keep their bytes.
+    let table = m1_3_package(
+        r#"<sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets>"#,
+        &[("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml")],
+        &[
+            (
+                "xl/worksheets/sheet1.xml",
+                Some(WORKSHEET_TYPE),
+                m1_3_worksheet(
+                    r#"<dimension ref="A1:B4"/><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Name</t></is></c><c r="B1" t="inlineStr"><is><t>Value</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>x</t></is></c><c r="B2"><v>1</v></c></row><row r="3"><c r="A3" t="inlineStr"><is><t>y</t></is></c><c r="B3"><v>2</v></c></row><row r="4"><c r="A4" t="inlineStr"><is><t>Total</t></is></c><c r="B4"><f>SUBTOTAL(109,B2:B3)</f><v>3</v></c></row></sheetData><tableParts count="1"><tablePart r:id="rId1"/></tableParts>"#,
+                ),
+            ),
+            (
+                "xl/worksheets/_rels/sheet1.xml.rels",
+                None,
+                format!(
+                    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="{}"><Relationship Id="rId1" Type="{TABLE_RELATIONSHIP}" Target="../tables/table1.xml"/></Relationships>"#,
+                    calc_doc::RELATIONSHIPS_NAMESPACE
+                ),
+            ),
+            (
+                "xl/tables/table1.xml",
+                Some(TABLE_TYPE),
+                format!(
+                    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><table xmlns="{SPREADSHEET_MAIN}" id="1" name="Table1" displayName="Table1" ref="A1:B4" totalsRowCount="1"><autoFilter ref="A1:B3"/><tableColumns count="2"><tableColumn id="1" name="Name" totalsRowLabel="Total"/><tableColumn id="2" name="Value" totalsRowFunction="sum"/></tableColumns></table>"#
+                ),
+            ),
+        ],
+    );
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded_table = m1_2_load(&table, &mut ids).expect("the table package loads");
+    let data = loaded_table.model().sheets()[0].id();
+    let in_header = m1_3_edit(
+        loaded_table.model(),
+        vec![set(data, 1, 2, text(units("Amount")))],
+    );
+    let edit_in_table = m1_3_refused(
+        &loaded_table.snapshot(&in_header),
+        &default,
+        &in_header,
+        &m1_3_cells(&in_header),
+    );
+    assert_eq!(
+        edit_in_table,
+        SaveRefusal::EditInTable {
+            part: "xl/worksheets/sheet1.xml".to_owned(),
+            table: "xl/tables/table1.xml".to_owned(),
+            row: 1,
+            column: 2
+        }
+    );
+    let in_totals = m1_3_edit(loaded_table.model(), vec![set(data, 4, 2, number(0.0))]);
+    assert_eq!(
+        m1_3_refused(
+            &loaded_table.snapshot(&in_totals),
+            &default,
+            &in_totals,
+            &m1_3_cells(&in_totals),
+        ),
+        SaveRefusal::EditInTable {
+            part: "xl/worksheets/sheet1.xml".to_owned(),
+            table: "xl/tables/table1.xml".to_owned(),
+            row: 4,
+            column: 2
+        }
+    );
+    let table_zip = parse_zip(&table);
+    for (what, operations) in [
+        ("in the data rows", vec![set(data, 2, 2, number(10.0))]),
+        ("beside the table", vec![set(data, 5, 4, number(3.0))]),
+    ] {
+        let edited = m1_3_edit(loaded_table.model(), operations);
+        let (edited_out, edited_receipt) = m1_3_save(&loaded_table.snapshot(&edited));
+        assert_eq!(edited_receipt.caches_dropped, 1, "{what}: B4's cache");
+        let edited_zip = parse_zip(&edited_out);
+        for name in [
+            "xl/tables/table1.xml",
+            "xl/worksheets/_rels/sheet1.xml.rels",
+        ] {
+            assert_eq!(
+                preserved_fields(edited_zip.entry(name), &edited_out),
+                preserved_fields(table_zip.entry(name), &table),
+                "{what}: {name}"
+            );
+        }
+        let mut reload_ids: IdAllocator<SheetId> = IdAllocator::new();
+        let reloaded = m1_2_load(&edited_out, &mut reload_ids).expect("it loads");
+        assert_eq!(
+            m1_3_cells(reloaded.model()),
+            m1_3_cells(&edited),
+            "{what}: the saved package holds the edited revision"
+        );
+    }
+
+    // Two sheets that are one part.
+    let shared = m1_3_package(
+        r#"<sheets><sheet name="One" sheetId="1" r:id="rId1"/><sheet name="Two" sheetId="2" r:id="rId2"/></sheets>"#,
+        &[
+            ("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml"),
+            ("rId2", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml"),
+        ],
+        &[(
+            "xl/worksheets/sheet1.xml",
+            Some(WORKSHEET_TYPE),
+            m1_3_worksheet(r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#),
+        )],
+    );
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded_shared = m1_2_load(&shared, &mut ids).expect("the package loads");
+    let one = loaded_shared.model().sheets()[0].id();
+    let shared_model = m1_3_edit(loaded_shared.model(), vec![set(one, 1, 1, number(2.0))]);
+    assert_eq!(
+        m1_3_refused(
+            &loaded_shared.snapshot(&shared_model),
+            &default,
+            &shared_model,
+            &m1_3_cells(&shared_model)
+        ),
+        SaveRefusal::SharedSheetPart {
+            part: "xl/worksheets/sheet1.xml".to_owned()
+        }
+    );
+
+    // A workbook part with two calcPr elements, which the loader does not read.
+    let two_calc = m1_3_package(
+        r#"<sheets><sheet name="One" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="1"/><calcPr calcId="2"/>"#,
+        &[("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml")],
+        &[(
+            "xl/worksheets/sheet1.xml",
+            Some(WORKSHEET_TYPE),
+            m1_3_worksheet(r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#),
+        )],
+    );
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded_two = m1_2_load(&two_calc, &mut ids).expect("the package loads");
+    let first = loaded_two.model().sheets()[0].id();
+    let two_model = m1_3_edit(loaded_two.model(), vec![set(first, 1, 1, number(2.0))]);
+    let invalid = m1_3_refused(
+        &loaded_two.snapshot(&two_model),
+        &default,
+        &two_model,
+        &m1_3_cells(&two_model),
+    );
+    assert_eq!(
+        invalid,
+        SaveRefusal::InvalidPart {
+            part: "xl/workbook.xml".to_owned(),
+            detail: "a workbook with two calcPr elements".to_owned()
+        }
+    );
+
+    // Array formulas, cell metadata (cm) and rich values (vm) never reach a save: calc_doc::load
+    // refuses a sheet that holds any of them, so no loaded workbook holds one.
+    for (what, cell_xml, expected) in [
+        (
+            "an array formula",
+            r#"<c r="A1"><f t="array" ref="A1">1+1</f><v>2</v></c>"#,
+            CellError::UnsupportedFormula {
+                kind: "array".to_owned(),
+            },
+        ),
+        (
+            "cell metadata",
+            r#"<c r="A1" cm="1"><v>1</v></c>"#,
+            CellError::UnsupportedMetadata,
+        ),
+        (
+            "a rich value",
+            r#"<c r="A1" vm="1"><v>1</v></c>"#,
+            CellError::UnsupportedMetadata,
+        ),
+    ] {
+        let package = m1_3_package(
+            r#"<sheets><sheet name="One" sheetId="1" r:id="rId1"/></sheets>"#,
+            &[("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml")],
+            &[(
+                "xl/worksheets/sheet1.xml",
+                Some(WORKSHEET_TYPE),
+                m1_3_worksheet(&format!(
+                    r#"<sheetData><row r="1">{cell_xml}</row></sheetData>"#
+                )),
+            )],
+        );
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        match m1_2_load(&package, &mut ids) {
+            Ok(_) => panic!("{what}: the package loads, but it is refused at load"),
+            Err(error) => assert_eq!(
+                error,
+                LoadError::Cell {
+                    part: "xl/worksheets/sheet1.xml".to_owned(),
+                    row: 1,
+                    column: 1,
+                    error: expected
+                },
+                "{what}"
+            ),
+        }
+    }
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: each refusal of prepare_save wrote no byte to the route's sink, and the snapshot held the caller's revision itself (its revision and cells held unchanged by type, an immutable Arc): {part}; {foreign} (another load's model, with other sheet IDs and with equal ones); {too_large}; {over_refusal} and {open_refusal}, each for a revision ModelRoot::apply made of a batch prepare_edit refuses; {edit_in_table}, and the same for the totals row B4; two sheets of one part; {invalid}"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: write checks every entry it copies before its first byte: {copied_error} (a copied entry changed after opening, which prepare_save does not read) and {short_error} (a source cut short in a copied entry) each left the sink empty; the test's own sources then held the opened bytes with only the test's change"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: after the Part refusal the test's source held cells.xlsx with only the test's one-byte change, and restored, cells.xlsx byte for byte; the restored source saved the same snapshot to {} bytes equal to a save never refused; an edit in the table's data rows (B2) and one beside it (D5) each saved with the table part and its sheet's rels byte for byte and reloaded to the edited revision",
+        retried.len()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: array formulas, cell metadata (cm) and rich values (vm) are refused at load, not at save: calc_doc::load refused a sheet holding each with LoadError::Cell (UnsupportedFormula array, UnsupportedMetadata, UnsupportedMetadata), so no loaded workbook holding one reaches prepare_save"
     );
 }

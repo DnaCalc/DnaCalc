@@ -13,18 +13,22 @@
 //! `workbookPr` names ([`DateSystem`]) and the number of `definedName` elements it holds, which
 //! are counted and not loaded. `calcPr` and every other element of the workbook part are not
 //! read.
+//!
+//! A loaded workbook keeps the package it was loaded from, so [`LoadedWorkbook::snapshot`] can
+//! give a save any revision of its model together with the records the save rewrites from.
 
-mod address;
+pub(crate) mod address;
 mod error;
-mod sheet;
+pub(crate) mod sheet;
 mod shift;
-mod strings;
+pub(crate) mod strings;
 
 pub use error::{CellError, LoadError};
 
 use crate::OpenedDocument;
 use crate::error::PartReadError;
 use crate::opc::{Package, TargetMode};
+use crate::save::DocumentSnapshot;
 use crate::xml::{XmlElement, XmlEvent, XmlPart, XmlReader};
 use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId};
 use calc_doc_model::{
@@ -48,7 +52,7 @@ const OFFICE_DOCUMENT: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
 const WORKSHEET: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
-const SHARED_STRINGS: &str =
+pub(crate) const SHARED_STRINGS: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 const STYLES: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
 
@@ -170,12 +174,13 @@ pub enum DateSystem {
 }
 
 /// A loaded workbook: the model root of its sheets and their cells at the document's first
-/// revision, and each sheet's records beside it.
+/// revision, each sheet's records beside it, and the package they were read from.
 #[derive(Debug)]
 pub struct LoadedWorkbook {
+    package: Arc<Package>,
     model: Arc<ModelRoot>,
     workbook_part: String,
-    sheets: Vec<LoadedSheet>,
+    sheets: Arc<[LoadedSheet]>,
     cell_formats: u32,
     date_system: DateSystem,
     defined_names_not_loaded: usize,
@@ -215,6 +220,21 @@ impl LoadedWorkbook {
     /// which is loaded.
     pub fn defined_names_not_loaded(&self) -> usize {
         self.defined_names_not_loaded
+    }
+
+    /// An immutable view of the document at `model`, a revision of this workbook's model, which a
+    /// save is prepared from. The caller keeps `model`; a save reads it and never changes it.
+    /// [`crate::prepare_save`] writes the cells in which `model` differs from the loaded revision
+    /// and refuses a model that is not of the lineage of the model this load made
+    /// ([`calc_doc_model::ModelRoot::same_lineage`]), such as one another load made.
+    pub fn snapshot(&self, model: &Arc<ModelRoot>) -> DocumentSnapshot {
+        DocumentSnapshot::edited(
+            Arc::clone(&self.package),
+            self.workbook_part.clone(),
+            Arc::clone(&self.sheets),
+            Arc::clone(&self.model),
+            Arc::clone(model),
+        )
     }
 }
 
@@ -541,7 +561,7 @@ fn cell_formats(package: &Package, part: &str) -> Result<u32, LoadError> {
 }
 
 /// The single part the workbook part's relationships give of type `kind`, if any.
-fn workbook_part_of(
+pub(crate) fn workbook_part_of(
     package: &Package,
     workbook: &str,
     kind: &str,
@@ -691,9 +711,10 @@ pub fn load(
     let model = ModelRoot::with_cells(AuthoredRevision::INITIAL, entries, cells)
         .expect("the IDs are distinct, the keys were checked and each cell lies on its own sheet");
     Ok(LoadedWorkbook {
+        package: Arc::clone(document.package_arc()),
         model,
         workbook_part: workbook,
-        sheets,
+        sheets: sheets.into(),
         cell_formats,
         date_system,
         defined_names_not_loaded: defined_names,

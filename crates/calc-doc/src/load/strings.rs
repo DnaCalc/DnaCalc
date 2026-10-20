@@ -10,7 +10,7 @@ use calc_doc_model::value::ExcelText;
 /// Text with each `_xHHHH_` escape (four hexadecimal digits, either case) replaced by the UTF-16
 /// code unit it names, as ECMA-376's ST_Xstring writes characters XML cannot hold (`_x000D_`) and
 /// an underscore that would otherwise start one (`_x005F_`). An unpaired surrogate is kept.
-pub(super) fn decode(text: &str) -> Vec<u16> {
+pub(crate) fn decode(text: &str) -> Vec<u16> {
     let units: Vec<u16> = text.encode_utf16().collect();
     let hex = |unit: u16| char::from_u32(u32::from(unit)).and_then(|c| c.to_digit(16));
     let mut out = Vec::with_capacity(units.len());

@@ -5,7 +5,7 @@ use calc_doc_model::value::{MAX_COLUMNS, MAX_ROWS};
 
 /// The column number (1 is A) of one to three ASCII letters, either case; `None` past
 /// [`MAX_COLUMNS`] or for anything else.
-pub(super) fn column_number(letters: &str) -> Option<u32> {
+pub(crate) fn column_number(letters: &str) -> Option<u32> {
     if letters.is_empty() || letters.len() > 3 {
         return None;
     }
@@ -20,7 +20,7 @@ pub(super) fn column_number(letters: &str) -> Option<u32> {
 }
 
 /// The letters of column `column` (1 is A), in upper case.
-pub(super) fn column_letters(mut column: u32) -> String {
+pub(crate) fn column_letters(mut column: u32) -> String {
     let mut letters = Vec::new();
     while column > 0 {
         let digit = (column - 1) % 26;
@@ -32,7 +32,7 @@ pub(super) fn column_letters(mut column: u32) -> String {
 }
 
 /// The row number of ASCII digits; `None` for 0, past [`MAX_ROWS`] or for anything else.
-pub(super) fn row_number(digits: &str) -> Option<u32> {
+pub(crate) fn row_number(digits: &str) -> Option<u32> {
     if digits.is_empty() || !digits.bytes().all(|digit| digit.is_ascii_digit()) {
         return None;
     }
@@ -41,7 +41,7 @@ pub(super) fn row_number(digits: &str) -> Option<u32> {
 }
 
 /// The (row, column) of a cell address such as `B7`.
-pub(super) fn cell(text: &str) -> Option<(u32, u32)> {
+pub(crate) fn cell(text: &str) -> Option<(u32, u32)> {
     let split = text.find(|c: char| c.is_ascii_digit())?;
     let column = column_number(&text[..split])?;
     let row = row_number(&text[split..])?;
@@ -50,7 +50,7 @@ pub(super) fn cell(text: &str) -> Option<(u32, u32)> {
 
 /// The (top, left, bottom, right) of an area such as `C1:C10`, its corners in either order, or of
 /// one cell.
-pub(super) fn area(text: &str) -> Option<(u32, u32, u32, u32)> {
+pub(crate) fn area(text: &str) -> Option<(u32, u32, u32, u32)> {
     let (first, last) = match text.split_once(':') {
         Some((first, last)) => (cell(first)?, cell(last)?),
         None => {

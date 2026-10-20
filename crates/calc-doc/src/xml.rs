@@ -153,15 +153,25 @@ impl XmlPart {
     }
 }
 
+/// The UTF-8 encoding of U+FEFF, which a part may start with as a byte order mark.
+const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+
 /// A pull reader over one part.
 pub struct XmlReader<'a> {
     inner: NsReader<&'a [u8]>,
+    /// The offset in the part of the first byte the inner reader reads: 3 past a UTF-8 byte order
+    /// mark, which the reader drops itself, else 0. Every position the inner reader gives is
+    /// relative to that byte.
+    origin: usize,
     limits: XmlLimits,
     depth: u32,
     started: bool,
     root_closed: bool,
     failure: Option<XmlError>,
     done: bool,
+    /// The byte range of the source that the last event returned was read from. An empty
+    /// element's start tag spans the whole element, and its end tag spans nothing.
+    span: (usize, usize),
 }
 
 fn utf8(bytes: &[u8], position: u64) -> Result<String, XmlError> {
@@ -183,26 +193,53 @@ fn namespace(resolved: ResolveResult<'_>, position: u64) -> Result<Option<String
 
 impl<'a> XmlReader<'a> {
     pub(crate) fn new(bytes: &'a [u8], limits: XmlLimits) -> Self {
-        let mut inner = NsReader::from_reader(bytes);
+        // quick-xml drops a leading UTF-8 byte order mark without counting it in its positions,
+        // so the mark is dropped here and its length added to every position instead.
+        let origin = if bytes.starts_with(&UTF8_BOM) {
+            UTF8_BOM.len()
+        } else {
+            0
+        };
+        let rest = &bytes[origin..];
+        let mut inner = NsReader::from_reader(rest);
         let config = inner.config_mut();
         config.expand_empty_elements = true;
         config.check_end_names = true;
         config.check_comments = true;
-        let failure =
-            (bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF])).then(|| {
-                XmlError::UnsupportedEncoding {
-                    encoding: "UTF-16".to_owned(),
-                }
-            });
+        let failure = if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
+            Some(XmlError::UnsupportedEncoding {
+                encoding: "UTF-16".to_owned(),
+            })
+        } else if rest.starts_with(&UTF8_BOM) {
+            // A second U+FEFF before the document is a character outside the document element,
+            // which the inner reader would drop as a byte order mark without counting it.
+            Some(XmlError::Malformed {
+                position: origin as u64,
+                detail: "a second byte order mark".to_owned(),
+            })
+        } else {
+            None
+        };
         XmlReader {
             inner,
+            origin,
             limits,
             depth: 0,
             started: false,
             root_closed: false,
             failure,
             done: false,
+            span: (0, 0),
         }
+    }
+
+    /// The byte range of the part that the last event returned was read from: a start tag's
+    /// `<` to its `>`, an end tag's `</` to its `>`, a text's first byte to the next markup. The
+    /// start tag of an empty element (`<a/>`) spans the whole element and its end tag spans no
+    /// byte. Comments and processing instructions the reader skipped before an event lie before
+    /// its range.
+    pub(crate) fn span(&self) -> (usize, usize) {
+        self.span
     }
 
     fn error(&self, error: quick_xml::Error) -> XmlError {
@@ -214,21 +251,26 @@ impl<'a> XmlReader<'a> {
                 XmlError::UndefinedEntity { name }
             }
             other => XmlError::Malformed {
-                position: self.inner.error_position(),
+                position: self.inner.error_position() + self.origin as u64,
                 detail: other.to_string(),
             },
         }
     }
 
+    /// The offset in the part of the inner reader's position.
+    fn position(&self) -> u64 {
+        self.inner.buffer_position() + self.origin as u64
+    }
+
     fn malformed(&self, detail: &str) -> XmlError {
         XmlError::Malformed {
-            position: self.inner.buffer_position(),
+            position: self.position(),
             detail: detail.to_owned(),
         }
     }
 
     fn element_name(&self, name: QName<'_>) -> Result<XmlName, XmlError> {
-        let position = self.inner.buffer_position();
+        let position = self.position();
         let (resolved, local) = self.inner.resolve_element(name);
         Ok(XmlName {
             namespace: namespace(resolved, position)?,
@@ -254,10 +296,12 @@ impl<'a> XmlReader<'a> {
             if self.done {
                 return Ok(None);
             }
+            let start = self.position() as usize;
             let event = match self.inner.read_event() {
                 Ok(event) => event,
                 Err(error) => return Err(self.error(error)),
             };
+            self.span = (start, self.position() as usize);
             let first = !self.started;
             self.started = true;
             match event {
@@ -299,7 +343,7 @@ impl<'a> XmlReader<'a> {
                         if attribute.key.as_namespace_binding().is_some() {
                             continue;
                         }
-                        let position = self.inner.buffer_position();
+                        let position = self.position();
                         let (resolved, local) = self.inner.resolve_attribute(attribute.key);
                         let name = XmlName {
                             namespace: namespace(resolved, position)?,
@@ -334,7 +378,7 @@ impl<'a> XmlReader<'a> {
                     if self.depth == 0 {
                         return Err(self.malformed("a CDATA section outside the document element"));
                     }
-                    let position = self.inner.buffer_position();
+                    let position = self.position();
                     return Ok(Some(XmlEvent::Text(utf8(&data, position)?)));
                 }
                 Event::Empty(_) => {
@@ -353,5 +397,76 @@ impl<'a> XmlReader<'a> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each event's kind and the bytes of `text` its span gives.
+    fn spanned(text: &[u8]) -> Vec<(String, String)> {
+        let mut reader = XmlReader::new(text, XmlLimits::default());
+        let mut seen = Vec::new();
+        while let Some(event) = reader.next_event().expect("well formed") {
+            let (start, end) = reader.span();
+            let kind = match event {
+                XmlEvent::Start(element) => format!("start {}", element.name.local),
+                XmlEvent::End(name) => format!("end {}", name.local),
+                XmlEvent::Text(text) => format!("text {text:?}"),
+            };
+            seen.push((
+                kind,
+                String::from_utf8_lossy(&text[start..end]).into_owned(),
+            ));
+        }
+        seen
+    }
+
+    /// Each event's span is the bytes it was read from, so a writer can copy a part's source
+    /// bytes around the elements it replaces; a part that starts with a UTF-8 byte order mark
+    /// gives the same bytes, its spans counted from the part's first byte.
+    #[test]
+    fn spans() {
+        let text = br#"<?xml version="1.0"?>
+<a xmlns="urn:x"><!-- c --><b k="1"/> t<c>u</c></a>"#;
+        let expected = [
+            ("start a", r#"<a xmlns="urn:x">"#),
+            ("start b", r#"<b k="1"/>"#),
+            ("end b", ""),
+            ("text \" t\"", " t"),
+            ("start c", "<c>"),
+            ("text \"u\"", "u"),
+            ("end c", "</c>"),
+            ("end a", "</a>"),
+        ];
+        let expected: Vec<(String, String)> = expected
+            .iter()
+            .map(|(kind, bytes)| ((*kind).to_owned(), (*bytes).to_owned()))
+            .collect();
+        assert_eq!(spanned(text), expected);
+        let marked = [&UTF8_BOM[..], &text[..]].concat();
+        assert_eq!(spanned(&marked), expected, "after a byte order mark");
+        let mut reader = XmlReader::new(&marked, XmlLimits::default());
+        reader.next_event().expect("the document element");
+        assert_eq!(
+            reader.span(),
+            (25, 42),
+            "counted from the part's first byte"
+        );
+    }
+
+    /// A second byte order mark is refused, not dropped.
+    #[test]
+    fn second_byte_order_mark() {
+        let text = [&UTF8_BOM[..], &UTF8_BOM[..], b"<a/>"].concat();
+        let mut reader = XmlReader::new(&text, XmlLimits::default());
+        assert_eq!(
+            reader.next_event(),
+            Err(XmlError::Malformed {
+                position: 3,
+                detail: "a second byte order mark".to_owned()
+            })
+        );
     }
 }

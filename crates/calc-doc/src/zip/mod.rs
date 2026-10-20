@@ -393,7 +393,8 @@ fn check_overlaps(entries: &[Entry]) -> Result<(), OpenError> {
     Ok(())
 }
 
-fn span_crc(source: &dyn PackageRead, entry: &Entry) -> Result<u32, SourceError> {
+/// The CRC-32 of an entry's stored bytes, from its local header to the end of its span.
+pub(crate) fn span_crc(source: &dyn PackageRead, entry: &Entry) -> Result<u32, SourceError> {
     let mut crc = Crc32::new();
     each_chunk(
         source,

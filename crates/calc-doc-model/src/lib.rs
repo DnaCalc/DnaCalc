@@ -7,7 +7,9 @@
 //!   document's sheets, each a [`SheetEntry`] with its session [`calc_value::SheetId`], its
 //!   document-stable [`SheetKey`], its [`SheetName`] and its [`SheetVisibility`], and of each
 //!   sheet's authored cell inputs. [`ModelRoot::new`] makes a root without cells and
-//!   [`ModelRoot::with_cells`] one that holds a document's cells as a file gave them.
+//!   [`ModelRoot::with_cells`] one that holds a document's cells as a file gave them; each starts
+//!   a lineage that every root [`ModelRoot::apply`] makes from it continues
+//!   ([`ModelRoot::same_lineage`]).
 //! - File caches: a formula's result as a file stored it is [`FileCached`], a [`CachedValue`]
 //!   with the [`SourcePart`] it was read from. It is kept apart from the formula's input and never
 //!   counts as calculated.
