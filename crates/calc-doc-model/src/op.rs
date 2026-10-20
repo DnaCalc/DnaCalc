@@ -1,10 +1,12 @@
-//! The authored operations admitted so far, their structural-edit descriptors, and the batch that
-//! carries them. An operation names authored document state only: it holds no engine type, no
-//! session operation and no calculated value. An operation on an existing sheet names it by its
+//! The authored operations admitted so far, their structural-edit descriptors (the skin layout's
+//! is in `layout.rs`), and the batch that carries them. An operation names authored document
+//! state only: it holds no engine type, no session operation and no calculated value. An
+//! operation on an existing sheet names it by its
 //! [`SheetId`], which travels on the wire as that sheet's [`SheetKey`]; an insert names the sheet
 //! it adds by a new [`SheetKey`] alone.
 
 use crate::input::CellInput;
+use crate::layout::SkinLayoutEdit;
 use crate::revision::AuthoredRevision;
 use crate::sheet::{SheetKey, SheetName, SheetVisibility};
 use calc_value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
@@ -22,6 +24,9 @@ pub enum WorkbookOp {
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.
     EditSheet(SheetEdit),
+    /// Create or remove a block with its locator, or add, move or remove one of a block's
+    /// placements in a view: document-only metadata, which changes no cell and no calculation.
+    EditSkinLayout(SkinLayoutEdit),
 }
 
 /// The rows or the columns of a sheet.

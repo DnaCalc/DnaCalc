@@ -1,20 +1,26 @@
 //! What an authored save changes in the package: the parts it rewrites, removes and adds, all
-//! serialized here, before any byte is written.
+//! serialized here, before any byte is written: for changed cells, the worksheets, the shared
+//! strings, the calculation chain and `calcPr`; for a changed skin layout, the view manifest and
+//! the workbook part's locator names.
 
 use super::diff::{SheetChanges, sheet_changes};
-use super::parts::{self, NewRelationship};
+use super::manifest::{self, NewManifest};
+use super::parts::{self, NameChanges, NewRelationship};
 use super::reader::Reader;
 use super::sheet::{self, Job};
 use super::strings::{self, SharedStrings, read_part};
 use super::{Edited, SaveRefusal};
 use crate::edit::{FormulaCheck, check_formula};
+use crate::load::address::column_letters;
+use crate::load::manifest::{CUSTOM_XML, ManifestState, is_locator_form};
 use crate::load::sheet::collapsed;
 use crate::load::{self, LoadError, SHARED_STRINGS};
 use crate::opc::{Package, TargetMode};
 use crate::xml::XmlElement;
-use calc_doc_model::CellInput;
-use calc_doc_model::value::CellKey;
+use calc_doc_model::value::{CellKey, GridArea};
+use calc_doc_model::{CellInput, SheetName};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 const CALC_CHAIN: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
@@ -168,14 +174,105 @@ fn new_part_name(package: &Package, workbook_part: &str, stem: &str) -> (String,
     unreachable!("a free name is found before the counter runs out")
 }
 
+/// The view manifest's part a save writes for a changed layout.
+enum ManifestChange {
+    /// The manifest the package holds, at this part, with new content.
+    Rewrite { part: String, content: Vec<u8> },
+    /// A manifest for a package that holds none.
+    Create(NewManifest),
+}
+
+/// What a changed skin layout writes: the workbook part's locator names and the manifest.
+struct LayoutChanges {
+    names: NameChanges,
+    manifest: ManifestChange,
+}
+
+/// A locator's formula text for `anchor` on the sheet `sheet`: `'<sheet>'!$A$1`, or
+/// `'<sheet>'!$A$1:$C$4` for a range, the name quoted with each apostrophe doubled.
+fn locator_text(sheet: &SheetName, anchor: GridArea) -> Vec<u16> {
+    let apostrophe = u16::from(b'\'');
+    let mut units = vec![apostrophe];
+    for &unit in sheet.text().utf16_code_units() {
+        units.push(unit);
+        if unit == apostrophe {
+            units.push(unit);
+        }
+    }
+    let cell = |at: CellKey| format!("${}${}", column_letters(at.column()), at.row());
+    let (first, last) = (anchor.first(), anchor.last());
+    let mut reference = format!("'!{}", cell(first));
+    if first != last {
+        reference.push(':');
+        reference.push_str(&cell(last));
+    }
+    units.extend(reference.encode_utf16());
+    units
+}
+
+/// What the save writes for the revision's skin layout; `None` when it is the loaded one. A block
+/// the revision removed, or re-created with another anchor or kind, takes its locator out of the
+/// workbook part when the part holds it as a locator (a hidden, workbook-scoped name of a
+/// locator's form); a block it created puts one in. Refused when the layout changed and the
+/// package's manifest was not read.
+fn layout_changes(package: &Package, edit: &Edited) -> Result<Option<LayoutChanges>, SaveRefusal> {
+    let (base, model) = (edit.base.layout(), edit.model.layout());
+    if Arc::ptr_eq(base, model) || base == model {
+        return Ok(None);
+    }
+    let manifest = match &edit.manifest {
+        ManifestState::Unread { part } => {
+            return Err(SaveRefusal::LayoutNotWritable { part: part.clone() });
+        }
+        ManifestState::Read { part } => ManifestChange::Rewrite {
+            part: part.clone(),
+            content: manifest::rewritten(package, part, model)?,
+        },
+        ManifestState::Absent => ManifestChange::Create(manifest::new_parts(
+            manifest::free_number(package),
+            manifest::fresh(model),
+        )),
+    };
+    let mut names = NameChanges::default();
+    for block in base.blocks() {
+        // Only a name of a locator's form is ever a locator: a block whose manifest names any
+        // other name (a user's) leaves that name as the source wrote it.
+        if model.block(block.id()) != Some(block) && is_locator_form(block.locator().as_str()) {
+            names.removed.push(block.locator().as_str().to_owned());
+        }
+    }
+    for block in model.blocks() {
+        if base.block(block.id()) != Some(block) {
+            let anchor = block
+                .anchor()
+                .expect("a block a revision creates has the anchor it was created over");
+            let sheet = edit
+                .model
+                .sheet_by_id(anchor.sheet())
+                .expect("a created block's anchor lies on a sheet of the model");
+            names.added.push((
+                block.locator().as_str().to_owned(),
+                locator_text(sheet.name(), anchor),
+            ));
+        }
+    }
+    Ok(Some(LayoutChanges { names, manifest }))
+}
+
+/// The target that names `to` from a relationship of the part `from`, both ZIP item names.
+fn relative_target(from: &str, to: &str) -> String {
+    format!("{}{to}", "../".repeat(from.matches('/').count()))
+}
+
 /// The changes an authored save makes to the package for `edit`; none when the edited model's
-/// cells are the loaded ones.
+/// cells and skin layout are the loaded ones.
 pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefusal> {
     let Edited {
         workbook_part,
         sheets,
         base,
         model,
+        ..
     } = edit;
     if !model.same_lineage(base) || model.sheets() != base.sheets() {
         return Err(SaveRefusal::ForeignModel);
@@ -185,132 +282,185 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         .iter()
         .map(|sheet| sheet_changes(base, model, sheet.id()))
         .collect();
+    let cells_changed = !changes.iter().all(SheetChanges::is_empty);
+    let layout = layout_changes(package, edit)?;
     let mut out = Changes::default();
-    if changes.iter().all(SheetChanges::is_empty) {
+    if !cells_changed && layout.is_none() {
         return Ok(out);
     }
-    for (sheet, changes) in sheets.iter().zip(&changes) {
-        if !changes.is_empty() {
-            check_formulas(sheet.part().name(), changes)?;
-            check_tables(package, sheet.part().name(), changes)?;
+    let mut chain = None;
+    let mut new_strings = None;
+    if cells_changed {
+        for (sheet, changes) in sheets.iter().zip(&changes) {
+            if !changes.is_empty() {
+                check_formulas(sheet.part().name(), changes)?;
+                check_tables(package, sheet.part().name(), changes)?;
+            }
         }
-    }
-    // A sheet is rewritten when one of its cells changed or one of its formulas has a cached
-    // result, which a save after an edit no longer trusts.
-    let rewritten: Vec<bool> = sheets
-        .iter()
-        .zip(&changes)
-        .map(|(sheet, changes)| {
-            !changes.is_empty()
-                || sheet
-                    .formulas()
-                    .any(|(_, _, record)| record.cache().is_some())
-        })
-        .collect();
-    for (index, sheet) in sheets.iter().enumerate() {
-        let name = sheet.part().name();
-        let shared = sheets.iter().enumerate().any(|(other, loaded)| {
-            other != index && loaded.part().name().eq_ignore_ascii_case(name)
-        });
-        if rewritten[index] && shared {
-            return Err(SaveRefusal::SharedSheetPart {
-                part: name.to_owned(),
+        // A sheet is rewritten when one of its cells changed or one of its formulas has a cached
+        // result, which a save after an edit no longer trusts.
+        let rewritten: Vec<bool> = sheets
+            .iter()
+            .zip(&changes)
+            .map(|(sheet, changes)| {
+                !changes.is_empty()
+                    || sheet
+                        .formulas()
+                        .any(|(_, _, record)| record.cache().is_some())
+            })
+            .collect();
+        for (index, sheet) in sheets.iter().enumerate() {
+            let name = sheet.part().name();
+            let shared = sheets.iter().enumerate().any(|(other, loaded)| {
+                other != index && loaded.part().name().eq_ignore_ascii_case(name)
             });
+            if rewritten[index] && shared {
+                return Err(SaveRefusal::SharedSheetPart {
+                    part: name.to_owned(),
+                });
+            }
+        }
+        let strings_part = load::workbook_part_of(package, workbook_part, SHARED_STRINGS)
+            .map_err(|error| load_refusal(workbook_part, error))?;
+        let mut strings = SharedStrings::read(package, strings_part.as_deref())?;
+        for ((sheet, changes), rewrite) in sheets.iter().zip(&changes).zip(&rewritten) {
+            if !rewrite {
+                continue;
+            }
+            let name = sheet.part().name();
+            let xml = read_part(package, name)?;
+            let job = Job {
+                changes,
+                loaded: sheet,
+                model,
+            };
+            let rewritten = sheet::rewrite(&xml, &job, &mut strings)?;
+            out.rewritten.insert(name.to_owned(), rewritten.bytes);
+            out.caches_dropped += rewritten.caches_dropped;
+            if changes.is_empty() {
+                out.sheets_rewritten_for_caches += 1;
+            }
+        }
+
+        // The calculation chain lists formula cells; when the set of them changed, the chain no
+        // longer lists exactly the workbook's formulas, so it is left out, with its relationship
+        // and its content type override, rather than written stale. What Excel does with a stale
+        // or a missing chain is measured by infra-m1.3's round trip, not here.
+        let formulas_changed = sheets.iter().zip(&changes).any(|(sheet, changes)| {
+            changes.iter().any(|(&(row, column), input)| {
+                let key =
+                    CellKey::new(sheet.id(), row, column).expect("a changed cell is in the grid");
+                let was = matches!(base.cell(key), Some(CellInput::Formula(_)));
+                let is = matches!(input, Some(CellInput::Formula(_)));
+                was != is
+            })
+        });
+        if formulas_changed {
+            chain = load::workbook_part_of(package, workbook_part, CALC_CHAIN)
+                .map_err(|error| load_refusal(workbook_part, error))?;
+        }
+
+        if let Some(part) = strings.part()
+            && strings.changed()
+        {
+            let xml = read_part(package, part)?;
+            out.rewritten
+                .insert(part.to_owned(), strings.rewrite(&xml)?);
+        }
+        new_strings = (strings.part().is_none() && strings.appended() > 0)
+            .then(|| new_part_name(package, workbook_part, "sharedStrings"));
+        if let Some((name, _)) = &new_strings {
+            out.added.push((name.clone(), strings.new_part()));
         }
     }
-    let strings_part = load::workbook_part_of(package, workbook_part, SHARED_STRINGS)
-        .map_err(|error| load_refusal(workbook_part, error))?;
-    let mut strings = SharedStrings::read(package, strings_part.as_deref())?;
-    for ((sheet, changes), rewrite) in sheets.iter().zip(&changes).zip(&rewritten) {
-        if !rewrite {
-            continue;
+
+    let no_names = NameChanges::default();
+    let names = layout.as_ref().map_or(&no_names, |layout| &layout.names);
+    if cells_changed || !names.is_empty() {
+        let workbook = read_part(package, workbook_part)?;
+        out.rewritten.insert(
+            workbook_part.clone(),
+            parts::workbook(&workbook, cells_changed, names)?,
+        );
+    }
+
+    // Relationships the workbook part gains, as (type, target), and content type overrides the
+    // package gains, as (part, content type).
+    let mut relationships_added: Vec<(&str, String)> = Vec::new();
+    let mut overrides: Vec<(String, &str)> = Vec::new();
+    if let Some((name, target)) = &new_strings {
+        relationships_added.push((SHARED_STRINGS, target.clone()));
+        overrides.push((name.clone(), strings::CONTENT_TYPE));
+    }
+    match layout.map(|layout| layout.manifest) {
+        Some(ManifestChange::Rewrite { part, content }) => {
+            out.rewritten.insert(part, content);
         }
-        let name = sheet.part().name();
-        let xml = read_part(package, name)?;
-        let job = Job {
-            changes,
-            loaded: sheet,
-            model,
-        };
-        let rewritten = sheet::rewrite(&xml, &job, &mut strings)?;
-        out.rewritten.insert(name.to_owned(), rewritten.bytes);
-        out.caches_dropped += rewritten.caches_dropped;
-        if changes.is_empty() {
-            out.sheets_rewritten_for_caches += 1;
+        Some(ManifestChange::Create(parts)) => {
+            let defaults = package.content_types().defaults();
+            let has_default = |extension: &str, content_type: &str| {
+                defaults
+                    .iter()
+                    .any(|(e, t)| e.eq_ignore_ascii_case(extension) && t == content_type)
+            };
+            relationships_added.push((CUSTOM_XML, relative_target(workbook_part, &parts.item.0)));
+            if !has_default("xml", manifest::ITEM_CONTENT_TYPE) {
+                overrides.push((parts.item.0.clone(), manifest::ITEM_CONTENT_TYPE));
+            }
+            overrides.push((parts.props.0.clone(), manifest::PROPS_CONTENT_TYPE));
+            if !has_default("rels", manifest::RELATIONSHIPS_CONTENT_TYPE) {
+                overrides.push((
+                    parts.relationships.0.clone(),
+                    manifest::RELATIONSHIPS_CONTENT_TYPE,
+                ));
+            }
+            out.added
+                .extend([parts.item, parts.props, parts.relationships]);
         }
+        None => {}
     }
 
-    let workbook = read_part(package, workbook_part)?;
-    out.rewritten
-        .insert(workbook_part.clone(), parts::full_calc_on_load(&workbook)?);
-
-    // The calculation chain lists formula cells; when the set of them changed, the chain no longer
-    // lists exactly the workbook's formulas, so it is left out, with its relationship and its
-    // content type override, rather than written stale. What Excel does with a stale or a missing
-    // chain is measured by infra-m1.3's round trip, not here.
-    let formulas_changed = sheets.iter().zip(&changes).any(|(sheet, changes)| {
-        changes.iter().any(|(&(row, column), input)| {
-            let key = CellKey::new(sheet.id(), row, column).expect("a changed cell is in the grid");
-            let was = matches!(base.cell(key), Some(CellInput::Formula(_)));
-            let is = matches!(input, Some(CellInput::Formula(_)));
-            was != is
-        })
-    });
-    let chain = if formulas_changed {
-        load::workbook_part_of(package, workbook_part, CALC_CHAIN)
-            .map_err(|error| load_refusal(workbook_part, error))?
-    } else {
-        None
-    };
-
-    if let Some(part) = strings.part()
-        && strings.changed()
-    {
-        let xml = read_part(package, part)?;
-        out.rewritten
-            .insert(part.to_owned(), strings.rewrite(&xml)?);
-    }
-    let new_strings = (strings.part().is_none() && strings.appended() > 0)
-        .then(|| new_part_name(package, workbook_part, "sharedStrings"));
-    if let Some((name, _)) = &new_strings {
-        out.added.push((name.clone(), strings.new_part()));
-    }
-
-    if chain.is_some() || new_strings.is_some() {
+    if chain.is_some() || !relationships_added.is_empty() {
         let relationships = package
             .relationships_of(Some(workbook_part))
             .ok_or_else(|| SaveRefusal::InvalidPart {
                 part: workbook_part.clone(),
                 detail: "the workbook part has no relationships part".to_owned(),
             })?;
-        let id = (1u32..)
-            .map(|n| format!("rId{n}"))
-            .find(|id| relationships.items().iter().all(|item| &item.id != id))
-            .expect("a free relationship ID");
-        let add = new_strings.as_ref().map(|(_, target)| NewRelationship {
-            id: &id,
-            kind: SHARED_STRINGS,
-            target,
-        });
+        let mut ids: Vec<String> = Vec::new();
+        for _ in &relationships_added {
+            let id = (1u32..)
+                .map(|n| format!("rId{n}"))
+                .find(|id| {
+                    relationships.items().iter().all(|item| &item.id != id) && !ids.contains(id)
+                })
+                .expect("a free relationship ID");
+            ids.push(id);
+        }
+        let add: Vec<NewRelationship<'_>> = relationships_added
+            .iter()
+            .zip(&ids)
+            .map(|((kind, target), id)| NewRelationship { id, kind, target })
+            .collect();
         let xml = read_part(package, relationships.part())?;
         let remove = chain.is_some().then_some(CALC_CHAIN);
         out.rewritten.insert(
             relationships.part().to_owned(),
-            parts::relationships(&xml, remove, add.as_ref())?,
+            parts::relationships(&xml, remove, &add)?,
         );
+    }
+    if chain.is_some() || !overrides.is_empty() {
         let xml = package
             .content_types_xml()
             .map_err(|error| SaveRefusal::Part {
                 part: crate::opc::CONTENT_TYPES_ENTRY.to_owned(),
                 error,
             })?;
-        out.content_types = Some(parts::content_types(
-            &xml,
-            chain.as_deref(),
-            new_strings
-                .as_ref()
-                .map(|(name, _)| (name.as_str(), strings::CONTENT_TYPE)),
-        )?);
+        let add: Vec<(&str, &str)> = overrides
+            .iter()
+            .map(|(part, content_type)| (part.as_str(), *content_type))
+            .collect();
+        out.content_types = Some(parts::content_types(&xml, chain.as_deref(), &add)?);
     }
     if let Some(chain) = chain
         && package.part(&chain).is_some()

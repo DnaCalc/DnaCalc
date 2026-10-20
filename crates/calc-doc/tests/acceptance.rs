@@ -38,10 +38,11 @@ use calc_doc::model::value::{
 };
 use calc_doc::model::{
     ApplyError, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError, BATCH_FORMAT,
-    BATCH_VERSION, CellInput, CellPage, CellText, DecodeError, EncodeError, FiniteNumber,
-    FormulaText, FormulaTextError, ModelRoot, ModelRootError, OpBatch, PAGE_COLUMNS, PAGE_ROWS,
-    SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetEdit, SheetEntry, SheetKey, SheetName, SheetNameError,
-    SheetVisibility, WorkbookOp, decode_batch, encode_batch, op_capabilities,
+    BATCH_VERSION, BlockId, BlockKind, CanvasArea, CellInput, CellPage, CellText, DecodeError,
+    EncodeError, FiniteNumber, FormulaText, FormulaTextError, ModelRoot, ModelRootError, OpBatch,
+    PAGE_COLUMNS, PAGE_ROWS, PlacementId, SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetEdit, SheetEntry,
+    SheetKey, SheetName, SheetNameError, SheetVisibility, SkinLayoutEdit, Spot, WorkbookOp,
+    decode_batch, encode_batch, op_capabilities,
 };
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -66,6 +67,7 @@ macro_rules! note {
 const CELLS_V1: &[u8] = include_bytes!("fixtures/cells_v1.json");
 const AXES_V1: &[u8] = include_bytes!("fixtures/axes_v1.json");
 const SHEETS_V1: &[u8] = include_bytes!("fixtures/sheets_v1.json");
+const SKIN_LAYOUT_V1: &[u8] = include_bytes!("fixtures/skin_layout_v1.json");
 
 /// The workspace's committed lockfile.
 const CARGO_LOCK: &str = include_str!("../../../Cargo.lock");
@@ -279,12 +281,162 @@ fn sheets_ops(s: &Session) -> Vec<WorkbookOp> {
     .collect()
 }
 
+/// The block of the skin layout fixture whose ID ends in the hex digit `n`:
+/// `5e1f0c3a-7b2d-4c8e-9a41-0d6b3f2e8c0<n>`.
+fn fixture_block(n: u8) -> BlockId {
+    BlockId::new(0x5e1f_0c3a_7b2d_4c8e_9a41_0d6b_3f2e_8c00 | u128::from(n)).expect("a nonzero ID")
+}
+
+/// The placement of the skin layout fixture whose ID ends in the two hex digits of `n`:
+/// `9c4d2b17-3e5a-4f60-8b72-1a0c5d3e7f<nn>`.
+fn fixture_placement(n: u8) -> PlacementId {
+    PlacementId::new(0x9c4d_2b17_3e5a_4f60_8b72_1a0c_5d3e_7f00 | u128::from(n))
+        .expect("a nonzero ID")
+}
+
+fn bits(bits: u64) -> FiniteNumber {
+    FiniteNumber::from_bits(bits).expect("a finite number")
+}
+
+/// A canvas spot at `position` with the area whose x, y, width and height have these bits.
+fn canvas_spot(position_value: u32, [x, y, width, height]: [u64; 4]) -> Spot {
+    Spot::Canvas {
+        position: position(position_value),
+        area: CanvasArea {
+            x: bits(x),
+            y: bits(y),
+            width: bits(width),
+            height: bits(height),
+        },
+    }
+}
+
+fn tree_spot(parent: Option<u8>, position_value: u32) -> Spot {
+    Spot::Tree {
+        parent: parent.map(fixture_placement),
+        position: position(position_value),
+    }
+}
+
+/// The operations `skin_layout_v1.json` holds, in this session's IDs: five blocks created (prose
+/// and calculation, a cell and a range, on keys 1 and 2), placements added in all four views
+/// (tree roots and children, canvas areas with a negative coordinate and a zero), three moved
+/// (a tree child to the roots, a canvas card to the top with a new area, a notebook entry to the
+/// end), one placement removed and one block removed.
+fn skin_layout_ops(s: &Session) -> Vec<WorkbookOp> {
+    let area = |sheet, top, left, bottom, right| {
+        GridArea::new(cell(sheet, top, left), cell(sheet, bottom, right)).expect("one sheet")
+    };
+    let create = |n, kind, anchor| {
+        WorkbookOp::EditSkinLayout(SkinLayoutEdit::CreateBlock {
+            block: fixture_block(n),
+            kind,
+            anchor,
+        })
+    };
+    let add = |p, b, spot| {
+        WorkbookOp::EditSkinLayout(SkinLayoutEdit::AddPlacement {
+            placement: fixture_placement(p),
+            block: fixture_block(b),
+            spot,
+        })
+    };
+    let moved = |p, spot| {
+        WorkbookOp::EditSkinLayout(SkinLayoutEdit::MovePlacement {
+            placement: fixture_placement(p),
+            spot,
+        })
+    };
+    let notebook = |n| Spot::Notebook {
+        position: position(n),
+    };
+    let grid = |n| Spot::Grid {
+        position: position(n),
+    };
+    vec![
+        create(1, BlockKind::Prose, area(s.sheet1, 1, 1, 1, 1)),
+        create(2, BlockKind::Calculation, area(s.sheet1, 5, 2, 5, 2)),
+        create(3, BlockKind::Calculation, area(s.sheet1, 5, 2, 6, 2)),
+        create(4, BlockKind::Calculation, area(s.data, 1, 2, 3, 2)),
+        create(5, BlockKind::Prose, area(s.sheet1, 3, 1, 3, 1)),
+        add(0x11, 1, notebook(1)),
+        add(0x12, 2, notebook(2)),
+        add(0x13, 3, notebook(3)),
+        add(0x14, 5, notebook(2)),
+        add(0x21, 1, tree_spot(None, 1)),
+        add(0x22, 2, tree_spot(Some(0x21), 1)),
+        add(0x23, 3, tree_spot(Some(0x21), 1)),
+        add(
+            0x31,
+            2,
+            canvas_spot(
+                1,
+                [
+                    0x4024_0000_0000_0000,
+                    0x4034_0000_0000_0000,
+                    0x4069_0000_0000_0000,
+                    0x4054_0000_0000_0000,
+                ],
+            ),
+        ),
+        add(
+            0x32,
+            3,
+            canvas_spot(
+                2,
+                [
+                    0xc041_c000_0000_0000,
+                    0x4061_8000_0000_0000,
+                    0x406e_0000_0000_0000,
+                    0x405e_0000_0000_0000,
+                ],
+            ),
+        ),
+        add(
+            0x33,
+            4,
+            canvas_spot(
+                1,
+                [
+                    0,
+                    0x4072_c000_0000_0000,
+                    0x4066_8000_0000_0000,
+                    0x404e_0000_0000_0000,
+                ],
+            ),
+        ),
+        add(0x41, 3, grid(1)),
+        add(0x42, 2, grid(1)),
+        moved(0x23, tree_spot(None, 2)),
+        moved(
+            0x31,
+            canvas_spot(
+                3,
+                [
+                    0x407a_4400_0000_0000,
+                    0x4034_0000_0000_0000,
+                    0x4069_0000_0000_0000,
+                    0x4058_0000_0000_0000,
+                ],
+            ),
+        ),
+        moved(0x11, notebook(4)),
+        WorkbookOp::EditSkinLayout(SkinLayoutEdit::RemovePlacement {
+            placement: fixture_placement(0x14),
+        }),
+        WorkbookOp::EditSkinLayout(SkinLayoutEdit::RemoveBlock {
+            block: fixture_block(5),
+        }),
+    ]
+}
+
 type Fixture = (&'static str, &'static [u8], fn(&Session) -> Vec<WorkbookOp>);
 
-const FIXTURES: [Fixture; 3] = [
+const FIXTURES: [Fixture; 4] = [
     ("cells_v1.json", CELLS_V1, cells_ops),
     ("axes_v1.json", AXES_V1, axes_ops),
     ("sheets_v1.json", SHEETS_V1, sheets_ops),
+    ("skin_layout_v1.json", SKIN_LAYOUT_V1, skin_layout_ops),
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -358,6 +510,62 @@ fn describe(op: &WorkbookOp) -> String {
                 format!("sheet visibility {sheet:?} {visibility:?}")
             }
         },
+        WorkbookOp::EditSkinLayout(edit) => match edit {
+            SkinLayoutEdit::CreateBlock {
+                block,
+                kind,
+                anchor,
+            } => format!(
+                "layout create {:032x} {kind:?} {:?} R{}C{}:R{}C{}",
+                block.get(),
+                anchor.sheet(),
+                anchor.first().row(),
+                anchor.first().column(),
+                anchor.last().row(),
+                anchor.last().column()
+            ),
+            SkinLayoutEdit::RemoveBlock { block } => {
+                format!("layout remove block {:032x}", block.get())
+            }
+            SkinLayoutEdit::AddPlacement {
+                placement,
+                block,
+                spot,
+            } => format!(
+                "layout place {:032x} block {:032x} {}",
+                placement.get(),
+                block.get(),
+                describe_spot(spot)
+            ),
+            SkinLayoutEdit::MovePlacement { placement, spot } => format!(
+                "layout move {:032x} {}",
+                placement.get(),
+                describe_spot(spot)
+            ),
+            SkinLayoutEdit::RemovePlacement { placement } => {
+                format!("layout remove placement {:032x}", placement.get())
+            }
+        },
+    }
+}
+
+/// A spot's view, position and what the view keeps, from its observable parts: IDs as their
+/// 128-bit values, numbers as their bits.
+fn describe_spot(spot: &Spot) -> String {
+    match spot {
+        Spot::Notebook { position } => format!("notebook {position}"),
+        Spot::Tree { parent, position } => format!(
+            "tree under {} at {position}",
+            parent.map_or_else(|| "none".to_owned(), |p| format!("{:032x}", p.get()))
+        ),
+        Spot::Canvas { position, area } => format!(
+            "canvas {position} {:016x} {:016x} {:016x} {:016x}",
+            area.x.get().to_bits(),
+            area.y.get().to_bits(),
+            area.width.get().to_bits(),
+            area.height.get().to_bits()
+        ),
+        Spot::Grid { position } => format!("grid {position}"),
     }
 }
 
@@ -412,6 +620,37 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
                 }
             }
         }
+        WorkbookOp::EditSkinLayout(edit) => {
+            out.insert("op:edit_skin_layout".to_owned());
+            let spot = |spot: &Spot| match spot {
+                Spot::Notebook { .. } => "spot:notebook",
+                Spot::Tree { parent: None, .. } => "spot:tree_root",
+                Spot::Tree {
+                    parent: Some(_), ..
+                } => "spot:tree_child",
+                Spot::Canvas { .. } => "spot:canvas",
+                Spot::Grid { .. } => "spot:grid",
+            };
+            match edit {
+                SkinLayoutEdit::CreateBlock { kind, .. } => {
+                    out.insert("layout:create_block".to_owned());
+                    match kind {
+                        BlockKind::Prose => "kind:prose".to_owned(),
+                        BlockKind::Calculation => "kind:calculation".to_owned(),
+                    }
+                }
+                SkinLayoutEdit::RemoveBlock { .. } => "layout:remove_block".to_owned(),
+                SkinLayoutEdit::AddPlacement { spot: at, .. } => {
+                    out.insert("layout:add_placement".to_owned());
+                    spot(at).to_owned()
+                }
+                SkinLayoutEdit::MovePlacement { spot: at, .. } => {
+                    out.insert("layout:move_placement".to_owned());
+                    spot(at).to_owned()
+                }
+                SkinLayoutEdit::RemovePlacement { .. } => "layout:remove_placement".to_owned(),
+            }
+        }
     };
     out.insert(feature);
 }
@@ -440,6 +679,19 @@ fn required_features() -> BTreeSet<String> {
         "visibility:visible",
         "visibility:hidden",
         "visibility:very_hidden",
+        "op:edit_skin_layout",
+        "layout:create_block",
+        "layout:remove_block",
+        "layout:add_placement",
+        "layout:move_placement",
+        "layout:remove_placement",
+        "kind:prose",
+        "kind:calculation",
+        "spot:notebook",
+        "spot:tree_root",
+        "spot:tree_child",
+        "spot:canvas",
+        "spot:grid",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -697,6 +949,115 @@ fn sheets_literal() -> Vec<LiteralOp> {
     ]
 }
 
+/// The operations of `skin_layout_v1.json`, in order: block IDs
+/// `5e1f0c3a-7b2d-4c8e-9a41-0d6b3f2e8c0<n>`, placement IDs
+/// `9c4d2b17-3e5a-4f60-8b72-1a0c5d3e7f<nn>`, and the canvas numbers 10, 20, 200, 80, -35.5, 140,
+/// 240, 120, 0, 300, 180, 60, 420.25 and 96 as the bits written out here.
+fn skin_layout_literal() -> Vec<LiteralOp> {
+    let block = |n: &str| format!("\"5e1f0c3a-7b2d-4c8e-9a41-0d6b3f2e8c0{n}\"");
+    let placement = |n: &str| format!("\"9c4d2b17-3e5a-4f60-8b72-1a0c5d3e7f{n}\"");
+    let create = |n: &str, kind: &str, rest: &str| {
+        literal(
+            "create_block",
+            &format!("block {n}"),
+            &format!(r#""block":{},"kind":"{kind}",{rest}"#, block(n)),
+        )
+    };
+    let add = |p: &str, b: &str, spot: &str| {
+        literal(
+            "add_placement",
+            &format!("placement {p} of block {b}"),
+            &format!(
+                r#""placement":{},"block":{},"spot":{spot}"#,
+                placement(p),
+                block(b)
+            ),
+        )
+    };
+    let moved = |p: &str, spot: &str| {
+        literal(
+            "move_placement",
+            &format!("placement {p}"),
+            &format!(r#""placement":{},"spot":{spot}"#, placement(p)),
+        )
+    };
+    vec![
+        create(
+            "1",
+            "prose",
+            r#""sheet":1,"top":1,"left":1,"bottom":1,"right":1"#,
+        ),
+        create(
+            "2",
+            "calculation",
+            r#""sheet":1,"top":5,"left":2,"bottom":5,"right":2"#,
+        ),
+        create(
+            "3",
+            "calculation",
+            r#""sheet":1,"top":5,"left":2,"bottom":6,"right":2"#,
+        ),
+        create(
+            "4",
+            "calculation",
+            r#""sheet":2,"top":1,"left":2,"bottom":3,"right":2"#,
+        ),
+        create(
+            "5",
+            "prose",
+            r#""sheet":1,"top":3,"left":1,"bottom":3,"right":1"#,
+        ),
+        add("11", "1", r#"{"notebook":{"position":1}}"#),
+        add("12", "2", r#"{"notebook":{"position":2}}"#),
+        add("13", "3", r#"{"notebook":{"position":3}}"#),
+        add("14", "5", r#"{"notebook":{"position":2}}"#),
+        add("21", "1", r#"{"tree":{"parent":null,"position":1}}"#),
+        add(
+            "22",
+            "2",
+            r#"{"tree":{"parent":"9c4d2b17-3e5a-4f60-8b72-1a0c5d3e7f21","position":1}}"#,
+        ),
+        add(
+            "23",
+            "3",
+            r#"{"tree":{"parent":"9c4d2b17-3e5a-4f60-8b72-1a0c5d3e7f21","position":1}}"#,
+        ),
+        add(
+            "31",
+            "2",
+            r#"{"canvas":{"position":1,"x":"4024000000000000","y":"4034000000000000","width":"4069000000000000","height":"4054000000000000"}}"#,
+        ),
+        add(
+            "32",
+            "3",
+            r#"{"canvas":{"position":2,"x":"c041c00000000000","y":"4061800000000000","width":"406e000000000000","height":"405e000000000000"}}"#,
+        ),
+        add(
+            "33",
+            "4",
+            r#"{"canvas":{"position":1,"x":"0000000000000000","y":"4072c00000000000","width":"4066800000000000","height":"404e000000000000"}}"#,
+        ),
+        add("41", "3", r#"{"grid":{"position":1}}"#),
+        add("42", "2", r#"{"grid":{"position":1}}"#),
+        moved("23", r#"{"tree":{"parent":null,"position":2}}"#),
+        moved(
+            "31",
+            r#"{"canvas":{"position":3,"x":"407a440000000000","y":"4034000000000000","width":"4069000000000000","height":"4058000000000000"}}"#,
+        ),
+        moved("11", r#"{"notebook":{"position":4}}"#),
+        literal(
+            "remove_placement",
+            "placement 14",
+            &format!(r#""placement":{}"#, placement("14")),
+        ),
+        literal(
+            "remove_block",
+            "block 5",
+            &format!(r#""block":{}"#, block("5")),
+        ),
+    ]
+}
+
 /// Compares the bytes of one fixture with text written here: [`FIXTURE_FRAME`], then each of
 /// `operations` as a whole envelope of `capability` at version 1, separated by commas, then the
 /// closing `]}`. Panics at the first part whose bytes differ, naming it. Returns the number of
@@ -738,7 +1099,7 @@ fn compare_fixture(
     operations.len()
 }
 
-/// Compares the bytes of the three golden fixtures, without parsing them and so apart from the
+/// Compares the bytes of the four golden fixtures, without parsing them and so apart from the
 /// codec and its JSON tokenizer, with text written in this file from the wire format's
 /// description: each fixture's frame up to its first operation, every one of its operations as a
 /// whole envelope (capability, version, operation name and every argument, members in wire
@@ -748,7 +1109,7 @@ fn compare_fixture(
 /// the decoder share fails here when the mistake changes the bytes of any operation the fixtures
 /// hold; a mistake that shows only on values no fixture holds is not caught here. Returns, per
 /// fixture, the number of operations compared.
-fn check_fixture_members() -> [(&'static str, usize); 3] {
+fn check_fixture_members() -> [(&'static str, usize); 4] {
     let long_digits = hex_units(&longest_text());
     assert_eq!(long_digits.len(), 131_068, "32,767 units of 4 hex digits");
     assert_eq!(
@@ -769,10 +1130,17 @@ fn check_fixture_members() -> [(&'static str, usize); 3] {
     );
     let axes = compare_fixture("axes_v1.json", AXES_V1, "axes", &axes_literal());
     let sheets = compare_fixture("sheets_v1.json", SHEETS_V1, "sheets", &sheets_literal());
+    let layout = compare_fixture(
+        "skin_layout_v1.json",
+        SKIN_LAYOUT_V1,
+        "skin_layout",
+        &skin_layout_literal(),
+    );
     [
         ("cells_v1.json", cells),
         ("axes_v1.json", axes),
         ("sheets_v1.json", sheets),
+        ("skin_layout_v1.json", layout),
     ]
 }
 
@@ -1237,7 +1605,7 @@ fn cdoc_m0_1__op_roundtrip() {
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: the bytes of the three fixtures' frames and of all {total} of their operations {compared:?} equal text written in the test from the wire format's description, every argument of every operation included: bits 8000000000000000 (-0.0), 0000000000000001 and 7fefffffffffffff, a 32,767-unit text of 131,068 hex digits built from its rule, a text whose last unit is U+D83D, the logicals true and false, the 14 error wire names, row 1048576 and column 16384, the top, left, bottom and right of each clear (the full sheet, B2:C3 and B3:D7), every axis and sheet edit's arguments, the capability names and versions, and the sheet keys"
+        "ACCEPT-NOTE: {CASE}: the bytes of the four fixtures' frames and of all {total} of their operations {compared:?} equal text written in the test from the wire format's description, every argument of every operation included: bits 8000000000000000 (-0.0), 0000000000000001 and 7fefffffffffffff, a 32,767-unit text of 131,068 hex digits built from its rule, a text whose last unit is U+D83D, the logicals true and false, the 14 error wire names, row 1048576 and column 16384, the top, left, bottom and right of each clear (the full sheet, B2:C3 and B3:D7), every axis and sheet edit's arguments, every skin layout edit's block and placement IDs, kinds, anchors and spots (canvas areas as their bits), the capability names and versions, and the sheet keys"
     );
 
     // Every declared capability is dispatched: for each operation each declaration names, a
@@ -1308,6 +1676,11 @@ fn cdoc_m0_1__op_roundtrip() {
         ("sheets", "move"),
         ("sheets", "remove"),
         ("sheets", "set_visibility"),
+        ("skin_layout", "create_block"),
+        ("skin_layout", "remove_block"),
+        ("skin_layout", "add_placement"),
+        ("skin_layout", "move_placement"),
+        ("skin_layout", "remove_placement"),
     ]
     .into_iter()
     .map(|(capability, op)| (capability.to_owned(), 1, op.to_owned()))
@@ -1599,8 +1972,16 @@ fn cdoc_m0_1__op_roundtrip() {
     );
 
     // The decoder refuses an unknown sheet key in every declared operation that names an
-    // existing sheet (all but insert, which names a new key; an insert of a key in use is
-    // refused in the table above).
+    // existing sheet: all but insert, which names a new key (an insert of a key in use is refused
+    // in the table above), and the skin layout operations other than create_block, which name
+    // blocks and placements only.
+    const NAMING_NO_SHEET: [&str; 5] = [
+        "insert",
+        "remove_block",
+        "add_placement",
+        "move_placement",
+        "remove_placement",
+    ];
     let unknown_key_ops: BTreeSet<String> = unknown_key_rows()
         .into_iter()
         .map(|(op, _, _)| op.to_owned())
@@ -1608,7 +1989,7 @@ fn cdoc_m0_1__op_roundtrip() {
     let naming_ops: BTreeSet<String> = op_capabilities()
         .iter()
         .flat_map(|capability| capability.operations.iter())
-        .filter(|op| **op != "insert")
+        .filter(|op| !NAMING_NO_SHEET.contains(op))
         .map(|op| (*op).to_owned())
         .collect();
     assert_eq!(
@@ -1667,6 +2048,14 @@ fn cdoc_m0_1__op_roundtrip() {
             WorkbookOp::EditSheet(SheetEdit::SetVisibility {
                 sheet: stranger,
                 visibility: SheetVisibility::Hidden,
+            }),
+        ),
+        (
+            "create_block",
+            WorkbookOp::EditSkinLayout(SkinLayoutEdit::CreateBlock {
+                block: fixture_block(1),
+                kind: BlockKind::Prose,
+                anchor: GridArea::full_sheet(stranger),
             }),
         ),
     ];
@@ -1860,6 +2249,11 @@ fn unknown_key_rows() -> Vec<(&'static str, &'static str, Vec<u8>)> {
             "sheets",
             "set_visibility",
             "\"sheet\":3,\"visibility\":\"hidden\"".to_owned(),
+        ),
+        (
+            "skin_layout",
+            "create_block",
+            "\"block\":\"5e1f0c3a-7b2d-4c8e-9a41-0d6b3f2e8c01\",\"kind\":\"prose\",\"sheet\":3,\"top\":1,\"left\":1,\"bottom\":1,\"right\":1".to_owned(),
         ),
     ]
     .into_iter()
@@ -8170,5 +8564,2491 @@ fn cdoc_m1_3__save_refusal() {
     );
     note!(
         "ACCEPT-NOTE: {CASE}: array formulas, cell metadata (cm) and rich values (vm) are refused at load, not at save: calc_doc::load refused a sheet holding each with LoadError::Cell (UnsupportedFormula array, UnsupportedMetadata, UnsupportedMetadata), so no loaded workbook holding one reaches prepare_save"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cdoc-m2.1: the DNA view manifest and its locator names, saved inside the workbook and read back.
+//
+// The cases load the packages under `tests/fixtures/cdoc_m2_1/`, written by the committed
+// generator beside them, and compare what the loaded model holds with that generator's
+// `manifest.json`; packages for single rules (a locator that is a user's name, a manifest the XML
+// reader refuses, a namespace prefix) are built in the cases, with their expectations beside them. They edit through calc_doc::prepare_edit (the layout edits decoded from the
+// golden fixture skin_layout_v1.json among them), save through calc_doc::prepare_save and
+// calc_doc::write, and read what was written with `cdoc_m1_1_support`'s ZIP reader and
+// `cdoc_m1_3_support`'s DEFLATE decoder and XML parser, against expectations written here or
+// taken from the generator's record: never with calc-doc's loader, except to reload the saved
+// package. That Excel opens a saved package without a repair prompt and keeps the manifest and the
+// hidden names through its own save is the owner's Excel step, which these cases do not show.
+
+use calc_doc::LayoutWarning;
+use calc_doc::model::{Block, LayoutError, LocatorName, Placement, SkinLayout, ViewKind};
+
+const M2_1_NOTEBOOK: &[u8] = include_bytes!("fixtures/cdoc_m2_1/notebook.xlsx");
+const M2_1_V1: &[u8] = include_bytes!("fixtures/cdoc_m2_1/manifest-v1.xlsx");
+const M2_1_V2: &[u8] = include_bytes!("fixtures/cdoc_m2_1/manifest-v2.xlsx");
+const M2_1_UNREADABLE: &[u8] = include_bytes!("fixtures/cdoc_m2_1/manifest-unreadable.xlsx");
+const M2_1_MANIFEST: &str = include_str!("fixtures/cdoc_m2_1/manifest.json");
+
+const DNA_NAMESPACE: &str = "urn:dnacalc:view-manifest";
+const DATASTORE_NAMESPACE: &str = "http://schemas.openxmlformats.org/officeDocument/2006/customXml";
+const CUSTOM_XML_RELATIONSHIP: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml";
+const CUSTOM_XML_PROPS_RELATIONSHIP: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps";
+const CUSTOM_XML_PROPS_TYPE: &str =
+    "application/vnd.openxmlformats-officedocument.customXmlProperties+xml";
+
+/// A 128-bit ID as a UUID is written, formatted here: 32 lowercase hex digits in groups of 8, 4,
+/// 4, 4 and 12 joined by `-`.
+fn m2_1_uuid(value: u128) -> String {
+    let hex = format!("{value:032x}");
+    format!(
+        "{}-{}-{}-{}-{}",
+        &hex[0..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..32]
+    )
+}
+
+/// The locator name of the block with this ID, as the bead's rule gives it, built here.
+fn m2_1_locator(block: u128) -> String {
+    format!("_dna.block.{block:032x}")
+}
+
+/// An area in A1 form, `B5` or `B5:B6`.
+fn m2_1_area(area: GridArea) -> String {
+    let (first, last) = (area.first(), area.last());
+    let corner = |at: CellKey| format!("{}{}", m1_3_letters(at.column()), at.row());
+    if first == last {
+        corner(first)
+    } else {
+        format!("{}:{}", corner(first), corner(last))
+    }
+}
+
+/// A model's skin layout, line by line, from its observable parts: each block (ID, kind, locator
+/// name and anchor as its sheet's name and an A1 area), then each view's placements in its order
+/// (ID, block, a tree placement's parent, a canvas placement's area as decimal numbers).
+fn m2_1_layout(model: &ModelRoot) -> Vec<String> {
+    let layout = model.layout();
+    let mut lines = Vec::new();
+    for block in layout.blocks() {
+        let anchor = match block.anchor() {
+            Some(area) => {
+                let sheet = model
+                    .sheet_by_id(area.sheet())
+                    .expect("an anchor's sheet")
+                    .name()
+                    .text()
+                    .to_string_lossy();
+                format!("{sheet}!{}", m2_1_area(area))
+            }
+            None => "none".to_owned(),
+        };
+        lines.push(format!(
+            "block {} {:?} {} {anchor}",
+            m2_1_uuid(block.id().get()),
+            block.kind(),
+            block.locator().as_str()
+        ));
+    }
+    for view in ViewKind::ALL {
+        for placement in layout.view(view) {
+            let mut line = format!(
+                "{view:?} {} block {}",
+                m2_1_uuid(placement.id().get()),
+                m2_1_uuid(placement.block().get())
+            );
+            if view == ViewKind::Tree {
+                let parent = placement
+                    .parent()
+                    .map_or_else(|| "none".to_owned(), |p| m2_1_uuid(p.get()));
+                line.push_str(&format!(" parent {parent}"));
+            }
+            if let Some(area) = placement.canvas_area() {
+                line.push_str(&format!(
+                    " at {} {} {} {}",
+                    area.x.get(),
+                    area.y.get(),
+                    area.width.get(),
+                    area.height.get()
+                ));
+            }
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+/// The layout lines the generator's record of a version 1 manifest states, with the anchors it
+/// states.
+fn m2_1_recorded_layout(record: &Value) -> Vec<String> {
+    let text = |value: &Value, key: &str| value[key].as_str().expect(key).to_owned();
+    let mut lines = Vec::new();
+    for block in record["blocks"].as_array().expect("blocks") {
+        let kind = match block["kind"].as_str().expect("a kind") {
+            "prose" => "Prose",
+            "calculation" => "Calculation",
+            other => panic!("the kind {other}"),
+        };
+        let anchor = match &block["anchor"] {
+            Value::Null => "none".to_owned(),
+            anchor => format!("{}!{}", text(anchor, "sheet"), text(anchor, "ref")),
+        };
+        lines.push(format!(
+            "block {} {kind} {} {anchor}",
+            text(block, "id"),
+            text(block, "locator")
+        ));
+    }
+    for (key, view) in [
+        ("notebook", "Notebook"),
+        ("tree", "Tree"),
+        ("canvas", "Canvas"),
+        ("grid", "Grid"),
+    ] {
+        for placement in record[key].as_array().expect("a view") {
+            let mut line = format!(
+                "{view} {} block {}",
+                text(placement, "id"),
+                text(placement, "block")
+            );
+            if key == "tree" {
+                let parent = placement["parent"].as_str().unwrap_or("none");
+                line.push_str(&format!(" parent {parent}"));
+            }
+            if key == "canvas" {
+                let number = |key: &str| text(placement, key).parse::<f64>().expect("a number");
+                line.push_str(&format!(
+                    " at {} {} {} {}",
+                    number("x"),
+                    number("y"),
+                    number("width"),
+                    number("height")
+                ));
+            }
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+/// Loads a package with a fresh sheet ID allocator, refused loads failing the case.
+fn m2_1_load(bytes: &[u8]) -> LoadedWorkbook {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    m1_2_load(bytes, &mut ids).unwrap_or_else(|error| panic!("the package loads, but: {error}"))
+}
+
+/// One sheet's name and its occupied cells, as (row, column, input) in row-major order.
+type SheetCells = (String, Vec<(u32, u32, CellInput)>);
+
+/// Every cell the generator's record states, by sheet name, as (row, column, input).
+fn m2_1_recorded_cells(record: &Value) -> Vec<SheetCells> {
+    record["sheets"]
+        .as_array()
+        .expect("sheets")
+        .iter()
+        .map(|sheet| {
+            let cells = sheet["cells"]
+                .as_array()
+                .expect("cells")
+                .iter()
+                .map(|cell| {
+                    let (row, column) = a1(cell["ref"].as_str().expect("a ref"));
+                    let input = match cell["kind"].as_str().expect("a kind") {
+                        "text" => text(units_of_hex(cell["units"].as_str().expect("units"))),
+                        "number" => CellInput::Number(bits(
+                            u64::from_str_radix(cell["bits"].as_str().expect("bits"), 16)
+                                .expect("hex bits"),
+                        )),
+                        "formula" => formula(cell["text"].as_str().expect("a formula")),
+                        other => panic!("the cell kind {other}"),
+                    };
+                    (row, column, input)
+                })
+                .collect();
+            (sheet["name"].as_str().expect("a name").to_owned(), cells)
+        })
+        .collect()
+}
+
+/// A model's cells by sheet name.
+fn m2_1_cells(model: &ModelRoot) -> Vec<SheetCells> {
+    model
+        .sheets()
+        .iter()
+        .zip(m1_3_cells(model))
+        .map(|(sheet, cells)| (sheet.name().text().to_string_lossy(), cells))
+        .collect()
+}
+
+/// The stored bytes of an entry: its local header, payload and data descriptor.
+fn m2_1_stored<'a>(zip: &Zip, package: &'a [u8], name: &str) -> &'a [u8] {
+    let entry = zip.entry(name);
+    &package[entry.local_offset as usize..entry.end()]
+}
+
+fn m2_1_names(zip: &Zip) -> Vec<String> {
+    zip.entries.iter().map(|entry| entry.name.clone()).collect()
+}
+
+/// Whether `haystack` holds `needle` as a run of bytes.
+fn m2_1_holds(haystack: &[u8], needle: &str) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle.as_bytes())
+}
+
+/// One `definedName` element: its name, localSheetId, hidden, text and bytes.
+type DefinedNameRecord = (String, Option<String>, Option<String>, String, Vec<u8>);
+
+/// The workbook part's `definedName` elements: (name, localSheetId, hidden, text with its
+/// `_xHHHH_` escapes decoded, the element's bytes).
+fn m2_1_defined_names(workbook: &[u8]) -> Vec<DefinedNameRecord> {
+    let root = parse_xml(workbook);
+    root.child("definedNames")
+        .map(|names| {
+            names
+                .all("definedName")
+                .map(|name| {
+                    (
+                        name.attribute("name").expect("a name").to_owned(),
+                        name.attribute("localSheetId").map(str::to_owned),
+                        name.attribute("hidden").map(str::to_owned),
+                        String::from_utf16(&xstring_units(&name.text())).expect("text"),
+                        name.bytes(workbook).to_vec(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// A layout edit.
+fn m2_1_op(edit: SkinLayoutEdit) -> WorkbookOp {
+    WorkbookOp::EditSkinLayout(edit)
+}
+
+/// What prepare_edit made of a batch on `model`, or why it refused it.
+fn m2_1_try(model: &ModelRoot, operations: Vec<WorkbookOp>) -> Result<Arc<ModelRoot>, EditError> {
+    prepare_edit(
+        model,
+        &OpBatch {
+            base: model.revision(),
+            operations,
+        },
+    )
+    .map(|prepared| prepared.into_model())
+}
+
+/// A package built here: a workbook whose part holds `workbook` after its one sheet "Numbers"
+/// (A1 = 1), with a DNA manifest `manifest` as customXml/item1.xml reached from the workbook part
+/// when given (a second one as customXml/item2.xml when `second` is given).
+fn m2_1_built(workbook: &str, manifest: Option<&str>, second: Option<&str>) -> Vec<u8> {
+    let mut relationships = vec![("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml")];
+    let mut parts = vec![(
+        "xl/worksheets/sheet1.xml",
+        Some(WORKSHEET_TYPE),
+        m1_3_worksheet(r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#),
+    )];
+    if let Some(manifest) = manifest {
+        relationships.push(("rId2", CUSTOM_XML_RELATIONSHIP, "../customXml/item1.xml"));
+        parts.push(("customXml/item1.xml", None, manifest.to_owned()));
+    }
+    if let Some(second) = second {
+        relationships.push(("rId3", CUSTOM_XML_RELATIONSHIP, "../customXml/item2.xml"));
+        parts.push(("customXml/item2.xml", None, second.to_owned()));
+    }
+    m1_3_package(
+        &format!(r#"<sheets><sheet name="Numbers" sheetId="1" r:id="rId1"/></sheets>{workbook}"#),
+        &relationships,
+        &parts,
+    )
+}
+
+/// [`m2_1_built`] with custom XML items given as bytes, so an item need not be UTF-8: the `n`-th
+/// of `items` is `customXml/item<n>.xml`, reached from the workbook part by `rId<n + 1>`, with no
+/// item properties.
+fn m2_1_built_bytes(workbook: &str, items: &[Vec<u8>]) -> Vec<u8> {
+    let content_types = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="{}"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="{WORKSHEET_TYPE}"/></Types>"#,
+        calc_doc::CONTENT_TYPES_NAMESPACE
+    );
+    let workbook = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="{SPREADSHEET_MAIN}" xmlns:r="{RELATIONSHIP_ATTRIBUTES}"><sheets><sheet name="Numbers" sheetId="1" r:id="rId1"/></sheets>{workbook}</workbook>"#
+    );
+    let mut relationships = format!(
+        r#"<Relationship Id="rId1" Type="{WORKSHEET_RELATIONSHIP}" Target="worksheets/sheet1.xml"/>"#
+    );
+    for n in 1..=items.len() {
+        relationships.push_str(&format!(
+            r#"<Relationship Id="rId{}" Type="{CUSTOM_XML_RELATIONSHIP}" Target="../customXml/item{n}.xml"/>"#,
+            n + 1
+        ));
+    }
+    let relationships = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="{}">{relationships}</Relationships>"#,
+        calc_doc::RELATIONSHIPS_NAMESPACE
+    );
+    let sheet = m1_3_worksheet(r#"<sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData>"#);
+    let mut entries = vec![
+        RawEntry::stored("[Content_Types].xml", content_types.as_bytes()),
+        RawEntry::stored("_rels/.rels", base_relationships().as_bytes()),
+        RawEntry::stored("xl/workbook.xml", workbook.as_bytes()),
+        RawEntry::stored("xl/_rels/workbook.xml.rels", relationships.as_bytes()),
+        RawEntry::stored("xl/worksheets/sheet1.xml", sheet.as_bytes()),
+    ];
+    let names: Vec<String> = (1..=items.len())
+        .map(|n| format!("customXml/item{n}.xml"))
+        .collect();
+    for (name, item) in names.iter().zip(items) {
+        entries.push(RawEntry::stored(name, item));
+    }
+    build_zip(&entries)
+}
+
+/// `text` as UTF-16LE with its byte order mark, encoded here.
+fn m2_1_utf16le(text: &str) -> Vec<u8> {
+    let mut out = vec![0xFF, 0xFE];
+    for unit in text.encode_utf16() {
+        out.extend_from_slice(&unit.to_le_bytes());
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m2_1__manifest_roundtrip.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m2_1__manifest_roundtrip() {
+    const CASE: &str = "cdoc_m2_1__manifest_roundtrip";
+    let manifest: Value = serde_json::from_str(M2_1_MANIFEST).expect("the generator's manifest");
+    let block = |n: u8| 0x5e1f_0c3a_7b2d_4c8e_9a41_0d6b_3f2e_8c00u128 | u128::from(n);
+    let placement = |n: u8| 0x9c4d_2b17_3e5a_4f60_8b72_1a0c_5d3e_7f00u128 | u128::from(n);
+    let b = |n: u8| m2_1_uuid(block(n));
+    let p = |n: u8| m2_1_uuid(placement(n));
+
+    // notebook.xlsx holds no manifest: it loads with an empty layout, no warning, and its cells
+    // and names as the generator wrote them.
+    let record = m1_2_record(&manifest, "notebook.xlsx");
+    let loaded = m2_1_load(M2_1_NOTEBOOK);
+    assert!(
+        loaded.model().layout().is_empty(),
+        "no layout without a manifest"
+    );
+    assert_eq!(loaded.layout_warnings(), &[] as &[LayoutWarning]);
+    assert_eq!(loaded.manifest_part(), None);
+    assert_eq!(m2_1_cells(loaded.model()), m2_1_recorded_cells(record));
+    assert_eq!(loaded.defined_names_not_loaded(), 2, "Local and Rate");
+    let notebook = loaded.model().sheets()[0].id();
+    assert_eq!(
+        m1_3_sheets(loaded.model()),
+        [
+            ("Notebook".to_owned(), 1, SheetVisibility::Visible),
+            ("Data".to_owned(), 2, SheetVisibility::Visible)
+        ]
+    );
+
+    // One batch: two cells authored in the backing sheet (a prose text and a formula), the layout
+    // edits of the golden fixture decoded through the loaded root (its keys 1 and 2 are Notebook
+    // and Data), and two blocks over the new cells with their notebook placements.
+    let decoded = decode_batch(SKIN_LAYOUT_V1, loaded.model()).expect("the golden fixture");
+    assert_eq!(decoded.operations.len(), 22);
+    let prose_text = "Both results, added.";
+    let mut operations = vec![
+        set(notebook, 7, 1, text(units(prose_text))),
+        set(notebook, 8, 2, formula("B5+B6")),
+    ];
+    operations.extend(decoded.operations);
+    operations.extend([
+        m2_1_op(SkinLayoutEdit::CreateBlock {
+            block: fixture_block(6),
+            kind: BlockKind::Calculation,
+            anchor: GridArea::cell(cell(notebook, 8, 2)),
+        }),
+        m2_1_op(SkinLayoutEdit::CreateBlock {
+            block: fixture_block(7),
+            kind: BlockKind::Prose,
+            anchor: GridArea::cell(cell(notebook, 7, 1)),
+        }),
+        m2_1_op(SkinLayoutEdit::AddPlacement {
+            placement: fixture_placement(0x15),
+            block: fixture_block(6),
+            spot: Spot::Notebook {
+                position: position(4),
+            },
+        }),
+        m2_1_op(SkinLayoutEdit::AddPlacement {
+            placement: fixture_placement(0x16),
+            block: fixture_block(7),
+            spot: Spot::Notebook {
+                position: position(4),
+            },
+        }),
+    ]);
+    let edited = m1_3_edit(loaded.model(), operations);
+    let block_line = |n: u8, kind: &str, anchor: &str| {
+        format!("block {} {kind} {} {anchor}", b(n), m2_1_locator(block(n)))
+    };
+    let expected = vec![
+        block_line(1, "Prose", "Notebook!A1"),
+        block_line(2, "Calculation", "Notebook!B5"),
+        block_line(3, "Calculation", "Notebook!B5:B6"),
+        block_line(4, "Calculation", "Data!B1:B3"),
+        block_line(6, "Calculation", "Notebook!B8"),
+        block_line(7, "Prose", "Notebook!A7"),
+        format!("Notebook {} block {}", p(0x12), b(2)),
+        format!("Notebook {} block {}", p(0x13), b(3)),
+        format!("Notebook {} block {}", p(0x11), b(1)),
+        format!("Notebook {} block {}", p(0x16), b(7)),
+        format!("Notebook {} block {}", p(0x15), b(6)),
+        format!("Tree {} block {} parent none", p(0x21), b(1)),
+        format!("Tree {} block {} parent {}", p(0x22), b(2), p(0x21)),
+        format!("Tree {} block {} parent none", p(0x23), b(3)),
+        format!("Canvas {} block {} at 0 300 180 60", p(0x33), b(4)),
+        format!("Canvas {} block {} at -35.5 140 240 120", p(0x32), b(3)),
+        format!("Canvas {} block {} at 420.25 20 200 96", p(0x31), b(2)),
+        format!("Grid {} block {}", p(0x42), b(2)),
+        format!("Grid {} block {}", p(0x41), b(3)),
+    ];
+    assert_eq!(m2_1_layout(&edited), expected, "the layout the batch made");
+    assert_eq!(
+        edited.cell(cell(notebook, 8, 2)),
+        Some(&formula("B5+B6")),
+        "the formula is an ordinary cell"
+    );
+    assert!(
+        loaded.model().layout().is_empty(),
+        "the loaded revision is unchanged"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: notebook.xlsx loaded with no layout and no warning; one prepare_edit batch of 28 operations (2 cells, the 22 layout edits of skin_layout_v1.json decoded through the loaded root, 2 more blocks and 2 placements) made 6 blocks and 13 placements in the four views, read back as {} layout lines equal to literal expectations",
+        expected.len()
+    );
+
+    // The save, read with the case's own instruments.
+    let (saved, receipt) = m1_3_save(&loaded.snapshot(&edited));
+    let source = parse_zip(M2_1_NOTEBOOK);
+    let zip = parse_zip(&saved);
+    let mut expected_names = m2_1_names(&source);
+    expected_names.extend(
+        [
+            "customXml/item2.xml",
+            "customXml/itemProps2.xml",
+            "customXml/_rels/item2.xml.rels",
+        ]
+        .map(str::to_owned),
+    );
+    assert_eq!(
+        m2_1_names(&zip),
+        expected_names,
+        "the saved package's entries"
+    );
+    for name in [
+        "_rels/.rels",
+        "xl/worksheets/sheet2.xml",
+        "customXml/item1.xml",
+        "customXml/itemProps1.xml",
+        "customXml/_rels/item1.xml.rels",
+    ] {
+        assert_eq!(
+            m2_1_stored(&zip, &saved, name),
+            m2_1_stored(&source, M2_1_NOTEBOOK, name),
+            "{name}: copied as stored"
+        );
+    }
+    assert_eq!(receipt.entries_copied, 5);
+    assert_eq!(receipt.parts_written, 8, "5 parts rewritten and 3 added");
+
+    let content_types = m1_3_content(&zip, &saved, "[Content_Types].xml");
+    let types = parse_xml(&content_types);
+    let override_of = |part: &str| {
+        types
+            .all("Override")
+            .find(|o| o.attribute("PartName") == Some(part))
+            .and_then(|o| o.attribute("ContentType"))
+            .map(str::to_owned)
+    };
+    assert_eq!(
+        override_of("/customXml/itemProps2.xml").as_deref(),
+        Some(CUSTOM_XML_PROPS_TYPE)
+    );
+    assert_eq!(
+        override_of("/customXml/item2.xml"),
+        None,
+        "the xml default covers the item"
+    );
+    assert!(
+        types
+            .all("Default")
+            .any(|d| d.attribute("Extension") == Some("xml")
+                && d.attribute("ContentType") == Some("application/xml")),
+        "the default for xml is application/xml"
+    );
+
+    let workbook_relationships = m1_3_content(&zip, &saved, "xl/_rels/workbook.xml.rels");
+    let source_relationships = m1_3_content(&source, M2_1_NOTEBOOK, "xl/_rels/workbook.xml.rels");
+    let source_items: Vec<Vec<u8>> = parse_xml(&source_relationships)
+        .all("Relationship")
+        .map(|r| r.bytes(&source_relationships).to_vec())
+        .collect();
+    let saved_root = parse_xml(&workbook_relationships);
+    let saved_items: Vec<&Element> = saved_root.all("Relationship").collect();
+    assert_eq!(saved_items.len(), source_items.len() + 1);
+    for (kept, source_item) in saved_items.iter().zip(&source_items) {
+        assert_eq!(kept.bytes(&workbook_relationships), source_item.as_slice());
+    }
+    let added = saved_items.last().expect("the added relationship");
+    assert_eq!(added.attribute("Type"), Some(CUSTOM_XML_RELATIONSHIP));
+    assert_eq!(added.attribute("Target"), Some("../customXml/item2.xml"));
+    let added_id = added.attribute("Id").expect("an Id");
+    assert_eq!(
+        saved_items
+            .iter()
+            .filter(|r| r.attribute("Id") == Some(added_id))
+            .count(),
+        1,
+        "the added relationship's ID is unique"
+    );
+
+    let item_relationships = m1_3_content(&zip, &saved, "customXml/_rels/item2.xml.rels");
+    let item_root = parse_xml(&item_relationships);
+    let item_items: Vec<&Element> = item_root.all("Relationship").collect();
+    assert_eq!(item_items.len(), 1);
+    assert_eq!(
+        item_items[0].attribute("Type"),
+        Some(CUSTOM_XML_PROPS_RELATIONSHIP)
+    );
+    assert_eq!(item_items[0].attribute("Target"), Some("itemProps2.xml"));
+
+    let props = m1_3_content(&zip, &saved, "customXml/itemProps2.xml");
+    let props_root = parse_xml(&props);
+    assert_eq!(props_root.local(), "datastoreItem");
+    let prefix = props_root.name.split(':').next().expect("a prefix");
+    assert_eq!(
+        props_root.attribute(&format!("xmlns:{prefix}")),
+        Some(DATASTORE_NAMESPACE)
+    );
+    let item_id = props_root
+        .attribute(&format!("{prefix}:itemID"))
+        .expect("an item ID");
+    let braced = item_id.len() == 38
+        && item_id.starts_with('{')
+        && item_id.ends_with('}')
+        && item_id[1..37].char_indices().all(|(at, c)| {
+            if [8, 13, 18, 23].contains(&at) {
+                c == '-'
+            } else {
+                c.is_ascii_hexdigit()
+            }
+        });
+    assert!(braced, "the item ID {item_id} is a braced GUID");
+    let schema = props_root
+        .child("schemaRefs")
+        .and_then(|refs| refs.child("schemaRef"))
+        .and_then(|r| r.attribute(&format!("{prefix}:uri")));
+    assert_eq!(schema, Some(DNA_NAMESPACE));
+
+    // The manifest: its version, blocks and placements as the case expects them.
+    let item = m1_3_content(&zip, &saved, "customXml/item2.xml");
+    let manifest_root = parse_xml(&item);
+    assert_eq!(manifest_root.name, "manifest");
+    assert_eq!(manifest_root.attribute("xmlns"), Some(DNA_NAMESPACE));
+    assert_eq!(manifest_root.attribute("version"), Some("1"));
+    let written_blocks: Vec<(String, String, String)> = manifest_root
+        .child("blocks")
+        .expect("blocks")
+        .all("block")
+        .map(|block| {
+            let attribute = |name: &str| block.attribute(name).expect(name).to_owned();
+            (attribute("id"), attribute("kind"), attribute("locator"))
+        })
+        .collect();
+    let expected_blocks: Vec<(String, String, String)> = [
+        (1, "prose"),
+        (2, "calculation"),
+        (3, "calculation"),
+        (4, "calculation"),
+        (6, "calculation"),
+        (7, "prose"),
+    ]
+    .into_iter()
+    .map(|(n, kind)| (b(n), kind.to_owned(), m2_1_locator(block(n))))
+    .collect();
+    assert_eq!(written_blocks, expected_blocks, "the manifest's blocks");
+    let views = manifest_root.child("views").expect("views");
+    let written_view = |name: &str| -> Vec<Vec<(String, String)>> {
+        views
+            .child(name)
+            .map(|view| {
+                view.all("placement")
+                    .map(|placement| placement.attributes.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let attrs = |pairs: &[(&str, String)]| -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), value.clone()))
+            .collect()
+    };
+    assert_eq!(
+        written_view("notebook"),
+        [(0x12, 2), (0x13, 3), (0x11, 1), (0x16, 7), (0x15, 6)]
+            .map(|(pl, bl)| attrs(&[("id", p(pl)), ("block", b(bl))]))
+            .to_vec()
+    );
+    assert_eq!(
+        written_view("tree"),
+        vec![
+            attrs(&[("id", p(0x21)), ("block", b(1))]),
+            attrs(&[("id", p(0x22)), ("block", b(2)), ("parent", p(0x21))]),
+            attrs(&[("id", p(0x23)), ("block", b(3))]),
+        ]
+    );
+    let canvas = written_view("canvas");
+    let canvas_read: Vec<(String, String, [u64; 4])> = canvas
+        .iter()
+        .map(|attributes| {
+            let value = |name: &str| {
+                attributes
+                    .iter()
+                    .find(|(key, _)| key == name)
+                    .map(|(_, value)| value.clone())
+                    .expect(name)
+            };
+            let number = |name: &str| value(name).parse::<f64>().expect("a number").to_bits();
+            (
+                value("id"),
+                value("block"),
+                [number("x"), number("y"), number("width"), number("height")],
+            )
+        })
+        .collect();
+    assert_eq!(
+        canvas_read,
+        vec![
+            (
+                p(0x33),
+                b(4),
+                [0.0f64, 300.0, 180.0, 60.0].map(f64::to_bits)
+            ),
+            (
+                p(0x32),
+                b(3),
+                [-35.5f64, 140.0, 240.0, 120.0].map(f64::to_bits)
+            ),
+            (
+                p(0x31),
+                b(2),
+                [420.25f64, 20.0, 200.0, 96.0].map(f64::to_bits)
+            ),
+        ]
+    );
+    assert_eq!(
+        written_view("grid"),
+        [(0x42, 2), (0x41, 3)]
+            .map(|(pl, bl)| attrs(&[("id", p(pl)), ("block", b(bl))]))
+            .to_vec()
+    );
+    assert!(
+        !m2_1_holds(&item, &b(5)),
+        "the block created and removed in the batch is not written"
+    );
+
+    // The workbook part: the source's names as it wrote them, a hidden workbook-scoped locator for
+    // each block referring to its visible backing cell or range, and calcPr set to recalculate.
+    let workbook = m1_3_content(&zip, &saved, "xl/workbook.xml");
+    let source_workbook = m1_3_content(&source, M2_1_NOTEBOOK, "xl/workbook.xml");
+    let names = m2_1_defined_names(&workbook);
+    let source_names = m2_1_defined_names(&source_workbook);
+    assert_eq!(names.len(), source_names.len() + 6);
+    for (kept, source_name) in names.iter().zip(&source_names) {
+        assert_eq!(
+            kept.4, source_name.4,
+            "{}: as the source wrote it",
+            source_name.0
+        );
+    }
+    let locators: Vec<(String, Option<String>, Option<String>, String)> = names
+        [source_names.len()..]
+        .iter()
+        .map(|(name, local, hidden, text, _)| {
+            (name.clone(), local.clone(), hidden.clone(), text.clone())
+        })
+        .collect();
+    let expected_locators: Vec<(String, Option<String>, Option<String>, String)> = [
+        (1, "'Notebook'!$A$1"),
+        (2, "'Notebook'!$B$5"),
+        (3, "'Notebook'!$B$5:$B$6"),
+        (4, "'Data'!$B$1:$B$3"),
+        (6, "'Notebook'!$B$8"),
+        (7, "'Notebook'!$A$7"),
+    ]
+    .into_iter()
+    .map(|(n, text)| {
+        (
+            m2_1_locator(block(n)),
+            None,
+            Some("1".to_owned()),
+            text.to_owned(),
+        )
+    })
+    .collect();
+    assert_eq!(locators, expected_locators, "the locator names");
+    for (_, _, _, text) in &locators {
+        let parsed = calc_fml::parse_formula(&format!("={text}"));
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "CalcFml reads the locator {text} without a diagnostic"
+        );
+    }
+    let calc_pr = parse_xml(&workbook)
+        .child("calcPr")
+        .and_then(|c| c.attribute("fullCalcOnLoad"))
+        .map(str::to_owned);
+    assert_eq!(calc_pr.as_deref(), Some("1"));
+
+    // The formula and the prose are ordinary cells of the backing sheet.
+    let sheet = m1_3_content(&zip, &saved, "xl/worksheets/sheet1.xml");
+    let sheet_root = parse_xml(&sheet);
+    let cells = m1_3_sheet_cells(&sheet_root);
+    let cell_at = |row: u32, column: u32| {
+        cells
+            .iter()
+            .find(|(place, _)| *place == (row, column))
+            .map(|(_, c)| *c)
+            .unwrap_or_else(|| panic!("a cell at {row}, {column}"))
+    };
+    let b8 = cell_at(8, 2);
+    assert_eq!(b8.child("f").map(Element::text).as_deref(), Some("B5+B6"));
+    assert!(b8.child("v").is_none(), "no cached value for a new formula");
+    let a7 = cell_at(7, 1);
+    assert_eq!(a7.attribute("t"), Some("s"));
+    let index: usize = a7
+        .child("v")
+        .map(Element::text)
+        .expect("an index")
+        .parse()
+        .expect("a number");
+    let strings = m1_3_content(&zip, &saved, "xl/sharedStrings.xml");
+    let item_text = parse_xml(&strings)
+        .all("si")
+        .nth(index)
+        .map(Element::text)
+        .expect("the shared string");
+    assert_eq!(item_text, prose_text);
+    note!(
+        "ACCEPT-NOTE: {CASE}: the saved package ({} bytes, {} entries) holds the manifest in one CustomXML item customXml/item2.xml with its item properties (datastore item {item_id}, schemaRef {DNA_NAMESPACE}), the item's relationships part and a customXml relationship {added_id} from the workbook part; [Content_Types].xml gives the properties part its content type; the workbook part holds Local and Rate as written and 6 hidden locator names, each read by CalcFml without a diagnostic; B8's formula and A7's prose are ordinary cells; 5 entries were copied as stored",
+        saved.len(),
+        zip.entries.len()
+    );
+
+    // Reopened with calc-doc's loader: the same cells, the same layout, no warning.
+    let reopened = m2_1_load(&saved);
+    assert_eq!(reopened.layout_warnings(), &[] as &[LayoutWarning]);
+    assert_eq!(reopened.manifest_part(), Some("customXml/item2.xml"));
+    assert_eq!(
+        m2_1_layout(reopened.model()),
+        expected,
+        "the layout after save and open"
+    );
+    assert_eq!(m2_1_cells(reopened.model()), m2_1_cells(&edited));
+    assert_eq!(reopened.defined_names_not_loaded(), 2, "Local and Rate");
+
+    // A revision of the reopened workbook that changes only the layout: the canvas card of R to
+    // the top, the tree placement of C under R's, and the block D removed after its one placement.
+    // Only the manifest and the workbook part (D's locator removed) are rewritten.
+    let relaid = m1_3_edit(
+        reopened.model(),
+        vec![
+            m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: fixture_placement(0x32),
+                spot: canvas_spot(
+                    3,
+                    [
+                        (-35.5f64).to_bits(),
+                        140f64.to_bits(),
+                        240f64.to_bits(),
+                        120f64.to_bits(),
+                    ],
+                ),
+            }),
+            m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: fixture_placement(0x22),
+                spot: tree_spot(Some(0x23), 1),
+            }),
+            m2_1_op(SkinLayoutEdit::RemovePlacement {
+                placement: fixture_placement(0x33),
+            }),
+            m2_1_op(SkinLayoutEdit::RemoveBlock {
+                block: fixture_block(4),
+            }),
+        ],
+    );
+    let relaid_expected: Vec<String> = expected
+        .iter()
+        .filter(|line| !line.contains(&b(4)))
+        .filter(|line| !line.starts_with("Tree") && !line.starts_with("Canvas"))
+        .cloned()
+        .chain([
+            format!("Tree {} block {} parent none", p(0x21), b(1)),
+            format!("Tree {} block {} parent none", p(0x23), b(3)),
+            format!("Tree {} block {} parent {}", p(0x22), b(2), p(0x23)),
+            format!("Canvas {} block {} at 420.25 20 200 96", p(0x31), b(2)),
+            format!("Canvas {} block {} at -35.5 140 240 120", p(0x32), b(3)),
+        ])
+        .collect();
+    let mut sorted_expected = relaid_expected.clone();
+    // The lines in layout order: blocks, then notebook, tree, canvas and grid.
+    let rank = |line: &String| {
+        ["block", "Notebook", "Tree", "Canvas", "Grid"]
+            .iter()
+            .position(|kind| line.starts_with(kind))
+            .expect("a line kind")
+    };
+    sorted_expected.sort_by_key(rank);
+    assert_eq!(m2_1_layout(&relaid), sorted_expected, "the relaid layout");
+    assert_eq!(
+        m2_1_cells(&relaid),
+        m2_1_cells(reopened.model()),
+        "a layout edit changes no cell"
+    );
+    let (resaved, resaved_receipt) = m1_3_save(&reopened.snapshot(&relaid));
+    let rezip = parse_zip(&resaved);
+    assert_eq!(m2_1_names(&rezip), m2_1_names(&zip));
+    assert_eq!(
+        resaved_receipt.parts_written, 2,
+        "the manifest and the workbook part"
+    );
+    assert_eq!(resaved_receipt.caches_dropped, 0);
+    for name in m2_1_names(&zip) {
+        if name == "customXml/item2.xml" || name == "xl/workbook.xml" {
+            continue;
+        }
+        assert_eq!(
+            m2_1_stored(&rezip, &resaved, &name),
+            m2_1_stored(&zip, &saved, &name),
+            "{name}: copied as stored"
+        );
+    }
+    let reworkbook = m1_3_content(&rezip, &resaved, "xl/workbook.xml");
+    let renames = m2_1_defined_names(&reworkbook);
+    let d_locator = m2_1_locator(block(4));
+    assert!(
+        renames.iter().all(|(name, ..)| *name != d_locator),
+        "D's locator is removed"
+    );
+    let kept_names: Vec<&Vec<u8>> = names
+        .iter()
+        .filter(|(name, ..)| *name != d_locator)
+        .map(|(.., bytes)| bytes)
+        .collect();
+    assert_eq!(
+        renames.iter().map(|(.., bytes)| bytes).collect::<Vec<_>>(),
+        kept_names,
+        "every other defined name as the earlier save wrote it"
+    );
+    let calc_pr_of = |workbook: &[u8]| {
+        parse_xml(workbook)
+            .child("calcPr")
+            .map(|c| c.bytes(workbook).to_vec())
+    };
+    assert_eq!(
+        calc_pr_of(&reworkbook),
+        calc_pr_of(&workbook),
+        "calcPr untouched"
+    );
+    let reitem = m1_3_content(&rezip, &resaved, "customXml/item2.xml");
+    let earlier_blocks = manifest_root.child("blocks").expect("blocks");
+    for kept in earlier_blocks.all("block") {
+        let bytes = String::from_utf8(kept.bytes(&item).to_vec()).expect("UTF-8");
+        assert_eq!(
+            m2_1_holds(&reitem, &bytes),
+            kept.attribute("id") != Some(b(4).as_str()),
+            "{bytes}: kept unless removed"
+        );
+    }
+    let rereopened = m2_1_load(&resaved);
+    assert_eq!(m2_1_layout(rereopened.model()), sorted_expected);
+    assert_eq!(rereopened.layout_warnings(), &[] as &[LayoutWarning]);
+    note!(
+        "ACCEPT-NOTE: {CASE}: reopened, the saved package gave the same 19 layout lines, the same cells and no warning; a layout-only revision (a canvas card to the top, a tree placement under another, a block removed with its placement) rewrote only the manifest and the workbook part (D's locator removed, every other defined name and calcPr byte for byte), kept each remaining block element of the earlier manifest byte for byte, and reopened to {} lines",
+        sorted_expected.len()
+    );
+
+    // manifest-v1.xlsx: a version 1 manifest the generator wrote, with fields version 1 does not
+    // name. It loads as the generator's record states, the block without a locator name warned.
+    let record = m1_2_record(&manifest, "manifest-v1.xlsx");
+    let dna = &record["dna_manifest"];
+    let v1 = m2_1_load(M2_1_V1);
+    assert_eq!(m2_1_layout(v1.model()), m2_1_recorded_layout(dna));
+    assert_eq!(m2_1_cells(v1.model()), m2_1_recorded_cells(record));
+    assert_eq!(v1.manifest_part(), Some("customXml/item2.xml"));
+    let m = |n: u8| 0x0f3e_7a21_5c6b_4d8e_a1f2_3b4c_5d6e_7f00u128 | u128::from(n);
+    let q = |n: u8| 0x7d2c_1b0a_9e8f_4a6b_b5c4_d3e2_f1a0_b900u128 | u128::from(n);
+    let m_id = |n: u8| BlockId::new(m(n)).expect("an ID");
+    let q_id = |n: u8| PlacementId::new(q(n)).expect("an ID");
+    assert_eq!(
+        v1.layout_warnings(),
+        &[LayoutWarning::UnresolvedLocator {
+            block: m_id(4),
+            locator: LocatorName::new(&m2_1_locator(m(4))).expect("a locator name"),
+        }]
+    );
+    assert_eq!(v1.defined_names_not_loaded(), 2, "Local and Rate");
+    let v1_data = v1.model().sheets()[1].id();
+
+    // A revision of the read version 1 manifest's workbook that changes only a cell: the
+    // manifest's item, item properties and relationships parts are copied as stored, byte for
+    // byte, with definedNames as written, and the layout reopens as it was.
+    let v1_cell_edit = m1_3_edit(v1.model(), vec![set(v1_data, 2, 2, number(9.0))]);
+    assert!(
+        Arc::ptr_eq(v1_cell_edit.layout(), v1.model().layout()),
+        "a cell edit shares the layout"
+    );
+    let (v1_cell_saved, v1_cell_receipt) = m1_3_save(&v1.snapshot(&v1_cell_edit));
+    let v1_stored = parse_zip(M2_1_V1);
+    let v1_cell_zip = parse_zip(&v1_cell_saved);
+    assert_eq!(m2_1_names(&v1_cell_zip), m2_1_names(&v1_stored));
+    for name in [
+        "customXml/item2.xml",
+        "customXml/itemProps2.xml",
+        "customXml/_rels/item2.xml.rels",
+        "xl/_rels/workbook.xml.rels",
+        "[Content_Types].xml",
+    ] {
+        assert_eq!(
+            m2_1_stored(&v1_cell_zip, &v1_cell_saved, name),
+            m2_1_stored(&v1_stored, M2_1_V1, name),
+            "{name}: copied as stored after a cell-only save"
+        );
+    }
+    let defined_names_bytes = |workbook: &[u8]| {
+        parse_xml(workbook)
+            .child("definedNames")
+            .map(|names| names.bytes(workbook).to_vec())
+    };
+    assert_eq!(
+        defined_names_bytes(&m1_3_content(
+            &v1_cell_zip,
+            &v1_cell_saved,
+            "xl/workbook.xml"
+        )),
+        defined_names_bytes(&m1_3_content(&v1_stored, M2_1_V1, "xl/workbook.xml")),
+        "definedNames as written"
+    );
+    assert_eq!(
+        v1_cell_receipt.parts_written, 3,
+        "the edited sheet, the sheet whose caches are dropped, and the workbook part's calcPr"
+    );
+    let v1_cell_reopened = m2_1_load(&v1_cell_saved);
+    assert_eq!(
+        m2_1_layout(v1_cell_reopened.model()),
+        m2_1_recorded_layout(dna)
+    );
+    assert_eq!(v1_cell_reopened.layout_warnings(), v1.layout_warnings());
+    assert_eq!(
+        v1_cell_reopened
+            .model()
+            .cell(cell(v1_cell_reopened.model().sheets()[1].id(), 2, 2)),
+        Some(&number(9.0))
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: a cell-only save of manifest-v1.xlsx copied customXml/item2.xml, customXml/itemProps2.xml, customXml/_rels/item2.xml.rels, the workbook relationships and [Content_Types].xml as stored byte for byte, kept definedNames as written, rewrote {} parts, and reopened to the same {} layout lines",
+        v1_cell_receipt.parts_written,
+        m2_1_recorded_layout(dna).len()
+    );
+
+    let v1_edited = m1_3_edit(
+        v1.model(),
+        vec![
+            m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: q_id(0x12),
+                spot: Spot::Notebook {
+                    position: position(1),
+                },
+            }),
+            m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: q_id(0x31),
+                spot: canvas_spot(
+                    2,
+                    [
+                        50f64.to_bits(),
+                        60f64.to_bits(),
+                        200f64.to_bits(),
+                        80f64.to_bits(),
+                    ],
+                ),
+            }),
+            m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: q_id(0x23),
+                spot: Spot::Tree {
+                    parent: Some(q_id(0x22)),
+                    position: position(1),
+                },
+            }),
+            m2_1_op(SkinLayoutEdit::RemovePlacement {
+                placement: q_id(0x42),
+            }),
+            m2_1_op(SkinLayoutEdit::RemoveBlock { block: m_id(4) }),
+            m2_1_op(SkinLayoutEdit::CreateBlock {
+                block: m_id(5),
+                kind: BlockKind::Calculation,
+                anchor: GridArea::new(cell(v1_data, 1, 2), cell(v1_data, 3, 2)).expect("an area"),
+            }),
+            m2_1_op(SkinLayoutEdit::AddPlacement {
+                placement: q_id(0x25),
+                block: m_id(5),
+                spot: Spot::Tree {
+                    parent: Some(q_id(0x21)),
+                    position: position(1),
+                },
+            }),
+        ],
+    );
+    let mu = |n: u8| m2_1_uuid(m(n));
+    let qu = |n: u8| m2_1_uuid(q(n));
+    let v1_expected = vec![
+        format!("block {} Prose {} Notebook!A1", mu(1), m2_1_locator(m(1))),
+        format!(
+            "block {} Calculation {} Notebook!B5",
+            mu(2),
+            m2_1_locator(m(2))
+        ),
+        format!(
+            "block {} Calculation {} Notebook!B5:B6",
+            mu(3),
+            m2_1_locator(m(3))
+        ),
+        format!(
+            "block {} Calculation {} Data!B1:B3",
+            mu(5),
+            m2_1_locator(m(5))
+        ),
+        format!("Notebook {} block {}", qu(0x12), mu(2)),
+        format!("Notebook {} block {}", qu(0x11), mu(1)),
+        format!("Notebook {} block {}", qu(0x13), mu(3)),
+        format!("Tree {} block {} parent none", qu(0x21), mu(1)),
+        format!("Tree {} block {} parent {}", qu(0x25), mu(5), qu(0x21)),
+        format!("Tree {} block {} parent {}", qu(0x22), mu(2), qu(0x21)),
+        format!("Tree {} block {} parent {}", qu(0x23), mu(3), qu(0x22)),
+        format!("Canvas {} block {} at -35.5 140 240 120", qu(0x32), mu(3)),
+        format!("Canvas {} block {} at 50 60 200 80", qu(0x31), mu(2)),
+        format!("Grid {} block {}", qu(0x41), mu(2)),
+    ];
+    assert_eq!(m2_1_layout(&v1_edited), v1_expected);
+    let (v1_saved, v1_receipt) = m1_3_save(&v1.snapshot(&v1_edited));
+    let v1_source = parse_zip(M2_1_V1);
+    let v1_zip = parse_zip(&v1_saved);
+    assert_eq!(
+        m2_1_names(&v1_zip),
+        m2_1_names(&v1_source),
+        "no part added or removed"
+    );
+    assert_eq!(
+        v1_receipt.parts_written, 2,
+        "the manifest and the workbook part"
+    );
+    let source_item = m1_3_content(&v1_source, M2_1_V1, "customXml/item2.xml");
+    let v1_item = m1_3_content(&v1_zip, &v1_saved, "customXml/item2.xml");
+    let unknown: Vec<&str> = dna["unknown_fields"]
+        .as_array()
+        .expect("unknown fields")
+        .iter()
+        .map(|field| field.as_str().expect("a field"))
+        .collect();
+    assert_eq!(unknown.len(), 9);
+    for field in &unknown {
+        assert!(m2_1_holds(&source_item, field), "{field}: in the source");
+        assert!(m2_1_holds(&v1_item, field), "{field}: kept by the save");
+    }
+    let v1_root = parse_xml(&v1_item);
+    let source_root = parse_xml(&source_item);
+    assert_eq!(
+        &v1_item[..v1_root.start_tag.1],
+        &source_item[..source_root.start_tag.1],
+        "the declaration and the manifest element's start tag as written"
+    );
+    let v1_canvas = v1_root
+        .child("views")
+        .and_then(|views| views.child("canvas"))
+        .expect("canvas");
+    let moved_card = v1_canvas
+        .all("placement")
+        .find(|placement| placement.attribute("id") == Some(qu(0x31).as_str()))
+        .expect("the moved card");
+    for (name, value) in [
+        ("x", "50"),
+        ("y", "60"),
+        ("width", "200"),
+        ("height", "80"),
+        ("zoom", "2"),
+    ] {
+        assert_eq!(
+            moved_card.attribute(name),
+            Some(value),
+            "the moved card's {name}"
+        );
+    }
+    let v1_tree = v1_root
+        .child("views")
+        .and_then(|views| views.child("tree"))
+        .expect("tree");
+    let moved_node = v1_tree
+        .all("placement")
+        .find(|placement| placement.attribute("id") == Some(qu(0x23).as_str()))
+        .expect("the moved tree placement");
+    assert_eq!(moved_node.attribute("parent"), Some(qu(0x22).as_str()));
+    assert!(
+        !m2_1_holds(&v1_item, &mu(4)),
+        "the removed block and its grid placement are gone"
+    );
+    assert!(
+        m2_1_holds(&v1_item, &qu(0x51)),
+        "the unknown view's placement is kept"
+    );
+    let v1_workbook = m1_3_content(&v1_zip, &v1_saved, "xl/workbook.xml");
+    let v1_source_workbook = m1_3_content(&v1_source, M2_1_V1, "xl/workbook.xml");
+    let v1_names = m2_1_defined_names(&v1_workbook);
+    let v1_source_names = m2_1_defined_names(&v1_source_workbook);
+    assert_eq!(v1_names.len(), v1_source_names.len() + 1);
+    for (kept, source_name) in v1_names.iter().zip(&v1_source_names) {
+        assert_eq!(
+            kept.4, source_name.4,
+            "{}: as the source wrote it",
+            source_name.0
+        );
+    }
+    let added_name = v1_names.last().expect("the added locator");
+    assert_eq!(
+        (
+            &added_name.0,
+            &added_name.1,
+            added_name.2.as_deref(),
+            added_name.3.as_str()
+        ),
+        (&m2_1_locator(m(5)), &None, Some("1"), "'Data'!$B$1:$B$3")
+    );
+    assert_eq!(
+        parse_xml(&v1_workbook)
+            .child("calcPr")
+            .map(|c| c.bytes(&v1_workbook).to_vec()),
+        parse_xml(&v1_source_workbook)
+            .child("calcPr")
+            .map(|c| c.bytes(&v1_source_workbook).to_vec()),
+        "a layout-only save leaves calcPr as written"
+    );
+    let v1_reopened = m2_1_load(&v1_saved);
+    assert_eq!(m2_1_layout(v1_reopened.model()), v1_expected);
+    assert_eq!(v1_reopened.layout_warnings(), &[] as &[LayoutWarning]);
+    note!(
+        "ACCEPT-NOTE: {CASE}: manifest-v1.xlsx loaded as the generator's record states (4 blocks, the one without a locator name warned UnresolvedLocator and kept without an anchor, 9 placements in four views); after moving three placements, removing a placement and the unanchored block and creating a block on Data, the save rewrote only the manifest and the workbook part, and each of the {} unknown fields the generator wrote is in the saved manifest byte for byte (the moved canvas card's zoom kept on its rebuilt start tag); reopened, {} layout lines and no warning",
+        unknown.len(),
+        v1_expected.len()
+    );
+
+    // Refusals: each layout edit prepare_edit refuses, with its typed reason and the operation's
+    // index, against the notebook's loaded revision, which stays as it was.
+    let base = loaded.model();
+    let create = |n: u8| {
+        m2_1_op(SkinLayoutEdit::CreateBlock {
+            block: fixture_block(n),
+            kind: BlockKind::Prose,
+            anchor: GridArea::cell(cell(notebook, 1, 1)),
+        })
+    };
+    let add = |pl: u8, bl: u8, spot: Spot| {
+        m2_1_op(SkinLayoutEdit::AddPlacement {
+            placement: fixture_placement(pl),
+            block: fixture_block(bl),
+            spot,
+        })
+    };
+    let notebook_spot = |n: u32| Spot::Notebook {
+        position: position(n),
+    };
+    let layout_refusal = |operation: usize, error: LayoutError| {
+        EditError::Model(ApplyError::Layout { operation, error })
+    };
+    let refusals: Vec<(&str, Vec<WorkbookOp>, EditError)> = vec![
+        (
+            "a second block with one ID",
+            vec![create(1), create(1)],
+            layout_refusal(1, LayoutError::DuplicateBlock(fixture_block(1))),
+        ),
+        (
+            "a placement of a block that does not exist",
+            vec![add(0x11, 9, notebook_spot(1))],
+            layout_refusal(0, LayoutError::UnknownBlock(fixture_block(9))),
+        ),
+        (
+            "a removal of a block that does not exist",
+            vec![m2_1_op(SkinLayoutEdit::RemoveBlock {
+                block: fixture_block(9),
+            })],
+            layout_refusal(0, LayoutError::UnknownBlock(fixture_block(9))),
+        ),
+        (
+            "a removal of a block still placed",
+            vec![
+                create(1),
+                add(0x11, 1, notebook_spot(1)),
+                m2_1_op(SkinLayoutEdit::RemoveBlock {
+                    block: fixture_block(1),
+                }),
+            ],
+            layout_refusal(2, LayoutError::BlockPlaced(fixture_block(1))),
+        ),
+        (
+            "a second placement with one ID, in another view",
+            vec![
+                create(1),
+                add(0x11, 1, notebook_spot(1)),
+                add(
+                    0x11,
+                    1,
+                    Spot::Grid {
+                        position: position(1),
+                    },
+                ),
+            ],
+            layout_refusal(2, LayoutError::DuplicatePlacement(fixture_placement(0x11))),
+        ),
+        (
+            "a move of a placement that does not exist",
+            vec![m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: fixture_placement(0x19),
+                spot: notebook_spot(1),
+            })],
+            layout_refusal(0, LayoutError::UnknownPlacement(fixture_placement(0x19))),
+        ),
+        (
+            "a removal of a placement that does not exist",
+            vec![m2_1_op(SkinLayoutEdit::RemovePlacement {
+                placement: fixture_placement(0x19),
+            })],
+            layout_refusal(0, LayoutError::UnknownPlacement(fixture_placement(0x19))),
+        ),
+        (
+            "a move into another view",
+            vec![
+                create(1),
+                add(0x11, 1, notebook_spot(1)),
+                m2_1_op(SkinLayoutEdit::MovePlacement {
+                    placement: fixture_placement(0x11),
+                    spot: Spot::Grid {
+                        position: position(1),
+                    },
+                }),
+            ],
+            layout_refusal(
+                2,
+                LayoutError::OtherView {
+                    placement: fixture_placement(0x11),
+                    view: ViewKind::Notebook,
+                },
+            ),
+        ),
+        (
+            "a tree parent that is a notebook placement",
+            vec![
+                create(1),
+                add(0x11, 1, notebook_spot(1)),
+                add(0x21, 1, tree_spot(Some(0x11), 1)),
+            ],
+            layout_refusal(2, LayoutError::ParentNotInTree(fixture_placement(0x11))),
+        ),
+        (
+            "a tree placement moved under its own child",
+            vec![
+                create(1),
+                add(0x21, 1, tree_spot(None, 1)),
+                add(0x22, 1, tree_spot(Some(0x21), 1)),
+                m2_1_op(SkinLayoutEdit::MovePlacement {
+                    placement: fixture_placement(0x21),
+                    spot: tree_spot(Some(0x22), 1),
+                }),
+            ],
+            layout_refusal(
+                3,
+                LayoutError::ParentCycle {
+                    placement: fixture_placement(0x21),
+                    parent: fixture_placement(0x22),
+                },
+            ),
+        ),
+        (
+            "a tree placement moved under itself",
+            vec![
+                create(1),
+                add(0x21, 1, tree_spot(None, 1)),
+                m2_1_op(SkinLayoutEdit::MovePlacement {
+                    placement: fixture_placement(0x21),
+                    spot: tree_spot(Some(0x21), 1),
+                }),
+            ],
+            layout_refusal(
+                2,
+                LayoutError::ParentCycle {
+                    placement: fixture_placement(0x21),
+                    parent: fixture_placement(0x21),
+                },
+            ),
+        ),
+        (
+            "a removal of a tree placement with a child",
+            vec![
+                create(1),
+                add(0x21, 1, tree_spot(None, 1)),
+                add(0x22, 1, tree_spot(Some(0x21), 1)),
+                m2_1_op(SkinLayoutEdit::RemovePlacement {
+                    placement: fixture_placement(0x21),
+                }),
+            ],
+            layout_refusal(3, LayoutError::HasChildren(fixture_placement(0x21))),
+        ),
+        (
+            "a notebook position past the end",
+            vec![create(1), add(0x11, 1, notebook_spot(3))],
+            layout_refusal(
+                1,
+                LayoutError::PositionPastEnd {
+                    position: position(3),
+                    last: 1,
+                },
+            ),
+        ),
+        (
+            "a child position past the end of its parent's children",
+            vec![
+                create(1),
+                add(0x21, 1, tree_spot(None, 1)),
+                add(0x22, 1, tree_spot(Some(0x21), 2)),
+            ],
+            layout_refusal(
+                2,
+                LayoutError::PositionPastEnd {
+                    position: position(2),
+                    last: 1,
+                },
+            ),
+        ),
+        (
+            "a block anchored on a sheet the workbook does not hold",
+            vec![m2_1_op(SkinLayoutEdit::CreateBlock {
+                block: fixture_block(1),
+                kind: BlockKind::Calculation,
+                anchor: GridArea::full_sheet(session(0).stranger),
+            })],
+            EditError::Model(ApplyError::UnknownSheet {
+                operation: 0,
+                sheet: session(0).stranger,
+            }),
+        ),
+    ];
+    for (label, operations, expected) in &refusals {
+        assert_eq!(
+            m2_1_try(base, operations.clone()).err().as_ref(),
+            Some(expected),
+            "{label}"
+        );
+    }
+    assert!(base.layout().is_empty() && base.revision() == AuthoredRevision::INITIAL);
+
+    // A locator name in use: a manifest built here holds a block A whose locator is the name a new
+    // block B would get; creating B is refused through the route.
+    let (a_id, b_id) = (m(0xa), m(0xb));
+    let in_use = m2_1_built(
+        &format!(
+            r#"<definedNames><definedName name="{}" hidden="1">Numbers!$A$1</definedName></definedNames>"#,
+            m2_1_locator(b_id)
+        ),
+        Some(&format!(
+            r#"<manifest xmlns="{DNA_NAMESPACE}" version="1"><blocks><block id="{}" kind="prose" locator="{}"/></blocks></manifest>"#,
+            m2_1_uuid(a_id),
+            m2_1_locator(b_id)
+        )),
+        None,
+    );
+    let in_use_loaded = m2_1_load(&in_use);
+    assert_eq!(in_use_loaded.layout_warnings(), &[] as &[LayoutWarning]);
+    let numbers = in_use_loaded.model().sheets()[0].id();
+    assert_eq!(
+        m2_1_try(
+            in_use_loaded.model(),
+            vec![m2_1_op(SkinLayoutEdit::CreateBlock {
+                block: BlockId::new(b_id).expect("an ID"),
+                kind: BlockKind::Prose,
+                anchor: GridArea::cell(cell(numbers, 1, 1)),
+            })]
+        )
+        .err(),
+        Some(layout_refusal(
+            0,
+            LayoutError::LocatorInUse {
+                block: BlockId::new(b_id).expect("an ID"),
+                other: BlockId::new(a_id).expect("an ID"),
+            }
+        ))
+    );
+
+    // A locator name a user already holds: the workbook part of a package built here holds the
+    // name a new block would get (in upper case); the edit is prepared, the save is refused and
+    // writes nothing.
+    let z_id = m(0xc);
+    let taken = m2_1_built(
+        &format!(
+            r#"<definedNames><definedName name="{}">Numbers!$A$1</definedName></definedNames>"#,
+            m2_1_locator(z_id).to_ascii_uppercase()
+        ),
+        None,
+        None,
+    );
+    let taken_loaded = m2_1_load(&taken);
+    let taken_operations = vec![m2_1_op(SkinLayoutEdit::CreateBlock {
+        block: BlockId::new(z_id).expect("an ID"),
+        kind: BlockKind::Calculation,
+        anchor: GridArea::cell(cell(taken_loaded.model().sheets()[0].id(), 1, 1)),
+    })];
+    let taken_refusal = || SaveRefusal::LocatorNameTaken {
+        part: "xl/workbook.xml".to_owned(),
+        name: m2_1_locator(z_id),
+    };
+    assert_eq!(
+        taken_loaded.check_layout_save(&taken_operations),
+        Err(taken_refusal()),
+        "the check before prepare_edit gives the save's refusal"
+    );
+    let taken_edit = m1_3_edit(taken_loaded.model(), taken_operations);
+    let (refused_save, sink) =
+        m1_3_route(&taken_loaded.snapshot(&taken_edit), &SavePolicy::default());
+    assert_eq!(refused_save, Err(taken_refusal()));
+    assert!(sink.is_empty(), "a refused save writes no byte");
+
+    // Only a hidden, workbook-scoped name of a locator's form is a locator. A manifest built here
+    // names as locators a user's visible name Rate (block R), a user's hidden name Secret (U), a
+    // visible name of a locator's form (V), a name of a locator's form the workbook holds only
+    // scoped to a sheet (S), and a name H the workbook holds both scoped to the sheet (A2) and
+    // hidden and workbook-scoped (A1).
+    let r_id = m(0x21);
+    let u_id = m(0x25);
+    let v_id = m(0x22);
+    let s_id = m(0x23);
+    let h_id = m(0x24);
+    let rate = r#"<definedName name="Rate">Numbers!$A$1</definedName>"#.to_owned();
+    let secret = r#"<definedName name="Secret" hidden="1">Numbers!$A$1</definedName>"#.to_owned();
+    let visible = format!(
+        r#"<definedName name="{}">Numbers!$A$1</definedName>"#,
+        m2_1_locator(v_id)
+    );
+    let sheet_scoped = format!(
+        r#"<definedName name="{}" localSheetId="0" hidden="1">Numbers!$A$1</definedName>"#,
+        m2_1_locator(s_id)
+    );
+    let h_sheet_scoped = format!(
+        r#"<definedName name="{}" localSheetId="0" hidden="1">Numbers!$A$2</definedName>"#,
+        m2_1_locator(h_id)
+    );
+    let h_locator = format!(
+        r#"<definedName name="{}" hidden="1">Numbers!$A$1</definedName>"#,
+        m2_1_locator(h_id)
+    );
+    let block_xml = |id: u128, locator: &str| {
+        format!(
+            r#"<block id="{}" kind="calculation" locator="{locator}"/>"#,
+            m2_1_uuid(id)
+        )
+    };
+    let users = m2_1_built(
+        &format!(
+            "<definedNames>{rate}{secret}{visible}{sheet_scoped}{h_sheet_scoped}{h_locator}</definedNames>"
+        ),
+        Some(&format!(
+            r#"<manifest xmlns="{DNA_NAMESPACE}" version="1"><blocks>{}{}{}{}{}</blocks></manifest>"#,
+            block_xml(r_id, "Rate"),
+            block_xml(u_id, "Secret"),
+            block_xml(v_id, &m2_1_locator(v_id)),
+            block_xml(s_id, &m2_1_locator(s_id)),
+            block_xml(h_id, &m2_1_locator(h_id)),
+        )),
+        None,
+    );
+    let users_loaded = m2_1_load(&users);
+    let unresolved = |id: u128, locator: &str| LayoutWarning::UnresolvedLocator {
+        block: BlockId::new(id).expect("an ID"),
+        locator: LocatorName::new(locator).expect("a locator name"),
+    };
+    assert_eq!(
+        users_loaded.layout_warnings(),
+        &[
+            unresolved(r_id, "Rate"),
+            unresolved(u_id, "Secret"),
+            unresolved(v_id, &m2_1_locator(v_id)),
+            unresolved(s_id, &m2_1_locator(s_id)),
+        ]
+    );
+    let users_numbers = users_loaded.model().sheets()[0].id();
+    let anchors: Vec<Option<GridArea>> = users_loaded
+        .model()
+        .layout()
+        .blocks()
+        .iter()
+        .map(Block::anchor)
+        .collect();
+    assert_eq!(
+        anchors,
+        [
+            None,
+            None,
+            None,
+            None,
+            Some(GridArea::cell(cell(users_numbers, 1, 1)))
+        ],
+        "H resolves to its workbook-scoped name's A1, its sheet-scoped name skipped"
+    );
+    assert_eq!(users_loaded.defined_names_not_loaded(), 5);
+    // Removing all five blocks removes H's hidden workbook-scoped locator and nothing else.
+    let remove_all: Vec<WorkbookOp> = [r_id, u_id, v_id, s_id, h_id]
+        .into_iter()
+        .map(|id| {
+            m2_1_op(SkinLayoutEdit::RemoveBlock {
+                block: BlockId::new(id).expect("an ID"),
+            })
+        })
+        .collect();
+    assert_eq!(users_loaded.check_layout_save(&remove_all), Ok(()));
+    let users_edit = m1_3_edit(users_loaded.model(), remove_all);
+    assert!(users_edit.layout().is_empty());
+    let (users_saved, _) = m1_3_save(&users_loaded.snapshot(&users_edit));
+    let users_zip = parse_zip(&users_saved);
+    let users_workbook = m1_3_content(&users_zip, &users_saved, "xl/workbook.xml");
+    let users_names = parse_xml(&users_workbook)
+        .child("definedNames")
+        .map(|names| String::from_utf8(names.bytes(&users_workbook).to_vec()).expect("UTF-8"));
+    assert_eq!(
+        users_names,
+        Some(format!(
+            "<definedNames>{rate}{secret}{visible}{sheet_scoped}{h_sheet_scoped}</definedNames>"
+        )),
+        "Rate, Secret, the visible name and both sheet-scoped names as the source wrote them"
+    );
+    // Creating V again would take the name the user's visible definedName holds: the check and
+    // the save both refuse it.
+    let recreate_v = vec![
+        m2_1_op(SkinLayoutEdit::RemoveBlock {
+            block: BlockId::new(v_id).expect("an ID"),
+        }),
+        m2_1_op(SkinLayoutEdit::CreateBlock {
+            block: BlockId::new(v_id).expect("an ID"),
+            kind: BlockKind::Calculation,
+            anchor: GridArea::cell(cell(users_numbers, 1, 1)),
+        }),
+    ];
+    let v_refusal = || SaveRefusal::LocatorNameTaken {
+        part: "xl/workbook.xml".to_owned(),
+        name: m2_1_locator(v_id),
+    };
+    assert_eq!(
+        users_loaded.check_layout_save(&recreate_v),
+        Err(v_refusal())
+    );
+    let recreated_v = m1_3_edit(users_loaded.model(), recreate_v);
+    let (refused_v, sink) =
+        m1_3_route(&users_loaded.snapshot(&recreated_v), &SavePolicy::default());
+    assert_eq!(refused_v, Err(v_refusal()));
+    assert!(sink.is_empty(), "a refused save writes no byte");
+    // Creating H again over A3 replaces its own locator, which the check admits.
+    let recreate_h = vec![
+        m2_1_op(SkinLayoutEdit::RemoveBlock {
+            block: BlockId::new(h_id).expect("an ID"),
+        }),
+        m2_1_op(SkinLayoutEdit::CreateBlock {
+            block: BlockId::new(h_id).expect("an ID"),
+            kind: BlockKind::Calculation,
+            anchor: GridArea::cell(cell(users_numbers, 3, 1)),
+        }),
+    ];
+    assert_eq!(users_loaded.check_layout_save(&recreate_h), Ok(()));
+    let recreated_h = m1_3_edit(users_loaded.model(), recreate_h);
+    let (h_saved, _) = m1_3_save(&users_loaded.snapshot(&recreated_h));
+    let h_zip = parse_zip(&h_saved);
+    let h_names = m2_1_defined_names(&m1_3_content(&h_zip, &h_saved, "xl/workbook.xml"));
+    let h_rows: Vec<(String, Option<String>, Option<String>, String)> = h_names
+        .into_iter()
+        .map(|(name, local, hidden, text, _)| (name, local, hidden, text))
+        .collect();
+    let row = |name: &str, local: Option<&str>, hidden: Option<&str>, text: &str| {
+        (
+            name.to_owned(),
+            local.map(str::to_owned),
+            hidden.map(str::to_owned),
+            text.to_owned(),
+        )
+    };
+    assert_eq!(
+        h_rows,
+        vec![
+            row("Rate", None, None, "Numbers!$A$1"),
+            row("Secret", None, Some("1"), "Numbers!$A$1"),
+            row(&m2_1_locator(v_id), None, None, "Numbers!$A$1"),
+            row(&m2_1_locator(s_id), Some("0"), Some("1"), "Numbers!$A$1"),
+            row(&m2_1_locator(h_id), Some("0"), Some("1"), "Numbers!$A$2"),
+            row(&m2_1_locator(h_id), None, Some("1"), "'Numbers'!$A$3"),
+        ]
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: of five blocks whose locators are a user's visible Rate and hidden Secret, a visible and a sheet-scoped name of a locator's form, and a name held both sheet-scoped and hidden workbook-scoped, only the last resolved (to its workbook-scoped A1) and the others warned UnresolvedLocator; removing all five removed only that hidden locator and kept the other five definedName elements byte for byte; re-creating the block whose name a visible definedName holds was refused LocatorNameTaken by check_layout_save and by the save, with nothing written; re-creating H over A3 replaced its own locator"
+    );
+
+    // A workbook part without definedNames: a block's save inserts the element before calcPr, as
+    // the schema orders them; removing the block again removes the element, and the workbook
+    // part is the source's byte for byte.
+    let bare = m2_1_built(r#"<calcPr calcId="191029"/>"#, None, None);
+    let bare_loaded = m2_1_load(&bare);
+    let bare_numbers = bare_loaded.model().sheets()[0].id();
+    let n_id = m(0x31);
+    let bare_edit = m1_3_edit(
+        bare_loaded.model(),
+        vec![
+            m2_1_op(SkinLayoutEdit::CreateBlock {
+                block: BlockId::new(n_id).expect("an ID"),
+                kind: BlockKind::Calculation,
+                anchor: GridArea::cell(cell(bare_numbers, 1, 1)),
+            }),
+            m2_1_op(SkinLayoutEdit::AddPlacement {
+                placement: q_id(0x71),
+                block: BlockId::new(n_id).expect("an ID"),
+                spot: notebook_spot(1),
+            }),
+        ],
+    );
+    let (bare_saved, _) = m1_3_save(&bare_loaded.snapshot(&bare_edit));
+    let bare_zip = parse_zip(&bare_saved);
+    let bare_source = parse_zip(&bare);
+    let bare_source_workbook =
+        String::from_utf8(m1_3_content(&bare_source, &bare, "xl/workbook.xml")).expect("UTF-8");
+    let bare_workbook =
+        String::from_utf8(m1_3_content(&bare_zip, &bare_saved, "xl/workbook.xml")).expect("UTF-8");
+    assert_eq!(
+        bare_workbook,
+        bare_source_workbook.replace(
+            r#"<calcPr calcId="191029"/>"#,
+            &format!(
+                r#"<definedNames><definedName name="{}" hidden="1">'Numbers'!$A$1</definedName></definedNames><calcPr calcId="191029"/>"#,
+                m2_1_locator(n_id)
+            )
+        ),
+        "definedNames inserted before calcPr, everything else as written"
+    );
+    let bare_reopened = m2_1_load(&bare_saved);
+    assert_eq!(bare_reopened.layout_warnings(), &[] as &[LayoutWarning]);
+    let bare_unplaced = m1_3_edit(
+        bare_reopened.model(),
+        vec![
+            m2_1_op(SkinLayoutEdit::RemovePlacement {
+                placement: q_id(0x71),
+            }),
+            m2_1_op(SkinLayoutEdit::RemoveBlock {
+                block: BlockId::new(n_id).expect("an ID"),
+            }),
+        ],
+    );
+    let (bare_resaved, _) = m1_3_save(&bare_reopened.snapshot(&bare_unplaced));
+    let bare_rezip = parse_zip(&bare_resaved);
+    assert_eq!(
+        String::from_utf8(m1_3_content(&bare_rezip, &bare_resaved, "xl/workbook.xml"))
+            .expect("UTF-8"),
+        bare_source_workbook,
+        "the last locator's removal removes definedNames: the source's workbook part"
+    );
+    assert!(
+        m2_1_load(&bare_resaved).model().layout().is_empty(),
+        "no block after the removal"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: a workbook part without definedNames got one before calcPr holding the new block's hidden locator, every other byte as written; removing that block removed the element, leaving the source's workbook part byte for byte"
+    );
+
+    // The save reads the workbook part's definedNames for every rewrite of the part, so a part
+    // with two definedNames elements, which loads, is refused even for a cell-only save, before
+    // any byte is written.
+    let doubled = m2_1_built(
+        r#"<definedNames><definedName name="One">Numbers!$A$1</definedName></definedNames><definedNames><definedName name="Two">Numbers!$A$1</definedName></definedNames>"#,
+        None,
+        None,
+    );
+    let doubled_loaded = m2_1_load(&doubled);
+    assert_eq!(doubled_loaded.defined_names_not_loaded(), 2);
+    let doubled_edit = m1_3_edit(
+        doubled_loaded.model(),
+        vec![set(
+            doubled_loaded.model().sheets()[0].id(),
+            2,
+            1,
+            number(2.0),
+        )],
+    );
+    let (doubled_refused, sink) = m1_3_route(
+        &doubled_loaded.snapshot(&doubled_edit),
+        &SavePolicy::default(),
+    );
+    match doubled_refused {
+        Err(SaveRefusal::InvalidPart { part, detail }) => {
+            assert_eq!(part, "xl/workbook.xml");
+            assert!(detail.contains("two definedNames elements"), "{detail}");
+        }
+        other => panic!("the refusal {other:?}"),
+    }
+    assert!(sink.is_empty(), "a refused save writes no byte");
+    note!(
+        "ACCEPT-NOTE: {CASE}: a workbook part with two definedNames elements loaded, and a cell-only save of it was refused with SaveRefusal::InvalidPart before any byte was written (a behaviour change of the cell save path, recorded in the migration record)"
+    );
+
+    // A manifest with a namespace prefix, comments between children, and unknown children between
+    // known ones: a save of a layout edit writes new elements with the prefix, keeps every
+    // comment and unknown child in its place among the known children, drops a moved tree
+    // placement's parent, and adds a view the manifest lacked after the last one it holds. The
+    // whole saved manifest is compared with text written here.
+    let (b1, b2, b3) = (m(0x41), m(0x42), m(0x43));
+    let (t1, t2, n1, n2, n3, c1) = (q(0x81), q(0x82), q(0x83), q(0x84), q(0x85), q(0x86));
+    let id = |value: u128| m2_1_uuid(value);
+    let d_block = |block: u128, kind: &str| {
+        format!(
+            r#"<d:block id="{}" kind="{kind}" locator="{}"/>"#,
+            id(block),
+            m2_1_locator(block)
+        )
+    };
+    let d_placement = |placement: u128, block: u128, rest: &str| {
+        format!(
+            r#"<d:placement id="{}" block="{}"{rest}/>"#,
+            id(placement),
+            id(block)
+        )
+    };
+    let declaration = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    let root_tag = format!(r#"<d:manifest xmlns:d="{DNA_NAMESPACE}" version="1">"#);
+    let prefixed_source = format!(
+        "{declaration}{root_tag}\n<d:blocks>\n<!-- first -->{}\n<d:note>between</d:note>\n{}\n</d:blocks>\n<d:views>\n<d:tree>{}<!-- c -->{}<x:mark xmlns:x=\"urn:example:ext\"/></d:tree>\n<d:notebook>{}<d:extra/>{}</d:notebook>\n</d:views>\n</d:manifest>",
+        d_block(b1, "prose"),
+        d_block(b2, "calculation"),
+        d_placement(t1, b1, ""),
+        d_placement(t2, b2, &format!(r#" parent="{}""#, id(t1))),
+        d_placement(n1, b1, ""),
+        d_placement(n2, b2, ""),
+    );
+    let locators = |blocks: &[u128]| {
+        let mut out = String::from("<definedNames>");
+        for &block in blocks {
+            out.push_str(&format!(
+                r#"<definedName name="{}" hidden="1">Numbers!$A$1</definedName>"#,
+                m2_1_locator(block)
+            ));
+        }
+        out + "</definedNames>"
+    };
+    let prefixed = m2_1_built(&locators(&[b1, b2]), Some(&prefixed_source), None);
+    let prefixed_loaded = m2_1_load(&prefixed);
+    assert_eq!(prefixed_loaded.layout_warnings(), &[] as &[LayoutWarning]);
+    let p_numbers = prefixed_loaded.model().sheets()[0].id();
+    let b_id = |value: u128| BlockId::new(value).expect("an ID");
+    let p_id = |value: u128| PlacementId::new(value).expect("an ID");
+    let prefixed_edit = m1_3_edit(
+        prefixed_loaded.model(),
+        vec![
+            m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: p_id(t2),
+                spot: Spot::Tree {
+                    parent: None,
+                    position: position(1),
+                },
+            }),
+            m2_1_op(SkinLayoutEdit::MovePlacement {
+                placement: p_id(n2),
+                spot: notebook_spot(1),
+            }),
+            m2_1_op(SkinLayoutEdit::CreateBlock {
+                block: b_id(b3),
+                kind: BlockKind::Calculation,
+                anchor: GridArea::cell(cell(p_numbers, 1, 1)),
+            }),
+            m2_1_op(SkinLayoutEdit::AddPlacement {
+                placement: p_id(n3),
+                block: b_id(b3),
+                spot: notebook_spot(3),
+            }),
+            m2_1_op(SkinLayoutEdit::AddPlacement {
+                placement: p_id(c1),
+                block: b_id(b3),
+                spot: canvas_spot(
+                    1,
+                    [
+                        1f64.to_bits(),
+                        2f64.to_bits(),
+                        3f64.to_bits(),
+                        4f64.to_bits(),
+                    ],
+                ),
+            }),
+        ],
+    );
+    let (prefixed_saved, _) = m1_3_save(&prefixed_loaded.snapshot(&prefixed_edit));
+    let prefixed_zip = parse_zip(&prefixed_saved);
+    let prefixed_item = String::from_utf8(m1_3_content(
+        &prefixed_zip,
+        &prefixed_saved,
+        "customXml/item1.xml",
+    ))
+    .expect("UTF-8");
+    let canvas_card = d_placement(c1, b3, r#" x="1" y="2" width="3" height="4""#);
+    let expected_item = format!(
+        "{declaration}{root_tag}\n<d:blocks>\n<!-- first -->{}\n<d:note>between</d:note>\n{}{}\n</d:blocks>\n<d:views>\n<d:tree>{}<!-- c -->{}<x:mark xmlns:x=\"urn:example:ext\"/></d:tree>\n<d:notebook>{}<d:extra/>{}{}</d:notebook><d:canvas>{canvas_card}</d:canvas>\n</d:views>\n</d:manifest>",
+        d_block(b1, "prose"),
+        d_block(b2, "calculation"),
+        d_block(b3, "calculation"),
+        d_placement(t2, b2, ""),
+        d_placement(t1, b1, ""),
+        d_placement(n2, b2, ""),
+        d_placement(n1, b1, ""),
+        d_placement(n3, b3, ""),
+    );
+    assert_eq!(
+        prefixed_item, expected_item,
+        "the rewritten prefixed manifest"
+    );
+    let prefixed_reopened = m2_1_load(&prefixed_saved);
+    assert_eq!(prefixed_reopened.layout_warnings(), &[] as &[LayoutWarning]);
+    assert_eq!(
+        m2_1_layout(prefixed_reopened.model()),
+        m2_1_layout(&prefixed_edit),
+        "the prefixed manifest reopens to the edited layout"
+    );
+    // Removing B1 with its two placements: each remaining block and placement takes the next
+    // place in order, and the unknown children and comments stay where they were among them.
+    let prefixed_removed = m1_3_edit(
+        prefixed_reopened.model(),
+        vec![
+            m2_1_op(SkinLayoutEdit::RemovePlacement {
+                placement: p_id(t1),
+            }),
+            m2_1_op(SkinLayoutEdit::RemovePlacement {
+                placement: p_id(n1),
+            }),
+            m2_1_op(SkinLayoutEdit::RemoveBlock { block: b_id(b1) }),
+        ],
+    );
+    let (removed_saved, _) = m1_3_save(&prefixed_reopened.snapshot(&prefixed_removed));
+    let removed_zip = parse_zip(&removed_saved);
+    let removed_item = String::from_utf8(m1_3_content(
+        &removed_zip,
+        &removed_saved,
+        "customXml/item1.xml",
+    ))
+    .expect("UTF-8");
+    let expected_removed = format!(
+        "{declaration}{root_tag}\n<d:blocks>\n<!-- first -->{}\n<d:note>between</d:note>\n{}\n</d:blocks>\n<d:views>\n<d:tree>{}<!-- c --><x:mark xmlns:x=\"urn:example:ext\"/></d:tree>\n<d:notebook>{}<d:extra/>{}</d:notebook><d:canvas>{canvas_card}</d:canvas>\n</d:views>\n</d:manifest>",
+        d_block(b2, "calculation"),
+        d_block(b3, "calculation"),
+        d_placement(t2, b2, ""),
+        d_placement(n2, b2, ""),
+        d_placement(n3, b3, ""),
+    );
+    assert_eq!(
+        removed_item, expected_removed,
+        "the manifest after B1's removal"
+    );
+    assert_eq!(
+        m2_1_layout(m2_1_load(&removed_saved).model()),
+        m2_1_layout(&prefixed_removed)
+    );
+    assert_eq!(
+        String::from_utf8(m1_3_content(
+            &removed_zip,
+            &removed_saved,
+            "xl/workbook.xml"
+        ))
+        .expect("UTF-8")
+        .matches("<definedName ")
+        .count(),
+        2,
+        "B1's locator removed, B2's and B3's kept"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: a manifest written with the prefix d:, comments between children and unknown children between known ones was rewritten after a tree placement moved to the root (its parent attribute dropped), a notebook placement moved first, and a block added with a notebook placement and a new canvas view: the saved manifest equals the text written here, new elements prefixed and every comment and unknown child in its place; after removing a block with its two placements it again equals the text written here"
+    );
+
+    // The model's own refusals of a layout built directly.
+    let anchored = |id: u128, locator: &str, anchor| {
+        Block::new(
+            BlockId::new(id).expect("an ID"),
+            BlockKind::Prose,
+            LocatorName::new(locator).expect("a locator name"),
+            anchor,
+        )
+    };
+    assert_eq!(
+        SkinLayout::new(
+            vec![anchored(m(1), "Same", None), anchored(m(2), "SAME", None)],
+            Vec::new()
+        ),
+        Err(LayoutError::LocatorInUse {
+            block: m_id(2),
+            other: m_id(1),
+        }),
+        "locator names compare ignoring ASCII case"
+    );
+    assert_eq!(
+        SkinLayout::new(
+            vec![anchored(m(1), "One", None)],
+            vec![
+                Placement::tree(q_id(1), m_id(1), Some(q_id(2))),
+                Placement::tree(q_id(2), m_id(1), Some(q_id(1))),
+            ]
+        ),
+        Err(LayoutError::ParentCycle {
+            placement: q_id(1),
+            parent: q_id(2),
+        })
+    );
+    let stranger = session(0).stranger;
+    let elsewhere = SkinLayout::new(
+        vec![anchored(m(1), "One", Some(GridArea::full_sheet(stranger)))],
+        Vec::new(),
+    )
+    .expect("a layout");
+    assert_eq!(
+        ModelRoot::with_layout(AuthoredRevision::INITIAL, Vec::new(), Vec::new(), elsewhere),
+        Err(ModelRootError::BlockOnUnknownSheet(m_id(1)))
+    );
+    for (label, text, ok) in [
+        (
+            "a canonical ID",
+            "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f01",
+            true,
+        ),
+        (
+            "upper-case digits",
+            "0F3E7A21-5C6B-4D8E-A1F2-3B4C5D6E7F01",
+            false,
+        ),
+        ("no hyphens", "0f3e7a215c6b4d8ea1f23b4c5d6e7f01", false),
+        ("braces", "{0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f01}", false),
+        ("the nil ID", "00000000-0000-0000-0000-000000000000", false),
+    ] {
+        assert_eq!(BlockId::parse(text).is_some(), ok, "{label}");
+    }
+    for (label, text, ok) in [
+        (
+            "a derived name",
+            "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f01",
+            true,
+        ),
+        ("a cell address", "AB12", false),
+        ("an R1C1 address", "R2C3", false),
+        ("a space", "a name", false),
+        ("a leading digit", "1name", false),
+    ] {
+        assert_eq!(LocatorName::new(text).is_some(), ok, "{label}");
+    }
+
+    // The wire codec refuses a layout operation it does not admit.
+    let layout_envelope = |op: &str, args: &str| batch_of(&[envelope("skin_layout", op, args)]);
+    let id1 = "\"5e1f0c3a-7b2d-4c8e-9a41-0d6b3f2e8c01\"";
+    let wire_refusals: Vec<(&str, Vec<u8>, DecodeError)> = vec![
+        (
+            "an upper-case ID",
+            layout_envelope(
+                "remove_block",
+                "\"block\":\"5E1F0C3A-7B2D-4C8E-9A41-0D6B3F2E8C01\"",
+            ),
+            DecodeError::Malformed {
+                at: at(".args.block"),
+                expected: "a nonzero ID as 32 lowercase hex digits in groups of 8, 4, 4, 4 and 12 joined by -",
+            },
+        ),
+        (
+            "the nil ID",
+            layout_envelope(
+                "remove_block",
+                "\"block\":\"00000000-0000-0000-0000-000000000000\"",
+            ),
+            DecodeError::Malformed {
+                at: at(".args.block"),
+                expected: "a nonzero ID as 32 lowercase hex digits in groups of 8, 4, 4, 4 and 12 joined by -",
+            },
+        ),
+        (
+            "an unknown kind",
+            layout_envelope(
+                "create_block",
+                &format!(
+                    "\"block\":{id1},\"kind\":\"chart\",\"sheet\":1,\"top\":1,\"left\":1,\"bottom\":1,\"right\":1"
+                ),
+            ),
+            DecodeError::Malformed {
+                at: at(".args.kind"),
+                expected: "\"prose\" or \"calculation\"",
+            },
+        ),
+        (
+            "a spot naming two views",
+            layout_envelope(
+                "move_placement",
+                &format!(
+                    "\"placement\":{id1},\"spot\":{{\"notebook\":{{\"position\":1}},\"grid\":{{\"position\":1}}}}"
+                ),
+            ),
+            DecodeError::Malformed {
+                at: at(".args.spot"),
+                expected: "exactly one of notebook, tree, canvas or grid",
+            },
+        ),
+        (
+            "a spot naming no known view",
+            layout_envelope(
+                "move_placement",
+                &format!("\"placement\":{id1},\"spot\":{{\"timeline\":{{\"position\":1}}}}"),
+            ),
+            DecodeError::UnknownField {
+                at: at(".args.spot"),
+                field: "timeline".to_owned(),
+            },
+        ),
+        (
+            "a tree spot without its parent",
+            layout_envelope(
+                "move_placement",
+                &format!("\"placement\":{id1},\"spot\":{{\"tree\":{{\"position\":1}}}}"),
+            ),
+            DecodeError::MissingField {
+                at: at(".args.spot.tree"),
+                field: "parent".to_owned(),
+            },
+        ),
+        (
+            "a tree parent that is a number",
+            layout_envelope(
+                "move_placement",
+                &format!(
+                    "\"placement\":{id1},\"spot\":{{\"tree\":{{\"parent\":1,\"position\":1}}}}"
+                ),
+            ),
+            DecodeError::Malformed {
+                at: at(".args.spot.tree.parent"),
+                expected: "null, or a nonzero ID as a UUID is written",
+            },
+        ),
+        (
+            "a position of 0",
+            layout_envelope(
+                "move_placement",
+                &format!("\"placement\":{id1},\"spot\":{{\"grid\":{{\"position\":0}}}}"),
+            ),
+            DecodeError::Malformed {
+                at: at(".args.spot.grid.position"),
+                expected: "an integer from 1 to 4294967295",
+            },
+        ),
+        (
+            "an infinite canvas coordinate",
+            layout_envelope(
+                "move_placement",
+                &format!(
+                    "\"placement\":{id1},\"spot\":{{\"canvas\":{{\"position\":1,\"x\":\"7ff0000000000000\",\"y\":\"0000000000000000\",\"width\":\"0000000000000000\",\"height\":\"0000000000000000\"}}}}"
+                ),
+            ),
+            DecodeError::NonFiniteNumber {
+                at: at(".args.spot.canvas.x"),
+                bits: 0x7ff0_0000_0000_0000,
+            },
+        ),
+        (
+            "an inverted anchor",
+            layout_envelope(
+                "create_block",
+                &format!(
+                    "\"block\":{id1},\"kind\":\"prose\",\"sheet\":1,\"top\":2,\"left\":1,\"bottom\":1,\"right\":1"
+                ),
+            ),
+            DecodeError::InvertedArea { at: at(".args") },
+        ),
+    ];
+    let fixture_root = session(0).root;
+    for (label, bytes, expected) in &wire_refusals {
+        assert_refused(label, bytes, &fixture_root, expected);
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: prepare_edit refused {} layout batches, each with its typed ApplyError::Layout (DuplicateBlock, UnknownBlock twice, BlockPlaced, DuplicatePlacement, UnknownPlacement twice, OtherView, ParentNotInTree, ParentCycle twice, HasChildren, PositionPastEnd twice) or ApplyError::UnknownSheet and its operation's index, leaving the loaded revision as it was; a block whose derived locator name an existing block's locator holds was refused (LocatorInUse) through load and prepare_edit; a locator name the workbook already holds (in another case) was refused at prepare_save (LocatorNameTaken) with nothing written; SkinLayout::new refused two locators equal ignoring case and a tree cycle, ModelRoot::with_layout an anchor on a sheet it does not hold; the decoder refused {} malformed skin_layout messages",
+        refusals.len(),
+        wire_refusals.len()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m2_1__unknown_version.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m2_1__unknown_version() {
+    const CASE: &str = "cdoc_m2_1__unknown_version";
+    let manifest: Value = serde_json::from_str(M2_1_MANIFEST).expect("the generator's manifest");
+    let record = m1_2_record(&manifest, "manifest-v2.xlsx");
+    let part = "customXml/item2.xml";
+
+    // A manifest of version 2: the workbook loads with every cell and formula the generator wrote,
+    // an empty layout, and the typed recovery warning instead of the views.
+    let v2 = m2_1_load(M2_1_V2);
+    assert_eq!(
+        v2.layout_warnings(),
+        &[LayoutWarning::UnsupportedVersion {
+            part: part.to_owned(),
+            version: Some("2".to_owned()),
+        }]
+    );
+    assert!(v2.model().layout().is_empty(), "no layout is invented");
+    assert_eq!(v2.manifest_part(), Some(part));
+    assert_eq!(m2_1_cells(v2.model()), m2_1_recorded_cells(record));
+    let recorded_names = record["defined_names"].as_array().expect("names").len();
+    assert_eq!(recorded_names, 4);
+    assert_eq!(
+        v2.defined_names_not_loaded(),
+        recorded_names,
+        "no locator of an unread manifest is loaded"
+    );
+    let recorded_custom: Vec<(String, u64, u64)> = record["custom_xml"]
+        .as_array()
+        .expect("custom XML parts")
+        .iter()
+        .map(|part| {
+            (
+                part["part"].as_str().expect("a part").to_owned(),
+                part["crc32"].as_u64().expect("a CRC-32"),
+                part["size"].as_u64().expect("a size"),
+            )
+        })
+        .collect();
+    let source = parse_zip(M2_1_V2);
+    for (name, crc, size) in &recorded_custom {
+        let entry = source.entry(name);
+        assert_eq!(
+            (u64::from(entry.crc32), u64::from(entry.size)),
+            (*crc, *size),
+            "{name}: the generator's record"
+        );
+    }
+
+    // Saved as loaded, nothing is rewritten.
+    let (unedited, unedited_receipt) = m1_3_save(&v2.snapshot(v2.model()));
+    assert_eq!(unedited_receipt.parts_written, 0);
+    let unedited_zip = parse_zip(&unedited);
+    for name in m2_1_names(&source) {
+        assert_eq!(
+            m2_1_stored(&unedited_zip, &unedited, &name),
+            m2_1_stored(&source, M2_1_V2, &name),
+            "{name}"
+        );
+    }
+
+    // A cell edit saves: the manifest's three parts are copied as stored, byte for byte, and every
+    // defined name, the locators of the unread manifest among them, is kept as the source wrote it.
+    let data = v2.model().sheets()[1].id();
+    let edited = m1_3_edit(v2.model(), vec![set(data, 2, 2, number(6.0))]);
+    let (saved, receipt) = m1_3_save(&v2.snapshot(&edited));
+    let zip = parse_zip(&saved);
+    assert_eq!(
+        m2_1_names(&zip),
+        m2_1_names(&source),
+        "no part added or removed"
+    );
+    for name in [
+        part,
+        "customXml/itemProps2.xml",
+        "customXml/_rels/item2.xml.rels",
+    ] {
+        assert_eq!(
+            m2_1_stored(&zip, &saved, name),
+            m2_1_stored(&source, M2_1_V2, name),
+            "{name}: copied as stored"
+        );
+    }
+    let workbook = m1_3_content(&zip, &saved, "xl/workbook.xml");
+    let source_workbook = m1_3_content(&source, M2_1_V2, "xl/workbook.xml");
+    let defined = |workbook: &[u8]| {
+        parse_xml(workbook)
+            .child("definedNames")
+            .map(|names| names.bytes(workbook).to_vec())
+    };
+    assert_eq!(
+        defined(&workbook),
+        defined(&source_workbook),
+        "definedNames as written"
+    );
+    assert_eq!(
+        receipt.parts_written, 3,
+        "the edited sheet, the sheet whose caches are dropped, and the workbook part's calcPr"
+    );
+    let reopened = m2_1_load(&saved);
+    assert_eq!(reopened.layout_warnings(), v2.layout_warnings());
+    assert!(reopened.model().layout().is_empty());
+    assert_eq!(m2_1_cells(reopened.model()), m2_1_cells(&edited));
+    assert_eq!(
+        reopened
+            .model()
+            .cell(cell(reopened.model().sheets()[1].id(), 2, 2)),
+        Some(&number(6.0))
+    );
+
+    // A layout edit is prepared, and its save refused: the manifest it did not read is never
+    // overwritten. Nothing is written. The check before prepare_edit gives the same refusal for
+    // the layout edit and admits the cell edit, so a caller can drop the layout edit before the
+    // two share a revision, and the cell edit alone then saves.
+    let notebook = v2.model().sheets()[0].id();
+    let create_block = WorkbookOp::EditSkinLayout(SkinLayoutEdit::CreateBlock {
+        block: fixture_block(1),
+        kind: BlockKind::Prose,
+        anchor: GridArea::cell(cell(notebook, 1, 1)),
+    });
+    let not_writable = || SaveRefusal::LayoutNotWritable {
+        part: part.to_owned(),
+    };
+    let cell_edit = set(data, 3, 2, number(4.0));
+    assert_eq!(
+        v2.check_layout_save(&[cell_edit.clone(), create_block.clone()]),
+        Err(not_writable())
+    );
+    assert_eq!(
+        v2.check_layout_save(std::slice::from_ref(&cell_edit)),
+        Ok(())
+    );
+    let relaid = m1_3_edit(v2.model(), vec![create_block]);
+    let (refused, sink) = m1_3_route(&v2.snapshot(&relaid), &SavePolicy::default());
+    assert_eq!(refused, Err(not_writable()));
+    assert!(sink.is_empty(), "a refused save writes no byte");
+    let cells_only = m1_3_edit(v2.model(), vec![cell_edit]);
+    let (cells_saved, _) = m1_3_save(&v2.snapshot(&cells_only));
+    assert_eq!(
+        m2_1_stored(&parse_zip(&cells_saved), &cells_saved, part),
+        m2_1_stored(&source, M2_1_V2, part),
+        "the cell edit alone saves, the manifest copied as stored"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: manifest-v2.xlsx loaded with LayoutWarning::UnsupportedVersion (version \"2\") for {part}, an empty layout and every cell the generator wrote ({} sheets); saved as loaded it rewrote nothing; after a cell edit the manifest, its item properties and its relationships were copied as stored byte for byte and definedNames (its 2 locators among the 4 names) as written, and it reopened with the same warning and the edit; check_layout_save refused a batch holding a layout edit with SaveRefusal::LayoutNotWritable and admitted the cell edit alone, a layout edit's save was refused with the same refusal and nothing written, and the cell edit alone saved",
+        m2_1_cells(v2.model()).len()
+    );
+
+    // A version 1 manifest that cannot be read: one placement names a block it does not hold.
+    let unreadable = m2_1_load(M2_1_UNREADABLE);
+    let unreadable_record = m1_2_record(&manifest, "manifest-unreadable.xlsx");
+    match unreadable.layout_warnings() {
+        [
+            LayoutWarning::UnreadableManifest {
+                part: found,
+                detail,
+            },
+        ] => {
+            assert_eq!(found, part);
+            assert!(
+                detail.contains("6c5d4e3f-2a1b-4c0d-8e9f-a0b1c2d3e4f9"),
+                "the detail names the missing block: {detail}"
+            );
+        }
+        other => panic!("the warnings {other:?}"),
+    }
+    assert!(unreadable.model().layout().is_empty());
+    assert_eq!(
+        m2_1_cells(unreadable.model()),
+        m2_1_recorded_cells(unreadable_record)
+    );
+    let unreadable_edit = m1_3_edit(
+        unreadable.model(),
+        vec![set(unreadable.model().sheets()[1].id(), 3, 2, number(8.0))],
+    );
+    let (unreadable_saved, _) = m1_3_save(&unreadable.snapshot(&unreadable_edit));
+    let unreadable_zip = parse_zip(&unreadable_saved);
+    let unreadable_source = parse_zip(M2_1_UNREADABLE);
+    assert_eq!(
+        m2_1_stored(&unreadable_zip, &unreadable_saved, part),
+        m2_1_stored(&unreadable_source, M2_1_UNREADABLE, part),
+        "the unreadable manifest is copied as stored"
+    );
+
+    // Packages built here: a manifest element without a version, two manifests, and a version 1
+    // manifest that is not well formed. Each loads its one cell with a warning and no layout.
+    let dna = |inner: &str| format!(r#"<manifest xmlns="{DNA_NAMESPACE}"{inner}</manifest>"#);
+    let no_version = m2_1_built("", Some(&dna("><blocks/>")), None);
+    let two = m2_1_built(
+        "",
+        Some(&dna(r#" version="1">"#)),
+        Some(&dna(r#" version="1">"#)),
+    );
+    let broken = m2_1_built(
+        "",
+        Some(&format!(
+            r#"<manifest xmlns="{DNA_NAMESPACE}" version="1"><blocks><block></blocks></manifest>"#
+        )),
+        None,
+    );
+    let mut kinds = Vec::new();
+    for (label, package) in [
+        ("no version", &no_version),
+        ("two", &two),
+        ("broken", &broken),
+    ] {
+        let loaded = m2_1_load(package);
+        let numbers = loaded.model().sheets()[0].id();
+        assert_eq!(
+            loaded.model().cell(cell(numbers, 1, 1)),
+            Some(&number(1.0)),
+            "{label}: the cell"
+        );
+        assert!(loaded.model().layout().is_empty(), "{label}: no layout");
+        match loaded.layout_warnings() {
+            [LayoutWarning::UnsupportedVersion { part, version }] => {
+                assert_eq!(label, "no version");
+                assert_eq!((part.as_str(), version), ("customXml/item1.xml", &None));
+                kinds.push("UnsupportedVersion");
+            }
+            [LayoutWarning::UnreadableManifest { part, detail }] => {
+                assert_eq!(part, "customXml/item1.xml", "{label}");
+                if label == "two" {
+                    assert!(detail.contains("customXml/item2.xml"), "{detail}");
+                } else {
+                    assert_eq!(label, "broken");
+                }
+                kinds.push("UnreadableManifest");
+            }
+            other => panic!("{label}: the warnings {other:?}"),
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: manifest-unreadable.xlsx loaded with LayoutWarning::UnreadableManifest naming the missing block, its cells and an empty layout, and a cell edit's save copied the manifest as stored; packages built here with a manifest without a version, two manifests and a malformed manifest loaded their cell with {kinds:?} and no layout"
+    );
+
+    // DNA manifests the XML reader refuses before their document element, built here: one in
+    // UTF-16, one declaring another encoding, and one whose document element's start tag is
+    // malformed. Each still counts as the package's DNA manifest: it loads with a typed warning
+    // naming its part, a layout save is refused before any byte is written (no second manifest
+    // is added), and a cell edit's save copies it as stored.
+    let dna_text =
+        format!(r#"<manifest xmlns="{DNA_NAMESPACE}" version="1"><blocks/><views/></manifest>"#);
+    let unreadable_items: Vec<(&str, Vec<u8>, &str)> = vec![
+        (
+            "UTF-16",
+            m2_1_utf16le(&format!(
+                r#"<?xml version="1.0" encoding="UTF-16"?>{dna_text}"#
+            )),
+            "UTF-16",
+        ),
+        (
+            "ISO-8859-1",
+            format!(r#"<?xml version="1.0" encoding="ISO-8859-1"?>{dna_text}"#).into_bytes(),
+            "ISO-8859-1",
+        ),
+        (
+            "a malformed start tag",
+            format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?><manifest xmlns="{DNA_NAMESPACE}" version=1><blocks/></manifest>"#
+            )
+            .into_bytes(),
+            "malformed XML",
+        ),
+    ];
+    let item1 = "customXml/item1.xml";
+    for (label, item, reason) in &unreadable_items {
+        let package = m2_1_built_bytes("", std::slice::from_ref(item));
+        let loaded = m2_1_load(&package);
+        match loaded.layout_warnings() {
+            [LayoutWarning::UnreadableManifest { part, detail }] => {
+                assert_eq!(part, item1, "{label}");
+                assert!(
+                    detail.contains(reason) && detail.contains("manifest's namespace"),
+                    "{label}: {detail}"
+                );
+            }
+            other => panic!("{label}: the warnings {other:?}"),
+        }
+        assert_eq!(loaded.manifest_part(), Some(item1), "{label}");
+        assert!(loaded.model().layout().is_empty(), "{label}: no layout");
+        let numbers = loaded.model().sheets()[0].id();
+        assert_eq!(
+            loaded.model().cell(cell(numbers, 1, 1)),
+            Some(&number(1.0)),
+            "{label}: the cell"
+        );
+        let layout_edit = vec![m2_1_op(SkinLayoutEdit::CreateBlock {
+            block: fixture_block(1),
+            kind: BlockKind::Prose,
+            anchor: GridArea::cell(cell(numbers, 1, 1)),
+        })];
+        let refusal = || SaveRefusal::LayoutNotWritable {
+            part: item1.to_owned(),
+        };
+        assert_eq!(
+            loaded.check_layout_save(&layout_edit),
+            Err(refusal()),
+            "{label}"
+        );
+        let relaid = m1_3_edit(loaded.model(), layout_edit);
+        let (refused, sink) = m1_3_route(&loaded.snapshot(&relaid), &SavePolicy::default());
+        assert_eq!(refused, Err(refusal()), "{label}");
+        assert!(sink.is_empty(), "{label}: a refused save writes no byte");
+        let cells = m1_3_edit(loaded.model(), vec![set(numbers, 2, 1, number(2.0))]);
+        let (saved, _) = m1_3_save(&loaded.snapshot(&cells));
+        let saved_zip = parse_zip(&saved);
+        let source_zip = parse_zip(&package);
+        assert_eq!(
+            m2_1_names(&saved_zip),
+            m2_1_names(&source_zip),
+            "{label}: no part added"
+        );
+        assert_eq!(
+            m2_1_stored(&saved_zip, &saved, item1),
+            m2_1_stored(&source_zip, &package, item1),
+            "{label}: copied as stored"
+        );
+    }
+
+    // Beside a manifest that reads, a UTF-16 one makes two DNA manifests; a UTF-16 item that does
+    // not name the manifest's namespace is not one, and the package then holds none.
+    let utf16_dna = &unreadable_items[0].1;
+    let both = m2_1_built_bytes(
+        "",
+        &[
+            format!(r#"<?xml version="1.0" encoding="UTF-8"?>{dna_text}"#).into_bytes(),
+            utf16_dna.clone(),
+        ],
+    );
+    match m2_1_load(&both).layout_warnings() {
+        [LayoutWarning::UnreadableManifest { part, detail }] => {
+            assert_eq!(part, item1);
+            assert!(
+                detail.contains("2 DNA manifests") && detail.contains("customXml/item2.xml"),
+                "{detail}"
+            );
+        }
+        other => panic!("the warnings {other:?}"),
+    }
+    let unrelated = m2_1_built_bytes(
+        "",
+        &[m2_1_utf16le(
+            r#"<?xml version="1.0" encoding="UTF-16"?><properties xmlns="urn:example:unrelated"/>"#,
+        )],
+    );
+    let unrelated_loaded = m2_1_load(&unrelated);
+    assert_eq!(unrelated_loaded.layout_warnings(), &[] as &[LayoutWarning]);
+    assert_eq!(unrelated_loaded.manifest_part(), None);
+    note!(
+        "ACCEPT-NOTE: {CASE}: DNA manifests the XML reader refuses before their document element ({}) each loaded with LayoutWarning::UnreadableManifest naming customXml/item1.xml and the reader's reason, their cell and no layout; check_layout_save and the save both refused a layout edit with SaveRefusal::LayoutNotWritable, nothing written and no second manifest added; a cell edit's save copied the item as stored; a readable manifest beside a UTF-16 one was reported as two DNA manifests, and a UTF-16 item outside the manifest's namespace was not taken for one",
+        unreadable_items
+            .iter()
+            .map(|(label, ..)| *label)
+            .collect::<Vec<_>>()
+            .join(", ")
     );
 }

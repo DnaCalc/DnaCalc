@@ -21,15 +21,20 @@
 //!   root that shares every page the batch did not change with the old one by pointer; it refuses
 //!   a batch it cannot apply ([`ApplyError`]).
 //! - Operations: a [`WorkbookOp`] sets one cell's [`CellInput`], clears an area, or applies a
-//!   structural-edit descriptor ([`AxisEdit`] for rows and columns, [`SheetEdit`] for sheets). An
+//!   structural-edit descriptor ([`AxisEdit`] for rows and columns, [`SheetEdit`] for sheets,
+//!   [`SkinLayoutEdit`] for the skin layout). An
 //!   [`OpBatch`] carries one command's operations against a base revision. An operation holds no
 //!   engine type, no session operation and no calculated value, and no [`CellInput`] holds a
 //!   calculated or cached value. An operation on an existing sheet names it by its
 //!   [`calc_value::SheetId`], which travels on the wire as that sheet's [`SheetKey`];
 //!   [`SheetEdit::Insert`] names the sheet it adds by a new [`SheetKey`] alone, because the sheet's
 //!   ID is issued when the edit is applied.
-//! - Document-only metadata: facts that are not calculation inputs, starting with
-//!   [`SheetVisibility`].
+//! - Document-only metadata: facts that are not calculation inputs: [`SheetVisibility`], and the
+//!   [`SkinLayout`] a root holds ([`ModelRoot::layout`]): the semantic [`Block`]s, each a stable
+//!   opaque [`BlockId`] over a visible backing cell or range reached through its [`LocatorName`],
+//!   and each view's [`Placement`]s, with [`PlacementId`]s of their own, in the four views
+//!   [`ViewKind`] names. [`ModelRoot::apply`] applies a batch's [`SkinLayoutEdit`]s; a layout
+//!   holds no cell content and no calculated answer.
 //! - The wire codec: [`encode_batch`] and [`decode_batch`] write and read a versioned batch whose
 //!   operations travel in per-capability envelopes; each capability's codec, and the dispatch to
 //!   it, is generated from its declaration ([`op_capabilities`]).
@@ -40,6 +45,7 @@
 mod cache;
 mod cells;
 mod input;
+mod layout;
 mod op;
 mod revision;
 mod root;
@@ -50,6 +56,10 @@ pub use cache::{CachedValue, FileCached, SourcePart};
 pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
+pub use layout::{
+    Block, BlockId, BlockKind, CanvasArea, LayoutError, LocatorName, Placement, PlacementId,
+    SkinLayout, SkinLayoutEdit, Spot, ViewKind,
+};
 pub use op::{Axis, AxisChange, AxisEdit, AxisEditError, OpBatch, SheetEdit, WorkbookOp};
 pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};

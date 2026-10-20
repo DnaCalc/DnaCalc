@@ -19,6 +19,7 @@ use super::json::{self, Fields, Node};
 use super::value::WireValue;
 use super::{DecodeError, EncodeError, OpCapability, check_version};
 use crate::input::CellInput;
+use crate::layout::{BlockId, BlockKind, PlacementId, SkinLayoutEdit, Spot};
 use crate::op::{Axis, AxisChange, AxisEdit, SheetEdit, WorkbookOp};
 use crate::root::{ModelRoot, SheetEntry};
 use crate::sheet::{SheetKey, SheetName, SheetVisibility};
@@ -220,6 +221,24 @@ capabilities! {
         "move" => Move { sheet: SheetKey, position: NonZeroU32 },
         "remove" => Remove { sheet: SheetKey },
         "set_visibility" => SetVisibility { sheet: SheetKey, visibility: SheetVisibility },
+    }
+
+    /// Skin layout: create or remove a block over a sheet's cells, with its locator; add, move or
+    /// remove a block's placement in the notebook, tree, canvas or grid view.
+    Layouts = "skin_layout", version 1 {
+        "create_block" => CreateBlock {
+            block: BlockId,
+            kind: BlockKind,
+            sheet: SheetKey,
+            top: u32,
+            left: u32,
+            bottom: u32,
+            right: u32,
+        },
+        "remove_block" => RemoveBlock { block: BlockId },
+        "add_placement" => AddPlacement { placement: PlacementId, block: BlockId, spot: Spot },
+        "move_placement" => MovePlacement { placement: PlacementId, spot: Spot },
+        "remove_placement" => RemovePlacement { placement: PlacementId },
     }
 }
 
@@ -438,6 +457,78 @@ impl Sheets {
     }
 }
 
+impl Layouts {
+    fn from_edit(edit: &SkinLayoutEdit, root: &ModelRoot) -> Result<Self, EncodeError> {
+        Ok(match *edit {
+            SkinLayoutEdit::CreateBlock {
+                block,
+                kind,
+                anchor,
+            } => {
+                let (first, last) = (anchor.first(), anchor.last());
+                Layouts::CreateBlock {
+                    block,
+                    kind,
+                    sheet: key_of(root, anchor.sheet())?,
+                    top: first.row(),
+                    left: first.column(),
+                    bottom: last.row(),
+                    right: last.column(),
+                }
+            }
+            SkinLayoutEdit::RemoveBlock { block } => Layouts::RemoveBlock { block },
+            SkinLayoutEdit::AddPlacement {
+                placement,
+                block,
+                spot,
+            } => Layouts::AddPlacement {
+                placement,
+                block,
+                spot,
+            },
+            SkinLayoutEdit::MovePlacement { placement, spot } => {
+                Layouts::MovePlacement { placement, spot }
+            }
+            SkinLayoutEdit::RemovePlacement { placement } => Layouts::RemovePlacement { placement },
+        })
+    }
+
+    fn into_edit(self, root: &ModelRoot, at: &str) -> Result<SkinLayoutEdit, DecodeError> {
+        Ok(match self {
+            Layouts::CreateBlock {
+                block,
+                kind,
+                sheet,
+                top,
+                left,
+                bottom,
+                right,
+            } => {
+                let sheet = resolve(root, sheet, format!("{at}.sheet"))?;
+                SkinLayoutEdit::CreateBlock {
+                    block,
+                    kind,
+                    anchor: area(sheet, (top, left, bottom, right), at)?,
+                }
+            }
+            Layouts::RemoveBlock { block } => SkinLayoutEdit::RemoveBlock { block },
+            Layouts::AddPlacement {
+                placement,
+                block,
+                spot,
+            } => SkinLayoutEdit::AddPlacement {
+                placement,
+                block,
+                spot,
+            },
+            Layouts::MovePlacement { placement, spot } => {
+                SkinLayoutEdit::MovePlacement { placement, spot }
+            }
+            Layouts::RemovePlacement { placement } => SkinLayoutEdit::RemovePlacement { placement },
+        })
+    }
+}
+
 impl WireOp {
     /// The wire form of `operation`, with each sheet written as its key in `root`. `claimed`
     /// holds the keys the batch's earlier inserts took.
@@ -467,6 +558,7 @@ impl WireOp {
                 WireOp::Axes(Axes::from_edit(*edit, key_of(root, edit.sheet())?))
             }
             WorkbookOp::EditSheet(edit) => WireOp::Sheets(Sheets::from_edit(edit, root, claimed)?),
+            WorkbookOp::EditSkinLayout(edit) => WireOp::Layouts(Layouts::from_edit(edit, root)?),
         })
     }
 
@@ -508,6 +600,9 @@ impl WireOp {
             WireOp::Sheets(operation) => operation
                 .into_edit(root, claimed, &args)
                 .map(WorkbookOp::EditSheet),
+            WireOp::Layouts(operation) => operation
+                .into_edit(root, &args)
+                .map(WorkbookOp::EditSkinLayout),
         }
     }
 }

@@ -5,6 +5,7 @@
 use super::DecodeError;
 use super::json::{self, Fields, Node};
 use crate::input::{CellInput, CellText, FiniteNumber, FormulaText};
+use crate::layout::{BlockId, BlockKind, CanvasArea, PlacementId, Spot};
 use crate::sheet::{SheetKey, SheetName, SheetVisibility};
 use calc_value::{ExcelText, WorksheetErrorCode};
 use std::num::NonZeroU32;
@@ -209,6 +210,191 @@ impl WireValue for CellInput {
             _ => FormulaText::new(read_units(value, &at)?)
                 .map(CellInput::Formula)
                 .map_err(|error| DecodeError::InvalidFormula { at, error }),
+        }
+    }
+}
+
+/// The text of a nonzero 128-bit ID as a UUID is written: 32 lowercase hex digits in groups of 8,
+/// 4, 4, 4 and 12 joined by `-`.
+const ID_FORM: &str =
+    "a nonzero ID as 32 lowercase hex digits in groups of 8, 4, 4, 4 and 12 joined by -";
+
+impl WireValue for BlockId {
+    fn write(&self, out: &mut String) {
+        out.push('"');
+        out.push_str(&self.to_string());
+        out.push('"');
+    }
+
+    fn read(node: &Node, at: &str) -> Result<Self, DecodeError> {
+        match node {
+            Node::Text(text) => BlockId::parse(text),
+            _ => None,
+        }
+        .ok_or_else(|| json::malformed(at, ID_FORM))
+    }
+}
+
+impl WireValue for PlacementId {
+    fn write(&self, out: &mut String) {
+        out.push('"');
+        out.push_str(&self.to_string());
+        out.push('"');
+    }
+
+    fn read(node: &Node, at: &str) -> Result<Self, DecodeError> {
+        match node {
+            Node::Text(text) => PlacementId::parse(text),
+            _ => None,
+        }
+        .ok_or_else(|| json::malformed(at, ID_FORM))
+    }
+}
+
+/// A tree placement's parent: a placement ID, or `null` for a root.
+impl WireValue for Option<PlacementId> {
+    fn write(&self, out: &mut String) {
+        match self {
+            Some(id) => id.write(out),
+            None => out.push_str("null"),
+        }
+    }
+
+    fn read(node: &Node, at: &str) -> Result<Self, DecodeError> {
+        match node {
+            Node::Null => Some(None),
+            Node::Text(text) => PlacementId::parse(text).map(Some),
+            _ => None,
+        }
+        .ok_or_else(|| json::malformed(at, "null, or a nonzero ID as a UUID is written"))
+    }
+}
+
+impl WireValue for BlockKind {
+    fn write(&self, out: &mut String) {
+        out.push('"');
+        out.push_str(self.name());
+        out.push('"');
+    }
+
+    fn read(node: &Node, at: &str) -> Result<Self, DecodeError> {
+        match node {
+            Node::Text(text) => BlockKind::from_name(text),
+            _ => None,
+        }
+        .ok_or_else(|| json::malformed(at, "\"prose\" or \"calculation\""))
+    }
+}
+
+/// A number as the 16 lowercase hex digits of its binary64 bits, in a string.
+impl WireValue for FiniteNumber {
+    fn write(&self, out: &mut String) {
+        out.push('"');
+        json::push_hex(out, self.to_bits(), 16);
+        out.push('"');
+    }
+
+    fn read(node: &Node, at: &str) -> Result<Self, DecodeError> {
+        read_number(node, at)
+    }
+}
+
+/// The views a spot object may name, exactly one at a time.
+const SPOT_VIEWS: [&str; 4] = ["notebook", "tree", "canvas", "grid"];
+
+fn spot_field<T: WireValue>(args: &Fields<'_>, name: &str) -> Result<T, DecodeError> {
+    T::read(args.node(name)?, &args.path(name))
+}
+
+/// Appends `{"<view>":{<members>}}`, the members written by `members`.
+fn write_spot(out: &mut String, view: &str, members: impl FnOnce(&mut String)) {
+    out.push_str("{\"");
+    out.push_str(view);
+    out.push_str("\":{");
+    members(out);
+    out.push_str("}}");
+}
+
+fn write_member<T: WireValue>(out: &mut String, first: bool, name: &str, value: &T) {
+    if !first {
+        out.push(',');
+    }
+    out.push('"');
+    out.push_str(name);
+    out.push_str("\":");
+    value.write(out);
+}
+
+/// A spot is an object with exactly one member, named for its view, whose value holds the spot's
+/// members in this order: `{"notebook":{"position":<n>}}`,
+/// `{"tree":{"parent":<id or null>,"position":<n>}}`,
+/// `{"canvas":{"position":<n>,"x":"<bits>","y":"<bits>","width":"<bits>","height":"<bits>"}}`
+/// or `{"grid":{"position":<n>}}`.
+impl WireValue for Spot {
+    fn write(&self, out: &mut String) {
+        match self {
+            Spot::Notebook { position } => write_spot(out, "notebook", |out| {
+                write_member(out, true, "position", position);
+            }),
+            Spot::Tree { parent, position } => write_spot(out, "tree", |out| {
+                write_member(out, true, "parent", parent);
+                write_member(out, false, "position", position);
+            }),
+            Spot::Canvas { position, area } => write_spot(out, "canvas", |out| {
+                write_member(out, true, "position", position);
+                write_member(out, false, "x", &area.x);
+                write_member(out, false, "y", &area.y);
+                write_member(out, false, "width", &area.width);
+                write_member(out, false, "height", &area.height);
+            }),
+            Spot::Grid { position } => write_spot(out, "grid", |out| {
+                write_member(out, true, "position", position);
+            }),
+        }
+    }
+
+    fn read(node: &Node, at: &str) -> Result<Self, DecodeError> {
+        let fields = Fields::new(node, at, &SPOT_VIEWS)?;
+        let [(view, value)] = fields.members() else {
+            return Err(json::malformed(
+                at,
+                "exactly one of notebook, tree, canvas or grid",
+            ));
+        };
+        let at = fields.path(view);
+        match view.as_str() {
+            "notebook" => {
+                let args = Fields::new(value, &at, &["position"])?;
+                Ok(Spot::Notebook {
+                    position: spot_field(&args, "position")?,
+                })
+            }
+            "tree" => {
+                let args = Fields::new(value, &at, &["parent", "position"])?;
+                Ok(Spot::Tree {
+                    parent: spot_field(&args, "parent")?,
+                    position: spot_field(&args, "position")?,
+                })
+            }
+            "canvas" => {
+                let args = Fields::new(value, &at, &["position", "x", "y", "width", "height"])?;
+                Ok(Spot::Canvas {
+                    position: spot_field(&args, "position")?,
+                    area: CanvasArea {
+                        x: spot_field(&args, "x")?,
+                        y: spot_field(&args, "y")?,
+                        width: spot_field(&args, "width")?,
+                        height: spot_field(&args, "height")?,
+                    },
+                })
+            }
+            // Fields::new admitted only SPOT_VIEWS, so this view is "grid".
+            _ => {
+                let args = Fields::new(value, &at, &["position"])?;
+                Ok(Spot::Grid {
+                    position: spot_field(&args, "position")?,
+                })
+            }
         }
     }
 }

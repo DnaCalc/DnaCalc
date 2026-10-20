@@ -10,31 +10,40 @@
 //! is allocated for the extent the cells span.
 //!
 //! Of the workbook part's other elements, the loaded workbook carries the date system its
-//! `workbookPr` names ([`DateSystem`]) and the number of `definedName` elements it holds, which
-//! are counted and not loaded. `calcPr` and every other element of the workbook part are not
-//! read.
+//! `workbookPr` names ([`DateSystem`]) and its `definedName` elements: a block's locator becomes
+//! the block's anchor, and every other defined name is counted and not loaded. `calcPr` and every
+//! other element of the workbook part are not read.
+//!
+//! The package's DNA view manifest, when it holds one, is read into the model's skin layout
+//! ([`manifest`]): its blocks, each anchored where its locator refers, and its placements in the
+//! four views. A manifest that is not read, and a locator that does not resolve, is a
+//! [`LayoutWarning`] of the loaded workbook, never a refusal: the cells load as they would
+//! without it, and the manifest's parts stay in the package as they are.
 //!
 //! A loaded workbook keeps the package it was loaded from, so [`LoadedWorkbook::snapshot`] can
 //! give a save any revision of its model together with the records the save rewrites from.
 
 pub(crate) mod address;
 mod error;
+pub(crate) mod manifest;
 pub(crate) mod sheet;
 mod shift;
 pub(crate) mod strings;
 
 pub use error::{CellError, LoadError};
+pub use manifest::LayoutWarning;
 
 use crate::OpenedDocument;
 use crate::error::PartReadError;
 use crate::opc::{Package, TargetMode};
-use crate::save::DocumentSnapshot;
+use crate::save::{DocumentSnapshot, SaveRefusal};
 use crate::xml::{XmlElement, XmlEvent, XmlPart, XmlReader};
 use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId};
 use calc_doc_model::{
-    AuthoredRevision, FileCached, ModelRoot, SheetEntry, SheetKey, SheetName, SheetVisibility,
-    SourcePart,
+    AuthoredRevision, FileCached, LocatorName, ModelRoot, SheetEntry, SheetKey, SheetName,
+    SheetVisibility, SkinLayoutEdit, SourcePart, WorkbookOp,
 };
+use manifest::{DefinedName, ManifestState};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -173,8 +182,9 @@ pub enum DateSystem {
     Date1904,
 }
 
-/// A loaded workbook: the model root of its sheets and their cells at the document's first
-/// revision, each sheet's records beside it, and the package they were read from.
+/// A loaded workbook: the model root of its sheets, their cells and its skin layout at the
+/// document's first revision, each sheet's records beside it, and the package they were read
+/// from.
 #[derive(Debug)]
 pub struct LoadedWorkbook {
     package: Arc<Package>,
@@ -184,6 +194,10 @@ pub struct LoadedWorkbook {
     cell_formats: u32,
     date_system: DateSystem,
     defined_names_not_loaded: usize,
+    manifest: ManifestState,
+    layout_warnings: Vec<LayoutWarning>,
+    /// The workbook-scoped defined names no layout save removes.
+    fixed_names: Vec<String>,
 }
 
 impl LoadedWorkbook {
@@ -216,10 +230,71 @@ impl LoadedWorkbook {
         self.date_system
     }
 
-    /// The number of defined names (`definedName` elements) the workbook part holds, none of
-    /// which is loaded.
+    /// The number of defined names (`definedName` elements) the workbook part holds that are not
+    /// loaded: every one but the locators that became a block's anchor, so all of them for a
+    /// workbook whose DNA view manifest is absent or was not read.
     pub fn defined_names_not_loaded(&self) -> usize {
         self.defined_names_not_loaded
+    }
+
+    /// The DNA view manifest's item part, whether or not it was read; `None` when the package
+    /// holds none. Of several, the first, which [`LoadedWorkbook::layout_warnings`] reports.
+    pub fn manifest_part(&self) -> Option<&str> {
+        match &self.manifest {
+            ManifestState::Absent => None,
+            ManifestState::Read { part } | ManifestState::Unread { part } => Some(part),
+        }
+    }
+
+    /// Why the model's layout lacks what the package holds: a manifest that was not read, or a
+    /// block whose locator did not resolve. Empty when the layout is all the package holds.
+    pub fn layout_warnings(&self) -> &[LayoutWarning] {
+        &self.layout_warnings
+    }
+
+    /// Whether a save of this workbook can write the skin layout edits among `operations`,
+    /// judged before they are applied, so a caller can refuse a layout edit before it joins cell
+    /// edits in one revision: the refusal [`crate::prepare_save`] gives a revision that holds them.
+    /// [`SaveRefusal::LayoutNotWritable`] when `operations` hold a layout edit and the package's
+    /// DNA view manifest was not read ([`LoadedWorkbook::layout_warnings`]), and
+    /// [`SaveRefusal::LocatorNameTaken`] when a block they create would get the locator name of a
+    /// workbook-scoped defined name that a save keeps (every one but the hidden locators of the
+    /// loaded blocks). `Ok` for operations without a layout edit.
+    ///
+    /// The judgement is of each edit, not of the revision: edits that leave the layout as loaded
+    /// (a block created and removed again) are judged as edits, though a save of that revision
+    /// writes no layout. [`crate::prepare_save`] judges the revision and stays the last check; it
+    /// also refuses for reasons this does not judge, such as a workbook part it cannot rewrite.
+    pub fn check_layout_save(&self, operations: &[WorkbookOp]) -> Result<(), SaveRefusal> {
+        let mut edits = operations
+            .iter()
+            .filter_map(|operation| match operation {
+                WorkbookOp::EditSkinLayout(edit) => Some(edit),
+                _ => None,
+            })
+            .peekable();
+        if edits.peek().is_none() {
+            return Ok(());
+        }
+        if let ManifestState::Unread { part } = &self.manifest {
+            return Err(SaveRefusal::LayoutNotWritable { part: part.clone() });
+        }
+        for edit in edits {
+            if let SkinLayoutEdit::CreateBlock { block, .. } = edit {
+                let name = LocatorName::for_block(*block);
+                if self.fixed_names.iter().any(|fixed| name.is(fixed)) {
+                    let part = self
+                        .package
+                        .part(&self.workbook_part)
+                        .map_or(self.workbook_part.as_str(), |part| part.name());
+                    return Err(SaveRefusal::LocatorNameTaken {
+                        part: part.to_owned(),
+                        name: name.as_str().to_owned(),
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     /// An immutable view of the document at `model`, a revision of this workbook's model, which a
@@ -232,6 +307,7 @@ impl LoadedWorkbook {
             Arc::clone(&self.package),
             self.workbook_part.clone(),
             Arc::clone(&self.sheets),
+            self.manifest.clone(),
             Arc::clone(&self.model),
             Arc::clone(model),
         )
@@ -380,11 +456,26 @@ struct WorkbookPart {
     /// The sheets it declares, in workbook order.
     sheets: Vec<DeclaredSheet>,
     date_system: DateSystem,
-    /// The number of its `definedName` elements.
-    defined_names: usize,
+    /// Its `definedName` elements, in order.
+    defined_names: Vec<DefinedName>,
 }
 
-/// Reads the workbook part: its sheets, its date system and the number of its defined names.
+/// The text of the `definedName` element whose start tag was just read, with its `_xHHHH_`
+/// escapes decoded; the text of an element inside it, which the schema does not give it, is not
+/// part of it.
+fn defined_name_text(events: &mut Events<'_>) -> Result<String, LoadError> {
+    let mut text = String::new();
+    loop {
+        match events.next()? {
+            Some(XmlEvent::Text(more)) => text.push_str(&more),
+            Some(XmlEvent::Start(_)) => events.skip()?,
+            Some(XmlEvent::End(_)) => return Ok(String::from_utf16_lossy(&strings::decode(&text))),
+            None => return Err(events.invalid("the part ends inside definedName")),
+        }
+    }
+}
+
+/// Reads the workbook part: its sheets, its date system and its defined names.
 fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, LoadError> {
     let xml = read_xml(package, workbook)?;
     let mut events = Events::new(&xml);
@@ -397,7 +488,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut names: BTreeSet<Vec<u16>> = BTreeSet::new();
     let mut keys = BTreeSet::new();
     let mut date_system = None;
-    let mut defined_names = 0;
+    let mut defined_names = Vec::new();
     loop {
         let element = match events.next()? {
             Some(XmlEvent::Start(element)) => element,
@@ -425,8 +516,12 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
             loop {
                 match events.next()? {
                     Some(XmlEvent::Start(name)) if name.name.is(MAIN_NAMESPACE, "definedName") => {
-                        defined_names += 1;
-                        events.skip()?;
+                        defined_names.push(DefinedName {
+                            name: name.attribute("name").unwrap_or_default().to_owned(),
+                            sheet_scoped: name.attribute("localSheetId").is_some(),
+                            hidden: manifest::is_true(name.attribute("hidden")),
+                            text: defined_name_text(&mut events)?,
+                        });
                     }
                     Some(XmlEvent::Start(_)) => {
                         return Err(
@@ -701,6 +796,12 @@ pub fn load(
             }
         }
     }
+    let named: Vec<(SheetId, &SheetName)> = declared
+        .iter()
+        .zip(&issued)
+        .map(|(declared, &id)| (id, &declared.name))
+        .collect();
+    let layout = manifest::load_layout(package, &named, &defined_names);
     let entries = declared
         .into_iter()
         .zip(&issued)
@@ -708,8 +809,10 @@ pub fn load(
             SheetEntry::new(id, declared.key, declared.name, declared.visibility)
         })
         .collect();
-    let model = ModelRoot::with_cells(AuthoredRevision::INITIAL, entries, cells)
-        .expect("the IDs are distinct, the keys were checked and each cell lies on its own sheet");
+    let model = ModelRoot::with_layout(AuthoredRevision::INITIAL, entries, cells, layout.layout)
+        .expect(
+            "the IDs are distinct, the keys were checked, and each cell and anchor lies on a sheet of the load",
+        );
     Ok(LoadedWorkbook {
         package: Arc::clone(document.package_arc()),
         model,
@@ -717,6 +820,9 @@ pub fn load(
         sheets: sheets.into(),
         cell_formats,
         date_system,
-        defined_names_not_loaded: defined_names,
+        defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
+        manifest: layout.state,
+        layout_warnings: layout.warnings,
+        fixed_names: layout.fixed_names,
     })
 }

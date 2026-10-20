@@ -19,7 +19,9 @@
 //! travel as [`SheetKey`]s, never as [`SheetId`]s, and are resolved through the receiving
 //! [`ModelRoot`]. Numbers travel as the 16 lowercase hex digits of their binary64 bits and text as
 //! 4 lowercase hex digits per UTF-16 code unit, so no decimal conversion touches a number and an
-//! unpaired surrogate survives.
+//! unpaired surrogate survives. Block and placement IDs travel as their text form, 32 lowercase
+//! hex digits in groups of 8, 4, 4, 4 and 12 joined by `-`; IDs are issued by the caller and
+//! decoding checks only their form.
 //!
 //! Decoding refuses, with a typed [`DecodeError`], anything it does not admit: an unknown format,
 //! capability, operation or field, a version other than the declared one, a duplicate or missing

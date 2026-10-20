@@ -7,10 +7,13 @@
 //! ([`SaveReceipt::gap_bytes_dropped`]). An authored save ([`author`]) also rewrites parts:
 //! each is serialized and compressed while the plan is prepared, takes its source entry's place in
 //! both orders, and gets a new local header and central record; a part it adds is written after
-//! the others. [`write`] streams the plan to the sink entry by entry.
+//! the others. A revision whose skin layout differs from the loaded one rewrites or adds the DNA
+//! view manifest ([`manifest`]) and adds or removes its blocks' locator names. [`write`] streams
+//! the plan to the sink entry by entry.
 
 mod author;
 mod diff;
+mod manifest;
 mod parts;
 mod reader;
 mod sheet;
@@ -21,6 +24,7 @@ mod text;
 
 use crate::error::PartReadError;
 use crate::load::LoadedSheet;
+use crate::load::manifest::ManifestState;
 use crate::opc::Package;
 use crate::source::{PackageWrite, SinkError, SourceError};
 use crate::zip::crc32::{self, Crc32};
@@ -43,6 +47,8 @@ pub struct DocumentSnapshot {
 pub(crate) struct Edited {
     workbook_part: String,
     sheets: Arc<[LoadedSheet]>,
+    /// Whether and where the loaded package's DNA manifest was read.
+    manifest: ManifestState,
     /// The model as loaded.
     base: Arc<ModelRoot>,
     /// The revision to save.
@@ -61,6 +67,7 @@ impl DocumentSnapshot {
         package: Arc<Package>,
         workbook_part: String,
         sheets: Arc<[LoadedSheet]>,
+        manifest: ManifestState,
         base: Arc<ModelRoot>,
         model: Arc<ModelRoot>,
     ) -> Self {
@@ -69,6 +76,7 @@ impl DocumentSnapshot {
             edit: Some(Edited {
                 workbook_part,
                 sheets,
+                manifest,
                 base,
                 model,
             }),
@@ -155,6 +163,14 @@ pub enum SaveRefusal {
         entries: usize,
         limit: u64,
     },
+    /// The revision's skin layout differs from the loaded one, but the package's DNA view manifest
+    /// at `part` was not read ([`crate::LayoutWarning`]): the save would have to overwrite a
+    /// manifest this codec does not read. A save that leaves the layout as loaded copies the
+    /// manifest's parts as they are.
+    LayoutNotWritable { part: String },
+    /// A block the revision creates has the locator name `name`, which the workbook part `part`
+    /// already holds as a workbook-scoped defined name, compared ignoring ASCII case.
+    LocatorNameTaken { part: String, name: String },
 }
 
 impl fmt::Display for SaveRefusal {
@@ -206,6 +222,14 @@ impl fmt::Display for SaveRefusal {
             } => write!(
                 f,
                 "the package would be {bytes} bytes in {entries} entries, over the limit of {limit} bytes or 65534 entries"
+            ),
+            Self::LayoutNotWritable { part } => write!(
+                f,
+                "the layout changed, but the view manifest {part:?} was not read and would be overwritten"
+            ),
+            Self::LocatorNameTaken { part, name } => write!(
+                f,
+                "{part}: the locator name {name:?} is already a defined name of the workbook"
             ),
         }
     }
@@ -484,7 +508,10 @@ impl From<SourceError> for WriteError {
 /// in the order its bytes were stored. For a revision of a loaded workbook whose cells differ from
 /// the loaded ones, the changed worksheet parts, the shared strings, the workbook part and, when
 /// the set of formula cells changed, the relationships and content types without the calculation
-/// chain are serialized here; a refusal comes before any of it is written.
+/// chain are serialized here; for one whose skin layout differs, the view manifest (rewritten, or
+/// added with its item properties, its relationships, a relationship from the workbook part and
+/// its content types) and the workbook part's locator names. A refusal comes before any of it is
+/// written.
 pub fn prepare_save(
     snapshot: &DocumentSnapshot,
     policy: &SavePolicy,

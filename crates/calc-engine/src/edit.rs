@@ -160,7 +160,8 @@ impl Drop for PreparedEngineChange<'_, '_> {
 ///   a cell it empties, and only those: a node that reads only cells of the area that were
 ///   already empty is not seeded by the clear. Clearing cells that are already empty seeds
 ///   nothing.
-/// - Setting a sheet's visibility changes no calculation input and stages nothing.
+/// - Setting a sheet's visibility changes no calculation input and stages nothing, and neither
+///   does a skin layout edit.
 /// - A structural edit is refused ([`PrepareError::StructuralEdit`]).
 ///
 /// Every refusal comes before anything is reserved. Then the IDs of the added nodes are issued, in
@@ -221,6 +222,7 @@ pub fn prepare_edit<'s, 'r>(
                     return Err(PrepareError::StructuralEdit { operation });
                 }
             },
+            WorkbookOp::EditSkinLayout(_) => {}
         }
     }
 

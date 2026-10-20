@@ -22,20 +22,37 @@
 //!   cached result are kept beside the model; a cached result is [`model::FileCached`] with the
 //!   identity of the part it was read from. The loaded workbook also carries its
 //!   [`DateSystem`] and the number of defined names it holds and does not load; `calcPr` is not
-//!   read. A cell or formula it does not read is a typed refusal ([`LoadError`]).
+//!   read. A cell or formula it does not read is a typed refusal ([`LoadError`]). The package's
+//!   DNA view manifest, one custom XML part, is read into the model's skin layout
+//!   ([`model::SkinLayout`]): each block with its opaque ID, its kind and its locator, a hidden,
+//!   workbook-scoped defined name named `_dna.block.` and 32 hex digits whose reference becomes
+//!   the block's anchor, and each view's placements. A manifest of a version it does not read, or
+//!   one it cannot read (the XML reader's refusal of an item that names the manifest's namespace
+//!   included), and a locator that does not resolve are [`LayoutWarning`]s, never refusals: no
+//!   cell is lost and no layout is invented.
 //! - [`prepare_edit`] applies a batch of cell operations (set a cell's value or formula, clear an
-//!   area) to a revision of a loaded workbook's model, making the next revision through
-//!   [`model::ModelRoot::apply`]. It refuses a batch the model refuses and a formula a save could
-//!   not write: one longer than [`FORMULA_MAX_UTF16_CODE_UNITS`] or one CalcFml's parser reads
-//!   with a diagnostic ([`EditError`]). The caller's revision is never changed; the caller adopts
-//!   the new one.
+//!   area) and skin layout edits (create or remove a block over a sheet's cells, add, move or
+//!   remove its placements in the notebook, tree, canvas and grid views) to a revision of a loaded
+//!   workbook's model, making the next revision through [`model::ModelRoot::apply`]. It refuses
+//!   a batch the model refuses and a formula a save could not write: one longer than
+//!   [`FORMULA_MAX_UTF16_CODE_UNITS`] or one CalcFml's parser reads with a diagnostic
+//!   ([`EditError`]). The caller's revision is never changed; the caller adopts the new one.
+//!   [`LoadedWorkbook::check_layout_save`] tells the caller, before [`prepare_edit`], whether a
+//!   save can write a batch's layout edits, so a layout edit a save would refuse can be dropped
+//!   before it shares a revision with cell edits.
 //! - [`prepare_save`] plans a save of a [`DocumentSnapshot`]: of an opened document as it was
 //!   opened ([`OpenedDocument::snapshot`]), or of a revision of a loaded workbook's model
 //!   ([`LoadedWorkbook::snapshot`]). Every part the save does not rewrite is copied as its
 //!   stored bytes. A revision whose cells differ from the loaded ones rewrites each worksheet part
 //!   that holds a changed cell or a formula's cached result, appends new text to the shared
 //!   strings, sets `fullCalcOnLoad` on the workbook's `calcPr` and, when the set of formula cells
-//!   changed, removes the calculation chain. A formula the revision sets is checked as
+//!   changed, removes the calculation chain. A revision whose skin layout differs from the loaded
+//!   one rewrites the view manifest from its own bytes, keeping every field version 1 does not
+//!   name, or adds one (its item, item properties, relationships and content types) to a package
+//!   without one, and writes each created block's locator as a hidden defined name of the
+//!   workbook part and removes each removed block's hidden locator; every other defined name stays
+//!   as the source wrote it. A manifest it did not read is never overwritten
+//!   ([`SaveRefusal::LayoutNotWritable`]). A formula the revision sets is checked as
 //!   [`prepare_edit`] checks it, so a revision made another way (by [`model::ModelRoot::apply`])
 //!   is refused when it holds one a save could not write. Everything a save rewrites is serialized
 //!   while it is prepared, so a refusal ([`SaveRefusal`]) comes before any byte is written.
@@ -59,8 +76,8 @@ pub use calc_doc_model as model;
 pub use edit::{EditError, PreparedEdit, prepare_edit};
 pub use error::{OpenError, PartReadError, UnsafeName};
 pub use load::{
-    CellError, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LoadError, LoadedSheet,
-    LoadedWorkbook, SharedFormula, load,
+    CellError, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LayoutWarning, LoadError,
+    LoadedSheet, LoadedWorkbook, SharedFormula, load,
 };
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,

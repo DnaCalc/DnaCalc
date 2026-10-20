@@ -1,0 +1,232 @@
+{
+ "format": "dnacalc-port-record/1",
+ "bead": "cdoc-m2.1",
+ "written": "2026-10-20",
+ "lookup_transcript": "target/accept/cdoc-m2.1/lookups.log in the DnaCalc-cdoc clone that ran it on 2026-10-20 (target/ is not committed): one cargo xtask pin-sources --lookup <Repo>/<path> per input, each followed by its exit code",
+ "sources": [
+  {
+   "repository": "OxDoc",
+   "commit": "c1031833ad91b82b6e6d777df260c1eb34e62fb9",
+   "path": "crates/oxdoc-xlsx/src/lib.rs",
+   "blob": "1180c25219aec811008b202ff3ffed45dd5d0564",
+   "pin": "migration/source-manifest.json (pin date 2026-10-15); read at the pinned blob with git cat-file",
+   "lookup": {
+    "command": "cargo xtask pin-sources --lookup OxDoc/crates/oxdoc-xlsx/src/lib.rs",
+    "exit": 0,
+    "calls_quarantined": []
+   },
+   "read": "Only the custom XML store and edit functions and their tests: CustomXmlStore, CustomXmlItem, CustomXmlItemProps, CustomXmlEdit, read_custom_xml_store, is_custom_xml_item_part, is_custom_xml_props_part, apply_custom_xml_edits, custom_xml_write_records, validate_custom_xml_payload, next_custom_xml_item_index, custom_xml_item_props_xml, custom_xml_item_rels_xml, root_rels_xml_with_custom_xml, content_types_xml_with_custom_xml, and the tests custom_xml_edit_noop_preserves_bytes_and_package_edges, custom_xml_edit_updates_existing_item_payload_only and custom_xml_edit_adds_item_with_props_relationships_and_content_type. No code is copied; the behaviour below is re-implemented in crates/calc-doc.",
+   "ported": [
+    {
+     "symbol": "read_custom_xml_store (item discovery)",
+     "to": "crates/calc-doc/src/load/manifest.rs manifest_parts, manifest_item, names_manifest_namespace, load_layout",
+     "kept": [
+      "a custom XML item is the internal target of a relationship of type .../relationships/customXml, from any source part"
+     ],
+     "changes": [
+      {
+       "change": "Only the DNA manifest is read: the item whose document element is manifest in urn:dnacalc:view-manifest, found by reading each item's first event. An item the XML reader refuses before its document element (UTF-16, an encoding declaration other than UTF-8, a malformed start tag) counts as a DNA manifest that cannot be read when its bytes hold the namespace URI as UTF-8, UTF-16 or UTF-32 of either byte order, as does an item whose document element is another element of that namespace and an item whose content cannot be read at all; each gives LayoutWarning::UnreadableManifest naming its part, and a save that changes the layout is refused (SaveRefusal::LayoutNotWritable). Other items, their item properties and every orphan or related part are neither read nor reported; they are copied as stored.",
+       "reason": "The bead persists one DNA manifest; general custom XML editing is cdoc-m6.4's. A DNA manifest the XML reader refuses is counted rather than skipped, so its views never disappear without a warning and a layout save never writes a second manifest beside it (round-1 judge, item 1)."
+      },
+      {
+       "change": "The item is identified by its document element, not by the datastore itemID of its item properties, which CalcDoc does not read.",
+       "reason": "The manifest's identity is its content; reading item properties would add a refusal path (OxDoc's CustomXmlStoreNotEditable) that the manifest does not need."
+      },
+      {
+       "change": "More than one DNA manifest is a recovery warning (LayoutWarning::UnreadableManifest) and the layout is not loaded, not a refusal of the load.",
+       "reason": "The claim note: nothing is deleted and no layout is invented; the workbook still loads."
+      }
+     ]
+    },
+    {
+     "symbol": "apply_custom_xml_edits (AddItem), next_custom_xml_item_index, custom_xml_item_props_xml, custom_xml_item_rels_xml, content_types_xml_with_custom_xml",
+     "to": "crates/calc-doc/src/save/manifest.rs new_parts, free_number; crates/calc-doc/src/save/author.rs plan; crates/calc-doc/src/save/parts.rs relationships, content_types",
+     "kept": [
+      "a new item is customXml/item<n>.xml with customXml/itemProps<n>.xml and customXml/_rels/item<n>.xml.rels, n the first number none of them takes",
+      "the item properties part is a ds:datastoreItem with an itemID and a schemaRef, and its content type override is application/vnd.openxmlformats-officedocument.customXmlProperties+xml",
+      "the item's relationships part holds one relationship of type .../customXmlProps to the item properties part"
+     ],
+     "changes": [
+      {
+       "change": "The relationship to a new item is added to the workbook part's relationships (Target ../customXml/item<n>.xml) with the first free rId<n>, not to the package's _rels/.rels as rIdCustomXml<n>.",
+       "reason": "The item sits beside the workbook's other part relationships, and _rels/.rels stays untouched; whether Excel opens the package without a repair prompt and keeps the item is the owner's Excel check, not measured here."
+      },
+      {
+       "change": "_rels/.rels is never rewritten, and the workbook part's relationships and [Content_Types].xml are spliced from their own bytes (an Override added, everything else as written) instead of regenerated with sorted defaults.",
+       "reason": "Plan section 7.2: parts are preserved; only what the edit needs changes."
+      },
+      {
+       "change": "The item number also skips a number whose relationships part or content type override exists; the item properties carry the one fixed datastore itemID {8C3B6A52-1D4E-4F7A-9B20-5E61D7C4A913} and the schemaRef urn:dnacalc:view-manifest; the item's relationship ID is rId1, not rIdProps1; the item part gets an application/xml Override only when the package has no Default xml of that type.",
+       "reason": "A package holds at most one DNA manifest, so a fixed ID is unique in it; the library generates no random value (it is portable and draws on no OS source)."
+      }
+     ]
+    },
+    {
+     "symbol": "apply_custom_xml_edits (UpdateItem)",
+     "to": "crates/calc-doc/src/save/manifest.rs rewritten, merged",
+     "kept": [
+      "an update rewrites the item part only; its item properties, its relationships, the package relationships and the content types stay byte for byte"
+     ],
+     "changes": [
+      {
+       "change": "The new content is not supplied whole by the caller: the manifest is rewritten from its own bytes for the model's layout, keeping every element and attribute version 1 does not name.",
+       "reason": "The bead's Do: preserve unknown manifest fields on compatible edits."
+      },
+      {
+       "change": "A manifest that was not read (another version, unreadable, or one of several) is never rewritten: a save that changes the layout is refused (SaveRefusal::LayoutNotWritable).",
+       "reason": "The claim note: a manifest of an unsupported version is preserved byte for byte."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "repository": "DnaTreeCalc",
+   "commit": "bf6dfd7f0655867cabbebfe99b3de4ea5be89803",
+   "path": "docs/ux/FRONTEND_UI_DESIGN_AND_ROUTEMAP.md",
+   "blob": "50e96fc45fda4a4f1fd00d592112c58bf46cfa7a",
+   "pin": "migration/source-manifest.json (pin date 2026-10-15), disposition reference; read at the pinned blob with git cat-file",
+   "lookup": {
+    "command": "cargo xtask pin-sources --lookup DnaTreeCalc/docs/ux/FRONTEND_UI_DESIGN_AND_ROUTEMAP.md",
+    "exit": 0,
+    "calls_quarantined": []
+   },
+   "read": "Sections B.7 (the backing-cell convention) and F (owner questions 2 and 4), as a behaviour reference only (claim note): no text or code of it is ported. Its F.2 design, the notebook manifest embedded as one CustomXML part of the .xlsx with no sidecar file, is the behaviour the bead's Do names, implemented fresh in crates/calc-doc/src/load/manifest.rs and crates/calc-doc/src/save/manifest.rs.",
+   "ported": []
+  }
+ ],
+ "lookups_not_read": [
+  {
+   "input": "OxDoc/crates/oxdoc-model/src/lib.rs",
+   "exit": 0,
+   "note": "Searched for CustomXml only (LoadSurface::CustomXmlStorage, a load-profile flag); nothing ported, and none of its OxCalc-named symbols enters CalcDoc."
+  },
+  {
+   "input": "OxDoc/docs/SPEC.md",
+   "exit": 0,
+   "note": "Searched for CustomXML only (the W005 storage API summary); nothing ported."
+  },
+  {
+   "input": "OxDoc/docs/DOCUMENT_LIFECYCLE_AND_HOST_BOUNDARIES.md",
+   "exit": 0,
+   "note": "Not read."
+  },
+  {
+   "input": "OxDoc/docs/STRICT_LAZY_PARSING_SCOPE.md",
+   "exit": 0,
+   "note": "Not read."
+  },
+  {
+   "input": "OxDoc/crates/oxdoc-conformance/src/lib.rs",
+   "exit": 6,
+   "calls_quarantined": [
+    "OxDoc run-time loads"
+   ],
+   "note": "Not read; no conformance code is ported."
+  },
+  {
+   "input": "DnaTreeCalc/docs/interop/EXCEL_EXPORT_AND_REPLAY.md, DnaTreeCalc/docs/interop/OXDOC_REQUIREMENTS.md, DnaTreeCalc/docs/SPEC.md, DnaTreeCalc/docs/ux/DNACALC_HOST_CORE_XLSX_NOTEBOOK_PROOF.md, DnaTreeCalc/docs/model/CORE_MODEL_SPEC.md, DnaTreeCalc/docs/ux/SKINS.md, DnaTreeCalc/docs/ux/TECHNICAL.md",
+   "exit": 1,
+   "note": "Not pinned (unavailable to the lookup); not read."
+  }
+ ],
+ "not_ported": [
+  {
+   "items": [
+    "oxdoc-xlsx: CustomXmlEdit::{AddItem, UpdateItem, DeleteItem} for arbitrary items, read_custom_xml_store's report of item properties, schemaRefs, orphan item properties and related parts, validate_custom_xml_payload"
+   ],
+   "reason": "General custom XML editing and reporting; this bead writes only the DNA manifest and copies every other custom XML part as stored.",
+   "beads": [
+    "cdoc-m6.4",
+    "cdoc-m4.3"
+   ],
+   "beads_basis": "cdoc-m6.4 Do: 'Preserve vbaProject.bin, customXml, content types and package/application extension parts on safe edits'; cdoc-m4.3 acceptance: 'Deleting a sheet removes only owned parts and leaves unrelated drawing/customXml relationships valid'."
+  },
+  {
+   "items": [
+    "DnaTreeCalc B.7/F.4: the hidden, append-only _names backing sheet"
+   ],
+   "reason": "Plan section 8.2 rejects it: a block's backing cells are an ordinary visible worksheet or existing cells, reached through hidden locator names.",
+   "beads": [],
+   "beads_basis": "Plan section 8.2 and the claim note of cdoc-m2.1."
+  },
+  {
+   "items": [
+    "Reconciling a manifest with a workbook Excel edited: a renamed or removed locator, a deleted backing sheet, a stripped manifest"
+   ],
+   "reason": "Not in OxDoc; this bead loads such a block without an anchor (LayoutWarning::UnresolvedLocator) and invents nothing.",
+   "beads": [
+    "chost-m2.4"
+   ],
+   "beads_basis": "chost-m2.4 title: 'Reconcile non-Excel layouts after real Excel edits'."
+  }
+ ],
+ "owner_search": {
+  "rule": "grep -n -i -E 'custom ?xml' over docs/plan/BEAD_DETAILS.md and .beads/issues.jsonl, each hit's bead read by its Do and acceptance; plus the beads the claim note names (cdoc-m3.1, cfml-m3.1, chost-m2.4)",
+  "hits": [
+   "cdoc-m2.1",
+   "cdoc-m4.3",
+   "cdoc-m6.4"
+  ]
+ },
+ "legacy_tests": [
+  {
+   "file": "crates/oxdoc-xlsx/src/lib.rs (its #[cfg(test)] module)",
+   "blob": "1180c25219aec811008b202ff3ffed45dd5d0564",
+   "lookup": {
+    "command": "cargo xtask pin-sources --lookup OxDoc/crates/oxdoc-xlsx/src/lib.rs",
+    "exit": 0,
+    "calls_quarantined": []
+   },
+   "tests": [
+    {
+     "test": "custom_xml_edit_noop_preserves_bytes_and_package_edges",
+     "disposition": "kept",
+     "replaced_by": "cdoc_m2_1__manifest_roundtrip",
+     "reason": "A save whose layout is as loaded writes no manifest part: the case saves a cell-only revision of the read version 1 manifest of manifest-v1.xlsx and compares the stored bytes of customXml/item2.xml, customXml/itemProps2.xml, customXml/_rels/item2.xml.rels, the workbook relationships and [Content_Types].xml with the source's; its layout-only saves compare every entry they do not rewrite with the source's stored bytes."
+    },
+    {
+     "test": "custom_xml_edit_updates_existing_item_payload_only",
+     "disposition": "changed",
+     "replaced_by": "cdoc_m2_1__manifest_roundtrip",
+     "reason": "Only the item part is rewritten (the item properties and relationships stay as stored), but from its own bytes for the new layout, with its unknown fields kept, not replaced by caller bytes."
+    },
+    {
+     "test": "custom_xml_edit_adds_item_with_props_relationships_and_content_type",
+     "disposition": "changed",
+     "replaced_by": "cdoc_m2_1__manifest_roundtrip",
+     "reason": "The added item's numbering, item properties (itemID, schemaRef), item relationships and content type override are kept; the relationship that reaches it is the workbook part's, not the package's."
+    }
+   ]
+  }
+ ],
+ "semantic_changes": [
+  {
+   "change": "A save that changes cells now reads the workbook part's definedNames and refuses (SaveRefusal::InvalidPart, before any byte is written) a workbook part that holds two definedNames elements; before this bead such a save succeeded and copied both. Load still accepts that workbook part.",
+   "path": "cdoc-m1.3's authored save: crates/calc-doc/src/save/parts.rs workbook, which replaced full_calc_on_load and rewrites calcPr and definedNames in one pass",
+   "reason": "One reader of the workbook part serves calcPr and the locator names; a schema-invalid part with two definedNames elements is refused rather than rewritten. Kept as the orchestrator decided (round-1 judge, item 7)."
+  },
+  {
+   "change": "LoadedWorkbook::defined_names_not_loaded counts every defined name but the locators that became a block's anchor; before this bead it counted every definedName element. The signature is unchanged and its callers are in calc-doc only.",
+   "path": "crates/calc-doc/src/load/mod.rs",
+   "reason": "A resolved locator is loaded, as the block's anchor."
+  },
+  {
+   "change": "A locator is only a hidden (hidden=\"1\" or \"true\"), workbook-scoped defined name named _dna.block. and 32 hex digits. A manifest block whose locator attribute names any other name (a user's Rate, a visible or sheet-scoped name of that form) loads without an anchor (LayoutWarning::UnresolvedLocator), and a layout save never removes or changes that name; a layout save removes only hidden, workbook-scoped names of that form that are the locator of a block it removed.",
+   "path": "crates/calc-doc/src/load/manifest.rs load_layout, is_locator_form; crates/calc-doc/src/save/author.rs layout_changes; crates/calc-doc/src/save/parts.rs workbook",
+   "reason": "The claim note: every defined name other than a locator survives a save as the source wrote it (round-1 judge, item 2)."
+  },
+  {
+   "change": "A rewritten manifest keeps every byte between the children of blocks, views and each view (whitespace, comments, processing instructions) and every unknown child in its place among the known ones: the blocks or placements of the new order take the source's places in turn, so an unknown child after the second placement stays after the second placement of the new order. Comments and unknown content inside a removed block or placement go with it; nothing else is dropped.",
+   "path": "crates/calc-doc/src/save/manifest.rs container, slotted",
+   "reason": "Preserve unknown manifest fields on compatible edits (the bead's Do); the round-1 rewrite dropped comments and moved unknown children after the known ones (round-1 judge, item 8)."
+  }
+ ],
+ "limits": [
+  "Unmeasured choices that the owner's Excel check settles (an agent cannot run Excel): every DNA manifest's item properties carry the one fixed datastore itemID {8C3B6A52-1D4E-4F7A-9B20-5E61D7C4A913}; the manifest namespace and schemaRef is urn:dnacalc:view-manifest; a locator's text always quotes the sheet name ('Notebook'!$B$5). Whether Excel opens a saved package without a repair prompt and keeps the manifest and the hidden names through its own save is not shown by any case.",
+  "The grid view of the DNA manifest holds only the order of its placements. The Excel grid's own view state (selection, scroll, frozen panes, zoom) stays in each worksheet's sheetViews, which calc-doc copies as written; nothing in the DNA manifest duplicates it. Recorded as the orchestrator decided (round-1 judge, item 9).",
+  "A block may be created over cells of a hidden or veryHidden sheet: ModelRoot::apply checks only that the anchor's sheet exists, since plan section 8.2 also allows linking existing cells (round-1 judge, item 12).",
+  "An item the XML reader refuses is recognized as a DNA manifest only by the namespace URI in its bytes (UTF-8 or an ASCII-compatible encoding, UTF-16, UTF-32); a manifest whose namespace URI is written only with character references, or in another encoding, is not recognized and the package loads as one without a manifest.",
+  "LoadedWorkbook::check_layout_save judges each layout edit, not the revision: edits that leave the layout as loaded (a block created and removed again) are judged as edits, though a save of that revision writes no layout. prepare_save stays the last check, and also refuses for reasons the check does not judge, such as a workbook part with two definedNames elements."
+ ]
+}

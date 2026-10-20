@@ -94,6 +94,11 @@
     {"item": "save::SaveRefusal::SharedSheetPart", "callers": [{"file": "crates/calc-doc/src/save/author.rs", "fn": "plan"}], "case": "cdoc_m1_3__save_refusal"},
     {"item": "save::SaveRefusal::FormulaTooLong", "callers": [{"file": "crates/calc-doc/src/save/author.rs", "fn": "check_formulas"}], "case": "cdoc_m1_3__save_refusal"},
     {"item": "save::SaveRefusal::FormulaSyntax", "callers": [{"file": "crates/calc-doc/src/save/author.rs", "fn": "check_formulas"}], "case": "cdoc_m1_3__save_refusal"},
-    {"item": "save::SaveRefusal::PackageTooLarge", "callers": [{"file": "crates/calc-doc/src/save/mod.rs", "fn": "prepare_save"}], "case": "cdoc_m1_3__save_refusal"}
+    {"item": "save::SaveRefusal::PackageTooLarge", "callers": [{"file": "crates/calc-doc/src/save/mod.rs", "fn": "prepare_save"}], "case": "cdoc_m1_3__save_refusal"},
+    {"item": "load::manifest::LayoutWarning::UnsupportedVersion", "callers": [{"file": "crates/calc-doc/src/load/manifest.rs", "fn": "load_layout"}], "case": "cdoc_m2_1__unknown_version"},
+    {"item": "load::manifest::LayoutWarning::UnreadableManifest", "callers": [{"file": "crates/calc-doc/src/load/manifest.rs", "fn": "load_layout"}], "case": "cdoc_m2_1__unknown_version"},
+    {"item": "load::manifest::LayoutWarning::UnresolvedLocator", "callers": [{"file": "crates/calc-doc/src/load/manifest.rs", "fn": "load_layout"}], "case": "cdoc_m2_1__manifest_roundtrip"},
+    {"item": "save::SaveRefusal::LayoutNotWritable", "callers": [{"file": "crates/calc-doc/src/save/author.rs", "fn": "layout_changes"}, {"file": "crates/calc-doc/src/load/mod.rs", "fn": "LoadedWorkbook::check_layout_save"}], "case": "cdoc_m2_1__unknown_version"},
+    {"item": "save::SaveRefusal::LocatorNameTaken", "callers": [{"file": "crates/calc-doc/src/save/parts.rs", "fn": "workbook"}, {"file": "crates/calc-doc/src/load/mod.rs", "fn": "LoadedWorkbook::check_layout_save"}], "case": "cdoc_m2_1__manifest_roundtrip"}
   ]
 }

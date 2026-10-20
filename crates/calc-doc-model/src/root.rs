@@ -1,7 +1,9 @@
-//! The immutable model root: one authored revision of a document's sheets and their cells.
+//! The immutable model root: one authored revision of a document's sheets, their cells and its
+//! skin layout.
 
 use crate::cells::{Bounds, CellPage, OccupiedCells, SheetPages, locate};
 use crate::input::CellInput;
+use crate::layout::{BlockId, LayoutError, SkinLayout, SkinLayoutEdit};
 use crate::op::{OpBatch, WorkbookOp};
 use crate::revision::AuthoredRevision;
 use crate::sheet::{SheetKey, SheetName, SheetVisibility};
@@ -55,7 +57,8 @@ impl SheetEntry {
     }
 }
 
-/// Why [`ModelRoot::new`] or [`ModelRoot::with_cells`] refused its sheets or cells.
+/// Why [`ModelRoot::new`], [`ModelRoot::with_cells`] or [`ModelRoot::with_layout`] refused its
+/// sheets, cells or layout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ModelRootError {
     /// Two sheets have this key.
@@ -64,6 +67,8 @@ pub enum ModelRootError {
     DuplicateSheetId(SheetId),
     /// This cell lies on a sheet the root does not hold.
     CellOnUnknownSheet(CellKey),
+    /// This block's anchor lies on a sheet the root does not hold.
+    BlockOnUnknownSheet(BlockId),
 }
 
 impl fmt::Display for ModelRootError {
@@ -79,6 +84,10 @@ impl fmt::Display for ModelRootError {
                 at.row(),
                 at.column(),
                 at.sheet()
+            ),
+            ModelRootError::BlockOnUnknownSheet(block) => write!(
+                f,
+                "the anchor of the block {block} lies on a sheet the root does not hold"
             ),
         }
     }
@@ -119,6 +128,12 @@ pub enum ApplyError {
     /// The operation at this index inserts, renames, moves, removes, shows or hides a sheet. This
     /// package does not apply sheet edits; cdoc-m4.3 authors the sheet lifecycle.
     SheetEdit { operation: usize },
+    /// The skin layout edit at this index is refused, against the layout the batch's earlier
+    /// operations leave.
+    Layout {
+        operation: usize,
+        error: LayoutError,
+    },
 }
 
 impl fmt::Display for ApplyError {
@@ -145,15 +160,18 @@ impl fmt::Display for ApplyError {
                 f,
                 "operation {operation} edits the workbook's sheets, which the model root does not apply"
             ),
+            ApplyError::Layout { operation, error } => {
+                write!(f, "operation {operation} edits the skin layout: {error}")
+            }
         }
     }
 }
 
 impl std::error::Error for ApplyError {}
 
-/// One authored revision of a document: the revision, the sheets in order, and each sheet's
-/// authored cell inputs. A root is immutable and shared behind an `Arc`; a change makes a new
-/// root. It maps each sheet's [`SheetKey`] to its [`SheetId`] and back, which is how wire
+/// One authored revision of a document: the revision, the sheets in order, each sheet's authored
+/// cell inputs, and the document's [`SkinLayout`], which is document-only metadata that no
+/// calculation reads. A root is immutable and shared behind an `Arc`; a change makes a new root. It maps each sheet's [`SheetKey`] to its [`SheetId`] and back, which is how wire
 /// operations, which carry keys, are resolved.
 ///
 /// A sheet's cells are held in [`CellPage`]s, each the occupied cells of one block of
@@ -169,28 +187,32 @@ impl std::error::Error for ApplyError {}
 /// Each root made by [`ModelRoot::new`] or [`ModelRoot::with_cells`] starts a lineage of its own,
 /// and every root [`ModelRoot::apply`] makes continues the lineage of the root it was applied to,
 /// so [`ModelRoot::same_lineage`] tells a revision of a document from a root built apart from it,
-/// such as another load of the same file. Equality compares the revision, the sheets and the
-/// cells, not the lineage.
+/// such as another load of the same file. Equality compares the revision, the sheets, the cells
+/// and the layout, not the lineage.
 #[derive(Debug)]
 pub struct ModelRoot {
     revision: AuthoredRevision,
     sheets: Vec<SheetEntry>,
     /// The cells of the sheet at the same position of `sheets`.
     cells: Vec<SheetPages>,
+    layout: Arc<SkinLayout>,
     lineage: u64,
 }
 
 impl PartialEq for ModelRoot {
     fn eq(&self, other: &Self) -> bool {
-        self.revision == other.revision && self.sheets == other.sheets && self.cells == other.cells
+        self.revision == other.revision
+            && self.sheets == other.sheets
+            && self.cells == other.cells
+            && self.layout == other.layout
     }
 }
 
 impl Eq for ModelRoot {}
 
 impl ModelRoot {
-    /// The root of these sheets, in this order, with no cells, at `revision`; refused when two
-    /// sheets share a key or an ID.
+    /// The root of these sheets, in this order, with no cells and an empty layout, at `revision`;
+    /// refused when two sheets share a key or an ID.
     pub fn new(
         revision: AuthoredRevision,
         sheets: Vec<SheetEntry>,
@@ -201,6 +223,7 @@ impl ModelRoot {
             revision,
             sheets,
             cells,
+            layout: Arc::default(),
             lineage: new_lineage(),
         }))
     }
@@ -211,13 +234,33 @@ impl ModelRoot {
     /// [`crate::PAGE_COLUMNS`] columns that holds a cell gets one page, built once; a block without
     /// one gets no page, so the root's size follows the cells given, not the extent they span.
     ///
-    /// Refused when two sheets share a key or an ID, or a cell lies on a sheet not among them.
+    /// Refused when two sheets share a key or an ID, or a cell lies on a sheet not among them. The
+    /// root's layout is empty.
     pub fn with_cells(
         revision: AuthoredRevision,
         sheets: Vec<SheetEntry>,
         cells: impl IntoIterator<Item = (CellKey, CellInput)>,
     ) -> Result<Arc<ModelRoot>, ModelRootError> {
+        Self::with_layout(revision, sheets, cells, SkinLayout::default())
+    }
+
+    /// [`ModelRoot::with_cells`] with a skin layout: how a document's first revision is built from
+    /// a file that holds a view manifest. Refused as [`ModelRoot::with_cells`] refuses, and when a
+    /// block's anchor lies on a sheet not among the sheets.
+    pub fn with_layout(
+        revision: AuthoredRevision,
+        sheets: Vec<SheetEntry>,
+        cells: impl IntoIterator<Item = (CellKey, CellInput)>,
+        layout: SkinLayout,
+    ) -> Result<Arc<ModelRoot>, ModelRootError> {
         check_sheets(&sheets)?;
+        for block in layout.blocks() {
+            if let Some(anchor) = block.anchor()
+                && !sheets.iter().any(|sheet| sheet.id == anchor.sheet())
+            {
+                return Err(ModelRootError::BlockOnUnknownSheet(block.id()));
+            }
+        }
         let positions: BTreeMap<SheetId, usize> = sheets
             .iter()
             .enumerate()
@@ -244,6 +287,7 @@ impl ModelRoot {
             revision,
             sheets,
             cells: pages,
+            layout: Arc::new(layout),
             lineage: new_lineage(),
         }))
     }
@@ -261,6 +305,13 @@ impl ModelRoot {
     /// The sheets in workbook order.
     pub fn sheets(&self) -> &[SheetEntry] {
         &self.sheets
+    }
+
+    /// The skin layout: the blocks and their placements in each view. A root made by
+    /// [`ModelRoot::apply`] from a batch that leaves the layout as it was shares it with the root
+    /// it was applied to, by pointer.
+    pub fn layout(&self) -> &Arc<SkinLayout> {
+        &self.layout
     }
 
     pub fn sheet_by_key(&self, key: SheetKey) -> Option<&SheetEntry> {
@@ -324,7 +375,9 @@ impl ModelRoot {
     /// The root that applying `batch` to this one makes, at the next revision. Operations apply
     /// in order: a later operation on a cell sees what an earlier one left there. A
     /// [`WorkbookOp::SetCell`] replaces one cell's input and a [`WorkbookOp::Clear`] empties every
-    /// cell of its area.
+    /// cell of its area. A [`WorkbookOp::EditSkinLayout`] edits the layout, against the layout the
+    /// earlier operations leave; it changes no cell, and a block it creates is anchored on a sheet
+    /// the root holds.
     ///
     /// The new root holds a new page for each block whose cells the batch changed, and no page
     /// for a block it left empty; each page is built once per batch, however many operations
@@ -333,8 +386,9 @@ impl ModelRoot {
     /// paths. This root is unchanged; the caller decides whether the new root replaces it.
     ///
     /// Refused, with nothing made, when the batch is based on another revision, the revision is
-    /// the last one, an operation names a sheet the root does not hold, or the batch holds a
-    /// structural edit ([`ApplyError::AxisEdit`], [`ApplyError::SheetEdit`]).
+    /// the last one, an operation names a sheet the root does not hold, the batch holds a
+    /// structural edit ([`ApplyError::AxisEdit`], [`ApplyError::SheetEdit`]), or a layout edit is
+    /// refused ([`ApplyError::Layout`]).
     pub fn apply(&self, batch: &OpBatch) -> Result<Arc<ModelRoot>, ApplyError> {
         if batch.base != self.revision {
             return Err(ApplyError::StaleBase {
@@ -350,6 +404,8 @@ impl ModelRoot {
         // A working copy of each page the batch touches, by (sheet position, page row, page
         // column), made from this root's page the first time an operation changes the block.
         let mut touched: BTreeMap<(usize, u32, u32), BTreeMap<u16, CellInput>> = BTreeMap::new();
+        // A working copy of the layout, made from this root's the first time an operation edits it.
+        let mut layout: Option<SkinLayout> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetCell { at, input } => {
@@ -390,6 +446,15 @@ impl ModelRoot {
                 }
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
+                WorkbookOp::EditSkinLayout(edit) => {
+                    if let SkinLayoutEdit::CreateBlock { anchor, .. } = edit {
+                        self.position_of(operation, anchor.sheet())?;
+                    }
+                    layout
+                        .get_or_insert_with(|| SkinLayout::clone(&self.layout))
+                        .edit(edit)
+                        .map_err(|error| ApplyError::Layout { operation, error })?;
+                }
             }
         }
 
@@ -403,10 +468,15 @@ impl ModelRoot {
                 (_, new) => cells[sheet].set_page(page_row, page_column, new.map(Arc::new)),
             }
         }
+        let layout = match layout {
+            Some(layout) if layout != *self.layout => Arc::new(layout),
+            _ => Arc::clone(&self.layout),
+        };
         Ok(Arc::new(ModelRoot {
             revision,
             sheets: self.sheets.clone(),
             cells,
+            layout,
             lineage: self.lineage,
         }))
     }

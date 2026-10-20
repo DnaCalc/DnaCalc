@@ -1,0 +1,617 @@
+{
+    "format":  "cdoc-m2.1-fixture-manifest/1",
+    "generator":  "make-fixtures.ps1",
+    "packages":  [
+                     {
+                         "file":  "notebook.xlsx",
+                         "length":  3448,
+                         "sheets":  [
+                                        {
+                                            "name":  "Notebook",
+                                            "sheet_id":  1,
+                                            "part":  "xl/worksheets/sheet1.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "004C006F0061006E0020006E006F007400650062006F006F006B"
+                                                          },
+                                                          {
+                                                              "ref":  "A3",
+                                                              "kind":  "text",
+                                                              "units":  "0054006800650020007000720069006E0063006900700061006C002000740069006D00650073002000740068006500200072006100740065002C0020007400680065006E002000740068006500200074006F00740061006C0020006F0066002000740068006500200069006E0070007500740073002E"
+                                                          },
+                                                          {
+                                                              "ref":  "B5",
+                                                              "kind":  "formula",
+                                                              "text":  "Data!B1*Rate"
+                                                          },
+                                                          {
+                                                              "ref":  "B6",
+                                                              "kind":  "formula",
+                                                              "text":  "SUM(Data!B1:B3)"
+                                                          }
+                                                      ]
+                                        },
+                                        {
+                                            "name":  "Data",
+                                            "sheet_id":  2,
+                                            "part":  "xl/worksheets/sheet2.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "005000720069006E0063006900700061006C"
+                                                          },
+                                                          {
+                                                              "ref":  "B1",
+                                                              "kind":  "number",
+                                                              "text":  "1000",
+                                                              "bits":  "408F400000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B2",
+                                                              "kind":  "number",
+                                                              "text":  "5",
+                                                              "bits":  "4014000000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B3",
+                                                              "kind":  "number",
+                                                              "text":  "7",
+                                                              "bits":  "401C000000000000"
+                                                          }
+                                                      ]
+                                        }
+                                    ],
+                         "defined_names":  [
+                                               {
+                                                   "name":  "Local",
+                                                   "text":  "Notebook!$A$1",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  0
+                                               },
+                                               {
+                                                   "name":  "Rate",
+                                                   "text":  "Data!$B$2",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  null
+                                               }
+                                           ],
+                         "custom_xml":  [
+                                            {
+                                                "part":  "customXml/item1.xml",
+                                                "crc32":  555571317,
+                                                "size":  135
+                                            },
+                                            {
+                                                "part":  "customXml/itemProps1.xml",
+                                                "crc32":  1507971444,
+                                                "size":  295
+                                            },
+                                            {
+                                                "part":  "customXml/_rels/item1.xml.rels",
+                                                "crc32":  3514010184,
+                                                "size":  295
+                                            }
+                                        ],
+                         "dna_manifest":  null
+                     },
+                     {
+                         "file":  "manifest-v1.xlsx",
+                         "length":  4875,
+                         "sheets":  [
+                                        {
+                                            "name":  "Notebook",
+                                            "sheet_id":  1,
+                                            "part":  "xl/worksheets/sheet1.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "004C006F0061006E0020006E006F007400650062006F006F006B"
+                                                          },
+                                                          {
+                                                              "ref":  "A3",
+                                                              "kind":  "text",
+                                                              "units":  "0054006800650020007000720069006E0063006900700061006C002000740069006D00650073002000740068006500200072006100740065002C0020007400680065006E002000740068006500200074006F00740061006C0020006F0066002000740068006500200069006E0070007500740073002E"
+                                                          },
+                                                          {
+                                                              "ref":  "B5",
+                                                              "kind":  "formula",
+                                                              "text":  "Data!B1*Rate"
+                                                          },
+                                                          {
+                                                              "ref":  "B6",
+                                                              "kind":  "formula",
+                                                              "text":  "SUM(Data!B1:B3)"
+                                                          }
+                                                      ]
+                                        },
+                                        {
+                                            "name":  "Data",
+                                            "sheet_id":  2,
+                                            "part":  "xl/worksheets/sheet2.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "005000720069006E0063006900700061006C"
+                                                          },
+                                                          {
+                                                              "ref":  "B1",
+                                                              "kind":  "number",
+                                                              "text":  "1000",
+                                                              "bits":  "408F400000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B2",
+                                                              "kind":  "number",
+                                                              "text":  "5",
+                                                              "bits":  "4014000000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B3",
+                                                              "kind":  "number",
+                                                              "text":  "7",
+                                                              "bits":  "401C000000000000"
+                                                          }
+                                                      ]
+                                        }
+                                    ],
+                         "defined_names":  [
+                                               {
+                                                   "name":  "Local",
+                                                   "text":  "Notebook!$A$1",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  0
+                                               },
+                                               {
+                                                   "name":  "Rate",
+                                                   "text":  "Data!$B$2",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  null
+                                               },
+                                               {
+                                                   "name":  "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f01",
+                                                   "text":  "Notebook!$A$1",
+                                                   "hidden":  true,
+                                                   "local_sheet_id":  null
+                                               },
+                                               {
+                                                   "name":  "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f02",
+                                                   "text":  "\u0027Notebook\u0027!$B$5",
+                                                   "hidden":  true,
+                                                   "local_sheet_id":  null
+                                               },
+                                               {
+                                                   "name":  "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f03",
+                                                   "text":  "\u0027Notebook\u0027!$B$5:$B$6",
+                                                   "hidden":  true,
+                                                   "local_sheet_id":  null
+                                               }
+                                           ],
+                         "custom_xml":  [
+                                            {
+                                                "part":  "customXml/item1.xml",
+                                                "crc32":  555571317,
+                                                "size":  135
+                                            },
+                                            {
+                                                "part":  "customXml/itemProps1.xml",
+                                                "crc32":  1507971444,
+                                                "size":  295
+                                            },
+                                            {
+                                                "part":  "customXml/_rels/item1.xml.rels",
+                                                "crc32":  3514010184,
+                                                "size":  295
+                                            },
+                                            {
+                                                "part":  "customXml/item2.xml",
+                                                "crc32":  2108719685,
+                                                "size":  2250
+                                            },
+                                            {
+                                                "part":  "customXml/itemProps2.xml",
+                                                "crc32":  101580670,
+                                                "size":  299
+                                            },
+                                            {
+                                                "part":  "customXml/_rels/item2.xml.rels",
+                                                "crc32":  2305631072,
+                                                "size":  295
+                                            }
+                                        ],
+                         "dna_manifest":  {
+                                              "part":  "customXml/item2.xml",
+                                              "version":  "1",
+                                              "blocks":  [
+                                                             {
+                                                                 "id":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f01",
+                                                                 "kind":  "prose",
+                                                                 "locator":  "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f01",
+                                                                 "anchor":  {
+                                                                                "sheet":  "Notebook",
+                                                                                "ref":  "A1"
+                                                                            }
+                                                             },
+                                                             {
+                                                                 "id":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f02",
+                                                                 "kind":  "calculation",
+                                                                 "locator":  "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f02",
+                                                                 "anchor":  {
+                                                                                "sheet":  "Notebook",
+                                                                                "ref":  "B5"
+                                                                            }
+                                                             },
+                                                             {
+                                                                 "id":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f03",
+                                                                 "kind":  "calculation",
+                                                                 "locator":  "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f03",
+                                                                 "anchor":  {
+                                                                                "sheet":  "Notebook",
+                                                                                "ref":  "B5:B6"
+                                                                            }
+                                                             },
+                                                             {
+                                                                 "id":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f04",
+                                                                 "kind":  "prose",
+                                                                 "locator":  "_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f04",
+                                                                 "anchor":  null
+                                                             }
+                                                         ],
+                                              "notebook":  [
+                                                               {
+                                                                   "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b911",
+                                                                   "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f01"
+                                                               },
+                                                               {
+                                                                   "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b912",
+                                                                   "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f02"
+                                                               },
+                                                               {
+                                                                   "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b913",
+                                                                   "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f03"
+                                                               }
+                                                           ],
+                                              "tree":  [
+                                                           {
+                                                               "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b921",
+                                                               "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f01",
+                                                               "parent":  null
+                                                           },
+                                                           {
+                                                               "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b922",
+                                                               "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f02",
+                                                               "parent":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b921"
+                                                           },
+                                                           {
+                                                               "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b923",
+                                                               "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f03",
+                                                               "parent":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b921"
+                                                           }
+                                                       ],
+                                              "canvas":  [
+                                                             {
+                                                                 "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b931",
+                                                                 "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f02",
+                                                                 "x":  "10",
+                                                                 "y":  "20",
+                                                                 "width":  "200",
+                                                                 "height":  "80"
+                                                             },
+                                                             {
+                                                                 "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b932",
+                                                                 "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f03",
+                                                                 "x":  "-35.5",
+                                                                 "y":  "140",
+                                                                 "width":  "240",
+                                                                 "height":  "120"
+                                                             }
+                                                         ],
+                                              "grid":  [
+                                                           {
+                                                               "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b941",
+                                                               "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f02"
+                                                           },
+                                                           {
+                                                               "id":  "7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b942",
+                                                               "block":  "0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f04"
+                                                           }
+                                                       ],
+                                              "unknown_fields":  [
+                                                                     "\u003cmanifest xmlns=\"urn:dnacalc:view-manifest\" version=\"1\" generator=\"make-fixtures.ps1\"\u003e",
+                                                                     "\u003cblock id=\"0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f01\" kind=\"prose\" locator=\"_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f01\" style=\"lead\"/\u003e",
+                                                                     "\u003cblock id=\"0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f02\" kind=\"calculation\" locator=\"_dna.block.0f3e7a215c6b4d8ea1f23b4c5d6e7f02\"\u003e\u003cmarkdown\u003e**Payment** at the rate\u003c/markdown\u003e\u003c/block\u003e",
+                                                                     "\u003cgroup name=\"g1\"/\u003e",
+                                                                     "\u003cannotations\u003e\u003cnote\u003ekept\u003c/note\u003e\u003c/annotations\u003e",
+                                                                     "\u003cplacement id=\"7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b912\" block=\"0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f02\"\u003e\u003cx:extra xmlns:x=\"urn:example:ext\" note=\"1\"/\u003e\u003c/placement\u003e",
+                                                                     "\u003ctree expanded=\"all\"\u003e",
+                                                                     "zoom=\"2\"",
+                                                                     "\u003ctimeline\u003e\u003cplacement id=\"7d2c1b0a-9e8f-4a6b-b5c4-d3e2f1a0b951\" block=\"0f3e7a21-5c6b-4d8e-a1f2-3b4c5d6e7f01\" at=\"2026-10-20\"/\u003e\u003c/timeline\u003e"
+                                                                 ]
+                                          }
+                     },
+                     {
+                         "file":  "manifest-v2.xlsx",
+                         "length":  4491,
+                         "sheets":  [
+                                        {
+                                            "name":  "Notebook",
+                                            "sheet_id":  1,
+                                            "part":  "xl/worksheets/sheet1.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "004C006F0061006E0020006E006F007400650062006F006F006B"
+                                                          },
+                                                          {
+                                                              "ref":  "A3",
+                                                              "kind":  "text",
+                                                              "units":  "0054006800650020007000720069006E0063006900700061006C002000740069006D00650073002000740068006500200072006100740065002C0020007400680065006E002000740068006500200074006F00740061006C0020006F0066002000740068006500200069006E0070007500740073002E"
+                                                          },
+                                                          {
+                                                              "ref":  "B5",
+                                                              "kind":  "formula",
+                                                              "text":  "Data!B1*Rate"
+                                                          },
+                                                          {
+                                                              "ref":  "B6",
+                                                              "kind":  "formula",
+                                                              "text":  "SUM(Data!B1:B3)"
+                                                          }
+                                                      ]
+                                        },
+                                        {
+                                            "name":  "Data",
+                                            "sheet_id":  2,
+                                            "part":  "xl/worksheets/sheet2.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "005000720069006E0063006900700061006C"
+                                                          },
+                                                          {
+                                                              "ref":  "B1",
+                                                              "kind":  "number",
+                                                              "text":  "1000",
+                                                              "bits":  "408F400000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B2",
+                                                              "kind":  "number",
+                                                              "text":  "5",
+                                                              "bits":  "4014000000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B3",
+                                                              "kind":  "number",
+                                                              "text":  "7",
+                                                              "bits":  "401C000000000000"
+                                                          }
+                                                      ]
+                                        }
+                                    ],
+                         "defined_names":  [
+                                               {
+                                                   "name":  "Local",
+                                                   "text":  "Notebook!$A$1",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  0
+                                               },
+                                               {
+                                                   "name":  "Rate",
+                                                   "text":  "Data!$B$2",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  null
+                                               },
+                                               {
+                                                   "name":  "_dna.block.3a9b1c7d2e4f4a609b8c7d6e5f4a3b21",
+                                                   "text":  "\u0027Notebook\u0027!$A$1",
+                                                   "hidden":  true,
+                                                   "local_sheet_id":  null
+                                               },
+                                               {
+                                                   "name":  "_dna.block.3a9b1c7d2e4f4a609b8c7d6e5f4a3b22",
+                                                   "text":  "\u0027Notebook\u0027!$B$5",
+                                                   "hidden":  true,
+                                                   "local_sheet_id":  null
+                                               }
+                                           ],
+                         "custom_xml":  [
+                                            {
+                                                "part":  "customXml/item1.xml",
+                                                "crc32":  555571317,
+                                                "size":  135
+                                            },
+                                            {
+                                                "part":  "customXml/itemProps1.xml",
+                                                "crc32":  1507971444,
+                                                "size":  295
+                                            },
+                                            {
+                                                "part":  "customXml/_rels/item1.xml.rels",
+                                                "crc32":  3514010184,
+                                                "size":  295
+                                            },
+                                            {
+                                                "part":  "customXml/item2.xml",
+                                                "crc32":  674354899,
+                                                "size":  338
+                                            },
+                                            {
+                                                "part":  "customXml/itemProps2.xml",
+                                                "crc32":  101580670,
+                                                "size":  299
+                                            },
+                                            {
+                                                "part":  "customXml/_rels/item2.xml.rels",
+                                                "crc32":  2305631072,
+                                                "size":  295
+                                            }
+                                        ],
+                         "dna_manifest":  {
+                                              "part":  "customXml/item2.xml",
+                                              "version":  "2",
+                                              "blocks":  [
+
+                                                         ],
+                                              "notebook":  [
+
+                                                           ],
+                                              "tree":  [
+
+                                                       ],
+                                              "canvas":  [
+
+                                                         ],
+                                              "grid":  [
+
+                                                       ],
+                                              "unknown_fields":  [
+
+                                                                 ]
+                                          }
+                     },
+                     {
+                         "file":  "manifest-unreadable.xlsx",
+                         "length":  4505,
+                         "sheets":  [
+                                        {
+                                            "name":  "Notebook",
+                                            "sheet_id":  1,
+                                            "part":  "xl/worksheets/sheet1.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "004C006F0061006E0020006E006F007400650062006F006F006B"
+                                                          },
+                                                          {
+                                                              "ref":  "A3",
+                                                              "kind":  "text",
+                                                              "units":  "0054006800650020007000720069006E0063006900700061006C002000740069006D00650073002000740068006500200072006100740065002C0020007400680065006E002000740068006500200074006F00740061006C0020006F0066002000740068006500200069006E0070007500740073002E"
+                                                          },
+                                                          {
+                                                              "ref":  "B5",
+                                                              "kind":  "formula",
+                                                              "text":  "Data!B1*Rate"
+                                                          },
+                                                          {
+                                                              "ref":  "B6",
+                                                              "kind":  "formula",
+                                                              "text":  "SUM(Data!B1:B3)"
+                                                          }
+                                                      ]
+                                        },
+                                        {
+                                            "name":  "Data",
+                                            "sheet_id":  2,
+                                            "part":  "xl/worksheets/sheet2.xml",
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "kind":  "text",
+                                                              "units":  "005000720069006E0063006900700061006C"
+                                                          },
+                                                          {
+                                                              "ref":  "B1",
+                                                              "kind":  "number",
+                                                              "text":  "1000",
+                                                              "bits":  "408F400000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B2",
+                                                              "kind":  "number",
+                                                              "text":  "5",
+                                                              "bits":  "4014000000000000"
+                                                          },
+                                                          {
+                                                              "ref":  "B3",
+                                                              "kind":  "number",
+                                                              "text":  "7",
+                                                              "bits":  "401C000000000000"
+                                                          }
+                                                      ]
+                                        }
+                                    ],
+                         "defined_names":  [
+                                               {
+                                                   "name":  "Local",
+                                                   "text":  "Notebook!$A$1",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  0
+                                               },
+                                               {
+                                                   "name":  "Rate",
+                                                   "text":  "Data!$B$2",
+                                                   "hidden":  false,
+                                                   "local_sheet_id":  null
+                                               },
+                                               {
+                                                   "name":  "_dna.block.6c5d4e3f2a1b4c0d8e9fa0b1c2d3e4f1",
+                                                   "text":  "\u0027Notebook\u0027!$A$1",
+                                                   "hidden":  true,
+                                                   "local_sheet_id":  null
+                                               }
+                                           ],
+                         "custom_xml":  [
+                                            {
+                                                "part":  "customXml/item1.xml",
+                                                "crc32":  555571317,
+                                                "size":  135
+                                            },
+                                            {
+                                                "part":  "customXml/itemProps1.xml",
+                                                "crc32":  1507971444,
+                                                "size":  295
+                                            },
+                                            {
+                                                "part":  "customXml/_rels/item1.xml.rels",
+                                                "crc32":  3514010184,
+                                                "size":  295
+                                            },
+                                            {
+                                                "part":  "customXml/item2.xml",
+                                                "crc32":  3805484770,
+                                                "size":  392
+                                            },
+                                            {
+                                                "part":  "customXml/itemProps2.xml",
+                                                "crc32":  101580670,
+                                                "size":  299
+                                            },
+                                            {
+                                                "part":  "customXml/_rels/item2.xml.rels",
+                                                "crc32":  2305631072,
+                                                "size":  295
+                                            }
+                                        ],
+                         "dna_manifest":  {
+                                              "part":  "customXml/item2.xml",
+                                              "version":  "1",
+                                              "blocks":  [
+
+                                                         ],
+                                              "notebook":  [
+
+                                                           ],
+                                              "tree":  [
+
+                                                       ],
+                                              "canvas":  [
+
+                                                         ],
+                                              "grid":  [
+
+                                                       ],
+                                              "unknown_fields":  [
+
+                                                                 ]
+                                          }
+                     }
+                 ]
+}
