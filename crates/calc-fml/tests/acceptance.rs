@@ -17,15 +17,17 @@
 //! `calc_fml::instantiate` and `calc_fml::evaluate`, over the same logging catalogue and a reader
 //! of their own, which reports consecutive stored cells as one run of values and logs the areas it
 //! is asked for and the runs it reports: its log of requested areas is the provider-call counter.
-//! The expected values are of three kinds, and none has been compared with Excel here:
-//! - rows with an Excel value (=1+2*3 is 7) are derived by hand from Excel's documented operator
-//!   and function rules;
-//! - some values rest on choices Microsoft does not document, made by hand and not measured: SUM
-//!   returns the first error of its range in row-major order, and a blank cell read as a number
-//!   is 0;
-//! - the rows that expect a typed refusal (FunctionFault::NotImplemented for =B1^0.5,
-//!   EvalFault::AreaAsValue for =A1:A3+1, EvalFault::NearZeroFinalSum for the near-zero rows)
-//!   expect the implementation's current answer, not Excel's value, and are labelled so.
+//! None of the cfml-m1.3 expected values has been compared with Excel here. They are of two
+//! kinds:
+//! - values derived by hand from Excel's documented operator, function and reference rules
+//!   (=1+2*3 is 7; a reference to deleted cells is #REF!);
+//! - every other expected value is the implementation's current answer, where Excel's behaviour
+//!   is undocumented, not measured or not modelled: each typed refusal (CompileError, EvalFault
+//!   such as AreaAsValue, MissingInput and NearZeroFinalSum, FunctionFault such as
+//!   NotImplemented), the binary64 result the evaluator publishes for a near-zero row it does not
+//!   refuse (=1*(0.5-0.4-0.1)), and the choices made by hand: SUM's first error in row-major
+//!   order, 0 for a formula whose value is a blank cell, and #REF! for a reference placed off the
+//!   grid (Excel may wrap on some routes; dc-ds2z measures it).
 //!
 //! cfunc-m1.2's oracle capture is the Excel evidence for the operators and functions; bead
 //! dc-r4ci reads it for the near-zero rows.
@@ -2333,7 +2335,8 @@ fn cfml_m1_3__reuse_plan() {
 
     // One plan placed at three more anchors: one row down it reads A2:A4 (SUM skips A4's text:
     // (10+3)*2), at F20 the blank D11:D13, and at C3 its rows lie above the grid, so it is #REF!
-    // without a read.
+    // without a read. That #REF! is cfml-m1.2's choice, not measured: Excel may wrap a relative
+    // reference around the grid on some routes (dc-ds2z measures it).
     let placements = [
         (
             anchor_at(s1, "C11"),
