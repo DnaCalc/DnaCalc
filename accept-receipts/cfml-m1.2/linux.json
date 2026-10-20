@@ -145,7 +145,7 @@
           "calc-doc": 16,
           "calc-doc-model": 12,
           "calc-engine": 4,
-          "calc-fml": 11,
+          "calc-fml": 15,
           "calc-func": 10,
           "calc-host": 1,
           "calc-value": 5,
@@ -162,7 +162,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "72 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "76 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -260,7 +260,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 72,
+        "files_scanned": 76,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -273,7 +273,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "72 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "76 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
@@ -298,9 +298,9 @@
             "pub_traits": 0
           },
           "calc-fml": {
-            "entries": 89,
-            "entries_reach_unproven": 89,
-            "pub_enum_variants": 87,
+            "entries": 100,
+            "entries_reach_unproven": 100,
+            "pub_enum_variants": 98,
             "pub_traits": 2
           },
           "calc-func": {
@@ -341,14 +341,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 353,
+          "entries_reach_unproven": 364,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 346 pub enum variants and 7 pub traits; their seams.json files list 353 entries, 353 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 357 pub enum variants and 7 pub traits; their seams.json files list 364 entries, 364 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -380,7 +380,7 @@
             "masked": {
               "commit_messages": 0,
               "files": 3,
-              "tracker_records": 1
+              "tracker_records": 2
             },
             "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
           },
@@ -439,9 +439,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 79,
+          "commit_messages": 100,
           "files": 20,
-          "tracker_records": 324
+          "tracker_records": 329
         },
         "tracker": {
           "ceng-m7.1": {
@@ -492,7 +492,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 324 tracker records, 0 in 0 of 79 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 329 tracker records, 0 in 0 of 100 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -833,7 +833,7 @@
         "--nocapture"
       ],
       "case": "cfml_m1_2__relative_absolute",
-      "duration_s": 0.048,
+      "duration_s": 0.035,
       "exit_code": 0,
       "log": "target/accept/cfml-m1.2/linux/cfml_m1_2__relative_absolute.log",
       "notes": [
@@ -842,7 +842,7 @@
       "outcome": "passed",
       "package": "calc-fml",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s"
     },
     {
       "argv": [
@@ -861,7 +861,7 @@
         "--nocapture"
       ],
       "case": "cfml_m1_2__provider_reads",
-      "duration_s": 0.047,
+      "duration_s": 0.035,
       "exit_code": 0,
       "log": "target/accept/cfml-m1.2/linux/cfml_m1_2__provider_reads.log",
       "notes": [
@@ -870,7 +870,7 @@
       "outcome": "passed",
       "package": "calc-fml",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s"
     }
   ],
   "command": [
@@ -896,13 +896,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 3.247,
+      "duration_s": 0.033,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/cfml-m1.2/linux/command-1.log",
       "outcome": "passed",
@@ -927,13 +927,13 @@
         "calc-fml",
         "--lib"
       ],
-      "duration_s": 2.946,
+      "duration_s": 0.038,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        "test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/cfml-m1.2/linux/command-2.log",
       "outcome": "passed",
@@ -1029,7 +1029,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 17.384,
+  "duration_s": 6.225,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1037,9 +1037,20 @@
     "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
     "git": {
       "branch": "master",
-      "dirty": false,
-      "dirty_paths": [],
-      "head": "eb669eb3d30bda2c287fac412d76e77308dc0c13",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "329b509fc6419f3f249596070cb2d730aab33ff6",
+          "path": "accept-receipts/cfml-m1.3/linux.json",
+          "status": "M"
+        },
+        {
+          "blob": "cdb7089095658bb53c76d7b6fe5435557692742d",
+          "path": "accept-receipts/dc-2mlz/linux.json",
+          "status": "??"
+        }
+      ],
+      "head": "6be58163c6222bb858c8a226f1255b62e536ff1d",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -1078,5 +1089,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-20T15:51:02Z"
+  "started_utc": "2026-10-20T17:39:30Z"
 }
