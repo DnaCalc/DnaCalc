@@ -8,12 +8,17 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-value"
+              ],
               "calc-fml": [
                 "calc-func",
                 "calc-value"
@@ -43,12 +48,17 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-value"
+              ],
               "calc-fml": [
                 "calc-func",
                 "calc-value"
@@ -79,12 +89,17 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-value"
+              ],
               "calc-fml": [
                 "calc-func",
                 "calc-value"
@@ -127,9 +142,9 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 10,
-          "calc-doc-model": 11,
-          "calc-engine": 1,
+          "calc-doc": 16,
+          "calc-doc-model": 12,
+          "calc-engine": 4,
           "calc-fml": 11,
           "calc-func": 10,
           "calc-host": 1,
@@ -147,7 +162,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "62 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "72 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -245,7 +260,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 62,
+        "files_scanned": 72,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -258,34 +273,34 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "62 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "72 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
       "details": {
         "packages": {
           "calc-doc": {
-            "entries": 50,
-            "entries_reach_unproven": 50,
-            "pub_enum_variants": 48,
+            "entries": 81,
+            "entries_reach_unproven": 81,
+            "pub_enum_variants": 79,
             "pub_traits": 2
           },
           "calc-doc-model": {
-            "entries": 56,
-            "entries_reach_unproven": 56,
-            "pub_enum_variants": 56,
+            "entries": 61,
+            "entries_reach_unproven": 61,
+            "pub_enum_variants": 61,
             "pub_traits": 0
           },
           "calc-engine": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
+            "entries": 16,
+            "entries_reach_unproven": 16,
+            "pub_enum_variants": 16,
             "pub_traits": 0
           },
           "calc-fml": {
-            "entries": 85,
-            "entries_reach_unproven": 85,
-            "pub_enum_variants": 83,
+            "entries": 89,
+            "entries_reach_unproven": 89,
+            "pub_enum_variants": 87,
             "pub_traits": 2
           },
           "calc-func": {
@@ -326,14 +341,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 297,
+          "entries_reach_unproven": 353,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 290 pub enum variants and 7 pub traits; their seams.json files list 297 entries, 297 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 346 pub enum variants and 7 pub traits; their seams.json files list 353 entries, 353 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -424,9 +439,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 65,
+          "commit_messages": 79,
           "files": 20,
-          "tracker_records": 322
+          "tracker_records": 324
         },
         "tracker": {
           "ceng-m7.1": {
@@ -477,7 +492,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 322 tracker records, 0 in 0 of 65 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 324 tracker records, 0 in 0 of 79 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -818,11 +833,11 @@
         "--nocapture"
       ],
       "case": "cfml_m1_2__relative_absolute",
-      "duration_s": 0.043,
+      "duration_s": 0.048,
       "exit_code": 0,
       "log": "target/accept/cfml-m1.2/linux/cfml_m1_2__relative_absolute.log",
       "notes": [
-        "36 placements at two or more callers gave the areas decoded by the case; 23 references refused (#REF! qualifier, off-grid placement, or outside the grid at binding)"
+        "36 placements at two or more callers gave the areas decoded by the case; 34 references refused (#REF! qualifier or deleted cells, off-grid placement, or outside the grid or a lone $ row or column at binding)"
       ],
       "outcome": "passed",
       "package": "calc-fml",
@@ -850,7 +865,7 @@
       "exit_code": 0,
       "log": "target/accept/cfml-m1.2/linux/cfml_m1_2__provider_reads.log",
       "notes": [
-        "the catalogue was asked for 5 sheet names and the reader for 5 typed areas; 8 values lent in place, 1048576 blank and 2 missing cells counted apart"
+        "the catalogue was asked for 11 sheet names and the reader for 5 typed areas; 8 values lent in place, 1048576 blank and 2 missing cells counted apart; 15 values lent in 5 runs of up to four cells that continue across row ends"
       ],
       "outcome": "passed",
       "package": "calc-fml",
@@ -881,7 +896,7 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 2.738,
+      "duration_s": 3.247,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -912,7 +927,7 @@
         "calc-fml",
         "--lib"
       ],
-      "duration_s": 1.847,
+      "duration_s": 2.946,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -1014,7 +1029,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 12.567,
+  "duration_s": 17.384,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1024,7 +1039,7 @@
       "branch": "master",
       "dirty": false,
       "dirty_paths": [],
-      "head": "637cfa6903d4832f78b171c21515804994856f04",
+      "head": "eb669eb3d30bda2c287fac412d76e77308dc0c13",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -1063,5 +1078,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-20T14:40:37Z"
+  "started_utc": "2026-10-20T15:51:02Z"
 }
