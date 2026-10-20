@@ -89,6 +89,17 @@
     {"item": "reference::read::CellRun::Values", "callers": [{"file": "crates/calc-fml/src/reference/read.rs", "fn": "CellRun::len"}], "case": "cfml_m1_2__provider_reads"},
     {"item": "reference::read::CellRun::Blank", "callers": [{"file": "crates/calc-fml/src/reference/read.rs", "fn": "CellRun::len"}], "case": "cfml_m1_2__provider_reads"},
     {"item": "reference::read::CellRun::Missing", "callers": [{"file": "crates/calc-fml/src/reference/read.rs", "fn": "CellRun::len"}], "case": "cfml_m1_2__provider_reads"},
-    {"item": "reference::read::ReferenceReader", "callers": [{"file": "crates/calc-fml/src/reference/read.rs", "fn": "read_cells"}], "case": "cfml_m1_2__provider_reads"}
+    {"item": "reference::read::ReferenceReader", "callers": [{"file": "crates/calc-fml/src/reference/read.rs", "fn": "read_cells"}], "case": "cfml_m1_2__provider_reads"},
+    {"item": "eval::compile::CompileError::Syntax", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "compile"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::expression"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::call"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "text"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::compile::CompileError::Reference", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::reference"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::compile::CompileError::Unsupported", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "unsupported"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::compile::CompileError::UnknownFunction", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "target"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::compile::CompileError::Arity", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::call"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::compile::CompileError::NumberLiteral", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "number"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::run::EvalFault::Function", "callers": [{"file": "crates/calc-fml/src/eval/run.rs", "fn": "Run::function_fault"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::run::EvalFault::MissingInput", "callers": [{"file": "crates/calc-fml/src/eval/cells.rs", "fn": "ReadRefusal::fault"}, {"file": "crates/calc-fml/src/eval/cells.rs", "fn": "SharedReader::value_of"}], "case": "cfml_m1_3__lazy_if"},
+    {"item": "eval::run::EvalFault::ReadContract", "callers": [{"file": "crates/calc-fml/src/eval/cells.rs", "fn": "ReadRefusal::fault"}, {"file": "crates/calc-fml/src/eval/cells.rs", "fn": "SharedReader::value_of"}], "case": "cfml_m1_3__lazy_if"},
+    {"item": "eval::run::EvalFault::AreaAsValue", "callers": [{"file": "crates/calc-fml/src/eval/cells.rs", "fn": "SharedReader::value_of"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::run::EvalFault::NearZeroFinalSum", "callers": [{"file": "crates/calc-fml/src/eval/run.rs", "fn": "Run::near_zero_check"}], "case": "cfml_m1_3__reuse_plan"}
   ]
 }

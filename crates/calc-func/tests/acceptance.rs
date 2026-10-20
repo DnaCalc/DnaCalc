@@ -1793,7 +1793,7 @@ const NEAR_EQUAL: Owner = Owner {
     behaviour: "Excel's comparison of nearly equal numbers",
 };
 const NEAR_ZERO: Owner = Owner {
-    bead: "cfml-m1.3",
+    bead: "dc-r4ci",
     behaviour: "the near-zero adjustment of + and - by the formula's final operation",
 };
 const POWER_ALGORITHM: Owner = Owner {
@@ -2654,7 +2654,8 @@ fn compare_with_excel(rows: &Rows, other: fn(bool) -> Rows) {
 // cfunc_m1_2__mixed_operands
 
 /// The cells the mixed-operand rows read; A5 and A6 are blank. C2 holds a text of 32767
-/// characters, the longest a cell holds, and C1 one character less.
+/// characters, the longest a cell holds, and C1 one character less. C3 and C4 hold two numbers
+/// of 14 significant digits that differ in the last.
 fn mixed_operands_sheet() -> TestSheet {
     let (shorter, longest) = ("a".repeat(32_766), "a".repeat(32_767));
     TestSheet::new(&[
@@ -2668,6 +2669,16 @@ fn mixed_operands_sheet() -> TestSheet {
         ("B3", "10", CalcValue::number(10.0)),
         ("C1", "text of 32766 \"a\" characters", text_value(&shorter)),
         ("C2", "text of 32767 \"a\" characters", text_value(&longest)),
+        (
+            "C3",
+            "123456789012.34",
+            CalcValue::number(123_456_789_012.34),
+        ),
+        (
+            "C4",
+            "123456789012.33",
+            CalcValue::number(123_456_789_012.33),
+        ),
     ])
 }
 
@@ -2902,6 +2913,41 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
             num("1.225")
         ],
         N(-2.220446049250313e-16)
+    );
+    // Boundary rows for the measurement of that rule: a final - whose result is exact and not
+    // zero (1E15+1-1E15 is 1), two residuals of decimal fractions, and the difference of two
+    // nearly equal constant cells.
+    owned_by!(
+        r,
+        s,
+        NEAR_ZERO,
+        MINUS,
+        [arg("1E15+1", CalcValue::number(1e15 + 1.0)), num("1E15")],
+        N(1.0)
+    );
+    owned_by!(
+        r,
+        s,
+        NEAR_ZERO,
+        MINUS,
+        [arg("0.1+0.2", CalcValue::number(0.1 + 0.2)), num("0.3")],
+        N(5.551115123125783e-17)
+    );
+    owned_by!(
+        r,
+        s,
+        NEAR_ZERO,
+        MINUS,
+        [arg("1+1E-15", CalcValue::number(1.0 + 1e-15)), num("1")],
+        N(1.1102230246251565e-15)
+    );
+    owned_by!(
+        r,
+        s,
+        NEAR_ZERO,
+        MINUS,
+        [cell(s, "C3"), cell(s, "C4")],
+        N(0.0099945068359375)
     );
 
     // Comparison coerces nothing: numbers order before text and text before logicals, a blank

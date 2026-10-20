@@ -1,0 +1,362 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfml-m1.3",
+  "written": "2026-10-20",
+  "sources": [
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/eval/mod.rs",
+      "blob": "9e815094f12634345776eaf2b99eaefdb680b2c7",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); read at the pinned blob with git cat-file",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/eval/mod.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "clean_replacements": "The file evaluates through oxfunc_core (FunctionCallTarget, the surface dispatch, the IF, IFERROR and selector surfaces, the resolver and its value types). The port replaces every one of them with calc_func::catalogue, calc_func::invoke and calc_func::value (cfunc-m1.1, cfunc-m1.2), and the reference services with cfml-m1.2's ReferenceOperand, ReferenceReader and read_cells. No code of the file, and nothing it takes from oxfunc_core, is copied; the entries below re-implement the behaviour of the named symbols.",
+      "ported": [
+        {
+          "symbol": "CompiledFormulaPlan, CompiledExpr, compile_formula_for_evaluation, compile_expr_for_evaluation",
+          "to": "crates/calc-fml/src/eval/mod.rs CompiledPlan, Instruction, Literal, Target; crates/calc-fml/src/eval/compile.rs compile, Lowering",
+          "kept": [
+            "a formula is compiled once into a plan that evaluation runs without binding again",
+            "operators and functions are resolved to function-call targets when the plan is compiled"
+          ],
+          "changes": [
+            {
+              "change": "A plan is flat instruction blocks (block 0 the formula, one block per argument of a lazy call) run on an explicit operand stack, held in an Arc and Send + Sync, instead of a recursive CompiledExpr tree evaluated with stacker::maybe_grow, Rc and RefCell.",
+              "reason": "The Do: Arc<CompiledPlan>, immutable instructions apart from the mutable frame. The operand stack is explicit, but evaluation is not: evaluate consumes its EvalFrame and recurses on the native stack into the blocks of lazy calls, as deep as the formula nests them, so an evaluation cannot be suspended and resumed. Plan section 4.3's explicit evaluation stack is cfml-m2.3's. Witnessed by cfml_m1_3__reuse_plan (one Arc held by the cache, the case's handle and the instance; CompiledPlan and FormulaInstance asserted Send + Sync)."
+            },
+            {
+              "change": "Each operator and function is resolved through calc_func::catalogue().resolve_surface by notation and spelling to a catalogue target with a stable FunctionId. A name the catalogue lacks is CompileError::UnknownFunction, and an argument count outside the arity CompileError::Arity, both at compile.",
+              "reason": "The Do: route every function through CalcFunc. A function the catalogue does not hold yet may be a real Excel function, so it is refused rather than given #NAME?. Witnessed by cfml_m1_3__reuse_plan (=NOSUCH(1), =IF(1)) and eval::compile::tests::refusals_are_typed."
+            },
+            {
+              "change": "A number literal is converted to its nearest binary64 at compile. One with more than 15 significant digits, beyond binary64's range, subnormal, or underflowing to 0 is CompileError::NumberLiteral. The pinned file kept the source text and failed evaluation when it did not parse.",
+              "reason": "Excel rounds a longer literal to 15 digits at entry, a rule owned by cfml-m2.6 and not modelled here; that Excel converts every literal of at most 15 digits to the same binary64 is not measured by this bead. Compile admits a literal above 9.99999999999999E+307, the largest number Excel's specifications let a cell be given, up to binary64's maximum (=1E308 compiles to the binary64 1E308); what Excel does with such a literal in a formula is not measured. Witnessed by cfml_m1_3__reuse_plan (=1234567890123456) and eval::compile::tests::number_literals."
+            },
+            {
+              "change": "Syntax that is not lowered is refused at compile with CompileError::Unsupported naming its owner: names (cfml-m3.1), the range operator between separate references, intersection, union, @ and # (cfml-m3.3), array constants (cfml-m3.4) and calls of an expression's value (cfml-m2.3).",
+              "reason": "No hidden fallback: a construct this bead does not evaluate is typed, not approximated. Witnessed by cfml_m1_3__reuse_plan (=TaxRate*2, =SUM({1,2})) and eval::compile::tests::unsupported_constructs_name_their_owner."
+            }
+          ]
+        },
+        {
+          "symbol": "evaluate_formula, evaluate_root_expr_value, evaluate_expr_value, evaluate_function_call, evaluate_ordinary_function_call, evaluate_binary_operator_call, evaluate_unary_operator_call, EvaluationFrame, EvaluationFrameState, PooledFunctionCallScratch",
+          "to": "crates/calc-fml/src/eval/mod.rs EvalFrame, EvalScratch, EvaluationServices, FormulaInstance, instantiate; crates/calc-fml/src/eval/run.rs evaluate, Run::block, Run::call, Run::admit, Evaluated",
+          "kept": [
+            "an eager call's arguments are evaluated in order before the call",
+            "a function's argument preparation follows its catalogue metadata",
+            "call scratch is reused across calls instead of allocated for each"
+          ],
+          "changes": [
+            {
+              "change": "Every operator and function, IF included, runs through calc_func::invoke on its catalogue target. A reference passed to a Value parameter is replaced by its one cell's value before the call; a reference passed to a ValueOrReference parameter reaches the kernel as a reference, which the kernel reads through calc_func::CellReader, bridged to the caller's ReferenceReader.",
+              "reason": "The Do: route every function through CalcFunc and every reference through the typed reader. Witnessed by cfml_m1_3__reuse_plan (=SUM(A1:A3)*2, =Sheet2!A1&\"x\" and =SUM(Sheet2!B1:B3)-A1 with the reader's request logs; runs of several values that cross row ends, in A1:A3, E1:F3 and H1:I2, reach SUM value by value in row-major order) and eval::cells::tests."
+            },
+            {
+              "change": "The mutable state of one evaluation is an EvalFrame, made for one call and consumed by calc_fml::evaluate, over the caller's reusable EvalScratch (the operand stack and a pool of calc_func::FunctionCallScratch, one per level of lazy calls). A FormulaInstance places a plan's operands at one anchor, each as its area or the PlacementError that gives #REF!.",
+              "reason": "The Do: caller-owned EvalScratch and a per-call EvalFrame, separate from the immutable instructions, and an instantiate API. Witnessed by cfml_m1_3__reuse_plan and cfml_m1_3__lazy_if (one EvalScratch reused across every evaluation of each case; the =SUM(A1:A3)*2 plan placed at C10, C11, F20 and C3)."
+            },
+            {
+              "change": "A reference to more than one cell where one value is needed (an operator's operand, a Value parameter, the formula's result) is EvalFault::AreaAsValue. The pinned evaluator dereferenced it through its provider.",
+              "reason": "Implicit intersection belongs to cfml-m3.3 and array results to cfml-m3.4. Witnessed by cfml_m1_3__reuse_plan (=A1:A3+1)."
+            },
+            {
+              "change": "A cell the reader reports as missing is EvalFault::MissingInput naming the cell, whether the evaluator or a kernel reads it; a reader that breaks its contract is EvalFault::ReadContract. The pinned evaluator turned an unresolved reference into a worksheet error value.",
+              "reason": "An unresolved input is not a value (plan section 4.2; cfml-m1.2's record leaves the evaluation of a missing cell to this bead): evaluation stops, typed, and the formula is not calculated. Witnessed by cfml_m1_3__lazy_if (=D1/0, and SUM(D1:D3) reading the unresolved D1) and eval::cells::tests::missing_cells_are_unreadable."
+            },
+            {
+              "change": "A formula whose result is a reference to one blank cell gives the number 0.",
+              "reason": "Excel shows 0 for =A1 when A1 is blank; hand-derived, not measured by this bead. Witnessed by cfml_m1_3__reuse_plan (=A4) and eval::run::tests::references_where_values_are_needed."
+            },
+            {
+              "change": "EvaluationBackend (LocalBootstrap and OxFuncBacked) has no counterpart: there is one evaluation route.",
+              "reason": "Honesty rule 5, one evaluator; the bead's Out of scope forbids a second evaluator."
+            }
+          ]
+        },
+        {
+          "symbol": "CompiledExpr::If, CompiledFunctionSpecialForm::If, evaluate_if_call",
+          "to": "crates/calc-fml/src/eval/compile.rs Lowering::call (Instruction::LazyCall); crates/calc-fml/src/eval/run.rs Run::lazy_call, Blocks",
+          "kept": [
+            "IF evaluates its condition, then only the chosen branch"
+          ],
+          "changes": [
+            {
+              "change": "IF is lazy because its catalogue entry declares ArgumentDemand::BranchOnCondition, not because of its name: each argument of a lazy entry is compiled into its own block, and calc-func's IF kernel asks for the condition and then for the branch it chooses, reading the condition with calc-func's coercion. The pinned evaluator recognised IF by name and coerced a text condition itself (coerce_excel_if_text_condition).",
+              "reason": "Plan section 4.3: the catalogue declares argument demand once and CalcFml executes it; the Do: route every function through CalcFunc. Witnessed by cfml_m1_3__lazy_if: each of its 16 evaluations (8 formulas, with B1 = 5 and with B1 = -1) asked the reader for exactly the hand-derived areas, for IF the condition's and then only the chosen branch's; counted in each evaluation, the plan's reference operands that evaluation did not request (those of unselected branches, and of both branches where the condition is an error) are 14 in all; and an unselected branch that reads an unresolved input or divides by zero neither reads nor faults."
+            },
+            {
+              "change": "A fault inside a lazy argument stops the call: the kernel receives #CALC! for that argument and for any later one, without their blocks running, and the call's result is discarded for the fault.",
+              "reason": "calc_func::PreparedArguments::argument cannot report a fault, so the evaluator records it and discards the kernel's result; the #CALC! is never published. Witnessed by cfml_m1_3__lazy_if (=IF(B1>0,\"yes\",D1/0) with B1 = -1 gives MissingInput for D1)."
+            }
+          ]
+        },
+        {
+          "symbol": "publish_root_add_subtract_zero_reaching_result, excel_root_add_subtract_reaches_zero",
+          "to": "crates/calc-fml/src/eval/compile.rs Lowering::expression, final_sum_check; crates/calc-fml/src/eval/mod.rs Instruction::Call (retain), Instruction::Copy, Instruction::NearZeroGuard, Instruction::NearZeroCheck; crates/calc-fml/src/eval/run.rs Run::block, Run::near_zero_check, NEAR_ZERO_BAND, EvalFault::NearZeroFinalSum",
+          "kept": [
+            "only the formula's final + or - is considered: one under a binary operation or an eager function is not (=1*(0.5-0.4-0.1) keeps its binary64 residual)"
+          ],
+          "changes": [
+            {
+              "change": "A non-zero result of the formula's final infix + or - of at most 1e-13 times the magnitude of its larger operand is refused as EvalFault::NearZeroFinalSum instead of being published as 0. The pinned rule published 0 when the result was at most 5e-16 and at most 5 epsilon times the larger operand, and only when the root was not parenthesised; here the final operation is followed through parentheses, a prefix + or - (which changes no magnitude) and the arguments a lazy function may return.",
+              "reason": "Microsoft KB 78113 documents that Excel adjusts the result of a final addition or subtraction near zero, but not its rule; the pinned thresholds rest on probes this pin does not retain, so publishing 0 by them would claim Excel's value without evidence. The band is chosen, not measured, and is not Excel's: it also refuses results that are exact and non-zero (=1E15+1-1E15 is exactly 1). Bead dc-r4ci owns the replacement: it measures Excel's rule on cfunc-m1.2's oracle rows mixed_operands!D53 to D59 (=0.5-0.4-0.1, =1*(0.5-0.4-0.1), =1.333+1.225-1.333-1.225, and the boundary rows =1E15+1-1E15, =0.1+0.2-0.3, =1+1E-15-1 and =C3-C4 with C3 = 123456789012.34 and C4 = 123456789012.33, each published as not modelled with dc-r4ci as its owner) once the owner's capture is taken, and replaces the refusal with the rule. Witnessed by cfml_m1_3__reuse_plan, which evaluates those seven formulas and asserts the evaluator's current answer, not Excel's (six refused with their binary64 results, =1*(0.5-0.4-0.1) published as -2.7755575615628914e-17), and by eval::run::tests::a_final_sum_near_zero_is_refused."
+            },
+            {
+              "change": "Each operand's magnitude is read by calc-func's prefix -, resolved from the catalogue at compile and held in the plan: the final operation's call retains its two operands, a NearZeroGuard skips the rest of the check when the result is not a non-zero number, and otherwise each operand is copied and negated by a Call instruction before NearZeroCheck compares the result with the larger negation. A fault of a negation is EvalFault::Function, as for any call.",
+              "reason": "Every invoke is an instruction of the plan, so an observer of executed instructions (dc-qguw, chost-m6.3) would see each, and no failure is dropped. The guard keeps the negations from running when no check is needed, so they cannot turn a computed error into a fault (under Exact, negating text is refused). Witnessed by eval::compile::tests::final_sum_check_instructions and eval::run::tests::a_final_sum_near_zero_is_refused (=\"a\"-1 gives #VALUE!; =#N/A+\"1\" under Exact gives #N/A while =-\"1\" under Exact is refused)."
+            }
+          ]
+        },
+        {
+          "symbol": "CallableRegistry::get_or_compile_body (its compiled_body_cache)",
+          "to": "crates/calc-fml/src/eval/mod.rs PlanCache, PlanCache::share",
+          "kept": [
+            "an equal structure reuses one compiled allocation, and a different structure gets its own"
+          ],
+          "changes": [
+            {
+              "change": "The cache holds whole formula plans keyed by their normal form, Arc-shared and owned by the caller, instead of LAMBDA bodies keyed by BoundExpr inside a RefCell registry. It never evicts.",
+              "reason": "The Do: a caller-owned PlanCache; eviction belongs to cfml-m2.2. Witnessed by cfml_m1_3__reuse_plan (=SUM(A1:A3)*2 at C10, =SUM(A2:A4)*2 at C11 and =sum(a1:a3) * 2 share one Arc; =SUM($A$1:$A$3)*2 and =SUM(A1:A3)*3 do not)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/binding/profile.rs",
+      "blob": "b5d7caccdab8b9c772722160723920ee6896f143",
+      "pin": "migration/source-manifest.json (pin date 2026-10-15); read at the pinned blob with git cat-file",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/binding/profile.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "ReferenceNormalFormKey",
+          "to": "crates/calc-fml/src/eval/mod.rs CompiledPlan (its Eq and Hash), PlanCache",
+          "kept": [
+            "a reference's identity is its normal form, not its spelling"
+          ],
+          "changes": [
+            {
+              "change": "A plan's identity holds each reference as cfml-m1.2's typed ReferenceOperand (that bead's port of this key) together with the instructions, literals and FunctionIds; there is no string key.",
+              "reason": "The claim note: a PlanCache keyed by normal form. Witnessed by cfml_m1_3__reuse_plan."
+            }
+          ]
+        },
+        {
+          "symbol": "ReferenceFingerprintPolicy (ExcludeCallerAnchorForTemplate, IncludeCallerAnchor)",
+          "to": "crates/calc-fml/src/eval/mod.rs CompiledPlan (excludes the anchor), FormulaInstance and instantiate (include it)",
+          "kept": [
+            "the shared identity excludes the caller's anchor and the placed one includes it"
+          ],
+          "changes": [
+            {
+              "change": "No policy value: a CompiledPlan never holds an anchor, and a FormulaInstance always does.",
+              "reason": "There is one behaviour, Excel's. Witnessed by cfml_m1_3__reuse_plan (one plan placed at C10, C11, F20 and C3, the last giving #REF! from RowOffGrid)."
+            }
+          ]
+        },
+        {
+          "symbol": "FormulaTemplateIdentity, PlacedFormulaIdentity",
+          "to": "crates/calc-fml/src/eval/mod.rs CompiledPlan equality, FormulaInstance",
+          "kept": [
+            "a template identity shared across callers, and a placed identity for each caller"
+          ],
+          "changes": [
+            {
+              "change": "Typed values compared as values instead of String keys.",
+              "reason": "cfml-m1.2's record lists these for cfml-m1.3 and cfml-m2.1; the typed plan is this bead's template. Witnessed by cfml_m1_3__reuse_plan."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "profile.rs: ReferencePolicy"
+      ],
+      "reason": "The Port-from line discards ReferencePolicy, host-reference syntax and the tree profile.",
+      "beads": [],
+      "beads_basis": "cfml-m1.3 Port from."
+    },
+    {
+      "items": [
+        "profile.rs: FormulaSourceIdentity, RuntimeDependencyIdentity"
+      ],
+      "reason": "Source-spelling identity and runtime dependency identity: keys beyond the normal form.",
+      "beads": [
+        "cfml-m2.1",
+        "cfml-m2.2"
+      ],
+      "beads_basis": "cfml-m2.1 Do: 'Key templates by typed R1C1 offsets/absolutes ... Separate binding instantiation keys'; cfml-m2.2 Do: 'lookup-dependency fingerprints'."
+    },
+    {
+      "items": [
+        "eval/mod.rs: CompiledExpr::Let, LambdaLiteral, HelperParameterName, HelperOptionalParameterName, BuiltinCallable and Invocation; CallableOriginKind, CallableInvocationModel, CallableCaptureMode, CallableValueCarrier, CallableValueProfile, CallableDefinedNameBinding, CallableCapturedRef, PortableCallableValue, OxFmlCallableBinding, OxFmlRuntimeCallableHandle, HelperBinding, HelperBindingFrame, LambdaParam, LambdaBinding, RegisteredCallableBinding, CallableRecursionState, CallableRecursionGuard, CallableStackGuard, CallableRegistry (but its body cache), compile_let_call_for_evaluation, compile_lambda_call_for_evaluation, evaluate_let_call, evaluate_lambda_call, evaluate_invocation, portable_callable_for_top_level_result, collect_free_bound_references and its helpers, LOCAL_CALLABLE_STACK_GROW_BYTES and stacker::maybe_grow"
+      ],
+      "reason": "LET, LAMBDA, closures, callable values and their invocation.",
+      "beads": [
+        "cfml-m2.3"
+      ],
+      "beads_basis": "cfml-m2.3 Do: 'Port lexical scope analysis into immutable instructions with frame slots ... expose opaque Arc-backed callable values. Implement an explicit evaluation stack'."
+    },
+    {
+      "items": [
+        "eval/mod.rs: CompiledExpr::IfError and LazySelectorCall, CompiledFunctionSpecialForm (but If), evaluate_iferror_call, evaluate_lazy_selector_call, lazy_selector_surface_probe"
+      ],
+      "reason": "IFERROR, IFNA, IFS, CHOOSE and SWITCH scheduling; none of them is in the catalogue yet.",
+      "beads": [
+        "cfml-m2.4"
+      ],
+      "beads_basis": "cfml-m2.4 Do: 'Implement IF, IFS, CHOOSE, SWITCH, IFERROR and IFNA evaluation scheduling from each function's observed metadata'."
+    },
+    {
+      "items": [
+        "eval/mod.rs: CompiledExpr::ArrayLiteral, evaluate_array_literal, call_arg_resolves_to_array and IF's lifting over an array condition, the ReturnedValueSurface handling (typed_surface_for_top_level_host_or_provider_call, extended_surface_for_top_level_function_call, returned_value_surface_for_output, dereference_final_output_value)"
+      ],
+      "reason": "Array constants, array lifting, and the publication of array and callable results.",
+      "beads": [
+        "cfml-m3.4"
+      ],
+      "beads_basis": "cfml-m3.4 Do: 'Implement scalar, dynamic-array and legacy-CSE evaluation contexts, broadcasting ... Keep cell publication separate from callable/raw formula values'."
+    },
+    {
+      "items": [
+        "eval/mod.rs: CompiledExpr::ImplicitIntersection, CompiledFunctionSpecialForm::LegacySingle, CompiledReferenceExpr::Spill, Range, Union and Intersection, local_offset_reference"
+      ],
+      "reason": "Reference operators, implicit intersection and spill references.",
+      "beads": [
+        "cfml-m3.3"
+      ],
+      "beads_basis": "cfml-m3.3 Do: 'Implement range, union, intersection, spill and implicit-intersection operators'."
+    },
+    {
+      "items": [
+        "eval/mod.rs: DefinedNameBinding, defined_name_binding"
+      ],
+      "reason": "Defined names.",
+      "beads": [
+        "cfml-m3.1"
+      ],
+      "beads_basis": "cfml-m3.1 Do: 'Resolve workbook and sheet-local names'."
+    },
+    {
+      "items": [
+        "eval/mod.rs: the HostFunctionProvider route (evaluate_host_function_call, runtime_capability_denied_for_function, context_allows_host_function_call, allow_host_query_worksheet_error_fallback) and the CALL and REGISTER.ID handling"
+      ],
+      "reason": "Registered and host-provided functions.",
+      "beads": [
+        "cfml-m4.3",
+        "cfunc-m4.1"
+      ],
+      "beads_basis": "cfml-m4.3 Do: 'Compile registered function calls to generation-checked handles'; cfunc-m4.1 ('Expose a source-neutral mutable UDF registry') is found by the heading search below."
+    },
+    {
+      "items": [
+        "eval/mod.rs: the EvaluationContext providers for CELL, INFO, IMAGE and HYPERLINK (HostInfoProvider, LocaleFormatContext, TypedContextQueryBundle) and for RAND, NOW, TODAY and RTD (RandomProvider, RtdProvider)"
+      ],
+      "reason": "Context, volatile and provider-backed functions, none of which is in the catalogue yet.",
+      "beads": [
+        "cfunc-m3.18",
+        "cfunc-m3.19",
+        "ceng-m3.6",
+        "ceng-m4.6"
+      ],
+      "beads_basis": "Found by the heading search below: cfunc-m3.18 'Port information and host-context functions', cfunc-m3.19 'Port volatile and provider-backed function adapters', ceng-m3.6 'Replay volatile time and random effects per tick', ceng-m4.6 'Apply external RTD and async completion operations'."
+    },
+    {
+      "items": [
+        "eval/mod.rs: EvaluationTrace, EvaluationTraceMode, PreparedArgument, PreparedCall, PreparedResult and their class enums, and the prepared-call recording"
+      ],
+      "reason": "Evaluation tracing for OneCalc and formula auditing. This bead leaves room for it (instructions are numbered by their position, so a per-instruction observer or a span map can sit beside the plan without changing it) and builds none.",
+      "beads": [
+        "onecalc-m1.1",
+        "chost-m6.3",
+        "dnacalc-m6.19"
+      ],
+      "beads_basis": "onecalc-m1.1 Do: 'formula text, typed inputs, result, diagnostics and trace'; chost-m6.3 ('Implement formula audit trace and watch commands') and dnacalc-m6.19 ('Implement Evaluate Formula trace watch and error tools') are found by the heading search below."
+    },
+    {
+      "items": [
+        "eval/mod.rs: CompiledExpr::PrecomputedValue, precompute_context_free_expr, expr_can_be_precomputed, expr_is_context_free_value, context_free_eval_value_for_expr, invoke_context_free_function_call"
+      ],
+      "reason": "Constant folding. A plan here holds no folded value, so its key needs no numeric mode; plan section 4.1 requires a folded plan to be keyed by mode and target.",
+      "beads": [],
+      "beads_basis": "No Do read by the rule below, and no heading the search below finds, names constant folding."
+    },
+    {
+      "items": [
+        "eval/mod.rs: EvaluationLocalReferenceSystemProvider, reference_resolution_key, parse_local_area_target, parse_a1_cell, column_label, looks_like_single_cell_reference, resolved_values_from_local_area, calc_array_from_local_area, EvaluationBackend"
+      ],
+      "reason": "A string-keyed local provider and a second backend; cfml-m1.2's ReferenceReader and the one evaluation route replace them.",
+      "beads": [],
+      "beads_basis": "cfml-m1.2 Do: no BTreeMap<String,...> providers; honesty rule 5, one evaluator."
+    }
+  ],
+  "owner_search": {
+    "rule": "The beads of each not_ported entry are the beads, among those migration/source-manifest.json lists for either input (their union: cfml-m1.2, cfml-m1.3, cfml-m2.1, cfml-m2.2, cfml-m2.3, cfml-m2.4, cfml-m2.6, cfml-m3.1, cfml-m3.2, cfml-m3.3, cfml-m3.4, cfml-m3.5, cfml-m4.1, cfml-m4.2, cfml-m4.3, cfml-m5.1, cfml-m6.1, onecalc-m1.1, onecalc-m2.1, onecalc-m8.1), whose Do in docs/plan/BEAD_DETAILS.md names the item's job, read bead by bead, plus the bead headings found by grep -n -i -E over docs/plan/BEAD_DETAILS.md for the terms RTD, INFO, CELL/INFO, HYPERLINK, IMAGE, volatil, RAND, NOW, TODAY, evaluation trace, Evaluate Formula and constant fold, each heading read by its title.",
+    "inputs": "The pinned inputs assigned to cfml-m1.3 are the two entries of migration/source-manifest.json whose beads include cfml-m1.3: eval/mod.rs and binding/profile.rs. Each was looked up with cargo xtask pin-sources --lookup; the transcripts are target/accept/cfml-m1.3/lookup-eval.log and lookup-profile.log (target/ is not committed).",
+    "legacy_tests": "Test names are the #[test] functions of each pinned blob: eval/mod.rs holds 5 and profile.rs none."
+  },
+  "legacy_tests": [
+    {
+      "file": "crates/oxfml_core/src/eval/mod.rs (its #[cfg(test)] modules)",
+      "blob": "9e815094f12634345776eaf2b99eaefdb680b2c7",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/eval/mod.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "tests": [
+        {
+          "test": "compiled_body_cache_reuses_same_shape_and_separates_distinct_shapes",
+          "disposition": "kept",
+          "replaced_by": "cfml_m1_3__reuse_plan",
+          "reason": "Equal normal forms share one Arc (Arc::ptr_eq) and distinct ones do not; whole plans instead of LAMBDA bodies."
+        },
+        {
+          "test": "surface_probe_matches_dispatch_wrapper_on_every_probe_shape, surface_probe_covers_exactly_the_probing_forms",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.4"
+          ],
+          "reason": "Probes of the IFS, CHOOSE and SWITCH selector surfaces, which are not in the catalogue."
+        },
+        {
+          "test": "array_resolving_discriminators_are_kept_off_the_surface_probe",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "beads": [
+            "cfml-m2.4",
+            "cfml-m3.4"
+          ],
+          "reason": "Array-valued discriminators of lazy selectors."
+        },
+        {
+          "test": "oxfml_callable_values_cross_a_thread_boundary_and_keep_their_tokens",
+          "disposition": "changed",
+          "replaced_by": "cfml_m1_3__reuse_plan",
+          "beads": [
+            "cfml-m2.3"
+          ],
+          "reason": "CompiledPlan and FormulaInstance are asserted Send + Sync; callable values and their tokens are cfml-m2.3's."
+        }
+      ]
+    }
+  ]
+}

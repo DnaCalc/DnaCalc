@@ -197,8 +197,9 @@ $eSmall = [string][char]0xE9
 $eCapital = [string][char]0xC9
 
 # Sheet mixed_operands: the cells of cfunc_m1_2__mixed_operands' test sheet (A5 and A6 blank; C2
-# holds a text of 32767 characters, the longest a cell holds, and C1 one character less), and its
-# oracle rows' formulas in its order, the rows whose behaviour another bead owns included.
+# holds a text of 32767 characters, the longest a cell holds, and C1 one character less; C3 and C4
+# hold two numbers of 14 significant digits that differ in the last), and its oracle rows'
+# formulas in its order, the rows whose behaviour another bead owns included.
 $mixedInputs = @(
     (New-Text 'A1' '2'),
     (New-Logical 'A2' $true),
@@ -209,7 +210,9 @@ $mixedInputs = @(
     (New-Number 'B2' '-2'),
     (New-Number 'B3' '10'),
     (New-Text 'C1' ('a' * 32766)),
-    (New-Text 'C2' ('a' * 32767))
+    (New-Text 'C2' ('a' * 32767)),
+    (New-Number 'C3' '123456789012.34'),
+    (New-Number 'C4' '123456789012.33')
 )
 $mixedFormulas = @(
     # Arithmetic operands through worksheet number coercion, decimal text included; then text
@@ -221,11 +224,13 @@ $mixedFormulas = @(
     '"1.2345678901234567"+0', '0+"1e400"',
     # Results (a subnormal one: cfunc-m3.23), ^ (2^3, 10^-2 and 2^0.5: cfunc-m3.3 and
     # cfunc-m3.23), the unary operators, percent (x/100 against x*0.01 at 35% and 57%), and a +
-    # or - near zero (cfml-m1.3: the formula's final operation).
+    # or - near zero (dc-r4ci: the formula's final operation), with boundary rows for its
+    # measurement.
     '1E308*10', '0*-1', '1/0', 'A5/A6', '2.2250738585072014E-308/2', '"2"^2', 'TRUE^2', '2^3',
     '10^-2', '2^0.5', '3^1', '-0', '-"2"', '-TRUE', '-A5', '-""', '-2', '+"a"', '+TRUE', '+A5',
     '50%', '"50"%', 'TRUE%', '7%', '35%', '57%',
-    '0.5-0.4-0.1', '1*(0.5-0.4-0.1)', '1.333+1.225-1.333-1.225',
+    '0.5-0.4-0.1', '1*(0.5-0.4-0.1)', '1.333+1.225-1.333-1.225', '1E15+1-1E15', '0.1+0.2-0.3',
+    '1+1E-15-1', 'C3-C4',
     # Comparison; text collation and nearly equal numbers are cdoc-jpha's.
     '"1"=1', 'A1<>2', '1<"a"', '"a"<TRUE', 'FALSE>1E308', '"a"="A"', 'A5=0', 'A5=""',
     'A5=FALSE', 'A5=A6', 'A5<1', '"abc"<"abd"', '"B">"a"', '"a1"<"aa"', '"10"<"9"', '""<"a"',

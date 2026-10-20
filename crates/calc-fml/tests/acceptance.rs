@@ -12,6 +12,23 @@
 //! (`calc_fml::bind_references`, `ReferenceOperand::instantiate`, `calc_fml::read_cells`), with a
 //! catalogue and a reader defined here that log every call they receive. Expected cells and areas
 //! come from the cases' own A1 decoding, not from calc-fml.
+//!
+//! The cfml-m1.3 cases reach compilation and evaluation only through `calc_fml::compile`,
+//! `calc_fml::instantiate` and `calc_fml::evaluate`, over the same logging catalogue and a reader
+//! of their own, which reports consecutive stored cells as one run of values and logs the areas it
+//! is asked for and the runs it reports: its log of requested areas is the provider-call counter.
+//! The expected values are of three kinds, and none has been compared with Excel here:
+//! - rows with an Excel value (=1+2*3 is 7) are derived by hand from Excel's documented operator
+//!   and function rules;
+//! - some values rest on choices Microsoft does not document, made by hand and not measured: SUM
+//!   returns the first error of its range in row-major order, and a blank cell read as a number
+//!   is 0;
+//! - the rows that expect a typed refusal (FunctionFault::NotImplemented for =B1^0.5,
+//!   EvalFault::AreaAsValue for =A1:A3+1, EvalFault::NearZeroFinalSum for the near-zero rows)
+//!   expect the implementation's current answer, not Excel's value, and are labelled so.
+//!
+//! cfunc-m1.2's oracle capture is the Excel evidence for the operators and functions; bead
+//! dc-r4ci reads it for the near-zero rows.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -25,14 +42,20 @@ use calc_fml::syntax::{
     SyntaxChild, SyntaxDiagnosticKind, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token,
     TokenKind,
 };
+use calc_fml::{
+    CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationServices,
+    FormulaInstance, PlanCache, compile, evaluate, instantiate,
+};
 use calc_fml::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 use calc_func::value::{
-    CalcValue, CellKey, ExcelText, GridArea, IdAllocator, MAX_COLUMNS, MAX_ROWS, SheetId,
-    WorksheetErrorCode,
+    CalcValue, CellKey, ExcelText, GridArea, IdAllocator, MAX_COLUMNS, MAX_ROWS, NumericMode,
+    SheetId, WorksheetErrorCode,
 };
+use calc_func::{FunctionFault, Notation, catalogue};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
+use std::sync::Arc;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -1898,5 +1921,627 @@ fn cfml_m1_2__provider_reads() {
             .iter()
             .map(|(starts, _)| starts.len())
             .sum::<usize>()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfml-m1.3: compiled plans, placed instances and evaluation frames.
+
+fn text_value(text: &str) -> CalcValue {
+    CalcValue::text(ExcelText::from_interop_assignment(text))
+}
+
+/// Compiles `formula`, entered at `anchor` in A1 notation, through calc-fml's production route.
+fn compiled(
+    formula: &str,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+) -> Arc<CompiledPlan> {
+    compile(
+        &parse_formula(formula),
+        ReferenceNotation::A1,
+        anchor,
+        catalog,
+        cache,
+    )
+    .unwrap_or_else(|refused| panic!("{formula}: {refused:?}"))
+}
+
+/// The cfml-m1.3 cases' reader: stored values and unresolved cells; every other cell of a sheet
+/// is blank. It logs each area it is asked for, and each run of values it reports. Runs follow
+/// row-major order over the area: each stretch of consecutive stored cells is one run of values,
+/// which crosses from the end of a row of the area to the start of the next when both are stored;
+/// each unresolved cell is a missing run of one, and each stretch of blanks a blank run.
+#[derive(Default)]
+struct RunReader {
+    values: BTreeMap<CellKey, CalcValue>,
+    unresolved: BTreeSet<CellKey>,
+    requests: Vec<GridArea>,
+    /// Each run of values reported: the area asked for, the run's first cell and its values.
+    value_runs: Vec<(GridArea, CellKey, Vec<CalcValue>)>,
+}
+
+impl RunReader {
+    fn store(&mut self, sheet: SheetId, address: &str, value: CalcValue) {
+        self.values.insert(cell_at(sheet, address), value);
+    }
+
+    fn leave_unresolved(&mut self, sheet: SheetId, address: &str) {
+        self.unresolved.insert(cell_at(sheet, address));
+    }
+}
+
+impl ReferenceReader for RunReader {
+    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+        self.requests.push(area);
+        let first = area.first();
+        let width = u64::from(area.column_count());
+        let offset = |key: &CellKey| {
+            u64::from(key.row() - first.row()) * width + u64::from(key.column() - first.column())
+        };
+        let cell_at_offset = |at: u64| {
+            let row = first.row() + u32::try_from(at / width).expect("a row");
+            let column = first.column() + u32::try_from(at % width).expect("a column");
+            CellKey::new(first.sheet(), row, column).expect("a cell of the area")
+        };
+        let mut marks: Vec<(u64, Option<CalcValue>)> = self
+            .values
+            .iter()
+            .filter(|(key, _)| area.contains(**key))
+            .map(|(key, value)| (offset(key), Some(value.clone())))
+            .chain(
+                self.unresolved
+                    .iter()
+                    .filter(|key| area.contains(**key))
+                    .map(|key| (offset(key), None)),
+            )
+            .collect();
+        marks.sort_by_key(|(at, _)| *at);
+        let mut next = 0;
+        let mut index = 0;
+        while let Some((at, mark)) = marks.get(index) {
+            let at = *at;
+            if at > next && sink(CellRun::Blank(at - next)).is_break() {
+                return;
+            }
+            if mark.is_none() {
+                index += 1;
+                next = at + 1;
+                if sink(CellRun::Missing(1)).is_break() {
+                    return;
+                }
+                continue;
+            }
+            let mut run = Vec::new();
+            while let Some((cell, Some(value))) = marks.get(index) {
+                if *cell != at + run.len() as u64 {
+                    break;
+                }
+                run.push(value.clone());
+                index += 1;
+            }
+            next = at + run.len() as u64;
+            self.value_runs
+                .push((area, cell_at_offset(at), run.clone()));
+            if sink(CellRun::Values(&run)).is_break() {
+                return;
+            }
+        }
+        if next < area.cell_count() {
+            let _ = sink(CellRun::Blank(area.cell_count() - next));
+        }
+    }
+}
+
+/// One evaluation of `instance` in a frame made for it, under the Fast numeric mode, with the
+/// reader's logs cleared first: the result and the areas the reader was asked for. The runs of
+/// values the reader reported stay in its log.
+fn evaluated(
+    instance: &FormulaInstance,
+    reader: &mut RunReader,
+    scratch: &mut EvalScratch,
+) -> (Result<CalcValue, EvalFault>, Vec<GridArea>) {
+    reader.requests.clear();
+    reader.value_runs.clear();
+    let mode = NumericMode::Fast;
+    let result = evaluate(
+        EvalFrame::new(instance, scratch),
+        &mut EvaluationServices::new(&mode, reader),
+    );
+    (result, std::mem::take(&mut reader.requests))
+}
+
+/// An expected evaluation: the result and the areas read, in order.
+type Expected = (Result<CalcValue, EvalFault>, Vec<GridArea>);
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfml_m1_3__reuse_plan() {
+    // A plan and its instances are shared values: Send + Sync, checked by the compiler here.
+    fn shared<T: Send + Sync>() {}
+    shared::<CompiledPlan>();
+    shared::<FormulaInstance>();
+
+    let catalog = LoggingCatalog::new(&["Sheet1", "Sheet2"]);
+    let (s1, s2) = (catalog.id("Sheet1"), catalog.id("Sheet2"));
+    let c10 = anchor_at(s1, "C10");
+    let mut cache = PlanCache::new();
+    let mut scratch = EvalScratch::new();
+    let mut reader = RunReader::default();
+
+    // The provider's first state. Sheet1!A4 and Sheet2!B3 are blank.
+    reader.store(s1, "A1", CalcValue::number(1.0));
+    reader.store(s1, "A2", CalcValue::number(2.0));
+    reader.store(s1, "A3", CalcValue::number(3.0));
+    reader.store(s1, "B1", CalcValue::number(5.0));
+    reader.store(s2, "A1", text_value("a"));
+    reader.store(s2, "B1", CalcValue::number(10.0));
+    reader.store(s2, "B2", CalcValue::number(20.0));
+
+    // Each formula with its hand-derived result in the first state and in the second, where
+    // Sheet1!A2 is 10, Sheet1!B1 is -1, Sheet1!A4 holds "t", Sheet2!A1 holds "b" and Sheet2!B2
+    // is 25.
+    let a1_to_a3 = area_of(s1, "A1", "A3");
+    let power = catalogue()
+        .resolve_surface(Notation::Infix, "^")
+        .expect("the catalogue holds ^");
+    let table: Vec<(&str, Expected, Expected)> = vec![
+        (
+            "=1+2*3",
+            (Ok(CalcValue::number(7.0)), vec![]),
+            (Ok(CalcValue::number(7.0)), vec![]),
+        ),
+        (
+            "=SUM(A1:A3)*2",
+            (Ok(CalcValue::number(12.0)), vec![a1_to_a3]),
+            (Ok(CalcValue::number(28.0)), vec![a1_to_a3]),
+        ),
+        (
+            "=IF(B1>0,\"yes\",1/0)",
+            (Ok(text_value("yes")), vec![one_cell(s1, "B1")]),
+            (
+                Ok(CalcValue::error(WorksheetErrorCode::Div0)),
+                vec![one_cell(s1, "B1")],
+            ),
+        ),
+        (
+            "=Sheet2!A1&\"x\"",
+            (Ok(text_value("ax")), vec![one_cell(s2, "A1")]),
+            (Ok(text_value("bx")), vec![one_cell(s2, "A1")]),
+        ),
+        (
+            "=SUM(Sheet2!B1:B3)-A1",
+            (
+                Ok(CalcValue::number(29.0)),
+                vec![area_of(s2, "B1", "B3"), one_cell(s1, "A1")],
+            ),
+            (
+                Ok(CalcValue::number(34.0)),
+                vec![area_of(s2, "B1", "B3"), one_cell(s1, "A1")],
+            ),
+        ),
+        (
+            "=A4",
+            (Ok(CalcValue::number(0.0)), vec![one_cell(s1, "A4")]),
+            (Ok(text_value("t")), vec![one_cell(s1, "A4")]),
+        ),
+        // calc-func does not model 5^0.5 and refuses it; -1^0.5 is #NUM!.
+        (
+            "=B1^0.5",
+            (
+                Err(EvalFault::Function(FunctionFault::NotImplemented {
+                    id: power.id(),
+                    argument: None,
+                })),
+                vec![one_cell(s1, "B1")],
+            ),
+            (
+                Ok(CalcValue::error(WorksheetErrorCode::Num)),
+                vec![one_cell(s1, "B1")],
+            ),
+        ),
+        // A reference to three cells where + needs one value: implicit intersection is refused.
+        (
+            "=A1:A3+1",
+            (Err(EvalFault::AreaAsValue { area: a1_to_a3 }), vec![]),
+            (Err(EvalFault::AreaAsValue { area: a1_to_a3 }), vec![]),
+        ),
+    ];
+
+    // Compile each formula once and place it at its anchor.
+    let plans: Vec<Arc<CompiledPlan>> = table
+        .iter()
+        .map(|(formula, _, _)| compiled(formula, c10, &catalog, &mut cache))
+        .collect();
+    let instances: Vec<FormulaInstance> = plans.iter().map(|plan| instantiate(plan, c10)).collect();
+    // Compilation asked the catalogue for the two Sheet2 qualifiers.
+    let asked_by_compile = catalog.requests.borrow().clone();
+    assert_eq!(asked_by_compile, ["Sheet2", "Sheet2"]);
+    // The instance places each operand at the anchor: SUM(Sheet2!B1:B3)-A1 reads these areas.
+    assert_eq!(
+        instances[4].areas(),
+        [Ok(area_of(s2, "B1", "B3")), Ok(one_cell(s1, "A1"))]
+    );
+    assert_eq!(plans[4].references().len(), 2);
+
+    // Two evaluations of every instance, with the provider's data changed between them.
+    let mut first = Vec::new();
+    for (instance, (formula, expected, _)) in instances.iter().zip(&table) {
+        let seen = evaluated(instance, &mut reader, &mut scratch);
+        assert_eq!(&seen, expected, "first evaluation of {formula}");
+        first.push(seen.0);
+    }
+    reader.store(s1, "A2", CalcValue::number(10.0));
+    reader.store(s1, "B1", CalcValue::number(-1.0));
+    reader.store(s1, "A4", text_value("t"));
+    reader.store(s2, "A1", text_value("b"));
+    reader.store(s2, "B2", CalcValue::number(25.0));
+    let mut changed = 0;
+    for ((instance, (formula, _, expected)), before) in instances.iter().zip(&table).zip(&first) {
+        let seen = evaluated(instance, &mut reader, &mut scratch);
+        assert_eq!(&seen, expected, "second evaluation of {formula}");
+        if &seen.0 != before {
+            changed += 1;
+        }
+    }
+    // Six of the eight read data that changed, and each of them gave a different result.
+    assert_eq!(changed, 6);
+
+    // Neither evaluation compiled. That rests on the API's structure: a CompiledPlan holds only
+    // its instruction blocks and reference operands, and evaluate receives an instance, a frame
+    // and the services (a numeric mode and a reader), with no formula text, syntax tree,
+    // catalogue or PlanCache to compile from. What the case observes agrees with it: the
+    // catalogue, which compiling a qualified reference asks, was not asked again, and each
+    // instance still runs the plan compile returned, one allocation held by the cache, the case's
+    // handle and the instance.
+    assert_eq!(*catalog.requests.borrow(), asked_by_compile);
+    for (plan, instance) in plans.iter().zip(&instances) {
+        assert!(Arc::ptr_eq(plan, instance.plan()));
+        assert_eq!(Arc::strong_count(plan), 3);
+    }
+
+    // The reader reports consecutive stored cells as one run of values, and the kernels receive
+    // them value by value through the CellReader bridge. SUM(A1:A3) reads one run of three values
+    // down a column, crossing two row ends: 1, 10 and 3 in the second state, whose sum 14 (28
+    // doubled) shows each was visited once.
+    let (result, _) = evaluated(&instances[1], &mut reader, &mut scratch);
+    assert_eq!(result, Ok(CalcValue::number(28.0)));
+    assert_eq!(
+        reader.value_runs,
+        [(
+            a1_to_a3,
+            cell_at(s1, "A1"),
+            vec![
+                CalcValue::number(1.0),
+                CalcValue::number(10.0),
+                CalcValue::number(3.0)
+            ]
+        )]
+    );
+    // A two-column area whose stored cells run across a row end: E1, F1, E2 and F2 hold 1, 2, 4
+    // and 8, one run of four values; E3 is blank and F3 holds 16, a run of one. Each power of two
+    // reaches the sum once. In H1:I2 the run of four holds 1, #DIV/0!, #N/A and 2: SUM's first
+    // error in row-major order is #DIV/0! (in column order it would be #N/A).
+    for (address, value) in [
+        ("E1", CalcValue::number(1.0)),
+        ("F1", CalcValue::number(2.0)),
+        ("E2", CalcValue::number(4.0)),
+        ("F2", CalcValue::number(8.0)),
+        ("F3", CalcValue::number(16.0)),
+        ("H1", CalcValue::number(1.0)),
+        ("I1", CalcValue::error(WorksheetErrorCode::Div0)),
+        ("H2", CalcValue::error(WorksheetErrorCode::NA)),
+        ("I2", CalcValue::number(2.0)),
+    ] {
+        reader.store(s1, address, value);
+    }
+    let walks = [
+        (
+            "=SUM(E1:F3)",
+            Ok(CalcValue::number(31.0)),
+            vec![(cell_at(s1, "E1"), 4), (cell_at(s1, "F3"), 1)],
+        ),
+        (
+            "=SUM(H1:I2)",
+            Ok(CalcValue::error(WorksheetErrorCode::Div0)),
+            vec![(cell_at(s1, "H1"), 4)],
+        ),
+    ];
+    for (formula, expected, runs) in &walks {
+        let instance = instantiate(&compiled(formula, c10, &catalog, &mut cache), c10);
+        let (result, _) = evaluated(&instance, &mut reader, &mut scratch);
+        assert_eq!(&result, expected, "{formula}");
+        let reported: Vec<(CellKey, usize)> = reader
+            .value_runs
+            .iter()
+            .map(|(_, first, values)| (*first, values.len()))
+            .collect();
+        assert_eq!(&reported, runs, "{formula}");
+    }
+    note!(
+        "ACCEPT-NOTE: cfml_m1_3__reuse_plan: the reader reported runs of several values that cross row ends (A1:A3 as one run of 3; E1:F2 as one run of 4 within E1:F3; H1:I2 as one run of 4); SUM's results through the CellReader bridge (28; 31, the sum of five distinct powers of two; #DIV/0!, met before #N/A in row-major order) show each value reached the kernel once, in row-major order"
+    );
+
+    // The near-zero rows of cfunc-m1.2's oracle sheet mixed_operands, whose C3 and C4 hold what
+    // this reader's Sheet1!C3 and C4 hold. Each expected value is the evaluator's current answer,
+    // not Excel's: a final + or - whose binary64 result lies in the chosen band is refused, the
+    // same difference under a final * is published, and =1E15+1-1E15, exactly 1, is refused too.
+    // Bead dc-r4ci measures Excel's rule against the captured rows and replaces the refusal.
+    reader.store(s1, "C3", CalcValue::number(123_456_789_012.34));
+    reader.store(s1, "C4", CalcValue::number(123_456_789_012.33));
+    let near_zero = |result: f64| Err(EvalFault::NearZeroFinalSum { result });
+    let near_zero_rows: [(&str, Expected); 7] = [
+        ("=0.5-0.4-0.1", (near_zero(-2.7755575615628914e-17), vec![])),
+        (
+            "=1*(0.5-0.4-0.1)",
+            (Ok(CalcValue::number(-2.7755575615628914e-17)), vec![]),
+        ),
+        (
+            "=1.333+1.225-1.333-1.225",
+            (near_zero(-2.220446049250313e-16), vec![]),
+        ),
+        ("=1E15+1-1E15", (near_zero(1.0), vec![])),
+        ("=0.1+0.2-0.3", (near_zero(5.551115123125783e-17), vec![])),
+        ("=1+1E-15-1", (near_zero(1.1102230246251565e-15), vec![])),
+        (
+            "=C3-C4",
+            (
+                near_zero(0.0099945068359375),
+                vec![one_cell(s1, "C3"), one_cell(s1, "C4")],
+            ),
+        ),
+    ];
+    for (formula, expected) in &near_zero_rows {
+        let instance = instantiate(&compiled(formula, c10, &catalog, &mut cache), c10);
+        let seen = evaluated(&instance, &mut reader, &mut scratch);
+        assert_eq!(&seen, expected, "{formula}");
+        let answer = match &seen.0 {
+            Ok(value) => value
+                .as_number()
+                .map_or_else(|| format!("{value:?}"), |n| format!("number {n:?}")),
+            Err(fault) => format!("{fault:?}"),
+        };
+        note!(
+            "ACCEPT-NOTE: cfml_m1_3__reuse_plan: near-zero row {formula} -> {answer} (the evaluator's current answer, not Excel's; Excel's rule is measured by dc-r4ci)"
+        );
+    }
+
+    // References to deleted cells (dc-4r8u's binding): =Sheet2!#REF! and =#REF!A1 evaluate to
+    // #REF! without asking the reader for any area, and the error propagates through an operator.
+    for formula in ["=Sheet2!#REF!", "=#REF!A1", "=Sheet2!#REF!+1"] {
+        let instance = instantiate(&compiled(formula, c10, &catalog, &mut cache), c10);
+        let seen = evaluated(&instance, &mut reader, &mut scratch);
+        assert_eq!(
+            seen,
+            (Ok(CalcValue::error(WorksheetErrorCode::Ref)), vec![]),
+            "{formula}"
+        );
+    }
+
+    // The cache keys plans by normal form. The same formula copied one row down, or written with
+    // other case and spacing, is the same plan; absolute references or another literal are not.
+    let sum = &plans[1];
+    let copied = compiled("=SUM(A2:A4)*2", anchor_at(s1, "C11"), &catalog, &mut cache);
+    let respelled = compiled("=sum(a1:a3) * 2", c10, &catalog, &mut cache);
+    let absolute = compiled("=SUM($A$1:$A$3)*2", c10, &catalog, &mut cache);
+    let tripled = compiled("=SUM(A1:A3)*3", c10, &catalog, &mut cache);
+    assert!(Arc::ptr_eq(sum, &copied));
+    assert!(Arc::ptr_eq(sum, &respelled));
+    assert!(!Arc::ptr_eq(sum, &absolute));
+    assert!(!Arc::ptr_eq(sum, &tripled));
+
+    // One plan placed at three more anchors: one row down it reads A2:A4 (SUM skips A4's text:
+    // (10+3)*2), at F20 the blank D11:D13, and at C3 its rows lie above the grid, so it is #REF!
+    // without a read.
+    let placements = [
+        (
+            anchor_at(s1, "C11"),
+            (Ok(CalcValue::number(26.0)), vec![area_of(s1, "A2", "A4")]),
+        ),
+        (
+            anchor_at(s1, "F20"),
+            (Ok(CalcValue::number(0.0)), vec![area_of(s1, "D11", "D13")]),
+        ),
+        (
+            anchor_at(s1, "C3"),
+            (Ok(CalcValue::error(WorksheetErrorCode::Ref)), vec![]),
+        ),
+    ];
+    for (anchor, expected) in &placements {
+        let instance = instantiate(sum, *anchor);
+        assert_eq!(
+            &evaluated(&instance, &mut reader, &mut scratch),
+            expected,
+            "{:?}",
+            anchor.cell()
+        );
+    }
+    assert_eq!(
+        instantiate(sum, anchor_at(s1, "C3")).areas(),
+        [Err(PlacementError::RowOffGrid { resolved: -6 })]
+    );
+
+    // What compile does not lower it refuses, typed, without a plan.
+    let refusals = [
+        ("=1+", "syntax"),
+        ("=Nope!A1", "reference"),
+        ("=TaxRate*2", "unsupported cfml-m3.1"),
+        ("=SUM({1,2})", "unsupported cfml-m3.4"),
+        ("=NOSUCH(1)", "unknown function"),
+        ("=IF(1)", "arity"),
+        ("=1234567890123456", "number literal"),
+    ];
+    for (formula, expected) in refusals {
+        let refusal = compile(
+            &parse_formula(formula),
+            ReferenceNotation::A1,
+            c10,
+            &catalog,
+            &mut cache,
+        )
+        .map(|plan| format!("{plan:?}"));
+        let kind = match &refusal {
+            Err(CompileError::Syntax { .. }) => "syntax".to_owned(),
+            Err(CompileError::Reference { .. }) => "reference".to_owned(),
+            Err(CompileError::Unsupported { owner, .. }) => format!("unsupported {owner}"),
+            Err(CompileError::UnknownFunction { .. }) => "unknown function".to_owned(),
+            Err(CompileError::Arity { .. }) => "arity".to_owned(),
+            Err(CompileError::NumberLiteral { .. }) => "number literal".to_owned(),
+            Ok(plan) => panic!("{formula} compiled: {plan}"),
+        };
+        assert_eq!(kind, expected, "{formula}");
+    }
+
+    note!(
+        "ACCEPT-NOTE: cfml_m1_3__reuse_plan: {} formulas compiled once and each evaluated twice; {} results changed with the provider's data; {} catalogue requests, all made by compile; one plan shared by three formula texts and placed at four anchors; {} near-zero rows evaluated; {} formulas refused by compile, typed",
+        table.len(),
+        changed,
+        asked_by_compile.len(),
+        near_zero_rows.len(),
+        refusals.len()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfml_m1_3__lazy_if() {
+    let catalog = LoggingCatalog::new(&["Sheet1", "Sheet2"]);
+    let (s1, s2) = (catalog.id("Sheet1"), catalog.id("Sheet2"));
+    let c10 = anchor_at(s1, "C10");
+    let mut cache = PlanCache::new();
+    let mut scratch = EvalScratch::new();
+    let mut reader = RunReader::default();
+
+    // B1 decides. D1 is an input the reader cannot supply: reading it is a fault, so a branch
+    // that reads it shows in the reader's log and in the result whenever it is evaluated.
+    reader.store(s1, "B1", CalcValue::number(5.0));
+    reader.store(s1, "A1", CalcValue::number(4.0));
+    reader.store(s1, "A2", CalcValue::number(6.0));
+    reader.store(s1, "C1", CalcValue::number(7.0));
+    reader.leave_unresolved(s1, "D1");
+    reader.store(s1, "D2", CalcValue::number(1.0));
+    reader.store(s1, "E1", CalcValue::error(WorksheetErrorCode::NA));
+    reader.store(s2, "A1", CalcValue::number(1.0));
+    reader.store(s2, "A2", CalcValue::number(2.0));
+    reader.store(s2, "A3", CalcValue::number(3.0));
+
+    let cell = |address: &str| one_cell(s1, address);
+    let missing_d1 = Err(EvalFault::MissingInput {
+        cell: cell_at(s1, "D1"),
+    });
+    // Each formula with its hand-derived result and reads while B1 is 5, then while B1 is -1.
+    let table: Vec<(&str, Expected, Expected)> = vec![
+        // The unselected error branch C1/0 is not read while B1 is 5.
+        (
+            "=IF(B1>0,A1*2,C1/0)",
+            (Ok(CalcValue::number(8.0)), vec![cell("B1"), cell("A1")]),
+            (
+                Ok(CalcValue::error(WorksheetErrorCode::Div0)),
+                vec![cell("B1"), cell("C1")],
+            ),
+        ),
+        // The unselected branch reads the unresolved D1 and divides by zero: while B1 is 5 it is
+        // neither read nor a fault.
+        (
+            "=IF(B1>0,\"yes\",D1/0)",
+            (Ok(text_value("yes")), vec![cell("B1")]),
+            (missing_d1.clone(), vec![cell("B1"), cell("D1")]),
+        ),
+        // A function in the unselected branch is not called: SUM would read D1:D3.
+        (
+            "=IF(B1>0,A1,SUM(D1:D3))",
+            (Ok(CalcValue::number(4.0)), vec![cell("B1"), cell("A1")]),
+            (
+                missing_d1.clone(),
+                vec![cell("B1"), area_of(s1, "D1", "D3")],
+            ),
+        ),
+        // Nested: the inner IF runs only on the outer's TRUE branch, and only its chosen branch.
+        (
+            "=IF(B1>0,IF(A1>5,A1,A2),SUM(Sheet2!A1:A3))",
+            (
+                Ok(CalcValue::number(6.0)),
+                vec![cell("B1"), cell("A1"), cell("A2")],
+            ),
+            (
+                Ok(CalcValue::number(6.0)),
+                vec![cell("B1"), area_of(s2, "A1", "A3")],
+            ),
+        ),
+        // A FALSE condition without a third argument asks for nothing more.
+        (
+            "=IF(B1>0,A1)",
+            (Ok(CalcValue::number(4.0)), vec![cell("B1"), cell("A1")]),
+            (Ok(CalcValue::logical(false)), vec![cell("B1")]),
+        ),
+        // A condition that is an error is the result; neither branch is asked for.
+        (
+            "=IF(E1,A1,A2)",
+            (
+                Ok(CalcValue::error(WorksheetErrorCode::NA)),
+                vec![cell("E1")],
+            ),
+            (
+                Ok(CalcValue::error(WorksheetErrorCode::NA)),
+                vec![cell("E1")],
+            ),
+        ),
+        // Controls: an eager function reads every argument, and reading D1 is a fault.
+        (
+            "=SUM(B1,A1,C1)",
+            (
+                Ok(CalcValue::number(16.0)),
+                vec![cell("B1"), cell("A1"), cell("C1")],
+            ),
+            (
+                Ok(CalcValue::number(10.0)),
+                vec![cell("B1"), cell("A1"), cell("C1")],
+            ),
+        ),
+        (
+            "=D1/0",
+            (missing_d1.clone(), vec![cell("D1")]),
+            (missing_d1.clone(), vec![cell("D1")]),
+        ),
+    ];
+
+    let instances: Vec<FormulaInstance> = table
+        .iter()
+        .map(|(formula, _, _)| instantiate(&compiled(formula, c10, &catalog, &mut cache), c10))
+        .collect();
+    // The plan holds the references of both branches; only evaluation chooses between them.
+    assert_eq!(instances[1].areas(), [Ok(cell("B1")), Ok(cell("D1"))]);
+
+    let (mut evaluations, mut unrequested) = (0, 0);
+    for b1 in [5.0, -1.0] {
+        reader.store(s1, "B1", CalcValue::number(b1));
+        for (instance, (formula, while_positive, while_negative)) in instances.iter().zip(&table) {
+            let expected = if b1 > 0.0 {
+                while_positive
+            } else {
+                while_negative
+            };
+            let seen = evaluated(instance, &mut reader, &mut scratch);
+            assert_eq!(&seen, expected, "{formula} with B1 = {b1}");
+            evaluations += 1;
+            // The plan's reference operands, as placed, whose area this evaluation did not
+            // request; an operand another evaluation requests counts here all the same.
+            unrequested += instance
+                .areas()
+                .iter()
+                .filter(|area| matches!(area, Ok(area) if !seen.1.contains(area)))
+                .count();
+        }
+    }
+    assert_eq!((evaluations, unrequested), (16, 14));
+    // The catalogue was asked once, for Sheet2, when the nested formula compiled.
+    assert_eq!(*catalog.requests.borrow(), ["Sheet2"]);
+
+    note!(
+        "ACCEPT-NOTE: cfml_m1_3__lazy_if: {} formulas evaluated with B1 = 5 and with B1 = -1; each of the {} evaluations asked the reader for exactly the hand-derived areas (for IF, the condition's and then only the chosen branch's); counted in each evaluation, the plan's reference operands that evaluation did not request (those of unselected branches, and of both branches where the condition is an error) are {} in all; the catalogue holds no volatile function, so no unselected volatile branch is exercised, and an unresolved input stands in as the branch whose evaluation would show",
+        table.len(),
+        evaluations,
+        unrequested
     );
 }
