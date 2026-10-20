@@ -1,9 +1,8 @@
 {
   "format": "dnacalc-port-record/1",
   "bead": "cfunc-m1.2",
-  "written": "2026-10-19",
-  "about": "What cfunc-m1.2 took from legacy sources for calc-func's coercion (crates/calc-func/src/coerce.rs), kernel support (crates/calc-func/src/kernel.rs), the operator, SUM and IF kernels (crates/calc-func/src/catalogue/*.rs) and the lazy call route and cell reader (crates/calc-func/src/call.rs): nothing. No legacy file was read for this bead; the four Port-from inputs are listed below with their lookups only, and everything is written fresh. The expected results in the acceptance cases are hand-written and none has been compared with Excel: each case asserts them as the code's own consistency check, and its Excel comparison reads the owner's capture of crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx at crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json, which holds the absent-capture marker until the capture is taken. That comparison is calc_verdict::judge's report on the rows' published results (calculated at their invoke call's tick, or not modeled with the owning bead for a row whose behaviour another bead owns, never matched) and the recorded invoke calls. Some expectations are this implementation's own choices, not measured Excel behaviour, and each such row's note labels it an unmeasured choice that the capture will settle: which operand's error wins (the left operand's); the order SUM meets errors in (argument order, then the areas of a reference in its order, then row-major order within an area, which comes from the CellReader contract in crates/calc-func/src/call.rs); an overflow against a later error (=SUM(1E308,1E308,#N/A) gives #N/A, and =SUM(1E308,1E308,-1E308) stays #NUM!); IF reading its condition before any branch and only the chosen branch; a zero result's sign (+0); and number text below the smallest subnormal reading as +0. Only this bead writes this file.",
-  "not_ported_search": "The tracker, searched with br 0.1.34 on 2026-10-20 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import) over .beads/issues.jsonl of master commit 04ed1920091a4a2064e3b92fba858350d9d86295 (read with git show from the DnaCalc-infra clone, since this clone stands at f062ad8 and does not pull, which lacks cdoc-jpha): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings. Terms: array lift, lifting, broadcast, lifted over; NumericBackend, numerical sensitivity, subnormal, denormal; error propagation, error order; NumberTextService, value-parsing, General format; POWER, Fast backend; collation, sort order, case-insensitive, text compar, string compar; near-equal, nearly equal, near-equality, tolerance, 15 significant; near-zero, near zero, final operation; CellReader, ReferenceReader. Transcript: target/accept/cfunc-m1.2/owner-search/owner-search.log (target/ is not committed). Each beads list below is the hits of the terms named in its basis, without cfunc-m1.2 itself and without a hit the basis names as not doing the work.",
+  "written": "2026-10-20",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings. On 2026-10-20 over .beads/issues.jsonl of master commit 04ed1920091a4a2064e3b92fba858350d9d86295 (read with git show from the DnaCalc-infra clone): array lift, lifting, broadcast, lifted over; NumericBackend, numerical sensitivity, subnormal, denormal; error propagation, error order; NumberTextService, value-parsing, General format; POWER, Fast backend; collation, sort order, case-insensitive, text compar, string compar; near-equal, nearly equal, near-equality, tolerance, 15 significant (transcript target/accept/cfunc-m1.2/owner-search/owner-search.log). Again on 2026-10-20 over .beads/issues.jsonl of master commit 637cfa6903d4832f78b171c21515804994856f04, after cfml-m1.3's claim note: near-zero, near zero, final operation, near-zero correction; CellReader, ReferenceReader (transcript target/accept/cfunc-m1.2/owner-search/owner-search-r4.log). target/ is not committed. Each beads list below is the hits of the terms named in its basis, without cfunc-m1.2 itself and without a hit the basis names as not doing the work.",
   "sources": [
     {
       "repository": "OxFunc",
@@ -74,8 +73,29 @@
         ]
       },
       "ported": [],
-      "not_ported": [],
-      "semantic_witnesses": []
+      "not_ported": [
+        {
+          "items": [
+            "the legacy reference resolver that FunctionExecutionContext wraps"
+          ],
+          "reason": "calc-func's kernels read a reference argument only through calc_func::CellReader, which the caller supplies in EvalServices; an area the caller cannot supply is Unreadable and the call ends in FunctionFault::ReferenceUnreadable, never in blanks. The implementation over a workbook's cells is calc-fml's: calc-fml depends on calc-func, not the reverse. In calc-func only the acceptance cases' test sheet implements CellReader.",
+          "beads": [
+            "cfml-m1.3"
+          ],
+          "basis": "CellReader, ReferenceReader (owner-search-r4.log): descriptions hit cfml-m1.2 (ReferenceReader); notes hit cfml-m1.2 and cfml-m1.3. cfml-m1.3's claim note of 2026-10-20 states the bridge as its capability: \"cfml-m1.2's ReferenceReader is bridged to calc_func::CellReader, so one reader trait serves both libraries\". cfml-m1.2 defines ReferenceReader; the orchestrator's ruling in its notes (2026-10-20) moves the CellReader condition to cfml-m1.3."
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::every_builtin_registry_entry_resolves_to_uniform_dispatch_key"
+          ],
+          "disposition": "changed",
+          "replaced_by": "cfunc_m1_1__catalogue_consistency",
+          "supersedes": "migration/ports/cfunc-m1.1.json, the reason 'SUM computes, the others report NotImplemented naming their own ID'",
+          "reason": "This bead's kernels compute the operators and IF, so the snapshot that only SUM computes is replaced by the invariants the cfunc-m1.1 judge named: every view lists the same IDs; the admitted surfaces are a subset of the catalogue; every admitted entry at its minimum arity computes or refuses under its own ID; SUM(1,2,3) has bits 0x4018000000000000 and SUM(0.5,-2,10) bits 0x4021000000000000; IF is asked for its condition alone before it decides, then for the chosen branch only; SUM without a cell reader refuses a reference with ReferenceUnreadable."
+        }
+      ]
     },
     {
       "repository": "OxFunc",
@@ -199,6 +219,63 @@
       "ported": [],
       "not_ported": [],
       "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/coercion.rs",
+      "blob": "3b3d42dc3aa83ddfbca7945ef9abd76234e4ead2",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/coercion.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m1.2/lookup-coercion-rs.log (exit in lookup-coercion-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion_decimal.rs"
+        ]
+      },
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/if_fn.rs",
+      "blob": "0a3a13c2087df92e42dea13730d41210aca34fca",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/if_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m1.2/lookup-functions-if_fn-rs.log (exit in lookup-functions-if_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/conditional_common.rs"
+        ]
+      },
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/sum.rs",
+      "blob": "4ea3c50971e1ded7a83416cd1c7175928be7a1e1",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/sum.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m1.2/lookup-functions-sum-rs.log (exit in lookup-functions-sum-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
     }
   ],
   "not_ported": [
@@ -245,11 +322,13 @@
     },
     {
       "items": [
-        "Comparison of two different numbers within a relative 1e-13 of each other"
+        "Comparison of two different numbers within a relative 1e-13 of each other (under Fast)",
+        "Comparison of any two different numbers under Exact (for example =1<2 and =A5<1)"
       ],
-      "reason": "Refused with NotImplemented: Excel compares some nearly equal numbers as equal, by a rule that is not modelled.",
+      "reason": "Refused with NotImplemented under Fast: Excel compares some nearly equal numbers as equal, by a rule that is not modelled. The band of a relative 1e-13 (NEAR in crates/calc-func/src/catalogue/comparison.rs) only marks which pairs are refused; Excel's rule, and with it the band's true width, is cdoc-jpha's. Under Exact, telling any two different numbers apart runs the near-equality test, which rounds, so every comparison of two different numbers is refused with ExactUnavailable, not only pairs within the band. Ordering the operands before the band is applied, or routing the test by numeric mode, is cfunc-m3.22's (numeric-mode routing); the band itself is cdoc-jpha's.",
       "beads": [
-        "cdoc-jpha"
+        "cdoc-jpha",
+        "cfunc-m3.22"
       ],
       "basis": "near-equal, nearly equal, near-equality (cdoc-jpha); tolerance hits cfunc-m3.11 (regression functions) and cfunc-m7.2 (Fast-mode tolerance contracts for acceptance), neither of which models the comparison operators; 15 significant has no hit"
     },
@@ -261,27 +340,15 @@
       "beads": [
         "cfml-m1.3"
       ],
-      "basis": "near-zero, near zero, final operation: no bead's text names this behaviour (near-zero hits only cfunc-m3.12, the cash-flow functions). cfml-m1.3 is the owner that the orchestrator's round-3 finding for cfunc-m1.2 (2026-10-20) names, as the evaluator whose plan knows a formula's final operation; its tracker text does not name the adjustment yet."
+      "basis": "near-zero, near-zero correction (owner-search-r4.log): the notes hit cfml-m1.3 alone, whose claim note of 2026-10-20 names the behaviour: \"Excel's near-zero correction for a final + or - (KB 78113): the evaluator knows whether an operation is the formula's last, so the correction is applied there or refused with a typed result\", and says that cfunc-m1.2's oracle rows measure it; near-zero in descriptions hits only cfunc-m3.12 (the cash-flow functions); near zero and final operation have no hit."
     }
   ],
-  "reader_trait": "calc_func::CellReader (crates/calc-func/src/call.rs) is the one trait through which calc-func's kernels read reference arguments: read_area visits the cells of a GridArea that hold a value in row-major order until the visitor breaks, a cell it does not visit is blank, and Unreadable refuses the area, which a kernel reports as FunctionFault::ReferenceUnreadable, never as blanks. cfml-m1.2's claim note says its ReferenceReader implements calc_func::CellReader, so that one reader trait serves both libraries; the orchestrator's ruling of 2026-10-20 (tracker note on cfml-m1.2, master commit 04ed1920091a4a2064e3b92fba858350d9d86295) moves that condition to cfml-m1.3, because CellReader lands with this bead, which stays open for the owner's capture. calc-fml depends on calc-func and not the reverse, so the implementation lives in calc-fml and calc-func is not changed for it. A cell a ReferenceReader cannot supply has no CellReader value: such an area is Unreadable, not blank. Until then CellReader is implemented only by the acceptance cases' test sheet.",
   "carried_witnesses": [
     {
       "from": "migration/ports/cfunc-m0.1.json",
       "oxfunc_test": "tests::call_arg_boundary_allows_missing_and_empty",
       "carried_by": "cfunc_m1_2__mixed_operands",
       "change": "Through calc_func::invoke, + and SUM admit a Missing and an Empty argument without a fault and read each as 0, while empty text is #VALUE!."
-    }
-  ],
-  "changed_cases_of_other_beads": [
-    {
-      "case": "cfunc_m1_1__catalogue_consistency",
-      "change": "The snapshot assertions that this bead's kernels make false (only SUM computes, '=' and '+' are NotImplemented, IF is asked for no argument, SUM refuses references and arrays, the admitted set equals the catalogue's) are replaced by the invariants the cfunc-m1.1 judge named: every view lists the same IDs; the admitted surfaces are a subset of the catalogue; every entry at its minimum arity computes or refuses under its own ID; SUM(1,2,3) has bits 0x4018000000000000 and SUM(0.5,-2,10) bits 0x4021000000000000; IF is asked for its condition alone before it decides, then for the chosen branch only; SUM without a cell reader refuses a reference with ReferenceUnreadable.",
-      "supersedes": "migration/ports/cfunc-m1.1.json, semantic witness tests::every_builtin_registry_entry_resolves_to_uniform_dispatch_key, reason text 'SUM computes, the others report NotImplemented naming their own ID'"
-    },
-    {
-      "case": "cfunc_m1_1__unknown_function",
-      "change": "The string-literal scan of calc-func's sources is dropped, as the cfunc-m1.1 judge allowed; the typed refusals of unknown IDs and surfaces stay asserted, and the admitted surfaces must resolve inside the dispatch table instead of matching its size."
     }
   ]
 }

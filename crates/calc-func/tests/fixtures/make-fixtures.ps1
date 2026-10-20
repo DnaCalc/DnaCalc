@@ -196,8 +196,9 @@ function Write-Workbook([string]$Path, $Sheets) {
 $eSmall = [string][char]0xE9
 $eCapital = [string][char]0xC9
 
-# Sheet mixed_operands: the cells of cfunc_m1_2__mixed_operands' test sheet (A5 and A6 blank), and
-# its oracle rows' formulas in its order, the rows whose behaviour another bead owns included.
+# Sheet mixed_operands: the cells of cfunc_m1_2__mixed_operands' test sheet (A5 and A6 blank; C2
+# holds a text of 32767 characters, the longest a cell holds, and C1 one character less), and its
+# oracle rows' formulas in its order, the rows whose behaviour another bead owns included.
 $mixedInputs = @(
     (New-Text 'A1' '2'),
     (New-Logical 'A2' $true),
@@ -206,7 +207,9 @@ $mixedInputs = @(
     (New-Number 'A7' '10'),
     (New-Number 'B1' '0.5'),
     (New-Number 'B2' '-2'),
-    (New-Number 'B3' '10')
+    (New-Number 'B3' '10'),
+    (New-Text 'C1' ('a' * 32766)),
+    (New-Text 'C2' ('a' * 32767))
 )
 $mixedFormulas = @(
     # Arithmetic operands through worksheet number coercion, decimal text included; then text
@@ -230,8 +233,8 @@ $mixedFormulas = @(
     '0.1+0.2=0.3', ('"' + $eSmall + '"="' + $eCapital + '"'), '"a-b"<"ab"',
     '"apple pie"<"banana"', '"a"<"B"', '"A"="a"', '1+1E-15=1',
     # Concatenation; a number's General text is cfml-m2.6's.
-    '"a"&"b"', '"a"&TRUE', 'A5&"x"', 'A2&A4', '"a"&1', '1&"a"', 'REPT("a",32766)&"b"',
-    'REPT("a",32767)&"b"',
+    '"a"&"b"', '"a"&TRUE', '"a"&FALSE', 'A5&"x"', 'A2&A4', '"a"&1', '1&"a"', 'C1&"b"',
+    'C2&"b"',
     # SUM.
     'SUM("2",TRUE)', 'SUM(A1:A3)', 'SUM(A1:A3,"2",TRUE)', 'SUM({1,"2",TRUE})', 'SUM("a")',
     'SUM(A4)', 'SUM(A5)', 'SUM("")', 'SUM(1,)', 'SUM(1E308,1E308)', 'SUM(1E308,1E308,-1E308)',

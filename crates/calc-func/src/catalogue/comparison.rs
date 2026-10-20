@@ -5,12 +5,17 @@
 //! TRUE). A blank operand (Empty, or Missing) compares as the empty value of the other operand's
 //! kind (0, empty text or FALSE), and two blanks are equal.
 //!
-//! Two numbers order by value, except that two different numbers within a relative 1e-13 of each
-//! other are refused: Excel compares some nearly equal numbers as equal, by a rule that is not
-//! modelled. Text compares ignoring case: texts with the same code units are equal, two ASCII
-//! texts are equal when they are equal ignoring ASCII case, and two texts of ASCII letters and
-//! digits order with digits before letters and a prefix first. Any other text comparison needs
-//! Excel's collation, which is not modelled, and is refused.
+//! Two numbers order by value. Equal numbers are equal without any rounding. Two different numbers
+//! are first tested for near-equality, which is an arithmetic site: it rounds a difference and a
+//! product under the call's numeric mode, so under Exact, which has no implementation, the
+//! comparison is refused with ExactUnavailable. Under Fast two different numbers within a relative
+//! 1e-13 of each other are refused: Excel compares some nearly equal numbers as equal, by a rule
+//! that is not modelled.
+//!
+//! Text compares ignoring case: texts with the same code units are equal, two ASCII texts are
+//! equal when they are equal ignoring ASCII case, and two texts of ASCII letters and digits order
+//! with digits before letters and a prefix first. Any other text comparison needs Excel's
+//! collation, which is not modelled, and is refused.
 
 use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
@@ -48,7 +53,9 @@ pub(super) const FAMILY: Family = Family {
     ],
 };
 
-/// The relative distance within which two different numbers may compare as equal in Excel.
+/// The relative distance within which two different numbers are refused, because Excel may
+/// compare them as equal. Excel's rule for nearly equal numbers, and with it the true width of this
+/// band, belongs to cdoc-jpha, which replaces the refusal with the rule the capture shows.
 const NEAR: f64 = 1e-13;
 
 /// What a comparison asks of two texts: whether they are equal, or how they order.
@@ -181,9 +188,7 @@ fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering>
         pair => pair,
     };
     match (left, right) {
-        (Operand::Number(a), Operand::Number(b)) => {
-            numbers(a, b).ok_or_else(|| site.not_modelled(None))
-        }
+        (Operand::Number(a), Operand::Number(b)) => numbers(site, a, b),
         (Operand::Text(a), Operand::Text(b)) => {
             texts(a, b, want).ok_or_else(|| site.not_modelled(None))
         }
@@ -192,15 +197,20 @@ fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering>
     }
 }
 
-/// The order of two numbers, or `None` when they differ by a relative [`NEAR`] or less.
-fn numbers(a: f64, b: f64) -> Option<Ordering> {
+/// The order of two finite numbers. Equal numbers need no rounding. For different numbers the
+/// near-equality test computes their difference and the band [`NEAR`] around the larger magnitude
+/// at the call's arithmetic sites, which round under its numeric mode; a pair within the band is
+/// refused as not modelled.
+fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
     if a == b {
-        return Some(Ordering::Equal);
+        return Ok(Ordering::Equal);
     }
-    if (a - b).abs() <= a.abs().max(b.abs()) * NEAR {
-        return None;
+    let difference = site.subtract(a, b)?.abs();
+    let band = site.multiply(a.abs().max(b.abs()), NEAR)?;
+    if difference <= band {
+        return Err(site.not_modelled(None));
     }
-    a.partial_cmp(&b)
+    Ok(a.total_cmp(&b))
 }
 
 /// The order of two texts, or `None` when it needs Excel's collation. For [`Want::Equality`] any

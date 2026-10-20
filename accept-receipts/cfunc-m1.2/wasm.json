@@ -14,7 +14,10 @@
                 "calc-value"
               ],
               "calc-engine": [],
-              "calc-fml": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -46,7 +49,10 @@
                 "calc-value"
               ],
               "calc-engine": [],
-              "calc-fml": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -79,7 +85,10 @@
                 "calc-value"
               ],
               "calc-engine": [],
-              "calc-fml": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -118,10 +127,10 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 1,
+          "calc-doc": 10,
           "calc-doc-model": 11,
           "calc-engine": 1,
-          "calc-fml": 1,
+          "calc-fml": 11,
           "calc-func": 10,
           "calc-host": 1,
           "calc-value": 5,
@@ -138,7 +147,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "43 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "62 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -236,7 +245,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 43,
+        "files_scanned": 62,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -249,17 +258,17 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "43 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "62 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
       "details": {
         "packages": {
           "calc-doc": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 50,
+            "entries_reach_unproven": 50,
+            "pub_enum_variants": 48,
+            "pub_traits": 2
           },
           "calc-doc-model": {
             "entries": 56,
@@ -274,10 +283,10 @@
             "pub_traits": 0
           },
           "calc-fml": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 85,
+            "entries_reach_unproven": 85,
+            "pub_enum_variants": 83,
+            "pub_traits": 2
           },
           "calc-func": {
             "entries": 20,
@@ -317,14 +326,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 162,
+          "entries_reach_unproven": 297,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 159 pub enum variants and 3 pub traits; their seams.json files list 162 entries, 162 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 290 pub enum variants and 7 pub traits; their seams.json files list 297 entries, 297 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -415,9 +424,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 55,
+          "commit_messages": 65,
           "files": 20,
-          "tracker_records": 318
+          "tracker_records": 322
         },
         "tracker": {
           "ceng-m7.1": {
@@ -468,7 +477,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 318 tracker records, 0 in 0 of 55 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 322 tracker records, 0 in 0 of 65 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -831,7 +840,7 @@
           ],
           "browser": "chromium",
           "case": "cfunc_m1_2__mixed_operands@chromium",
-          "duration_s": 4.045,
+          "duration_s": 4.976,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -855,7 +864,7 @@
           "exit_code": 0,
           "log": "target/accept/cfunc-m1.2/wasm/cfunc_m1_2__mixed_operands@chromium.log",
           "notes": [
-            "the sheet holds A1 = text \"2\", B1 = 0.5, A2 = TRUE, B2 = -2, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
+            "the sheet holds A1 = text \"2\", B1 = 0.5, C1 = text of 32766 \"a\" characters, A2 = TRUE, B2 = -2, C2 = text of 32767 \"a\" characters, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
             "oracle mixed_operands!D1 =\"1\"+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
             "oracle mixed_operands!D2 =A1+1 with A1 = text \"2\" -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
             "oracle mixed_operands!D3 =TRUE+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
@@ -942,51 +951,53 @@
             "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
             "oracle mixed_operands!D85 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; unmeasured)",
             "oracle mixed_operands!D86 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D87 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D88 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D89 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-            "oracle mixed_operands!D91 =REPT(\"a\",32766)&\"b\" -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D92 =REPT(\"a\",32767)&\"b\" -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D93 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D94 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D95 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D96 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D97 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D98 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D99 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D100 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D101 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D102 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D103 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
-            "oracle mixed_operands!D104 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D105 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D106 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D87 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D88 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D89 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D91 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+            "oracle mixed_operands!D92 =C1&\"b\" with C1 = text of 32766 \"a\" characters -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D93 =C2&\"b\" with C2 = text of 32767 \"a\" characters -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D94 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D95 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D96 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D97 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D98 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D99 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D100 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D101 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D102 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D103 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D104 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
+            "oracle mixed_operands!D105 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D106 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D107 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
             "SUM(A:A) asked the cell reader for 1 area (1048576 cells) and was visited with 5 held cells",
-            "oracle mixed_operands!D107 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D108 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D109 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D110 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D111 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "oracle mixed_operands!D112 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D113 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D114 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D115 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D116 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D117 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "not modeled here, owned by cfml-m3.4: mixed_operands!D118 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
+            "oracle mixed_operands!D108 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D109 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D110 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D111 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D112 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+            "oracle mixed_operands!D113 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D114 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D115 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D116 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D117 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D118 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "not modeled here, owned by cfml-m3.4: mixed_operands!D119 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
             "+(-0.0) through calc_func::invoke gives bits 0x0000000000000000; +NaN, +inf, +(-inf) and +5e-324 are refused naming the operand",
-            "under NumericMode::Exact 11 calls that round (3 of them by reading text as a number) were refused with ExactUnavailable, and 8 calls without rounding computed the value of their Fast oracle row",
+            "IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) and SUM(1, an array holding 1 and a reference) are refused naming the array",
+            "under NumericMode::Exact 13 calls that round (3 of them by reading text as a number, 2 by comparing two different numbers) were refused with ExactUnavailable, and 9 calls without rounding computed the value of their Fast oracle row; =1=2 gives FALSE under Fast and ExactUnavailable under Exact",
             "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER until the oracle's ^ rows are captured: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm",
-            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet mixed_operands holds exactly the 118 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet mixed_operands holds exactly the 119 oracle rows' formulas in column D, in row order, and the 10 cells the rows read",
             "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-            "118 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 86 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)"
+            "119 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 87 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)"
           ],
           "outcome": "not_run",
           "package": "calc-func",
           "reason": "MissingCapture: no capture of crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx has been taken for case cfunc_m1_2__mixed_operands; this path will hold its capture record (Excel's raw values for the oracle rows of cfunc_m1_2__mixed_operands and cfunc_m1_2__error_order) once the owner's Excel run `cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx --case cfunc_m1_2__mixed_operands --out crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json` writes it",
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.05s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50508/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.08s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:62756/`"
         },
         {
           "argv": [
@@ -1008,7 +1019,7 @@
           ],
           "browser": "firefox",
           "case": "cfunc_m1_2__mixed_operands@firefox",
-          "duration_s": 7.116,
+          "duration_s": 9.991,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1032,7 +1043,7 @@
           "exit_code": 0,
           "log": "target/accept/cfunc-m1.2/wasm/cfunc_m1_2__mixed_operands@firefox.log",
           "notes": [
-            "the sheet holds A1 = text \"2\", B1 = 0.5, A2 = TRUE, B2 = -2, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
+            "the sheet holds A1 = text \"2\", B1 = 0.5, C1 = text of 32766 \"a\" characters, A2 = TRUE, B2 = -2, C2 = text of 32767 \"a\" characters, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
             "oracle mixed_operands!D1 =\"1\"+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
             "oracle mixed_operands!D2 =A1+1 with A1 = text \"2\" -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
             "oracle mixed_operands!D3 =TRUE+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
@@ -1119,59 +1130,61 @@
             "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
             "oracle mixed_operands!D85 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; unmeasured)",
             "oracle mixed_operands!D86 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D87 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D88 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D89 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-            "oracle mixed_operands!D91 =REPT(\"a\",32766)&\"b\" -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D92 =REPT(\"a\",32767)&\"b\" -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D93 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D94 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D95 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D96 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D97 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D98 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D99 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D100 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D101 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D102 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D103 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
-            "oracle mixed_operands!D104 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D105 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D106 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D87 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D88 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D89 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D91 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+            "oracle mixed_operands!D92 =C1&\"b\" with C1 = text of 32766 \"a\" characters -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D93 =C2&\"b\" with C2 = text of 32767 \"a\" characters -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D94 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D95 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D96 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D97 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D98 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D99 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D100 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D101 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D102 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D103 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D104 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
+            "oracle mixed_operands!D105 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D106 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D107 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
             "SUM(A:A) asked the cell reader for 1 area (1048576 cells) and was visited with 5 held cells",
-            "oracle mixed_operands!D107 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D108 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D109 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D110 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D111 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "oracle mixed_operands!D112 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D113 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D114 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D115 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D116 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "oracle mixed_operands!D117 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-            "not modeled here, owned by cfml-m3.4: mixed_operands!D118 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
+            "oracle mixed_operands!D108 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D109 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D110 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D111 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D112 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+            "oracle mixed_operands!D113 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D114 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D115 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D116 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D117 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "oracle mixed_operands!D118 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+            "not modeled here, owned by cfml-m3.4: mixed_operands!D119 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
             "+(-0.0) through calc_func::invoke gives bits 0x0000000000000000; +NaN, +inf, +(-inf) and +5e-324 are refused naming the operand",
-            "under NumericMode::Exact 11 calls that round (3 of them by reading text as a number) were refused with ExactUnavailable, and 8 calls without rounding computed the value of their Fast oracle row",
+            "IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) and SUM(1, an array holding 1 and a reference) are refused naming the array",
+            "under NumericMode::Exact 13 calls that round (3 of them by reading text as a number, 2 by comparing two different numbers) were refused with ExactUnavailable, and 9 calls without rounding computed the value of their Fast oracle row; =1=2 gives FALSE under Fast and ExactUnavailable under Exact",
             "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER until the oracle's ^ rows are captured: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm",
-            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet mixed_operands holds exactly the 118 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet mixed_operands holds exactly the 119 oracle rows' formulas in column D, in row order, and the 10 cells the rows read",
             "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-            "118 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 86 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)"
+            "119 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 87 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)"
           ],
           "outcome": "not_run",
           "package": "calc-func",
           "reason": "MissingCapture: no capture of crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx has been taken for case cfunc_m1_2__mixed_operands; this path will hold its capture record (Excel's raw values for the oracle rows of cfunc_m1_2__mixed_operands and cfunc_m1_2__error_order) once the owner's Excel run `cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx --case cfunc_m1_2__mixed_operands --out crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json` writes it",
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.03s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:63873/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.09s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55020/`"
         }
       ],
       "case": "cfunc_m1_2__mixed_operands",
-      "duration_s": 11.161,
+      "duration_s": 14.967,
       "exit_code": 0,
       "log": null,
       "notes": [
-        "the sheet holds A1 = text \"2\", B1 = 0.5, A2 = TRUE, B2 = -2, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
+        "the sheet holds A1 = text \"2\", B1 = 0.5, C1 = text of 32766 \"a\" characters, A2 = TRUE, B2 = -2, C2 = text of 32767 \"a\" characters, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
         "oracle mixed_operands!D1 =\"1\"+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
         "oracle mixed_operands!D2 =A1+1 with A1 = text \"2\" -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
         "oracle mixed_operands!D3 =TRUE+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
@@ -1258,46 +1271,48 @@
         "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
         "oracle mixed_operands!D85 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; unmeasured)",
         "oracle mixed_operands!D86 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D87 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D88 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D89 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-        "oracle mixed_operands!D91 =REPT(\"a\",32766)&\"b\" -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D92 =REPT(\"a\",32767)&\"b\" -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D93 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D94 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D95 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D96 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D97 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D98 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D99 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D100 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D101 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D102 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D103 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
-        "oracle mixed_operands!D104 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D105 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D106 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D87 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D88 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D89 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D91 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+        "oracle mixed_operands!D92 =C1&\"b\" with C1 = text of 32766 \"a\" characters -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D93 =C2&\"b\" with C2 = text of 32767 \"a\" characters -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D94 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D95 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D96 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D97 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D98 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D99 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D100 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D101 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D102 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D103 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D104 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
+        "oracle mixed_operands!D105 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D106 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D107 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
         "SUM(A:A) asked the cell reader for 1 area (1048576 cells) and was visited with 5 held cells",
-        "oracle mixed_operands!D107 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D108 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D109 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D110 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D111 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "oracle mixed_operands!D112 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D113 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D114 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D115 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D116 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D117 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "not modeled here, owned by cfml-m3.4: mixed_operands!D118 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
+        "oracle mixed_operands!D108 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D109 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D110 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D111 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D112 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+        "oracle mixed_operands!D113 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D114 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D115 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D116 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D117 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D118 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "not modeled here, owned by cfml-m3.4: mixed_operands!D119 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
         "+(-0.0) through calc_func::invoke gives bits 0x0000000000000000; +NaN, +inf, +(-inf) and +5e-324 are refused naming the operand",
-        "under NumericMode::Exact 11 calls that round (3 of them by reading text as a number) were refused with ExactUnavailable, and 8 calls without rounding computed the value of their Fast oracle row",
+        "IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) and SUM(1, an array holding 1 and a reference) are refused naming the array",
+        "under NumericMode::Exact 13 calls that round (3 of them by reading text as a number, 2 by comparing two different numbers) were refused with ExactUnavailable, and 9 calls without rounding computed the value of their Fast oracle row; =1=2 gives FALSE under Fast and ExactUnavailable under Exact",
         "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER until the oracle's ^ rows are captured: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm",
-        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet mixed_operands holds exactly the 118 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet mixed_operands holds exactly the 119 oracle rows' formulas in column D, in row order, and the 10 cells the rows read",
         "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-        "118 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 86 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)",
-        "the sheet holds A1 = text \"2\", B1 = 0.5, A2 = TRUE, B2 = -2, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
+        "119 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 87 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)",
+        "the sheet holds A1 = text \"2\", B1 = 0.5, C1 = text of 32766 \"a\" characters, A2 = TRUE, B2 = -2, C2 = text of 32767 \"a\" characters, A3 = 5, B3 = 10, A4 = text \"a\", A7 = 10; A5 and A6 are blank",
         "oracle mixed_operands!D1 =\"1\"+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
         "oracle mixed_operands!D2 =A1+1 with A1 = text \"2\" -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
         "oracle mixed_operands!D3 =TRUE+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
@@ -1384,45 +1399,47 @@
         "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
         "oracle mixed_operands!D85 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; unmeasured)",
         "oracle mixed_operands!D86 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D87 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D88 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D89 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
-        "oracle mixed_operands!D91 =REPT(\"a\",32766)&\"b\" -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D92 =REPT(\"a\",32767)&\"b\" -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D93 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D94 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D95 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D96 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D97 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D98 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D99 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D100 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D101 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D102 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D103 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
-        "oracle mixed_operands!D104 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D105 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D106 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D87 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D88 =A5&\"x\" with A5 blank -> text \"x\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D89 =A2&A4 with A2 = TRUE, A4 = text \"a\" -> text \"TRUEa\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D90 =\"a\"&1 -> NotImplemented (argument Some(1)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D91 =1&\"a\" -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: a number's text in the General format)",
+        "oracle mixed_operands!D92 =C1&\"b\" with C1 = text of 32766 \"a\" characters -> text of 32767 characters (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D93 =C2&\"b\" with C2 = text of 32767 \"a\" characters -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D94 =SUM(\"2\",TRUE) -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D95 =SUM(A1:A3) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 5.0 (bits 0x4014000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D96 =SUM(A1:A3,\"2\",TRUE) with A1 = text \"2\", A2 = TRUE, A3 = 5 -> number 8.0 (bits 0x4020000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D97 =SUM({1,\"2\",TRUE}) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D98 =SUM(\"a\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D99 =SUM(A4) with A4 = text \"a\" -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D100 =SUM(A5) with A5 blank -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D101 =SUM(\"\") -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D102 =SUM(1,) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D103 =SUM(1E308,1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D104 =SUM(1E308,1E308,-1E308) -> #NUM! (hand-written, asserted as the code's own consistency check; unmeasured choice: a running total that overflows stays #NUM! when a later number would bring it back)",
+        "oracle mixed_operands!D105 =SUM(B1:B3) with B1 = 0.5, B2 = -2, B3 = 10 -> number 8.5 (bits 0x4021000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D106 =SUM((A3,A7)) with A3 = 5, A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D107 =SUM(A:A) with A1 = text \"2\", A2 = TRUE, A3 = 5, A4 = text \"a\", A7 = 10 -> number 15.0 (bits 0x402e000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
         "SUM(A:A) asked the cell reader for 1 area (1048576 cells) and was visited with 5 held cells",
-        "oracle mixed_operands!D107 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D108 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D109 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D110 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D111 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "oracle mixed_operands!D112 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D113 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D114 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D115 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D116 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "oracle mixed_operands!D117 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
-        "not modeled here, owned by cfml-m3.4: mixed_operands!D118 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
+        "oracle mixed_operands!D108 =IF(\"TRUE\",1,2) -> number 1.0 (bits 0x3ff0000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D109 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D110 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D111 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D112 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+        "oracle mixed_operands!D113 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D114 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D115 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D116 =IF(TRUE,,2) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D117 =IF(FALSE,1,) -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "oracle mixed_operands!D118 =IF(,1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; unmeasured)",
+        "not modeled here, owned by cfml-m3.4: mixed_operands!D119 =IF({TRUE,FALSE},1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: an operator or IF lifted over an array)",
         "+(-0.0) through calc_func::invoke gives bits 0x0000000000000000; +NaN, +inf, +(-inf) and +5e-324 are refused naming the operand",
-        "under NumericMode::Exact 11 calls that round (3 of them by reading text as a number) were refused with ExactUnavailable, and 8 calls without rounding computed the value of their Fast oracle row",
+        "IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) and SUM(1, an array holding 1 and a reference) are refused naming the array",
+        "under NumericMode::Exact 13 calls that round (3 of them by reading text as a number, 2 by comparing two different numbers) were refused with ExactUnavailable, and 9 calls without rounding computed the value of their Fast oracle row; =1=2 gives FALSE under Fast and ExactUnavailable under Exact",
         "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER until the oracle's ^ rows are captured: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm",
-        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet mixed_operands holds exactly the 118 oracle rows' formulas in column D, in row order, and the 8 cells the rows read",
+        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet mixed_operands holds exactly the 119 oracle rows' formulas in column D, in row order, and the 10 cells the rows read",
         "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-        "118 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 86 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)"
+        "119 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 87 of cfunc-m1.2 (5 of them unmeasured choices) and 32 whose behaviour another bead owns (20 of them refused by calc-func)"
       ],
       "outcome": "not_run",
       "package": "calc-func",
@@ -1468,7 +1485,7 @@
           ],
           "browser": "chromium",
           "case": "cfunc_m1_2__error_order@chromium",
-          "duration_s": 3.89,
+          "duration_s": 4.382,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -1572,14 +1589,14 @@
             "oracle error_order!D77 =IF(TRUE,#DIV/0!,#N/A) -> #DIV/0! (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
             "oracle error_order!D78 =IF(FALSE,#DIV/0!,#N/A) -> #N/A (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
             "oracle error_order!D79 =IF(\"x\",#DIV/0!,#N/A) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured choice: the condition's #VALUE! before any branch)",
-            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
+            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
             "79 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 79 of cfunc-m1.2 (49 of them unmeasured choices) and 0 whose behaviour another bead owns (0 of them refused by calc-func)"
           ],
           "outcome": "not_run",
           "package": "calc-func",
           "reason": "MissingCapture: no capture of crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx has been taken for case cfunc_m1_2__mixed_operands; this path will hold its capture record (Excel's raw values for the oracle rows of cfunc_m1_2__mixed_operands and cfunc_m1_2__error_order) once the owner's Excel run `cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx --case cfunc_m1_2__mixed_operands --out crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json` writes it",
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.04s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:52680/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.06s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:59837/`"
         },
         {
           "argv": [
@@ -1601,7 +1618,7 @@
           ],
           "browser": "firefox",
           "case": "cfunc_m1_2__error_order@firefox",
-          "duration_s": 7.355,
+          "duration_s": 10.662,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1705,18 +1722,18 @@
             "oracle error_order!D77 =IF(TRUE,#DIV/0!,#N/A) -> #DIV/0! (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
             "oracle error_order!D78 =IF(FALSE,#DIV/0!,#N/A) -> #N/A (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
             "oracle error_order!D79 =IF(\"x\",#DIV/0!,#N/A) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured choice: the condition's #VALUE! before any branch)",
-            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
+            "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
             "79 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 79 of cfunc-m1.2 (49 of them unmeasured choices) and 0 whose behaviour another bead owns (0 of them refused by calc-func)"
           ],
           "outcome": "not_run",
           "package": "calc-func",
           "reason": "MissingCapture: no capture of crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx has been taken for case cfunc_m1_2__mixed_operands; this path will hold its capture record (Excel's raw values for the oracle rows of cfunc_m1_2__mixed_operands and cfunc_m1_2__error_order) once the owner's Excel run `cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx --case cfunc_m1_2__mixed_operands --out crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json` writes it",
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.02s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:63891/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.03s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54366/`"
         }
       ],
       "case": "cfunc_m1_2__error_order",
-      "duration_s": 11.245,
+      "duration_s": 15.044,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1800,7 +1817,7 @@
         "oracle error_order!D77 =IF(TRUE,#DIV/0!,#N/A) -> #DIV/0! (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
         "oracle error_order!D78 =IF(FALSE,#DIV/0!,#N/A) -> #N/A (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
         "oracle error_order!D79 =IF(\"x\",#DIV/0!,#N/A) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured choice: the condition's #VALUE! before any branch)",
-        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
+        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
         "79 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 79 of cfunc-m1.2 (49 of them unmeasured choices) and 0 whose behaviour another bead owns (0 of them refused by calc-func)",
         "the sheet holds A1 = 1, B1 = #N/A, A2 = #DIV/0!, B2 = 2",
         "oracle error_order!D1 =#N/A+#DIV/0! -> #N/A (hand-written, asserted as the code's own consistency check; unmeasured choice: the left operand's error before the right operand's)",
@@ -1882,7 +1899,7 @@
         "oracle error_order!D77 =IF(TRUE,#DIV/0!,#N/A) -> #DIV/0! (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
         "oracle error_order!D78 =IF(FALSE,#DIV/0!,#N/A) -> #N/A (hand-written, asserted as the code's own consistency check; unmeasured choice: only the chosen branch is read)",
         "oracle error_order!D79 =IF(\"x\",#DIV/0!,#N/A) -> #VALUE! (hand-written, asserted as the code's own consistency check; unmeasured choice: the condition's #VALUE! before any branch)",
-        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 ee8ae04d71758032d99233fed64bf266c7b395ec6b4a75d1b04e576f6ee736cf): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
+        "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 9f5bf370fc04c75c8c31720e854fd5d7c4a8643b65e55e2eb3ac0364fc1f4748): sheet error_order holds exactly the 79 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
         "79 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 79 of cfunc-m1.2 (49 of them unmeasured choices) and 0 whose behaviour another bead owns (0 of them refused by calc-func)"
       ],
       "outcome": "not_run",
@@ -1929,7 +1946,7 @@
           ],
           "browser": "chromium",
           "case": "cfunc_m1_2__excel_comparison@chromium",
-          "duration_s": 3.943,
+          "duration_s": 5.024,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -1953,13 +1970,13 @@
           "exit_code": 0,
           "log": "target/accept/cfunc-m1.2/wasm/cfunc_m1_2__excel_comparison@chromium.log",
           "notes": [
-            "on in-memory captures of the oracle workbook (197 rows: 165 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 86 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
+            "on in-memory captures of the oracle workbook (198 rows: 166 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 87 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.24s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53580/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.61s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:64217/`"
         },
         {
           "argv": [
@@ -1981,7 +1998,7 @@
           ],
           "browser": "firefox",
           "case": "cfunc_m1_2__excel_comparison@firefox",
-          "duration_s": 8.14,
+          "duration_s": 10.943,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -2005,22 +2022,22 @@
           "exit_code": 0,
           "log": "target/accept/cfunc-m1.2/wasm/cfunc_m1_2__excel_comparison@firefox.log",
           "notes": [
-            "on in-memory captures of the oracle workbook (197 rows: 165 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 86 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
+            "on in-memory captures of the oracle workbook (198 rows: 166 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 87 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.38s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:63911/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.64s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:56209/`"
         }
       ],
       "case": "cfunc_m1_2__excel_comparison",
-      "duration_s": 12.083,
+      "duration_s": 15.967,
       "exit_code": 0,
       "log": null,
       "notes": [
-        "on in-memory captures of the oracle workbook (197 rows: 165 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 86 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused",
-        "on in-memory captures of the oracle workbook (197 rows: 165 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 86 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
+        "on in-memory captures of the oracle workbook (198 rows: 166 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 87 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused",
+        "on in-memory captures of the oracle workbook (198 rows: 166 of cfunc-m1.2, 32 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 87 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
       ],
       "outcome": "passed",
       "package": "calc-func",
@@ -2051,13 +2068,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 1.017,
+      "duration_s": 1.069,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.83s"
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.90s"
       ],
       "log": "target/accept/cfunc-m1.2/wasm/command-1.log",
       "outcome": "passed",
@@ -2082,7 +2099,7 @@
         "calc-func",
         "--lib"
       ],
-      "duration_s": 0.177,
+      "duration_s": 0.189,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -2184,7 +2201,7 @@
     "passed": 1,
     "selected": 3
   },
-  "duration_s": 56.374,
+  "duration_s": 71.238,
   "exit_code": 1,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -2195,127 +2212,37 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "64e7f1ab46714875308de5798ddc0fe73f66c429",
-          "path": "Cargo.lock",
+          "blob": "89956aa9f784c74bed7edeb018bb1fe38cf4e400",
+          "path": "accept-receipts/cfunc-m1.2/windows.json",
           "status": "M"
         },
         {
-          "blob": "d0c2d8ff5dc8efaa217702490399eb4348c45f26",
-          "path": "accept-receipts/cfunc-m1.1/wasm.json",
-          "status": "M"
-        },
-        {
-          "blob": "1d5325c18cb6aed3419e970e69c3e5232cda4eb1",
-          "path": "accept-receipts/cfunc-m1.1/windows.json",
-          "status": "M"
-        },
-        {
-          "blob": "f4a21578bcdd44fb5ca365a541911189704b575e",
-          "path": "crates/calc-func/Cargo.toml",
-          "status": "M"
-        },
-        {
-          "blob": "b411cd5e7c1bbb60ad585f9423512228623098e0",
-          "path": "crates/calc-func/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "34620c9916eb07438339863686050ef30781e8a0",
-          "path": "crates/calc-func/seams.json",
-          "status": "M"
-        },
-        {
-          "blob": "c5d2344675ffaf4d7358a53f1e85d6e0377eb2c9",
-          "path": "crates/calc-func/src/call.rs",
-          "status": "M"
-        },
-        {
-          "blob": "6db3be6ec8715a19b6f736c25344559d9384c7a7",
-          "path": "crates/calc-func/src/catalogue.rs",
-          "status": "M"
-        },
-        {
-          "blob": "1e014c2b73cbfce2fa6a82a98e47f4cb4d8974c9",
-          "path": "crates/calc-func/src/catalogue/aggregate.rs",
-          "status": "M"
-        },
-        {
-          "blob": "6c98223239d95ed7cf3f5d1982c78152e4802560",
-          "path": "crates/calc-func/src/catalogue/arithmetic.rs",
-          "status": "M"
-        },
-        {
-          "blob": "c6472f117f187c27fb4d0c0ddf0a7bfe8bf53373",
+          "blob": "c37f90f09ce235f8dd5de3fed18a87c82a4a415d",
           "path": "crates/calc-func/src/catalogue/comparison.rs",
           "status": "M"
         },
         {
-          "blob": "e57bf0a651bae8f901651b474bfea20f3ac29bad",
-          "path": "crates/calc-func/src/catalogue/logical.rs",
-          "status": "M"
-        },
-        {
-          "blob": "1bf2daaf3844c3f53cc7782fe892037241912a42",
-          "path": "crates/calc-func/src/catalogue/text.rs",
-          "status": "M"
-        },
-        {
-          "blob": "3dbaaab3d0ae345d22368d6397d1f45b2c1bbcab",
-          "path": "crates/calc-func/src/lib.rs",
-          "status": "M"
-        },
-        {
-          "blob": "5ea7ca7e206d51308cf1ba800451f7862221ff36",
+          "blob": "a99d126f433a2fc25240652d5493b826ac5483a5",
           "path": "crates/calc-func/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "c02e027bd68c27d19ffabe82809deaff68cf7e47",
-          "path": "accept-receipts/cfunc-m1.2/windows.json",
-          "status": "??"
-        },
-        {
-          "blob": "0ae622d7c89de116d87ea16b19fb8ac500c874a2",
-          "path": "crates/calc-func/src/coerce.rs",
-          "status": "??"
-        },
-        {
-          "blob": "a5a88680be9369ee5cf6bbac83091f6c7b98277c",
-          "path": "crates/calc-func/src/kernel.rs",
-          "status": "??"
-        },
-        {
-          "blob": "15a61429deac886b2135dd51379e9e2124536e57",
-          "path": "crates/calc-func/tests/captures/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "9ca7f455a740ecad60500c5e0d21555a720328a1",
-          "path": "crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json",
-          "status": "??"
-        },
-        {
-          "blob": "f31e4a7290af16723089475bbe5e4d6dc6704fad",
-          "path": "crates/calc-func/tests/fixtures/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "c6290a60e306c90f7720c1b52fb14741b5374ade",
+          "blob": "899f5cd1a80101293f2e6551917d999335015ccb",
           "path": "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "66a0aab35b4df551db3da7e5cef70564c969453b",
+          "blob": "578b1fdaad0cd2a2f792bc5b5e7e176983df501b",
           "path": "crates/calc-func/tests/fixtures/make-fixtures.ps1",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "00a89f6dd6fe7df2bff35009d45f483fa9f85dc0",
+          "blob": "cba1f4e3966b2549ecb00084f109f83e18c78ca5",
           "path": "migration/ports/cfunc-m1.2.json",
-          "status": "??"
+          "status": "M"
         }
       ],
-      "head": "f062ad8f2d29350f98afb91684b93290d9928818",
+      "head": "637cfa6903d4832f78b171c21515804994856f04",
       "receipt_paths_left_out": [
         "accept-receipts/cfunc-m1.2/wasm.json"
       ]
@@ -2356,5 +2283,5 @@
   "require_all": true,
   "result": "not_run",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-20T14:11:06Z"
+  "started_utc": "2026-10-20T15:07:38Z"
 }

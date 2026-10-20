@@ -2653,8 +2653,10 @@ fn compare_with_excel(rows: &Rows, other: fn(bool) -> Rows) {
 // ---------------------------------------------------------------------------------------------
 // cfunc_m1_2__mixed_operands
 
-/// The cells the mixed-operand rows read; A5 and A6 are blank.
+/// The cells the mixed-operand rows read; A5 and A6 are blank. C2 holds a text of 32767
+/// characters, the longest a cell holds, and C1 one character less.
 fn mixed_operands_sheet() -> TestSheet {
+    let (shorter, longest) = ("a".repeat(32_766), "a".repeat(32_767));
     TestSheet::new(&[
         ("A1", "text \"2\"", text_value("2")),
         ("A2", "TRUE", CalcValue::logical(true)),
@@ -2664,6 +2666,8 @@ fn mixed_operands_sheet() -> TestSheet {
         ("B1", "0.5", CalcValue::number(0.5)),
         ("B2", "-2", CalcValue::number(-2.0)),
         ("B3", "10", CalcValue::number(10.0)),
+        ("C1", "text of 32766 \"a\" characters", text_value(&shorter)),
+        ("C2", "text of 32767 \"a\" characters", text_value(&longest)),
     ])
 }
 
@@ -2967,6 +2971,7 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     // the General format, which is refused.
     row!(r, s, AMPERSAND, [txt("a"), txt("b")], t("ab"));
     row!(r, s, AMPERSAND, [txt("a"), logical(true)], t("aTRUE"));
+    row!(r, s, AMPERSAND, [txt("a"), logical(false)], t("aFALSE"));
     row!(r, s, AMPERSAND, [cell(s, "A5"), txt("x")], t("x"));
     row!(r, s, AMPERSAND, [cell(s, "A2"), cell(s, "A4")], t("TRUEa"));
     owned_by!(
@@ -2985,22 +2990,20 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [num("1"), txt("a")],
         Refused(Some(0))
     );
-    let longest = "a".repeat(32_766);
+    // A joined text of 32767 characters is a cell's longest; one more is #VALUE!.
+    let shorter = "a".repeat(32_766);
     row!(
         r,
         s,
         AMPERSAND,
-        [arg("REPT(\"a\",32766)", text_value(&longest)), txt("b")],
-        t(&format!("{longest}b"))
+        [cell(s, "C1"), txt("b")],
+        t(&format!("{shorter}b"))
     );
     row!(
         r,
         s,
         AMPERSAND,
-        [
-            arg("REPT(\"a\",32767)", text_value(&format!("{longest}a"))),
-            txt("b")
-        ],
+        [cell(s, "C2"), txt("b")],
         E(WorksheetErrorCode::Value)
     );
 
@@ -3223,11 +3226,50 @@ fn cfunc_m1_2__mixed_operands() {
             .map_or(u64::MAX, f64::to_bits)
     );
 
+    // Values that no Excel formula writes, each refused naming its argument: an IF condition that
+    // is NaN, an infinity or subnormal (IF then asks for no branch), and an element of an array
+    // given to SUM that is itself an array or a reference.
+    let if_call = surface(IF.0, IF.1);
+    for condition in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 5e-324] {
+        let mut given = Recorded::new(vec![
+            CalcValue::number(condition),
+            CalcValue::number(1.0),
+            CalcValue::number(2.0),
+        ]);
+        assert_eq!(
+            run(if_call, &mut given, &fast),
+            Err(FunctionFault::NotImplemented {
+                id: if_call.id(),
+                argument: Some(0)
+            }),
+            "IF({condition:?},1,2)"
+        );
+        assert_eq!(given.asked, [0], "IF({condition:?},1,2) asked for a branch");
+    }
+    let nested = CalcValue::array(CalcArray::from_scalar(CalcValue::number(1.0)));
+    for element in [nested, a1_reference()] {
+        let held = CalcArray::from_rows(vec![vec![CalcValue::number(1.0), element.clone()]])
+            .expect("a 1-by-2 array");
+        let mut given = Recorded::new(vec![CalcValue::number(1.0), CalcValue::array(held)]);
+        assert_eq!(
+            run(sum, &mut given, &fast),
+            Err(FunctionFault::NotImplemented {
+                id: sum.id(),
+                argument: Some(1)
+            }),
+            "SUM(1, an array holding 1 and {element:?})"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: IF with a NaN, +inf, -inf or 5e-324 condition is refused naming the condition and asks for no branch; SUM(1, an array holding 1 and a nested array) and SUM(1, an array holding 1 and a reference) are refused naming the array"
+    );
+
     // NumericMode reaches every arithmetic site. Under Exact each call that rounds is refused:
-    // the operators and SUM on numbers, and reading text as a number, which rounds decimal text
-    // to binary64.
+    // the operators and SUM on numbers, reading text as a number, which rounds decimal text to
+    // binary64, and comparing two different numbers, whose near-equality test rounds.
     let exact = exact_mode();
     let mut exact_refused = 0;
+    let (mut refused_reading_text, mut refused_comparing) = (0, 0);
     for (target, args) in [
         (PLUS, vec![num("1"), num("2")]),
         (MINUS, vec![num("1"), num("2")]),
@@ -3240,7 +3282,16 @@ fn cfunc_m1_2__mixed_operands() {
         (NEGATE, vec![txt("0.1")]),
         (POWER, vec![txt("0.1"), num("1")]),
         (SUM, vec![txt("2")]),
+        (EQ, vec![num("1"), num("2")]),
+        (LT, vec![cell(s, "A5"), num("1")]),
     ] {
+        // Why the call rounds, counted from the call itself: a comparison operator tells two
+        // different numbers apart; any other call given a text literal reads it as a number.
+        if [EQ.1, LT.1].contains(&target.1) {
+            refused_comparing += 1;
+        } else if args.iter().any(|a| a.excel.starts_with('"')) {
+            refused_reading_text += 1;
+        }
         let resolved = surface(target.0, target.1);
         let mut given = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
         let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
@@ -3259,7 +3310,8 @@ fn cfunc_m1_2__mixed_operands() {
         (NEGATE, vec![num("2")]),
         (NEGATE, vec![logical(true)]),
         (UNARY_PLUS, vec![txt("a")]),
-        (EQ, vec![num("1"), num("2")]),
+        (GE, vec![num("1"), num("1")]),
+        (LT, vec![num("1"), txt("a")]),
         (AMPERSAND, vec![txt("a"), txt("b")]),
         (DIVIDE, vec![num("1"), num("0")]),
         (SUM, vec![reference(s, &["A4"])]),
@@ -3288,8 +3340,22 @@ fn cfunc_m1_2__mixed_operands() {
         );
         exact_computed += 1;
     }
+    // One comparison whose result differs between the modes: =1=2 is FALSE under Fast and
+    // refused under Exact, because telling 1 from 2 runs the near-equality test.
+    let equal = surface(EQ.0, EQ.1);
+    let one_equals_two = |mode: &NumericMode| {
+        let mut given = Recorded::new(vec![CalcValue::number(1.0), CalcValue::number(2.0)]);
+        run(equal, &mut given, mode)
+    };
+    assert_eq!(
+        (one_equals_two(&fast), one_equals_two(&exact)),
+        (
+            Ok(CalcValue::logical(false)),
+            Err(FunctionFault::ExactUnavailable { id: equal.id() })
+        )
+    );
     note!(
-        "ACCEPT-NOTE: {CASE}: under NumericMode::Exact {exact_refused} calls that round (3 of them by reading text as a number) were refused with ExactUnavailable, and {exact_computed} calls without rounding computed the value of their Fast oracle row"
+        "ACCEPT-NOTE: {CASE}: under NumericMode::Exact {exact_refused} calls that round ({refused_reading_text} of them by reading text as a number, {refused_comparing} by comparing two different numbers) were refused with ExactUnavailable, and {exact_computed} calls without rounding computed the value of their Fast oracle row; =1=2 gives FALSE under Fast and ExactUnavailable under Exact"
     );
 
     // The retained Excel witness of the POWER function, applied to the ^ operator on the
