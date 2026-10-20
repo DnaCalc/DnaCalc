@@ -29,7 +29,11 @@
 //!   numeric mode differs from the published generation's; [`step`] evaluates the ordered nodes
 //!   through CalcFml's evaluator, reading literal inputs from the snapshot's pages and formula
 //!   values from the results it staged or the calculated published ones, and shows every run it
-//!   reads to the caller's [`ReadObserver`], which cannot change them; [`finish`] publishes the
+//!   reads to the caller's [`ReadObserver`], which cannot change them, together with what the
+//!   evaluator itself reports of each call it ran and each outcome it returned
+//!   ([`ObservedEvaluation`]: the instrument on the evaluation route, apart from publication, that
+//!   a verdict's evaluation record is made from, carrying CalcFml's own report of each outcome,
+//!   which the engine cannot make or change); [`finish`] publishes the
 //!   staged results as one generation and returns the [`ValueDelta`]. Each published
 //!   [`FormulaResult`] is calculated (with its [`Calculation`]: revision, tick and numeric mode),
 //!   a file cache ([`EngineState::with_file_caches`]) that is never read or counted as calculated,
@@ -47,7 +51,7 @@ pub use edit::{
     prepare_edit,
 };
 pub use graph::{AxisInterval, Prerequisite, SheetSpan};
-pub use read::{ReadObserver, Unobserved};
+pub use read::{ObservedEvaluation, ReadObserver, Unobserved};
 pub use recalc::{
     RecalcFailure, RecalcProgress, RecalcWork, StartError, WorkBudget, begin_recalc, finish, step,
 };

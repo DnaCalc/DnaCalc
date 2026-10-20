@@ -5,7 +5,7 @@
 //! generation as it was, and its pending nodes pending.
 
 use crate::graph::{AxisInterval, Prerequisite};
-use crate::read::{ReadObserver, SnapshotCatalog, WorkbookReader};
+use crate::read::{ObservedEvaluation, ReadObserver, SnapshotCatalog, WorkbookReader};
 use crate::result::{CalcTick, Calculation, FormulaResult, NotModeled, ValueChange, ValueDelta};
 use crate::state::{Binding, EngineState};
 use calc_doc_model::{AuthoredRevision, Axis, CellInput, FormulaText, ModelRoot};
@@ -13,10 +13,11 @@ use calc_fml::reference::{
     CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape,
 };
 use calc_fml::{
-    EvalFault, EvalFrame, EvalScratch, EvaluationServices, FormulaInstance, compile, evaluate,
-    instantiate, parse_formula,
+    EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
+    ExecutedCall, FormulaInstance, compile, evaluate, instantiate, parse_formula,
 };
 use calc_value::{CellKey, GridArea, NodeId, NumericMode};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::ControlFlow;
@@ -251,7 +252,8 @@ pub fn begin_recalc(
 
 /// Evaluates up to `budget` of the recalculation's remaining nodes, in order, each through
 /// CalcFml's evaluator reading through the engine's reader, with `observer` shown every run the
-/// evaluation receives, and stages each result:
+/// evaluation receives and what the evaluator reports of each call it runs and of the outcome it
+/// returns (see [`ReadObserver`]), and stages each result:
 ///
 /// - a value a cell holds (a finite number, a text, a logical or an error) is staged as
 ///   calculated, by this recalculation's tick, at its revision and under its mode;
@@ -487,24 +489,31 @@ fn schedule(
     Ok(order)
 }
 
+/// The caller's observer during one formula's evaluation, shared by the engine's reader, which
+/// shows it each run, and the instrument CalcFml's evaluator reports to. Neither borrows it across
+/// the other: a read borrows it while the read runs, and the evaluator reports a call only after
+/// the call returns and its outcome only after the evaluation ends, never inside a read.
+type SharedObserver<'l, 'o> = &'l RefCell<&'o mut dyn ReadObserver>;
+
 /// The engine's reader, with the caller's observer shown each run before the evaluation receives
 /// it, for one formula's evaluation.
-struct Observed<'l> {
-    observer: &'l mut dyn ReadObserver,
+struct Observed<'l, 'o> {
+    observer: SharedObserver<'l, 'o>,
     formula: CellKey,
     cells: &'l mut dyn ReferenceReader,
     /// The area of the read the observer stopped.
     stopped: Option<GridArea>,
 }
 
-impl ReferenceReader for Observed<'_> {
+impl ReferenceReader for Observed<'_, '_> {
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         let total = area.cell_count();
         if self.stopped.is_some() {
             let _ = sink(CellRun::Missing(total));
             return;
         }
-        let (observer, formula) = (&mut *self.observer, self.formula);
+        let mut observer = self.observer.borrow_mut();
+        let formula = self.formula;
         let mut offset = 0u64;
         let mut stopped = false;
         self.cells.read_area(area, &mut |run| {
@@ -515,6 +524,7 @@ impl ReferenceReader for Observed<'_> {
             offset += run.len();
             sink(run)
         });
+        drop(observer);
         if stopped {
             // The withheld run and the rest of the area reach the evaluation as cells the reader
             // cannot supply, so it reads no value the engine's reader did not report; the
@@ -522,6 +532,28 @@ impl ReferenceReader for Observed<'_> {
             self.stopped = Some(area);
             let _ = sink(CellRun::Missing(total - offset));
         }
+    }
+}
+
+/// The instrument on the evaluation route: CalcFml's evaluator reports each call it runs and the
+/// outcome it returns to this, and it passes them on to the caller's observer, each call with the
+/// formula and each outcome's report, which only the evaluator makes, unchanged with the
+/// recalculation's calculation. It holds nothing the engine stages or publishes.
+struct Instrument<'l, 'o> {
+    observer: SharedObserver<'l, 'o>,
+    formula: CellKey,
+    calculation: &'l Calculation,
+}
+
+impl EvaluationObserver for Instrument<'_, '_> {
+    fn called(&mut self, call: ExecutedCall) {
+        self.observer.borrow_mut().called(self.formula, call);
+    }
+
+    fn returned(&mut self, report: EvaluationReport<'_>) {
+        self.observer
+            .borrow_mut()
+            .evaluated(ObservedEvaluation::new(self.calculation, report));
     }
 }
 
@@ -556,15 +588,22 @@ fn evaluate_node(
         scheduled: &work.scheduled,
         unscheduled: None,
     };
+    let observer = RefCell::new(observer);
     let (outcome, stopped) = {
         let mut observed = Observed {
-            observer,
+            observer: &observer,
             formula,
             cells: &mut cells,
             stopped: None,
         };
+        let instrument: &mut dyn EvaluationObserver = &mut Instrument {
+            observer: &observer,
+            formula,
+            calculation: &calculation,
+        };
         let outcome = {
-            let mut services = EvaluationServices::new(work.calculation.mode(), &mut observed);
+            let mut services =
+                EvaluationServices::new(calculation.mode(), &mut observed).observed_by(instrument);
             evaluate(EvalFrame::new(instance, &mut work.scratch), &mut services)
         };
         (outcome, observed.stopped)

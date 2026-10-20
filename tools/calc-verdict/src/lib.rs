@@ -1,7 +1,7 @@
 //! The one verdict path (plan section 10.1): the canonical CaptureRecord, the result set, the
 //! evaluation record, and the provenance-first CellVerdict report computed from them. A file-cache
 //! replay, a live Excel capture and the product's own conformance runs all hand this library a
-//! [`CaptureRecord`], a [`ResultSet`] and an [`EvaluationRecord`]; [`judge`] is the only place a
+//! [`CaptureRecord`], a [`ResultSet`] and an evaluation record; [`judge`] is the only place a
 //! verdict is computed.
 //!
 //! - [`CaptureRecord`]: what Excel was observed to produce, with the origin of each observation
@@ -9,12 +9,14 @@
 //!   saved `<v>` text, [`Observation::UnknownFreshnessCache`]), the Excel environment, and the
 //!   independently enumerated formula inventory that is the denominator.
 //! - [`ResultSet`]: each published value with its [`Provenance`].
-//! - [`EvaluationRecord`]: the evaluator calls an instrument observed during the run, a document
-//!   of its own that the publisher of results does not write.
+//! - [`InstrumentRecord`] (version 2) and [`EvaluationRecord`] (version 1): the evaluator calls
+//!   an instrument observed during the run, a document of its own that the publisher of results
+//!   does not write. A version 2 record also carries what each evaluation returned; version 1
+//!   records are authored, by fixtures and by other packages' cases.
 //! - [`judge`]: one [`CellVerdict`] per inventory cell. Only a result calculated by this run,
-//!   with an evaluation in the evaluation record behind it, counts as calculated, and only a
-//!   calculated result can be matched. Strict-bit certainty is marked per comparison
-//!   ([`Certainty`]).
+//!   with an evaluation in the evaluation record behind it that, in a version 2 record, returned
+//!   the value published, counts as calculated, and only a calculated result can be matched.
+//!   Strict-bit certainty is marked per comparison ([`Certainty`]).
 //! - [`VerdictReport::encode`]: the report as JSON, headline first.
 //! - [`EvidenceLabels`]: the acquisition labels of a legacy evidence record, which decide what a
 //!   record converted from that evidence may certify.
@@ -54,7 +56,10 @@ pub use capture::{
     CellObservation, EncodeError, ExcelEnvironment, FormulaCell, FormulaKind, Observation,
     SavedCache, SheetEntry, SheetVisibility,
 };
-pub use evaluations::{EVALUATION_FORMAT, EVALUATION_VERSION, Evaluation, EvaluationRecord};
+pub use evaluations::{
+    EVALUATION_FORMAT, EVALUATION_VERSION, Evaluation, EvaluationProof, EvaluationRecord,
+    InstrumentRecord, InstrumentedEvaluation, evaluation_record_version,
+};
 pub use evidence::{EVIDENCE_RECORD_FORMAT, EvidenceLabels};
 pub use replay::{
     MISSING_CAPTURE_FORMAT, MISSING_CAPTURE_VERSION, MissingCapture, file_cache_replay,

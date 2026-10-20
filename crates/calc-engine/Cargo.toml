@@ -18,6 +18,13 @@ calc-value = { path = "../calc-value" }
 calc-doc-model = { path = "../calc-doc-model" }
 calc-fml = { path = "../calc-fml" }
 
+# The dc-qguw acceptance cases judge the engine's published results against the evaluation record
+# made from the evaluator's own reports, through the one verdict library. Test-only: calc-verdict
+# depends on no CalcEngine package (tools/xtask/architecture.json), so the code under test is not
+# part of its own judge.
+[dev-dependencies]
+calc-verdict = { path = "../../tools/calc-verdict" }
+
 # The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which runs
 # only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the
 # release built on that wasm-bindgen (the pair the CI browser fixture pins). Test-only, wasm32-only.

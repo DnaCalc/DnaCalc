@@ -37,6 +37,31 @@
         "ceng_m1_2__chain_recalculates": ["windows", "linux", "wasm"],
         "ceng_m1_2__wrong_cache_not_pass": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-qguw",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-engine", "--test", "acceptance", "dc_qguw", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-fml", "--lib"],
+        ["cargo", "test", "-p", "calc-fml", "--doc"],
+        ["cargo", "test", "-p", "calc-verdict", "--lib"],
+        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "xtask", "verdict", "--capture", "target/verdict/dc-qguw/fault_injection/capture.json", "--results", "target/verdict/dc-qguw/fault_injection/results_faulty.json", "--evaluations", "target/verdict/dc-qguw/fault_injection/evaluations_one_step.json", "--out", "target/verdict/dc-qguw/fault_injection/report_one_step.json"],
+        ["cargo", "xtask", "verdict", "--capture", "target/verdict/dc-qguw/fault_injection/capture.json", "--results", "target/verdict/dc-qguw/fault_injection/results_calculated.json", "--evaluations", "target/verdict/dc-qguw/fault_injection/evaluations_calculated.json", "--out", "target/verdict/dc-qguw/fault_injection/report_calculated.json"],
+        ["cargo", "xtask", "verdict", "--capture", "target/verdict/dc-qguw/published_value_differs/capture.json", "--results", "target/verdict/dc-qguw/published_value_differs/results.json", "--evaluations", "target/verdict/dc-qguw/published_value_differs/evaluations.json", "--out", "target/verdict/dc-qguw/published_value_differs/report.json"],
+        ["cargo", "xtask", "accept", "--id", "dc-qguw", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-qguw", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-qguw", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_qguw__fault_injection",
+        "dc_qguw__published_value_differs"
+      ],
+      "platforms": {
+        "dc_qguw__fault_injection": ["windows", "linux", "wasm"],
+        "dc_qguw__published_value_differs": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

@@ -100,6 +100,7 @@
     {"item": "eval::run::EvalFault::MissingInput", "callers": [{"file": "crates/calc-fml/src/eval/cells.rs", "fn": "ReadRefusal::fault"}, {"file": "crates/calc-fml/src/eval/cells.rs", "fn": "SharedReader::value_of"}], "case": "cfml_m1_3__lazy_if"},
     {"item": "eval::run::EvalFault::ReadContract", "callers": [{"file": "crates/calc-fml/src/eval/cells.rs", "fn": "ReadRefusal::fault"}, {"file": "crates/calc-fml/src/eval/cells.rs", "fn": "SharedReader::value_of"}], "case": "cfml_m1_3__lazy_if"},
     {"item": "eval::run::EvalFault::AreaAsValue", "callers": [{"file": "crates/calc-fml/src/eval/cells.rs", "fn": "SharedReader::value_of"}], "case": "cfml_m1_3__reuse_plan"},
-    {"item": "eval::run::EvalFault::NearZeroFinalSum", "callers": [{"file": "crates/calc-fml/src/eval/run.rs", "fn": "Run::near_zero_check"}], "case": "cfml_m1_3__reuse_plan"}
+    {"item": "eval::run::EvalFault::NearZeroFinalSum", "callers": [{"file": "crates/calc-fml/src/eval/run.rs", "fn": "Run::near_zero_check"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::EvaluationObserver", "callers": [{"file": "crates/calc-engine/src/recalc.rs", "fn": "evaluate_node"}], "case": "dc_qguw__fault_injection"}
   ]
 }

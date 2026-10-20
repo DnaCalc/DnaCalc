@@ -13,6 +13,8 @@
 //!   under another context fingerprint                -> stale (context_not_run)
 //!   with no evaluation of the cell at its tick,
 //!   revision and context in the evaluation record    -> unproven
+//!   with one that, in a version 2 record, returned
+//!   no value or another value than the result's      -> unproven (returned)
 //!   no observation for the cell                      -> not_run
 //!   compared with the observation                    -> matched | mismatched
 //! ```
@@ -26,8 +28,16 @@
 //! Only the last two rungs count a cell as calculated, and only a calculated cell can be matched:
 //! a file-cached, stale or unproven value that equals the expectation is still not calculated (the
 //! report counts such values separately, as the false passes a value-only comparison would have
-//! scored). The proof of calculation is the evaluation record, a separate input that the publisher
-//! of results does not write; the result set's own claim proves nothing. The denominator is the
+//! scored). The proof of calculation is the evaluation record, a separate input meant to come from
+//! the evaluator rather than the publisher of results (judge cannot check who wrote it); the result
+//! set's own claim proves nothing. A version 2 record, made from the evaluator's own reports
+//! (only the dc-qguw acceptance cases write one today), also says what each evaluation returned,
+//! and a result whose value is not that value is unproven: the evaluation happened, but the value
+//! published is not the one it gave. A version 1 record carries no returned value, so against it
+//! a listed evaluation is all the proof there is, whatever value the result publishes
+//! ([`crate::EvaluationRecord`]); the report says so, with the record's version and the count of
+//! calculated cells proven without a value check (`calculated_without_value_check`). Bead
+//! `dc-i1ro` moves the version 1 records to version 2 and refuses version 1. The denominator is the
 //! inventory: a cell without a result is missing, never dropped, a result for a cell outside the
 //! inventory is counted apart and never enters it, and an empty inventory is refused rather than
 //! reported as calculated 0 of 0.
@@ -47,7 +57,7 @@ use crate::JudgeError;
 use crate::capture::{
     Acquisition, CaptureRecord, CellAddress, FormulaCell, FormulaKind, Observation, SheetVisibility,
 };
-use crate::evaluations::EvaluationRecord;
+use crate::evaluations::EvaluationProof;
 use crate::evidence::EvidenceLabels;
 use crate::json::Out;
 use crate::result::{CellResult, Provenance, ResultSet, RunIdentity};
@@ -58,8 +68,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const REPORT_FORMAT: &str = "dnacalc-verdict-report";
 /// Version 2 adds the `captured` and `capture_failures` members a report on a version 2 capture
-/// record carries, and the uncertified reason `capture_failure`.
-pub const REPORT_VERSION: u64 = 2;
+/// record carries, and the uncertified reason `capture_failure`. Version 3 adds what a report
+/// judged against a version 1 evaluation record must show, the weaker proof it rests on: the
+/// `evaluation_record_version` member and the count `calculated_without_value_check`, the
+/// calculated cells whose evaluation the record lists without what it returned (every calculated
+/// cell against a version 1 record, none against a version 2 record); and an unproven cell's
+/// `returned` member, present when a version 2 record's evaluation of it returned no value or
+/// another value than the result's.
+pub const REPORT_VERSION: u64 = 3;
 
 /// What a verdict run is judged against: the numeric mode whose Exact target strict-bit certainty
 /// needs, and the legacy evidence labels a record converted from legacy evidence needs.
@@ -164,9 +180,12 @@ pub enum Verdict {
     /// observe it), so it was not compared.
     NotRun,
     /// The result claims calculation at `tick`, but the evaluation record holds no evaluation of
-    /// the cell at that tick, revision and context. Not calculated.
+    /// the cell at that tick, revision and context (`returned` is `None`), or, in a version 2
+    /// record, holds one that returned no value (`Err`, with why) or another value than the
+    /// result publishes (`Ok`, with the value it returned). Not calculated.
     Unproven {
         tick: u64,
+        returned: Option<Result<CalcValue, String>>,
     },
     /// Not calculated by this run.
     Stale {
@@ -260,6 +279,11 @@ pub struct Counts {
     pub outside_inventory: u64,
     /// The entries of the evaluation record: the evaluator calls the instrument observed.
     pub evaluator_calls: u64,
+    /// Calculated cells whose evaluation the evaluation record lists without what it returned (a
+    /// version 1 record), so whose published value no evaluation was checked against: every
+    /// calculated cell when the record is version 1, none when it is version 2. Part of
+    /// `calculated`, not apart from it.
+    pub calculated_without_value_check: u64,
 }
 
 /// How the denominator divides by sheet visibility, by formula kind and by what was observed.
@@ -299,6 +323,9 @@ pub struct VerdictReport {
     /// The failures a version 2 capture record's session records, counted; `None` for a version 1
     /// record, which records none.
     pub capture_failures: Option<CaptureFailureCounts>,
+    /// The version of the evaluation record judged against: 2 when each evaluation carries what it
+    /// returned, 1 when it does not ([`Counts::calculated_without_value_check`]).
+    pub evaluation_record_version: u64,
     pub counts: Counts,
     pub strata: Strata,
     pub cells: Vec<CellVerdict>,
@@ -403,28 +430,31 @@ fn check_shared_ranges(
     Ok(())
 }
 
-/// The CellVerdict report for `results` judged against `capture`, with `evaluations` as the proof
-/// of calculation, under `policy`: the one place a verdict is computed, for a file-cache replay, a
-/// live capture and the product's conformance runs alike. Refuses an empty formula inventory
-/// ([`JudgeError::EmptyInventory`]) and inputs inconsistent in themselves or with each other
-/// ([`JudgeError::Inconsistent`]).
-pub fn judge(
+/// The CellVerdict report for `results` judged against `capture`, with `evaluations` (an evaluation
+/// record of either version, [`crate::EvaluationRecord`] or [`crate::InstrumentRecord`]) as the
+/// proof of calculation, under `policy`: the one place a verdict is computed, for a file-cache
+/// replay, a live capture and the product's conformance runs alike. Refuses an empty formula
+/// inventory ([`JudgeError::EmptyInventory`]) and inputs inconsistent in themselves or with each
+/// other ([`JudgeError::Inconsistent`]).
+pub fn judge<'e>(
     capture: &CaptureRecord,
     results: &ResultSet,
-    evaluations: &EvaluationRecord,
+    evaluations: impl Into<EvaluationProof<'e>>,
     policy: &VerdictPolicy<'_>,
 ) -> Result<VerdictReport, JudgeError> {
+    let evaluations: EvaluationProof<'e> = evaluations.into();
+    let (evaluations_case, evaluations_source) = evaluations.identity();
     for (what, case, source) in [
-        ("result set", &results.case, &results.source),
-        ("evaluation record", &evaluations.case, &evaluations.source),
+        ("result set", results.case.as_str(), results.source.as_str()),
+        ("evaluation record", evaluations_case, evaluations_source),
     ] {
-        if *case != capture.case {
+        if case != capture.case {
             return Err(JudgeError::new(format!(
                 "the {what} is for case {case:?} and the capture record for case {:?}",
                 capture.case
             )));
         }
-        if *source != capture.source {
+        if source != capture.source {
             return Err(JudgeError::new(format!(
                 "the {what} is for source {source:?} and the capture record for source {:?}",
                 capture.source
@@ -554,14 +584,24 @@ pub fn judge(
         }
     }
 
-    let mut evaluated: BTreeSet<(&CellAddress, u64, u64, &str)> = BTreeSet::new();
-    for evaluation in &evaluations.evaluations {
-        if !evaluated.insert((
-            &evaluation.cell,
-            evaluation.tick,
-            evaluation.revision,
-            &evaluation.context,
-        )) {
+    // Each evaluation by its cell, tick, revision and context, with what it returned when a
+    // version 2 record says.
+    let entries = evaluations.entries();
+    let mut evaluated: BTreeMap<(&CellAddress, u64, u64, &str), Option<&Returned>> =
+        BTreeMap::new();
+    for (evaluation, returned) in &entries {
+        if evaluated
+            .insert(
+                (
+                    &evaluation.cell,
+                    evaluation.tick,
+                    evaluation.revision,
+                    &evaluation.context,
+                ),
+                *returned,
+            )
+            .is_some()
+        {
             return Err(JudgeError::new(format!(
                 "the evaluation record lists the evaluation of {} at tick {} (revision {}, context {:?}) twice",
                 place(&evaluation.cell),
@@ -686,9 +726,19 @@ pub fn judge(
                         },
                         equals(),
                     )
-                } else if !evaluated.contains(&(&formula.cell, *tick, *revision, context.as_str()))
-                {
-                    (Verdict::Unproven { tick: *tick }, equals())
+                } else if let Some(returned) = unproven(
+                    evaluated
+                        .get(&(&formula.cell, *tick, *revision, context.as_str()))
+                        .copied(),
+                    value,
+                ) {
+                    (
+                        Verdict::Unproven {
+                            tick: *tick,
+                            returned,
+                        },
+                        equals(),
+                    )
                 } else {
                     let verdict = match observation.zip(value) {
                         None => Verdict::NotRun,
@@ -721,9 +771,10 @@ pub fn judge(
     let mut counts = Counts {
         denominator: cells.len() as u64,
         outside_inventory: outside_inventory.len() as u64,
-        evaluator_calls: evaluations.evaluations.len() as u64,
+        evaluator_calls: entries.len() as u64,
         ..Counts::default()
     };
+    let value_checked = evaluations.version() != 1;
     let mut strata = Strata::default();
     for cell in &cells {
         let certainty = match &cell.verdict {
@@ -771,6 +822,9 @@ pub fn judge(
         }
         if cell.verdict.is_calculated() {
             counts.calculated += 1;
+            if !value_checked {
+                counts.calculated_without_value_check += 1;
+            }
         }
         if cell.value_equals_expectation == Some(true) {
             counts.not_calculated_equal_to_expectation += 1;
@@ -811,11 +865,45 @@ pub fn judge(
             }
             counts
         }),
+        evaluation_record_version: evaluations.version(),
         counts,
         strata,
         cells,
         outside_inventory,
     })
+}
+
+/// What an evaluation returned, as a version 2 evaluation record says: the value, or why none.
+type Returned = Result<CalcValue, String>;
+
+/// Why a calculated result is unproven, given the evaluation of its cell at its tick, revision and
+/// context (`None` when the record holds none) and the value it publishes: `None` when it is
+/// proven, `Some(None)` when there is no evaluation, and `Some(Some(returned))` when a version 2
+/// record says the evaluation returned no value or another value than the published one.
+fn unproven(
+    evaluation: Option<Option<&Returned>>,
+    published: Option<&CalcValue>,
+) -> Option<Option<Returned>> {
+    match evaluation {
+        None => Some(None),
+        // A version 1 record: the listed evaluation is all the proof there is, and the report
+        // counts the cell in `calculated_without_value_check`.
+        Some(None) => None,
+        Some(Some(returned)) => {
+            let gave_published = matches!(
+                (returned, published),
+                (Ok(value), Some(published)) if compare(value, published).is_none()
+            );
+            (!gave_published).then(|| Some(returned.clone()))
+        }
+    }
+}
+
+fn returned_out(returned: &Returned) -> Out {
+    match returned {
+        Ok(value) => Out::Object(vec![("value", value_out(value))]),
+        Err(why) => Out::Object(vec![("no_value", Out::text(why.as_str()))]),
+    }
 }
 
 fn certainty_members(certainty: Certainty, members: &mut Vec<(&'static str, Out)>) {
@@ -873,7 +961,12 @@ fn cell_out(cell: &CellVerdict) -> Out {
             members.push(("actual", value_out(actual)));
         }
         Verdict::NotRun => {}
-        Verdict::Unproven { tick } => members.push(("tick", Out::Unsigned(*tick))),
+        Verdict::Unproven { tick, returned } => {
+            members.push(("tick", Out::Unsigned(*tick)));
+            if let Some(returned) = returned {
+                members.push(("returned", returned_out(returned)));
+            }
+        }
         Verdict::Stale { source } => {
             members.push(("stale", Out::text(source.name())));
             match source {
@@ -936,13 +1029,14 @@ impl VerdictReport {
         by_reason
     }
 
-    /// The report as a JSON document (`dnacalc-verdict-report`, version 2): the headline
+    /// The report as a JSON document (`dnacalc-verdict-report`, version 3): the headline
     /// (calculated of the denominator, then matched of the calculated), every count, the uncertified
     /// comparisons by reason, the strata, one line per inventory cell in inventory order, and the
     /// results outside the inventory. For a version 2 capture record a `captured` member after
     /// `run` names the revision and context the capture observed, and a `capture_failures` member
     /// after it counts the capture's failures (`{"total": n, "by_stage": {"<stage>": n, ...}}`); a
-    /// report on a version 1 record has neither member.
+    /// report on a version 1 record has neither member. Then `evaluation_record_version` names the
+    /// version of the evaluation record judged against, before the headline.
     pub fn encode(&self) -> String {
         let c = &self.counts;
         let run = |identity: &RunIdentity| {
@@ -995,6 +1089,10 @@ impl VerdictReport {
         }
         members.extend([
             (
+                "evaluation_record_version",
+                Out::Unsigned(self.evaluation_record_version),
+            ),
+            (
                 "headline",
                 Out::Object(vec![
                     (
@@ -1032,6 +1130,10 @@ impl VerdictReport {
                     ),
                     ("outside_inventory", Out::Unsigned(c.outside_inventory)),
                     ("evaluator_calls", Out::Unsigned(c.evaluator_calls)),
+                    (
+                        "calculated_without_value_check",
+                        Out::Unsigned(c.calculated_without_value_check),
+                    ),
                 ]),
             ),
             (
@@ -1081,7 +1183,8 @@ impl VerdictReport {
         Out::Object(members).document()
     }
 
-    /// The report's counts on one line, headline first, with the uncertified comparisons by reason
+    /// The report's counts on one line, headline first, with the uncertified comparisons by reason,
+    /// the evaluation record's version with the calculated cells it proves without a value check
     /// and, for a version 2 capture record, the capture's failures by stage.
     pub fn summary(&self) -> String {
         let c = &self.counts;
@@ -1116,7 +1219,7 @@ impl VerdictReport {
             })
             .unwrap_or_default();
         format!(
-            "{}: calculated {} of {} formula cells; matched {} of {} calculated, mismatched {}, not run {}; of the {} compared, strict-bit certified {}, uncertified {}{}; not calculated: unproven {}, stale {}, file-cached {}, not modeled {}, failed {}, missing {}; {} not-calculated values equal their expectation; {} results outside the inventory; {} evaluator calls{}",
+            "{}: calculated {} of {} formula cells; matched {} of {} calculated, mismatched {}, not run {}; of the {} compared, strict-bit certified {}, uncertified {}{}; not calculated: unproven {}, stale {}, file-cached {}, not modeled {}, failed {}, missing {}; {} not-calculated values equal their expectation; {} results outside the inventory; {} evaluator calls (evaluation record version {}, {} calculated without a value check){}",
             self.case,
             c.calculated,
             c.denominator,
@@ -1137,6 +1240,8 @@ impl VerdictReport {
             c.not_calculated_equal_to_expectation,
             c.outside_inventory,
             c.evaluator_calls,
+            self.evaluation_record_version,
+            c.calculated_without_value_check,
             capture_failures
         )
     }
@@ -1146,7 +1251,9 @@ impl VerdictReport {
 mod tests {
     use super::*;
     use crate::capture::{CacheCellType, SavedCache};
-    use crate::evaluations::Evaluation;
+    use crate::evaluations::{
+        Evaluation, EvaluationRecord, InstrumentRecord, InstrumentedEvaluation,
+    };
     use crate::value::{ExcelText, NumericTargetId};
 
     const ENVIRONMENT: &str = r#"{"excel_build": "20430", "channel": "current", "compatibility": "2", "numeric_environment": "x86-64", "settings": {"date_system": "1900"}}"#;
@@ -1249,6 +1356,23 @@ mod tests {
     /// The evaluation that proves CALCULATED: Sheet1!A1 at tick 7, revision 3, context "k".
     fn evaluated() -> EvaluationRecord {
         record_of(&[(1, 1, 7, 3, "k")])
+    }
+
+    /// The same evaluation as [`evaluated`] in a version 2 record, returning `returned`.
+    fn instrumented(returned: &Result<CalcValue, String>) -> InstrumentRecord {
+        let listed = evaluated();
+        InstrumentRecord {
+            case: listed.case,
+            source: listed.source,
+            evaluations: listed
+                .evaluations
+                .into_iter()
+                .map(|evaluation| InstrumentedEvaluation {
+                    evaluation,
+                    returned: returned.clone(),
+                })
+                .collect(),
+        }
     }
 
     const LIVE: &str = r#"{"kind": "live_capture"}"#;
@@ -1452,6 +1576,126 @@ mod tests {
         );
     }
 
+    /// In a version 2 record an evaluation proves a calculated result only when it returned the
+    /// value the result publishes: the published 2 equals the expectation, and an evaluation that
+    /// returned another value, or none, leaves it unproven. The same evaluation in a version 1
+    /// record, which does not say what it returned, proves the 2.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn an_instrumented_evaluation_proves_only_the_value_it_returned() {
+        let live = capture(LIVE, ENVIRONMENT, RAW_TWO);
+        let calculated = results(CALCULATED);
+        let policy = exact("20430");
+        let proven = judge(
+            &live,
+            &calculated,
+            &instrumented(&Ok(CalcValue::number(2.0))),
+            &policy,
+        )
+        .unwrap();
+        assert_eq!(proven.cells[0].verdict, matched(Certainty::StrictBits));
+        assert_eq!(proven.cells[0].value_equals_expectation, None);
+        assert_eq!((proven.counts.calculated, proven.counts.matched), (1, 1));
+        assert!(!proven.encode().contains("\"returned\""));
+        // Its value was checked against what the evaluation returned.
+        assert_eq!(
+            (
+                proven.evaluation_record_version,
+                proven.counts.calculated_without_value_check
+            ),
+            (2, 0)
+        );
+        assert!(
+            proven
+                .summary()
+                .contains("(evaluation record version 2, 0 calculated without a value check)"),
+            "{}",
+            proven.summary()
+        );
+        for (returned, shown) in [
+            (
+                Ok(CalcValue::number(3.0)),
+                r#""returned":{"value":{"number":"4008000000000000"}}"#,
+            ),
+            // The same magnitude with the other sign is another value.
+            (
+                Ok(CalcValue::number(-2.0)),
+                r#""returned":{"value":{"number":"c000000000000000"}}"#,
+            ),
+            (Ok(text("2")), r#""returned":{"value":{"text":"0032"}}"#),
+            (
+                Err("NearZeroFinalSum".to_owned()),
+                r#""returned":{"no_value":"NearZeroFinalSum"}"#,
+            ),
+        ] {
+            let report = judge(&live, &calculated, &instrumented(&returned), &policy).unwrap();
+            assert_eq!(
+                report.cells[0].verdict,
+                Verdict::Unproven {
+                    tick: 7,
+                    returned: Some(returned.clone()),
+                },
+                "{returned:?}"
+            );
+            assert_eq!(report.cells[0].value_equals_expectation, Some(true));
+            assert_eq!(
+                (
+                    report.counts.calculated,
+                    report.counts.matched,
+                    report.counts.unproven,
+                    report.counts.not_calculated_equal_to_expectation,
+                    report.counts.evaluator_calls
+                ),
+                (0, 0, 1, 1, 1),
+                "{returned:?}"
+            );
+            assert!(report.encode().contains(shown), "{returned:?}");
+            let listed = judge(&live, &calculated, &evaluated(), &policy).unwrap();
+            assert_eq!(listed.cells[0].verdict, matched(Certainty::StrictBits));
+            // The version 1 judgement says that its one calculated cell was proven without a
+            // value check.
+            assert_eq!(
+                (
+                    listed.evaluation_record_version,
+                    listed.counts.calculated,
+                    listed.counts.calculated_without_value_check
+                ),
+                (1, 1, 1)
+            );
+            assert!(
+                listed
+                    .summary()
+                    .contains("(evaluation record version 1, 1 calculated without a value check)"),
+                "{}",
+                listed.summary()
+            );
+        }
+        // The evaluation must still be at the claim's tick, revision and context.
+        let mut elsewhere = instrumented(&Ok(CalcValue::number(2.0)));
+        elsewhere.evaluations[0].evaluation.tick = 6;
+        let report = judge(&live, &calculated, &elsewhere, &policy).unwrap();
+        assert_eq!(
+            report.cells[0].verdict,
+            Verdict::Unproven {
+                tick: 7,
+                returned: None,
+            }
+        );
+        // A version 2 record is checked as a version 1 record is.
+        let mut twice = instrumented(&Ok(CalcValue::number(2.0)));
+        twice.evaluations.push(twice.evaluations[0].clone());
+        twice.evaluations[1].returned = Ok(CalcValue::number(3.0));
+        let error = judge(&live, &calculated, &twice, &policy).unwrap_err();
+        assert!(error.to_string().contains("twice"), "{error}");
+        let mut other = instrumented(&Ok(CalcValue::number(2.0)));
+        other.case = "d".to_owned();
+        let error = judge(&live, &calculated, &other, &policy).unwrap_err();
+        assert!(
+            error.to_string().contains("evaluation record is for case"),
+            "{error}"
+        );
+    }
+
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_calculated_claim_counts_only_with_its_evaluation_in_the_evaluation_record() {
@@ -1478,25 +1722,44 @@ mod tests {
             (
                 CALCULATED,
                 record_of(&[(1, 1, 6, 3, "k"), (1, 1, 8, 3, "k")]),
-                Verdict::Unproven { tick: 7 },
+                Verdict::Unproven {
+                    tick: 7,
+                    returned: None,
+                },
             ),
             // No evaluation at all.
-            (CALCULATED, record_of(&[]), Verdict::Unproven { tick: 7 }),
+            (
+                CALCULATED,
+                record_of(&[]),
+                Verdict::Unproven {
+                    tick: 7,
+                    returned: None,
+                },
+            ),
             // The claimed tick, but another revision, another context or another cell.
             (
                 CALCULATED,
                 record_of(&[(1, 1, 7, 2, "k")]),
-                Verdict::Unproven { tick: 7 },
+                Verdict::Unproven {
+                    tick: 7,
+                    returned: None,
+                },
             ),
             (
                 CALCULATED,
                 record_of(&[(1, 1, 7, 3, "other")]),
-                Verdict::Unproven { tick: 7 },
+                Verdict::Unproven {
+                    tick: 7,
+                    returned: None,
+                },
             ),
             (
                 CALCULATED,
                 record_of(&[(1, 2, 7, 3, "k")]),
-                Verdict::Unproven { tick: 7 },
+                Verdict::Unproven {
+                    tick: 7,
+                    returned: None,
+                },
             ),
             (
                 r#"{"stale": {"last_calculated": null, "cause": "edited"}}"#,
@@ -1623,8 +1886,11 @@ mod tests {
                 not_calculated_equal_to_expectation: 1,
                 outside_inventory: 0,
                 evaluator_calls: 2,
+                // A version 1 record: both calculated cells are proven without a value check.
+                calculated_without_value_check: 2,
             }
         );
+        assert_eq!(report.evaluation_record_version, 1);
         let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
         let names: Vec<&str> = encoded["cells"]
             .as_array()
@@ -2024,6 +2290,9 @@ mod tests {
         let report = judge(&live, &calculated, &evaluated(), &exact("20430")).unwrap();
         let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
         assert_eq!(encoded["format"], REPORT_FORMAT);
+        assert_eq!(encoded["version"], 3);
+        assert_eq!(encoded["evaluation_record_version"], 1);
+        assert_eq!(encoded["counts"]["calculated_without_value_check"], 1);
         assert_eq!(
             encoded["headline"]["calculated_of_denominator"],
             serde_json::json!([1, 1])

@@ -17,7 +17,10 @@
 //! is bead cfml-m2.3's (plan section 4.3).
 
 use super::cells::{ReaderCells, SharedReader};
-use super::{EvalFrame, EvaluationServices, FormulaInstance, Instruction, Target};
+use super::{
+    EvalFrame, EvaluationObserver, EvaluationReport, EvaluationServices, ExecutedCall,
+    FormulaInstance, Instruction, Target,
+};
 use crate::reference::ReadContractError;
 use calc_func::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode, WorksheetErrorCode};
 use calc_func::{
@@ -66,6 +69,9 @@ const ABANDONED: WorksheetErrorCode = WorksheetErrorCode::Calc;
 /// Runs `frame` to its value: the formula's result, with a reference to one cell replaced by the
 /// cell's value, or the fault that stopped it. A result that refers to a blank cell is the number
 /// 0, the value Excel shows for `=A1` when A1 is blank (not measured by this package).
+///
+/// When the services carry an [`EvaluationObserver`], it is shown each call the evaluation runs
+/// and then this outcome, before it is returned.
 pub fn evaluate(
     frame: EvalFrame<'_>,
     services: &mut EvaluationServices<'_>,
@@ -78,9 +84,14 @@ pub fn evaluate(
         calls: &mut scratch.calls,
         numeric: services.numeric,
         reader: &reader,
+        // Reborrowed for this evaluation only: the coercion shortens the observer's lifetime to
+        // the run's, which `Option::as_deref_mut` cannot.
+        observer: match services.observer.as_mut() {
+            Some(observer) => Some(&mut **observer),
+            None => None,
+        },
     };
-    let value = run.block(0)?;
-    match value.core() {
+    let outcome = run.block(0).and_then(|value| match value.core() {
         CoreValue::Reference(reference) => {
             let value = reader.value_of(reference)?;
             Ok(if value.is_empty() {
@@ -90,7 +101,15 @@ pub fn evaluate(
             })
         }
         _ => Ok(value),
+    });
+    if let Some(observer) = run.observer {
+        observer.returned(EvaluationReport {
+            anchor: instance.anchor,
+            numeric: services.numeric,
+            outcome: outcome.as_ref(),
+        });
     }
+    outcome
 }
 
 struct Run<'a, 'r> {
@@ -100,6 +119,7 @@ struct Run<'a, 'r> {
     calls: &'a mut Vec<FunctionCallScratch>,
     numeric: &'a NumericMode,
     reader: &'a SharedReader<'r>,
+    observer: Option<&'a mut dyn EvaluationObserver>,
 }
 
 impl Run<'_, '_> {
@@ -128,7 +148,8 @@ impl Run<'_, '_> {
                     target,
                     argc,
                     retain,
-                } => self.call(*target, *argc, *retain),
+                    synthetic,
+                } => self.call(*target, *argc, *retain, *synthetic),
                 Instruction::LazyCall {
                     target,
                     first_block,
@@ -179,7 +200,13 @@ impl Run<'_, '_> {
         }
     }
 
-    fn call(&mut self, target: Target, argc: usize, retain: bool) -> Result<(), EvalFault> {
+    fn call(
+        &mut self,
+        target: Target,
+        argc: usize,
+        retain: bool,
+        synthetic: bool,
+    ) -> Result<(), EvalFault> {
         let start = self.stack.len() - argc;
         for index in 0..argc {
             let value = std::mem::replace(&mut self.stack[start + index], CalcValue::missing());
@@ -198,6 +225,7 @@ impl Run<'_, '_> {
             )
         };
         self.calls.push(scratch);
+        self.show_call(target, synthetic);
         let value = result.map_err(|fault| self.function_fault(fault))?;
         if !retain {
             self.stack.truncate(start);
@@ -230,12 +258,23 @@ impl Run<'_, '_> {
         };
         let fault = arguments.fault.take();
         self.calls.push(scratch);
+        self.show_call(target, false);
         if let Some(fault) = fault {
             return Err(fault);
         }
         let value = result.map_err(|fault| self.function_fault(fault))?;
         self.stack.push(value);
         Ok(())
+    }
+
+    /// Shows the observer, when there is one, that `target` ran.
+    fn show_call(&mut self, target: Target, synthetic: bool) {
+        if let Some(observer) = self.observer.as_deref_mut() {
+            observer.called(ExecutedCall {
+                target: target.0,
+                synthetic,
+            });
+        }
     }
 
     /// A call's fault, with the reader's refusal when the kernel could not read a reference.
@@ -324,7 +363,10 @@ impl PreparedArguments for Blocks<'_, '_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::{EvalScratch, PlanCache, compile, instantiate};
+    use crate::eval::{
+        EvalScratch, EvaluationObserver, EvaluationReport, ExecutedCall, PlanCache, compile,
+        instantiate,
+    };
     use crate::parse_formula;
     use crate::reference::{
         CellRun, FormulaAnchor, ReferenceCatalog, ReferenceNotation, ReferenceReader,
@@ -387,6 +429,164 @@ mod tests {
 
     fn text(s: &str) -> CalcValue {
         CalcValue::text(ExcelText::from_interop_assignment(s))
+    }
+
+    /// What an observer is shown of one evaluation: each call, in order, as its spelling and
+    /// notation with `*` appended when it is synthetic, and each report: its anchor, numeric mode
+    /// and outcome.
+    #[derive(Default)]
+    struct Shown {
+        calls: Vec<String>,
+        reports: Vec<(FormulaAnchor, NumericMode)>,
+        outcomes: Vec<Result<CalcValue, EvalFault>>,
+    }
+
+    impl EvaluationObserver for Shown {
+        fn called(&mut self, call: ExecutedCall) {
+            let target = call.target();
+            self.calls.push(format!(
+                "{:?} {}{}",
+                target.notation(),
+                target.spelling(),
+                if call.synthetic() { " *" } else { "" }
+            ));
+        }
+
+        fn returned(&mut self, report: EvaluationReport<'_>) {
+            self.reports
+                .push((report.anchor(), report.numeric_mode().clone()));
+            self.outcomes
+                .push(report.outcome().cloned().map_err(Clone::clone));
+        }
+    }
+
+    /// The anchor [`observed`] evaluates at.
+    fn observed_anchor() -> FormulaAnchor {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), 5, 5).unwrap())
+    }
+
+    /// Evaluates `formula` under Fast, every cell holding `cells`, with an observer attached.
+    fn observed(formula: &str, cells: CalcValue) -> (Result<CalcValue, EvalFault>, Shown) {
+        let anchor = observed_anchor();
+        let plan = compile(
+            &parse_formula(formula),
+            ReferenceNotation::A1,
+            anchor,
+            &NoSheets,
+            &mut PlanCache::new(),
+        )
+        .unwrap();
+        let instance = instantiate(&plan, anchor);
+        let mut reader = Everywhere(cells);
+        let mut scratch = EvalScratch::new();
+        let mut shown = Shown::default();
+        let outcome = evaluate(
+            EvalFrame::new(&instance, &mut scratch),
+            &mut EvaluationServices::new(&NumericMode::Fast, &mut reader).observed_by(&mut shown),
+        );
+        (outcome, shown)
+    }
+
+    /// The observer is shown each call the evaluation ran, as it returned, with the near-zero
+    /// check's two negations marked synthetic and a negation the formula wrote not, and then the
+    /// outcome the evaluation returned, once, the same as `evaluate` returns, with the instance's
+    /// anchor and the numeric mode. A formula whose result is a reference to one cell is shown the
+    /// cell's value, as `evaluate` returns it, never the reference.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn the_observer_is_shown_calls_and_the_outcome() {
+        let three = CalcValue::number(3.0);
+        // Each formula, the value every cell holds, the calls shown and the outcome.
+        type Case<'c> = (
+            &'c str,
+            CalcValue,
+            &'c [&'c str],
+            Result<CalcValue, EvalFault>,
+        );
+        let cases: [Case<'_>; 10] = [
+            // A bare reference: the cell's value, not the reference.
+            ("=A1", three.clone(), &[], Ok(CalcValue::number(3.0))),
+            // A blank cell's value is the number 0.
+            ("=A1", CalcValue::empty(), &[], Ok(CalcValue::number(0.0))),
+            // A lazy call that returns the reference its argument wrote: the cell's value.
+            (
+                "=IF(TRUE,A1,0)",
+                three.clone(),
+                &["Call IF"],
+                Ok(CalcValue::number(3.0)),
+            ),
+            // -3 + 10 = 7: the written negation, the final sum, and the check's two negations.
+            (
+                "=-A1+10",
+                three.clone(),
+                &["Prefix -", "Infix +", "Prefix - *", "Prefix - *"],
+                Ok(CalcValue::number(7.0)),
+            ),
+            // A product is not checked.
+            (
+                "=A1*4",
+                three.clone(),
+                &["Infix *"],
+                Ok(CalcValue::number(12.0)),
+            ),
+            // A result in the band: the check runs and refuses it.
+            (
+                "=0.5-0.4-0.1",
+                CalcValue::empty(),
+                &["Infix -", "Infix -", "Prefix - *", "Prefix - *"],
+                Err(EvalFault::NearZeroFinalSum {
+                    result: -2.7755575615628914e-17,
+                }),
+            ),
+            // A result that is not a non-zero number skips the check, so no negation runs.
+            (
+                "=\"a\"-1",
+                CalcValue::empty(),
+                &["Infix -"],
+                Ok(CalcValue::error(WorksheetErrorCode::Value)),
+            ),
+            // A lazy call is shown after the calls of the argument it asked for, which hold the
+            // checked final sum of its branch.
+            (
+                "=IF(TRUE,A1+1,A1*2)",
+                three.clone(),
+                &["Infix +", "Prefix - *", "Prefix - *", "Call IF"],
+                Ok(CalcValue::number(4.0)),
+            ),
+            // An argument the evaluation cannot supply stops the call before its function runs.
+            (
+                "=A1:A2+1",
+                three.clone(),
+                &[],
+                evaluated("=A1:A2+1", three.clone()),
+            ),
+            // A function that refuses still ran.
+            (
+                "=2^0.5",
+                CalcValue::empty(),
+                &["Infix ^"],
+                evaluated("=2^0.5", CalcValue::empty()),
+            ),
+        ];
+        assert!(matches!(cases[8].3, Err(EvalFault::AreaAsValue { .. })));
+        assert!(matches!(
+            cases[9].3,
+            Err(EvalFault::Function(FunctionFault::NotImplemented { .. }))
+        ));
+        for (formula, cells, calls, expected) in cases {
+            let (outcome, shown) = observed(formula, cells.clone());
+            assert_eq!(outcome, expected, "{formula}");
+            assert_eq!(shown.calls, calls, "{formula}");
+            assert_eq!(shown.outcomes, [expected], "{formula}");
+            assert_eq!(
+                shown.reports,
+                [(observed_anchor(), NumericMode::Fast)],
+                "{formula}"
+            );
+            // The observer changes nothing the evaluation returns.
+            assert_eq!(evaluated(formula, cells), outcome, "{formula}");
+        }
     }
 
     /// The three near-zero rows of cfunc-m1.2's oracle workbook, and how the final operation

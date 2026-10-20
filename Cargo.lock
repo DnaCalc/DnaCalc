@@ -159,6 +159,7 @@ dependencies = [
  "calc-doc-model",
  "calc-fml",
  "calc-value",
+ "calc-verdict",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

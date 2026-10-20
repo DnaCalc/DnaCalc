@@ -12,7 +12,9 @@
 //! recalculate through `begin_recalc`, `step` and `finish`, which bind each formula's text
 //! through CalcFml and state its prerequisites from the placed references (cells, rectangles and
 //! whole rows or columns); sheet spans have no binding yet (cfml-m3.2's binding, ceng-m3.5's
-//! calculation).
+//! calculation). The dc-qguw cases attach an instrument to `step` and judge what the engine, or a
+//! deliberately faulty publication path, publishes against the evaluation record made from what
+//! the evaluator reported, with calc-verdict's `judge`.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -28,12 +30,17 @@ use calc_doc_model::{
 };
 use calc_engine::{
     AxisInterval, CacheWithoutFormula, EngineState, FormulaNode, FormulaResult, InputSeed,
-    NodeChange, NotModeled, PrepareError, Prerequisite, PrerequisiteError, ReadObserver,
-    RecalcFailure, RecalcProgress, SheetSpan, StartError, Unobserved, ValueChange, ValueDelta,
-    WorkBudget, begin_recalc, commit_edit, finish, prepare_edit, step,
+    NodeChange, NotModeled, ObservedEvaluation, PrepareError, Prerequisite, PrerequisiteError,
+    ReadObserver, RecalcFailure, RecalcProgress, SheetSpan, StartError, Unobserved, ValueChange,
+    ValueDelta, WorkBudget, begin_recalc, commit_edit, finish, prepare_edit, step,
 };
 use calc_fml::reference::{BindError, CellRun};
-use calc_fml::{CompileError, CompiledPlan, EvalFault};
+use calc_fml::{CompileError, CompiledPlan, EvalFault, ExecutedCall};
+use calc_verdict::{
+    CaptureRecord, CellAddress, Evaluation as VerdictEvaluation, EvaluationRecord,
+    InstrumentRecord, InstrumentedEvaluation, ResultSet, Verdict, VerdictPolicy, VerdictReport,
+    evaluation_record_version, judge,
+};
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::ops::ControlFlow;
@@ -2666,5 +2673,637 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     assert_eq!(finish(&mut state, work).unwrap().changes(), []);
     note!(
         "{CASE}: under Exact after Fast, all {node_count} formula nodes were calculated again and none published as Calculated from a Fast result (Calc!A10 refused, Calc!A11 calculated with its target); back under Fast all {node_count} again"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-qguw: the evaluation record a verdict counts calculations against is made from what CalcFml's
+// evaluator reports to the instrument on the evaluation route (ReadObserver::called and
+// ReadObserver::evaluated, shown by `step`), never from the results the engine publishes. The
+// cases below make that record (calc-verdict's version 2, with what each evaluation returned),
+// publish results as the engine published them or as a deliberately faulty publication path
+// would, and judge both with calc_verdict::judge, the one verdict path.
+//
+// Natively each case also writes the capture record, result set and evaluation record it judged
+// under target/verdict/dc-qguw/, where the bead's `cargo xtask verdict` commands read them.
+
+/// The instrument on the evaluation route, as a caller attaches it to `step`: every call and every
+/// evaluation outcome the evaluator reported, with the formula and the calculation the engine
+/// gave. It observes reads without recording them.
+#[derive(Debug, Default)]
+struct Instrument {
+    /// Each call as `<cell> <notation> <spelling>`, with ` *` when compile inserted it.
+    calls: Vec<String>,
+    evaluations: Vec<Recorded>,
+}
+
+/// One evaluation the instrument was shown: its cell, revision, tick and numeric mode, and what it
+/// returned.
+type Recorded = (CellKey, u64, u64, NumericMode, Result<CalcValue, EvalFault>);
+
+impl ReadObserver for Instrument {
+    fn observe(&mut self, _: CellKey, _: GridArea, _: u64, _: CellRun<'_>) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn called(&mut self, formula: CellKey, call: ExecutedCall) {
+        let target = call.target();
+        self.calls.push(format!(
+            "R{}C{} {:?} {}{}",
+            formula.row(),
+            formula.column(),
+            target.notation(),
+            target.spelling(),
+            if call.synthetic() { " *" } else { "" }
+        ));
+    }
+
+    fn evaluated(&mut self, evaluation: ObservedEvaluation<'_>) {
+        // The cell, numeric mode and outcome are those of the report CalcFml's evaluator made,
+        // which the engine can only pass on; the engine adds the revision and tick.
+        let calculation = evaluation.calculation();
+        let report = evaluation.report();
+        assert_eq!(report.numeric_mode(), calculation.mode());
+        self.evaluations.push((
+            report.anchor().cell(),
+            calculation.revision().get(),
+            calculation.tick().get(),
+            report.numeric_mode().clone(),
+            report.outcome().cloned().map_err(Clone::clone),
+        ));
+    }
+}
+
+/// The case and source every document of the dc-qguw cases names, and the fingerprint of the
+/// calculation context the engine calculates under here: Fast, its one setting.
+const QGUW_CASE: &str = "dc_qguw__workbook";
+const QGUW_SOURCE: &str = "fixture:dc-qguw/workbook";
+const QGUW_CONTEXT: &str = "calc-engine;numeric_mode=fast";
+
+/// The dc-qguw workbook: Data!A1 = 3 and Data!A2 = 4, and on Calc three formulas whose file caches
+/// hold the answers (hand-derived): A1 `=Data!A1*Data!A2` (3 * 4 = 12), A2 `=-Data!A1+10`
+/// (-3 + 10 = 7, a final sum whose near-zero check runs) and A3 `=2^0.5` (the binary64 nearest
+/// the square root of 2, 1.4142135623730951, which calc-func does not compute: its evaluation is
+/// refused). The engine state is opened with those caches.
+struct QguwBook {
+    data: SheetId,
+    calc: SheetId,
+    root: Arc<ModelRoot>,
+    state: EngineState,
+}
+
+impl QguwBook {
+    fn new() -> Self {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let data = ids.issue().unwrap();
+        let calc = ids.issue().unwrap();
+        let sheets = vec![sheet_entry(data, 1, "Data"), sheet_entry(calc, 2, "Calc")];
+        let load = batch(
+            0,
+            vec![
+                set(key(data, 1, 1), number(3.0)),
+                set(key(data, 2, 1), number(4.0)),
+                set(key(calc, 1, 1), formula("Data!A1*Data!A2")),
+                set(key(calc, 2, 1), formula("-Data!A1+10")),
+                set(key(calc, 3, 1), formula("2^0.5")),
+            ],
+        );
+        let root = ModelRoot::new(rev(0), sheets)
+            .unwrap()
+            .apply(&load)
+            .unwrap();
+        let part = Arc::new(SourcePart::new(
+            "xl/worksheets/sheet2.xml".to_owned(),
+            0x0D0C_9000,
+            2048,
+        ));
+        let cache = |value: f64| {
+            FileCached::new(
+                CachedValue::Number(FiniteNumber::new(value).unwrap()),
+                Arc::clone(&part),
+            )
+        };
+        let state = EngineState::with_file_caches(
+            &root,
+            [
+                (key(calc, 1, 1), cache(12.0)),
+                (key(calc, 2, 1), cache(7.0)),
+                (key(calc, 3, 1), cache(std::f64::consts::SQRT_2)),
+            ],
+        )
+        .unwrap();
+        QguwBook {
+            data,
+            calc,
+            root,
+            state,
+        }
+    }
+
+    fn c(&self, row: u32) -> CellKey {
+        key(self.calc, row, 1)
+    }
+
+    /// The cell `at` as the verdict's documents name it.
+    fn address(&self, at: CellKey) -> CellAddress {
+        let sheet = if at.sheet() == self.data {
+            "Data"
+        } else {
+            assert_eq!(at.sheet(), self.calc);
+            "Calc"
+        };
+        CellAddress::new(sheet, at.row(), at.column()).unwrap()
+    }
+
+    /// The expectation the results are judged against: the workbook's file caches, read as a
+    /// file-cache replay of caches of unknown freshness (no Excel ran; the caches are the
+    /// hand-derived answers above).
+    fn capture(&self) -> Vec<u8> {
+        format!(
+            r#"{{"format": "dnacalc-capture-record", "version": 1, "case": "{QGUW_CASE}", "source": "{QGUW_SOURCE}",
+  "acquisition": {{"kind": "file_cache_replay"}}, "environment": null,
+  "sheets": [{{"name": "Data", "visibility": "visible"}}, {{"name": "Calc", "visibility": "visible"}}],
+  "formulas": [{{"sheet": "Calc", "row": 1, "column": 1, "kind": "ordinary"}},
+               {{"sheet": "Calc", "row": 2, "column": 1, "kind": "ordinary"}},
+               {{"sheet": "Calc", "row": 3, "column": 1, "kind": "ordinary"}}],
+  "observations": [{{"sheet": "Calc", "row": 1, "column": 1, "unknown_freshness_cache": {{"t": "n", "v": "12"}}}},
+                   {{"sheet": "Calc", "row": 2, "column": 1, "unknown_freshness_cache": {{"t": "n", "v": "7"}}}},
+                   {{"sheet": "Calc", "row": 3, "column": 1, "unknown_freshness_cache": {{"t": "n", "v": "1.4142135623730951"}}}}]}}
+"#
+        )
+        .into_bytes()
+    }
+
+    /// The evaluation record made from what `instrument` was shown: calc-verdict's version 2, with
+    /// what each evaluation returned (a refusal as no value, with the evaluator's fault), each entry
+    /// made as a writer makes it ([`InstrumentedEvaluation::new`]).
+    fn record(&self, instrument: &Instrument) -> InstrumentRecord {
+        InstrumentRecord {
+            case: QGUW_CASE.to_owned(),
+            source: QGUW_SOURCE.to_owned(),
+            evaluations: instrument
+                .evaluations
+                .iter()
+                .map(|(at, revision, tick, mode, outcome)| {
+                    assert_eq!(mode, &NumericMode::Fast, "the context names Fast");
+                    InstrumentedEvaluation::new(
+                        VerdictEvaluation {
+                            cell: self.address(*at),
+                            tick: *tick,
+                            revision: *revision,
+                            context: QGUW_CONTEXT.to_owned(),
+                        },
+                        outcome
+                            .clone()
+                            .map_err(|fault| format!("CalcFml refused: {fault:?}")),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// A result set of the run at the state's revision: one result per entry, each a cell, its
+    /// provenance as the result set writes it, and its number, if any.
+    fn results(&self, published: &[(CellKey, String, Option<f64>)]) -> Vec<u8> {
+        let results: Vec<String> = published
+            .iter()
+            .map(|(at, provenance, value)| {
+                let address = self.address(*at);
+                let value = value
+                    .map(|n| format!(r#", "value": {{"number": "{:016x}"}}"#, n.to_bits()))
+                    .unwrap_or_default();
+                format!(
+                    r#"    {{"sheet": "{}", "row": {}, "column": {}, "provenance": {provenance}{value}}}"#,
+                    address.sheet(),
+                    address.row(),
+                    address.column()
+                )
+            })
+            .collect();
+        format!(
+            "{{\"format\": \"dnacalc-result-set\", \"version\": 1, \"case\": \"{QGUW_CASE}\", \"source\": \"{QGUW_SOURCE}\",\n  \"run\": {{\"revision\": {}, \"context\": \"{QGUW_CONTEXT}\"}},\n  \"results\": [\n{}\n  ]}}\n",
+            self.state.revision().get(),
+            results.join(",\n")
+        )
+        .into_bytes()
+    }
+
+    /// The engine's published generation as the result set states it: a calculated result with
+    /// its tick and revision, a file cache as file-cached, a refusal as not modelled.
+    fn published(&self) -> Vec<(CellKey, String, Option<f64>)> {
+        self.state
+            .results()
+            .map(|(at, result)| match result {
+                FormulaResult::Calculated { value, calculation } => (
+                    at,
+                    calculated_claim(calculation.tick().get(), calculation.revision().get()),
+                    Some(value.as_number().expect("the case's values are numbers")),
+                ),
+                FormulaResult::FileCached(cache) => (
+                    at,
+                    format!(
+                        r#"{{"file_cached": {{"source": "{}"}}}}"#,
+                        cache.source().name()
+                    ),
+                    Some(cache_number(cache)),
+                ),
+                FormulaResult::NotModeled { refusal, .. } => (
+                    at,
+                    format!(
+                        r#"{{"not_modeled": {{"feature": "not modelled by calc-engine", "diagnostic": "{}"}}}}"#,
+                        refusal.to_string().replace('"', "'")
+                    ),
+                    None,
+                ),
+            })
+            .collect()
+    }
+}
+
+fn calculated_claim(tick: u64, revision: u64) -> String {
+    format!(
+        r#"{{"calculated": {{"tick": {tick}, "revision": {revision}, "context": "{QGUW_CONTEXT}"}}}}"#
+    )
+}
+
+fn cache_number(cache: &FileCached) -> f64 {
+    match cache.value() {
+        CachedValue::Number(number) => number.get(),
+        other => panic!("the case's caches are numbers: {other:?}"),
+    }
+}
+
+/// The report calc_verdict::judge computes, from the bytes of the three documents, as `cargo
+/// xtask verdict` reads them: the evaluation record's own version chooses how it is read.
+fn qguw_judged(capture: &[u8], results: &[u8], evaluations: &[u8]) -> VerdictReport {
+    let capture = CaptureRecord::decode(capture).expect("the capture record decodes");
+    let results = ResultSet::decode(results).expect("the result set decodes");
+    let policy = VerdictPolicy::default();
+    match evaluation_record_version(evaluations).expect("an evaluation record") {
+        1 => judge(
+            &capture,
+            &results,
+            &EvaluationRecord::decode(evaluations).expect("the version 1 record decodes"),
+            &policy,
+        ),
+        _ => judge(
+            &capture,
+            &results,
+            &InstrumentRecord::decode(evaluations).expect("the version 2 record decodes"),
+            &policy,
+        ),
+    }
+    .expect("the documents are consistent")
+}
+
+/// Each inventory cell's verdict as `<cell> <verdict>`, with ` tick=<tick>` and what an unproven
+/// cell's evaluation returned, then ` equal=<bool>` when a value that is not calculated was
+/// compared with the expectation.
+fn qguw_cells(report: &VerdictReport) -> Vec<String> {
+    report
+        .cells
+        .iter()
+        .map(|cell| {
+            let mut line = format!("{} {}", cell.formula.cell.a1(), cell.verdict.name());
+            if let Verdict::Unproven { tick, returned } = &cell.verdict {
+                line.push_str(&format!(" tick={tick}"));
+                match returned {
+                    None => {}
+                    Some(Ok(value)) => line.push_str(&format!(
+                        " returned={}",
+                        value.as_number().expect("the case's values are numbers")
+                    )),
+                    Some(Err(_)) => line.push_str(" returned=no_value"),
+                }
+            }
+            if let Some(equal) = cell.value_equals_expectation {
+                line.push_str(&format!(" equal={equal}"));
+            }
+            line
+        })
+        .collect()
+}
+
+/// `(denominator, calculated, matched, mismatched, unproven, not_modeled,
+/// not_calculated_equal_to_expectation, evaluator_calls, calculated_without_value_check)` of a
+/// report.
+fn qguw_counts(report: &VerdictReport) -> [u64; 9] {
+    let c = &report.counts;
+    [
+        c.denominator,
+        c.calculated,
+        c.matched,
+        c.mismatched,
+        c.unproven,
+        c.not_modeled,
+        c.not_calculated_equal_to_expectation,
+        c.evaluator_calls,
+        c.calculated_without_value_check,
+    ]
+}
+
+/// The evaluations `instrument` was shown, in order, each as its cell, revision, tick, numeric
+/// mode and the value it returned (`None` for a refusal).
+fn qguw_evaluations(
+    instrument: &Instrument,
+) -> Vec<(CellKey, u64, u64, NumericMode, Option<CalcValue>)> {
+    instrument
+        .evaluations
+        .iter()
+        .map(|(at, revision, tick, mode, outcome)| {
+            (*at, *revision, *tick, mode.clone(), outcome.clone().ok())
+        })
+        .collect()
+}
+
+/// Writes the documents a case judged under target/verdict/dc-qguw/<case>/, natively, for the
+/// bead's `cargo xtask verdict` commands; the browser has no file system to write to.
+fn qguw_write(case: &str, documents: &[(&str, &[u8])]) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/verdict/dc-qguw")
+            .join(case);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, bytes) in documents {
+            std::fs::write(dir.join(name), bytes).unwrap();
+        }
+        note!(
+            "ACCEPT-NOTE: dc_qguw__{case}: wrote {} documents to target/verdict/dc-qguw/{case}/ for cargo xtask verdict",
+            documents.len()
+        );
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = documents;
+        note!(
+            "ACCEPT-NOTE: dc_qguw__{case}: the browser has no file system; the documents for cargo xtask verdict are written by the native run"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc_qguw__fault_injection
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_qguw__fault_injection() {
+    const CASE: &str = "dc_qguw__fault_injection";
+    note!(
+        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived (3*4 = 12, -3+10 = 7, 2^0.5 = 1.4142135623730951); no Excel ran, and agreement with Excel is infra-m1.3's round trip"
+    );
+    let mut book = QguwBook::new();
+    let capture = book.capture();
+    let (a1, a2, a3) = (book.c(1), book.c(2), book.c(3));
+    assert_eq!(book.state.revision().get(), 1);
+
+    // 1. The fault. A recalculation begins (tick 1, revision 1), and one step with a budget of one
+    //    evaluation runs its first node, A1, with the instrument attached; A2 and A3 are not yet
+    //    evaluated at tick 1. A faulty publication path then publishes every formula's perfect
+    //    cached answer under calculated provenance at tick 1 and revision 1. The record made from
+    //    what the evaluator reported holds A1's evaluation and nothing else, so the verdict counts
+    //    A1 calculated and matched and the two cells not yet evaluated unproven, though their
+    //    published values equal the expectation and their claims name the tick that is running.
+    assert_eq!(book.state.pending().count(), 3);
+    let opened = book.published();
+    assert!(
+        opened
+            .iter()
+            .all(|(_, provenance, _)| provenance.contains("file_cached"))
+    );
+    let root = Arc::clone(&book.root);
+    let mut instrument = Instrument::default();
+    let mut work = begin_recalc(&mut book.state, &root, NumericMode::Fast).unwrap();
+    assert_eq!(
+        step(
+            &book.state,
+            &root,
+            &mut work,
+            WorkBudget::evaluations(1),
+            &mut instrument
+        ),
+        RecalcProgress::Pending { remaining: 2 }
+    );
+    assert_eq!(
+        qguw_evaluations(&instrument),
+        [(a1, 1, 1, NumericMode::Fast, Some(CalcValue::number(12.0)))]
+    );
+    assert_eq!(instrument.calls, ["R1C1 Infix *"]);
+    let faulty_claims: Vec<(CellKey, String, Option<f64>)> = opened
+        .iter()
+        .map(|(at, _, value)| (*at, calculated_claim(1, 1), *value))
+        .collect();
+    let faulty = book.results(&faulty_claims);
+    let one_step_record = book.record(&instrument).encode().unwrap();
+    let report = qguw_judged(&capture, &faulty, one_step_record.as_bytes());
+    assert_eq!(
+        qguw_cells(&report),
+        [
+            "A1 matched",
+            "A2 unproven tick=1 equal=true",
+            "A3 unproven tick=1 equal=true",
+        ]
+    );
+    assert_eq!(qguw_counts(&report), [3, 1, 1, 0, 2, 0, 2, 1, 0]);
+    assert_eq!(report.evaluation_record_version, 2);
+    // Until finish, the engine itself publishes the file's caches as file-cached, which the
+    // verdict counts apart.
+    let as_opened = book.results(&book.published());
+    let report = qguw_judged(&capture, &as_opened, one_step_record.as_bytes());
+    assert_eq!(
+        (report.counts.calculated, report.counts.file_cached),
+        (0, 3)
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: after one step of budget 1 at tick 1, three perfect cached answers published as calculated at tick 1: calculated 1 of 3 (A1, evaluated, matched), unproven 2 (A2 and A3, not yet evaluated), not_calculated_equal_to_expectation 2, evaluator_calls 1"
+    );
+
+    // 2. The recalculation completes with the instrument attached and publishes.
+    assert_eq!(
+        step(
+            &book.state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut instrument
+        ),
+        RecalcProgress::Complete
+    );
+    let delta = finish(&mut book.state, work).unwrap();
+    assert_eq!(delta.tick().get(), 1);
+    // What the evaluator reported, in the order of evaluation: one evaluation per formula, each
+    // at revision 1 and tick 1 under Fast. A3's evaluation was refused (calc-func does not compute
+    // a fractional power), and the engine published no value for it.
+    assert_eq!(
+        qguw_evaluations(&instrument),
+        [
+            (a1, 1, 1, NumericMode::Fast, Some(CalcValue::number(12.0))),
+            (a2, 1, 1, NumericMode::Fast, Some(CalcValue::number(7.0))),
+            (a3, 1, 1, NumericMode::Fast, None),
+        ]
+    );
+    assert!(matches!(
+        instrument.evaluations[2].4,
+        Err(EvalFault::Function(_))
+    ));
+    // Each call the evaluations ran. A2's final sum is checked near zero by two negations compile
+    // inserted, marked synthetic; the negation A2's formula writes is not.
+    assert_eq!(
+        instrument.calls,
+        [
+            "R1C1 Infix *",
+            "R2C1 Prefix -",
+            "R2C1 Infix +",
+            "R2C1 Prefix - *",
+            "R2C1 Prefix - *",
+            "R3C1 Infix ^",
+        ]
+    );
+    let published = book.published();
+    let calculated_results = book.results(&published);
+    let record = book.record(&instrument).encode().unwrap();
+    // The calculated claims for A1 and A2 are the very claims the faulty path made: the result
+    // set alone cannot tell a calculation from a relabelled cache. Only the record differs.
+    assert_eq!(published[..2], faulty_claims[..2]);
+    let report = qguw_judged(&capture, &calculated_results, record.as_bytes());
+    assert_eq!(
+        qguw_cells(&report),
+        ["A1 matched", "A2 matched", "A3 not_modeled"]
+    );
+    assert_eq!(qguw_counts(&report), [3, 2, 2, 0, 0, 1, 0, 3, 0]);
+    // The faulty claims against the complete record: A2, now evaluated at tick 1, is matched;
+    // A3's cached answer is still unproven, its evaluation having returned no value.
+    let report = qguw_judged(&capture, &faulty, record.as_bytes());
+    assert_eq!(
+        qguw_cells(&report),
+        [
+            "A1 matched",
+            "A2 matched",
+            "A3 unproven tick=1 returned=no_value equal=true",
+        ]
+    );
+    assert_eq!(qguw_counts(&report), [3, 2, 2, 0, 1, 0, 1, 3, 0]);
+    note!(
+        "ACCEPT-NOTE: {CASE}: the recalculation completed through step and finish with the instrument attached: the engine's results calculated 2 of 3, matched 2 (A1 12, A2 7), not_modeled 1 (A3, refused), evaluator_calls 3; the faulty claims against the complete record: A2 matched, A3 unproven (returned no value); A2's two near-zero negations reported synthetic"
+    );
+
+    qguw_write(
+        "fault_injection",
+        &[
+            ("capture.json", &capture),
+            ("results_faulty.json", &faulty),
+            ("evaluations_one_step.json", one_step_record.as_bytes()),
+            ("results_calculated.json", &calculated_results),
+            ("evaluations_calculated.json", record.as_bytes()),
+        ],
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc_qguw__published_value_differs
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_qguw__published_value_differs() {
+    const CASE: &str = "dc_qguw__published_value_differs";
+    note!(
+        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived; no Excel ran"
+    );
+    let mut book = QguwBook::new();
+    let capture = book.capture();
+    let (a1, a3) = (book.c(1), book.c(3));
+    let mut instrument = Instrument::default();
+    let root = Arc::clone(&book.root);
+    recalc(&mut book.state, &root, &mut instrument);
+    let record = book.record(&instrument);
+    let encoded = record.encode().unwrap();
+
+    // A faulty publication path after the recalculation: A1 is published as 13, not the 12 its
+    // evaluation returned, and A3, whose evaluation was refused, is published with the file's
+    // cached answer under calculated provenance, at the tick that evaluated it (a hidden
+    // fallback). A2 is published as the engine published it.
+    let faulty: Vec<(CellKey, String, Option<f64>)> = book
+        .published()
+        .into_iter()
+        .map(|(at, provenance, value)| {
+            if at == a1 {
+                (at, provenance, Some(13.0))
+            } else if at == a3 {
+                (at, calculated_claim(1, 1), Some(std::f64::consts::SQRT_2))
+            } else {
+                (at, provenance, value)
+            }
+        })
+        .collect();
+    let faulty = book.results(&faulty);
+    let report = qguw_judged(&capture, &faulty, encoded.as_bytes());
+    assert_eq!(
+        qguw_cells(&report),
+        [
+            "A1 unproven tick=1 returned=12 equal=false",
+            "A2 matched",
+            "A3 unproven tick=1 returned=no_value equal=true",
+        ]
+    );
+    assert_eq!(qguw_counts(&report), [3, 1, 1, 0, 2, 0, 1, 3, 0]);
+    assert_eq!(report.evaluation_record_version, 2);
+    note!(
+        "ACCEPT-NOTE: {CASE}: A1 evaluated to 12 and published as 13, A3 refused and published with its cached answer, both under calculated provenance at tick 1: calculated 1 of 3, matched 1 (A2), unproven 2"
+    );
+
+    // The same evaluations without what they returned (an evaluation record of version 1) prove
+    // whatever was published at their tick: A1's 13 counts as calculated, and A3's cached answer
+    // as calculated and matched. The report says so: it names the record's version 1 and counts
+    // all three calculated cells as proven without a value check (bead dc-i1ro moves the version 1
+    // records to version 2 and refuses version 1).
+    let listed = EvaluationRecord {
+        case: record.case.clone(),
+        source: record.source.clone(),
+        evaluations: record
+            .evaluations
+            .iter()
+            .map(|entry| entry.evaluation.clone())
+            .collect(),
+    };
+    let capture_record = CaptureRecord::decode(&capture).unwrap();
+    let faulty_set = ResultSet::decode(&faulty).unwrap();
+    let without_values = judge(
+        &capture_record,
+        &faulty_set,
+        &listed,
+        &VerdictPolicy::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        qguw_cells(&without_values),
+        ["A1 mismatched", "A2 matched", "A3 matched"]
+    );
+    assert_eq!(qguw_counts(&without_values), [3, 3, 2, 1, 0, 0, 0, 3, 3]);
+    assert_eq!(without_values.evaluation_record_version, 1);
+    let written = without_values.encode();
+    assert!(
+        written.contains("\"evaluation_record_version\": 1")
+            && written.contains("\"calculated_without_value_check\": 3"),
+        "{written}"
+    );
+    assert!(
+        without_values
+            .summary()
+            .contains("(evaluation record version 1, 3 calculated without a value check)"),
+        "{}",
+        without_values.summary()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: judged against the same evaluations without returned values (version 1), the faulty publication counts calculated 3 of 3 and matched 2, A3's cached answer among them, and the report marks the weaker proof: evaluation_record_version 1, calculated_without_value_check 3"
+    );
+
+    qguw_write(
+        "published_value_differs",
+        &[
+            ("capture.json", &capture),
+            ("results.json", &faulty),
+            ("evaluations.json", encoded.as_bytes()),
+        ],
     );
 }

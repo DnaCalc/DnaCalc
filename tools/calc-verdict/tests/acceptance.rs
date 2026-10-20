@@ -10,9 +10,13 @@
 //! report's counts and per-cell verdicts with literal values written here. Each case also judges
 //! variant fixtures on which its rule gives a different, equally literal, answer.
 //!
-//! The evaluation records are authored here too: producing one from instrumented evaluator calls
-//! is bead `dc-qguw`. What these cases show is that the verdict counts a calculated claim only
-//! against that separate record, never against the result set's own claim.
+//! The evaluation records here are authored too, in version 1, which carries no returned values;
+//! the record made from instrumented evaluator calls (version 2, with what each evaluation
+//! returned) is bead `dc-qguw`'s, judged in calc-engine's `dc_qguw` cases. What these cases show is
+//! that the verdict counts a calculated claim only against that separate record, never against the
+//! result set's own claim. Each report states that it was judged against a version 1 record and
+//! counts every calculated cell in `calculated_without_value_check`; bead `dc-i1ro` moves these
+//! fixtures to version 2.
 //!
 //! `infra_m1_2__capture_replays` reads the capture artifacts under `tests/captures/infra_m1_2/`,
 //! which no one here authors: `cargo xtask capture` writes them on the owner's Windows machine with
@@ -152,8 +156,13 @@ fn cell_lines(report: &Value) -> Vec<String> {
 }
 
 /// The counts a report states, with no category left out: every member of `counts` is compared.
+/// Every report here is judged against a version 1 evaluation record, and says so.
 fn assert_counts(report: &Value, expected: Value, what: &str) {
     assert_eq!(report["counts"], expected, "{what}: counts");
+    assert_eq!(
+        report["evaluation_record_version"], 1,
+        "{what}: evaluation record version"
+    );
 }
 
 /// Compares `cell_lines(report)` with `expected` line by line.
@@ -201,7 +210,8 @@ fn infra_m1_1__cached_value_trap() {
             "strict_certified": 0, "uncertified": 0, "unproven": 0, "stale": 0,
             "file_cached": 7, "not_modeled": 0, "failed": 0, "missing": 0,
             "not_calculated_equal_to_expectation": 5, "outside_inventory": 0,
-            "evaluator_calls": 7
+            "evaluator_calls": 7,
+            "calculated_without_value_check": 0
         }),
         "file-cached results",
     );
@@ -242,7 +252,8 @@ fn infra_m1_1__cached_value_trap() {
             "strict_certified": 5, "uncertified": 1, "unproven": 0, "stale": 0,
             "file_cached": 0, "not_modeled": 0, "failed": 0, "missing": 0,
             "not_calculated_equal_to_expectation": 0, "outside_inventory": 0,
-            "evaluator_calls": 7
+            "evaluator_calls": 7,
+            "calculated_without_value_check": 7
         }),
         "calculated results",
     );
@@ -300,7 +311,8 @@ fn infra_m1_1__cached_value_trap() {
             "strict_certified": 0, "uncertified": 0, "unproven": 7, "stale": 0,
             "file_cached": 0, "not_modeled": 0, "failed": 0, "missing": 0,
             "not_calculated_equal_to_expectation": 5, "outside_inventory": 0,
-            "evaluator_calls": 0
+            "evaluator_calls": 0,
+            "calculated_without_value_check": 0
         }),
         "calculated claims without evaluations",
     );
@@ -337,7 +349,8 @@ fn infra_m1_1__cached_value_trap() {
             "strict_certified": 1, "uncertified": 0, "unproven": 5, "stale": 0,
             "file_cached": 0, "not_modeled": 0, "failed": 0, "missing": 0,
             "not_calculated_equal_to_expectation": 4, "outside_inventory": 0,
-            "evaluator_calls": 6
+            "evaluator_calls": 6,
+            "calculated_without_value_check": 2
         }),
         "evaluations that do not match the claims",
     );
@@ -374,7 +387,8 @@ fn infra_m1_1__cached_value_trap() {
             "strict_certified": 0, "uncertified": 0, "unproven": 0, "stale": 3,
             "file_cached": 0, "not_modeled": 1, "failed": 1, "missing": 1,
             "not_calculated_equal_to_expectation": 3, "outside_inventory": 0,
-            "evaluator_calls": 7
+            "evaluator_calls": 7,
+            "calculated_without_value_check": 1
         }),
         "not-calculated provenances",
     );
@@ -448,7 +462,8 @@ fn infra_m1_1__denominator_integrity() {
             "strict_certified": 0, "uncertified": 7, "unproven": 0, "stale": 0,
             "file_cached": 0, "not_modeled": 0, "failed": 0, "missing": 0,
             "not_calculated_equal_to_expectation": 0, "outside_inventory": 1,
-            "evaluator_calls": 8
+            "evaluator_calls": 8,
+            "calculated_without_value_check": 7
         }),
         "complete results",
     );
@@ -516,7 +531,8 @@ fn infra_m1_1__denominator_integrity() {
             "strict_certified": 0, "uncertified": 4, "unproven": 0, "stale": 0,
             "file_cached": 0, "not_modeled": 0, "failed": 0, "missing": 3,
             "not_calculated_equal_to_expectation": 0, "outside_inventory": 1,
-            "evaluator_calls": 8
+            "evaluator_calls": 8,
+            "calculated_without_value_check": 4
         }),
         "omitting results",
     );
@@ -696,7 +712,8 @@ fn infra_m1_2__capture_replays() {
             "file_cached": saved_count, "not_modeled": 0, "failed": 0,
             "missing": denominator - saved_count,
             "not_calculated_equal_to_expectation": equal, "outside_inventory": 0,
-            "evaluator_calls": 0
+            "evaluator_calls": 0,
+            "calculated_without_value_check": 0
         }),
         "the file-cache replay of the capture",
     );

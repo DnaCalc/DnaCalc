@@ -18,6 +18,12 @@
 //! entry is lazy (IF) asks for its arguments itself, and only the arguments it asks for run.
 //!
 //! Evaluation does not compile: [`evaluate`] receives no formula text, syntax tree or catalogue.
+//!
+//! A caller may attach an [`EvaluationObserver`] to the services ([`EvaluationServices::observed_by`]):
+//! the evaluator itself shows it each catalogue call it runs ([`ExecutedCall`], marked when compile
+//! inserted the call) and the outcome it returns ([`EvaluationReport`]), so what the observer
+//! records comes from the evaluation, not from a caller's account of it. Neither has a public
+//! constructor: a caller can pass on what it is shown, but cannot make it.
 
 mod cells;
 mod compile;
@@ -45,8 +51,8 @@ use std::sync::Arc;
 /// operand stack, except those a guard skips, and leave exactly one value.
 //
 // The instructions are numbered by their position in their block, so a later map from an
-// instruction to its source span, or an observer called once per executed instruction, can be
-// kept beside the plan without changing it. Neither exists yet.
+// instruction to its source span can be kept beside the plan without changing it; none exists
+// yet. An [`EvaluationObserver`] is shown each executed call, with whether compile inserted it.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct CompiledPlan {
     blocks: Box<[Box<[Instruction]>]>,
@@ -73,11 +79,14 @@ enum Instruction {
     Reference(usize),
     /// Pops `argc` values, calls `target` with them and pushes the result. With `retain`, the
     /// arguments as the call received them (each reference to a value parameter replaced by its
-    /// cell's value) stay on the stack beneath the result instead of being popped.
+    /// cell's value) stay on the stack beneath the result instead of being popped. With
+    /// `synthetic`, compile inserted the call (a negation of the near-zero check) and the formula
+    /// did not write it.
     Call {
         target: Target,
         argc: usize,
         retain: bool,
+        synthetic: bool,
     },
     /// Calls the lazy entry `target`, whose argument `i` is block `first_block + i`; it pushes the
     /// result.
@@ -209,15 +218,30 @@ pub fn instantiate(plan: &Arc<CompiledPlan>, anchor: FormulaAnchor) -> FormulaIn
 }
 
 /// What an evaluation runs with, owned by the caller: the numeric policy, which every arithmetic
-/// site reads, and the reader that supplies every cell the formula reads.
+/// site reads, the reader that supplies every cell the formula reads, and, when the caller gives
+/// one, the observer the evaluator reports the evaluation to.
 pub struct EvaluationServices<'s> {
     numeric: &'s NumericMode,
     reader: &'s mut dyn ReferenceReader,
+    observer: Option<&'s mut dyn EvaluationObserver>,
 }
 
 impl<'s> EvaluationServices<'s> {
     pub fn new(numeric: &'s NumericMode, reader: &'s mut dyn ReferenceReader) -> Self {
-        EvaluationServices { numeric, reader }
+        EvaluationServices {
+            numeric,
+            reader,
+            observer: None,
+        }
+    }
+
+    /// These services, with `observer` shown each call the evaluation runs and the outcome it
+    /// returns (see [`EvaluationObserver`]).
+    pub fn observed_by(self, observer: &'s mut dyn EvaluationObserver) -> Self {
+        EvaluationServices {
+            observer: Some(observer),
+            ..self
+        }
     }
 }
 
@@ -225,7 +249,94 @@ impl fmt::Debug for EvaluationServices<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EvaluationServices")
             .field("numeric", self.numeric)
+            .field("observed", &self.observer.is_some())
             .finish_non_exhaustive()
+    }
+}
+
+/// Observes one evaluation from inside the evaluator (plan sections 6.5 and 10.1). [`evaluate`]
+/// shows it each catalogue call the evaluation runs, as the call returns, and then the outcome
+/// the evaluation returns, before returning it. It is shown these borrowed and is given no reader,
+/// stack or plan, so it cannot change what the evaluation reads or returns: what it is shown is
+/// the evaluator's own account of the evaluation, made before any caller publishes a result.
+pub trait EvaluationObserver {
+    /// A catalogue call ran and returned, with a value or a fault. A call is shown only once its
+    /// function ran: a call whose arguments the evaluation could not supply is not shown. The
+    /// arguments of a lazy call run inside it, so their calls are shown before it.
+    fn called(&mut self, call: ExecutedCall);
+
+    /// The evaluation's outcome, exactly as [`evaluate`] returns it, in a report only the
+    /// evaluator makes.
+    fn returned(&mut self, report: EvaluationReport<'_>);
+}
+
+/// What one evaluation returned, as [`EvaluationObserver::returned`] is shown it: the anchor of
+/// the instance evaluated, the numeric mode it ran under and its outcome, exactly as [`evaluate`]
+/// returns it (a reference to one cell already replaced by the cell's value).
+///
+/// Only the evaluator makes one: its fields are private and it has no constructor, so code
+/// outside this package that is shown a report can read it and pass it on, but cannot make one or
+/// change one. It is neither `Clone` nor `Copy`, so it is passed on at most once. Making one
+/// outside this package does not compile, because its fields are private (E0451; stable rustdoc
+/// does not check the error code, only that compiling fails):
+///
+/// ```compile_fail
+/// use calc_fml::EvaluationReport;
+/// use calc_fml::reference::FormulaAnchor;
+/// use calc_func::value::{CalcValue, CellKey, IdAllocator, NumericMode, SheetId};
+///
+/// let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+/// let anchor = FormulaAnchor::new(CellKey::new(sheets.issue().unwrap(), 1, 1).unwrap());
+/// let value = CalcValue::number(12.0);
+/// let _report = EvaluationReport {
+///     anchor,
+///     numeric: &NumericMode::Fast,
+///     outcome: Ok(&value),
+/// };
+/// ```
+#[derive(Debug)]
+pub struct EvaluationReport<'e> {
+    anchor: FormulaAnchor,
+    numeric: &'e NumericMode,
+    outcome: Result<&'e CalcValue, &'e EvalFault>,
+}
+
+impl<'e> EvaluationReport<'e> {
+    /// The anchor of the instance evaluated: the cell the formula belongs to.
+    pub fn anchor(&self) -> FormulaAnchor {
+        self.anchor
+    }
+
+    /// The numeric mode the evaluation ran under.
+    pub fn numeric_mode(&self) -> &'e NumericMode {
+        self.numeric
+    }
+
+    /// The value the evaluation returned, or the fault that stopped it.
+    pub fn outcome(&self) -> Result<&'e CalcValue, &'e EvalFault> {
+        self.outcome
+    }
+}
+
+/// One catalogue call an evaluation ran, as [`EvaluationObserver::called`] is shown it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExecutedCall {
+    target: FunctionCallTarget<'static>,
+    synthetic: bool,
+}
+
+impl ExecutedCall {
+    /// The catalogue entry called: an operator or a function.
+    pub fn target(self) -> FunctionCallTarget<'static> {
+        self.target
+    }
+
+    /// Whether compile inserted the call rather than the formula writing it. The only such calls
+    /// are the two negations of the check of a final `+` or `-` ([`EvalFault::NearZeroFinalSum`]):
+    /// calls of the catalogue's prefix `-`, as a negation the formula writes (`=-A1`) is too, so
+    /// only this flag tells them apart.
+    pub fn synthetic(self) -> bool {
+        self.synthetic
     }
 }
 

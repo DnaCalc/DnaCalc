@@ -5,28 +5,41 @@
 //! value is the result this recalculation staged for it, or else the published result when that
 //! was calculated; a file cache, a result not modelled and a formula this recalculation has yet
 //! to evaluate are never handed out as values. The engine's reader is the only source of what an
-//! evaluation reads: a caller's [`ReadObserver`] sees the runs it reports and cannot change them.
+//! evaluation reads: a caller's [`ReadObserver`] sees the runs it reports and cannot change them,
+//! and is shown what CalcFml's evaluator reports of each evaluation it ran.
 
-use crate::result::FormulaResult;
+use crate::result::{Calculation, FormulaResult};
 use crate::state::EngineState;
 use calc_doc_model::{CellInput, ModelRoot};
-use calc_fml::ReferenceCatalog;
 use calc_fml::reference::{CellRun, ReferenceReader};
+use calc_fml::{EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog};
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
 
-/// Observes the reads of a recalculation's evaluations, apart from what the recalculation
-/// publishes (plan 6.5): [`crate::step`] calls it with each run the engine's reader reports for an
-/// area that the evaluation of the formula at `formula` asks for, before the evaluation receives
-/// that run, so it sees exactly the runs the evaluation receives. `offset` is the index of the
-/// run's first cell within `area`, in row-major order from 0: a run at offset 0 begins a read.
+/// Observes a recalculation's evaluations on the evaluation route, apart from what the
+/// recalculation publishes (plan 6.5 and 10.1). [`crate::step`] shows it:
 ///
-/// An observer cannot change what an evaluation reads: it is given no reader and no sink, only
-/// the run, borrowed. Its one effect is to stop the recalculation: returning
-/// [`ControlFlow::Break`] withholds the run, the evaluation receives the rest of the area as cells
-/// the reader cannot supply, and the recalculation fails with
-/// [`crate::RecalcFailure::ReadFailed`] and publishes nothing.
+/// - [`ReadObserver::observe`]: each run the engine's reader reports for an area that the
+///   evaluation of the formula at `formula` asks for, before the evaluation receives that run, so
+///   it sees exactly the runs the evaluation receives. `offset` is the index of the run's first
+///   cell within `area`, in row-major order from 0: a run at offset 0 begins a read.
+/// - [`ReadObserver::called`]: each catalogue call the evaluation ran, as CalcFml's evaluator
+///   reports it ([`calc_fml::EvaluationObserver`]), with the near-zero check's inserted negations
+///   marked synthetic.
+/// - [`ReadObserver::evaluated`]: the outcome of each evaluation, in the report CalcFml's
+///   evaluator makes before returning it ([`calc_fml::EvaluationReport`], which only the evaluator
+///   can make), forwarded unchanged with the recalculation's revision, tick and numeric mode
+///   ([`ObservedEvaluation`]). It is shown before `calc_fml::evaluate` returns to the engine, so it
+///   is not the engine's account of the value it then stages; [`crate::finish`], which publishes,
+///   is given no observer. A formula CalcFml refused to compile is not evaluated and is not shown.
+///
+/// An observer cannot change what an evaluation reads or returns: it is given no reader, sink or
+/// result, only what it is shown, borrowed. Its one effect is to stop the recalculation: returning
+/// [`ControlFlow::Break`] from `observe` withholds the run, the evaluation receives the rest of
+/// the area as cells the reader cannot supply, and the recalculation fails with
+/// [`crate::RecalcFailure::ReadFailed`] and publishes nothing. `called` and `evaluated` record
+/// nothing unless an observer implements them.
 pub trait ReadObserver {
     fn observe(
         &mut self,
@@ -35,6 +48,60 @@ pub trait ReadObserver {
         offset: u64,
         run: CellRun<'_>,
     ) -> ControlFlow<()>;
+
+    /// A catalogue call the evaluation of the formula at `formula` ran.
+    fn called(&mut self, formula: CellKey, call: ExecutedCall) {
+        let _ = (formula, call);
+    }
+
+    /// One evaluation's outcome, as the evaluator reported it.
+    fn evaluated(&mut self, evaluation: ObservedEvaluation<'_>) {
+        let _ = evaluation;
+    }
+}
+
+/// One evaluation as [`ReadObserver::evaluated`] is shown it: the report CalcFml's evaluator made
+/// of it ([`EvaluationReport`]: the formula cell evaluated, the numeric mode and the outcome, a
+/// value or a typed refusal), and the calculation the recalculation ran it in (the authored
+/// revision its inputs came from, the recalculation's tick and the numeric mode).
+///
+/// The engine adds only the calculation. It cannot make a report, which only CalcFml's evaluator
+/// can, nor change one, and it passes on each report it is shown at most once (a report is not
+/// `Clone`): an evaluation the evaluator did not report cannot reach an observer. The value is
+/// the evaluator's, whether or not the engine then publishes it as calculated (a value no cell
+/// holds here is published as not modelled).
+#[derive(Debug)]
+pub struct ObservedEvaluation<'a> {
+    calculation: &'a Calculation,
+    report: EvaluationReport<'a>,
+}
+
+impl<'a> ObservedEvaluation<'a> {
+    pub(crate) fn new(calculation: &'a Calculation, report: EvaluationReport<'a>) -> Self {
+        ObservedEvaluation {
+            calculation,
+            report,
+        }
+    }
+
+    /// The formula cell evaluated: the anchor of the instance CalcFml's evaluator ran.
+    pub fn formula(&self) -> CellKey {
+        self.report.anchor().cell()
+    }
+
+    pub fn calculation(&self) -> &'a Calculation {
+        self.calculation
+    }
+
+    /// The value CalcFml's evaluator returned, or the fault that stopped it.
+    pub fn outcome(&self) -> Result<&'a CalcValue, &'a EvalFault> {
+        self.report.outcome()
+    }
+
+    /// The report as CalcFml's evaluator made it.
+    pub fn report(&self) -> &EvaluationReport<'a> {
+        &self.report
+    }
 }
 
 /// The observer that records nothing and never stops a recalculation.

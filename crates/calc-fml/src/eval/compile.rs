@@ -230,6 +230,7 @@ impl Lowering {
                         target,
                         argc: 2,
                         retain: final_sum,
+                        synthetic: false,
                     },
                 });
                 for operand in [right, left] {
@@ -257,6 +258,7 @@ impl Lowering {
                         target,
                         argc: 1,
                         retain: false,
+                        synthetic: false,
                     },
                 });
                 // A prefix `+` or `-` changes no magnitude (the sign flips exactly), so an operand
@@ -285,6 +287,7 @@ impl Lowering {
                         target,
                         argc: 1,
                         retain: false,
+                        synthetic: false,
                     },
                 });
                 tasks.push(Task::Lower {
@@ -352,6 +355,7 @@ impl Lowering {
                     target,
                     argc,
                     retain: false,
+                    synthetic: false,
                 },
             });
             for argument in arguments.into_iter().rev() {
@@ -422,7 +426,8 @@ fn target(notation: Notation, token: &Token) -> Result<Target, CompileError> {
 /// computed it and retained its two operands. When the result is a non-zero number, each operand
 /// is copied and negated by a call of the catalogue's prefix `-`, which reads it as a number by
 /// the same worksheet coercion as the operation, and [`Instruction::NearZeroCheck`] compares the
-/// result with the larger negation.
+/// result with the larger negation. The negations are marked synthetic: the formula did not write
+/// them, and an observer of the evaluation's calls must not count them as its own.
 fn final_sum_check(operator: &Token, out: &mut Vec<Instruction>) -> Result<(), CompileError> {
     let negate = catalogue()
         .resolve_surface(Notation::Prefix, "-")
@@ -435,6 +440,7 @@ fn final_sum_check(operator: &Token, out: &mut Vec<Instruction>) -> Result<(), C
         target: negate,
         argc: 1,
         retain: false,
+        synthetic: true,
     };
     // Stack: left, right, result. Two below the top is the left operand; after its negation is
     // pushed, two below the top is the right operand.
@@ -673,7 +679,8 @@ mod tests {
     }
 
     /// The check's negations are calls of the catalogue's prefix `-` in the plan, after the final
-    /// operation's retaining call; no other call retains its arguments.
+    /// operation's retaining call, and are the only synthetic calls; no other call retains its
+    /// arguments, and a negation the formula writes is not synthetic.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn final_sum_check_instructions() {
@@ -688,6 +695,13 @@ mod tests {
             target,
             argc,
             retain,
+            synthetic: false,
+        };
+        let synthetic = |target| Instruction::Call {
+            target,
+            argc: 1,
+            retain: false,
+            synthetic: true,
         };
         let minus = resolved(Notation::Infix, "-");
         let negate = resolved(Notation::Prefix, "-");
@@ -702,9 +716,25 @@ mod tests {
                 call(minus, 2, true),
                 Instruction::NearZeroGuard { skip: 5 },
                 Instruction::Copy(2),
-                call(negate, 1, false),
+                synthetic(negate),
                 Instruction::Copy(2),
+                synthetic(negate),
+                Instruction::NearZeroCheck,
+            ]
+            .into_boxed_slice()]
+        );
+        assert_eq!(
+            compiled("=-0.5+1").unwrap().blocks[..],
+            [vec![
+                number(0.5),
                 call(negate, 1, false),
+                number(1.0),
+                call(resolved(Notation::Infix, "+"), 2, true),
+                Instruction::NearZeroGuard { skip: 5 },
+                Instruction::Copy(2),
+                synthetic(negate),
+                Instruction::Copy(2),
+                synthetic(negate),
                 Instruction::NearZeroCheck,
             ]
             .into_boxed_slice()]

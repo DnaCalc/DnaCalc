@@ -3,13 +3,19 @@
 //! environment>]`: the repository command over the one verdict path (bead `infra-m1.1`).
 //!
 //! It reads a canonical CaptureRecord, a result set and the run's evaluation record (a separate
-//! document the publisher of results does not write; bead `dc-qguw` produces it from instrumented
-//! evaluator calls), judges them with calc-verdict's `judge` (the library entry point every
-//! consumer calls) under Fast, or under the Exact target `--exact-target` names, with the legacy
-//! evidence labels of the record `--evidence` names (`migration/evidence/oxfunc-smart-fuzzer.json`),
-//! writes the CellVerdict report to `--out` (creating its directory) and prints the report's counts
-//! on one line, with a line saying which evidence label was consulted when `--evidence` is given.
-//! Paths are relative to the current directory.
+//! document, meant to come from the evaluator rather than the publisher of results; the verdict
+//! cannot check who wrote it): version 2, with what each evaluation returned, made from what
+//! CalcEngine's step shows a `ReadObserver` of CalcFml's evaluator reports (bead `dc-qguw`; only
+//! its acceptance cases write one today), or version 1, an authored record without
+//! returned values, chosen by the record's own `version`, whose report states that version and
+//! counts the calculated cells proven without a value check (bead `dc-i1ro` moves the version 1
+//! records to version 2 and refuses version 1). It judges them with calc-verdict's
+//! `judge` (the library entry point every consumer calls) under Fast, or under the Exact target
+//! `--exact-target` names, with the legacy evidence labels of the record `--evidence` names
+//! (`migration/evidence/oxfunc-smart-fuzzer.json`), writes the CellVerdict report to `--out`
+//! (creating its directory) and prints the report's counts on one line, with a line saying which
+//! evidence label was consulted when `--evidence` is given. Paths are relative to the current
+//! directory.
 //!
 //! Exit codes: 0 when the report was written, whatever the report says; 1 when an input cannot be
 //! read or is refused as inconsistent, or the report cannot be written; 2 on a usage error; 3 when
@@ -20,8 +26,8 @@
 
 use calc_verdict::value::{NumericMode, NumericTargetId};
 use calc_verdict::{
-    Acquisition, CaptureRecord, EvaluationRecord, EvidenceLabels, JudgeError, MissingCapture,
-    ResultSet, VerdictPolicy, VerdictReport, judge,
+    Acquisition, CaptureRecord, EvaluationRecord, EvidenceLabels, InstrumentRecord, JudgeError,
+    MissingCapture, ResultSet, VerdictPolicy, VerdictReport, evaluation_record_version, judge,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -155,8 +161,8 @@ fn judge_bytes(
         .map_err(|e| Failure::refused(format!("the capture record is refused: {e}")))?;
     let results = ResultSet::decode(results)
         .map_err(|e| Failure::refused(format!("the result set is refused: {e}")))?;
-    let evaluations = EvaluationRecord::decode(evaluations)
-        .map_err(|e| Failure::refused(format!("the evaluation record is refused: {e}")))?;
+    let refused = |e| Failure::refused(format!("the evaluation record is refused: {e}"));
+    let version = evaluation_record_version(evaluations).map_err(refused)?;
     let labels = evidence
         .map(EvidenceLabels::decode)
         .transpose()
@@ -165,7 +171,14 @@ fn judge_bytes(
         numeric_mode: target.map_or(NumericMode::Fast, NumericMode::Exact),
         evidence: labels.as_ref(),
     };
-    let report = judge(&capture, &results, &evaluations, &policy).map_err(judge_failure)?;
+    let report = if version == 1 {
+        let evaluations = EvaluationRecord::decode(evaluations).map_err(refused)?;
+        judge(&capture, &results, &evaluations, &policy)
+    } else {
+        let evaluations = InstrumentRecord::decode(evaluations).map_err(refused)?;
+        judge(&capture, &results, &evaluations, &policy)
+    }
+    .map_err(judge_failure)?;
     let note = labels
         .as_ref()
         .map(|labels| evidence_note(&capture, labels));
@@ -350,6 +363,22 @@ mod tests {
                 (calculated, unproven),
                 "{evaluations}"
             );
+            // The fixtures are version 1 records: every calculated cell was proven without a
+            // value check, and the report written says so.
+            assert_eq!(
+                (
+                    report.evaluation_record_version,
+                    report.counts.calculated_without_value_check
+                ),
+                (1, calculated),
+                "{evaluations}"
+            );
+            let written: Value = serde_json::from_str(&fs::read_to_string(&out).unwrap()).unwrap();
+            assert_eq!(written["evaluation_record_version"], 1, "{evaluations}");
+            assert_eq!(
+                written["counts"]["calculated_without_value_check"], calculated,
+                "{evaluations}"
+            );
         }
         let missing = verdict(Request {
             capture: fixture("absent.json"),
@@ -366,6 +395,85 @@ mod tests {
             missing.message.contains("cannot read the capture record"),
             "{}",
             missing.message
+        );
+    }
+
+    /// A version 2 evaluation record, the instrument's, is read by its version, and a calculated
+    /// claim counts only when its evaluation returned the value published.
+    #[test]
+    fn the_instruments_record_proves_only_the_value_it_returned() {
+        let dir = scratch("instrumented");
+        fs::create_dir_all(&dir).unwrap();
+        let out = dir.join("instrumented.json");
+        let record = |returned: &str| {
+            format!(
+                r#"{{"format": "dnacalc-evaluation-record", "version": 2,
+                    "case": "infra_m1_1__cached_value_trap", "source": "fixture:cached-value-trap/workbook",
+                    "evaluations": [{{"sheet": "Sheet1", "row": 1, "column": 1, "tick": 1, "revision": 1,
+                                      "context": "fixture-context", "returned": {returned}}}]}}"#
+            )
+        };
+        // Sheet1!A1 publishes the number 2 (bits 4000000000000000) at tick 1; the other six cells
+        // have no evaluation in this record.
+        for (returned, a1, calculated) in [
+            (r#"{"value": {"number": "4000000000000000"}}"#, "matched", 1),
+            (
+                r#"{"value": {"number": "4008000000000000"}}"#,
+                "unproven",
+                0,
+            ),
+            (r#"{"no_value": "refused"}"#, "unproven", 0),
+        ] {
+            let evaluations = dir.join("evaluations.json");
+            fs::write(&evaluations, record(returned)).unwrap();
+            let report = verdict(Request {
+                capture: fixture("cached_value_trap/capture.json"),
+                results: fixture("cached_value_trap/results_calculated.json"),
+                evaluations,
+                out: out.clone(),
+                evidence: None,
+                target: None,
+            })
+            .unwrap();
+            assert_eq!(report.cells[0].verdict.name(), a1, "{returned}");
+            assert_eq!(
+                (report.counts.calculated, report.counts.unproven),
+                (calculated, 7 - calculated),
+                "{returned}"
+            );
+            assert_eq!(report.counts.evaluator_calls, 1);
+            assert_eq!(
+                (
+                    report.evaluation_record_version,
+                    report.counts.calculated_without_value_check
+                ),
+                (2, 0),
+                "{returned}"
+            );
+        }
+        let evaluations = dir.join("evaluations.json");
+        fs::write(
+            &evaluations,
+            record("{}").replace(r#""version": 2"#, r#""version": 3"#),
+        )
+        .unwrap();
+        let failure = verdict(Request {
+            capture: fixture("cached_value_trap/capture.json"),
+            results: fixture("cached_value_trap/results_calculated.json"),
+            evaluations,
+            out,
+            evidence: None,
+            target: None,
+        })
+        .unwrap_err();
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(failure.code, EXIT_REFUSED);
+        assert!(
+            failure
+                .message
+                .contains("the evaluation record is refused: evaluations.version"),
+            "{}",
+            failure.message
         );
     }
 

@@ -749,7 +749,7 @@ fn capture_failures_are_counted_in_the_report() {
         Some(CaptureFailureCounts { total: 2, by_stage })
     );
     let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
-    assert_eq!(encoded["version"], 2);
+    assert_eq!(encoded["version"], 3);
     assert_eq!(
         encoded["capture_failures"],
         serde_json::json!({"total": 2, "by_stage": {"isolation": 1, "value": 1}})
