@@ -827,8 +827,8 @@ mod browser {
             checked += 1;
         }
 
-        // A row naming the formula's cell is refused there, so the formula has no input for
-        // Sheet1!C1 and is not calculated.
+        // Retyping row 1 as the formula's cell C1 is refused there, and it removes the row that
+        // supplied Sheet2!B2, so =A1*Sheet2!B2+1 has no input for Sheet2!B2 and is not calculated.
         page.enter(&EXAMPLES[0]).await;
         page.set_row(1, "C1", "number", "4");
         settle().await;

@@ -87,13 +87,17 @@ fn quoted_sheet(name: &str) -> String {
     let cell_like = |text: &str| {
         let letters = text.trim_end_matches(|c: char| c.is_ascii_digit());
         let digits = &text[letters.len()..];
-        let column = letters
-            .bytes()
-            .try_fold(0u32, |n, b| {
-                b.is_ascii_uppercase()
-                    .then(|| n * 26 + u32::from(b - b'A' + 1))
+        // At most three letters are folded, so the column number cannot overflow.
+        let column = (1..=3)
+            .contains(&letters.len())
+            .then(|| {
+                letters.bytes().try_fold(0u32, |n, b| {
+                    b.is_ascii_uppercase()
+                        .then(|| n * 26 + u32::from(b - b'A' + 1))
+                })
             })
-            .filter(|&n| (1..=16_384).contains(&n) && letters.len() <= 3);
+            .flatten()
+            .filter(|&n| (1..=16_384).contains(&n));
         let row = digits
             .parse::<u32>()
             .ok()
@@ -355,6 +359,14 @@ mod tests {
             ("Sheet1", "Sheet1"),
             ("Data_2024", "Data_2024"),
             ("Totals1", "Totals1"),
+            ("Summary", "Summary"),
+            ("Revenue2024", "Revenue2024"),
+            ("Summary.1", "Summary.1"),
+            (
+                "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+                "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+            ),
+            ("XFD1048576", "'XFD1048576'"),
             ("XFE1", "XFE1"),
             ("A1048577", "A1048577"),
             ("my.sheet", "my.sheet"),
