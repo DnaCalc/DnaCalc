@@ -8,3 +8,48 @@ description = "The package for the DNA OneCalc application core: formulas withou
 
 [package.metadata.dnacalc]
 portability = "portable"
+
+# The controller compiles and evaluates through calc-fml, whose operators and functions are
+# calc-func's; neither calc-engine nor calc-host is in the closure, on any target or feature
+# (plan section 1.3; the onecalc-m1.1 dependency case reads cargo metadata to check it).
+#
+# The browser surface is Leptos in client-side rendering mode (plan section 1.2). Leptos 0.8.19
+# resolves against the workspace's wasm-bindgen 0.2.117, which the browser test runner requires
+# exactly; web-sys 0.3.94 is the release built on that wasm-bindgen. Both are pinned exactly so a
+# lockfile update cannot move them off it. The surface compiles on every target (web-sys builds
+# natively) and runs only in a browser.
+[dependencies]
+calc-fml = { path = "../../crates/calc-fml" }
+calc-func = { path = "../../crates/calc-func" }
+leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
+web-sys = { version = "=0.3.94", features = ["HtmlElement"] }
+
+# The dependency case reads cargo metadata's JSON. Test-only, native-only.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+serde_json = "=1.0.154"
+
+# The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which
+# runs only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the
+# release built on that wasm-bindgen (the pair the CI browser fixture pins). The browser part of the
+# reference case drives the mounted surface through DOM events and waits for its updates, which
+# needs js-sys, web-sys and wasm-bindgen-futures at the releases built on the same wasm-bindgen.
+# Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"
+wasm-bindgen-futures = "=0.4.67"
+js-sys = "=0.3.94"
+web-sys = { version = "=0.3.94", features = [
+    "Document",
+    "Element",
+    "Event",
+    "EventInit",
+    "EventTarget",
+    "HtmlButtonElement",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlSelectElement",
+    "Node",
+    "NodeList",
+    "Window",
+] }

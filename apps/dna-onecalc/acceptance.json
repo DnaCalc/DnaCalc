@@ -1,4 +1,23 @@
 {
   "package": "dna-onecalc",
-  "beads": []
+  "beads": [
+    {
+      "id": "onecalc-m1.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "dna-onecalc", "--test", "acceptance", "onecalc_m1_1", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "onecalc-m1.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "onecalc-m1.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "onecalc-m1.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "onecalc_m1_1__reference_without_engine",
+        "onecalc_m1_1__dependency_gate"
+      ],
+      "platforms": {
+        "onecalc_m1_1__reference_without_engine": ["windows", "linux", "wasm"],
+        "onecalc_m1_1__dependency_gate": ["windows", "linux"]
+      }
+    }
+  ]
 }
