@@ -8,3 +8,17 @@ description = "The package for CalcEngine: the one dependency graph and the deri
 
 [package.metadata.dnacalc]
 portability = "portable"
+
+# calc-value issues the node IDs and supplies the grid coordinates; calc-doc-model supplies the
+# authored operations, revisions and the immutable model root the engine reads (plan 2.1: ENG to
+# MODEL). Never calc-doc, the package codec (plan 1.3).
+[dependencies]
+calc-value = { path = "../calc-value" }
+calc-doc-model = { path = "../calc-doc-model" }
+
+# The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which runs
+# only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the
+# release built on that wasm-bindgen (the pair the CI browser fixture pins). Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"

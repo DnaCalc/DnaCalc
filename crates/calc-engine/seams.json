@@ -1,4 +1,21 @@
 {
   "package": "calc-engine",
-  "seams": []
+  "seams": [
+    {"item": "graph::Prerequisite::Cell", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "graph::Prerequisite::Area", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "graph::Prerequisite::AxisValue", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "graph::Prerequisite::SheetSpan", "callers": [{"file": "crates/calc-engine/src/graph.rs", "fn": "Prerequisite::sheets"}, {"file": "crates/calc-engine/src/graph.rs", "fn": "ReverseIndex::file"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "state::PrerequisiteError::StaleInputs", "callers": [{"file": "crates/calc-engine/src/state.rs", "fn": "EngineState::set_prerequisites"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "state::PrerequisiteError::UnknownNode", "callers": [{"file": "crates/calc-engine/src/state.rs", "fn": "EngineState::set_prerequisites"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "state::PrerequisiteError::UnknownSheet", "callers": [{"file": "crates/calc-engine/src/state.rs", "fn": "EngineState::set_prerequisites"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::NodeChange::Added", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}, {"file": "crates/calc-engine/src/edit.rs", "fn": "commit_edit"}, {"file": "crates/calc-engine/src/edit.rs", "fn": "PreparedEngineChange::drop"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::NodeChange::Replaced", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}, {"file": "crates/calc-engine/src/edit.rs", "fn": "commit_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::NodeChange::Removed", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}, {"file": "crates/calc-engine/src/edit.rs", "fn": "commit_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::InputSeed::Cell", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::InputSeed::Area", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::PrepareError::StaleBase", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::PrepareError::RevisionExhausted", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::PrepareError::UnknownSheet", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "require_sheet"}], "case": "ceng_m1_1__two_sheets_one_graph"},
+    {"item": "edit::PrepareError::StructuralEdit", "callers": [{"file": "crates/calc-engine/src/edit.rs", "fn": "prepare_edit"}], "case": "ceng_m1_1__two_sheets_one_graph"}
+  ]
 }

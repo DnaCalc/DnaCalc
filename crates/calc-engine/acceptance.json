@@ -1,4 +1,23 @@
 {
   "package": "calc-engine",
-  "beads": []
+  "beads": [
+    {
+      "id": "ceng-m1.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-engine", "--test", "acceptance", "ceng_m1_1", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "ceng-m1.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "ceng-m1.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "ceng-m1.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "ceng_m1_1__two_sheets_one_graph",
+        "ceng_m1_1__input_sharing"
+      ],
+      "platforms": {
+        "ceng_m1_1__two_sheets_one_graph": ["windows", "linux", "wasm"],
+        "ceng_m1_1__input_sharing": ["windows", "linux", "wasm"]
+      }
+    }
+  ]
 }

@@ -55,6 +55,12 @@ dependencies = [
 [[package]]
 name = "calc-engine"
 version = "0.1.0"
+dependencies = [
+ "calc-doc-model",
+ "calc-value",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
 
 [[package]]
 name = "calc-fml"
