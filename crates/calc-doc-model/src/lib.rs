@@ -6,7 +6,11 @@
 //! - Model roots: a [`ModelRoot`] is one immutable, `Arc`-shared authored revision of a
 //!   document's sheets, each a [`SheetEntry`] with its session [`calc_value::SheetId`], its
 //!   document-stable [`SheetKey`], its [`SheetName`] and its [`SheetVisibility`], and of each
-//!   sheet's authored cell inputs.
+//!   sheet's authored cell inputs. [`ModelRoot::new`] makes a root without cells and
+//!   [`ModelRoot::with_cells`] one that holds a document's cells as a file gave them.
+//! - File caches: a formula's result as a file stored it is [`FileCached`], a [`CachedValue`]
+//!   with the [`SourcePart`] it was read from. It is kept apart from the formula's input and never
+//!   counts as calculated.
 //! - Cell pages: a sheet's cells live in immutable, `Arc`-shared [`CellPage`]s, one for each
 //!   block of [`PAGE_ROWS`] rows by [`PAGE_COLUMNS`] columns that holds an occupied cell. Reads
 //!   borrow from the pages: [`ModelRoot::cell`] for one cell, and [`ModelRoot::cells`] and
@@ -31,6 +35,7 @@
 //! [`value`] re-exports calc-value, whose grid coordinates, sheet IDs, text and worksheet error
 //! codes these types hold.
 
+mod cache;
 mod cells;
 mod input;
 mod op;
@@ -39,6 +44,7 @@ mod root;
 mod sheet;
 mod wire;
 
+pub use cache::{CachedValue, FileCached, SourcePart};
 pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};

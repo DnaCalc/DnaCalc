@@ -47,13 +47,15 @@ impl SheetEntry {
     }
 }
 
-/// Why [`ModelRoot::new`] refused its sheets.
+/// Why [`ModelRoot::new`] or [`ModelRoot::with_cells`] refused its sheets or cells.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ModelRootError {
     /// Two sheets have this key.
     DuplicateSheetKey(SheetKey),
     /// Two sheets have this ID.
     DuplicateSheetId(SheetId),
+    /// This cell lies on a sheet the root does not hold.
+    CellOnUnknownSheet(CellKey),
 }
 
 impl fmt::Display for ModelRootError {
@@ -63,8 +65,29 @@ impl fmt::Display for ModelRootError {
                 write!(f, "two sheets have the key {}", key.get())
             }
             ModelRootError::DuplicateSheetId(id) => write!(f, "two sheets have the ID {id:?}"),
+            ModelRootError::CellOnUnknownSheet(at) => write!(
+                f,
+                "the cell at row {} column {} lies on the sheet {:?}, which the root does not hold",
+                at.row(),
+                at.column(),
+                at.sheet()
+            ),
         }
     }
+}
+
+/// Refuses sheets of which two share a key or an ID.
+fn check_sheets(sheets: &[SheetEntry]) -> Result<(), ModelRootError> {
+    for (index, sheet) in sheets.iter().enumerate() {
+        let earlier = &sheets[..index];
+        if earlier.iter().any(|other| other.key == sheet.key) {
+            return Err(ModelRootError::DuplicateSheetKey(sheet.key));
+        }
+        if earlier.iter().any(|other| other.id == sheet.id) {
+            return Err(ModelRootError::DuplicateSheetId(sheet.id));
+        }
+    }
+    Ok(())
 }
 
 impl std::error::Error for ModelRootError {}
@@ -149,20 +172,54 @@ impl ModelRoot {
         revision: AuthoredRevision,
         sheets: Vec<SheetEntry>,
     ) -> Result<Arc<ModelRoot>, ModelRootError> {
-        for (index, sheet) in sheets.iter().enumerate() {
-            let earlier = &sheets[..index];
-            if earlier.iter().any(|other| other.key == sheet.key) {
-                return Err(ModelRootError::DuplicateSheetKey(sheet.key));
-            }
-            if earlier.iter().any(|other| other.id == sheet.id) {
-                return Err(ModelRootError::DuplicateSheetId(sheet.id));
-            }
-        }
+        check_sheets(&sheets)?;
         let cells = vec![SheetPages::default(); sheets.len()];
         Ok(Arc::new(ModelRoot {
             revision,
             sheets,
             cells,
+        }))
+    }
+
+    /// The root of these sheets, in this order, holding these cells' inputs, at `revision`: how a
+    /// document's first revision is built from what a file holds. The cells come in any order; a
+    /// later input for a cell replaces an earlier one. Each block of [`crate::PAGE_ROWS`] rows by
+    /// [`crate::PAGE_COLUMNS`] columns that holds a cell gets one page, built once; a block without
+    /// one gets no page, so the root's size follows the cells given, not the extent they span.
+    ///
+    /// Refused when two sheets share a key or an ID, or a cell lies on a sheet not among them.
+    pub fn with_cells(
+        revision: AuthoredRevision,
+        sheets: Vec<SheetEntry>,
+        cells: impl IntoIterator<Item = (CellKey, CellInput)>,
+    ) -> Result<Arc<ModelRoot>, ModelRootError> {
+        check_sheets(&sheets)?;
+        let positions: BTreeMap<SheetId, usize> = sheets
+            .iter()
+            .enumerate()
+            .map(|(position, sheet)| (sheet.id, position))
+            .collect();
+        // Each occupied block's cells, by (sheet position, page row, page column).
+        let mut blocks: BTreeMap<(usize, u32, u32), BTreeMap<u16, CellInput>> = BTreeMap::new();
+        for (at, input) in cells {
+            let sheet = *positions
+                .get(&at.sheet())
+                .ok_or(ModelRootError::CellOnUnknownSheet(at))?;
+            let (page_row, page_column, place) = locate(at);
+            blocks
+                .entry((sheet, page_row, page_column))
+                .or_default()
+                .insert(place, input);
+        }
+        let mut pages = vec![SheetPages::default(); sheets.len()];
+        for ((sheet, page_row, page_column), cells) in blocks {
+            let page = CellPage::build(page_row, page_column, cells).map(Arc::new);
+            pages[sheet].set_page(page_row, page_column, page);
+        }
+        Ok(Arc::new(ModelRoot {
+            revision,
+            sheets,
+            cells: pages,
         }))
     }
 
@@ -507,5 +564,71 @@ mod tests {
             root = next;
         }
         assert!(shared_pages > 1000, "{shared_pages} shared pages");
+    }
+
+    /// A root built with its cells holds the same pages as one made by applying them to an empty
+    /// root, at the revision it was given; a later input for a cell replaces an earlier one, and
+    /// a cell on a sheet the root does not hold is refused.
+    #[test]
+    fn with_cells_matches_apply() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let sheets: Vec<SheetId> = (0..3).map(|_| ids.issue().expect("an ID")).collect();
+        let entries: Vec<SheetEntry> = sheets[..2]
+            .iter()
+            .zip(1..)
+            .map(|(id, key)| {
+                let name =
+                    SheetName::new(ExcelText::from_utf16_code_units(vec![0x40 + key as u16]))
+                        .expect("a name");
+                SheetEntry::new(*id, SheetKey::new(key), name, SheetVisibility::Visible)
+            })
+            .collect();
+        let mut rng = Rng(0x2545_F491_4F6C_DD1D);
+        let mut cells = Vec::new();
+        for counter in 0..2000 {
+            let at = CellKey::new(
+                sheets[rng.below(2) as usize],
+                row(&mut rng),
+                column(&mut rng),
+            )
+            .unwrap();
+            cells.push((
+                at,
+                CellInput::Number(FiniteNumber::new(f64::from(counter)).unwrap()),
+            ));
+        }
+        let built = ModelRoot::with_cells(AuthoredRevision::new(7), entries.clone(), cells.clone())
+            .expect("cells on held sheets");
+        let applied = ModelRoot::new(AuthoredRevision::new(6), entries.clone())
+            .unwrap()
+            .apply(&OpBatch {
+                base: AuthoredRevision::new(6),
+                operations: cells
+                    .iter()
+                    .map(|(at, input)| WorkbookOp::SetCell {
+                        at: *at,
+                        input: input.clone(),
+                    })
+                    .collect(),
+            })
+            .unwrap();
+        assert_eq!(*built, *applied, "the same revision, sheets and pages");
+        for sheet in &sheets[..2] {
+            assert!(
+                built
+                    .pages(*sheet)
+                    .unwrap()
+                    .all(|page| page.cell_count() > 0)
+            );
+        }
+        let elsewhere = CellKey::new(sheets[2], 1, 1).unwrap();
+        assert_eq!(
+            ModelRoot::with_cells(
+                AuthoredRevision::INITIAL,
+                entries,
+                [(elsewhere, CellInput::Logical(true))]
+            ),
+            Err(ModelRootError::CellOnUnknownSheet(elsewhere))
+        );
     }
 }

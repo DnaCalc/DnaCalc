@@ -51,6 +51,25 @@
         "cdoc_m1_1__raw_preservation": ["windows", "linux", "wasm"],
         "cdoc_m1_1__malformed_zip": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cdoc-m1.2",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-doc", "--test", "acceptance", "cdoc_m1_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-doc", "-p", "calc-doc-model", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.2", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.2", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-m1.2", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cdoc_m1_2__authored_vs_cache",
+        "cdoc_m1_2__sparse_extent"
+      ],
+      "platforms": {
+        "cdoc_m1_2__authored_vs_cache": ["windows", "linux", "wasm"],
+        "cdoc_m1_2__sparse_extent": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

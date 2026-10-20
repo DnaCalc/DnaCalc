@@ -3,7 +3,7 @@
 //! [`model`] re-exports calc-doc-model, the engine-neutral authored model and operation codec this
 //! codec reads into and writes from.
 //!
-//! The route is [`open`], then [`prepare_save`] and [`write`]:
+//! The route is [`open`] and [`load`], then [`prepare_save`] and [`write`]:
 //!
 //! - [`open`] reads an OPC package from a seekable [`PackageRead`] source under explicit
 //!   [`OpenPolicy`] limits into a [`Package`]: its part directory, content types and
@@ -11,6 +11,15 @@
 //!   XML parts are tokenized only as far as their [`XmlReader`] is pulled. Unsafe entry names,
 //!   document type declarations (and so every declared entity) and declared or actual sizes past
 //!   the limits are typed refusals.
+//! - [`load`] reads an opened package's workbook: its sheets, from the workbook part and its
+//!   relationships, and each worksheet's cells (numbers, shared and inline strings, logicals,
+//!   errors and formulas, a shared formula's members each with its own text) into a
+//!   [`model::ModelRoot`] at the document's first revision ([`LoadedWorkbook`]). Only occupied
+//!   cells are materialized. Each cell's style index and each formula's shared formula group and
+//!   cached result are kept beside the model; a cached result is [`model::FileCached`] with the
+//!   identity of the part it was read from. The loaded workbook also carries its
+//!   [`DateSystem`] and the number of defined names it holds and does not load; `calcPr` is not
+//!   read. A cell or formula it does not read is a typed refusal ([`LoadError`]).
 //! - [`prepare_save`] plans a save of a [`DocumentSnapshot`] and [`write`] writes it to a
 //!   [`PackageWrite`] sink. Nothing is authored yet, so every entry's stored bytes are copied
 //!   unchanged, and the write refuses an entry whose stored bytes no longer have the CRC-32 they
@@ -19,6 +28,7 @@
 //! The codec opens no file: the source and the sink are supplied by the caller.
 
 mod error;
+mod load;
 mod opc;
 mod policy;
 mod save;
@@ -28,6 +38,10 @@ mod zip;
 
 pub use calc_doc_model as model;
 pub use error::{OpenError, PartReadError, UnsafeName};
+pub use load::{
+    CellError, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LoadError, LoadedSheet,
+    LoadedWorkbook, SharedFormula, load,
+};
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,
     RELATIONSHIPS_NAMESPACE, Relationship, Relationships, TargetMode,

@@ -1,0 +1,581 @@
+//! One worksheet part's cells: the rows and cells of its `<sheetData>`, read in document order.
+//! Every other element of the part (dimensions, views, columns, merges, hyperlinks and the rest)
+//! is skipped here; a save copies the part's bytes as they were stored.
+
+use super::error::{CellError, LoadError};
+use super::strings::{decode, string_item};
+use super::{
+    Events, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, MAIN_NAMESPACE, SharedFormula, address,
+    read_xml, shift,
+};
+use crate::opc::Package;
+use crate::xml::{XmlElement, XmlEvent};
+use calc_doc_model::value::{
+    CellKey, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode,
+};
+use calc_doc_model::{
+    CachedValue, CellInput, CellText, FileCached, FiniteNumber, FormulaText, SourcePart,
+};
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+/// What every sheet's cells are read against: the workbook's shared strings and the number of
+/// its cell formats.
+pub(super) struct Context<'a> {
+    pub(super) shared_strings: &'a [ExcelText],
+    pub(super) cell_formats: u32,
+}
+
+/// One sheet's cells as read: the inputs for the model and the records kept beside it.
+pub(super) struct SheetLoad {
+    pub(super) part: Arc<SourcePart>,
+    pub(super) inputs: Vec<(CellKey, CellInput)>,
+    pub(super) styles: BTreeMap<(u32, u32), u32>,
+    pub(super) formulas: BTreeMap<(u32, u32), FormulaRecord>,
+}
+
+/// The spelling of each worksheet error in a cell's `<v>`, matched exactly.
+const ERRORS: [(&str, WorksheetErrorCode); 14] = [
+    ("#NULL!", WorksheetErrorCode::Null),
+    ("#DIV/0!", WorksheetErrorCode::Div0),
+    ("#VALUE!", WorksheetErrorCode::Value),
+    ("#REF!", WorksheetErrorCode::Ref),
+    ("#NAME?", WorksheetErrorCode::Name),
+    ("#NUM!", WorksheetErrorCode::Num),
+    ("#N/A", WorksheetErrorCode::NA),
+    ("#GETTING_DATA", WorksheetErrorCode::GettingData),
+    ("#SPILL!", WorksheetErrorCode::Spill),
+    ("#CALC!", WorksheetErrorCode::Calc),
+    ("#FIELD!", WorksheetErrorCode::Field),
+    ("#BLOCKED!", WorksheetErrorCode::Blocked),
+    ("#CONNECT!", WorksheetErrorCode::Connect),
+    ("#BUSY!", WorksheetErrorCode::Busy),
+];
+
+/// `text` without the XML whitespace around it, as an XML Schema number or boolean reads it.
+fn collapsed(text: &str) -> &str {
+    text.trim_matches(|c| matches!(c, ' ' | '\t' | '\r' | '\n'))
+}
+
+/// A shared formula group's master, once read.
+struct Group {
+    master: (u32, u32),
+    /// The master's formula text with its `_xHHHH_` escapes decoded, which its members' texts are
+    /// moved from; `None` when it holds an unpaired surrogate, which no member's text is moved
+    /// from.
+    text: Option<String>,
+    /// (top, left, bottom, right)
+    area: (u32, u32, u32, u32),
+}
+
+/// A member of a shared formula group, waiting for every master of the sheet to be read.
+struct Member {
+    row: u32,
+    column: u32,
+    index: u32,
+    cache: Option<CachedValue>,
+}
+
+/// A cell's `<f>` element.
+struct Formula {
+    kind: Option<String>,
+    index: Option<String>,
+    area: Option<String>,
+    text: String,
+}
+
+struct Sheet<'a> {
+    context: &'a Context<'a>,
+    id: SheetId,
+    part: Arc<SourcePart>,
+    load: SheetLoad,
+    groups: BTreeMap<u32, Group>,
+    members: Vec<Member>,
+}
+
+impl Sheet<'_> {
+    fn key(&self, row: u32, column: u32) -> CellKey {
+        CellKey::new(self.id, row, column).expect("a cell the loader checked lies inside the grid")
+    }
+
+    fn cell_error(&self, row: u32, column: u32, error: CellError) -> LoadError {
+        LoadError::Cell {
+            part: self.part.name().to_owned(),
+            row,
+            column,
+            error,
+        }
+    }
+
+    fn text(&self, units: Vec<u16>) -> Result<CellText, CellError> {
+        let count = units.len();
+        CellText::new(ExcelText::from_utf16_code_units(units))
+            .ok_or(CellError::TextTooLong { units: count })
+    }
+
+    /// The value of `<v>` read as type `kind` (`n` when absent).
+    fn value(&self, kind: Option<&str>, text: &str) -> Result<CachedValue, CellError> {
+        match kind {
+            None | Some("n") => {
+                let number = collapsed(text);
+                number
+                    .parse::<f64>()
+                    .ok()
+                    .and_then(FiniteNumber::new)
+                    .map(CachedValue::Number)
+                    .ok_or_else(|| CellError::InvalidNumber {
+                        text: text.to_owned(),
+                    })
+            }
+            Some("s") => {
+                let count = self.context.shared_strings.len();
+                let index = collapsed(text)
+                    .parse::<usize>()
+                    .ok()
+                    .filter(|&index| index < count)
+                    .ok_or_else(|| CellError::SharedStringIndex {
+                        text: text.to_owned(),
+                        count,
+                    })?;
+                let units = self.context.shared_strings[index]
+                    .utf16_code_units()
+                    .to_vec();
+                self.text(units).map(CachedValue::Text)
+            }
+            Some("str") => self.text(decode(text)).map(CachedValue::Text),
+            Some("b") => match collapsed(text) {
+                "0" | "false" => Ok(CachedValue::Logical(false)),
+                "1" | "true" => Ok(CachedValue::Logical(true)),
+                _ => Err(CellError::InvalidBoolean {
+                    text: text.to_owned(),
+                }),
+            },
+            Some("e") => ERRORS
+                .iter()
+                .find(|(spelling, _)| *spelling == collapsed(text))
+                .map(|(_, code)| CachedValue::Error(*code))
+                .ok_or_else(|| CellError::UnknownError {
+                    text: text.to_owned(),
+                }),
+            Some(other) => Err(CellError::UnsupportedType {
+                kind: other.to_owned(),
+            }),
+        }
+    }
+
+    /// The input of a formula whose `<f>` element holds `text`, checked against the length limit.
+    /// ECMA-376 derives ST_Formula from ST_Xstring, so its `_xHHHH_` escapes are decoded first.
+    fn formula_input(text: &str) -> Result<CellInput, CellError> {
+        Self::formula_units(decode(text))
+    }
+
+    /// The input of a formula whose text is `units`, checked against the length limit.
+    fn formula_units(units: Vec<u16>) -> Result<CellInput, CellError> {
+        if units.len() > FORMULA_MAX_UTF16_CODE_UNITS {
+            return Err(CellError::FormulaTooLong { units: units.len() });
+        }
+        FormulaText::new(ExcelText::from_utf16_code_units(units))
+            .map(CellInput::Formula)
+            .map_err(|_| CellError::EmptyFormula)
+    }
+
+    fn record(
+        &mut self,
+        row: u32,
+        column: u32,
+        shared: Option<SharedFormula>,
+        cache: Option<CachedValue>,
+    ) {
+        let cache = cache.map(|value| FileCached::new(value, Arc::clone(&self.part)));
+        self.load
+            .formulas
+            .insert((row, column), FormulaRecord { shared, cache });
+    }
+
+    fn shared(&self, index: u32, group: &Group) -> SharedFormula {
+        let (top, left, bottom, right) = group.area;
+        SharedFormula {
+            index,
+            master: self.key(group.master.0, group.master.1),
+            area: GridArea::new(self.key(top, left), self.key(bottom, right))
+                .expect("two corners on one sheet"),
+        }
+    }
+
+    /// Reads one `<c>` whose start tag is `element`, after the cell at `previous` of row `row`.
+    /// Returns the cell's column.
+    fn cell(
+        &mut self,
+        events: &mut Events<'_>,
+        element: &XmlElement,
+        row: u32,
+        previous: u32,
+    ) -> Result<u32, LoadError> {
+        let (cell_row, column) = match element.attribute("r") {
+            Some(text) => address::cell(text).ok_or_else(|| LoadError::InvalidCellAddress {
+                part: events.part().to_owned(),
+                text: text.to_owned(),
+            })?,
+            None if previous < MAX_COLUMNS => (row, previous + 1),
+            None => {
+                return Err(LoadError::InvalidCellAddress {
+                    part: events.part().to_owned(),
+                    text: String::new(),
+                });
+            }
+        };
+        let part = events.part();
+        let fail = |error| LoadError::Cell {
+            part: part.to_owned(),
+            row: cell_row,
+            column,
+            error,
+        };
+        if cell_row != row || column <= previous {
+            return Err(fail(CellError::OutOfOrder));
+        }
+        if element.attribute("cm").is_some() || element.attribute("vm").is_some() {
+            return Err(fail(CellError::UnsupportedMetadata));
+        }
+        let style = match element.attribute("s") {
+            None => 0,
+            Some(text) => collapsed(text)
+                .parse::<u32>()
+                .ok()
+                .filter(|&style| style == 0 || style < self.context.cell_formats)
+                .ok_or_else(|| {
+                    fail(CellError::StyleIndex {
+                        text: text.to_owned(),
+                        cell_formats: self.context.cell_formats,
+                    })
+                })?,
+        };
+        let kind = element.attribute("t").map(str::to_owned);
+        if let Some(kind) = kind
+            .as_deref()
+            .filter(|kind| !matches!(*kind, "n" | "s" | "str" | "b" | "e" | "inlineStr"))
+        {
+            return Err(fail(CellError::UnsupportedType {
+                kind: kind.to_owned(),
+            }));
+        }
+        let (mut formula, mut value, mut inline) = (None, None, None);
+        loop {
+            let child = match events.next()? {
+                Some(XmlEvent::Start(child)) => child,
+                Some(XmlEvent::Text(text)) if text.trim().is_empty() => continue,
+                Some(XmlEvent::Text(_)) => {
+                    return Err(fail(CellError::Malformed {
+                        detail: "a cell holds text outside its elements",
+                    }));
+                }
+                Some(XmlEvent::End(_)) => break,
+                None => return Err(events.invalid("the part ends inside a cell")),
+            };
+            let twice = |detail| fail(CellError::Malformed { detail });
+            if child.name.is(MAIN_NAMESPACE, "f") {
+                let text = events.text()?;
+                let attribute = |local: &str| child.attribute(local).map(str::to_owned);
+                let previous = formula.replace(Formula {
+                    kind: attribute("t"),
+                    index: attribute("si"),
+                    area: attribute("ref"),
+                    text,
+                });
+                if previous.is_some() {
+                    return Err(twice("a cell with two formulas"));
+                }
+            } else if child.name.is(MAIN_NAMESPACE, "v") {
+                if value.replace(events.text()?).is_some() {
+                    return Err(twice("a cell with two values"));
+                }
+            } else if child.name.is(MAIN_NAMESPACE, "is") {
+                if inline.replace(string_item(events)?).is_some() {
+                    return Err(twice("a cell with two inline strings"));
+                }
+            } else if child.name.is(MAIN_NAMESPACE, "extLst") {
+                events.skip()?;
+            } else {
+                return Err(twice("an element a cell does not hold"));
+            }
+        }
+        if style != 0 {
+            self.load.styles.insert((row, column), style);
+        }
+        let kind = kind.as_deref();
+        if let Some(formula) = formula {
+            if matches!(kind, Some("inlineStr")) || inline.is_some() {
+                return Err(fail(CellError::Malformed {
+                    detail: "a formula cell with an inline string",
+                }));
+            }
+            let cache = match &value {
+                // An empty `<v>` of a number-typed formula cell (`<v/>`, as some writers emit
+                // for a formula they did not calculate) stores no result. An empty one of type
+                // `str` is the empty text, and of any other type it is refused as before.
+                Some(text) if matches!(kind, None | Some("n")) && collapsed(text).is_empty() => {
+                    None
+                }
+                Some(text) => Some(self.value(kind, text).map_err(fail)?),
+                None => None,
+            };
+            self.formula(row, column, formula, cache).map_err(fail)?;
+            return Ok(column);
+        }
+        let input = match (kind, value, inline) {
+            (Some("inlineStr"), None, Some(units)) => {
+                Some(CellInput::Text(self.text(units).map_err(fail)?))
+            }
+            (Some("inlineStr"), _, _) => {
+                return Err(fail(CellError::Malformed {
+                    detail: "an inline string cell without exactly its is element",
+                }));
+            }
+            (_, _, Some(_)) => {
+                return Err(fail(CellError::Malformed {
+                    detail: "an is element in a cell that is not an inline string",
+                }));
+            }
+            (Some("str"), _, None) => {
+                return Err(fail(CellError::Malformed {
+                    detail: "a formula string cell without a formula",
+                }));
+            }
+            (None | Some("n"), None, None) => None,
+            (_, None, None) => {
+                return Err(fail(CellError::Malformed {
+                    detail: "a shared string, logical or error cell without a value",
+                }));
+            }
+            (kind, Some(text), None) => Some(match self.value(kind, &text).map_err(fail)? {
+                CachedValue::Number(number) => CellInput::Number(number),
+                CachedValue::Text(text) => CellInput::Text(text),
+                CachedValue::Logical(logical) => CellInput::Logical(logical),
+                CachedValue::Error(code) => CellInput::Error(code),
+            }),
+        };
+        if let Some(input) = input {
+            let key = self.key(row, column);
+            self.load.inputs.push((key, input));
+        }
+        Ok(column)
+    }
+
+    /// Records a formula cell: its input now, or, for a shared formula's member, once the
+    /// sheet's masters are known.
+    fn formula(
+        &mut self,
+        row: u32,
+        column: u32,
+        formula: Formula,
+        cache: Option<CachedValue>,
+    ) -> Result<(), CellError> {
+        match formula.kind.as_deref() {
+            None | Some("normal") => {
+                let input = Self::formula_input(&formula.text)?;
+                let key = self.key(row, column);
+                self.load.inputs.push((key, input));
+                self.record(row, column, None, cache);
+                Ok(())
+            }
+            Some("shared") => {
+                let detail = |detail| CellError::SharedFormula { detail };
+                let index: u32 = formula
+                    .index
+                    .as_deref()
+                    .and_then(|text| collapsed(text).parse().ok())
+                    .ok_or(detail("a shared formula without an si that is a number"))?;
+                if formula.text.is_empty() {
+                    self.members.push(Member {
+                        row,
+                        column,
+                        index,
+                        cache,
+                    });
+                    return Ok(());
+                }
+                let area = formula
+                    .area
+                    .as_deref()
+                    .ok_or(detail("a shared formula's master without a ref"))?;
+                let area = address::area(area).ok_or(detail("a ref that is not an area"))?;
+                let (top, left, bottom, right) = area;
+                if !(top..=bottom).contains(&row) || !(left..=right).contains(&column) {
+                    return Err(detail("a master outside its ref"));
+                }
+                if self.groups.contains_key(&index) {
+                    return Err(detail("two masters for one si"));
+                }
+                let units = decode(&formula.text);
+                let text = String::from_utf16(&units).ok();
+                let input = Self::formula_units(units)?;
+                let key = self.key(row, column);
+                self.load.inputs.push((key, input));
+                let group = Group {
+                    master: (row, column),
+                    text,
+                    area,
+                };
+                let shared = self.shared(index, &group);
+                self.groups.insert(index, group);
+                self.record(row, column, Some(shared), cache);
+                Ok(())
+            }
+            Some(kind) => Err(CellError::UnsupportedFormula {
+                kind: kind.to_owned(),
+            }),
+        }
+    }
+
+    /// Gives each shared formula member its input: its group's text, moved from the master.
+    fn finish_members(&mut self) -> Result<(), LoadError> {
+        // Each group's text read once, for all of its members.
+        let mut moves: BTreeMap<u32, Result<shift::Moves, &'static str>> = BTreeMap::new();
+        for member in std::mem::take(&mut self.members) {
+            let (row, column) = (member.row, member.column);
+            let error = |error| self.cell_error(row, column, error);
+            let detail = |detail| error(CellError::SharedFormula { detail });
+            let group = self
+                .groups
+                .get(&member.index)
+                .ok_or_else(|| detail("a member whose si has no master"))?;
+            let (top, left, bottom, right) = group.area;
+            if !(top..=bottom).contains(&row) || !(left..=right).contains(&column) {
+                return Err(detail("a member outside its group's ref"));
+            }
+            let group_moves = moves
+                .entry(member.index)
+                .or_insert_with(|| match &group.text {
+                    Some(text) => shift::Moves::new(text).map_err(|refused| refused.0),
+                    None => Err("a member of a group whose text holds an unpaired surrogate"),
+                })
+                .as_ref()
+                .map_err(|refused| detail(refused))?;
+            let text = group_moves
+                .apply(
+                    i64::from(row) - i64::from(group.master.0),
+                    i64::from(column) - i64::from(group.master.1),
+                )
+                .map_err(|shift::PastGrid| error(CellError::SharedFormulaPastGrid))?;
+            let input = Self::formula_units(text.encode_utf16().collect()).map_err(error)?;
+            let shared = self.shared(member.index, group);
+            let key = self.key(row, column);
+            self.load.inputs.push((key, input));
+            self.record(row, column, Some(shared), member.cache);
+        }
+        Ok(())
+    }
+
+    fn sheet_data(&mut self, events: &mut Events<'_>) -> Result<(), LoadError> {
+        let mut previous_row = 0u32;
+        loop {
+            let row = match events.next()? {
+                Some(XmlEvent::Start(row)) if row.name.is(MAIN_NAMESPACE, "row") => row,
+                Some(XmlEvent::Start(_)) => {
+                    return Err(events.invalid("an element other than row in sheetData"));
+                }
+                Some(XmlEvent::Text(text)) if text.trim().is_empty() => continue,
+                Some(XmlEvent::Text(_)) => return Err(events.invalid("sheetData holds text")),
+                Some(XmlEvent::End(_)) => return Ok(()),
+                None => return Err(events.invalid("the part ends inside sheetData")),
+            };
+            let number = match row.attribute("r") {
+                Some(text) => address::row_number(collapsed(text)).ok_or_else(|| {
+                    LoadError::InvalidRowNumber {
+                        part: events.part().to_owned(),
+                        text: text.to_owned(),
+                    }
+                })?,
+                None if previous_row < MAX_ROWS => previous_row + 1,
+                None => {
+                    return Err(LoadError::InvalidRowNumber {
+                        part: events.part().to_owned(),
+                        text: String::new(),
+                    });
+                }
+            };
+            if number <= previous_row {
+                return Err(events.invalid("a row that is not after the row before it"));
+            }
+            previous_row = number;
+            let mut previous_column = 0u32;
+            loop {
+                match events.next()? {
+                    Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "c") => {
+                        previous_column = self.cell(events, &element, number, previous_column)?;
+                    }
+                    Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "extLst") => {
+                        events.skip()?;
+                    }
+                    Some(XmlEvent::Start(_)) => {
+                        return Err(events.invalid("an element other than c in a row"));
+                    }
+                    Some(XmlEvent::Text(text)) if text.trim().is_empty() => {}
+                    Some(XmlEvent::Text(_)) => return Err(events.invalid("a row holds text")),
+                    Some(XmlEvent::End(_)) => break,
+                    None => return Err(events.invalid("the part ends inside a row")),
+                }
+            }
+        }
+    }
+}
+
+/// Reads the cells of the worksheet part `part` for the sheet `id`.
+pub(super) fn load_sheet(
+    package: &Package,
+    context: &Context<'_>,
+    id: SheetId,
+    part: &str,
+) -> Result<SheetLoad, LoadError> {
+    let found = package.part(part).ok_or_else(|| LoadError::MissingPart {
+        part: part.to_owned(),
+    })?;
+    let source = Arc::new(SourcePart::new(
+        found.name().to_owned(),
+        found.crc32(),
+        found.size(),
+    ));
+    let xml = read_xml(package, part)?;
+    let mut events = Events::new(&xml);
+    events.root(
+        MAIN_NAMESPACE,
+        "worksheet",
+        "the document element is not a SpreadsheetML worksheet",
+    )?;
+    let mut sheet = Sheet {
+        context,
+        id,
+        part: Arc::clone(&source),
+        load: SheetLoad {
+            part: source,
+            inputs: Vec::new(),
+            styles: BTreeMap::new(),
+            formulas: BTreeMap::new(),
+        },
+        groups: BTreeMap::new(),
+        members: Vec::new(),
+    };
+    let mut sheet_data = false;
+    loop {
+        match events.next()? {
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetData") => {
+                if sheet_data {
+                    return Err(events.invalid("a worksheet with two sheetData elements"));
+                }
+                sheet_data = true;
+                sheet.sheet_data(&mut events)?;
+            }
+            Some(XmlEvent::Start(_)) => events.skip()?,
+            Some(XmlEvent::Text(text)) if text.trim().is_empty() => {}
+            Some(XmlEvent::Text(_)) => return Err(events.invalid("worksheet holds text")),
+            Some(XmlEvent::End(_)) => break,
+            None => return Err(events.invalid("the part ends inside worksheet")),
+        }
+    }
+    events.end()?;
+    if !sheet_data {
+        return Err(events.invalid("a worksheet without sheetData"));
+    }
+    sheet.finish_members()?;
+    Ok(sheet.load)
+}

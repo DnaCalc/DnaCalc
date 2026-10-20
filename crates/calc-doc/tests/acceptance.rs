@@ -16,6 +16,12 @@
 //! committed generator beside them, together with its `manifest.json`, which records what the
 //! generator wrote as .NET computed it. Every other package they open is built here by
 //! `cdoc_m1_1_support`, whose ZIP reader is also what inspects every saved package.
+//!
+//! The cdoc-m1.2 cases load the packages under `tests/fixtures/cdoc_m1_2/` and compare what the
+//! model and the records beside it hold with that generator's `manifest.json`: the values, texts,
+//! styles, shared formula groups and caches it wrote, the formula texts it states each cell holds,
+//! the CRC-32 and size it computed of each sheet's part, and the date system and number of defined
+//! names of each workbook part. The other packages they load are built here and say so.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -4987,5 +4993,837 @@ fn cdoc_m1_1__malformed_zip() {
     #[cfg(target_arch = "wasm32")]
     note!(
         "ACCEPT-NOTE: {CASE}: the browser gives the case no file system to inspect; calc-doc's non-test code names no std::fs (the os-imports architecture check)"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cdoc-m1.2: a workbook's cells, formulas and file caches loaded into the model.
+
+use calc_doc::model::CachedValue;
+use calc_doc::{CellError, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, LoadError, LoadedWorkbook};
+
+const M1_2_CELLS: &[u8] = include_bytes!("fixtures/cdoc_m1_2/cells.xlsx");
+const M1_2_EXTENT: &[u8] = include_bytes!("fixtures/cdoc_m1_2/extent.xlsx");
+const M1_2_CORNER: &[u8] = include_bytes!("fixtures/cdoc_m1_2/corner.xlsx");
+const M1_2_MANIFEST: &str = include_str!("fixtures/cdoc_m1_2/manifest.json");
+
+const RELATIONSHIP_ATTRIBUTES: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const WORKSHEET_RELATIONSHIP: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
+
+/// The worksheet errors the fixtures write, each with the spelling a cell's `<v>` gives it.
+const ERROR_SPELLINGS: [(WorksheetErrorCode, &str); 7] = [
+    (WorksheetErrorCode::Null, "#NULL!"),
+    (WorksheetErrorCode::Div0, "#DIV/0!"),
+    (WorksheetErrorCode::Value, "#VALUE!"),
+    (WorksheetErrorCode::Ref, "#REF!"),
+    (WorksheetErrorCode::Name, "#NAME?"),
+    (WorksheetErrorCode::Num, "#NUM!"),
+    (WorksheetErrorCode::NA, "#N/A"),
+];
+
+/// What a cell or a cached result holds, in the terms the generator's manifest records it.
+#[derive(Clone, Debug, PartialEq)]
+enum Held {
+    Number(u64),
+    Text(Vec<u16>),
+    Logical(bool),
+    Error(String),
+    Formula(Vec<u16>),
+}
+
+/// The code units of the manifest's upper-case hexadecimal, four digits each.
+fn units_of_hex(hex: &str) -> Vec<u16> {
+    assert_eq!(hex.len() % 4, 0, "{hex}");
+    (0..hex.len())
+        .step_by(4)
+        .map(|at| u16::from_str_radix(&hex[at..at + 4], 16).expect("hexadecimal"))
+        .collect()
+}
+
+/// A value as the manifest records it.
+fn recorded(value: &Value) -> Held {
+    let field = |key: &str| value[key].as_str().expect(key);
+    match field("kind") {
+        "number" => Held::Number(u64::from_str_radix(field("bits"), 16).expect("bits")),
+        "text" => Held::Text(units_of_hex(field("units"))),
+        "logical" => Held::Logical(value["value"].as_bool().expect("value")),
+        "error" => Held::Error(field("spelling").to_owned()),
+        "formula" => Held::Formula(units(field("text"))),
+        other => panic!("the manifest records a value of kind {other}"),
+    }
+}
+
+fn spelling(code: WorksheetErrorCode) -> String {
+    let (_, spelling) = ERROR_SPELLINGS
+        .iter()
+        .find(|(known, _)| *known == code)
+        .unwrap_or_else(|| panic!("{code:?} is not an error the fixtures write"));
+    (*spelling).to_owned()
+}
+
+fn input_held(input: &CellInput) -> Held {
+    match input {
+        CellInput::Number(number) => Held::Number(number.to_bits()),
+        CellInput::Text(text) => Held::Text(text.text().utf16_code_units().to_vec()),
+        CellInput::Logical(logical) => Held::Logical(*logical),
+        CellInput::Error(code) => Held::Error(spelling(*code)),
+        CellInput::Formula(formula) => Held::Formula(formula.text().utf16_code_units().to_vec()),
+    }
+}
+
+/// A held value as a note shows it: a number as its value and bits, a text as a string.
+fn shown(held: &Held) -> String {
+    match held {
+        Held::Number(bits) => format!("{} (bits {bits:016X})", f64::from_bits(*bits)),
+        Held::Text(units) => format!("text {:?}", String::from_utf16_lossy(units)),
+        Held::Logical(logical) => (if *logical { "TRUE" } else { "FALSE" }).to_owned(),
+        Held::Error(spelling) => spelling.clone(),
+        Held::Formula(units) => format!("formula {:?}", String::from_utf16_lossy(units)),
+    }
+}
+
+fn cached_held(value: &CachedValue) -> Held {
+    match value {
+        CachedValue::Number(number) => Held::Number(number.to_bits()),
+        CachedValue::Text(text) => Held::Text(text.text().utf16_code_units().to_vec()),
+        CachedValue::Logical(logical) => Held::Logical(*logical),
+        CachedValue::Error(code) => Held::Error(spelling(*code)),
+    }
+}
+
+/// The (row, column) of an A1 address the manifest records, read here.
+fn a1(text: &str) -> (u32, u32) {
+    let digits = text.find(|c: char| c.is_ascii_digit()).expect("a row");
+    let column = text[..digits].bytes().fold(0u32, |column, letter| {
+        column * 26 + u32::from(letter - b'A') + 1
+    });
+    (text[digits..].parse().expect("a row number"), column)
+}
+
+/// The package the manifest records under `file`.
+fn m1_2_record<'a>(manifest: &'a Value, file: &str) -> &'a Value {
+    manifest["packages"]
+        .as_array()
+        .expect("packages")
+        .iter()
+        .find(|package| package["file"] == file)
+        .unwrap_or_else(|| panic!("the manifest records {file}"))
+}
+
+/// Opens `bytes` and loads its workbook with sheet IDs from `ids`.
+fn m1_2_load(bytes: &[u8], ids: &mut IdAllocator<SheetId>) -> Result<LoadedWorkbook, LoadError> {
+    let document = opened(memory(bytes), &OpenPolicy::default());
+    calc_doc::load(&document, ids)
+}
+
+/// The input of the cell at `row` and `column` of a loaded workbook's first sheet.
+fn first_sheet_cell(loaded: &LoadedWorkbook, row: u32, column: u32) -> Option<Held> {
+    let sheet = loaded.model().sheets()[0].id();
+    loaded
+        .model()
+        .cell(cell(sheet, row, column))
+        .map(input_held)
+}
+
+/// Checks a loaded workbook's sheets and every one of their cells against the generator's record
+/// of the package: the model holds exactly the recorded cells with the recorded inputs, the
+/// records beside it hold exactly the recorded styles and formulas, and each formula's cache is
+/// the recorded one, FileCached with the identity of the sheet's part. Returns, for each cache
+/// written deliberately wrong, a description of it.
+fn check_loaded(loaded: &LoadedWorkbook, record: &Value) -> Vec<String> {
+    let model = loaded.model();
+    assert_eq!(model.revision(), AuthoredRevision::INITIAL);
+    assert_eq!(loaded.workbook_part(), record["workbook_part"]);
+    assert_eq!(
+        u64::from(loaded.cell_formats()),
+        record["cell_formats"].as_u64().unwrap()
+    );
+    let date_system = match record["date_system"].as_u64().expect("date_system") {
+        1900 => DateSystem::Date1900,
+        1904 => DateSystem::Date1904,
+        other => panic!("the manifest records the date system {other}"),
+    };
+    assert_eq!(
+        loaded.date_system(),
+        date_system,
+        "the date system the workbook part names"
+    );
+    assert_eq!(
+        loaded.defined_names_not_loaded() as u64,
+        record["defined_names"].as_u64().expect("defined_names"),
+        "the defined names the workbook part holds, counted and not loaded"
+    );
+    let sheets = record["sheets"].as_array().expect("sheets");
+    assert_eq!(model.sheets().len(), sheets.len(), "the model's sheets");
+    assert_eq!(loaded.sheets().len(), sheets.len(), "the records' sheets");
+    let mut wrong_caches = Vec::new();
+    for ((entry, sheet), recorded_sheet) in model.sheets().iter().zip(loaded.sheets()).zip(sheets) {
+        let field = |key: &str| recorded_sheet[key].as_str().expect(key);
+        let name = field("name");
+        assert_eq!(entry.id(), sheet.id(), "{name}: workbook order");
+        assert_eq!(
+            entry.name().text().utf16_code_units(),
+            units_of_hex(field("name_units")).as_slice()
+        );
+        assert_eq!(
+            u64::from(entry.key().get()),
+            recorded_sheet["sheet_id"].as_u64().unwrap(),
+            "{name}: its sheetId is its key"
+        );
+        let visibility = match field("state") {
+            "visible" => SheetVisibility::Visible,
+            "hidden" => SheetVisibility::Hidden,
+            other => panic!("the manifest records the state {other}"),
+        };
+        assert_eq!(entry.visibility(), visibility, "{name}");
+        assert_eq!(sheet.relationship(), field("relationship"), "{name}");
+        let part = sheet.part();
+        assert_eq!(
+            (part.name(), u64::from(part.crc32()), part.size()),
+            (
+                field("part"),
+                recorded_sheet["part_crc32"].as_u64().unwrap(),
+                recorded_sheet["part_size"].as_u64().unwrap()
+            ),
+            "{name}: the part's name, and the CRC-32 and size the generator computed of its content"
+        );
+
+        // The model holds exactly the recorded cells, in row-major order, with their inputs.
+        let cells = recorded_sheet["cells"].as_array().expect("cells");
+        let expected: Vec<(u32, u32, Held)> = cells
+            .iter()
+            .map(|cell| {
+                (
+                    cell["row"].as_u64().unwrap() as u32,
+                    cell["column"].as_u64().unwrap() as u32,
+                    recorded(&cell["input"]),
+                )
+            })
+            .collect();
+        let held: Vec<(u32, u32, Held)> = model
+            .sheet_cells(entry.id())
+            .expect("the sheet's cells")
+            .map(|(at, input)| (at.row(), at.column(), input_held(input)))
+            .collect();
+        assert_eq!(
+            held, expected,
+            "{name}: the occupied cells and their inputs"
+        );
+        for empty in recorded_sheet["styled_empty"].as_array().unwrap() {
+            let (row, column) = (
+                empty["row"].as_u64().unwrap() as u32,
+                empty["column"].as_u64().unwrap() as u32,
+            );
+            assert_eq!(model.cell(cell(entry.id(), row, column)), None);
+            assert_eq!(
+                u64::from(sheet.style(row, column)),
+                empty["style"].as_u64().unwrap(),
+                "{name}: a styled cell without a value keeps its style beside the model"
+            );
+        }
+        for empty in recorded_sheet["unmaterialized"].as_array().unwrap() {
+            let (row, column) = a1(empty.as_str().unwrap());
+            assert_eq!(model.cell(cell(entry.id(), row, column)), None);
+            assert_eq!(sheet.style(row, column), 0);
+        }
+
+        // Styles: every cell written with a style index other than 0, with or without a value.
+        let mut styles: Vec<(u32, u32, u32)> = cells
+            .iter()
+            .chain(recorded_sheet["styled_empty"].as_array().unwrap())
+            .map(|cell| {
+                (
+                    cell["row"].as_u64().unwrap() as u32,
+                    cell["column"].as_u64().unwrap() as u32,
+                    cell["style"].as_u64().unwrap() as u32,
+                )
+            })
+            .filter(|&(_, _, style)| style != 0)
+            .collect();
+        styles.sort();
+        assert_eq!(
+            sheet.styled_cells().collect::<Vec<_>>(),
+            styles,
+            "{name}: the styled cells"
+        );
+
+        // Formulas: the shared formula group and the cache of each, beside its input.
+        let formulas: Vec<&Value> = cells
+            .iter()
+            .filter(|cell| cell["input"]["kind"] == "formula")
+            .collect();
+        assert_eq!(
+            sheet
+                .formulas()
+                .map(|(row, column, _)| (row, column))
+                .collect::<Vec<_>>(),
+            formulas
+                .iter()
+                .map(|cell| (
+                    cell["row"].as_u64().unwrap() as u32,
+                    cell["column"].as_u64().unwrap() as u32
+                ))
+                .collect::<Vec<_>>(),
+            "{name}: a formula record for each formula cell and no other"
+        );
+        for recorded_cell in formulas {
+            let reference = recorded_cell["ref"].as_str().unwrap();
+            let (row, column) = a1(reference);
+            let formula = sheet.formula(row, column).expect("a formula record");
+            match (formula.shared(), &recorded_cell["shared"]) {
+                (None, Value::Null) => {}
+                (Some(group), recorded_group) if !recorded_group.is_null() => {
+                    let master = a1(recorded_group["master"].as_str().unwrap());
+                    let area = recorded_group["ref"].as_str().unwrap();
+                    let (first, last) = area.split_once(':').expect("an area");
+                    let ((top, left), (bottom, right)) = (a1(first), a1(last));
+                    assert_eq!(
+                        u64::from(group.index()),
+                        recorded_group["si"].as_u64().unwrap(),
+                        "{name}!{reference}"
+                    );
+                    assert_eq!(group.master(), cell(entry.id(), master.0, master.1));
+                    assert_eq!(
+                        group.area(),
+                        GridArea::new(cell(entry.id(), top, left), cell(entry.id(), bottom, right))
+                            .unwrap()
+                    );
+                }
+                (got, expected) => {
+                    panic!("{name}!{reference}: group {got:?}, recorded {expected}")
+                }
+            }
+            match (formula.cache(), &recorded_cell["cache"]) {
+                (None, Value::Null) => {}
+                (Some(cache), recorded_cache) if !recorded_cache.is_null() => {
+                    assert_eq!(
+                        cached_held(cache.value()),
+                        recorded(recorded_cache),
+                        "{name}!{reference}: the cache is the value written in <v>"
+                    );
+                    assert!(
+                        Arc::ptr_eq(cache.source(), sheet.part()),
+                        "{name}!{reference}: the cache names the sheet's part as its source"
+                    );
+                    let correct = &recorded_cell["correct"];
+                    if !correct.is_null() {
+                        assert_ne!(
+                            cached_held(cache.value()),
+                            recorded(correct),
+                            "{name}!{reference}: the fixture's cache is wrong on purpose"
+                        );
+                        let Some(CellInput::Formula(text)) =
+                            model.cell(cell(entry.id(), row, column))
+                        else {
+                            panic!("{name}!{reference}: the input is the formula, not a value");
+                        };
+                        wrong_caches.push(format!(
+                            "{name}!{reference} input formula {:?}, cache FileCached {} from {} (CRC-32 {:08x}, {} bytes), where the generator states {}",
+                            text.text().to_string_lossy(),
+                            shown(&cached_held(cache.value())),
+                            cache.source().name(),
+                            cache.source().crc32(),
+                            cache.source().size(),
+                            shown(&recorded(correct))
+                        ));
+                    }
+                }
+                (got, expected) => {
+                    panic!("{name}!{reference}: cache {got:?}, recorded {expected}")
+                }
+            }
+        }
+    }
+    wrong_caches
+}
+
+/// A package of one worksheet, "Long", whose `<sheetData>` holds `sheet_data`.
+fn m1_2_one_sheet(sheet_data: &str) -> Vec<u8> {
+    m1_2_package("", "", sheet_data)
+}
+
+/// A package of one worksheet, "Long", whose `<sheetData>` holds `sheet_data`, and whose workbook
+/// part holds `before` before its `<sheets>` and `after` after them.
+fn m1_2_package(before: &str, after: &str, sheet_data: &str) -> Vec<u8> {
+    let content_types = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="{}"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"#,
+        calc_doc::CONTENT_TYPES_NAMESPACE
+    );
+    let workbook = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="{SPREADSHEET_MAIN}" xmlns:r="{RELATIONSHIP_ATTRIBUTES}">{before}<sheets><sheet name="Long" sheetId="1" r:id="rId1"/></sheets>{after}</workbook>"#
+    );
+    let workbook_relationships = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{}"><Relationship Id="rId1" Type="{WORKSHEET_RELATIONSHIP}" Target="worksheets/sheet1.xml"/></Relationships>"#,
+        calc_doc::RELATIONSHIPS_NAMESPACE
+    );
+    let sheet = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="{SPREADSHEET_MAIN}"><sheetData>{sheet_data}</sheetData></worksheet>"#
+    );
+    build_zip(&[
+        RawEntry::stored("[Content_Types].xml", content_types.as_bytes()),
+        RawEntry::stored("_rels/.rels", base_relationships().as_bytes()),
+        RawEntry::stored("xl/workbook.xml", workbook.as_bytes()),
+        RawEntry::stored(
+            "xl/_rels/workbook.xml.rels",
+            workbook_relationships.as_bytes(),
+        ),
+        RawEntry::stored("xl/worksheets/sheet1.xml", sheet.as_bytes()),
+    ])
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m1_2__authored_vs_cache.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m1_2__authored_vs_cache() {
+    const CASE: &str = "cdoc_m1_2__authored_vs_cache";
+    let manifest: Value = serde_json::from_str(M1_2_MANIFEST).expect("manifest.json");
+    let record = m1_2_record(&manifest, "cells.xlsx");
+    assert_eq!(M1_2_CELLS.len() as u64, record["length"].as_u64().unwrap());
+
+    // cells.xlsx through open and load, against the generator's record of what it wrote.
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded = match m1_2_load(M1_2_CELLS, &mut ids) {
+        Ok(loaded) => loaded,
+        Err(error) => panic!("cells.xlsx loads, but: {error}"),
+    };
+    for sheet in loaded.model().sheets() {
+        assert!(
+            ids.is_live(sheet.id()),
+            "the caller's allocator issued each sheet's ID"
+        );
+    }
+    let wrong_caches = check_loaded(&loaded, record);
+    let cell_count: usize = record["sheets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|sheet| sheet["cells"].as_array().unwrap().len())
+        .sum();
+    let formula_count: usize = loaded
+        .sheets()
+        .iter()
+        .map(|sheet| sheet.formulas().count())
+        .sum();
+    let cached_count = loaded
+        .sheets()
+        .iter()
+        .flat_map(|sheet| sheet.formulas())
+        .filter(|(_, _, formula)| formula.cache().is_some())
+        .count();
+    assert!(!wrong_caches.is_empty(), "the fixture writes wrong caches");
+
+    // The D8:E9 group: each member holds the text the generator states for it, whose ranges end
+    // in a function call (INDEX, OFFSET, _xlfn.XLOOKUP) or a sheet-qualified cell. check_loaded
+    // compared every cell already; this names the group's cells in the receipt.
+    let group_texts: Vec<(String, String)> = record["sheets"][0]["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|cell| cell["shared"]["si"] == 3)
+        .map(|cell| {
+            (
+                cell["ref"].as_str().unwrap().to_owned(),
+                cell["input"]["text"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    assert_eq!(group_texts.len(), 4, "the generator writes the D8:E9 group");
+    for (reference, text) in &group_texts {
+        let (row, column) = a1(reference);
+        assert_eq!(
+            first_sheet_cell(&loaded, row, column),
+            Some(Held::Formula(units(text))),
+            "Cells!{reference} holds the text the generator states"
+        );
+    }
+
+    // Excel's formula-length limit, counted on the decoded text and, for a shared formula's
+    // member, on the master's text moved to it.
+    assert_eq!(FORMULA_MAX_UTF16_CODE_UNITS, 8192);
+    let ones = |count: usize| "1".repeat(count);
+    let longest = format!("A9+{}", ones(FORMULA_MAX_UTF16_CODE_UNITS - 3));
+    let too_long = format!("A9+{}", ones(FORMULA_MAX_UTF16_CODE_UNITS - 2));
+    let refusal = |sheet_data: &str, ids: &mut IdAllocator<SheetId>| -> LoadError {
+        match m1_2_load(&m1_2_one_sheet(sheet_data), ids) {
+            Ok(_) => panic!("the package is refused, but it loaded"),
+            Err(error) => error,
+        }
+    };
+    let slots = ids.slot_count();
+    assert_eq!(
+        refusal(
+            &format!(r#"<row r="1"><c r="A1"><f>{too_long}</f></c></row>"#),
+            &mut ids
+        ),
+        LoadError::Cell {
+            part: "xl/worksheets/sheet1.xml".to_owned(),
+            row: 1,
+            column: 1,
+            error: CellError::FormulaTooLong {
+                units: FORMULA_MAX_UTF16_CODE_UNITS + 1
+            }
+        },
+        "a formula one code unit past the limit"
+    );
+    assert_eq!(
+        refusal(
+            &format!(
+                r#"<row r="1"><c r="A1"><f t="shared" ref="A1:A2" si="0">{longest}</f></c></row><row r="2"><c r="A2"><f t="shared" si="0"/></c></row>"#
+            ),
+            &mut ids
+        ),
+        LoadError::Cell {
+            part: "xl/worksheets/sheet1.xml".to_owned(),
+            row: 2,
+            column: 1,
+            error: CellError::FormulaTooLong {
+                units: FORMULA_MAX_UTF16_CODE_UNITS + 1
+            }
+        },
+        "a shared formula's master at the limit whose member's text (A10 for A9) is past it"
+    );
+    let escaped = format!("A9+{}_x0031_", ones(FORMULA_MAX_UTF16_CODE_UNITS - 4));
+    let within = m1_2_load(
+        &m1_2_one_sheet(&format!(
+            r#"<row r="1"><c r="A1"><f>{escaped}</f><v>1</v></c><c r="B1"><f>LEN("_x0041_")&amp;"_x005F_x0041_"</f></c></row>"#
+        )),
+        &mut ids,
+    )
+    .expect("a formula at the limit loads");
+    assert_eq!(
+        ids.slot_count(),
+        slots + 1,
+        "the refused loads released the sheet IDs they issued, so every load reused one slot"
+    );
+    assert_eq!(
+        first_sheet_cell(&within, 1, 1),
+        Some(Held::Formula(units(&longest))),
+        "the _x0031_ escape decodes to one code unit, so the text is exactly at the limit"
+    );
+    assert_eq!(
+        first_sheet_cell(&within, 1, 2),
+        Some(Held::Formula(units(r#"LEN("A")&"_x0041_""#))),
+        "ST_Formula is an ST_Xstring: _x0041_ is A and _x005F_ an underscore"
+    );
+    assert_eq!(
+        within.sheets()[0]
+            .formula(1, 1)
+            .and_then(|formula| formula.cache())
+            .map(|cache| cached_held(cache.value())),
+        Some(Held::Number(1f64.to_bits()))
+    );
+
+    // Test-built packages from here on, each with its own sheet IDs.
+    let mut built_ids: IdAllocator<SheetId> = IdAllocator::new();
+
+    // An empty <v> of a number-typed formula cell is no cache: the cell loads as its formula
+    // alone. An empty <v> of a str-typed formula cell is the empty text.
+    let empty = m1_2_load(
+        &m1_2_one_sheet(
+            r#"<row r="1"><c r="A1"><f>1+1</f><v/></c><c r="B1"><f>2+2</f><v></v></c><c r="C1" t="n"><f>3*3</f><v> </v></c><c r="D1" t="str"><f>""</f><v></v></c></row>"#,
+        ),
+        &mut built_ids,
+    )
+    .expect("formulas with empty cached values load");
+    for (column, text) in [(1, "1+1"), (2, "2+2"), (3, "3*3")] {
+        assert_eq!(
+            first_sheet_cell(&empty, 1, column),
+            Some(Held::Formula(units(text))),
+            "column {column}: the formula is the input"
+        );
+        assert_eq!(
+            empty.sheets()[0]
+                .formula(1, column)
+                .expect("a formula record")
+                .cache(),
+            None,
+            "column {column}: an empty <v> gives no FileCached value"
+        );
+    }
+    assert_eq!(
+        empty.sheets()[0]
+            .formula(1, 4)
+            .and_then(|formula| formula.cache())
+            .map(|cache| cached_held(cache.value())),
+        Some(Held::Text(Vec::new())),
+        "an empty <v> of type str is the empty text"
+    );
+
+    // What load does not read, each refused with its typed variant.
+    let refused_cells: [(&str, &str, u32, u32, CellError); 6] = [
+        (
+            "an array formula",
+            r#"<row r="1"><c r="A1"><f t="array" ref="A1">1+1</f><v>2</v></c></row>"#,
+            1,
+            1,
+            CellError::UnsupportedFormula {
+                kind: "array".to_owned(),
+            },
+        ),
+        (
+            "a cell of type d",
+            r#"<row r="1"><c r="A1" t="d"><v>2026-10-20T00:00:00</v></c></row>"#,
+            1,
+            1,
+            CellError::UnsupportedType {
+                kind: "d".to_owned(),
+            },
+        ),
+        (
+            "a shared member whose moved text leaves the grid",
+            r#"<row r="1048575"><c r="A1048575"><f t="shared" ref="A1048575:A1048576" si="0">A1048576</f></c></row><row r="1048576"><c r="A1048576"><f t="shared" si="0"/></c></row>"#,
+            MAX_ROWS,
+            1,
+            CellError::SharedFormulaPastGrid,
+        ),
+        (
+            "a shared member whose si has no master",
+            r#"<row r="1"><c r="A1"><f t="shared" si="5"/></c></row>"#,
+            1,
+            1,
+            CellError::SharedFormula {
+                detail: "a member whose si has no master",
+            },
+        ),
+        (
+            "a shared member of a group whose text holds a cell outside the grid",
+            r#"<row r="1"><c r="A1"><f t="shared" ref="A1:A2" si="0">$XFE1+A1</f></c></row><row r="2"><c r="A2"><f t="shared" si="0"/></c></row>"#,
+            2,
+            1,
+            CellError::SharedFormula {
+                detail: "a cell reference outside the grid",
+            },
+        ),
+        (
+            "a shared member of a group whose text holds an unpaired surrogate",
+            r#"<row r="1"><c r="A1"><f t="shared" ref="A1:A2" si="0">"_xD800_"&amp;A1</f></c></row><row r="2"><c r="A2"><f t="shared" si="0"/></c></row>"#,
+            2,
+            1,
+            CellError::SharedFormula {
+                detail: "a member of a group whose text holds an unpaired surrogate",
+            },
+        ),
+    ];
+    let mut refused_names = Vec::new();
+    for (what, sheet_data, row, column, error) in refused_cells {
+        assert_eq!(
+            refusal(sheet_data, &mut built_ids),
+            LoadError::Cell {
+                part: "xl/worksheets/sheet1.xml".to_owned(),
+                row,
+                column,
+                error,
+            },
+            "{what}"
+        );
+        refused_names.push(what);
+    }
+
+    // The date system and the defined names of the workbook part.
+    let with_workbook = |before: &str, after: &str, ids: &mut IdAllocator<SheetId>| {
+        m1_2_load(
+            &m1_2_package(before, after, r#"<row r="1"><c r="A1"><v>1</v></c></row>"#),
+            ids,
+        )
+    };
+    let two_names = r#"<definedNames><definedName name="Rate">Long!$A$1</definedName><definedName name="Local" localSheetId="0">2</definedName></definedNames>"#;
+    let mut systems = Vec::new();
+    for (before, after, system, names) in [
+        ("", "", DateSystem::Date1900, 0),
+        (
+            r#"<workbookPr date1904="1"/>"#,
+            two_names,
+            DateSystem::Date1904,
+            2,
+        ),
+        (
+            r#"<workbookPr date1904="true" defaultThemeVersion="164011"/>"#,
+            "",
+            DateSystem::Date1904,
+            0,
+        ),
+        (
+            r#"<workbookPr date1904="0"/>"#,
+            "<definedNames/>",
+            DateSystem::Date1900,
+            0,
+        ),
+        (
+            r#"<workbookPr date1904="false"/>"#,
+            two_names,
+            DateSystem::Date1900,
+            2,
+        ),
+        (r#"<workbookPr/>"#, "", DateSystem::Date1900, 0),
+    ] {
+        let loaded = match with_workbook(before, after, &mut built_ids) {
+            Ok(loaded) => loaded,
+            Err(error) => panic!("{before}{after}: the package loads, but: {error}"),
+        };
+        assert_eq!(loaded.date_system(), system, "{before}");
+        assert_eq!(loaded.defined_names_not_loaded(), names, "{after}");
+        systems.push(format!(
+            "{before:?} {after:?}: {:?}, {} defined names not loaded",
+            loaded.date_system(),
+            loaded.defined_names_not_loaded()
+        ));
+    }
+    for (before, detail) in [
+        (
+            r#"<workbookPr date1904="yes"/>"#,
+            "a workbookPr whose date1904 is not a boolean",
+        ),
+        (
+            r#"<workbookPr/><workbookPr date1904="1"/>"#,
+            "a workbook with two workbookPr elements",
+        ),
+    ] {
+        match with_workbook(before, "", &mut built_ids) {
+            Ok(_) => panic!("{before}: refused, but it loaded"),
+            Err(error) => assert_eq!(
+                error,
+                LoadError::InvalidPart {
+                    part: "xl/workbook.xml".to_owned(),
+                    detail,
+                },
+                "{before}"
+            ),
+        }
+    }
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: cells.xlsx loaded through calc_doc::open and calc_doc::load: {} sheets in workbook order and {cell_count} occupied cells equal the generator's record input for input, with no cell for the 2 styled cells without a value or the 2 empty cell elements; {formula_count} formulas keep their text as input (shared formula members each with the generator's stated text) and {cached_count} caches are FileCached beside them, each naming its sheet's part by the name, CRC-32 and size the generator computed",
+        loaded.model().sheets().len()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} caches written deliberately wrong kept apart from their formulas: {:?}",
+        wrong_caches.len(),
+        wrong_caches
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: formula length: {} code units load and {} are refused with FormulaTooLong, also for a shared member whose moved text passes the limit; a decoded _xHHHH_ escape counts as one unit; the refused loads released their sheet IDs",
+        FORMULA_MAX_UTF16_CODE_UNITS,
+        FORMULA_MAX_UTF16_CODE_UNITS + 1
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: cells.xlsx's D8:E9 shared group loaded with the generator's stated text for each member: {:?}",
+        group_texts
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: test-built package: formulas with <v/>, <v></v> and <v> </v> (no t, and t=\"n\") load as their formulas with no FileCached value; an empty <v> with t=\"str\" is the empty text"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: test-built packages refused with LoadError::Cell and the expected CellError: {:?}",
+        refused_names
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: test-built packages: {:?}; date1904=\"yes\" and two workbookPr elements are refused with LoadError::InvalidPart; cells.xlsx names 1900 and holds 1 defined name, as its generator recorded",
+        systems
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Case cdoc_m1_2__sparse_extent.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_m1_2__sparse_extent() {
+    const CASE: &str = "cdoc_m1_2__sparse_extent";
+    let manifest: Value = serde_json::from_str(M1_2_MANIFEST).expect("manifest.json");
+
+    // Each load measured by the bytes this thread asks the allocator for during calc_doc::load.
+    let measured = |bytes: &[u8]| -> (LoadedWorkbook, u64) {
+        let document = opened(memory(bytes), &OpenPolicy::default());
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let before = cdoc_m1_1_support::allocated();
+        let loaded = calc_doc::load(&document, &mut ids);
+        let used = cdoc_m1_1_support::allocated() - before;
+        match loaded {
+            Ok(loaded) => (loaded, used),
+            Err(error) => panic!("the package loads, but: {error}"),
+        }
+    };
+    let _ = measured(M1_2_CORNER);
+    let (corner, corner_bytes) = measured(M1_2_CORNER);
+    let (extent, extent_bytes) = measured(M1_2_EXTENT);
+
+    let mut pages = Vec::new();
+    for (file, bytes, loaded) in [
+        ("corner.xlsx", M1_2_CORNER, &corner),
+        ("extent.xlsx", M1_2_EXTENT, &extent),
+    ] {
+        let record = m1_2_record(&manifest, file);
+        assert_eq!(bytes.len() as u64, record["length"].as_u64().unwrap());
+        assert!(
+            check_loaded(loaded, record).is_empty(),
+            "{file}: no formulas"
+        );
+        let recorded_cell = &record["sheets"][0]["cells"][0];
+        let (row, column) = a1(recorded_cell["ref"].as_str().unwrap());
+        let sheet = loaded.model().sheets()[0].id();
+        let sheet_pages: Vec<&Arc<CellPage>> =
+            loaded.model().pages(sheet).expect("the sheet").collect();
+        assert_eq!(sheet_pages.len(), 1, "{file}: one page for its one cell");
+        let page = sheet_pages[0];
+        assert_eq!(
+            (page.first_row(), page.first_column()),
+            (
+                (row - 1) / PAGE_ROWS * PAGE_ROWS + 1,
+                (column - 1) / PAGE_COLUMNS * PAGE_COLUMNS + 1
+            ),
+            "{file}: the page is the block that holds row {row}, column {column}"
+        );
+        assert_eq!(
+            page.iter()
+                .map(|(row, column, input)| (row, column, input_held(input)))
+                .collect::<Vec<_>>(),
+            vec![(row, column, recorded(&recorded_cell["input"]))],
+            "{file}: the page holds the one cell"
+        );
+        assert_eq!(
+            loaded
+                .model()
+                .cells(GridArea::full_sheet(sheet))
+                .expect("the sheet")
+                .count(),
+            1,
+            "{file}: a whole-sheet read yields the one cell"
+        );
+        pages.push((
+            file,
+            page.first_row(),
+            page.last_row(),
+            page.first_column(),
+            page.last_column(),
+        ));
+    }
+    assert_eq!(
+        first_sheet_cell(&extent, MAX_ROWS, MAX_COLUMNS),
+        Some(Held::Number(42f64.to_bits()))
+    );
+    assert_eq!(first_sheet_cell(&extent, 1, 1), None);
+    assert!(
+        extent
+            .model()
+            .page_of(cell(extent.model().sheets()[0].id(), 1, 1))
+            .is_none(),
+        "no page for the block at A1"
+    );
+    assert!(
+        extent_bytes <= corner_bytes + 1024,
+        "loading XFD1048576 asked the allocator for {extent_bytes} bytes and loading A1 for {corner_bytes}: the extent a sheet's cells span costs no allocation"
+    );
+
+    note!(
+        "ACCEPT-NOTE: {CASE}: each package's one cell, as the generator recorded it, is the only cell of a model with one page (file, first row, last row, first column, last column): {:?}",
+        pages
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: calc_doc::load asked this thread's allocator for {extent_bytes} bytes for extent.xlsx (only XFD1048576) and {corner_bytes} bytes for corner.xlsx (only A1); a dense sheet of {MAX_ROWS} rows by {MAX_COLUMNS} columns has {} cells",
+        u64::from(MAX_ROWS) * u64::from(MAX_COLUMNS)
     );
 }

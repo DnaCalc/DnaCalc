@@ -1,0 +1,1462 @@
+{
+  "architecture": [
+    {
+      "check": "dependencies",
+      "details": {
+        "by_target": {
+          "wasm32-unknown-unknown": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": [
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-pc-windows-msvc": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": [
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-unknown-linux-gnu": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [],
+              "xtask": [
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          }
+        },
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "7 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
+    },
+    {
+      "check": "os-imports",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": {
+          "calc-doc": 16,
+          "calc-doc-model": 12,
+          "calc-engine": 1,
+          "calc-fml": 11,
+          "calc-func": 10,
+          "calc-host": 1,
+          "calc-value": 5,
+          "calc-verdict": 11,
+          "dna-calc": 1,
+          "dna-onecalc": 1
+        },
+        "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "69 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+    },
+    {
+      "check": "wasm-refusal",
+      "details": {
+        "calc-oracle-excel": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cdoc-m1.2/wasm/arch/wasm-refusal-calc-oracle-excel.log",
+          "refusal": "calc-oracle-excel is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "calc-platform-desktop": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cdoc-m1.2/wasm/arch/wasm-refusal-calc-platform-desktop.log",
+          "refusal": "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "xtask": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/cdoc-m1.2/wasm/arch/wasm-refusal-xtask.log",
+          "refusal": "xtask is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "3 native-only packages (calc-platform-desktop, calc-oracle-excel, xtask) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!"
+    },
+    {
+      "check": "tree-reference-tokens",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": 69,
+        "phrases": [
+          "tree reference",
+          "tree ref",
+          "reference profile",
+          "profile id",
+          "reference system provider",
+          "host reference"
+        ],
+        "scope": "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "69 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+    },
+    {
+      "check": "seams",
+      "details": {
+        "packages": {
+          "calc-doc": {
+            "entries": 81,
+            "entries_reach_unproven": 81,
+            "pub_enum_variants": 79,
+            "pub_traits": 2
+          },
+          "calc-doc-model": {
+            "entries": 61,
+            "entries_reach_unproven": 61,
+            "pub_enum_variants": 61,
+            "pub_traits": 0
+          },
+          "calc-engine": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-fml": {
+            "entries": 85,
+            "entries_reach_unproven": 85,
+            "pub_enum_variants": 83,
+            "pub_traits": 2
+          },
+          "calc-func": {
+            "entries": 20,
+            "entries_reach_unproven": 20,
+            "pub_enum_variants": 18,
+            "pub_traits": 2
+          },
+          "calc-host": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "calc-value": {
+            "entries": 32,
+            "entries_reach_unproven": 32,
+            "pub_enum_variants": 31,
+            "pub_traits": 1
+          },
+          "calc-verdict": {
+            "entries": 54,
+            "entries_reach_unproven": 54,
+            "pub_enum_variants": 54,
+            "pub_traits": 0
+          },
+          "dna-calc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "dna-onecalc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          }
+        },
+        "reach": {
+          "entries_reach_unproven": 333,
+          "owner": "dc-pz3u",
+          "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "10 portable packages declare 326 pub enum variants and 7 pub traits; their seams.json files list 333 entries, 333 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+    },
+    {
+      "check": "word-scan",
+      "details": {
+        "baseline_owner": "dc-0nvp",
+        "baseline_recorded": "2026-10-14",
+        "commits": {},
+        "excluded_identifiers": [
+          {
+            "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
+            "masked": {
+              "commit_messages": 1,
+              "files": 5,
+              "tracker_records": 9
+            },
+            "reason": "acceptance case name of infra-m0.5, a fixed identity"
+          },
+          {
+            "identifier_hex": "696e6672615f6d375f315f5f6c6963656e73655f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of infra-m7.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "6f6e6563616c635f6d315f315f5f646570656e64656e63795f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "646e6163616c632d617263682d6761746573",
+            "masked": {
+              "commit_messages": 0,
+              "files": 2,
+              "tracker_records": 0
+            },
+            "reason": "directory name of a crate in the read-only legacy repository DnaTreeCalc, cited as a path"
+          }
+        ],
+        "files": {
+          "docs/plan/BEAD_DETAILS.md": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/BEAD_GRAPH.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md": {
+            "baseline": 7,
+            "count": 7
+          },
+          "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md": {
+            "baseline": 2,
+            "count": 2
+          },
+          "docs/plan/beads.br.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/beads.plan.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/build_plan.py": {
+            "baseline": 13,
+            "count": 13
+          },
+          "docs/plan/coverage.json": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/topological-order.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/validate_plan.py": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "forms": 5,
+        "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
+        "scanned": {
+          "commit_messages": 64,
+          "files": 20,
+          "tracker_records": 320
+        },
+        "tracker": {
+          "ceng-m7.1": {
+            "baseline": 1,
+            "count": 1
+          },
+          "cfunc-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m0.3": {
+            "baseline": 3,
+            "count": 3
+          },
+          "infra-m3.20": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.21": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.22": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.23": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m7.5": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m8.2": {
+            "baseline": 2,
+            "count": 2
+          },
+          "onecalc-m2.1": {
+            "baseline": 1,
+            "count": 1
+          }
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 320 tracker records, 0 in 0 of 64 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+    },
+    {
+      "check": "numeric-provenance",
+      "details": {
+        "admitted_by_recomputation": 478,
+        "admitted_with_calls_quarantined": 165,
+        "allowlist": "migration/release-source-allowlist.json",
+        "allowlist_entries": 478,
+        "cross_repository_crate_edges": 61,
+        "dispositions": "migration/numeric-provenance.json",
+        "edges_into_files_not_pinned": {
+          "OxFunc": 2,
+          "elsewhere": 197
+        },
+        "edges_owner": "dc-4uy4",
+        "gaps": [
+          {
+            "owner": "dc-4uy4",
+            "what": "cross-repository edges (recorded at crate level, for example OxFunc crate oxfunc_core in OxFml's eval/mod.rs), run-time loads (recorded by repository) and the edges into files that are not pinned inputs (2 in OxFunc and 197 elsewhere when the ruling was made; the manifest summary counts them as edges_into_files_not_pinned) are not resolved to files"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the inputs the content rule leaves unresolved by class (citation sweep matches, changes by a listed tainted commit, includes of tainted or unresolved files), among them the test files the record leaves out, and the x87 ground-truth table entry, are not cleared file by file"
+          },
+          {
+            "owner": "dc-0huc",
+            "what": "the witness selections under migration/witnesses/ were made by a one-off script (target/accept/infra-m0.5/round2/select_witnesses.py), not by a repository command"
+          },
+          {
+            "owner": "dc-1c6a",
+            "what": "the include macros the pin cannot read (5 inputs: the four OxFunc tests w111_distribution_numeric_live_replay.rs, w111_integer_live_replay.rs, w111_numeric_publication_live_replay.rs and w111_radix_live_replay.rs, and tools/xll-addin/oxfunc_xll/src/lib.rs) are not resolved; summary.resolution_skipped counts the 5"
+          },
+          {
+            "owner": "dc-ime9",
+            "what": "a cleared entry does not lift the pin's quarantine of an excel_numeric path, and the infra-m0.5 acceptance case asserts today's outcome for the seven excel_numeric files, the research-x87 packages and the production replays (tools/xtask/tests/acceptance/infra_m0_5.rs)"
+          },
+          {
+            "owner": "dc-x3oi",
+            "what": "catalogue tests are not classified by where their expected values came from: the content rule catches a test only when a listed tainted commit changed it, it includes a tainted or unresolved file, or its text matches the citation sweep"
+          },
+          {
+            "owner": "dc-4546",
+            "what": "the licenses of the glibc-2.29 port (mod.rs exp_portable, log_portable and the kernels built on them; tables.rs; gen_tables.py), of the fdlibm and SPECFUN constants gammaln.rs cites, and OxDoc's missing license file are not reviewed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the w111-broad-20260929 evidence files are unresolved as one class (w111-broad-evidence), and the production replays are tainted as one class, not file by file"
+          },
+          {
+            "owner": "dc-43vt",
+            "what": "the files of the research-x87 tool packages are tainted as one class (x87-research-packages), not file by file"
+          },
+          {
+            "owner": "dc-jtlu",
+            "what": "cargo xtask pin-sources --lookup exit codes 5 (left out of the release source allowlist for its numeric provenance) and 6 (admitted only with its calls_quarantined list) are not yet part of a reviewed exit-code scheme"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the retention extended-numeric/numeric-outcomes.json has no write time, so the order of the retention and the freeze steps is not established (the commits review's retention_ordering, established false); witness independence rests on hash continuity instead"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "no raw-capture hash exists between the last extended capture (2026-09-29T12:57:54Z) and the snapshot-1735 report (17:34:45Z)"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "retain_numeric_campaign.py imports subprocess and what it runs was not checked (its code was not reviewed under the reading rule), so the record's earlier statement that it builds and runs nothing is not confirmed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "that CellRefBatch.psm1 blob 55085b4d is the one that ran rests on the extended run's source_status alone; no last-write time is recorded for it"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the 24 commits the commits review gives unresolved need file-by-file review of the files they changed"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "status.review.dispositions_hash was recorded by the dc-m33w implementer, not by a reviewer"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the hash-continuity check of cargo xtask accept trusts the hash_continuity record a witness declares; only the infra-m0.5 acceptance case reads the hashes from the pinned blobs"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "a witness_chain entry cleared on its file's own acquisition for a file that holds expected bits (since dc-m33w's round 3 only such entries, for the five answer captures and the retention, change a provenance) takes precedence over every class (tag in tools/xtask/src/provenance.rs), wider than the precedence change of dc-m33w; it must be narrowed before dc-1c6a pins w111-broad answer or retention files"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the numeric-provenance check of cargo xtask accept reads the tainted-commit rule's sets from the manifest without running git, so only the infra-m0.5 acceptance case, which recomputes them from git, catches a coordinated edit of the record, the manifest's sets and the hash"
+          }
+        ],
+        "inputs_by_entry": {
+          "calls-quarantined": 176,
+          "citation-sweep": 51,
+          "crt-citing-callers": 13,
+          "excel-numeric-gammaln": 1,
+          "excel-numeric-gen-tables": 1,
+          "excel-numeric-ground-truth": 1,
+          "excel-numeric-mod": 1,
+          "excel-numeric-research": 1,
+          "excel-numeric-tables": 1,
+          "include-of-quarantined": 34,
+          "odd-bond-family": 1,
+          "production-replay": 5,
+          "tainted-commit": 929,
+          "unread-include": 5,
+          "w111-broad-evidence": 234,
+          "w111-distribution-judgements": 8,
+          "x87": 1,
+          "x87-research-packages": 911
+        },
+        "inputs_with_cross_repository_crate_edges": 44,
+        "inputs_with_run_time_loads": 25,
+        "manifest": "migration/source-manifest.json",
+        "owned_entries": [
+          {
+            "disposition": "rule",
+            "entry": "calls-quarantined",
+            "inputs": 176,
+            "owner": "dc-4uy4",
+            "replacement": "every crate-level entry ('<Repo> crate <name>') and every '<Repo> run-time loads' entry resolved to the pinned files it reaches, and the edges into files that are not pinned inputs followed"
+          },
+          {
+            "disposition": "rule",
+            "entry": "citation-sweep",
+            "inputs": 51,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each matched file: tainted where the line cites the tainted chains, cleared only on positive evidence that it does not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "include-of-quarantined",
+            "inputs": 34,
+            "owner": "dc-2203",
+            "replacement": "nothing while the included file stays tainted or unresolved; a clearance of the included file lifts it"
+          },
+          {
+            "disposition": "rule",
+            "entry": "tainted-commit",
+            "inputs": 929,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each changed file: tainted where the change carried tainted material, cleared only on positive evidence that it did not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "unread-include",
+            "inputs": 5,
+            "owner": "dc-1c6a",
+            "replacement": "the included paths resolved and pinned, after which the include rule applies to them"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 tables the owner accepts; the probe file itself is not pinned, so a fresh implementation takes the tables from glibc-2.29's published source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-gen-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 origin the owner accepts; the generator is never a port source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-ground-truth",
+            "inputs": 1,
+            "owner": "dc-2203",
+            "replacement": "a reviewed disposition of the table with its acquisition established, or its exclusion confirmed; it is never a witness without fresh acquisition records"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "x87-research-packages",
+            "inputs": 911,
+            "owner": "dc-43vt",
+            "replacement": "a disposition per file: tainted where it calls or embeds a quarantined chain or its outputs, cleared only on positive evidence that it does neither, unresolved otherwise"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "production-replay",
+            "inputs": 5,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record (each pinned replay confirmed tainted or shown otherwise); the actual values are never witnesses"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "w111-broad-evidence",
+            "inputs": 234,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record: cleared for a black-box Excel capture with recorded settings, tainted for values computed through a quarantined chain, unresolved otherwise"
+          }
+        ],
+        "retained_witnesses": 5,
+        "tainted_commit_rule": {
+          "identification": 64,
+          "listed": 72,
+          "message-sweep": 18,
+          "review": 63,
+          "rule_found_recorded": 70
+        },
+        "test_files_tainted_or_unresolved": 51,
+        "trusted_facts": "the manifest's code_refs and content_facts (citation sweep matches and touched-by-commit lists) are trusted as recorded, and the calls_quarantined lists and the include rule rest on code_refs; the infra-m0.5 acceptance case recomputes the citation sweep and the touched-by-commit lists from git",
+        "witness_bytes": 55933,
+        "witness_chain_entries": [
+          {
+            "blob": "cc10a9ec20dc660db03e711570f55fd00500dcfe",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-exp",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json"
+          },
+          {
+            "blob": "5356055d00edbc8b92ba6daf87248216c3636d6f",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-ln",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json"
+          },
+          {
+            "blob": "6cb89b0cf250aecdee667fdd0d5932f9b1dfa218",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-log10",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json"
+          },
+          {
+            "blob": "d9e8978e54d425957c14bf1b002275f83fedc22e",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-power",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json"
+          },
+          {
+            "blob": "cea92ab3d0c956941b6d702d7d05977a256cdc5d",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-atan",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json"
+          },
+          {
+            "blob": "3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30",
+            "cleared_as": "acquisition",
+            "id": "chain-retention",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json"
+          },
+          {
+            "blob": "91b96b93671c2b575fafb4a1c0d1ba5d6a1c8dc8",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-retention-writer",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/retain_numeric_campaign.py"
+          },
+          {
+            "blob": "9fc3d4aec25b59e38f6d0635ac6bf87ccd95dde7",
+            "cleared_as": "acquisition",
+            "id": "chain-runner",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/Run-W109BulkBatch.ps1"
+          },
+          {
+            "blob": "55085b4d0381076dcfae90087ec35e75703c08e4",
+            "cleared_as": "acquisition",
+            "id": "chain-cellrefbatch",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/CellRefBatch.psm1"
+          },
+          {
+            "blob": "a08fb1161821d0c05afc69c9a776ef436b4f0ea5",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-oracle-cache",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/OracleCache.psm1"
+          },
+          {
+            "blob": "0e727499af37570fb48d8f1f88b0fed6278017c4",
+            "cleared_as": "acquisition",
+            "id": "chain-driver",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/run_numeric_campaign.py"
+          },
+          {
+            "blob": "54fda4264d59d415e82f300069c77fbc5620ff9a",
+            "cleared_as": "acquisition",
+            "id": "chain-input-generator",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py"
+          },
+          {
+            "blob": "331556e5ef0dd6b1e7e2056497684f3d93fcc6f1",
+            "cleared_as": "acquisition",
+            "id": "chain-corpus-helpers",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_w111_broad_20260929.py"
+          },
+          {
+            "blob": "4ebb3188a3f3192bf14e2e4f20491570d22d344a",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-snapshot",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/snapshot_numeric_20260929.py"
+          },
+          {
+            "blob": "5274a745d0b68b28f8163a5291b6946c60f6f588",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-freeze",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py"
+          }
+        ],
+        "witnesses": "migration/witnesses"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "tainted-commit list follows its stated rule (72 listed: 64 by the identification grep, 18 by the citation sweep of the message, 63 tied to the pass by a review; the manifest records 70 commits the rule finds at the pin); 15 reviewed witness_chain entries; release source allowlist 478 entries (478 admitted by the provenance recomputed from migration/numeric-provenance.json and the manifest's code_refs and content_facts, 165 of them only with a calls_quarantined list, 0 missing); 0 manifest inputs with stale numeric provenance; review record present, matching its review file and covering every cleared entry; 5 retained witness selections (55933 bytes), 0 witness findings; entries and rules with their owners: calls-quarantined (rule) on 176 inputs, owner dc-4uy4; citation-sweep (rule) on 51 inputs, owner dc-2203; include-of-quarantined (rule) on 34 inputs, owner dc-2203; tainted-commit (rule) on 929 inputs, owner dc-2203; unread-include (rule) on 5 inputs, owner dc-1c6a; excel-numeric-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-gen-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-ground-truth (unresolved) on 1 inputs, owner dc-2203; x87-research-packages (tainted) on 911 inputs, owner dc-43vt; production-replay (tainted) on 5 inputs, owner dc-z5ay; w111-broad-evidence (unresolved) on 234 inputs, owner dc-z5ay; edges counted for the calls_quarantined owner dc-4uy4: 61 cross-repository crate edges in 44 inputs, 25 inputs with run-time loads, and 199 edges into files that are not pinned inputs (2 in OxFunc, 197 elsewhere); 51 files under a tests directory are tainted or unresolved; gaps owned by dc-4uy4, dc-2203, dc-0huc, dc-1c6a, dc-ime9, dc-x3oi, dc-4546, dc-z5ay, dc-43vt, dc-jtlu, dc-z5ay, dc-z5ay, dc-z5ay, dc-z5ay, dc-2203, dc-qfqa, dc-qfqa, dc-qfqa, dc-qfqa"
+    }
+  ],
+  "bead": "cdoc-m1.2",
+  "cargo_target_dir": "target/xtask-accept",
+  "cases": [
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-doc",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--",
+        "--exact",
+        "cdoc_m1_2__authored_vs_cache",
+        "--nocapture"
+      ],
+      "browsers": [
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-doc",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cdoc_m1_2__authored_vs_cache",
+            "--nocapture"
+          ],
+          "browser": "chromium",
+          "case": "cdoc_m1_2__authored_vs_cache@chromium",
+          "duration_s": 4.702,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Chrome",
+          "exit_code": 0,
+          "log": "target/accept/cdoc-m1.2/wasm/cdoc_m1_2__authored_vs_cache@chromium.log",
+          "notes": [
+            "cells.xlsx loaded through calc_doc::open and calc_doc::load: 2 sheets in workbook order and 52 occupied cells equal the generator's record input for input, with no cell for the 2 styled cells without a value or the 2 empty cell elements; 23 formulas keep their text as input (shared formula members each with the generator's stated text) and 18 caches are FileCached beside them, each naming its sheet's part by the name, CRC-32 and size the generator computed",
+            "16 caches written deliberately wrong kept apart from their formulas: [\"Cells!A5 input formula \\\"A1*2\\\", cache FileCached 999 (bits 408F380000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0.2 (bits 3FC999999999999A)\", \"Cells!B5 input formula \\\"A2&\\\\\\\"!\\\\\\\"\\\", cache FileCached text \\\"stale text\\\" from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states text \\\"Fish & chips <3 😀!\\\"\", \"Cells!C5 input formula \\\"NOT(A3)\\\", cache FileCached TRUE from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states FALSE\", \"Cells!D5 input formula \\\"1/0\\\", cache FileCached #N/A from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!C6 input formula \\\"A6*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2.1 (bits 4000CCCCCCCCCCCD)\", \"Cells!E6 input formula \\\"A6+$B6+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1 (bits 3FF0000000000000)\", \"Cells!F6 input formula \\\"B6+$B6+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G6 input formula \\\"IF(A6>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A1)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1.1 (bits 3FF199999999999A)\", \"Cells!C7 input formula \\\"A7*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 4.1 (bits 4010666666666666)\", \"Cells!E7 input formula \\\"A7+$B7+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2 (bits 4000000000000000)\", \"Cells!F7 input formula \\\"B7+$B7+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G7 input formula \\\"IF(A7>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A2)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0 (bits 0000000000000000)\", \"Cells!C8 input formula \\\"A8*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 6.1 (bits 4018666666666666)\", \"Cells!C9 input formula \\\"A9*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 8.1 (bits 4020333333333333)\", \"Cells!C10 input formula \\\"A10*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 10.1 (bits 4024333333333333)\", \"Second Sheet!A1 input formula \\\"Cells!A1+1\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet1.xml (CRC-32 ff7fe987, 377 bytes), where the generator states 1.1 (bits 3FF199999999999A)\"]",
+            "formula length: 8192 code units load and 8193 are refused with FormulaTooLong, also for a shared member whose moved text passes the limit; a decoded _xHHHH_ escape counts as one unit; the refused loads released their sheet IDs",
+            "cells.xlsx's D8:E9 shared group loaded with the generator's stated text for each member: [(\"D8\", \"SUM(A8:INDEX(B:B,2))+SUM(A8:OFFSET(B9,1,0))+COUNT(Cells!A8:Cells!B8)+SUM(A8:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:20)+COLUMNS($J:J)+$A8+A$1+LEN(\\\"A8\\\")\"), (\"E8\", \"SUM(B8:INDEX(C:C,2))+SUM(B8:OFFSET(C9,1,0))+COUNT(Cells!B8:Cells!C8)+SUM(B8:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:20)+COLUMNS($J:K)+$A8+B$1+LEN(\\\"A8\\\")\"), (\"D9\", \"SUM(A9:INDEX(B:B,2))+SUM(A9:OFFSET(B10,1,0))+COUNT(Cells!A9:Cells!B9)+SUM(A9:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:21)+COLUMNS($J:J)+$A9+A$1+LEN(\\\"A8\\\")\"), (\"E9\", \"SUM(B9:INDEX(C:C,2))+SUM(B9:OFFSET(C10,1,0))+COUNT(Cells!B9:Cells!C9)+SUM(B9:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:21)+COLUMNS($J:K)+$A9+B$1+LEN(\\\"A8\\\")\")]",
+            "test-built package: formulas with <v/>, <v></v> and <v> </v> (no t, and t=\"n\") load as their formulas with no FileCached value; an empty <v> with t=\"str\" is the empty text",
+            "test-built packages refused with LoadError::Cell and the expected CellError: [\"an array formula\", \"a cell of type d\", \"a shared member whose moved text leaves the grid\", \"a shared member whose si has no master\", \"a shared member of a group whose text holds a cell outside the grid\", \"a shared member of a group whose text holds an unpaired surrogate\"]",
+            "test-built packages: [\"\\\"\\\" \\\"\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"1\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1904, 2 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"true\\\\\\\" defaultThemeVersion=\\\\\\\"164011\\\\\\\"/>\\\" \\\"\\\": Date1904, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"0\\\\\\\"/>\\\" \\\"<definedNames/>\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"false\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1900, 2 defined names not loaded\", \"\\\"<workbookPr/>\\\" \\\"\\\": Date1900, 0 defined names not loaded\"]; date1904=\"yes\" and two workbookPr elements are refused with LoadError::InvalidPart; cells.xlsx names 1900 and holds 1 defined name, as its generator recorded"
+          ],
+          "outcome": "passed",
+          "package": "calc-doc",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.11s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:58357/`"
+        },
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-doc",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cdoc_m1_2__authored_vs_cache",
+            "--nocapture"
+          ],
+          "browser": "firefox",
+          "case": "cdoc_m1_2__authored_vs_cache@firefox",
+          "duration_s": 8.236,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Firefox",
+          "exit_code": 0,
+          "log": "target/accept/cdoc-m1.2/wasm/cdoc_m1_2__authored_vs_cache@firefox.log",
+          "notes": [
+            "cells.xlsx loaded through calc_doc::open and calc_doc::load: 2 sheets in workbook order and 52 occupied cells equal the generator's record input for input, with no cell for the 2 styled cells without a value or the 2 empty cell elements; 23 formulas keep their text as input (shared formula members each with the generator's stated text) and 18 caches are FileCached beside them, each naming its sheet's part by the name, CRC-32 and size the generator computed",
+            "16 caches written deliberately wrong kept apart from their formulas: [\"Cells!A5 input formula \\\"A1*2\\\", cache FileCached 999 (bits 408F380000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0.2 (bits 3FC999999999999A)\", \"Cells!B5 input formula \\\"A2&\\\\\\\"!\\\\\\\"\\\", cache FileCached text \\\"stale text\\\" from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states text \\\"Fish & chips <3 😀!\\\"\", \"Cells!C5 input formula \\\"NOT(A3)\\\", cache FileCached TRUE from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states FALSE\", \"Cells!D5 input formula \\\"1/0\\\", cache FileCached #N/A from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!C6 input formula \\\"A6*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2.1 (bits 4000CCCCCCCCCCCD)\", \"Cells!E6 input formula \\\"A6+$B6+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1 (bits 3FF0000000000000)\", \"Cells!F6 input formula \\\"B6+$B6+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G6 input formula \\\"IF(A6>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A1)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1.1 (bits 3FF199999999999A)\", \"Cells!C7 input formula \\\"A7*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 4.1 (bits 4010666666666666)\", \"Cells!E7 input formula \\\"A7+$B7+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2 (bits 4000000000000000)\", \"Cells!F7 input formula \\\"B7+$B7+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G7 input formula \\\"IF(A7>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A2)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0 (bits 0000000000000000)\", \"Cells!C8 input formula \\\"A8*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 6.1 (bits 4018666666666666)\", \"Cells!C9 input formula \\\"A9*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 8.1 (bits 4020333333333333)\", \"Cells!C10 input formula \\\"A10*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 10.1 (bits 4024333333333333)\", \"Second Sheet!A1 input formula \\\"Cells!A1+1\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet1.xml (CRC-32 ff7fe987, 377 bytes), where the generator states 1.1 (bits 3FF199999999999A)\"]",
+            "formula length: 8192 code units load and 8193 are refused with FormulaTooLong, also for a shared member whose moved text passes the limit; a decoded _xHHHH_ escape counts as one unit; the refused loads released their sheet IDs",
+            "cells.xlsx's D8:E9 shared group loaded with the generator's stated text for each member: [(\"D8\", \"SUM(A8:INDEX(B:B,2))+SUM(A8:OFFSET(B9,1,0))+COUNT(Cells!A8:Cells!B8)+SUM(A8:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:20)+COLUMNS($J:J)+$A8+A$1+LEN(\\\"A8\\\")\"), (\"E8\", \"SUM(B8:INDEX(C:C,2))+SUM(B8:OFFSET(C9,1,0))+COUNT(Cells!B8:Cells!C8)+SUM(B8:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:20)+COLUMNS($J:K)+$A8+B$1+LEN(\\\"A8\\\")\"), (\"D9\", \"SUM(A9:INDEX(B:B,2))+SUM(A9:OFFSET(B10,1,0))+COUNT(Cells!A9:Cells!B9)+SUM(A9:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:21)+COLUMNS($J:J)+$A9+A$1+LEN(\\\"A8\\\")\"), (\"E9\", \"SUM(B9:INDEX(C:C,2))+SUM(B9:OFFSET(C10,1,0))+COUNT(Cells!B9:Cells!C9)+SUM(B9:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:21)+COLUMNS($J:K)+$A9+B$1+LEN(\\\"A8\\\")\")]",
+            "test-built package: formulas with <v/>, <v></v> and <v> </v> (no t, and t=\"n\") load as their formulas with no FileCached value; an empty <v> with t=\"str\" is the empty text",
+            "test-built packages refused with LoadError::Cell and the expected CellError: [\"an array formula\", \"a cell of type d\", \"a shared member whose moved text leaves the grid\", \"a shared member whose si has no master\", \"a shared member of a group whose text holds a cell outside the grid\", \"a shared member of a group whose text holds an unpaired surrogate\"]",
+            "test-built packages: [\"\\\"\\\" \\\"\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"1\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1904, 2 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"true\\\\\\\" defaultThemeVersion=\\\\\\\"164011\\\\\\\"/>\\\" \\\"\\\": Date1904, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"0\\\\\\\"/>\\\" \\\"<definedNames/>\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"false\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1900, 2 defined names not loaded\", \"\\\"<workbookPr/>\\\" \\\"\\\": Date1900, 0 defined names not loaded\"]; date1904=\"yes\" and two workbookPr elements are refused with LoadError::InvalidPart; cells.xlsx names 1900 and holds 1 defined name, as its generator recorded"
+          ],
+          "outcome": "passed",
+          "package": "calc-doc",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.07s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:51853/`"
+        }
+      ],
+      "case": "cdoc_m1_2__authored_vs_cache",
+      "duration_s": 12.938,
+      "exit_code": 0,
+      "log": null,
+      "notes": [
+        "cells.xlsx loaded through calc_doc::open and calc_doc::load: 2 sheets in workbook order and 52 occupied cells equal the generator's record input for input, with no cell for the 2 styled cells without a value or the 2 empty cell elements; 23 formulas keep their text as input (shared formula members each with the generator's stated text) and 18 caches are FileCached beside them, each naming its sheet's part by the name, CRC-32 and size the generator computed",
+        "16 caches written deliberately wrong kept apart from their formulas: [\"Cells!A5 input formula \\\"A1*2\\\", cache FileCached 999 (bits 408F380000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0.2 (bits 3FC999999999999A)\", \"Cells!B5 input formula \\\"A2&\\\\\\\"!\\\\\\\"\\\", cache FileCached text \\\"stale text\\\" from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states text \\\"Fish & chips <3 😀!\\\"\", \"Cells!C5 input formula \\\"NOT(A3)\\\", cache FileCached TRUE from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states FALSE\", \"Cells!D5 input formula \\\"1/0\\\", cache FileCached #N/A from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!C6 input formula \\\"A6*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2.1 (bits 4000CCCCCCCCCCCD)\", \"Cells!E6 input formula \\\"A6+$B6+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1 (bits 3FF0000000000000)\", \"Cells!F6 input formula \\\"B6+$B6+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G6 input formula \\\"IF(A6>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A1)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1.1 (bits 3FF199999999999A)\", \"Cells!C7 input formula \\\"A7*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 4.1 (bits 4010666666666666)\", \"Cells!E7 input formula \\\"A7+$B7+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2 (bits 4000000000000000)\", \"Cells!F7 input formula \\\"B7+$B7+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G7 input formula \\\"IF(A7>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A2)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0 (bits 0000000000000000)\", \"Cells!C8 input formula \\\"A8*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 6.1 (bits 4018666666666666)\", \"Cells!C9 input formula \\\"A9*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 8.1 (bits 4020333333333333)\", \"Cells!C10 input formula \\\"A10*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 10.1 (bits 4024333333333333)\", \"Second Sheet!A1 input formula \\\"Cells!A1+1\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet1.xml (CRC-32 ff7fe987, 377 bytes), where the generator states 1.1 (bits 3FF199999999999A)\"]",
+        "formula length: 8192 code units load and 8193 are refused with FormulaTooLong, also for a shared member whose moved text passes the limit; a decoded _xHHHH_ escape counts as one unit; the refused loads released their sheet IDs",
+        "cells.xlsx's D8:E9 shared group loaded with the generator's stated text for each member: [(\"D8\", \"SUM(A8:INDEX(B:B,2))+SUM(A8:OFFSET(B9,1,0))+COUNT(Cells!A8:Cells!B8)+SUM(A8:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:20)+COLUMNS($J:J)+$A8+A$1+LEN(\\\"A8\\\")\"), (\"E8\", \"SUM(B8:INDEX(C:C,2))+SUM(B8:OFFSET(C9,1,0))+COUNT(Cells!B8:Cells!C8)+SUM(B8:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:20)+COLUMNS($J:K)+$A8+B$1+LEN(\\\"A8\\\")\"), (\"D9\", \"SUM(A9:INDEX(B:B,2))+SUM(A9:OFFSET(B10,1,0))+COUNT(Cells!A9:Cells!B9)+SUM(A9:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:21)+COLUMNS($J:J)+$A9+A$1+LEN(\\\"A8\\\")\"), (\"E9\", \"SUM(B9:INDEX(C:C,2))+SUM(B9:OFFSET(C10,1,0))+COUNT(Cells!B9:Cells!C9)+SUM(B9:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:21)+COLUMNS($J:K)+$A9+B$1+LEN(\\\"A8\\\")\")]",
+        "test-built package: formulas with <v/>, <v></v> and <v> </v> (no t, and t=\"n\") load as their formulas with no FileCached value; an empty <v> with t=\"str\" is the empty text",
+        "test-built packages refused with LoadError::Cell and the expected CellError: [\"an array formula\", \"a cell of type d\", \"a shared member whose moved text leaves the grid\", \"a shared member whose si has no master\", \"a shared member of a group whose text holds a cell outside the grid\", \"a shared member of a group whose text holds an unpaired surrogate\"]",
+        "test-built packages: [\"\\\"\\\" \\\"\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"1\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1904, 2 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"true\\\\\\\" defaultThemeVersion=\\\\\\\"164011\\\\\\\"/>\\\" \\\"\\\": Date1904, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"0\\\\\\\"/>\\\" \\\"<definedNames/>\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"false\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1900, 2 defined names not loaded\", \"\\\"<workbookPr/>\\\" \\\"\\\": Date1900, 0 defined names not loaded\"]; date1904=\"yes\" and two workbookPr elements are refused with LoadError::InvalidPart; cells.xlsx names 1900 and holds 1 defined name, as its generator recorded",
+        "cells.xlsx loaded through calc_doc::open and calc_doc::load: 2 sheets in workbook order and 52 occupied cells equal the generator's record input for input, with no cell for the 2 styled cells without a value or the 2 empty cell elements; 23 formulas keep their text as input (shared formula members each with the generator's stated text) and 18 caches are FileCached beside them, each naming its sheet's part by the name, CRC-32 and size the generator computed",
+        "16 caches written deliberately wrong kept apart from their formulas: [\"Cells!A5 input formula \\\"A1*2\\\", cache FileCached 999 (bits 408F380000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0.2 (bits 3FC999999999999A)\", \"Cells!B5 input formula \\\"A2&\\\\\\\"!\\\\\\\"\\\", cache FileCached text \\\"stale text\\\" from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states text \\\"Fish & chips <3 😀!\\\"\", \"Cells!C5 input formula \\\"NOT(A3)\\\", cache FileCached TRUE from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states FALSE\", \"Cells!D5 input formula \\\"1/0\\\", cache FileCached #N/A from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!C6 input formula \\\"A6*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2.1 (bits 4000CCCCCCCCCCCD)\", \"Cells!E6 input formula \\\"A6+$B6+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1 (bits 3FF0000000000000)\", \"Cells!F6 input formula \\\"B6+$B6+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G6 input formula \\\"IF(A6>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A1)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 1.1 (bits 3FF199999999999A)\", \"Cells!C7 input formula \\\"A7*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 4.1 (bits 4010666666666666)\", \"Cells!E7 input formula \\\"A7+$B7+C$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 2 (bits 4000000000000000)\", \"Cells!F7 input formula \\\"B7+$B7+D$5\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states #DIV/0!\", \"Cells!G7 input formula \\\"IF(A7>2,\\\\\\\"A6\\\\\\\",'Second Sheet'!A2)\\\", cache FileCached 7 (bits 401C000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 0 (bits 0000000000000000)\", \"Cells!C8 input formula \\\"A8*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 6.1 (bits 4018666666666666)\", \"Cells!C9 input formula \\\"A9*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 8.1 (bits 4020333333333333)\", \"Cells!C10 input formula \\\"A10*2+$A$1\\\", cache FileCached 0 (bits 0000000000000000) from xl/worksheets/sheet2.xml (CRC-32 6c953451, 3083 bytes), where the generator states 10.1 (bits 4024333333333333)\", \"Second Sheet!A1 input formula \\\"Cells!A1+1\\\", cache FileCached -1 (bits BFF0000000000000) from xl/worksheets/sheet1.xml (CRC-32 ff7fe987, 377 bytes), where the generator states 1.1 (bits 3FF199999999999A)\"]",
+        "formula length: 8192 code units load and 8193 are refused with FormulaTooLong, also for a shared member whose moved text passes the limit; a decoded _xHHHH_ escape counts as one unit; the refused loads released their sheet IDs",
+        "cells.xlsx's D8:E9 shared group loaded with the generator's stated text for each member: [(\"D8\", \"SUM(A8:INDEX(B:B,2))+SUM(A8:OFFSET(B9,1,0))+COUNT(Cells!A8:Cells!B8)+SUM(A8:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:20)+COLUMNS($J:J)+$A8+A$1+LEN(\\\"A8\\\")\"), (\"E8\", \"SUM(B8:INDEX(C:C,2))+SUM(B8:OFFSET(C9,1,0))+COUNT(Cells!B8:Cells!C8)+SUM(B8:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:20)+COLUMNS($J:K)+$A8+B$1+LEN(\\\"A8\\\")\"), (\"D9\", \"SUM(A9:INDEX(B:B,2))+SUM(A9:OFFSET(B10,1,0))+COUNT(Cells!A9:Cells!B9)+SUM(A9:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:21)+COLUMNS($J:J)+$A9+A$1+LEN(\\\"A8\\\")\"), (\"E9\", \"SUM(B9:INDEX(C:C,2))+SUM(B9:OFFSET(C10,1,0))+COUNT(Cells!B9:Cells!C9)+SUM(B9:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:21)+COLUMNS($J:K)+$A9+B$1+LEN(\\\"A8\\\")\")]",
+        "test-built package: formulas with <v/>, <v></v> and <v> </v> (no t, and t=\"n\") load as their formulas with no FileCached value; an empty <v> with t=\"str\" is the empty text",
+        "test-built packages refused with LoadError::Cell and the expected CellError: [\"an array formula\", \"a cell of type d\", \"a shared member whose moved text leaves the grid\", \"a shared member whose si has no master\", \"a shared member of a group whose text holds a cell outside the grid\", \"a shared member of a group whose text holds an unpaired surrogate\"]",
+        "test-built packages: [\"\\\"\\\" \\\"\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"1\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1904, 2 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"true\\\\\\\" defaultThemeVersion=\\\\\\\"164011\\\\\\\"/>\\\" \\\"\\\": Date1904, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"0\\\\\\\"/>\\\" \\\"<definedNames/>\\\": Date1900, 0 defined names not loaded\", \"\\\"<workbookPr date1904=\\\\\\\"false\\\\\\\"/>\\\" \\\"<definedNames><definedName name=\\\\\\\"Rate\\\\\\\">Long!$A$1</definedName><definedName name=\\\\\\\"Local\\\\\\\" localSheetId=\\\\\\\"0\\\\\\\">2</definedName></definedNames>\\\": Date1900, 2 defined names not loaded\", \"\\\"<workbookPr/>\\\" \\\"\\\": Date1900, 0 defined names not loaded\"]; date1904=\"yes\" and two workbookPr elements are refused with LoadError::InvalidPart; cells.xlsx names 1900 and holds 1 defined name, as its generator recorded"
+      ],
+      "outcome": "passed",
+      "package": "calc-doc",
+      "reason": null,
+      "result_line": null
+    },
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-doc",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--",
+        "--exact",
+        "cdoc_m1_2__sparse_extent",
+        "--nocapture"
+      ],
+      "browsers": [
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-doc",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cdoc_m1_2__sparse_extent",
+            "--nocapture"
+          ],
+          "browser": "chromium",
+          "case": "cdoc_m1_2__sparse_extent@chromium",
+          "duration_s": 4.588,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Chrome",
+          "exit_code": 0,
+          "log": "target/accept/cdoc-m1.2/wasm/cdoc_m1_2__sparse_extent@chromium.log",
+          "notes": [
+            "each package's one cell, as the generator recorded it, is the only cell of a model with one page (file, first row, last row, first column, last column): [(\"corner.xlsx\", 1, 256, 1, 16), (\"extent.xlsx\", 1048321, 1048576, 16369, 16384)]",
+            "calc_doc::load asked this thread's allocator for 27755 bytes for extent.xlsx (only XFD1048576) and 27701 bytes for corner.xlsx (only A1); a dense sheet of 1048576 rows by 16384 columns has 17179869184 cells"
+          ],
+          "outcome": "passed",
+          "package": "calc-doc",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.06s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:64844/`"
+        },
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-doc",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "cdoc_m1_2__sparse_extent",
+            "--nocapture"
+          ],
+          "browser": "firefox",
+          "case": "cdoc_m1_2__sparse_extent@firefox",
+          "duration_s": 7.948,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Firefox",
+          "exit_code": 0,
+          "log": "target/accept/cdoc-m1.2/wasm/cdoc_m1_2__sparse_extent@firefox.log",
+          "notes": [
+            "each package's one cell, as the generator recorded it, is the only cell of a model with one page (file, first row, last row, first column, last column): [(\"corner.xlsx\", 1, 256, 1, 16), (\"extent.xlsx\", 1048321, 1048576, 16369, 16384)]",
+            "calc_doc::load asked this thread's allocator for 27755 bytes for extent.xlsx (only XFD1048576) and 27701 bytes for corner.xlsx (only A1); a dense sheet of 1048576 rows by 16384 columns has 17179869184 cells"
+          ],
+          "outcome": "passed",
+          "package": "calc-doc",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 6 filtered out; finished in 0.02s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60402/`"
+        }
+      ],
+      "case": "cdoc_m1_2__sparse_extent",
+      "duration_s": 12.536,
+      "exit_code": 0,
+      "log": null,
+      "notes": [
+        "each package's one cell, as the generator recorded it, is the only cell of a model with one page (file, first row, last row, first column, last column): [(\"corner.xlsx\", 1, 256, 1, 16), (\"extent.xlsx\", 1048321, 1048576, 16369, 16384)]",
+        "calc_doc::load asked this thread's allocator for 27755 bytes for extent.xlsx (only XFD1048576) and 27701 bytes for corner.xlsx (only A1); a dense sheet of 1048576 rows by 16384 columns has 17179869184 cells",
+        "each package's one cell, as the generator recorded it, is the only cell of a model with one page (file, first row, last row, first column, last column): [(\"corner.xlsx\", 1, 256, 1, 16), (\"extent.xlsx\", 1048321, 1048576, 16369, 16384)]",
+        "calc_doc::load asked this thread's allocator for 27755 bytes for extent.xlsx (only XFD1048576) and 27701 bytes for corner.xlsx (only A1); a dense sheet of 1048576 rows by 16384 columns has 17179869184 cells"
+      ],
+      "outcome": "passed",
+      "package": "calc-doc",
+      "reason": null,
+      "result_line": null
+    }
+  ],
+  "command": [
+    "cargo",
+    "xtask",
+    "accept",
+    "--id",
+    "cdoc-m1.2",
+    "--platform",
+    "wasm",
+    "--require-all"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-doc",
+        "--test",
+        "acceptance",
+        "cdoc_m1_2",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 0.207,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.03s"
+      ],
+      "log": "target/accept/cdoc-m1.2/wasm/command-1.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-doc",
+        "--test",
+        "acceptance",
+        "cdoc_m1_2",
+        "--",
+        "--nocapture"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-doc",
+        "-p",
+        "calc-doc-model",
+        "--lib"
+      ],
+      "duration_s": 0.242,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s"
+      ],
+      "log": "target/accept/cdoc-m1.2/wasm/command-2.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-doc",
+        "-p",
+        "calc-doc-model",
+        "--lib"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cdoc-m1.2",
+        "--platform",
+        "windows",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cdoc-m1.2",
+        "--platform",
+        "linux",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "cdoc-m1.2",
+        "--platform",
+        "wasm",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    }
+  ],
+  "committed_copy": "accept-receipts/cdoc-m1.2/wasm.json",
+  "counts": {
+    "architecture_checks": 7,
+    "architecture_checks_passed": 7,
+    "commands_failed": 0,
+    "commands_not_run": 0,
+    "commands_registered": 5,
+    "commands_run": 2,
+    "commands_skipped": 3,
+    "failed": 0,
+    "ignored": 0,
+    "missing": 0,
+    "not_run": 0,
+    "passed": 2,
+    "selected": 2
+  },
+  "duration_s": 45.851,
+  "exit_code": 0,
+  "format": "dnacalc-accept-receipt/4",
+  "host": {
+    "arch": "x86_64",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "git": {
+      "branch": "master",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "eb37d1d60d3428a772270ad4d69965bc9d2f28f6",
+          "path": "Cargo.lock",
+          "status": "M"
+        },
+        {
+          "blob": "353ded2faf15c52db6ffab9523a83b73ea0b0165",
+          "path": "accept-receipts/cdoc-m0.1/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "999034fced715e7761926be8bcbe517bfdc67924",
+          "path": "accept-receipts/cdoc-m1.1/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "f8aa085bf5b8603b6bbead7e0e3ee56b55ba05ca",
+          "path": "accept-receipts/dc-73yy/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "9ce292c5027d5f1f1f523658ef00a229549882a9",
+          "path": "accept-receipts/infra-m0.3/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "5d46089d8be167157c911ab20f482a7e269142a9",
+          "path": "crates/calc-doc-model/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "6a12fb3694fff921d0995f4801d16df842cef37d",
+          "path": "crates/calc-doc-model/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "ef27ebb12d91d9dba150afca61f00922cd78c3c3",
+          "path": "crates/calc-doc-model/src/root.rs",
+          "status": "M"
+        },
+        {
+          "blob": "196001cfc2778e0b03426b8d4692022ea07c66c3",
+          "path": "crates/calc-doc/Cargo.toml",
+          "status": "M"
+        },
+        {
+          "blob": "455c743c94663ea9050b97d824eb4dd1cd42951c",
+          "path": "crates/calc-doc/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "f91651458b3e7326912b728a65e3c2eae1f6c869",
+          "path": "crates/calc-doc/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "ff0dbc65a51bc5180906f32ff5e5f26f8db02615",
+          "path": "crates/calc-doc/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "8261f36504ac0449094d0c1fc8641a7c12b098d1",
+          "path": "crates/calc-doc/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "079fd1f4c1bf56803f6644ebcb53e96f0af877b6",
+          "path": "accept-receipts/cdoc-m1.2/windows.json",
+          "status": "??"
+        },
+        {
+          "blob": "c3eee915998aa32cc1f4ba62f791fad7366a2d7c",
+          "path": "crates/calc-doc-model/src/cache.rs",
+          "status": "??"
+        },
+        {
+          "blob": "d8800cba6bb7f7b9a6bdb90285e44c3abb4212af",
+          "path": "crates/calc-doc/src/load/address.rs",
+          "status": "??"
+        },
+        {
+          "blob": "2f969925eb8ccd0bc5fdc3363910543d28a6e810",
+          "path": "crates/calc-doc/src/load/error.rs",
+          "status": "??"
+        },
+        {
+          "blob": "09be6533d48cd1b0242d985f1de81ed200b923f7",
+          "path": "crates/calc-doc/src/load/mod.rs",
+          "status": "??"
+        },
+        {
+          "blob": "0d838b61dfe7c9e46c718fd96dbe63dd963d5fcc",
+          "path": "crates/calc-doc/src/load/sheet.rs",
+          "status": "??"
+        },
+        {
+          "blob": "449a746b4ccbbc5b88f0942a75fbdfed0127799d",
+          "path": "crates/calc-doc/src/load/shift.rs",
+          "status": "??"
+        },
+        {
+          "blob": "f986d2957aa5b1dc716f4e3bcc8eec5613e387b2",
+          "path": "crates/calc-doc/src/load/strings.rs",
+          "status": "??"
+        },
+        {
+          "blob": "45aa86b30e86d834e38e85c0ecfeec3a887cd2fd",
+          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_2/.gitattributes",
+          "status": "??"
+        },
+        {
+          "blob": "b254b1cf3d95ea0fb59ee1d79703732abf4bcc4f",
+          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_2/cells.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "dc06407fe25c2b15a65c7b217c47e94844f2dc30",
+          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_2/corner.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "d438657df82137822c1e3a04d60a88bfdc63c07d",
+          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_2/extent.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "dd42dc671dae7c02b0fd0d0af32688f2b0f20238",
+          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_2/make-fixtures.ps1",
+          "status": "??"
+        },
+        {
+          "blob": "a85c2d5e2e88e69f22606dea321800edbb24d23a",
+          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_2/manifest.json",
+          "status": "??"
+        }
+      ],
+      "head": "799ab1be0e39262cc0b28644822644e517862f4c",
+      "receipt_paths_left_out": [
+        "accept-receipts/cdoc-m1.2/wasm.json"
+      ]
+    },
+    "legacy_root": {
+      "exists": true,
+      "from": "default: the workspace root's parent directory",
+      "path": ".."
+    },
+    "os": "windows",
+    "platform_matches_host": true,
+    "platform_mismatch": null,
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "rustc_host": "x86_64-pc-windows-msvc"
+  },
+  "manifests": {
+    "errors": [],
+    "files": [
+      "crates/calc-value/acceptance.json",
+      "crates/calc-func/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
+      "crates/calc-fml/acceptance.json",
+      "crates/calc-doc-model/acceptance.json",
+      "crates/calc-doc/acceptance.json",
+      "crates/calc-engine/acceptance.json",
+      "crates/calc-host/acceptance.json",
+      "apps/dna-onecalc/acceptance.json",
+      "apps/dna-calc/acceptance.json",
+      "platform/calc-platform-desktop/acceptance.json",
+      "platform/calc-oracle-excel/acceptance.json",
+      "tools/xtask/acceptance.json"
+    ]
+  },
+  "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it, and host.legacy_root.path is .. for the workspace root's parent or <legacy-root> for a directory elsewhere",
+  "platform": "wasm",
+  "problems": [],
+  "receipt": "target/accept/cdoc-m1.2/wasm/receipt.json",
+  "require_all": true,
+  "result": "passed",
+  "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
+  "started_utc": "2026-10-20T15:37:00Z"
+}

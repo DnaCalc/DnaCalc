@@ -36,6 +36,7 @@ name = "calc-doc"
 version = "0.1.0"
 dependencies = [
  "calc-doc-model",
+ "calc-fml",
  "miniz_oxide",
  "quick-xml",
  "serde_json",

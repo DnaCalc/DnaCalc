@@ -11,6 +11,8 @@ portability = "portable"
 
 [dependencies]
 calc-doc-model = { path = "../calc-doc-model" }
+# The formula language's one lexer, which moves a shared formula's text to each of its members.
+calc-fml = { path = "../calc-fml" }
 # The XML tokenizer under the package's lazy part readers. It expands no entity a document
 # declares: the reader refuses any document type declaration before its first element, so only
 # the five predefined entities and character references are ever replaced. MIT; its one

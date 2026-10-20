@@ -1,0 +1,929 @@
+{
+    "format":  "cdoc-m1.2-fixture-manifest/1",
+    "generator":  "make-fixtures.ps1",
+    "packages":  [
+                     {
+                         "file":  "cells.xlsx",
+                         "length":  3996,
+                         "workbook_part":  "xl/workbook.xml",
+                         "cell_formats":  3,
+                         "date_system":  1900,
+                         "defined_names":  1,
+                         "sheets":  [
+                                        {
+                                            "name_units":  "00430065006C006C0073",
+                                            "name":  "Cells",
+                                            "sheet_id":  3,
+                                            "state":  "visible",
+                                            "relationship":  "rId2",
+                                            "part":  "xl/worksheets/sheet2.xml",
+                                            "part_crc32":  1821717585,
+                                            "part_size":  3083,
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "row":  1,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "0.1",
+                                                                            "bits":  "3FB999999999999A"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "B1",
+                                                              "row":  1,
+                                                              "column":  2,
+                                                              "style":  1,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "-2.5",
+                                                                            "bits":  "C004000000000000"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C1",
+                                                              "row":  1,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "1E+308",
+                                                                            "bits":  "7FE1CCF385EBC8A0"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "D1",
+                                                              "row":  1,
+                                                              "column":  4,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "123456789",
+                                                                            "bits":  "419D6F3454000000"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "E1",
+                                                              "row":  1,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "6.02214076E+23",
+                                                                            "bits":  "44DFE185CA57C517"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "F1",
+                                                              "row":  1,
+                                                              "column":  6,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "0.30000000000000004",
+                                                                            "bits":  "3FD3333333333334"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "A2",
+                                                              "row":  2,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "0046006900730068002000260020006300680069007000730020003C00330020D83DDE00"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "B2",
+                                                              "row":  2,
+                                                              "column":  2,
+                                                              "style":  2,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "00200047007200FC00DF0065002C00206570636E0020"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C2",
+                                                              "row":  2,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "0062006F006C00640070006C00610069006E"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "D2",
+                                                              "row":  2,
+                                                              "column":  4,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "00610020003C0062003E0020002600200063"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "E2",
+                                                              "row":  2,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "0061000D0062"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "F2",
+                                                              "row":  2,
+                                                              "column":  6,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "005F00780030003000340031005F"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "G2",
+                                                              "row":  2,
+                                                              "column":  7,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "00780079"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "A3",
+                                                              "row":  3,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "logical",
+                                                                            "value":  true
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "B3",
+                                                              "row":  3,
+                                                              "column":  2,
+                                                              "style":  1,
+                                                              "input":  {
+                                                                            "kind":  "logical",
+                                                                            "value":  false
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "E3",
+                                                              "row":  3,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "006C0069006E0065000D000A00740077006F"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "A4",
+                                                              "row":  4,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#NULL!"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "B4",
+                                                              "row":  4,
+                                                              "column":  2,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#DIV/0!"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C4",
+                                                              "row":  4,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#VALUE!"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "D4",
+                                                              "row":  4,
+                                                              "column":  4,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#REF!"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "E4",
+                                                              "row":  4,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#NAME?"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "F4",
+                                                              "row":  4,
+                                                              "column":  6,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#NUM!"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "G4",
+                                                              "row":  4,
+                                                              "column":  7,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#N/A"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "A5",
+                                                              "row":  5,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A1*2"
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "999",
+                                                                            "bits":  "408F380000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "0.2",
+                                                                              "bits":  "3FC999999999999A"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "B5",
+                                                              "row":  5,
+                                                              "column":  2,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A2\u0026\"!\""
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "007300740061006C006500200074006500780074"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "text",
+                                                                              "units":  "0046006900730068002000260020006300680069007000730020003C00330020D83DDE000021"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "C5",
+                                                              "row":  5,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "NOT(A3)"
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  {
+                                                                            "kind":  "logical",
+                                                                            "value":  true
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "logical",
+                                                                              "value":  false
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "D5",
+                                                              "row":  5,
+                                                              "column":  4,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "1/0"
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  {
+                                                                            "kind":  "error",
+                                                                            "spelling":  "#N/A"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "error",
+                                                                              "spelling":  "#DIV/0!"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "E5",
+                                                              "row":  5,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "B1+1"
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  null,
+                                                              "correct":  null
+                                                          },
+                                                          {
+                                                              "ref":  "F5",
+                                                              "row":  5,
+                                                              "column":  6,
+                                                              "style":  1,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "D1+1"
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "123456790",
+                                                                            "bits":  "419D6F3458000000"
+                                                                        },
+                                                              "correct":  null
+                                                          },
+                                                          {
+                                                              "ref":  "G5",
+                                                              "row":  5,
+                                                              "column":  7,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "_xlfn.CONCAT(\"A1\",A1)"
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "004100310030002E0031"
+                                                                        },
+                                                              "correct":  null
+                                                          },
+                                                          {
+                                                              "ref":  "A6",
+                                                              "row":  6,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "1",
+                                                                            "bits":  "3FF0000000000000"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C6",
+                                                              "row":  6,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A6*2+$A$1"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  0,
+                                                                             "master":  "C6",
+                                                                             "ref":  "C6:C10"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "0",
+                                                                            "bits":  "0000000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "2.1",
+                                                                              "bits":  "4000CCCCCCCCCCCD"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "E6",
+                                                              "row":  6,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A6+$B6+C$5"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  1,
+                                                                             "master":  "E6",
+                                                                             "ref":  "E6:F7"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "-1",
+                                                                            "bits":  "BFF0000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "1",
+                                                                              "bits":  "3FF0000000000000"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "F6",
+                                                              "row":  6,
+                                                              "column":  6,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "B6+$B6+D$5"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  1,
+                                                                             "master":  "E6",
+                                                                             "ref":  "E6:F7"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "-1",
+                                                                            "bits":  "BFF0000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "error",
+                                                                              "spelling":  "#DIV/0!"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "G6",
+                                                              "row":  6,
+                                                              "column":  7,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "IF(A6\u003e2,\"A6\",\u0027Second Sheet\u0027!A1)"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  2,
+                                                                             "master":  "G6",
+                                                                             "ref":  "G6:G7"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "7",
+                                                                            "bits":  "401C000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "1.1",
+                                                                              "bits":  "3FF199999999999A"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "A7",
+                                                              "row":  7,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "2",
+                                                                            "bits":  "4000000000000000"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C7",
+                                                              "row":  7,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A7*2+$A$1"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  0,
+                                                                             "master":  "C6",
+                                                                             "ref":  "C6:C10"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "0",
+                                                                            "bits":  "0000000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "4.1",
+                                                                              "bits":  "4010666666666666"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "E7",
+                                                              "row":  7,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A7+$B7+C$5"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  1,
+                                                                             "master":  "E6",
+                                                                             "ref":  "E6:F7"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "-1",
+                                                                            "bits":  "BFF0000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "2",
+                                                                              "bits":  "4000000000000000"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "F7",
+                                                              "row":  7,
+                                                              "column":  6,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "B7+$B7+D$5"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  1,
+                                                                             "master":  "E6",
+                                                                             "ref":  "E6:F7"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "-1",
+                                                                            "bits":  "BFF0000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "error",
+                                                                              "spelling":  "#DIV/0!"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "G7",
+                                                              "row":  7,
+                                                              "column":  7,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "IF(A7\u003e2,\"A6\",\u0027Second Sheet\u0027!A2)"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  2,
+                                                                             "master":  "G6",
+                                                                             "ref":  "G6:G7"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "7",
+                                                                            "bits":  "401C000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "0",
+                                                                              "bits":  "0000000000000000"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "A8",
+                                                              "row":  8,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "3",
+                                                                            "bits":  "4008000000000000"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C8",
+                                                              "row":  8,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A8*2+$A$1"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  0,
+                                                                             "master":  "C6",
+                                                                             "ref":  "C6:C10"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "0",
+                                                                            "bits":  "0000000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "6.1",
+                                                                              "bits":  "4018666666666666"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "D8",
+                                                              "row":  8,
+                                                              "column":  4,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "SUM(A8:INDEX(B:B,2))+SUM(A8:OFFSET(B9,1,0))+COUNT(Cells!A8:Cells!B8)+SUM(A8:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:20)+COLUMNS($J:J)+$A8+A$1+LEN(\"A8\")"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  3,
+                                                                             "master":  "D8",
+                                                                             "ref":  "D8:E9"
+                                                                         },
+                                                              "cache":  null,
+                                                              "correct":  null
+                                                          },
+                                                          {
+                                                              "ref":  "E8",
+                                                              "row":  8,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "SUM(B8:INDEX(C:C,2))+SUM(B8:OFFSET(C9,1,0))+COUNT(Cells!B8:Cells!C8)+SUM(B8:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:20)+COLUMNS($J:K)+$A8+B$1+LEN(\"A8\")"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  3,
+                                                                             "master":  "D8",
+                                                                             "ref":  "D8:E9"
+                                                                         },
+                                                              "cache":  null,
+                                                              "correct":  null
+                                                          },
+                                                          {
+                                                              "ref":  "A9",
+                                                              "row":  9,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "4",
+                                                                            "bits":  "4010000000000000"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C9",
+                                                              "row":  9,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A9*2+$A$1"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  0,
+                                                                             "master":  "C6",
+                                                                             "ref":  "C6:C10"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "0",
+                                                                            "bits":  "0000000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "8.1",
+                                                                              "bits":  "4020333333333333"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "D9",
+                                                              "row":  9,
+                                                              "column":  4,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "SUM(A9:INDEX(B:B,2))+SUM(A9:OFFSET(B10,1,0))+COUNT(Cells!A9:Cells!B9)+SUM(A9:_xlfn.XLOOKUP(1,A:A,B:B))+ROWS($20:21)+COLUMNS($J:J)+$A9+A$1+LEN(\"A8\")"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  3,
+                                                                             "master":  "D8",
+                                                                             "ref":  "D8:E9"
+                                                                         },
+                                                              "cache":  null,
+                                                              "correct":  null
+                                                          },
+                                                          {
+                                                              "ref":  "E9",
+                                                              "row":  9,
+                                                              "column":  5,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "SUM(B9:INDEX(C:C,2))+SUM(B9:OFFSET(C10,1,0))+COUNT(Cells!B9:Cells!C9)+SUM(B9:_xlfn.XLOOKUP(1,B:B,C:C))+ROWS($20:21)+COLUMNS($J:K)+$A9+B$1+LEN(\"A8\")"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  3,
+                                                                             "master":  "D8",
+                                                                             "ref":  "D8:E9"
+                                                                         },
+                                                              "cache":  null,
+                                                              "correct":  null
+                                                          },
+                                                          {
+                                                              "ref":  "A10",
+                                                              "row":  10,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "5",
+                                                                            "bits":  "4014000000000000"
+                                                                        }
+                                                          },
+                                                          {
+                                                              "ref":  "C10",
+                                                              "row":  10,
+                                                              "column":  3,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "A10*2+$A$1"
+                                                                        },
+                                                              "shared":  {
+                                                                             "si":  0,
+                                                                             "master":  "C6",
+                                                                             "ref":  "C6:C10"
+                                                                         },
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "0",
+                                                                            "bits":  "0000000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "10.1",
+                                                                              "bits":  "4024333333333333"
+                                                                          }
+                                                          }
+                                                      ],
+                                            "styled_empty":  [
+                                                                 {
+                                                                     "ref":  "H1",
+                                                                     "row":  1,
+                                                                     "column":  8,
+                                                                     "style":  2
+                                                                 },
+                                                                 {
+                                                                     "ref":  "C3",
+                                                                     "row":  3,
+                                                                     "column":  3,
+                                                                     "style":  2
+                                                                 }
+                                                             ],
+                                            "unmaterialized":  [
+                                                                   "H2",
+                                                                   "D3"
+                                                               ]
+                                        },
+                                        {
+                                            "name_units":  "005300650063006F006E0064002000530068006500650074",
+                                            "name":  "Second Sheet",
+                                            "sheet_id":  1,
+                                            "state":  "hidden",
+                                            "relationship":  "rId1",
+                                            "part":  "xl/worksheets/sheet1.xml",
+                                            "part_crc32":  4286572935,
+                                            "part_size":  377,
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "row":  1,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "formula",
+                                                                            "text":  "Cells!A1+1"
+                                                                        },
+                                                              "shared":  null,
+                                                              "cache":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "-1",
+                                                                            "bits":  "BFF0000000000000"
+                                                                        },
+                                                              "correct":  {
+                                                                              "kind":  "number",
+                                                                              "text":  "1.1",
+                                                                              "bits":  "3FF199999999999A"
+                                                                          }
+                                                          },
+                                                          {
+                                                              "ref":  "B1",
+                                                              "row":  1,
+                                                              "column":  2,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "text",
+                                                                            "units":  "007300650063006F006E0064"
+                                                                        }
+                                                          }
+                                                      ],
+                                            "styled_empty":  [
+
+                                                             ],
+                                            "unmaterialized":  [
+
+                                                               ]
+                                        }
+                                    ]
+                     },
+                     {
+                         "file":  "extent.xlsx",
+                         "length":  1608,
+                         "workbook_part":  "xl/workbook.xml",
+                         "cell_formats":  0,
+                         "date_system":  1900,
+                         "defined_names":  0,
+                         "sheets":  [
+                                        {
+                                            "name_units":  "0045006400670065",
+                                            "name":  "Edge",
+                                            "sheet_id":  1,
+                                            "state":  "visible",
+                                            "relationship":  "rId1",
+                                            "part":  "xl/worksheets/sheet1.xml",
+                                            "part_crc32":  1559819055,
+                                            "part_size":  329,
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "XFD1048576",
+                                                              "row":  1048576,
+                                                              "column":  16384,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "42",
+                                                                            "bits":  "4045000000000000"
+                                                                        }
+                                                          }
+                                                      ],
+                                            "styled_empty":  [
+
+                                                             ],
+                                            "unmaterialized":  [
+
+                                                               ]
+                                        }
+                                    ]
+                     },
+                     {
+                         "file":  "corner.xlsx",
+                         "length":  1598,
+                         "workbook_part":  "xl/workbook.xml",
+                         "cell_formats":  0,
+                         "date_system":  1900,
+                         "defined_names":  0,
+                         "sheets":  [
+                                        {
+                                            "name_units":  "0045006400670065",
+                                            "name":  "Edge",
+                                            "sheet_id":  1,
+                                            "state":  "visible",
+                                            "relationship":  "rId1",
+                                            "part":  "xl/worksheets/sheet1.xml",
+                                            "part_crc32":  3551037984,
+                                            "part_size":  307,
+                                            "cells":  [
+                                                          {
+                                                              "ref":  "A1",
+                                                              "row":  1,
+                                                              "column":  1,
+                                                              "style":  0,
+                                                              "input":  {
+                                                                            "kind":  "number",
+                                                                            "text":  "42",
+                                                                            "bits":  "4045000000000000"
+                                                                        }
+                                                          }
+                                                      ],
+                                            "styled_empty":  [
+
+                                                             ],
+                                            "unmaterialized":  [
+
+                                                               ]
+                                        }
+                                    ]
+                     }
+                 ]
+}
