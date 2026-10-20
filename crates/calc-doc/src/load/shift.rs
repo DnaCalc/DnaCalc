@@ -21,9 +21,9 @@
 //! Text this cannot move is refused ([`Unclassified`]), not copied: a cell written with a `$`
 //! outside the grid, a range of rows or columns with an end outside the grid, a row or column
 //! after a chain of ranges (`A:B:C`), a token with a `$` that is neither a cell nor a range end,
-//! an unterminated string literal or quoted name, and a character the lexer does not read. A
-//! move that takes a reference off the grid is refused too
-//! ([`PastGrid`]).
+//! an unterminated string literal or quoted name, an unclosed `[` group (a bracketed workbook
+//! qualifier or a structured reference), and a character the lexer does not read. A move that
+//! takes a reference off the grid is refused too ([`PastGrid`]).
 
 use super::address::{column_letters, column_number, row_number};
 use calc_doc_model::value::{MAX_COLUMNS, MAX_ROWS};
@@ -44,6 +44,31 @@ fn closed(text: &str, quote: char) -> bool {
     text.len() >= 2
         && text.ends_with(quote)
         && text.chars().filter(|&c| c == quote).count() % 2 == 0
+}
+
+/// Whether every `[` group in a token's text closes, read by the lexer's rules: `[` opens a
+/// level, `]` closes one, and inside a group `'` escapes the `#`, `[`, `]`, `@` or `'` after it.
+/// The lexer runs an unclosed group to the end of the input, so the token then holds the rest of
+/// the formula.
+fn brackets_closed(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let mut depth = 0usize;
+    let mut at = 0;
+    while at < chars.len() {
+        match chars[at] {
+            '\'' if depth > 0
+                && matches!(chars.get(at + 1), Some('#' | '[' | ']' | '@' | '\'')) =>
+            {
+                at += 2;
+                continue;
+            }
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        at += 1;
+    }
+    depth == 0
 }
 
 /// One coordinate of a reference: its 1-based number, whether a `$` makes it absolute, and its
@@ -192,6 +217,11 @@ impl Moves {
                 }
                 TokenKind::QuotedIdentifier if !closed(token.text(), '\'') => {
                     return Err(Unclassified("an unterminated quoted name"));
+                }
+                TokenKind::BracketedQualifier | TokenKind::Identifier
+                    if !brackets_closed(token.text()) =>
+                {
+                    return Err(Unclassified("an unclosed [ group"));
                 }
                 _ => {}
             }
@@ -457,6 +487,7 @@ mod tests {
                 "Table1[[#This Row],[A1]]+A2",
             ),
             ("Table1[Price$]+A1", 1, 0, "Table1[Price$]+A2"),
+            ("Table1['[Col']]+A1", 1, 0, "Table1['[Col']]+A2"),
             ("[1]Sheet1!A1", 1, 0, "[1]Sheet1!A2"),
             ("#REF!A1+#REF!", 1, 0, "#REF!A2+#REF!"),
             (
@@ -526,6 +557,10 @@ mod tests {
             ("A1&\"a\"\"", "an unterminated string literal"),
             ("A1+'Sheet 2", "an unterminated quoted name"),
             ("A1+~1", "a character the formula lexer does not read"),
+            ("A1+[1Sheet1!B1", "an unclosed [ group"),
+            ("A1+Table1[Col+B1", "an unclosed [ group"),
+            ("A1+Table1[[#This Row],[Col]+B1", "an unclosed [ group"),
+            ("A1+Table1[Col']+B1", "an unclosed [ group"),
         ] {
             assert_eq!(
                 shift(text, 1, 0),
