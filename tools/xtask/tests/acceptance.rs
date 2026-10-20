@@ -71,6 +71,11 @@ const TARGET_DIR_VARIABLES: [&str; 2] = ["CARGO_TARGET_DIR", "CARGO_BUILD_TARGET
 
 const PLAN: &str = "DNA_CALC_REIMPLEMENTATION_PLAN.md";
 
+/// Follow-up beads created on 2026-10-19 with a library prefix, against AGENTS.md's rule that new
+/// IDs use `dc`. br has no rename, so they keep their IDs; they are not imports, and the
+/// agent-contract case checks that neither carries a plan reference.
+const MISNAMED_FOLLOW_UPS: [&str; 2] = ["cdoc-jpha", "cdoc-qhau"];
+
 /// The plan bundle that bead descriptions cite.
 const PLAN_BUNDLE: [&str; 7] = [
     PLAN,
@@ -1767,6 +1772,7 @@ fn infra_m0_1__agent_contract() {
 
     let tracker = read_text(&root.join(".beads").join("issues.jsonl"));
     let (mut issues, mut citing, mut citations, mut imported) = (0, 0, 0, 0);
+    let mut misnamed: Vec<String> = Vec::new();
     let mut sections_cited = BTreeSet::new();
     for line in tracker.lines().filter(|line| !line.trim().is_empty()) {
         let issue: Value = serde_json::from_str(line).expect("tracker line is JSON");
@@ -1797,7 +1803,17 @@ fn infra_m0_1__agent_contract() {
                 failures.push(format!("{id} cites {name}, which docs/plan does not hold"));
             }
         }
-        if !id.starts_with("dc-") {
+        if MISNAMED_FOLLOW_UPS.contains(&id) {
+            misnamed.push(id.to_owned());
+            if issue["external_ref"]
+                .as_str()
+                .is_some_and(|reference| reference.starts_with("dnacalc-plan/"))
+            {
+                failures.push(format!(
+                    "{id} is listed as a misnamed follow-up but carries a plan reference"
+                ));
+            }
+        } else if !id.starts_with("dc-") {
             imported += 1;
             for (export, ids) in [("beads.plan.jsonl", &plan_ids), ("beads.br.jsonl", &br_ids)] {
                 if !ids.contains(id) {
@@ -1818,6 +1834,12 @@ fn infra_m0_1__agent_contract() {
     }
     evidence.push(format!(
         "tracker: {issues} issues, {imported} imported; {citing} descriptions cite {PLAN} with {citations} section references"
+    ));
+    evidence.push(format!(
+        "follow-ups with a library prefix, not imports: {} of {} listed ({})",
+        misnamed.len(),
+        MISNAMED_FOLLOW_UPS.len(),
+        misnamed.join(", ")
     ));
     evidence.push(format!(
         "plan sections cited: {sections_cited:?}; numbered headings in {PLAN}: {}",
