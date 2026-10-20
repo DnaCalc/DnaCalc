@@ -10,8 +10,10 @@
 //!   [`OpenPolicy`] limits into a [`Package`]: its part directory, content types and
 //!   relationships. Part payloads are decompressed only when read ([`Package::read_part`]) and
 //!   XML parts are tokenized only as far as their [`XmlReader`] is pulled. Unsafe entry names,
-//!   document type declarations (and so every declared entity) and declared or actual sizes past
-//!   the limits are typed refusals.
+//!   document type declarations (and so every declared entity), declared or actual sizes past
+//!   the limits, a compressed payload larger than its declared size allows (refused before the
+//!   part read reads any of it; open still streams it for its CRC) and bytes after a payload's
+//!   final DEFLATE block are typed refusals.
 //! - [`load`] reads an opened package's workbook: its sheets, from the workbook part and its
 //!   relationships, and each worksheet's cells (numbers, shared and inline strings, logicals,
 //!   errors and formulas, a shared formula's members each with its own text) into a

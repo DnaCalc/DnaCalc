@@ -13,7 +13,11 @@ pub struct PackageLimits {
     /// The most entries the central directory may declare.
     pub max_entries: u32,
     /// The most uncompressed bytes one entry may declare. Decompression also stops at the
-    /// declared size, so no part ever decompresses past this bound.
+    /// declared size, and no single allocation of its output buffer passes it (a reallocation
+    /// that moves briefly holds the old buffer too), so no part ever decompresses past this
+    /// bound; a part's compressed payload is read into memory only when it is no larger than its
+    /// declared size allows, so no read of a part holds more than about 1.14 times this bound,
+    /// plus 1 KiB, in compressed bytes.
     pub max_part_bytes: u64,
     /// The most uncompressed bytes all entries together may declare.
     pub max_expanded_bytes: u64,

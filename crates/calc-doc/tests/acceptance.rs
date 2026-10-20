@@ -3596,8 +3596,9 @@ use calc_doc::{
     XmlPart, prepare_save,
 };
 use cdoc_m1_1_support::{
-    ChangingSource, FailingSource, FullSink, RawEntry, RecordingSource, UnreadableRangeSource, Zip,
-    ZipEntry, build_zip, end_record, parse_zip, sha256,
+    ChangingSource, EMPTY_STORED_BLOCK, FailingSource, FullSink, RawEntry, RecordingSource,
+    UnreadableRangeSource, Zip, ZipEntry, build_zip, end_record, final_stored_block, fixed_zeros,
+    flushed, parse_zip, sha256,
 };
 
 const M1_1_PACKAGE: &[u8] = include_bytes!("fixtures/cdoc_m1_1/package.xlsx");
@@ -3632,8 +3633,8 @@ fn unedited(snapshot: &calc_doc::DocumentSnapshot) -> calc_doc::SavePlan {
         .expect("a snapshot of an opened document as opened is not refused")
 }
 
-/// Saves the document's snapshot unchanged into a new buffer.
-fn saved(document: &OpenedDocument) -> Vec<u8> {
+/// Saves the document's snapshot unchanged into a new buffer, with the save's receipt.
+fn saved_with_receipt(document: &OpenedDocument) -> (Vec<u8>, calc_doc::SaveReceipt) {
     let mut out = Vec::new();
     let receipt = calc_doc::write(unedited(&document.snapshot()), &mut out).expect("a save");
     assert_eq!(
@@ -3641,7 +3642,12 @@ fn saved(document: &OpenedDocument) -> Vec<u8> {
         out.len() as u64,
         "the receipt counts the bytes the sink received"
     );
-    out
+    (out, receipt)
+}
+
+/// Saves the document's snapshot unchanged into a new buffer.
+fn saved(document: &OpenedDocument) -> Vec<u8> {
+    saved_with_receipt(document).0
 }
 
 /// What the case's own pass over a part's XML events finds.
@@ -3878,7 +3884,12 @@ fn cdoc_m1_1__raw_preservation() {
     // A no-op save, inspected by the case's own reader.
     let plan = unedited(&document.snapshot());
     assert_eq!(plan.copied_entries(), entries.len());
-    let out = saved(&document);
+    let (out, receipt) = saved_with_receipt(&document);
+    assert_eq!(
+        receipt.gap_bytes_dropped, 37,
+        "the receipt reports the 37 bytes between entries that the save did not write"
+    );
+    assert_eq!(receipt.gap_bytes_dropped, gap as u64);
     let output = parse_zip(&out);
     assert_eq!(
         output
@@ -3953,8 +3964,32 @@ fn cdoc_m1_1__raw_preservation() {
             "{name} after the save"
         );
     }
-    let second = saved(&reopened);
+    let (second, second_receipt) = saved_with_receipt(&reopened);
     assert!(second == out, "saving the saved package changes no byte");
+    assert_eq!(
+        second_receipt.gap_bytes_dropped, 0,
+        "the saved package has no bytes outside its entries to drop"
+    );
+
+    // Bytes before the first entry and after the last one are dropped and counted too.
+    let gapped_entries = base_entries();
+    let mut gapped = b"prefix".to_vec();
+    let mut centrals = Vec::new();
+    for entry in &gapped_entries {
+        centrals.extend_from_slice(&entry.central(gapped.len() as u32));
+        gapped.extend_from_slice(&entry.local());
+    }
+    gapped.extend_from_slice(b"tail");
+    let directory = gapped.len() as u32;
+    gapped.extend_from_slice(&centrals);
+    gapped.extend_from_slice(&end_record(3, centrals.len() as u32, directory));
+    let (gapped_out, gapped_receipt) = saved_with_receipt(&opened(memory(&gapped), &policy));
+    assert_eq!(
+        gapped_receipt.gap_bytes_dropped, 10,
+        "the 6 bytes before the first entry and the 4 after the last"
+    );
+    assert_eq!(gapped_out.len(), gapped.len() - 10);
+    assert_eq!(gapped_out, build_zip(&gapped_entries));
 
     // A save proves it copied what was opened.
     let changing = Arc::new(ChangingSource::new(M1_1_PACKAGE.to_vec()));
@@ -3995,13 +4030,17 @@ fn cdoc_m1_1__raw_preservation() {
     );
 
     note!(
-        "ACCEPT-NOTE: {CASE}: package.xlsx ({} bytes, {} entries, {} parts, {} XML parts read lazily to the .NET XmlDocument counts, {} relationships parts) saved unchanged to {} bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the {gap} unreferenced bytes were dropped and the entries after them moved back by {gap}; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte",
+        "ACCEPT-NOTE: {CASE}: package.xlsx ({} bytes, {} entries, {} parts, {} XML parts read lazily to the .NET XmlDocument counts, {} relationships parts) saved unchanged to {} bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the {gap} unreferenced bytes were dropped, the receipt reported gap_bytes_dropped {}, and the entries after them moved back by {gap}; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte with gap_bytes_dropped {}; a package with 6 bytes before its first entry and 4 after its last saved {} bytes shorter with gap_bytes_dropped {}",
         M1_1_PACKAGE.len(),
         entries.len(),
         recorded_parts.len(),
         xml_parts,
         package.relationships().len(),
-        out.len()
+        out.len(),
+        receipt.gap_bytes_dropped,
+        second_receipt.gap_bytes_dropped,
+        gapped.len() - gapped_out.len(),
+        gapped_receipt.gap_bytes_dropped
     );
     note!(
         "ACCEPT-NOTE: {CASE}: a payload byte changed after opening: the save refused with SourceChanged after {} bytes, and the lazy read with {lazy:?}; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of {} bytes",
@@ -4067,6 +4106,57 @@ fn package_replacing(name: &str, content: &[u8]) -> Vec<u8> {
 /// The end record's offset in an archive without a comment.
 fn end_offset(bytes: &[u8]) -> usize {
     bytes.len() - 22
+}
+
+/// The most compressed bytes a deflated entry of `size` bytes may store: the expansion of stored
+/// or fixed Huffman blocks, size + ceil(size / 8) + ceil(size / 64), and 1024 bytes for flush
+/// markers and empty blocks.
+fn deflate_bound(size: u64) -> u64 {
+    size + size.div_ceil(8) + size.div_ceil(64) + 1024
+}
+
+/// A valid raw DEFLATE stream of `content` padded with `blocks` empty stored blocks before its
+/// final block: 5 * `blocks` + 5 + `content.len()` bytes.
+fn padded_stream(blocks: usize, content: &[u8]) -> Vec<u8> {
+    let mut stream = EMPTY_STORED_BLOCK.repeat(blocks);
+    stream.extend_from_slice(&final_stored_block(content));
+    stream
+}
+
+/// One read of a part, as [`counted_read`] observed it.
+struct CountedRead {
+    /// What the read returned.
+    result: Result<Vec<u8>, PartReadError>,
+    /// The bytes this thread asked the allocator for during the read.
+    allocated: u64,
+    /// The byte ranges the read asked the source for.
+    reads: Vec<(u64, u64)>,
+}
+
+/// Reads the part `name` of a document opened from `source`, counting what the read allocated
+/// and recording what it read.
+fn counted_read(document: &OpenedDocument, source: &RecordingSource, name: &str) -> CountedRead {
+    let reads_before = source.reads().len();
+    let before = cdoc_m1_1_support::allocated();
+    let result = document.package().read_part(name);
+    let allocated = cdoc_m1_1_support::allocated() - before;
+    let reads = source.reads()[reads_before..].to_vec();
+    CountedRead {
+        result,
+        allocated,
+        reads,
+    }
+}
+
+/// The ranges among `reads` that touch the payload of `entry`.
+fn payload_reads(reads: &[(u64, u64)], entry: &ZipEntry) -> Vec<(u64, u64)> {
+    reads
+        .iter()
+        .copied()
+        .filter(|&(start, end)| {
+            start < entry.payload_end as u64 && end > entry.payload_start as u64
+        })
+        .collect()
 }
 
 /// The files in the case's working directory and its parent, where a naive extractor of the
@@ -4348,11 +4438,17 @@ fn cdoc_m1_1__malformed_zip() {
         },
     );
 
-    // Expansion past the declared size: refused when read, within the declared bound.
+    // Compressed payloads larger than their declared size allows: refused before any of the
+    // payload is read. lying-size.xlsx's zeros.bin is 64 MiB of zeros deflated, declaring 4096
+    // bytes.
     let lying = &manifest["lying_size"];
     let declared_size = lying["declared_size"].as_u64().unwrap();
     let expanded_size = lying["expanded_size"].as_u64().unwrap();
-    let document = opened(memory(M1_1_LYING_SIZE), &default);
+    let lying_in = parse_zip(M1_1_LYING_SIZE);
+    let lying_entry = lying_in.entry("xl/media/zeros.bin").clone();
+    let lying_source = Arc::new(RecordingSource::new(M1_1_LYING_SIZE.to_vec()));
+    let source: Arc<dyn PackageRead> = lying_source.clone();
+    let document = opened(source, &default);
     let zeros = document
         .package()
         .part("xl/media/zeros.bin")
@@ -4363,48 +4459,267 @@ fn cdoc_m1_1__malformed_zip() {
         lying["declared_crc32"].as_u64().unwrap()
     );
     assert_eq!(
-        cdoc_m1_1_support::crc32(&vec![0u8; declared_size as usize]),
-        zeros.crc32(),
-        "a reader that stopped at the declared size would find the declared CRC"
+        zeros.compressed_size(),
+        u64::from(lying_entry.compressed_size)
     );
-    let before = cdoc_m1_1_support::allocated();
-    let result = document.package().read_part("xl/media/zeros.bin");
-    let allocated = cdoc_m1_1_support::allocated() - before;
+    assert_eq!(deflate_bound(declared_size), 5696, "4096 + 512 + 64 + 1024");
+    let CountedRead {
+        result,
+        allocated: lying_allocated,
+        reads: lying_reads,
+    } = counted_read(&document, &lying_source, "xl/media/zeros.bin");
     assert_eq!(
         result,
-        Err(PartReadError::ExpandsPastDeclaredSize {
-            declared: declared_size
+        Err(PartReadError::CompressedPayloadTooLarge {
+            compressed: u64::from(lying_entry.compressed_size),
+            declared: declared_size,
+            bound: 5696,
         })
     );
+    assert_eq!(
+        payload_reads(&lying_reads, &lying_entry),
+        Vec::<(u64, u64)>::new(),
+        "the refused read asked the source for none of the payload"
+    );
     assert!(
-        allocated < 1 << 20,
-        "reading a part that expands to {expanded_size} bytes allocated {allocated} bytes"
+        lying_allocated < u64::from(lying_entry.compressed_size),
+        "refusing a {}-byte payload allocated {lying_allocated} bytes",
+        lying_entry.compressed_size
     );
     assert!(document.package().read_xml("xl/media/zeros.bin").is_err());
     let lying_saved = saved(&document);
-    let lying_in = parse_zip(M1_1_LYING_SIZE);
     let lying_out = parse_zip(&lying_saved);
     assert_eq!(
         sha256(lying_out.entry("xl/media/zeros.bin").payload(&lying_saved)),
+        sha256(lying_entry.payload(M1_1_LYING_SIZE)),
+        "the refused part's payload is still preserved by a save"
+    );
+    // A payload that is valid DEFLATE of exactly its declared content and CRC, padded with
+    // 800 000 empty stored blocks to 4 000 012 bytes where its declared 7 bytes allow 1033:
+    // refused by its sizes alone, before any of it is read.
+    let padded = padded_stream(800_000, b"content");
+    assert_eq!(padded.len(), 4_000_012);
+    assert_eq!(deflate_bound(7), 1033, "7 + 1 + 1 + 1024");
+    assert_eq!(
+        cdoc_m1_3_support::inflate(&padded),
+        b"content",
+        "the case's own decoder reads the padded stream as the declared content"
+    );
+    let padded_bytes = package_with(vec![RawEntry::deflated(
+        "xl/media/padded.bin",
+        &padded,
+        7,
+        cdoc_m1_1_support::crc32(b"content"),
+    )]);
+    let padded_entry = parse_zip(&padded_bytes)
+        .entry("xl/media/padded.bin")
+        .clone();
+    let padded_source = Arc::new(RecordingSource::new(padded_bytes));
+    let source: Arc<dyn PackageRead> = padded_source.clone();
+    let document = opened(source, &default);
+    let CountedRead {
+        result,
+        allocated: padded_allocated,
+        reads: padded_reads,
+    } = counted_read(&document, &padded_source, "xl/media/padded.bin");
+    assert_eq!(
+        result,
+        Err(PartReadError::CompressedPayloadTooLarge {
+            compressed: 4_000_012,
+            declared: 7,
+            bound: 1033,
+        }),
+        "an entry with an oversized compressed payload"
+    );
+    assert_eq!(
+        payload_reads(&padded_reads, &padded_entry),
+        Vec::<(u64, u64)>::new(),
+        "the refused read asked the source for none of the payload"
+    );
+    assert!(
+        padded_allocated < 64 * 1024,
+        "refusing a 4000012-byte payload allocated {padded_allocated} bytes"
+    );
+    // The same padding on a structural part, which opening reads: refused at open.
+    let rels = base_relationships();
+    let rels_stream = padded_stream(800_000, rels.as_bytes());
+    let rels_entries: Vec<RawEntry> = base_entries()
+        .into_iter()
+        .map(|entry| {
+            if entry.name == b"_rels/.rels" {
+                RawEntry::deflated(
+                    "_rels/.rels",
+                    &rels_stream,
+                    rels.len() as u32,
+                    cdoc_m1_1_support::crc32(rels.as_bytes()),
+                )
+            } else {
+                entry
+            }
+        })
+        .collect();
+    let rels_source = memory(&build_zip(&rels_entries));
+    let before = cdoc_m1_1_support::allocated();
+    let error = refused(rels_source, &default);
+    let rels_allocated = cdoc_m1_1_support::allocated() - before;
+    expect(
+        "_rels/.rels padded to over 4 MB",
+        error,
+        OpenError::Part {
+            part: "_rels/.rels".to_owned(),
+            error: PartReadError::CompressedPayloadTooLarge {
+                compressed: rels_stream.len() as u64,
+                declared: rels.len() as u64,
+                bound: deflate_bound(rels.len() as u64),
+            },
+        },
+    );
+    assert!(
+        rels_allocated < 1 << 20,
+        "opening a package whose {}-byte relationships payload is refused allocated {rels_allocated} bytes",
+        rels_stream.len()
+    );
+
+    // Expansion past the declared size within the compressed-size bound: one fixed Huffman block
+    // of 45 000 matches of 258 zeros, 73 128 bytes where its declared 65 536 bytes allow 74 757,
+    // with the CRC-32 of 65 536 zeros, so a reader that stopped at the declared size would find
+    // the declared CRC. Refused when read, the decoder's output stopped at the declared size.
+    let zeros_stream = fixed_zeros(45_000);
+    let zeros_expanded = cdoc_m1_3_support::inflate(&zeros_stream);
+    assert_eq!(zeros_expanded.len(), 1 + 258 * 45_000);
+    assert!(zeros_expanded.iter().all(|&byte| byte == 0));
+    drop(zeros_expanded);
+    assert_eq!(zeros_stream.len(), 73_128);
+    assert_eq!(deflate_bound(65_536), 75_776, "65536 + 8192 + 1024 + 1024");
+    let zeros_bytes = package_with(vec![RawEntry::deflated(
+        "xl/media/zeros.bin",
+        &zeros_stream,
+        65_536,
+        cdoc_m1_1_support::crc32(&vec![0u8; 65_536]),
+    )]);
+    let zeros_source = Arc::new(RecordingSource::new(zeros_bytes));
+    let source: Arc<dyn PackageRead> = zeros_source.clone();
+    let document = opened(source, &default);
+    let CountedRead {
+        result,
+        allocated: zeros_allocated,
+        ..
+    } = counted_read(&document, &zeros_source, "xl/media/zeros.bin");
+    assert_eq!(
+        result,
+        Err(PartReadError::ExpandsPastDeclaredSize { declared: 65_536 })
+    );
+    assert!(
+        zeros_allocated < 1 << 20,
+        "reading a part that expands to {} bytes allocated {zeros_allocated} bytes",
+        1 + 258 * 45_000
+    );
+    let zeros_saved = saved(&document);
+    assert_eq!(
         sha256(
-            lying_in
+            parse_zip(&zeros_saved)
                 .entry("xl/media/zeros.bin")
-                .payload(M1_1_LYING_SIZE)
+                .payload(&zeros_saved)
         ),
+        sha256(&zeros_stream),
         "the refused part's payload is still preserved by a save"
     );
 
-    // Payloads that are short, corrupt or carry the wrong CRC. `stored_block` is a raw DEFLATE
-    // stream of one final stored block (RFC 1951 section 3.2.4) holding `content`.
-    let stored_block = |content: &[u8]| {
-        let len = content.len() as u16;
-        let mut stream = vec![0x01];
-        stream.extend_from_slice(&len.to_le_bytes());
-        stream.extend_from_slice(&(!len).to_le_bytes());
-        stream.extend_from_slice(content);
-        stream
-    };
+    // A part whose decoder buffer grows: one fixed Huffman block of 3876 matches of 258 zeros,
+    // declaring its 1 000 009 bytes. The decoder starts its buffer at twice the payload, under a
+    // quarter of the declared size, and doubles it toward the declared size. The largest single
+    // allocation of the read is that buffer at the declared size, never more: growing it the way
+    // a vector grows by default would ask for about 1.6 MB.
+    let grown_stream = fixed_zeros(3_876);
+    let grown_size: usize = 1 + 258 * 3_876;
+    assert!(
+        2 * grown_stream.len() < grown_size / 2,
+        "the buffer starts below half the declared size and grows"
+    );
+    let grown_bytes = package_with(vec![RawEntry::deflated(
+        "xl/media/grown.bin",
+        &grown_stream,
+        u32::try_from(grown_size).expect("a declared size"),
+        cdoc_m1_1_support::crc32(&vec![0u8; grown_size]),
+    )]);
+    let grown_source = Arc::new(RecordingSource::new(grown_bytes));
+    let source: Arc<dyn PackageRead> = grown_source.clone();
+    let document = opened(source, &default);
+    cdoc_m1_1_support::reset_largest();
+    let grown = document.package().read_part("xl/media/grown.bin");
+    let grown_largest = cdoc_m1_1_support::largest();
+    let grown = grown.expect("a part of exactly its declared size and CRC reads");
+    assert_eq!(grown.len(), grown_size);
+    assert!(grown.iter().all(|&byte| byte == 0));
+    assert!(
+        grown_largest <= grown_size as u64,
+        "reading a part declaring {grown_size} bytes asked for {grown_largest} bytes at once"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: a fixed Huffman payload of {} bytes declaring {grown_size} read back; the largest single allocation of the read was {grown_largest} bytes",
+        grown_stream.len()
+    );
+
+    // Payloads that are short, corrupt, carry the wrong CRC, lie at or past the compressed-size
+    // bound or hold bytes after their final block. `stored_block` is a raw DEFLATE stream of one
+    // final stored block (RFC 1951 section 3.2.4) holding `content`.
+    let stored_block = final_stored_block;
+    // 33 bytes, which allow 33 + 5 + 1 + 1024 = 1063 compressed bytes: 205 empty stored blocks
+    // and the final block are exactly 1063.
+    let at_bound: &[u8] = b"0123456789abcdefghijklmnopqrstuvw";
+    assert_eq!(deflate_bound(33), 1063);
+    assert_eq!(padded_stream(205, at_bound).len(), 1063);
+    // What a streaming encoder writes when it ends an entry with a sync flush and then finishes:
+    // a flush marker and an empty final block after the content, 7 bytes for an empty entry and
+    // 9 for one byte, past that expansion of 0 and 1 bytes (0 and 3) and past the 5 and 8 that a
+    // 5-byte allowance would give.
+    let flushed_empty = flushed(b"");
+    let flushed_one = flushed(b"a");
+    assert_eq!(flushed_empty, [0x00, 0x00, 0x00, 0xFF, 0xFF, 0x03, 0x00]);
+    assert_eq!(flushed_one.len(), 9);
+    assert!(cdoc_m1_3_support::inflate(&flushed_empty).is_empty());
+    assert_eq!(cdoc_m1_3_support::inflate(&flushed_one), b"a");
+    let huffman_zeros = vec![0u8; 1 + 258 * 10];
     let defects = package_with(vec![
+        RawEntry::deflated(
+            "xl/media/at-bound.bin",
+            &padded_stream(205, at_bound),
+            33,
+            cdoc_m1_1_support::crc32(at_bound),
+        ),
+        RawEntry::deflated(
+            "xl/media/past-bound.bin",
+            &padded_stream(206, at_bound),
+            33,
+            cdoc_m1_1_support::crc32(at_bound),
+        ),
+        RawEntry::deflated(
+            "xl/media/huffman.bin",
+            &fixed_zeros(10),
+            huffman_zeros.len() as u32,
+            cdoc_m1_1_support::crc32(&huffman_zeros),
+        ),
+        RawEntry::deflated("xl/media/empty.bin", &empty_deflate, 0, 0),
+        RawEntry::deflated("xl/media/flushed-empty.bin", &flushed_empty, 0, 0),
+        RawEntry::deflated(
+            "xl/media/flushed-one.bin",
+            &flushed_one,
+            1,
+            cdoc_m1_1_support::crc32(b"a"),
+        ),
+        RawEntry::deflated(
+            "xl/media/trailing.bin",
+            &[stored_block(b"content"), vec![0x00]].concat(),
+            7,
+            cdoc_m1_1_support::crc32(b"content"),
+        ),
+        RawEntry::deflated("xl/media/trailing-bits.bin", &[0x03, 0x00, 0x00], 0, 0),
+        RawEntry::deflated(
+            "xl/media/huffman-trailing.bin",
+            &[fixed_zeros(10), vec![0xAB]].concat(),
+            huffman_zeros.len() as u32,
+            cdoc_m1_1_support::crc32(&huffman_zeros),
+        ),
         RawEntry::deflated("xl/media/short.bin", &empty_deflate, 10, 0),
         RawEntry::deflated("xl/media/reserved.bin", &[0x07], 1, 0),
         RawEntry::deflated("xl/media/truncated.bin", &[0x02], 1, 0),
@@ -4480,8 +4795,66 @@ fn cdoc_m1_1__malformed_zip() {
             name: "xl/missing.xml".to_owned()
         })
     );
+    assert_eq!(
+        package.read_part("xl/media/at-bound.bin"),
+        Ok(at_bound.to_vec()),
+        "control: a payload of exactly the compressed size its declared size allows reads"
+    );
+    assert_eq!(
+        package.read_part("xl/media/past-bound.bin"),
+        Err(PartReadError::CompressedPayloadTooLarge {
+            compressed: 1068,
+            declared: 33,
+            bound: 1063,
+        }),
+        "one empty stored block more"
+    );
+    assert_eq!(
+        package.read_part("xl/media/flushed-empty.bin"),
+        Ok(Vec::new()),
+        "an empty entry ended with a sync flush and an empty final block"
+    );
+    assert_eq!(
+        package.read_part("xl/media/flushed-one.bin"),
+        Ok(b"a".to_vec()),
+        "a one-byte entry ended with a sync flush and an empty final block"
+    );
+    assert_eq!(
+        package.read_part("xl/media/huffman.bin"),
+        Ok(huffman_zeros.clone()),
+        "control: a fixed Huffman block of its declared size and CRC reads"
+    );
+    assert_eq!(
+        package.read_part("xl/media/empty.bin"),
+        Ok(Vec::new()),
+        "control: an empty fixed block, whose 10 bits end in its second byte, reads"
+    );
+    assert_eq!(
+        package.read_part("xl/media/trailing.bin"),
+        Err(PartReadError::BytesAfterFinalBlock {
+            compressed: 13,
+            consumed: 12,
+        }),
+        "a final stored block of the declared content and CRC, then one byte"
+    );
+    assert_eq!(
+        package.read_part("xl/media/trailing-bits.bin"),
+        Err(PartReadError::BytesAfterFinalBlock {
+            compressed: 3,
+            consumed: 2,
+        }),
+        "an empty fixed block, then one byte after the byte its last bit ends in"
+    );
+    assert_eq!(
+        package.read_part("xl/media/huffman-trailing.bin"),
+        Err(PartReadError::BytesAfterFinalBlock {
+            compressed: 20,
+            consumed: 19,
+        }),
+        "a fixed Huffman block of 148 bits of the declared size and CRC, then one byte"
+    );
     note!(
-        "ACCEPT-NOTE: {CASE}: deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate); a stored payload with the wrong CRC (CrcMismatch)"
+        "ACCEPT-NOTE: {CASE}: deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC, a fixed Huffman block of its declared 2581 zeros, an empty block, an empty and a one-byte entry each ended with a sync-flush marker and an empty final block (7 and 9 bytes) and a padded payload of exactly the 1063 bytes 33 declared bytes allow read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate), 1068 bytes where 33 declared bytes allow 1063 (CompressedPayloadTooLarge), and a stored block, an empty fixed block and a fixed Huffman block each of its declared size and CRC with one byte after its final block (BytesAfterFinalBlock, 13 bytes consumed 12, 3 consumed 2, 20 consumed 19); a stored payload with the wrong CRC (CrcMismatch)"
     );
     let mut wrong = base_entries();
     let actual = wrong[0].crc32;
@@ -4983,7 +5356,17 @@ fn cdoc_m1_1__malformed_zip() {
         bomb_entry.end()
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: lying-size.xlsx opened; reading xl/media/zeros.bin (declared {declared_size} bytes, expands to {expanded_size}) refused with ExpandsPastDeclaredSize after this thread allocated {allocated} bytes; a no-op save kept its payload's SHA-256"
+        "ACCEPT-NOTE: {CASE}: lying-size.xlsx opened; reading xl/media/zeros.bin (declared {declared_size} bytes, a {}-byte payload that expands to {expanded_size}) refused with CompressedPayloadTooLarge (bound 5696) after this thread allocated {lying_allocated} bytes and with no read of its payload; a no-op save kept its payload's SHA-256",
+        lying_entry.compressed_size
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: an entry with an oversized compressed payload (valid DEFLATE of its declared 7 bytes and CRC padded to 4000012 bytes, bound 1033) refused when read with CompressedPayloadTooLarge after this thread allocated {padded_allocated} bytes, {} reads of the source, none of the payload; the same padding on _rels/.rels ({} bytes) refused at open with Part(CompressedPayloadTooLarge) after this thread allocated {rels_allocated} bytes",
+        padded_reads.len(),
+        rels_stream.len()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: a fixed Huffman payload of 73128 bytes (within the 75776 its declared 65536 bytes allow) that expands to {} bytes refused with ExpandsPastDeclaredSize after this thread allocated {zeros_allocated} bytes; a no-op save kept its payload's SHA-256",
+        1 + 258 * 45_000
     );
     note!(
         "ACCEPT-NOTE: {CASE}: {} parts opened, then refused when read: {:?}",

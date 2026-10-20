@@ -3,7 +3,8 @@
 //! A plan copies each entry it does not rewrite as its stored bytes (local header, compressed
 //! payload and data descriptor), unchanged, and writes a central directory whose records for
 //! those entries are the opened ones with only their local header offsets changed. Bytes between
-//! entries that no entry stores are not copied. An authored save ([`author`]) also rewrites parts:
+//! entries that no entry stores are not copied, and the receipt counts them
+//! ([`SaveReceipt::gap_bytes_dropped`]). An authored save ([`author`]) also rewrites parts:
 //! each is serialized and compressed while the plan is prepared, takes its source entry's place in
 //! both orders, and gets a new local header and central record; a part it adds is written after
 //! the others. [`write`] streams the plan to the sink entry by entry.
@@ -435,6 +436,12 @@ pub struct SaveReceipt {
     /// The worksheet parts rewritten that hold no changed cell, only to leave out their formulas'
     /// cached results.
     pub sheets_rewritten_for_caches: usize,
+    /// The bytes of the opened package that lie before its central directory in no entry's
+    /// stored bytes (before the first entry, between entries or after the last), which the save
+    /// did not write: it writes each entry's stored bytes, not the bytes around them. No entry
+    /// reaches these bytes, so no part loses content, but a byte-level comparison with the opened
+    /// package finds them gone: a save of the package as opened is this many bytes shorter.
+    pub gap_bytes_dropped: u64,
 }
 
 /// Why a write failed. A source that failed a read or no longer holds an entry's stored bytes as
@@ -673,5 +680,6 @@ pub fn write(plan: SavePlan, out: &mut dyn PackageWrite) -> Result<SaveReceipt, 
         revision: plan.revision,
         caches_dropped: plan.caches_dropped,
         sheets_rewritten_for_caches: plan.sheets_rewritten_for_caches,
+        gap_bytes_dropped: archive.unreferenced_bytes,
     })
 }

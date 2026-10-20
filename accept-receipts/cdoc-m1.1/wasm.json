@@ -8,13 +8,23 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -29,7 +39,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-value",
                 "calc-verdict"
@@ -40,13 +54,23 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -61,7 +85,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-oracle-excel",
                 "calc-value",
@@ -73,13 +101,23 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -94,7 +132,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-oracle-excel",
                 "calc-value",
@@ -118,16 +160,16 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 10,
-          "calc-doc-model": 11,
-          "calc-engine": 1,
-          "calc-fml": 1,
-          "calc-func": 8,
+          "calc-doc": 24,
+          "calc-doc-model": 12,
+          "calc-engine": 7,
+          "calc-fml": 15,
+          "calc-func": 10,
           "calc-host": 1,
           "calc-value": 5,
           "calc-verdict": 11,
           "dna-calc": 1,
-          "dna-onecalc": 1
+          "dna-onecalc": 5
         },
         "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
         "targets": [
@@ -138,7 +180,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "50 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "91 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -236,7 +278,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 50,
+        "files_scanned": 91,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -249,41 +291,41 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "50 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "91 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
       "details": {
         "packages": {
           "calc-doc": {
-            "entries": 50,
-            "entries_reach_unproven": 50,
-            "pub_enum_variants": 48,
+            "entries": 94,
+            "entries_reach_unproven": 94,
+            "pub_enum_variants": 92,
             "pub_traits": 2
           },
           "calc-doc-model": {
-            "entries": 56,
-            "entries_reach_unproven": 56,
-            "pub_enum_variants": 56,
+            "entries": 61,
+            "entries_reach_unproven": 61,
+            "pub_enum_variants": 61,
             "pub_traits": 0
           },
           "calc-engine": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 36,
+            "entries_reach_unproven": 36,
+            "pub_enum_variants": 35,
+            "pub_traits": 1
           },
           "calc-fml": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 100,
+            "entries_reach_unproven": 100,
+            "pub_enum_variants": 98,
+            "pub_traits": 2
           },
           "calc-func": {
-            "entries": 18,
-            "entries_reach_unproven": 18,
-            "pub_enum_variants": 17,
-            "pub_traits": 1
+            "entries": 20,
+            "entries_reach_unproven": 20,
+            "pub_enum_variants": 18,
+            "pub_traits": 2
           },
           "calc-host": {
             "entries": 0,
@@ -310,28 +352,33 @@
             "pub_traits": 0
           },
           "dna-onecalc": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
+            "entries": 13,
+            "entries_reach_unproven": 13,
+            "pub_enum_variants": 13,
             "pub_traits": 0
           }
         },
         "reach": {
-          "entries_reach_unproven": 210,
+          "entries_reach_unproven": 410,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 206 pub enum variants and 4 pub traits; their seams.json files list 210 entries, 210 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 402 pub enum variants and 8 pub traits; their seams.json files list 410 entries, 410 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
       "details": {
         "baseline_owner": "dc-0nvp",
         "baseline_recorded": "2026-10-14",
-        "commits": {},
+        "commits": {
+          "e24e1e355d92950513eee0bd91722729ef6bbb12": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
         "excluded_identifiers": [
           {
             "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
@@ -356,7 +403,7 @@
             "masked": {
               "commit_messages": 0,
               "files": 3,
-              "tracker_records": 1
+              "tracker_records": 2
             },
             "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
           },
@@ -415,9 +462,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 51,
+          "commit_messages": 124,
           "files": 20,
-          "tracker_records": 318
+          "tracker_records": 335
         },
         "tracker": {
           "ceng-m7.1": {
@@ -468,7 +515,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 318 tracker records, 0 in 0 of 51 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 335 tracker records, 1 in 1 of 124 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -831,7 +878,7 @@
           ],
           "browser": "chromium",
           "case": "cdoc_m1_1__raw_preservation@chromium",
-          "duration_s": 4.328,
+          "duration_s": 5.474,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -855,14 +902,14 @@
           "exit_code": 0,
           "log": "target/accept/cdoc-m1.1/wasm/cdoc_m1_1__raw_preservation@chromium.log",
           "notes": [
-            "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte",
-            "a payload byte changed after opening: the save refused with SourceChanged after 52904 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes"
+            "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped, the receipt reported gap_bytes_dropped 37, and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte with gap_bytes_dropped 0; a package with 6 bytes before its first entry and 4 after its last saved 10 bytes shorter with gap_bytes_dropped 10",
+            "a payload byte changed after opening: the save refused with SourceChanged after 0 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes"
           ],
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 4 filtered out; finished in 0.32s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:52893/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.36s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:56614/`"
         },
         {
           "argv": [
@@ -884,7 +931,7 @@
           ],
           "browser": "firefox",
           "case": "cdoc_m1_1__raw_preservation@firefox",
-          "duration_s": 7.603,
+          "duration_s": 8.629,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -908,25 +955,25 @@
           "exit_code": 0,
           "log": "target/accept/cdoc-m1.1/wasm/cdoc_m1_1__raw_preservation@firefox.log",
           "notes": [
-            "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte",
-            "a payload byte changed after opening: the save refused with SourceChanged after 52904 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes"
+            "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped, the receipt reported gap_bytes_dropped 37, and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte with gap_bytes_dropped 0; a package with 6 bytes before its first entry and 4 after its last saved 10 bytes shorter with gap_bytes_dropped 10",
+            "a payload byte changed after opening: the save refused with SourceChanged after 0 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes"
           ],
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 4 filtered out; finished in 0.39s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:52393/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.41s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59636/`"
         }
       ],
       "case": "cdoc_m1_1__raw_preservation",
-      "duration_s": 11.931,
+      "duration_s": 14.103,
       "exit_code": 0,
       "log": null,
       "notes": [
-        "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte",
-        "a payload byte changed after opening: the save refused with SourceChanged after 52904 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes",
-        "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte",
-        "a payload byte changed after opening: the save refused with SourceChanged after 52904 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes"
+        "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped, the receipt reported gap_bytes_dropped 37, and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte with gap_bytes_dropped 0; a package with 6 bytes before its first entry and 4 after its last saved 10 bytes shorter with gap_bytes_dropped 10",
+        "a payload byte changed after opening: the save refused with SourceChanged after 0 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes",
+        "package.xlsx (56415 bytes, 12 entries, 10 parts, 9 XML parts read lazily to the .NET XmlDocument counts, 3 relationships parts) saved unchanged to 56378 bytes: every entry's stored fields and payload SHA-256 equal the source's and the generator's, read back by the case's own ZIP reader; the 37 unreferenced bytes were dropped, the receipt reported gap_bytes_dropped 37, and the entries after them moved back by 37; the reopened package has the same content types, relationships and part contents and saves to itself byte for byte with gap_bytes_dropped 0; a package with 6 bytes before its first entry and 4 after its last saved 10 bytes shorter with gap_bytes_dropped 10",
+        "a payload byte changed after opening: the save refused with SourceChanged after 0 bytes, and the lazy read with CorruptDeflate { detail: \"the stream is not valid DEFLATE\" }; a source that shrank refused with Source; a sink full at 10000 bytes refused with Sink after taking a prefix of 1196 bytes"
       ],
       "outcome": "passed",
       "package": "calc-doc",
@@ -972,7 +1019,7 @@
           ],
           "browser": "chromium",
           "case": "cdoc_m1_1__malformed_zip@chromium",
-          "duration_s": 3.909,
+          "duration_s": 6.239,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -996,10 +1043,13 @@
           "exit_code": 0,
           "log": "target/accept/cdoc-m1.1/wasm/cdoc_m1_1__malformed_zip@chromium.log",
           "notes": [
-            "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate); a stored payload with the wrong CRC (CrcMismatch)",
-            "37 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
+            "a fixed Huffman payload of 6301 bytes declaring 1000009 read back; the largest single allocation of the read was 1000009 bytes",
+            "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC, a fixed Huffman block of its declared 2581 zeros, an empty block, an empty and a one-byte entry each ended with a sync-flush marker and an empty final block (7 and 9 bytes) and a padded payload of exactly the 1063 bytes 33 declared bytes allow read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate), 1068 bytes where 33 declared bytes allow 1063 (CompressedPayloadTooLarge), and a stored block, an empty fixed block and a fixed Huffman block each of its declared size and CRC with one byte after its final block (BytesAfterFinalBlock, 13 bytes consumed 12, 3 consumed 2, 20 consumed 19); a stored payload with the wrong CRC (CrcMismatch)",
+            "38 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"_rels/.rels padded to over 4 MB: the part \\\"_rels/.rels\\\" could not be read: the deflated payload is 4000283 bytes, over the 1342 bytes its declared 278 bytes allow\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
             "the 4 GiB declared-size bomb was refused after 2 reads of 65868 bytes of a 101447-byte archive, none reaching its entry's bytes 0..49",
-            "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, expands to 67108864) refused with ExpandsPastDeclaredSize after this thread allocated 79828 bytes; a no-op save kept its payload's SHA-256",
+            "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, a 65232-byte payload that expands to 67108864) refused with CompressedPayloadTooLarge (bound 5696) after this thread allocated 0 bytes and with no read of its payload; a no-op save kept its payload's SHA-256",
+            "an entry with an oversized compressed payload (valid DEFLATE of its declared 7 bytes and CRC padded to 4000012 bytes, bound 1033) refused when read with CompressedPayloadTooLarge after this thread allocated 0 bytes, 0 reads of the source, none of the payload; the same padding on _rels/.rels (4000283 bytes) refused at open with Part(CompressedPayloadTooLarge) after this thread allocated 136411 bytes",
+            "a fixed Huffman payload of 73128 bytes (within the 75776 its declared 65536 bytes allow) that expands to 11610001 bytes refused with ExpandsPastDeclaredSize after this thread allocated 149164 bytes; a no-op save kept its payload's SHA-256",
             "10 parts opened, then refused when read: [\"an external entity in a workbook: a document type declaration, which is refused\", \"an unterminated document type declaration: a document type declaration, which is refused\", \"an undeclared entity in text: the undefined entity &xxe;\", \"an undeclared entity in an attribute: the undefined entity &xxe;\", \"five nested elements under a depth limit of four: elements nest deeper than 4\", \"four attributes under a limit of three: an element carries more than 3 attributes\", \"an undeclared prefix: the namespace prefix \\\"x\\\" is not declared\", \"a declared Latin-1 encoding: the encoding \\\"ISO-8859-1\\\", where UTF-8 is required\", \"a UTF-16 workbook: UnsupportedEncoding\", \"a mismatched end tag: Malformed\"]",
             "sources that fail at one place only, each read recorded by the source: [\"a source whose first entry's local header is unreadable: refused with Source at bytes 0..30, after 2 successful reads (0 of 4 local headers)\", \"a source with one unreadable byte inside the first entry's payload: refused with Source at bytes 65536..131072, after 11 successful reads (4 of 4 local headers)\", \"xl/workbook.xml read after its payload bytes 882..1016 became unreadable: refused with Source; _rels/.rels still read\"]",
             "the browser gives the case no file system to inspect; calc-doc's non-test code names no std::fs (the os-imports architecture check)"
@@ -1007,8 +1057,8 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 4 filtered out; finished in 0.12s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53203/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.99s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60945/`"
         },
         {
           "argv": [
@@ -1030,7 +1080,7 @@
           ],
           "browser": "firefox",
           "case": "cdoc_m1_1__malformed_zip@firefox",
-          "duration_s": 7.684,
+          "duration_s": 11.677,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1054,10 +1104,13 @@
           "exit_code": 0,
           "log": "target/accept/cdoc-m1.1/wasm/cdoc_m1_1__malformed_zip@firefox.log",
           "notes": [
-            "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate); a stored payload with the wrong CRC (CrcMismatch)",
-            "37 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
+            "a fixed Huffman payload of 6301 bytes declaring 1000009 read back; the largest single allocation of the read was 1000009 bytes",
+            "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC, a fixed Huffman block of its declared 2581 zeros, an empty block, an empty and a one-byte entry each ended with a sync-flush marker and an empty final block (7 and 9 bytes) and a padded payload of exactly the 1063 bytes 33 declared bytes allow read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate), 1068 bytes where 33 declared bytes allow 1063 (CompressedPayloadTooLarge), and a stored block, an empty fixed block and a fixed Huffman block each of its declared size and CRC with one byte after its final block (BytesAfterFinalBlock, 13 bytes consumed 12, 3 consumed 2, 20 consumed 19); a stored payload with the wrong CRC (CrcMismatch)",
+            "38 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"_rels/.rels padded to over 4 MB: the part \\\"_rels/.rels\\\" could not be read: the deflated payload is 4000283 bytes, over the 1342 bytes its declared 278 bytes allow\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
             "the 4 GiB declared-size bomb was refused after 2 reads of 65868 bytes of a 101447-byte archive, none reaching its entry's bytes 0..49",
-            "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, expands to 67108864) refused with ExpandsPastDeclaredSize after this thread allocated 79828 bytes; a no-op save kept its payload's SHA-256",
+            "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, a 65232-byte payload that expands to 67108864) refused with CompressedPayloadTooLarge (bound 5696) after this thread allocated 0 bytes and with no read of its payload; a no-op save kept its payload's SHA-256",
+            "an entry with an oversized compressed payload (valid DEFLATE of its declared 7 bytes and CRC padded to 4000012 bytes, bound 1033) refused when read with CompressedPayloadTooLarge after this thread allocated 0 bytes, 0 reads of the source, none of the payload; the same padding on _rels/.rels (4000283 bytes) refused at open with Part(CompressedPayloadTooLarge) after this thread allocated 136411 bytes",
+            "a fixed Huffman payload of 73128 bytes (within the 75776 its declared 65536 bytes allow) that expands to 11610001 bytes refused with ExpandsPastDeclaredSize after this thread allocated 149164 bytes; a no-op save kept its payload's SHA-256",
             "10 parts opened, then refused when read: [\"an external entity in a workbook: a document type declaration, which is refused\", \"an unterminated document type declaration: a document type declaration, which is refused\", \"an undeclared entity in text: the undefined entity &xxe;\", \"an undeclared entity in an attribute: the undefined entity &xxe;\", \"five nested elements under a depth limit of four: elements nest deeper than 4\", \"four attributes under a limit of three: an element carries more than 3 attributes\", \"an undeclared prefix: the namespace prefix \\\"x\\\" is not declared\", \"a declared Latin-1 encoding: the encoding \\\"ISO-8859-1\\\", where UTF-8 is required\", \"a UTF-16 workbook: UnsupportedEncoding\", \"a mismatched end tag: Malformed\"]",
             "sources that fail at one place only, each read recorded by the source: [\"a source whose first entry's local header is unreadable: refused with Source at bytes 0..30, after 2 successful reads (0 of 4 local headers)\", \"a source with one unreadable byte inside the first entry's payload: refused with Source at bytes 65536..131072, after 11 successful reads (4 of 4 local headers)\", \"xl/workbook.xml read after its payload bytes 882..1016 became unreadable: refused with Source; _rels/.rels still read\"]",
             "the browser gives the case no file system to inspect; calc-doc's non-test code names no std::fs (the os-imports architecture check)"
@@ -1065,26 +1118,32 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 4 filtered out; finished in 0.12s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:52414/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 1.60s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59657/`"
         }
       ],
       "case": "cdoc_m1_1__malformed_zip",
-      "duration_s": 11.593,
+      "duration_s": 17.916,
       "exit_code": 0,
       "log": null,
       "notes": [
-        "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate); a stored payload with the wrong CRC (CrcMismatch)",
-        "37 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
+        "a fixed Huffman payload of 6301 bytes declaring 1000009 read back; the largest single allocation of the read was 1000009 bytes",
+        "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC, a fixed Huffman block of its declared 2581 zeros, an empty block, an empty and a one-byte entry each ended with a sync-flush marker and an empty final block (7 and 9 bytes) and a padded payload of exactly the 1063 bytes 33 declared bytes allow read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate), 1068 bytes where 33 declared bytes allow 1063 (CompressedPayloadTooLarge), and a stored block, an empty fixed block and a fixed Huffman block each of its declared size and CRC with one byte after its final block (BytesAfterFinalBlock, 13 bytes consumed 12, 3 consumed 2, 20 consumed 19); a stored payload with the wrong CRC (CrcMismatch)",
+        "38 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"_rels/.rels padded to over 4 MB: the part \\\"_rels/.rels\\\" could not be read: the deflated payload is 4000283 bytes, over the 1342 bytes its declared 278 bytes allow\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
         "the 4 GiB declared-size bomb was refused after 2 reads of 65868 bytes of a 101447-byte archive, none reaching its entry's bytes 0..49",
-        "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, expands to 67108864) refused with ExpandsPastDeclaredSize after this thread allocated 79828 bytes; a no-op save kept its payload's SHA-256",
+        "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, a 65232-byte payload that expands to 67108864) refused with CompressedPayloadTooLarge (bound 5696) after this thread allocated 0 bytes and with no read of its payload; a no-op save kept its payload's SHA-256",
+        "an entry with an oversized compressed payload (valid DEFLATE of its declared 7 bytes and CRC padded to 4000012 bytes, bound 1033) refused when read with CompressedPayloadTooLarge after this thread allocated 0 bytes, 0 reads of the source, none of the payload; the same padding on _rels/.rels (4000283 bytes) refused at open with Part(CompressedPayloadTooLarge) after this thread allocated 136411 bytes",
+        "a fixed Huffman payload of 73128 bytes (within the 75776 its declared 65536 bytes allow) that expands to 11610001 bytes refused with ExpandsPastDeclaredSize after this thread allocated 149164 bytes; a no-op save kept its payload's SHA-256",
         "10 parts opened, then refused when read: [\"an external entity in a workbook: a document type declaration, which is refused\", \"an unterminated document type declaration: a document type declaration, which is refused\", \"an undeclared entity in text: the undefined entity &xxe;\", \"an undeclared entity in an attribute: the undefined entity &xxe;\", \"five nested elements under a depth limit of four: elements nest deeper than 4\", \"four attributes under a limit of three: an element carries more than 3 attributes\", \"an undeclared prefix: the namespace prefix \\\"x\\\" is not declared\", \"a declared Latin-1 encoding: the encoding \\\"ISO-8859-1\\\", where UTF-8 is required\", \"a UTF-16 workbook: UnsupportedEncoding\", \"a mismatched end tag: Malformed\"]",
         "sources that fail at one place only, each read recorded by the source: [\"a source whose first entry's local header is unreadable: refused with Source at bytes 0..30, after 2 successful reads (0 of 4 local headers)\", \"a source with one unreadable byte inside the first entry's payload: refused with Source at bytes 65536..131072, after 11 successful reads (4 of 4 local headers)\", \"xl/workbook.xml read after its payload bytes 882..1016 became unreadable: refused with Source; _rels/.rels still read\"]",
         "the browser gives the case no file system to inspect; calc-doc's non-test code names no std::fs (the os-imports architecture check)",
-        "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate); a stored payload with the wrong CRC (CrcMismatch)",
-        "37 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
+        "a fixed Huffman payload of 6301 bytes declaring 1000009 read back; the largest single allocation of the read was 1000009 bytes",
+        "deflated payloads read through the output-limited decoder: one of exactly its declared 7 bytes and CRC, a fixed Huffman block of its declared 2581 zeros, an empty block, an empty and a one-byte entry each ended with a sync-flush marker and an empty final block (7 and 9 bytes) and a padded payload of exactly the 1063 bytes 33 declared bytes allow read back; refused were one past its declared 6 bytes (ExpandsPastDeclaredSize), one of 0 bytes declaring 10 (ShorterThanDeclared), one with the wrong CRC (CrcMismatch), a reserved block type and a cut-off block (CorruptDeflate), 1068 bytes where 33 declared bytes allow 1063 (CompressedPayloadTooLarge), and a stored block, an empty fixed block and a fixed Huffman block each of its declared size and CRC with one byte after its final block (BytesAfterFinalBlock, 13 bytes consumed 12, 3 consumed 2, 20 consumed 19); a stored payload with the wrong CRC (CrcMismatch)",
+        "38 packages refused at open with the expected typed error: [\"entry name \\\"../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/../../cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl/./cdoc_m1_1_zip_slip.xml\\\" is refused: DotSegment\", \"entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"/tmp/cdoc_m1_1_zip_slip.xml\\\" is refused: Absolute\", \"entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"..\\\\\\\\cdoc_m1_1_zip_slip.xml\\\" is refused: Backslash\", \"entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"C:/cdoc_m1_1_zip_slip.xml\\\" is refused: Colon\", \"entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\": the entry name \\\"xl/workbook.xml:cdoc_m1_1_zip_slip\\\" is refused: Colon\", \"entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\": the entry name \\\"xl//cdoc_m1_1_zip_slip.xml\\\" is refused: EmptySegment\", \"entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\": the entry name \\\"xl/cdoc_m1_1\\\\u{1}zip_slip.xml\\\" is refused: ControlCharacter\", \"entry name \\\"\\\": the entry name \\\"\\\" is refused: Empty\", \"a Latin-1 name without the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an invalid UTF-8 name with the UTF-8 flag: the entry name in the central record at byte 1247 is not readable text\", \"an entry declaring 4 GiB - 2 bytes: the entry \\\"xl/media/bomb.bin\\\" declares 4294967294 bytes, over the limit of 1073741824\", \"a 2000-byte entry under a 1000-byte part limit: the entry \\\"xl/media/big.bin\\\" declares 2000 bytes, over the limit of 1000\", \"six entries declaring 900 MB each: the entries declare 5400000881 bytes in all, over the limit of 4294967296\", \"five entries under a four-entry limit: the archive declares 5 entries, over the limit of 4\", \"a package over a 100-byte package limit: the package is 1221 bytes long, over the limit of 100\", \"an entry stored inside another: the entries \\\"xl/media/a.bin\\\" and \\\"xl/media/b.bin\\\" overlap\", \"_rels/.rels padded to over 4 MB: the part \\\"_rels/.rels\\\" could not be read: the deflated payload is 4000283 bytes, over the 1342 bytes its declared 278 bytes allow\", \"[Content_Types].xml with the wrong CRC: the part \\\"[Content_Types].xml\\\" could not be read: the content's CRC-32 is 6f664e44, not its declared 6f664e45\", \"[Content_Types].xml declaring an external entity: the part \\\"[Content_Types].xml\\\" is refused: a document type declaration, which is refused\", \"_rels/.rels expanding an entity to 10^9 copies: the part \\\"_rels/.rels\\\" is refused: a document type declaration, which is refused\", \"a text file: the source is not a ZIP archive\", \"an empty source: the source is not a ZIP archive\", \"an end record whose entry counts are ZIP64's: the archive uses ZIP64, which is not read\", \"a ZIP64 locator before the end record: the archive uses ZIP64, which is not read\", \"an end record on disk 1: the archive spans more than one disk\", \"a central directory offset one byte off: the archive is malformed at byte 1199: the central directory does not end where the end record starts\", \"a local header naming another entry: the archive is malformed at byte 0: a local header's name differs from its central record's\", \"an encrypted entry: the entry \\\"xl/media/secret.bin\\\" is encrypted\", \"a bzip2 entry: the entry \\\"xl/media/b.bz2\\\" uses compression method 12, which is not read\", \"two names equal ignoring case: two entries are named \\\"XL/MEDIA/A.BIN\\\" (ignoring ASCII case)\", \"a package without [Content_Types].xml: the package has no [Content_Types].xml\", \"[Content_Types].xml whose document element is not Types: [Content_Types].xml is invalid: the document element is not Types\", \"a relationship whose TargetMode is neither Internal nor External: the relationships part \\\"_rels/.rels\\\" is invalid: a TargetMode other than Internal or External\", \"a source that fails every read: the package source failed: the medium is unreadable\", \"a source whose first entry's local header is unreadable: the package source failed: bytes 0..30 are unreadable\", \"a source with one unreadable byte inside the first entry's payload: the package source failed: bytes 100000..100001 are unreadable\"]",
         "the 4 GiB declared-size bomb was refused after 2 reads of 65868 bytes of a 101447-byte archive, none reaching its entry's bytes 0..49",
-        "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, expands to 67108864) refused with ExpandsPastDeclaredSize after this thread allocated 79828 bytes; a no-op save kept its payload's SHA-256",
+        "lying-size.xlsx opened; reading xl/media/zeros.bin (declared 4096 bytes, a 65232-byte payload that expands to 67108864) refused with CompressedPayloadTooLarge (bound 5696) after this thread allocated 0 bytes and with no read of its payload; a no-op save kept its payload's SHA-256",
+        "an entry with an oversized compressed payload (valid DEFLATE of its declared 7 bytes and CRC padded to 4000012 bytes, bound 1033) refused when read with CompressedPayloadTooLarge after this thread allocated 0 bytes, 0 reads of the source, none of the payload; the same padding on _rels/.rels (4000283 bytes) refused at open with Part(CompressedPayloadTooLarge) after this thread allocated 136411 bytes",
+        "a fixed Huffman payload of 73128 bytes (within the 75776 its declared 65536 bytes allow) that expands to 11610001 bytes refused with ExpandsPastDeclaredSize after this thread allocated 149164 bytes; a no-op save kept its payload's SHA-256",
         "10 parts opened, then refused when read: [\"an external entity in a workbook: a document type declaration, which is refused\", \"an unterminated document type declaration: a document type declaration, which is refused\", \"an undeclared entity in text: the undefined entity &xxe;\", \"an undeclared entity in an attribute: the undefined entity &xxe;\", \"five nested elements under a depth limit of four: elements nest deeper than 4\", \"four attributes under a limit of three: an element carries more than 3 attributes\", \"an undeclared prefix: the namespace prefix \\\"x\\\" is not declared\", \"a declared Latin-1 encoding: the encoding \\\"ISO-8859-1\\\", where UTF-8 is required\", \"a UTF-16 workbook: UnsupportedEncoding\", \"a mismatched end tag: Malformed\"]",
         "sources that fail at one place only, each read recorded by the source: [\"a source whose first entry's local header is unreadable: refused with Source at bytes 0..30, after 2 successful reads (0 of 4 local headers)\", \"a source with one unreadable byte inside the first entry's payload: refused with Source at bytes 65536..131072, after 11 successful reads (4 of 4 local headers)\", \"xl/workbook.xml read after its payload bytes 882..1016 became unreadable: refused with Source; _rels/.rels still read\"]",
         "the browser gives the case no file system to inspect; calc-doc's non-test code names no std::fs (the os-imports architecture check)"
@@ -1118,13 +1177,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 0.428,
+      "duration_s": 4.037,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.24s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 1.23s"
       ],
       "log": "target/accept/cdoc-m1.1/wasm/command-1.log",
       "outcome": "passed",
@@ -1224,7 +1283,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 37.453,
+  "duration_s": 61.014,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1235,122 +1294,72 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "d0e363eaecad48eba4088249143389a9c5dabbca",
-          "path": "Cargo.lock",
+          "blob": "366f264b508ee20c53e82aefe01f5e4e43c80a60",
+          "path": "accept-receipts/cdoc-m1.1/windows.json",
           "status": "M"
         },
         {
-          "blob": "d3279165208c9f57ceadce9c06b0959ab631249a",
-          "path": "crates/calc-doc/Cargo.toml",
+          "blob": "651ffffb141537b8bc5b99d7c2104cd91c0d6d44",
+          "path": "accept-receipts/cdoc-m1.2/wasm.json",
           "status": "M"
         },
         {
-          "blob": "b351f9e7093bf9c2b2182966508f9086ced3fb8f",
-          "path": "crates/calc-doc/acceptance.json",
+          "blob": "7c79fb9ab37434fbd66dbebf455ab6af7f346e05",
+          "path": "accept-receipts/cdoc-m1.2/windows.json",
           "status": "M"
         },
         {
-          "blob": "fc4d84a58edce783a65cd9adff3f5b9e5de3c920",
+          "blob": "de9eebe6708cb37cf3b1e011ec43fa59458546c0",
+          "path": "accept-receipts/cdoc-m1.3/wasm.json",
+          "status": "M"
+        },
+        {
+          "blob": "ba5a0d04058292d186f5816a264e92076ae1b335",
+          "path": "accept-receipts/cdoc-m1.3/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "ae1c8a92ee4e0c165bdb4ab7b32d6a955041bc2f",
           "path": "crates/calc-doc/seams.json",
           "status": "M"
         },
         {
-          "blob": "b495e3e654726b54083e58b22bd8070e062121ca",
+          "blob": "c8df92f03036533f0b12e99c56fac100d4656ba0",
+          "path": "crates/calc-doc/src/error.rs",
+          "status": "M"
+        },
+        {
+          "blob": "2ca8ae5d764da79ff264166bbc781e37585b42a3",
           "path": "crates/calc-doc/src/lib.rs",
           "status": "M"
         },
         {
-          "blob": "9e5774fc74d3cc70b9409b44efa42d6b5a67d592",
+          "blob": "07285fadae0e5191158334e7745a549db53d55f8",
+          "path": "crates/calc-doc/src/policy.rs",
+          "status": "M"
+        },
+        {
+          "blob": "720b52f0b455401fdb378c12bbd6cf5956e2922b",
+          "path": "crates/calc-doc/src/save/mod.rs",
+          "status": "M"
+        },
+        {
+          "blob": "47443b71465fb4c0167c8cda8f2baee08b1877fd",
+          "path": "crates/calc-doc/src/zip/mod.rs",
+          "status": "M"
+        },
+        {
+          "blob": "dcde4a9179944e3f1bedb81c64788b84245b10e0",
           "path": "crates/calc-doc/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "572878c064a6b2aafb5d01c498f1a5e12e0149a0",
-          "path": "tools/xtask/licenses.json",
-          "status": "M"
-        },
-        {
-          "blob": "e948568742da463262b7cc58f1eaf8a8251926a0",
-          "path": "accept-receipts/cdoc-m1.1/windows.json",
-          "status": "??"
-        },
-        {
-          "blob": "c211ececeb4667d57e5fa4243e891b4cfd930ae0",
-          "path": "crates/calc-doc/src/error.rs",
-          "status": "??"
-        },
-        {
-          "blob": "661690e1731d4e7d162360ee942186b17ef46c06",
-          "path": "crates/calc-doc/src/opc.rs",
-          "status": "??"
-        },
-        {
-          "blob": "c5522689a596df91c0eddfcaa8c33733f2e24807",
-          "path": "crates/calc-doc/src/policy.rs",
-          "status": "??"
-        },
-        {
-          "blob": "1b1eeffe64645892d97337df33cc873e9f159082",
-          "path": "crates/calc-doc/src/save.rs",
-          "status": "??"
-        },
-        {
-          "blob": "f34e64dcac53be603afb853c450922cc4ddce805",
-          "path": "crates/calc-doc/src/source.rs",
-          "status": "??"
-        },
-        {
-          "blob": "6c03a63a2319ed5c20a3c76d30bcb7ddabcee3b7",
-          "path": "crates/calc-doc/src/xml.rs",
-          "status": "??"
-        },
-        {
-          "blob": "e7b42ff7ef1f3ea21d0b09a973bcfebcb3ca33a9",
-          "path": "crates/calc-doc/src/zip/crc32.rs",
-          "status": "??"
-        },
-        {
-          "blob": "c5050575a3fce1b1ad4543c10a304730c212de19",
-          "path": "crates/calc-doc/src/zip/mod.rs",
-          "status": "??"
-        },
-        {
-          "blob": "b5136e2849c99cdff594d724ac6aa1756e24f80e",
-          "path": "crates/calc-doc/src/zip/name.rs",
-          "status": "??"
-        },
-        {
-          "blob": "452ceee5c505b41f3d0aaf492b8546d84c6ee8df",
+          "blob": "8802edbf0c3a9185d9ed5a7e353f7f64113b4df8",
           "path": "crates/calc-doc/tests/cdoc_m1_1_support/mod.rs",
-          "status": "??"
-        },
-        {
-          "blob": "45aa86b30e86d834e38e85c0ecfeec3a887cd2fd",
-          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_1/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "2ff525a524b93d1a52aafc11cab990d63b6145b8",
-          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_1/lying-size.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "5c12d7ce6a7cf6a124086ac1c6af07b11f14e864",
-          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_1/make-fixtures.ps1",
-          "status": "??"
-        },
-        {
-          "blob": "49502176f07447647968f8f5416700e98150c10d",
-          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_1/manifest.json",
-          "status": "??"
-        },
-        {
-          "blob": "4a417fae6846e8109f7e471cb995018fd42c5e6a",
-          "path": "crates/calc-doc/tests/fixtures/cdoc_m1_1/package.xlsx",
-          "status": "??"
+          "status": "M"
         }
       ],
-      "head": "4ab6ab809c28f3728b0abebf3586070be990ac8d",
+      "head": "45df27b3c7fc63aaf8c6da876d4d5e8f5f7bc4eb",
       "receipt_paths_left_out": [
         "accept-receipts/cdoc-m1.1/wasm.json"
       ]
@@ -1371,6 +1380,7 @@
     "files": [
       "crates/calc-value/acceptance.json",
       "crates/calc-func/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
       "crates/calc-fml/acceptance.json",
       "crates/calc-doc-model/acceptance.json",
       "crates/calc-doc/acceptance.json",
@@ -1380,7 +1390,6 @@
       "apps/dna-calc/acceptance.json",
       "platform/calc-platform-desktop/acceptance.json",
       "platform/calc-oracle-excel/acceptance.json",
-      "tools/calc-verdict/acceptance.json",
       "tools/xtask/acceptance.json"
     ]
   },
@@ -1391,5 +1400,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-19T21:03:35Z"
+  "started_utc": "2026-10-20T20:08:23Z"
 }

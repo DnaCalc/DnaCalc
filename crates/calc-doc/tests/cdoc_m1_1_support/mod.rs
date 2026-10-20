@@ -361,19 +361,133 @@ pub fn build_zip(entries: &[RawEntry]) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// DEFLATE streams (RFC 1951), written bit by bit.
+
+/// Bits packed into bytes from each byte's least significant bit up, as DEFLATE packs them.
+#[derive(Default)]
+struct BitWriter {
+    bytes: Vec<u8>,
+    used: u32,
+}
+
+impl BitWriter {
+    fn bit(&mut self, bit: u32) {
+        if self.used == 0 {
+            self.bytes.push(0);
+        }
+        *self.bytes.last_mut().expect("a byte") |= ((bit & 1) as u8) << self.used;
+        self.used = (self.used + 1) % 8;
+    }
+
+    /// A header field: `count` bits of `value`, least significant first.
+    fn field(&mut self, value: u32, count: u32) {
+        for index in 0..count {
+            self.bit(value >> index);
+        }
+    }
+
+    /// A Huffman code of `count` bits, most significant first.
+    fn code(&mut self, code: u32, count: u32) {
+        for index in (0..count).rev() {
+            self.bit(code >> index);
+        }
+    }
+
+    /// Pads with zero bits to the next byte boundary.
+    fn align(&mut self) {
+        while self.used != 0 {
+            self.bit(0);
+        }
+    }
+}
+
+/// An empty stored block that is not the final block: BFINAL 0 and BTYPE 00 in the first byte,
+/// the rest of it padding, then LEN 0 and NLEN 0xFFFF.
+pub const EMPTY_STORED_BLOCK: [u8; 5] = [0x00, 0x00, 0x00, 0xFF, 0xFF];
+
+/// One final stored block holding `content` (at most 65 535 bytes): BFINAL 1 and BTYPE 00, then
+/// LEN and NLEN, then the bytes.
+pub fn final_stored_block(content: &[u8]) -> Vec<u8> {
+    let len = u16::try_from(content.len()).expect("a stored block holds at most 65 535 bytes");
+    let mut stream = vec![0x01];
+    stream.extend_from_slice(&len.to_le_bytes());
+    stream.extend_from_slice(&(!len).to_le_bytes());
+    stream.extend_from_slice(content);
+    stream
+}
+
+/// `content` as a streaming encoder ends it with a sync flush and then finishes: one block that is
+/// not the final block, with the fixed Huffman codes, holding `content` as literals (none when
+/// `content` is empty, and then no such block), then a sync-flush marker (an empty stored block,
+/// its header padded to a byte boundary, then LEN 0 and NLEN 0xFFFF), then an empty final block
+/// with the fixed Huffman codes. 7 bytes for no content, 9 for one byte below 144.
+pub fn flushed(content: &[u8]) -> Vec<u8> {
+    let mut bits = BitWriter::default();
+    if !content.is_empty() {
+        bits.field(0, 1); // BFINAL 0
+        bits.field(1, 2); // BTYPE 01: the fixed Huffman codes
+        for &byte in content {
+            match byte {
+                0..=143 => bits.code(0x30 + u32::from(byte), 8),
+                _ => bits.code(0x190 + u32::from(byte - 144), 9),
+            }
+        }
+        bits.code(0, 7); // end of block
+    }
+    bits.field(0, 1); // BFINAL 0
+    bits.field(0, 2); // BTYPE 00: stored
+    bits.align();
+    bits.field(0, 16); // LEN 0
+    bits.field(0xFFFF, 16); // NLEN
+    bits.field(1, 1); // BFINAL 1
+    bits.field(1, 2); // BTYPE 01
+    bits.code(0, 7); // end of block
+    bits.bytes
+}
+
+/// One final block with the fixed Huffman codes: the literal 0, then `matches` copies of length
+/// 258 at distance 1, then the end of the block, so it decodes to 1 + 258 * `matches` zero bytes
+/// in 18 + 13 * `matches` bits.
+pub fn fixed_zeros(matches: usize) -> Vec<u8> {
+    let mut bits = BitWriter::default();
+    bits.field(1, 1); // BFINAL
+    bits.field(1, 2); // BTYPE 01: the fixed Huffman codes
+    bits.code(0x30, 8); // literal 0: symbols 0..=143 have the 8-bit codes 0x30..=0xBF
+    for _ in 0..matches {
+        bits.code(0xC5, 8); // length 258: symbol 285; symbols 280..=287 have 0xC0..=0xC7
+        bits.code(0, 5); // distance 1: distance code 0, 5 bits, no extra bits
+    }
+    bits.code(0, 7); // end of block: symbol 256; symbols 256..=279 have the 7-bit codes 0..=23
+    bits.bytes
+}
+
+// ---------------------------------------------------------------------------------------------
 // The allocation counter.
 
 thread_local! {
     static ALLOCATED: Cell<u64> = const { Cell::new(0) };
+    static LARGEST: Cell<u64> = const { Cell::new(0) };
 }
 
 fn count(bytes: usize) {
     let _ = ALLOCATED.try_with(|total| total.set(total.get() + bytes as u64));
+    let _ = LARGEST.try_with(|largest| largest.set(largest.get().max(bytes as u64)));
 }
 
 /// The bytes this thread has asked the allocator for so far (frees are not subtracted).
 pub fn allocated() -> u64 {
     ALLOCATED.with(Cell::get)
+}
+
+/// The largest single allocation or reallocation, in bytes, this thread has asked for since the
+/// last [`reset_largest`].
+pub fn largest() -> u64 {
+    LARGEST.with(Cell::get)
+}
+
+/// Starts [`largest`] again from 0.
+pub fn reset_largest() {
+    LARGEST.with(|largest| largest.set(0));
 }
 
 struct Counting;

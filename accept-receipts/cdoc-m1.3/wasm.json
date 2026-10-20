@@ -17,6 +17,8 @@
               ],
               "calc-engine": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-fml": [
@@ -37,7 +39,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-value",
                 "calc-verdict"
@@ -57,6 +63,8 @@
               ],
               "calc-engine": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-fml": [
@@ -77,7 +85,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-oracle-excel",
                 "calc-value",
@@ -98,6 +110,8 @@
               ],
               "calc-engine": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-fml": [
@@ -118,7 +132,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-oracle-excel",
                 "calc-value",
@@ -144,14 +162,14 @@
         "files_scanned": {
           "calc-doc": 24,
           "calc-doc-model": 12,
-          "calc-engine": 4,
+          "calc-engine": 7,
           "calc-fml": 15,
           "calc-func": 10,
           "calc-host": 1,
           "calc-value": 5,
           "calc-verdict": 11,
           "dna-calc": 1,
-          "dna-onecalc": 1
+          "dna-onecalc": 5
         },
         "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
         "targets": [
@@ -162,7 +180,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "84 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "91 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -260,7 +278,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 84,
+        "files_scanned": 91,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -273,16 +291,16 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "84 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "91 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
       "details": {
         "packages": {
           "calc-doc": {
-            "entries": 92,
-            "entries_reach_unproven": 92,
-            "pub_enum_variants": 90,
+            "entries": 94,
+            "entries_reach_unproven": 94,
+            "pub_enum_variants": 92,
             "pub_traits": 2
           },
           "calc-doc-model": {
@@ -292,10 +310,10 @@
             "pub_traits": 0
           },
           "calc-engine": {
-            "entries": 16,
-            "entries_reach_unproven": 16,
-            "pub_enum_variants": 16,
-            "pub_traits": 0
+            "entries": 36,
+            "entries_reach_unproven": 36,
+            "pub_enum_variants": 35,
+            "pub_traits": 1
           },
           "calc-fml": {
             "entries": 100,
@@ -334,28 +352,33 @@
             "pub_traits": 0
           },
           "dna-onecalc": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
+            "entries": 13,
+            "entries_reach_unproven": 13,
+            "pub_enum_variants": 13,
             "pub_traits": 0
           }
         },
         "reach": {
-          "entries_reach_unproven": 375,
+          "entries_reach_unproven": 410,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 368 pub enum variants and 7 pub traits; their seams.json files list 375 entries, 375 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 402 pub enum variants and 8 pub traits; their seams.json files list 410 entries, 410 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
       "details": {
         "baseline_owner": "dc-0nvp",
         "baseline_recorded": "2026-10-14",
-        "commits": {},
+        "commits": {
+          "e24e1e355d92950513eee0bd91722729ef6bbb12": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
         "excluded_identifiers": [
           {
             "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
@@ -439,9 +462,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 102,
+          "commit_messages": 124,
           "files": 20,
-          "tracker_records": 329
+          "tracker_records": 335
         },
         "tracker": {
           "ceng-m7.1": {
@@ -492,7 +515,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 329 tracker records, 0 in 0 of 102 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 335 tracker records, 1 in 1 of 124 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -855,7 +878,7 @@
           ],
           "browser": "chromium",
           "case": "cdoc_m1_3__formula_authoring@chromium",
-          "duration_s": 8.65,
+          "duration_s": 5.065,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -889,8 +912,8 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.40s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:56153/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.21s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:57681/`"
         },
         {
           "argv": [
@@ -912,7 +935,7 @@
           ],
           "browser": "firefox",
           "case": "cdoc_m1_3__formula_authoring@firefox",
-          "duration_s": 17.088,
+          "duration_s": 8.199,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -946,12 +969,12 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.31s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59471/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.19s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54469/`"
         }
       ],
       "case": "cdoc_m1_3__formula_authoring",
-      "duration_s": 25.739,
+      "duration_s": 13.264,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1012,7 +1035,7 @@
           ],
           "browser": "chromium",
           "case": "cdoc_m1_3__save_refusal@chromium",
-          "duration_s": 9.207,
+          "duration_s": 4.967,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -1044,8 +1067,8 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.24s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50464/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.19s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53421/`"
         },
         {
           "argv": [
@@ -1067,7 +1090,7 @@
           ],
           "browser": "firefox",
           "case": "cdoc_m1_3__save_refusal@firefox",
-          "duration_s": 14.059,
+          "duration_s": 9.272,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1099,12 +1122,12 @@
           "outcome": "passed",
           "package": "calc-doc",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.20s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59493/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 8 filtered out; finished in 0.10s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:54489/`"
         }
       ],
       "case": "cdoc_m1_3__save_refusal",
-      "duration_s": 23.266,
+      "duration_s": 14.238,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1146,13 +1169,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 0.59,
+      "duration_s": 0.265,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.16s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.08s"
       ],
       "log": "target/accept/cdoc-m1.3/wasm/command-1.log",
       "outcome": "passed",
@@ -1177,13 +1200,13 @@
         "calc-doc",
         "--lib"
       ],
-      "duration_s": 0.456,
+      "duration_s": 0.188,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s"
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/cdoc-m1.3/wasm/command-2.log",
       "outcome": "passed",
@@ -1279,7 +1302,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 95.761,
+  "duration_s": 43.692,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1290,147 +1313,72 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "74b1f69595f5d35a9d54fe23e9d4e913830b3f1c",
+          "blob": "0f6efe23119c5e3ff69d328c02fa5a5fceea1202",
+          "path": "accept-receipts/cdoc-m1.1/wasm.json",
+          "status": "M"
+        },
+        {
+          "blob": "366f264b508ee20c53e82aefe01f5e4e43c80a60",
           "path": "accept-receipts/cdoc-m1.1/windows.json",
           "status": "M"
         },
         {
-          "blob": "9f1f83dbcf04241c0ba161d66995f7da5eab00ee",
+          "blob": "ec174680a3e10c770541cf52d7699ccd6a97f269",
+          "path": "accept-receipts/cdoc-m1.2/wasm.json",
+          "status": "M"
+        },
+        {
+          "blob": "e3c7dc599914ab36444988eb8bf3884700fae354",
           "path": "accept-receipts/cdoc-m1.2/windows.json",
           "status": "M"
         },
         {
-          "blob": "05486660c7f4aee52f2eba2f88c78cce80914758",
-          "path": "crates/calc-doc-model/src/lib.rs",
+          "blob": "ab27b916b2c96e2550e8855fbbcd11da2bc8babd",
+          "path": "accept-receipts/cdoc-m1.3/windows.json",
           "status": "M"
         },
         {
-          "blob": "8fe54fc31298e9223f5dd5dce020ad7890facbd8",
-          "path": "crates/calc-doc-model/src/root.rs",
-          "status": "M"
-        },
-        {
-          "blob": "58fdc6b55b2db2a20e9f4a5be170b555321716cf",
-          "path": "crates/calc-doc/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "953cf9fe80c668bb10c41c9e22b12555ff4fb34d",
+          "blob": "ae1c8a92ee4e0c165bdb4ab7b32d6a955041bc2f",
           "path": "crates/calc-doc/seams.json",
           "status": "M"
         },
         {
-          "blob": "8ad21b3895d3b64aff0659e6fe637672f7512e72",
+          "blob": "c8df92f03036533f0b12e99c56fac100d4656ba0",
+          "path": "crates/calc-doc/src/error.rs",
+          "status": "M"
+        },
+        {
+          "blob": "2ca8ae5d764da79ff264166bbc781e37585b42a3",
           "path": "crates/calc-doc/src/lib.rs",
           "status": "M"
         },
         {
-          "blob": "12e3706f4acff3acad07b754b09ad7f5abc9c729",
-          "path": "crates/calc-doc/src/load/address.rs",
+          "blob": "07285fadae0e5191158334e7745a549db53d55f8",
+          "path": "crates/calc-doc/src/policy.rs",
           "status": "M"
         },
         {
-          "blob": "84fd75476085d19e70895717987ef6b75fe197da",
-          "path": "crates/calc-doc/src/load/mod.rs",
+          "blob": "720b52f0b455401fdb378c12bbd6cf5956e2922b",
+          "path": "crates/calc-doc/src/save/mod.rs",
           "status": "M"
         },
         {
-          "blob": "f03a6eb13842dfaba6d170570fcf01a97a976ed9",
-          "path": "crates/calc-doc/src/load/sheet.rs",
-          "status": "M"
-        },
-        {
-          "blob": "d5fd121bd731c0357b96640ad7a25fe54758ba26",
-          "path": "crates/calc-doc/src/load/strings.rs",
-          "status": "M"
-        },
-        {
-          "blob": "655cf05000c593a60fafc909ce99def7bdb5acfb",
-          "path": "crates/calc-doc/src/opc.rs",
-          "status": "M"
-        },
-        {
-          "blob": null,
-          "path": "crates/calc-doc/src/save.rs",
-          "status": "D"
-        },
-        {
-          "blob": "bf0812796a4c1f1fafb758edf138ce56b54efc43",
-          "path": "crates/calc-doc/src/xml.rs",
-          "status": "M"
-        },
-        {
-          "blob": "dfb381db5abaaae5992fac9c975e454a55f8f1ae",
+          "blob": "47443b71465fb4c0167c8cda8f2baee08b1877fd",
           "path": "crates/calc-doc/src/zip/mod.rs",
           "status": "M"
         },
         {
-          "blob": "a72fe097a6429dbbd69178c0ac45b79db8301480",
+          "blob": "dcde4a9179944e3f1bedb81c64788b84245b10e0",
           "path": "crates/calc-doc/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "85086ea71ff06b21a7097ce76d90910749148b82",
-          "path": "accept-receipts/cdoc-m1.3/windows.json",
-          "status": "??"
-        },
-        {
-          "blob": "8badadf5c61e2425f1856372592ff07d5374f974",
-          "path": "crates/calc-doc/src/edit.rs",
-          "status": "??"
-        },
-        {
-          "blob": "fdcf1764b2eb072d84e0bda0900309ef39f179c5",
-          "path": "crates/calc-doc/src/save/author.rs",
-          "status": "??"
-        },
-        {
-          "blob": "2e598ab8e13cd78df2b025d41e2de08951a1cdbe",
-          "path": "crates/calc-doc/src/save/diff.rs",
-          "status": "??"
-        },
-        {
-          "blob": "7d2cc2dca5759a23913f370ef5b8a60e91a297f7",
-          "path": "crates/calc-doc/src/save/mod.rs",
-          "status": "??"
-        },
-        {
-          "blob": "c3314065e04ca1441eb75c943c3c3cc44abb6e88",
-          "path": "crates/calc-doc/src/save/parts.rs",
-          "status": "??"
-        },
-        {
-          "blob": "d925ff140f33c44c419bc675b5febb517db7f4e8",
-          "path": "crates/calc-doc/src/save/reader.rs",
-          "status": "??"
-        },
-        {
-          "blob": "f58a3a23e00e3dd095b4ccbc57961c0fc2520b2c",
-          "path": "crates/calc-doc/src/save/sheet.rs",
-          "status": "??"
-        },
-        {
-          "blob": "04cd67dc84247b5cad77483a0eba320e41273a93",
-          "path": "crates/calc-doc/src/save/strings.rs",
-          "status": "??"
-        },
-        {
-          "blob": "b074781dd6a8c8c59c7ed8d84618c3d444290607",
-          "path": "crates/calc-doc/src/save/tests.rs",
-          "status": "??"
-        },
-        {
-          "blob": "3835d0ea82c41023e01588d223045f31f86f4ecf",
-          "path": "crates/calc-doc/src/save/text.rs",
-          "status": "??"
-        },
-        {
-          "blob": "ae7f79f29587eadeb57bf23d6b4578ec81960ae5",
-          "path": "crates/calc-doc/tests/cdoc_m1_3_support/mod.rs",
-          "status": "??"
+          "blob": "8802edbf0c3a9185d9ed5a7e353f7f64113b4df8",
+          "path": "crates/calc-doc/tests/cdoc_m1_1_support/mod.rs",
+          "status": "M"
         }
       ],
-      "head": "88decbd23ad117bb35c58248ff9785df74b8afb0",
+      "head": "45df27b3c7fc63aaf8c6da876d4d5e8f5f7bc4eb",
       "receipt_paths_left_out": [
         "accept-receipts/cdoc-m1.3/wasm.json"
       ]
@@ -1471,5 +1419,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-20T18:06:48Z"
+  "started_utc": "2026-10-20T20:10:34Z"
 }

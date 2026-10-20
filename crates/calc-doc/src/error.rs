@@ -146,8 +146,20 @@ pub enum PartReadError {
     NotAPart { name: String },
     /// The backing source failed a read.
     Source(SourceError),
+    /// The entry's deflated payload is larger than its declared size allows: `compressed` bytes,
+    /// past the `bound` that the expansion of stored or fixed Huffman blocks and a fixed allowance
+    /// for flush markers give its `declared` uncompressed bytes. Refused before the part read
+    /// reads any of the payload (open has already streamed it for its CRC).
+    CompressedPayloadTooLarge {
+        compressed: u64,
+        declared: u64,
+        bound: u64,
+    },
     /// The compressed payload is not valid DEFLATE.
     CorruptDeflate { detail: &'static str },
+    /// The payload holds bytes after its final DEFLATE block: the stream ends within the first
+    /// `consumed` of its `compressed` bytes.
+    BytesAfterFinalBlock { compressed: u64, consumed: u64 },
     /// The payload expands past the size its entry declares; decoding stopped there.
     ExpandsPastDeclaredSize { declared: u64 },
     /// The payload expands to fewer bytes than its entry declares.
@@ -161,7 +173,22 @@ impl fmt::Display for PartReadError {
         match self {
             Self::NotAPart { name } => write!(f, "the package has no part {name:?}"),
             Self::Source(error) => write!(f, "the package source failed: {error}"),
+            Self::CompressedPayloadTooLarge {
+                compressed,
+                declared,
+                bound,
+            } => write!(
+                f,
+                "the deflated payload is {compressed} bytes, over the {bound} bytes its declared {declared} bytes allow"
+            ),
             Self::CorruptDeflate { detail } => write!(f, "the payload is not DEFLATE: {detail}"),
+            Self::BytesAfterFinalBlock {
+                compressed,
+                consumed,
+            } => write!(
+                f,
+                "the payload's final DEFLATE block ends after {consumed} of its {compressed} bytes"
+            ),
             Self::ExpandsPastDeclaredSize { declared } => {
                 write!(f, "the payload expands past its declared {declared} bytes")
             }

@@ -5,7 +5,13 @@
 //! payload is read. Each entry's stored bytes (local header, payload and data descriptor) are then
 //! located, checked against its central record and against every other entry's (no two overlap),
 //! and their CRC-32 is recorded, so a save can copy them unchanged and check that what it copied
-//! has the CRC-32 it had when it was opened.
+//! has the CRC-32 it had when it was opened. The bytes before the central directory that no entry
+//! stores are counted, since a save does not write them.
+//!
+//! A payload is read into memory only when its entry's content is read, and only when its
+//! compressed size is within what its declared size allows ([`deflate_bound`] for a deflated
+//! entry; a stored entry's compressed size equals its declared size, checked at open), so reading
+//! an entry never allocates far past what its central record declares.
 
 pub(crate) mod crc32;
 mod name;
@@ -14,7 +20,8 @@ use crate::error::{OpenError, PartReadError};
 use crate::policy::PackageLimits;
 use crate::source::{PackageRead, SourceError};
 use crc32::Crc32;
-use miniz_oxide::inflate::{TINFLStatus, decompress_to_vec_with_limit};
+use miniz_oxide::inflate::TINFLStatus;
+use miniz_oxide::inflate::core::{DecompressorOxide, decompress, inflate_flags};
 use std::collections::BTreeSet;
 
 const END_SIGNATURE: u32 = 0x0605_4b50;
@@ -74,6 +81,9 @@ impl Entry {
 pub(crate) struct Archive {
     pub(crate) entries: Vec<Entry>,
     pub(crate) comment: Vec<u8>,
+    /// The bytes before the central directory that lie in no entry's stored bytes: before the
+    /// first entry, between two entries or after the last one.
+    pub(crate) unreferenced_bytes: u64,
 }
 
 fn le16(bytes: &[u8], at: usize) -> u16 {
@@ -163,9 +173,13 @@ pub(crate) fn read_archive(
     for entry in &mut entries {
         entry.span_crc = span_crc(source, entry).map_err(OpenError::Source)?;
     }
+    // Every span ends at or before the central directory and no two overlap, so together they
+    // cover at most the bytes before it.
+    let stored: u64 = entries.iter().map(Entry::span_len).sum();
     Ok(Archive {
         entries,
         comment: end[END_LEN..].to_vec(),
+        unreferenced_bytes: directory_offset - stored,
     })
 }
 
@@ -426,15 +440,43 @@ pub(crate) fn each_chunk<E: From<SourceError>>(
     Ok(())
 }
 
-/// Reads and decompresses an entry's content, refusing a payload that expands past or short of
-/// its declared size or whose CRC-32 is not the declared one.
+/// Room in [`deflate_bound`] for framing that carries no content: sync-flush and full-flush
+/// markers (an empty stored block, at most 5 bytes each) and an empty final block. A chosen
+/// allowance, about 200 markers; it lets a tiny entry that ends with a flush marker and an empty
+/// final block (7 bytes for 0 bytes of content) be read.
+const FRAMING_BYTES: u64 = 1024;
+
+/// The most compressed bytes a deflated entry of `size` uncompressed bytes may store:
+/// `size + ceil(size / 8) + ceil(size / 64) + FRAMING_BYTES`. It admits fixed Huffman blocks of
+/// 9-bit literals and stored blocks, so an encoder that falls back to either when it cannot
+/// compress stays within it, and [`FRAMING_BYTES`] of markers and empty blocks besides; a
+/// payload past it is refused whatever wrote it.
+pub(crate) fn deflate_bound(size: u32) -> u64 {
+    let size = u64::from(size);
+    size + size.div_ceil(8) + size.div_ceil(64) + FRAMING_BYTES
+}
+
+/// Reads and decompresses an entry's content. Before any of its payload is read, a deflated
+/// payload larger than [`deflate_bound`] of its declared size is refused; then a payload that
+/// expands past or short of its declared size, holds bytes after its final DEFLATE block or whose
+/// CRC-32 is not the declared one.
 pub(crate) fn read_content(
     source: &dyn PackageRead,
     entry: &Entry,
 ) -> Result<Vec<u8>, PartReadError> {
+    let declared = entry.uncompressed_size;
+    if entry.method == Method::Deflated {
+        let bound = deflate_bound(declared);
+        if u64::from(entry.compressed_size) > bound {
+            return Err(PartReadError::CompressedPayloadTooLarge {
+                compressed: u64::from(entry.compressed_size),
+                declared: u64::from(declared),
+                bound,
+            });
+        }
+    }
     let raw = read(source, entry.payload_offset, entry.compressed_size as usize)
         .map_err(PartReadError::Source)?;
-    let declared = entry.uncompressed_size;
     let content = match entry.method {
         Method::Stored => raw,
         Method::Deflated => inflate(&raw, declared)?,
@@ -455,25 +497,68 @@ pub(crate) fn read_content(
     Ok(content)
 }
 
-/// Decodes a raw DEFLATE payload into at most `declared` bytes. The decoder's output buffer
-/// never grows past that size: a stream that would produce more stops there with
-/// `HasMoreOutput`, so a small payload cannot expand into memory the declared size (checked
-/// against the limits at open) did not admit.
+/// Decodes a raw DEFLATE payload into at most `declared` bytes and refuses bytes after its final
+/// block. The output buffer starts at twice the payload's size or at `declared`, whichever is
+/// smaller, and doubles up to `declared`, never past it, its allocation reserved exactly so that
+/// its capacity does not pass `declared` either: a stream that would produce more stops there
+/// with `HasMoreOutput`, so a small payload cannot expand into memory the declared size (checked
+/// against the limits at open) did not admit. The decoder counts the input bytes it
+/// used and gives back whole bytes it had buffered but not decoded, so when the final block ends
+/// the count reaches the byte that holds its last bit, and every byte after that is trailing.
 fn inflate(raw: &[u8], declared: u32) -> Result<Vec<u8>, PartReadError> {
-    decompress_to_vec_with_limit(raw, declared as usize).map_err(|error| match error.status {
-        TINFLStatus::HasMoreOutput => PartReadError::ExpandsPastDeclaredSize {
-            declared: u64::from(declared),
-        },
-        TINFLStatus::FailedCannotMakeProgress => PartReadError::CorruptDeflate {
-            detail: "the stream ends before its final block does",
-        },
-        TINFLStatus::Failed => PartReadError::CorruptDeflate {
-            detail: "the stream is not valid DEFLATE",
-        },
-        // Raw DEFLATE without the more-input flag reports none of the other statuses; one that
-        // did is still a refusal, never content.
-        _ => PartReadError::CorruptDeflate {
-            detail: "the decoder stopped with a status raw DEFLATE does not produce",
-        },
-    })
+    let limit = declared as usize;
+    let mut out = vec![0; raw.len().saturating_mul(2).min(limit)];
+    let mut decoder = Box::<DecompressorOxide>::default();
+    let (mut consumed, mut written) = (0usize, 0usize);
+    loop {
+        let input = raw.get(consumed..).unwrap_or_default();
+        let (status, used, produced) = decompress(
+            &mut decoder,
+            input,
+            &mut out,
+            written,
+            inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF,
+        );
+        consumed += used;
+        written += produced;
+        match status {
+            TINFLStatus::Done if consumed == raw.len() => {
+                out.truncate(written);
+                return Ok(out);
+            }
+            TINFLStatus::Done => {
+                return Err(PartReadError::BytesAfterFinalBlock {
+                    compressed: raw.len() as u64,
+                    consumed: consumed as u64,
+                });
+            }
+            TINFLStatus::HasMoreOutput if out.len() < limit => {
+                let grown = out.len().saturating_mul(2).clamp(1, limit);
+                out.reserve_exact(grown - out.len());
+                out.resize(grown, 0);
+            }
+            TINFLStatus::HasMoreOutput => {
+                return Err(PartReadError::ExpandsPastDeclaredSize {
+                    declared: u64::from(declared),
+                });
+            }
+            TINFLStatus::FailedCannotMakeProgress => {
+                return Err(PartReadError::CorruptDeflate {
+                    detail: "the stream ends before its final block does",
+                });
+            }
+            TINFLStatus::Failed => {
+                return Err(PartReadError::CorruptDeflate {
+                    detail: "the stream is not valid DEFLATE",
+                });
+            }
+            // Raw DEFLATE given all of its input reports none of the other statuses; one that
+            // did is still a refusal, never content.
+            _ => {
+                return Err(PartReadError::CorruptDeflate {
+                    detail: "the decoder stopped with a status raw DEFLATE does not produce",
+                });
+            }
+        }
+    }
 }
