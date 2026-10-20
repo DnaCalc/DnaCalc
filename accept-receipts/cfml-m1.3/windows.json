@@ -439,7 +439,7 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 88,
+          "commit_messages": 93,
           "files": 20,
           "tracker_records": 326
         },
@@ -492,7 +492,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 326 tracker records, 0 in 0 of 88 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 326 tracker records, 0 in 0 of 93 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -833,7 +833,7 @@
         "--nocapture"
       ],
       "case": "cfml_m1_3__reuse_plan",
-      "duration_s": 0.132,
+      "duration_s": 0.12,
       "exit_code": 0,
       "log": "target/accept/cfml-m1.3/windows/cfml_m1_3__reuse_plan.log",
       "notes": [
@@ -850,7 +850,7 @@
       "outcome": "passed",
       "package": "calc-fml",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s"
     },
     {
       "argv": [
@@ -869,7 +869,7 @@
         "--nocapture"
       ],
       "case": "cfml_m1_3__lazy_if",
-      "duration_s": 0.119,
+      "duration_s": 0.14,
       "exit_code": 0,
       "log": "target/accept/cfml-m1.3/windows/cfml_m1_3__lazy_if.log",
       "notes": [
@@ -878,7 +878,7 @@
       "outcome": "passed",
       "package": "calc-fml",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s"
     }
   ],
   "command": [
@@ -904,13 +904,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 6.155,
+      "duration_s": 0.126,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/cfml-m1.3/windows/command-1.log",
       "outcome": "passed",
@@ -935,13 +935,13 @@
         "calc-fml",
         "--lib"
       ],
-      "duration_s": 2.878,
+      "duration_s": 1.523,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+        "test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/cfml-m1.3/windows/command-2.log",
       "outcome": "passed",
@@ -1037,7 +1037,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 20.183,
+  "duration_s": 10.219,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1048,13 +1048,100 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "243dc1dfc3e4f6e1e9235d1149581c2928102a8e",
+          "blob": "50fb9437060da2de5c662db462418a29d8680ce4",
+          "path": "accept-receipts/cfml-m1.1/wasm.json",
+          "status": "M"
+        },
+        {
+          "blob": "2b9ce4c4bb11d6b5f56481525a43b46e0463defc",
+          "path": "accept-receipts/cfml-m1.1/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "d82bd50f07e4277bf1ac9b281f01c3da5fa30c28",
+          "path": "accept-receipts/cfml-m1.2/wasm.json",
+          "status": "M"
+        },
+        {
+          "blob": "4291ac590dabe714e3ea82aab1fa0179d0fb8788",
+          "path": "accept-receipts/cfml-m1.2/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "f8a43f7104281ae29bd71c16a60ab36772ac7d04",
+          "path": "accept-receipts/cfml-m1.3/wasm.json",
+          "status": "M"
+        },
+        {
+          "blob": "ea39452f12fef3913a780c0c5d753fee2f8aeef8",
+          "path": "crates/calc-fml/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "62a668280c73fe4f96c110e84a604065488ad78c",
+          "path": "crates/calc-fml/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "41844afaefd2428bb3af79d054f36623add20bbb",
+          "path": "crates/calc-fml/src/eval/compile.rs",
+          "status": "M"
+        },
+        {
+          "blob": "708766b9df9eb51c9851bbeed989da792455d5ad",
+          "path": "crates/calc-fml/src/eval/run.rs",
+          "status": "M"
+        },
+        {
+          "blob": "08e01e2241fb1f8d493dfec49dc5d54e3c278915",
+          "path": "crates/calc-fml/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "9578ae649b8a8f56c4196c58814b3d81aa079947",
+          "path": "crates/calc-fml/src/reference/bind.rs",
+          "status": "M"
+        },
+        {
+          "blob": "bdb1513d43fc10b29750c78ab6a52d0b27c2cb36",
+          "path": "crates/calc-fml/src/syntax/parser.rs",
+          "status": "M"
+        },
+        {
+          "blob": "c03a1ee8526f1bcb862605cc91a6decfb720ed4f",
+          "path": "crates/calc-fml/src/syntax/token.rs",
+          "status": "M"
+        },
+        {
+          "blob": "48f86f3223cace6f776d87b56dfe5175faed1640",
+          "path": "crates/calc-fml/src/syntax/tree.rs",
+          "status": "M"
+        },
+        {
+          "blob": "3ea9c232bd348074834a6e58fe60a01c96240538",
           "path": "crates/calc-fml/tests/acceptance.rs",
           "status": "M"
+        },
+        {
+          "blob": "32fe384952d39bc00484b3d2fc1cfdd51bf4c6b5",
+          "path": "migration/ports/cfml-m1.3.json",
+          "status": "M"
+        },
+        {
+          "blob": "8785497befdc91534b26532fb28d602728ff88fa",
+          "path": "accept-receipts/dc-2mlz/wasm.json",
+          "status": "??"
+        },
+        {
+          "blob": "0592d2852ba5a728b1d4257cc78ceb218c435bc5",
+          "path": "accept-receipts/dc-2mlz/windows.json",
+          "status": "??"
         }
       ],
-      "head": "806d5d191b0eed4e9a715aa1068a3bbb3507ba74",
-      "receipt_paths_left_out": []
+      "head": "0ed327d77b29f13cb42921a6d3d87deb520118de",
+      "receipt_paths_left_out": [
+        "accept-receipts/cfml-m1.3/windows.json"
+      ]
     },
     "legacy_root": {
       "exists": true,
@@ -1092,5 +1179,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-20T16:22:38Z"
+  "started_utc": "2026-10-20T17:35:28Z"
 }

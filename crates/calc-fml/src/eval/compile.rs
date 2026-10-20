@@ -8,6 +8,11 @@
 //! at most 15 significant digits); that Excel converts every such literal to the same binary64 is
 //! not measured by this package. A plan holds no folded constant: every operation runs at
 //! evaluation, under the caller's mode.
+//!
+//! Lowering walks the tree on a stack of its own [`Task`]s, not on the native stack: a node's
+//! operands are lowered before the instruction that consumes them, in source order, so a formula
+//! nested as deep as its 8,192 characters allow (`=1+1+...+1`, `=((...(1)...))`, `=--...-1`)
+//! lowers without recursion.
 
 use super::{CompiledPlan, Instruction, Literal, PlanCache, Target};
 use crate::reference::{
@@ -75,9 +80,7 @@ pub fn compile(
         blocks: vec![Vec::new()],
         references: Vec::new(),
     };
-    let mut formula = Vec::new();
-    lowering.expression(expression, true, &mut formula)?;
-    lowering.blocks[0] = formula;
+    lowering.formula(expression)?;
     let plan = CompiledPlan {
         blocks: lowering
             .blocks
@@ -96,42 +99,85 @@ struct Lowering {
     references: Vec<ReferenceOperand>,
 }
 
-impl Lowering {
-    /// Appends to `out` the instructions that push the value of `node`. `tail` says whether that
-    /// value is the formula's result: the root expression, through parentheses, a prefix `+` or
-    /// `-` and the arguments a lazy function may return.
-    fn expression(
-        &mut self,
-        node: &SyntaxNode,
+/// One step of the lowering, on the lowering's own stack: the steps a node pushes run in the
+/// reverse order of their pushing, so it pushes the instruction that consumes its operands first
+/// and its first operand last.
+enum Task<'t> {
+    /// Append to block `block` the instructions that push the value of `node`. `tail` says
+    /// whether that value is the formula's result: the root expression, through parentheses, a
+    /// prefix `+` or `-` and the arguments a lazy function may return.
+    Lower {
+        node: &'t SyntaxNode,
         tail: bool,
-        out: &mut Vec<Instruction>,
+        block: usize,
+    },
+    /// Append `instruction` to block `block`, after its operands' instructions.
+    Emit {
+        block: usize,
+        instruction: Instruction,
+    },
+    /// Append to block `block` the check of the formula's final `+` or `-`, written `operator`.
+    FinalSumCheck { block: usize, operator: &'t Token },
+}
+
+impl Lowering {
+    /// Lowers the formula's expression into block 0, and each argument of a lazy call into the
+    /// block it is given, in source order.
+    fn formula(&mut self, expression: &SyntaxNode) -> Result<(), CompileError> {
+        let mut tasks = vec![Task::Lower {
+            node: expression,
+            tail: true,
+            block: 0,
+        }];
+        while let Some(task) = tasks.pop() {
+            match task {
+                Task::Lower { node, tail, block } => {
+                    self.expression(node, tail, block, &mut tasks)?
+                }
+                Task::Emit { block, instruction } => self.blocks[block].push(instruction),
+                Task::FinalSumCheck { block, operator } => {
+                    final_sum_check(operator, &mut self.blocks[block])?
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Lowers `node` into block `block`: a leaf at once, and an operation as the tasks that lower
+    /// its operands and then emit it, pushed onto `tasks`. `tail` is as [`Task::Lower`] says.
+    fn expression<'t>(
+        &mut self,
+        node: &'t SyntaxNode,
+        tail: bool,
+        block: usize,
+        tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let span = node.span();
         match node.kind() {
             SyntaxKind::NumberLiteralExpr => {
-                if !self.reference(node, out)? {
-                    out.push(Instruction::Literal(number(node)?));
+                if !self.reference(node, block)? {
+                    self.blocks[block].push(Instruction::Literal(number(node)?));
                 }
             }
             SyntaxKind::IdentifierExpr => {
-                if !self.reference(node, out)? {
+                if !self.reference(node, block)? {
                     let text = only_token(node).map(Token::text).unwrap_or_default();
                     if text.eq_ignore_ascii_case("TRUE") {
-                        out.push(Instruction::Literal(Literal::Logical(true)));
+                        self.blocks[block].push(Instruction::Literal(Literal::Logical(true)));
                     } else if text.eq_ignore_ascii_case("FALSE") {
-                        out.push(Instruction::Literal(Literal::Logical(false)));
+                        self.blocks[block].push(Instruction::Literal(Literal::Logical(false)));
                     } else {
                         return Err(unsupported(span, "a defined name", "cfml-m3.1"));
                     }
                 }
             }
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
-                if !self.reference(node, out)? {
+                if !self.reference(node, block)? {
                     return Err(unsupported(span, "a sheet-qualified name", "cfml-m3.1"));
                 }
             }
             SyntaxKind::RangeExpr => {
-                if !self.reference(node, out)? {
+                if !self.reference(node, block)? {
                     return Err(unsupported(
                         span,
                         "the range operator between separate references",
@@ -142,20 +188,26 @@ impl Lowering {
             SyntaxKind::QuotedIdentifierExpr => {
                 return Err(unsupported(span, "a quoted name", "cfml-m3.1"));
             }
-            SyntaxKind::StringLiteralExpr => out.push(Instruction::Literal(text(node)?)),
+            SyntaxKind::StringLiteralExpr => {
+                self.blocks[block].push(Instruction::Literal(text(node)?))
+            }
             SyntaxKind::ErrorLiteralExpr => {
                 let code = only_token(node)
                     .and_then(Token::error_code)
                     .ok_or(CompileError::Syntax { span })?;
-                out.push(Instruction::Literal(Literal::Error(code)));
+                self.blocks[block].push(Instruction::Literal(Literal::Error(code)));
             }
-            SyntaxKind::OmittedArgExpr => out.push(Instruction::Omitted),
+            SyntaxKind::OmittedArgExpr => self.blocks[block].push(Instruction::Omitted),
             SyntaxKind::GroupingExpr => {
                 let inner = node
                     .child_nodes()
                     .next()
                     .ok_or(CompileError::Syntax { span })?;
-                self.expression(inner, tail, out)?;
+                tasks.push(Task::Lower {
+                    node: inner,
+                    tail,
+                    block,
+                });
             }
             SyntaxKind::BinaryExpr => {
                 let (left, operator, right) = match node.children() {
@@ -167,17 +219,25 @@ impl Lowering {
                     _ => return Err(CompileError::Syntax { span }),
                 };
                 let target = target(Notation::Infix, operator)?;
-                self.expression(left, false, out)?;
-                self.expression(right, false, out)?;
                 let final_sum =
                     tail && matches!(operator.kind(), TokenKind::Plus | TokenKind::Minus);
-                out.push(Instruction::Call {
-                    target,
-                    argc: 2,
-                    retain: final_sum,
-                });
                 if final_sum {
-                    final_sum_check(operator, out)?;
+                    tasks.push(Task::FinalSumCheck { block, operator });
+                }
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Call {
+                        target,
+                        argc: 2,
+                        retain: final_sum,
+                    },
+                });
+                for operand in [right, left] {
+                    tasks.push(Task::Lower {
+                        node: operand,
+                        tail: false,
+                        block,
+                    });
                 }
             }
             SyntaxKind::PrefixExpr => {
@@ -191,14 +251,21 @@ impl Lowering {
                     return Err(unsupported(span, "implicit intersection (@)", "cfml-m3.3"));
                 }
                 let target = target(Notation::Prefix, operator)?;
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Call {
+                        target,
+                        argc: 1,
+                        retain: false,
+                    },
+                });
                 // A prefix `+` or `-` changes no magnitude (the sign flips exactly), so an operand
                 // at the tail stays there for the near-zero check: whether Excel compensates a
                 // final sum under a sign is not known, and the check refuses rather than guess.
-                self.expression(operand, tail, out)?;
-                out.push(Instruction::Call {
-                    target,
-                    argc: 1,
-                    retain: false,
+                tasks.push(Task::Lower {
+                    node: operand,
+                    tail,
+                    block,
                 });
             }
             SyntaxKind::PostfixExpr => {
@@ -212,14 +279,21 @@ impl Lowering {
                     return Err(unsupported(span, "a spilled range (#)", "cfml-m3.3"));
                 }
                 let target = target(Notation::Postfix, operator)?;
-                self.expression(operand, false, out)?;
-                out.push(Instruction::Call {
-                    target,
-                    argc: 1,
-                    retain: false,
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Call {
+                        target,
+                        argc: 1,
+                        retain: false,
+                    },
+                });
+                tasks.push(Task::Lower {
+                    node: operand,
+                    tail: false,
+                    block,
                 });
             }
-            SyntaxKind::CallExpr => self.call(node, tail, out)?,
+            SyntaxKind::CallExpr => self.call(node, tail, block, tasks)?,
             SyntaxKind::ArrayLiteralExpr => {
                 return Err(unsupported(span, "an array constant", "cfml-m3.4"));
             }
@@ -246,13 +320,15 @@ impl Lowering {
         Ok(())
     }
 
-    /// A call by name. An eager entry's arguments are pushed in order before the call; each
-    /// argument of a lazy entry becomes a block of its own, run only when the entry asks for it.
-    fn call(
+    /// A call by name, lowered into block `block`. An eager entry's arguments are pushed in order
+    /// before the call; each argument of a lazy entry becomes a block of its own, numbered when
+    /// the call is met and run only when the entry asks for it.
+    fn call<'t>(
         &mut self,
-        node: &SyntaxNode,
+        node: &'t SyntaxNode,
         tail: bool,
-        out: &mut Vec<Instruction>,
+        block: usize,
+        tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let span = node.span();
         let (name, list) = match node.children() {
@@ -270,44 +346,52 @@ impl Lowering {
         }
         let demand = target.0.argument_demand();
         if !demand.is_lazy() {
-            for argument in arguments {
-                self.expression(argument, false, out)?;
-            }
-            out.push(Instruction::Call {
-                target,
-                argc,
-                retain: false,
+            tasks.push(Task::Emit {
+                block,
+                instruction: Instruction::Call {
+                    target,
+                    argc,
+                    retain: false,
+                },
             });
+            for argument in arguments.into_iter().rev() {
+                tasks.push(Task::Lower {
+                    node: argument,
+                    tail: false,
+                    block,
+                });
+            }
             return Ok(());
         }
         let first_block = self.blocks.len();
         self.blocks.resize_with(first_block + argc, Vec::new);
-        for (index, argument) in arguments.into_iter().enumerate() {
-            let mut block = Vec::new();
-            self.expression(argument, tail && demand.holds_back(index), &mut block)?;
-            self.blocks[first_block + index] = block;
-        }
-        out.push(Instruction::LazyCall {
-            target,
-            first_block,
-            argc,
+        tasks.push(Task::Emit {
+            block,
+            instruction: Instruction::LazyCall {
+                target,
+                first_block,
+                argc,
+            },
         });
+        for (index, argument) in arguments.into_iter().enumerate().rev() {
+            tasks.push(Task::Lower {
+                node: argument,
+                tail: tail && demand.holds_back(index),
+                block: first_block + index,
+            });
+        }
         Ok(())
     }
 
-    /// Pushes the reference `node` binds to, when binding gave it a site; `false` when it is not
-    /// a reference.
-    fn reference(
-        &mut self,
-        node: &SyntaxNode,
-        out: &mut Vec<Instruction>,
-    ) -> Result<bool, CompileError> {
+    /// Pushes onto block `block` the reference `node` binds to, when binding gave it a site;
+    /// `false` when it is not a reference.
+    fn reference(&mut self, node: &SyntaxNode, block: usize) -> Result<bool, CompileError> {
         let span = node.span();
         match self.sites.remove(&span) {
             None => Ok(false),
             Some(Err(error)) => Err(CompileError::Reference { span, error }),
             Some(Ok(operand)) => {
-                out.push(Instruction::Reference(self.references.len()));
+                self.blocks[block].push(Instruction::Reference(self.references.len()));
                 self.references.push(operand);
                 Ok(true)
             }

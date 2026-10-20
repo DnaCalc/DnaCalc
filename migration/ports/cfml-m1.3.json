@@ -20,7 +20,7 @@
       "ported": [
         {
           "symbol": "CompiledFormulaPlan, CompiledExpr, compile_formula_for_evaluation, compile_expr_for_evaluation",
-          "to": "crates/calc-fml/src/eval/mod.rs CompiledPlan, Instruction, Literal, Target; crates/calc-fml/src/eval/compile.rs compile, Lowering",
+          "to": "crates/calc-fml/src/eval/mod.rs CompiledPlan, Instruction, Literal, Target; crates/calc-fml/src/eval/compile.rs compile, Lowering, Lowering::formula, Task",
           "kept": [
             "a formula is compiled once into a plan that evaluation runs without binding again",
             "operators and functions are resolved to function-call targets when the plan is compiled"
@@ -28,7 +28,7 @@
           "changes": [
             {
               "change": "A plan is flat instruction blocks (block 0 the formula, one block per argument of a lazy call) run on an explicit operand stack, held in an Arc and Send + Sync, instead of a recursive CompiledExpr tree evaluated with stacker::maybe_grow, Rc and RefCell.",
-              "reason": "The Do: Arc<CompiledPlan>, immutable instructions apart from the mutable frame. The operand stack is explicit, but evaluation is not: evaluate consumes its EvalFrame and recurses on the native stack into the blocks of lazy calls, as deep as the formula nests them, so an evaluation cannot be suspended and resumed. Plan section 4.3's explicit evaluation stack is cfml-m2.3's. Witnessed by cfml_m1_3__reuse_plan (one Arc held by the cache, the case's handle and the instance; CompiledPlan and FormulaInstance asserted Send + Sync)."
+              "reason": "The Do: Arc<CompiledPlan>, immutable instructions apart from the mutable frame. The operand stack is explicit, but evaluation is not: evaluate consumes its EvalFrame and recurses on the native stack into the blocks of lazy calls, as deep as the formula nests them (at most 64 since dc-2mlz, see below), so an evaluation cannot be suspended and resumed. Plan section 4.3's explicit evaluation stack is cfml-m2.3's. Witnessed by cfml_m1_3__reuse_plan (one Arc held by the cache, the case's handle and the instance; CompiledPlan and FormulaInstance asserted Send + Sync)."
             },
             {
               "change": "Each operator and function is resolved through calc_func::catalogue().resolve_surface by notation and spelling to a catalogue target with a stable FunctionId. A name the catalogue lacks is CompileError::UnknownFunction, and an argument count outside the arity CompileError::Arity, both at compile.",
@@ -41,6 +41,10 @@
             {
               "change": "Syntax that is not lowered is refused at compile with CompileError::Unsupported naming its owner: names (cfml-m3.1), the range operator between separate references, intersection, union, @ and # (cfml-m3.3), array constants (cfml-m3.4) and calls of an expression's value (cfml-m2.3).",
               "reason": "No hidden fallback: a construct this bead does not evaluate is typed, not approximated. Witnessed by cfml_m1_3__reuse_plan (=TaxRate*2, =SUM({1,2})) and eval::compile::tests::unsupported_constructs_name_their_owner."
+            },
+            {
+              "change": "Amended by dc-2mlz (2026-10-20). Lowering walks the syntax tree on a stack of its own tasks (Lowering::formula over Task::Lower, Task::Emit and Task::FinalSumCheck) instead of recursing on the native stack, so a formula nested as deep as Excel's 8,192 characters allow compiles on a 1 MB stack. The plan is unchanged: the same blocks, instructions, block numbering and reference order, and the same first refusal. The stages before it, cfml-m1.1's parser and cfml-m1.2's binder, were changed by the same bead in the same way: the parser runs its grammar rules on a stack of Resume entries (chains of one rule are loops), the binder's walk keeps its own stack of nodes, and dropping, cloning and comparing a SyntaxNode and listing its tokens walk the tree on their own stacks. The recursions that remain in calc-fml, each stated in the code: evaluation into the arguments of nested lazy calls, at most 64 deep (the next entry); and the derived Debug of SyntaxNode, SyntaxChild and SyntaxTree, once per level of the tree, which is as deep as its formula nests (8,191 nodes for =--...-1 of 8,192 characters) and which nothing on the route from formula text to value calls.",
+              "reason": "dc-2mlz: Lowering::expression recursed once per level of a left-deep chain, and =1+1+...+1 of 180 terms (362 characters) overflowed the 1 MB Windows main thread in a debug build; the binder recursed once per level of the tree, and the parser once per parenthesis, argument list, array constant, prefix operator and sheet qualifier. Witnessed by dc_2mlz__maximum_length: four formulas of 8,192 characters (the left-deep chain, value 4,096; the right-deep chain =1+(1+(...(1+1)...)), value 2,049; one literal in 4,095 parentheses, value 1; 8,190 prefix minus signs, value 1) parse without diagnostics, reprint, bind, compile and evaluate on a thread with a 1 MB stack in the debug test build and on the main thread in Chrome and Firefox, and seven more of 8,192 characters (@, qualifier, range, union, intersection, array-constant and invocation chains) parse and bind, and compile refuses each, typed. On the sources before this bead the case aborts the native test process with STATUS_STACK_OVERFLOW and traps in Chrome with a memory access out of bounds."
             }
           ]
         },
@@ -76,6 +80,10 @@
             {
               "change": "EvaluationBackend (LocalBootstrap and OxFuncBacked) has no counterpart: there is one evaluation route.",
               "reason": "Honesty rule 5, one evaluator; the bead's Out of scope forbids a second evaluator."
+            },
+            {
+              "change": "Amended by dc-2mlz (2026-10-20). The one recursion evaluation keeps is a lazy call's arguments running from inside calc-func's kernel (Run::block, Run::lazy_call, calc_func::invoke, the kernel, Blocks::argument, then Run::block for the argument's block), once per lazy call nested inside another's argument; operator chains and eager calls run in one block's loop. It is bounded at 64 lazy calls: the parser gives a diagnostic to a call nested more than 64 levels deep (MAX_FUNCTION_NESTING, Excel's documented limit of nested levels of functions, counting the outermost call as level 1; not measured by this package), and compile refuses every formula with a diagnostic, as CompileError::Syntax at the span of the 65th call's name.",
+              "reason": "dc-2mlz: evaluation recursed as deep as the formula nested lazy calls, with no bound; Excel's documentation bounds the nesting of functions at 64 levels (outermost call level 1, parentheses and invocations not counted), so by that documented rule the bound refuses no formula Excel accepts; how Excel counts levels is not measured by this package. Witnessed by dc_2mlz__maximum_length: 64 nested IFs, each condition reading A1, evaluate to the innermost branch's text on a 1 MB thread natively and in Chrome and Firefox with 64 reads of A1, and 65 nested IFs get one diagnostic at the 65th IF and are refused by compile at that span. The refusal is CompileError::Syntax over a SyntaxDiagnosticKind::Message diagnostic that names the limit, not a variant of its own naming the depth: the bead's claim note forbids changing calc_fml's public API while ceng-m1.2 and onecalc-m1.1 build on it (dna-onecalc matches CompileError exhaustively). The explicit evaluation stack that removes the recursion is cfml-m2.3's (plan section 4.3)."
             }
           ]
         },
@@ -98,7 +106,7 @@
         },
         {
           "symbol": "publish_root_add_subtract_zero_reaching_result, excel_root_add_subtract_reaches_zero",
-          "to": "crates/calc-fml/src/eval/compile.rs Lowering::expression, final_sum_check; crates/calc-fml/src/eval/mod.rs Instruction::Call (retain), Instruction::Copy, Instruction::NearZeroGuard, Instruction::NearZeroCheck; crates/calc-fml/src/eval/run.rs Run::block, Run::near_zero_check, NEAR_ZERO_BAND, EvalFault::NearZeroFinalSum",
+          "to": "crates/calc-fml/src/eval/compile.rs Lowering::expression, Lowering::formula (Task::FinalSumCheck), final_sum_check; crates/calc-fml/src/eval/mod.rs Instruction::Call (retain), Instruction::Copy, Instruction::NearZeroGuard, Instruction::NearZeroCheck; crates/calc-fml/src/eval/run.rs Run::block, Run::near_zero_check, NEAR_ZERO_BAND, EvalFault::NearZeroFinalSum",
           "kept": [
             "only the formula's final + or - is considered: one under a binary operation or an eager function is not (=1*(0.5-0.4-0.1) keeps its binary64 residual)"
           ],

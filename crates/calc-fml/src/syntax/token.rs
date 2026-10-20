@@ -206,8 +206,9 @@ pub(crate) const ERROR_LITERALS: [(&str, WorksheetErrorCode); 14] = [
 /// parser.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SyntaxDiagnosticKind {
-    /// A malformed or incomplete formula: an unexpected or missing token, or an unterminated
-    /// quoted text.
+    /// A malformed or incomplete formula (an unexpected or missing token, or an unterminated
+    /// quoted text), or a call nested deeper than the parser's limit of nested levels of
+    /// functions.
     Message,
     /// Whitespace before a range colon, as in `A1 : A3`. The tree holds the range the author
     /// meant, with the whitespace as trivia; `suggested` is the source of the diagnostic's span

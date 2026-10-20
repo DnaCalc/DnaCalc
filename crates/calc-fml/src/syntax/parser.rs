@@ -1,15 +1,34 @@
-//! The Excel formula parser: a recursive-descent parser over the lossless tokens that always
-//! returns a tree. Malformed or incomplete input yields diagnostics, missing tokens and
+//! The Excel formula parser: a descent grammar, run on an explicit stack, that always returns a
+//! tree. Malformed or incomplete input yields diagnostics, missing tokens and
 //! [`SyntaxKind::MissingExpr`] nodes, never a lost character.
 //!
 //! Precedence, loosest first: comparison (`=`, `<>`, `<`, `<=`, `>`, `>=`), `&`, `+` `-`, `*` `/`,
 //! `^`, postfix `%`, prefix `+` `-`, then the reference operators union (`,`), intersection
 //! (whitespace) and range (`:`), prefix `@`, and postfix `#` and invocation.
+//!
+//! The grammar's rules do not call one another on the native stack. A rule that needs an operand
+//! parsed by another rule pushes what it still has to do as a [`Resume`] onto the parser's own
+//! stack and starts that rule; the operand's node is handed to the resume on top of the stack.
+//! Chains of one rule (`1+1+1`, `--1`, `1%%`, `@@A1`, `Sheet1!Sheet2!A1`) are loops, and each
+//! parenthesis, argument list or array constant the formula nests adds a few entries to that
+//! stack, so a formula nested as deep as Excel's 8,192 characters allow is parsed without native
+//! recursion.
+//!
+//! A call nested more than [`MAX_FUNCTION_NESTING`] levels deep gets a diagnostic: that is
+//! Excel's limit, and it bounds the depth to which evaluation recurses into the arguments of lazy
+//! calls (see `crate::eval`).
 
 use super::lexer::{lex, quoted_text_is_closed};
 use super::token::{SyntaxDiagnostic, SyntaxDiagnosticKind, TextSpan, Token, TokenKind, Trivia};
 use super::tree::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree};
 use calc_func::value::WorksheetErrorCode;
+
+/// The deepest nesting of function calls a formula may have: Excel's specifications and limits
+/// give 64 nested levels of functions. A call whose argument list lies inside 64 others gets a
+/// diagnostic naming the limit, so a formula Excel refuses to enter is refused here too. That
+/// Excel counts the levels this way (the outermost call is level 1; operators and parentheses
+/// are not levels) is documented, not measured by this package.
+pub(crate) const MAX_FUNCTION_NESTING: usize = 64;
 
 /// Parses formula text, with or without its leading `=`, into a lossless syntax tree.
 pub fn parse_formula(source: &str) -> SyntaxTree {
@@ -28,6 +47,128 @@ struct Parser {
     /// The whitespace a spaced-range-colon recovery has dropped; every suggested correction is
     /// the source without it, so an outer suggestion carries the inner corrections too.
     recovered_whitespace_spans: Vec<TextSpan>,
+    /// The function calls whose argument lists the parser is inside.
+    call_depth: usize,
+}
+
+/// A grammar rule the parser starts.
+enum Rule {
+    /// An expression: the binary operators over operands. `true` where a `,` is the union
+    /// operator (at the top level and inside parentheses).
+    Expression(bool),
+    /// An operand of the binary operators: prefix `+` and `-`, a union, then postfix `%`.
+    Operand(bool),
+    /// The union operator `,` over intersections, where `true` admits it.
+    Union(bool),
+    /// The intersection operator, whitespace between two ranges.
+    Intersection,
+    /// Prefix `@` and the `:` chain of a range.
+    Range,
+    /// One primary with its postfix `#`, invocations and member selectors.
+    Postfix,
+    /// One operand that no operator precedes, with its sheet qualifiers.
+    Primary,
+    ArgumentList,
+    ArrayLiteral,
+}
+
+/// What a started rule has done so far: it needs another rule's node, or it has its own.
+enum Step {
+    Start(Rule),
+    Done(SyntaxNode),
+}
+
+/// What a rule still has to do with the node of the rule it started; each holds what the rule
+/// had built before.
+enum Resume {
+    /// The binary operators of an expression waiting for their right operand, loosest first,
+    /// each with its left operand and its precedence level.
+    Binary {
+        allow_union_comma: bool,
+        pending: Vec<(SyntaxNode, Token, usize)>,
+    },
+    /// The prefix `+` and `-` before an operand.
+    Operand { prefixes: Vec<Token> },
+    /// A union's left operand and its `,`, or nothing before the first operand.
+    Union {
+        allow_union_comma: bool,
+        left: Option<(SyntaxNode, Token)>,
+    },
+    /// The first operand of an intersection.
+    IntersectionFirst,
+    /// An intersection's left operand and its whitespace.
+    IntersectionRight {
+        left: SyntaxNode,
+        spaces: Vec<Token>,
+    },
+    /// A range recovered from whitespace before its `:`: its left operand and its colon.
+    SpacedColonRight { left: SyntaxNode, colon: Token },
+    /// The `:` chain of a recovered range, whose diagnostic follows.
+    SpacedColonRange,
+    /// The prefix `@` before a range's left operand.
+    RangeFirst { ats: Vec<Token> },
+    /// The prefix `@` before a whole range.
+    At { ats: Vec<Token> },
+    /// A range's left operand and its colon.
+    RangeRight { left: SyntaxNode, colon: Token },
+    /// A trim reference's left operand and operator tokens.
+    TrimRight {
+        left: SyntaxNode,
+        tokens: Vec<Token>,
+    },
+    /// The primary of a postfix chain.
+    PostfixFirst,
+    /// The callee of an invocation.
+    Invoke { callee: SyntaxNode },
+    /// A call's name, and the qualifiers before it.
+    Call {
+        name: Token,
+        qualifiers: Vec<Qualifier>,
+    },
+    /// An opening parenthesis, and the qualifiers before it.
+    Grouping {
+        open: Token,
+        qualifiers: Vec<Qualifier>,
+    },
+    /// The qualifiers before an array constant.
+    Qualified { qualifiers: Vec<Qualifier> },
+    /// An argument list's children before the argument.
+    Argument { children: Vec<SyntaxChild> },
+    /// An array constant's children before the element.
+    Element { children: Vec<SyntaxChild> },
+}
+
+/// A sheet qualifier before an operand, the operand following it directly.
+enum Qualifier {
+    /// `#REF!`, the qualifier Excel writes in place of a deleted sheet; the error literal holds
+    /// the `!`.
+    DeletedSheet(Token),
+    /// A sheet name and its `!`.
+    Sheet { name: Token, bang: Token },
+    /// `first:last!`, a run of sheets.
+    Span {
+        first: Token,
+        colon: Token,
+        last: Token,
+        bang: Token,
+    },
+}
+
+/// The precedence level of a binary operator, loosest 0; `None` for a token that is none.
+fn binary_level(kind: TokenKind) -> Option<usize> {
+    match kind {
+        TokenKind::Equals
+        | TokenKind::NotEqual
+        | TokenKind::Less
+        | TokenKind::LessEqual
+        | TokenKind::Greater
+        | TokenKind::GreaterEqual => Some(0),
+        TokenKind::Ampersand => Some(1),
+        TokenKind::Plus | TokenKind::Minus => Some(2),
+        TokenKind::Star | TokenKind::Slash => Some(3),
+        TokenKind::Caret => Some(4),
+        _ => None,
+    }
 }
 
 impl Parser {
@@ -38,6 +179,7 @@ impl Parser {
             diagnostics: Vec::new(),
             pending_trivia: Vec::new(),
             recovered_whitespace_spans: Vec::new(),
+            call_depth: 0,
         }
     }
 
@@ -48,7 +190,7 @@ impl Parser {
             children.push(SyntaxChild::Token(self.bump()));
         }
         self.skip_whitespace();
-        children.push(SyntaxChild::Node(self.parse_expression(true)));
+        children.push(SyntaxChild::Node(self.parse(Rule::Expression(true))));
         self.skip_whitespace();
         while !self.at(TokenKind::Eof) {
             let token = self.bump();
@@ -63,65 +205,220 @@ impl Parser {
         SyntaxNode::new(SyntaxKind::FormulaRoot, children)
     }
 
-    fn parse_expression(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        self.parse_comparison(allow_union_comma)
+    /// Runs `rule` to its node. Every rule it starts in turn runs on `stack`, the parser's own
+    /// stack of [`Resume`]s, never on the native stack.
+    fn parse(&mut self, rule: Rule) -> SyntaxNode {
+        let mut stack = Vec::new();
+        let mut step = Step::Start(rule);
+        loop {
+            step = match step {
+                Step::Start(rule) => self.start(rule, &mut stack),
+                Step::Done(node) => match stack.pop() {
+                    Some(resume) => self.resume(resume, node, &mut stack),
+                    None => return node,
+                },
+            };
+        }
     }
 
-    fn parse_comparison(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        self.parse_binary(
-            allow_union_comma,
-            &[
-                TokenKind::Equals,
-                TokenKind::NotEqual,
-                TokenKind::Less,
-                TokenKind::LessEqual,
-                TokenKind::Greater,
-                TokenKind::GreaterEqual,
-            ],
-            Self::parse_concat,
-        )
+    /// Starts `rule`: runs it until it has its node or needs another rule's.
+    fn start(&mut self, rule: Rule, stack: &mut Vec<Resume>) -> Step {
+        match rule {
+            Rule::Expression(allow_union_comma) => {
+                stack.push(Resume::Binary {
+                    allow_union_comma,
+                    pending: Vec::new(),
+                });
+                Step::Start(Rule::Operand(allow_union_comma))
+            }
+            Rule::Operand(allow_union_comma) => {
+                let mut prefixes = Vec::new();
+                loop {
+                    self.skip_whitespace();
+                    if !(self.at(TokenKind::Plus) || self.at(TokenKind::Minus)) {
+                        break;
+                    }
+                    prefixes.push(self.bump());
+                }
+                stack.push(Resume::Operand { prefixes });
+                Step::Start(Rule::Union(allow_union_comma))
+            }
+            Rule::Union(allow_union_comma) => {
+                stack.push(Resume::Union {
+                    allow_union_comma,
+                    left: None,
+                });
+                Step::Start(Rule::Intersection)
+            }
+            Rule::Intersection => {
+                stack.push(Resume::IntersectionFirst);
+                Step::Start(Rule::Range)
+            }
+            Rule::Range => self.parse_range(stack),
+            Rule::Postfix => {
+                stack.push(Resume::PostfixFirst);
+                Step::Start(Rule::Primary)
+            }
+            Rule::Primary => self.parse_primary(stack),
+            Rule::ArgumentList => {
+                let open = self.expect(TokenKind::LParen, "expected '('");
+                self.skip_whitespace();
+                self.parse_arguments(vec![SyntaxChild::Token(open)], stack)
+            }
+            Rule::ArrayLiteral => {
+                let open = self.expect(TokenKind::LBrace, "expected '{'");
+                self.skip_whitespace();
+                self.parse_elements(vec![SyntaxChild::Token(open)], stack)
+            }
+        }
     }
 
-    fn parse_concat(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        self.parse_binary(
-            allow_union_comma,
-            &[TokenKind::Ampersand],
-            Self::parse_additive,
-        )
+    /// Continues the rule that pushed `resume` with `node`, the node of the rule it started.
+    fn resume(&mut self, resume: Resume, node: SyntaxNode, stack: &mut Vec<Resume>) -> Step {
+        match resume {
+            Resume::Binary {
+                allow_union_comma,
+                pending,
+            } => self.parse_binary(allow_union_comma, pending, node, stack),
+            Resume::Operand { prefixes } => Step::Done(self.parse_percent(prefixes, node)),
+            Resume::Union {
+                allow_union_comma,
+                left,
+            } => {
+                let left = match left {
+                    None => node,
+                    Some((left, comma)) => SyntaxNode::new(
+                        SyntaxKind::UnionExpr,
+                        vec![
+                            SyntaxChild::Node(left),
+                            SyntaxChild::Token(comma),
+                            SyntaxChild::Node(node),
+                        ],
+                    ),
+                };
+                self.parse_union(allow_union_comma, left, stack)
+            }
+            Resume::IntersectionFirst => self.parse_intersection(node, stack),
+            Resume::IntersectionRight { left, spaces } => {
+                let mut children = vec![SyntaxChild::Node(left)];
+                children.extend(spaces.into_iter().map(SyntaxChild::Token));
+                children.push(SyntaxChild::Node(node));
+                let left = SyntaxNode::new(SyntaxKind::IntersectionExpr, children);
+                self.parse_intersection(left, stack)
+            }
+            Resume::SpacedColonRight { left, colon } => {
+                let range = SyntaxNode::new(
+                    SyntaxKind::RangeExpr,
+                    vec![
+                        SyntaxChild::Node(left),
+                        SyntaxChild::Token(colon),
+                        SyntaxChild::Node(node),
+                    ],
+                );
+                stack.push(Resume::SpacedColonRange);
+                self.parse_range_tail(range, stack)
+            }
+            Resume::SpacedColonRange => {
+                let range = self.recover_spaced_range_colon(node);
+                self.parse_intersection(range, stack)
+            }
+            Resume::RangeFirst { ats } => {
+                if !ats.is_empty() {
+                    stack.push(Resume::At { ats });
+                }
+                self.parse_range_tail(node, stack)
+            }
+            Resume::At { ats } => Step::Done(at_prefixed(ats, node)),
+            Resume::RangeRight { left, colon } => {
+                let range = SyntaxNode::new(
+                    SyntaxKind::RangeExpr,
+                    vec![
+                        SyntaxChild::Node(left),
+                        SyntaxChild::Token(colon),
+                        SyntaxChild::Node(node),
+                    ],
+                );
+                self.parse_range_tail(range, stack)
+            }
+            Resume::TrimRight { left, tokens } => {
+                let trim = self.unsupported(
+                    Some(left),
+                    tokens,
+                    Some(node),
+                    "unsupported syntax: trim references (the `.:`, `:.` and `.:.` range operators) are not in the grammar this parser accepts",
+                );
+                self.parse_range_tail(trim, stack)
+            }
+            Resume::PostfixFirst => self.parse_postfix_from(node, stack),
+            Resume::Invoke { callee } => {
+                let invoke = SyntaxNode::new(
+                    SyntaxKind::InvokeExpr,
+                    vec![SyntaxChild::Node(callee), SyntaxChild::Node(node)],
+                );
+                self.parse_postfix_from(invoke, stack)
+            }
+            Resume::Call { name, qualifiers } => {
+                self.call_depth -= 1;
+                let call = SyntaxNode::new(
+                    SyntaxKind::CallExpr,
+                    vec![SyntaxChild::Token(name), SyntaxChild::Node(node)],
+                );
+                Step::Done(qualify(qualifiers, call))
+            }
+            Resume::Grouping { open, qualifiers } => {
+                let close = self.expect(TokenKind::RParen, "expected ')'");
+                let grouping = SyntaxNode::new(
+                    SyntaxKind::GroupingExpr,
+                    vec![
+                        SyntaxChild::Token(open),
+                        SyntaxChild::Node(node),
+                        SyntaxChild::Token(close),
+                    ],
+                );
+                Step::Done(qualify(qualifiers, grouping))
+            }
+            Resume::Qualified { qualifiers } => Step::Done(qualify(qualifiers, node)),
+            Resume::Argument { mut children } => {
+                children.push(SyntaxChild::Node(node));
+                if self.next_argument(&mut children) {
+                    self.parse_arguments(children, stack)
+                } else {
+                    self.close_argument_list(children)
+                }
+            }
+            Resume::Element { mut children } => {
+                children.push(SyntaxChild::Node(node));
+                self.skip_whitespace();
+                if self.at(TokenKind::Comma) || self.at(TokenKind::Semicolon) {
+                    children.push(SyntaxChild::Token(self.bump()));
+                    self.skip_whitespace();
+                    self.parse_elements(children, stack)
+                } else {
+                    self.close_array_literal(children)
+                }
+            }
+        }
     }
 
-    fn parse_additive(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        self.parse_binary(
-            allow_union_comma,
-            &[TokenKind::Plus, TokenKind::Minus],
-            Self::parse_multiplicative,
-        )
-    }
-
-    fn parse_multiplicative(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        self.parse_binary(
-            allow_union_comma,
-            &[TokenKind::Star, TokenKind::Slash],
-            Self::parse_power,
-        )
-    }
-
-    fn parse_power(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        self.parse_binary(allow_union_comma, &[TokenKind::Caret], Self::parse_percent)
-    }
-
-    /// One left-associative level of binary operators over the next tighter level.
+    /// The binary operators, left-associative within each precedence level, after `operand`:
+    /// the pending operators of a level at least as tight as the next operator's take their
+    /// right operands, then the next operator waits for its own; with no next operator, every
+    /// pending one takes its right operand.
     fn parse_binary(
         &mut self,
         allow_union_comma: bool,
-        operators: &[TokenKind],
-        operand: fn(&mut Self, bool) -> SyntaxNode,
-    ) -> SyntaxNode {
-        let mut left = operand(self, allow_union_comma);
-        while operators.contains(&self.current().kind()) {
-            let op = self.bump();
-            let right = operand(self, allow_union_comma);
-            left = SyntaxNode::new(
+        mut pending: Vec<(SyntaxNode, Token, usize)>,
+        operand: SyntaxNode,
+        stack: &mut Vec<Resume>,
+    ) -> Step {
+        let next = binary_level(self.current().kind());
+        let mut right = operand;
+        while let Some((_, _, level)) = pending.last() {
+            if next.is_some_and(|next| *level < next) {
+                break;
+            }
+            let (left, op, _) = pending.pop().expect("a pending operator");
+            right = SyntaxNode::new(
                 SyntaxKind::BinaryExpr,
                 vec![
                     SyntaxChild::Node(left),
@@ -130,11 +427,26 @@ impl Parser {
                 ],
             );
         }
-        left
+        let Some(level) = next else {
+            return Step::Done(right);
+        };
+        let op = self.bump();
+        pending.push((right, op, level));
+        stack.push(Resume::Binary {
+            allow_union_comma,
+            pending,
+        });
+        Step::Start(Rule::Operand(allow_union_comma))
     }
 
-    fn parse_percent(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        let mut node = self.parse_prefix(allow_union_comma);
+    /// An operand's prefix `+` and `-`, outermost first, around `node`, then its postfix `%`.
+    fn parse_percent(&mut self, prefixes: Vec<Token>, mut node: SyntaxNode) -> SyntaxNode {
+        for op in prefixes.into_iter().rev() {
+            node = SyntaxNode::new(
+                SyntaxKind::PrefixExpr,
+                vec![SyntaxChild::Token(op), SyntaxChild::Node(node)],
+            );
+        }
         while self.at(TokenKind::Percent) {
             let percent = self.bump();
             node = SyntaxNode::new(
@@ -145,112 +457,99 @@ impl Parser {
         node
     }
 
-    fn parse_prefix(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        self.skip_whitespace();
-        if self.at(TokenKind::Plus) || self.at(TokenKind::Minus) {
-            let op = self.bump();
-            let operand = self.parse_prefix(allow_union_comma);
-            SyntaxNode::new(
-                SyntaxKind::PrefixExpr,
-                vec![SyntaxChild::Token(op), SyntaxChild::Node(operand)],
-            )
-        } else {
-            self.parse_union(allow_union_comma)
-        }
-    }
-
     /// The union operator `,`, which only exists where a comma separates nothing else: at the top
-    /// level and inside parentheses, not in an argument list or an array literal.
-    fn parse_union(&mut self, allow_union_comma: bool) -> SyntaxNode {
-        let mut left = self.parse_intersection();
-        loop {
-            self.skip_whitespace();
-            if !(allow_union_comma && self.at(TokenKind::Comma)) {
-                return left;
-            }
-            let comma = self.bump();
-            self.skip_whitespace();
-            let right = self.parse_intersection();
-            left = SyntaxNode::new(
-                SyntaxKind::UnionExpr,
-                vec![
-                    SyntaxChild::Node(left),
-                    SyntaxChild::Token(comma),
-                    SyntaxChild::Node(right),
-                ],
-            );
-        }
-    }
-
-    /// The intersection operator: whitespace between two references. Whitespace that is not
-    /// followed by the start of a reference is left for the caller as trivia.
-    fn parse_intersection(&mut self) -> SyntaxNode {
-        let mut left = self.parse_range();
-        loop {
-            let before_whitespace = self.index;
-            let spaces = self.take_whitespace_tokens();
-            if spaces.is_empty() {
-                return left;
-            }
-            if self.at(TokenKind::Colon) {
-                left = self.recover_spaced_range_colon(left, spaces);
-                continue;
-            }
-            if !self.starts_reference_expr() {
-                self.index = before_whitespace;
-                return left;
-            }
-            let right = self.parse_range();
-            let mut children = vec![SyntaxChild::Node(left)];
-            children.extend(spaces.into_iter().map(SyntaxChild::Token));
-            children.push(SyntaxChild::Node(right));
-            left = SyntaxNode::new(SyntaxKind::IntersectionExpr, children);
-        }
-    }
-
-    fn parse_range(&mut self) -> SyntaxNode {
+    /// level and inside parentheses, not in an argument list or an array literal. Continues the
+    /// union after `left`.
+    fn parse_union(
+        &mut self,
+        allow_union_comma: bool,
+        left: SyntaxNode,
+        stack: &mut Vec<Resume>,
+    ) -> Step {
         self.skip_whitespace();
-        if self.at(TokenKind::At) {
-            let at = self.bump();
-            let operand = self.parse_range();
-            return SyntaxNode::new(
-                SyntaxKind::PrefixExpr,
-                vec![SyntaxChild::Token(at), SyntaxChild::Node(operand)],
-            );
+        if !(allow_union_comma && self.at(TokenKind::Comma)) {
+            return Step::Done(left);
+        }
+        let comma = self.bump();
+        self.skip_whitespace();
+        stack.push(Resume::Union {
+            allow_union_comma,
+            left: Some((left, comma)),
+        });
+        Step::Start(Rule::Intersection)
+    }
+
+    /// The intersection operator: whitespace between two references, continued after `left`.
+    /// Whitespace that is not followed by the start of a reference is left for the caller as
+    /// trivia; whitespace before a `:` starts a recovered range.
+    fn parse_intersection(&mut self, left: SyntaxNode, stack: &mut Vec<Resume>) -> Step {
+        let before_whitespace = self.index;
+        let spaces = self.take_whitespace_tokens();
+        if spaces.is_empty() {
+            return Step::Done(left);
+        }
+        if self.at(TokenKind::Colon) {
+            self.adopt_recovered_whitespace(&spaces);
+            let colon = self.bump();
+            let spaces_after = self.take_whitespace_tokens();
+            self.adopt_recovered_whitespace(&spaces_after);
+            stack.push(Resume::SpacedColonRight { left, colon });
+            return Step::Start(Rule::Postfix);
+        }
+        if !self.starts_reference_expr() {
+            self.index = before_whitespace;
+            return Step::Done(left);
+        }
+        stack.push(Resume::IntersectionRight { left, spaces });
+        Step::Start(Rule::Range)
+    }
+
+    /// Prefix `@`, then a `^` or `.` selector where an operand starts, or a range's left operand.
+    fn parse_range(&mut self, stack: &mut Vec<Resume>) -> Step {
+        let mut ats = Vec::new();
+        loop {
+            self.skip_whitespace();
+            if !self.at(TokenKind::At) {
+                break;
+            }
+            ats.push(self.bump());
         }
         if self.at(TokenKind::Caret) {
-            return self.parse_unsupported_caret_selector();
+            let selector = self.parse_unsupported_caret_selector();
+            return Step::Done(at_prefixed(ats, selector));
         }
         if self.at(TokenKind::Dot) {
-            return self.parse_unsupported_leading_selector();
+            let selector = self.parse_unsupported_leading_selector();
+            return Step::Done(at_prefixed(ats, selector));
         }
-        let left = self.parse_postfix();
-        self.parse_range_tail(left)
+        stack.push(Resume::RangeFirst { ats });
+        Step::Start(Rule::Postfix)
     }
 
     /// The `:` chain of a range, continued from its left operand. Each colon must immediately
-    /// follow the previous operand; whitespace after a colon is trivia.
-    fn parse_range_tail(&mut self, mut left: SyntaxNode) -> SyntaxNode {
-        loop {
-            if self.at_trim_range_operator() {
-                left = self.parse_unsupported_trim_range(left);
-                continue;
+    /// follow the previous operand; whitespace after a colon is trivia. A trim operator in the
+    /// chain makes an [`SyntaxKind::UnsupportedExpr`] of its operands.
+    fn parse_range_tail(&mut self, left: SyntaxNode, stack: &mut Vec<Resume>) -> Step {
+        if self.at_trim_range_operator() {
+            let mut tokens = Vec::new();
+            if self.at(TokenKind::Dot) {
+                tokens.push(self.bump());
             }
-            if !self.at(TokenKind::Colon) {
-                return left;
+            tokens.push(self.bump());
+            if self.at(TokenKind::Dot) {
+                tokens.push(self.bump());
             }
-            let colon = self.bump();
             self.skip_whitespace();
-            let right = self.parse_postfix();
-            left = SyntaxNode::new(
-                SyntaxKind::RangeExpr,
-                vec![
-                    SyntaxChild::Node(left),
-                    SyntaxChild::Token(colon),
-                    SyntaxChild::Node(right),
-                ],
-            );
+            stack.push(Resume::TrimRight { left, tokens });
+            return Step::Start(Rule::Postfix);
         }
+        if !self.at(TokenKind::Colon) {
+            return Step::Done(left);
+        }
+        let colon = self.bump();
+        self.skip_whitespace();
+        stack.push(Resume::RangeRight { left, colon });
+        Step::Start(Rule::Postfix)
     }
 
     /// Whether the parser stands on a trim-range operator: `.:`, `:.` or `.:.` with no
@@ -261,51 +560,10 @@ impl Parser {
             || (self.at(TokenKind::Colon) && next == Some(TokenKind::Dot))
     }
 
-    /// `left.:right`, `left:.right` or `left.:.right`: an Excel trim reference, which this
-    /// grammar does not parse. Its operands stay structured; the operator tokens go unstructured
-    /// into the [`SyntaxKind::UnsupportedExpr`], whose diagnostic spans exactly them.
-    fn parse_unsupported_trim_range(&mut self, left: SyntaxNode) -> SyntaxNode {
-        let mut tokens = Vec::new();
-        if self.at(TokenKind::Dot) {
-            tokens.push(self.bump());
-        }
-        tokens.push(self.bump());
-        if self.at(TokenKind::Dot) {
-            tokens.push(self.bump());
-        }
-        self.skip_whitespace();
-        let right = self.parse_postfix();
-        self.unsupported(
-            Some(left),
-            tokens,
-            Some(right),
-            "unsupported syntax: trim references (the `.:`, `:.` and `.:.` range operators) are not in the grammar this parser accepts",
-        )
-    }
-
-    /// The parser stands on a `:` that follows `left` after the whitespace `spaces_before`.
-    /// Builds the range the author meant, with the whitespace on either side of the colon as
-    /// trivia, and records one [`SyntaxDiagnosticKind::SpacedRangeColon`] whose suggestion is the
-    /// range's source without that whitespace.
-    fn recover_spaced_range_colon(
-        &mut self,
-        left: SyntaxNode,
-        spaces_before: Vec<Token>,
-    ) -> SyntaxNode {
-        self.adopt_recovered_whitespace(&spaces_before);
-        let colon = self.bump();
-        let spaces_after = self.take_whitespace_tokens();
-        self.adopt_recovered_whitespace(&spaces_after);
-        let right = self.parse_postfix();
-        let range = SyntaxNode::new(
-            SyntaxKind::RangeExpr,
-            vec![
-                SyntaxChild::Node(left),
-                SyntaxChild::Token(colon),
-                SyntaxChild::Node(right),
-            ],
-        );
-        let range = self.parse_range_tail(range);
+    /// The range built after whitespace before its `:`, with the whitespace on either side of
+    /// the colon as trivia: records one [`SyntaxDiagnosticKind::SpacedRangeColon`] whose
+    /// suggestion is the range's source without that whitespace.
+    fn recover_spaced_range_colon(&mut self, range: SyntaxNode) -> SyntaxNode {
         let suggested = self.source_text_without_recovered_whitespace(range.span());
         self.diagnostics.push(SyntaxDiagnostic {
             message: format!("whitespace before ':' in range; suggested correction: {suggested}"),
@@ -325,12 +583,8 @@ impl Parser {
         }
     }
 
-    fn parse_postfix(&mut self) -> SyntaxNode {
-        let node = self.parse_primary(false);
-        self.parse_postfix_from(node)
-    }
-
-    fn parse_postfix_from(&mut self, mut node: SyntaxNode) -> SyntaxNode {
+    /// Postfix `#`, invocations and member selectors after `node`.
+    fn parse_postfix_from(&mut self, mut node: SyntaxNode, stack: &mut Vec<Resume>) -> Step {
         loop {
             if self.at(TokenKind::Hash) {
                 let hash = self.bump();
@@ -339,15 +593,12 @@ impl Parser {
                     vec![SyntaxChild::Node(node), SyntaxChild::Token(hash)],
                 );
             } else if self.at(TokenKind::LParen) {
-                let args = self.parse_argument_list();
-                node = SyntaxNode::new(
-                    SyntaxKind::InvokeExpr,
-                    vec![SyntaxChild::Node(node), SyntaxChild::Node(args)],
-                );
+                stack.push(Resume::Invoke { callee: node });
+                return Step::Start(Rule::ArgumentList);
             } else if self.at(TokenKind::Dot) && !self.at_trim_range_operator() {
                 node = self.parse_unsupported_member_selector(node);
             } else {
-                return node;
+                return Step::Done(node);
             }
         }
     }
@@ -435,116 +686,127 @@ impl Parser {
         SyntaxNode::new(SyntaxKind::UnsupportedExpr, children)
     }
 
-    /// One operand. `qualifier_target` is true for the operand after a qualifier's `!`, which
-    /// never starts a sheet span: in `Sheet1!A1:Sheet1!B2` the `A1` is a cell, and the `:` is
+    /// One operand. Its sheet qualifiers are taken in a loop: the operand after a qualifier's `!`
+    /// never starts a sheet span, so in `Sheet1!A1:Sheet1!B2` the `A1` is a cell and the `:` is
     /// the range operator between two qualified references.
-    fn parse_primary(&mut self, qualifier_target: bool) -> SyntaxNode {
-        self.skip_whitespace();
-        match self.current().kind() {
-            TokenKind::Number => SyntaxNode::new(
-                SyntaxKind::NumberLiteralExpr,
-                vec![SyntaxChild::Token(self.bump())],
-            ),
-            TokenKind::StringLiteral => SyntaxNode::new(
-                SyntaxKind::StringLiteralExpr,
-                vec![SyntaxChild::Token(self.bump())],
-            ),
-            TokenKind::ErrorLiteral => {
-                let error = self.bump();
-                if error.error_code() == Some(WorksheetErrorCode::Ref)
-                    && matches!(
-                        self.current().kind(),
-                        TokenKind::Identifier | TokenKind::Number
-                    )
-                {
-                    // `#REF!A1`: the qualifier Excel writes in place of a deleted sheet. The
-                    // error literal holds the `!`, and the reference follows it directly.
-                    let target = self.parse_primary(true);
-                    SyntaxNode::new(
-                        SyntaxKind::QualifiedReferenceExpr,
-                        vec![SyntaxChild::Token(error), SyntaxChild::Node(target)],
-                    )
-                } else {
+    fn parse_primary(&mut self, stack: &mut Vec<Resume>) -> Step {
+        let mut qualifiers = Vec::new();
+        loop {
+            let qualifier_target = !qualifiers.is_empty();
+            self.skip_whitespace();
+            let node = match self.current().kind() {
+                TokenKind::Number => SyntaxNode::new(
+                    SyntaxKind::NumberLiteralExpr,
+                    vec![SyntaxChild::Token(self.bump())],
+                ),
+                TokenKind::StringLiteral => SyntaxNode::new(
+                    SyntaxKind::StringLiteralExpr,
+                    vec![SyntaxChild::Token(self.bump())],
+                ),
+                TokenKind::ErrorLiteral => {
+                    let error = self.bump();
+                    if error.error_code() == Some(WorksheetErrorCode::Ref)
+                        && matches!(
+                            self.current().kind(),
+                            TokenKind::Identifier | TokenKind::Number
+                        )
+                    {
+                        // `#REF!A1`: the qualifier Excel writes in place of a deleted sheet. The
+                        // error literal holds the `!`, and the reference follows it directly.
+                        qualifiers.push(Qualifier::DeletedSheet(error));
+                        continue;
+                    }
                     SyntaxNode::new(
                         SyntaxKind::ErrorLiteralExpr,
                         vec![SyntaxChild::Token(error)],
                     )
                 }
-            }
-            TokenKind::Identifier | TokenKind::QuotedIdentifier | TokenKind::BracketedQualifier => {
-                let name = self.bump();
-                if !qualifier_target
-                    && matches!(
-                        name.kind(),
-                        TokenKind::Identifier | TokenKind::QuotedIdentifier
-                    )
-                    && self.at_sheet_span_tail()
-                {
-                    self.parse_sheet_span(name)
-                } else if self.at(TokenKind::Bang) {
-                    let bang = self.bump();
-                    self.skip_whitespace();
-                    let target = self.parse_primary(true);
-                    SyntaxNode::new(
-                        SyntaxKind::QualifiedReferenceExpr,
-                        vec![
-                            SyntaxChild::Token(name),
-                            SyntaxChild::Token(bang),
-                            SyntaxChild::Node(target),
-                        ],
-                    )
-                } else if name.kind() == TokenKind::Identifier && self.at(TokenKind::LParen) {
-                    let args = self.parse_argument_list();
-                    SyntaxNode::new(
-                        SyntaxKind::CallExpr,
-                        vec![SyntaxChild::Token(name), SyntaxChild::Node(args)],
-                    )
-                } else if name.kind() == TokenKind::QuotedIdentifier {
-                    SyntaxNode::new(
-                        SyntaxKind::QuotedIdentifierExpr,
-                        vec![SyntaxChild::Token(name)],
-                    )
-                } else {
-                    SyntaxNode::new(SyntaxKind::IdentifierExpr, vec![SyntaxChild::Token(name)])
+                TokenKind::Identifier
+                | TokenKind::QuotedIdentifier
+                | TokenKind::BracketedQualifier => {
+                    let name = self.bump();
+                    if !qualifier_target
+                        && matches!(
+                            name.kind(),
+                            TokenKind::Identifier | TokenKind::QuotedIdentifier
+                        )
+                        && self.at_sheet_span_tail()
+                    {
+                        qualifiers.push(self.parse_sheet_span(name));
+                        continue;
+                    }
+                    if self.at(TokenKind::Bang) {
+                        let bang = self.bump();
+                        self.skip_whitespace();
+                        qualifiers.push(Qualifier::Sheet { name, bang });
+                        continue;
+                    }
+                    if name.kind() == TokenKind::Identifier && self.at(TokenKind::LParen) {
+                        self.enter_call(&name);
+                        stack.push(Resume::Call { name, qualifiers });
+                        return Step::Start(Rule::ArgumentList);
+                    }
+                    if name.kind() == TokenKind::QuotedIdentifier {
+                        SyntaxNode::new(
+                            SyntaxKind::QuotedIdentifierExpr,
+                            vec![SyntaxChild::Token(name)],
+                        )
+                    } else {
+                        SyntaxNode::new(SyntaxKind::IdentifierExpr, vec![SyntaxChild::Token(name)])
+                    }
                 }
-            }
-            TokenKind::LParen => {
-                let open = self.bump();
-                let expr = self.parse_expression(true);
-                let close = self.expect(TokenKind::RParen, "expected ')'");
-                SyntaxNode::new(
-                    SyntaxKind::GroupingExpr,
-                    vec![
-                        SyntaxChild::Token(open),
-                        SyntaxChild::Node(expr),
-                        SyntaxChild::Token(close),
-                    ],
-                )
-            }
-            TokenKind::LBrace => self.parse_array_literal(),
-            TokenKind::Eof => {
-                let at = self.insertion_point();
-                self.diagnostics.push(SyntaxDiagnostic::message(
-                    "expected an expression",
-                    TextSpan::new(at, 0),
-                ));
-                SyntaxNode::empty(SyntaxKind::MissingExpr, at)
-            }
-            kind => {
-                let token = self.bump();
-                self.diagnostics.push(SyntaxDiagnostic::message(
-                    format!("unexpected token {kind:?}"),
-                    token.span(),
-                ));
-                SyntaxNode::new(SyntaxKind::MissingExpr, vec![SyntaxChild::Token(token)])
-            }
+                TokenKind::LParen => {
+                    let open = self.bump();
+                    stack.push(Resume::Grouping { open, qualifiers });
+                    return Step::Start(Rule::Expression(true));
+                }
+                TokenKind::LBrace => {
+                    if !qualifiers.is_empty() {
+                        stack.push(Resume::Qualified { qualifiers });
+                    }
+                    return Step::Start(Rule::ArrayLiteral);
+                }
+                TokenKind::Eof => {
+                    let at = self.insertion_point();
+                    self.diagnostics.push(SyntaxDiagnostic::message(
+                        "expected an expression",
+                        TextSpan::new(at, 0),
+                    ));
+                    SyntaxNode::empty(SyntaxKind::MissingExpr, at)
+                }
+                kind => {
+                    let token = self.bump();
+                    self.diagnostics.push(SyntaxDiagnostic::message(
+                        format!("unexpected token {kind:?}"),
+                        token.span(),
+                    ));
+                    SyntaxNode::new(SyntaxKind::MissingExpr, vec![SyntaxChild::Token(token)])
+                }
+            };
+            return Step::Done(qualify(qualifiers, node));
         }
     }
 
-    /// `first:last!target` after `first` was taken; the lookahead has confirmed `: name !`. The
-    /// span claims the `:` before the range loop can split on it. The target is one primary, so
+    /// Counts the call named `name`, whose argument list starts next, as one more level of
+    /// nested functions, and records a diagnostic on the call that goes past
+    /// [`MAX_FUNCTION_NESTING`].
+    fn enter_call(&mut self, name: &Token) {
+        self.call_depth += 1;
+        if self.call_depth == MAX_FUNCTION_NESTING + 1 {
+            self.diagnostics.push(SyntaxDiagnostic::message(
+                format!(
+                    "more than {MAX_FUNCTION_NESTING} nested levels of functions: this call is level {}, and Excel's documentation limits a formula to {MAX_FUNCTION_NESTING} nested levels of functions",
+                    self.call_depth
+                ),
+                name.span(),
+            ));
+        }
+    }
+
+    /// `first:last!` after `first` was taken; the lookahead has confirmed `: name !`. The span
+    /// claims the `:` before the range loop can split on it. Its target is one primary, so
     /// `Sheet1:Sheet3!A1:B2` becomes a range whose left operand is the span.
-    fn parse_sheet_span(&mut self, first: Token) -> SyntaxNode {
+    fn parse_sheet_span(&mut self, first: Token) -> Qualifier {
         self.skip_whitespace();
         let colon = self.bump();
         self.skip_whitespace();
@@ -552,63 +814,67 @@ impl Parser {
         self.skip_whitespace();
         let bang = self.bump();
         self.skip_whitespace();
-        let target = self.parse_primary(true);
-        SyntaxNode::new(
-            SyntaxKind::SheetSpan3DReferenceExpr,
-            vec![
-                SyntaxChild::Token(first),
-                SyntaxChild::Token(colon),
-                SyntaxChild::Token(last),
-                SyntaxChild::Token(bang),
-                SyntaxChild::Node(target),
-            ],
-        )
+        Qualifier::Span {
+            first,
+            colon,
+            last,
+            bang,
+        }
     }
 
-    fn parse_argument_list(&mut self) -> SyntaxNode {
-        let open = self.expect(TokenKind::LParen, "expected '('");
-        let mut children = vec![SyntaxChild::Token(open)];
-        self.skip_whitespace();
-        while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
-            if self.at(TokenKind::Comma) {
-                children.push(SyntaxChild::Node(self.omitted_argument()));
-            } else {
-                children.push(SyntaxChild::Node(self.parse_expression(false)));
+    /// An argument list's arguments from the next one on, after `children`.
+    fn parse_arguments(&mut self, mut children: Vec<SyntaxChild>, stack: &mut Vec<Resume>) -> Step {
+        loop {
+            if self.at(TokenKind::RParen) || self.at(TokenKind::Eof) {
+                return self.close_argument_list(children);
             }
-            self.skip_whitespace();
             if !self.at(TokenKind::Comma) {
-                break;
+                stack.push(Resume::Argument { children });
+                return Step::Start(Rule::Expression(false));
             }
-            children.push(SyntaxChild::Token(self.bump()));
-            self.skip_whitespace();
-            if self.at(TokenKind::RParen) {
-                children.push(SyntaxChild::Node(self.omitted_argument()));
-                break;
+            children.push(SyntaxChild::Node(self.omitted_argument()));
+            if !self.next_argument(&mut children) {
+                return self.close_argument_list(children);
             }
         }
+    }
+
+    /// After an argument: takes its `,` and returns whether another argument follows. A `,`
+    /// before the `)` leaves an omitted last argument.
+    fn next_argument(&mut self, children: &mut Vec<SyntaxChild>) -> bool {
+        self.skip_whitespace();
+        if !self.at(TokenKind::Comma) {
+            return false;
+        }
+        children.push(SyntaxChild::Token(self.bump()));
+        self.skip_whitespace();
+        if self.at(TokenKind::RParen) {
+            children.push(SyntaxChild::Node(self.omitted_argument()));
+            return false;
+        }
+        true
+    }
+
+    fn close_argument_list(&mut self, mut children: Vec<SyntaxChild>) -> Step {
         let close = self.expect(TokenKind::RParen, "expected ')'");
         children.push(SyntaxChild::Token(close));
-        SyntaxNode::new(SyntaxKind::ArgumentList, children)
+        Step::Done(SyntaxNode::new(SyntaxKind::ArgumentList, children))
     }
 
-    fn parse_array_literal(&mut self) -> SyntaxNode {
-        let open = self.expect(TokenKind::LBrace, "expected '{'");
-        let mut children = vec![SyntaxChild::Token(open)];
-        self.skip_whitespace();
-        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
-            // Inside an array literal `,` and `;` separate elements and rows, never a union.
-            children.push(SyntaxChild::Node(self.parse_expression(false)));
-            self.skip_whitespace();
-            if self.at(TokenKind::Comma) || self.at(TokenKind::Semicolon) {
-                children.push(SyntaxChild::Token(self.bump()));
-                self.skip_whitespace();
-            } else {
-                break;
-            }
+    /// An array constant's elements from the next one on, after `children`. Inside an array
+    /// literal `,` and `;` separate elements and rows, never a union.
+    fn parse_elements(&mut self, children: Vec<SyntaxChild>, stack: &mut Vec<Resume>) -> Step {
+        if self.at(TokenKind::RBrace) || self.at(TokenKind::Eof) {
+            return self.close_array_literal(children);
         }
+        stack.push(Resume::Element { children });
+        Step::Start(Rule::Expression(false))
+    }
+
+    fn close_array_literal(&mut self, mut children: Vec<SyntaxChild>) -> Step {
         let close = self.expect(TokenKind::RBrace, "expected '}'");
         children.push(SyntaxChild::Token(close));
-        SyntaxNode::new(SyntaxKind::ArrayLiteralExpr, children)
+        Step::Done(SyntaxNode::new(SyntaxKind::ArrayLiteralExpr, children))
     }
 
     fn omitted_argument(&self) -> SyntaxNode {
@@ -732,6 +998,53 @@ impl Parser {
             .map(Token::text)
             .collect()
     }
+}
+
+/// `node` under the prefix `@` operators `ats`, the first outermost.
+fn at_prefixed(ats: Vec<Token>, mut node: SyntaxNode) -> SyntaxNode {
+    for at in ats.into_iter().rev() {
+        node = SyntaxNode::new(
+            SyntaxKind::PrefixExpr,
+            vec![SyntaxChild::Token(at), SyntaxChild::Node(node)],
+        );
+    }
+    node
+}
+
+/// `target` under its sheet qualifiers, the first outermost.
+fn qualify(qualifiers: Vec<Qualifier>, mut target: SyntaxNode) -> SyntaxNode {
+    for qualifier in qualifiers.into_iter().rev() {
+        target = match qualifier {
+            Qualifier::DeletedSheet(error) => SyntaxNode::new(
+                SyntaxKind::QualifiedReferenceExpr,
+                vec![SyntaxChild::Token(error), SyntaxChild::Node(target)],
+            ),
+            Qualifier::Sheet { name, bang } => SyntaxNode::new(
+                SyntaxKind::QualifiedReferenceExpr,
+                vec![
+                    SyntaxChild::Token(name),
+                    SyntaxChild::Token(bang),
+                    SyntaxChild::Node(target),
+                ],
+            ),
+            Qualifier::Span {
+                first,
+                colon,
+                last,
+                bang,
+            } => SyntaxNode::new(
+                SyntaxKind::SheetSpan3DReferenceExpr,
+                vec![
+                    SyntaxChild::Token(first),
+                    SyntaxChild::Token(colon),
+                    SyntaxChild::Token(last),
+                    SyntaxChild::Token(bang),
+                    SyntaxChild::Node(target),
+                ],
+            ),
+        };
+    }
+    target
 }
 
 #[cfg(test)]

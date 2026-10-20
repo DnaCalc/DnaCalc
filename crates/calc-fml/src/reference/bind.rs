@@ -123,48 +123,63 @@ struct Binder<'c> {
     sites: Vec<ReferenceSite>,
 }
 
-impl Binder<'_> {
-    fn walk(&mut self, node: &SyntaxNode) {
-        let binding = match node.kind() {
-            SyntaxKind::UnsupportedExpr => Some(Err(BindError::UnsupportedSyntax)),
-            // Bound with the qualifier or refused, never entered: what lies inside a qualified
-            // operand is not an unqualified reference.
-            SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
-                self.qualified(node)
-            }
-            // `#REF!(A1)`: the `#REF!` qualifier before a parenthesised operand, which the parser
-            // reads as a call of the error value. Refused whole, as `Sheet2!(A1)` is.
-            SyntaxKind::InvokeExpr if node.child_nodes().next().is_some_and(is_ref_error) => {
-                Some(Err(BindError::QualifiedNonReference))
-            }
-            SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
-                only_token(node).and_then(|token| self.alone(&Qualifier::Unqualified, token))
-            }
-            SyntaxKind::RangeExpr => {
-                if !self.range(node) {
-                    self.walk_children(node);
-                }
-                return;
-            }
-            SyntaxKind::ArrayLiteralExpr => {
-                let outer = std::mem::replace(&mut self.in_array_constant, true);
-                self.walk_children(node);
-                self.in_array_constant = outer;
-                return;
-            }
-            _ => {
-                self.walk_children(node);
-                return;
-            }
-        };
-        if let Some(binding) = binding {
-            self.push(node.span(), binding);
-        }
-    }
+/// One step of the binder's walk.
+enum Visit<'t> {
+    /// A node to bind or to enter.
+    Node(&'t SyntaxNode),
+    /// The end of an array constant: whether the walk was inside another one.
+    LeaveArrayConstant { outer: bool },
+}
 
-    fn walk_children(&mut self, node: &SyntaxNode) {
-        for child in node.child_nodes() {
-            self.walk(child);
+impl Binder<'_> {
+    /// Visits the nodes under `root` in source order, each before the nodes inside it. The walk
+    /// keeps the nodes still to visit on a stack of its own, the next one on top, so a formula
+    /// nested however deep is walked without recursion.
+    fn walk(&mut self, root: &SyntaxNode) {
+        let mut pending = vec![Visit::Node(root)];
+        while let Some(visit) = pending.pop() {
+            let node = match visit {
+                Visit::Node(node) => node,
+                Visit::LeaveArrayConstant { outer } => {
+                    self.in_array_constant = outer;
+                    continue;
+                }
+            };
+            let binding = match node.kind() {
+                SyntaxKind::UnsupportedExpr => Some(Err(BindError::UnsupportedSyntax)),
+                // Bound with the qualifier or refused, never entered: what lies inside a
+                // qualified operand is not an unqualified reference.
+                SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
+                    self.qualified(node)
+                }
+                // `#REF!(A1)`: the `#REF!` qualifier before a parenthesised operand, which the
+                // parser reads as a call of the error value. Refused whole, as `Sheet2!(A1)` is.
+                SyntaxKind::InvokeExpr if node.child_nodes().next().is_some_and(is_ref_error) => {
+                    Some(Err(BindError::QualifiedNonReference))
+                }
+                SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
+                    only_token(node).and_then(|token| self.alone(&Qualifier::Unqualified, token))
+                }
+                SyntaxKind::RangeExpr => {
+                    if !self.range(node) {
+                        visit_children(node, &mut pending);
+                    }
+                    continue;
+                }
+                SyntaxKind::ArrayLiteralExpr => {
+                    let outer = std::mem::replace(&mut self.in_array_constant, true);
+                    pending.push(Visit::LeaveArrayConstant { outer });
+                    visit_children(node, &mut pending);
+                    continue;
+                }
+                _ => {
+                    visit_children(node, &mut pending);
+                    continue;
+                }
+            };
+            if let Some(binding) = binding {
+                self.push(node.span(), binding);
+            }
         }
     }
 
@@ -336,6 +351,13 @@ impl Binder<'_> {
                 .ok_or_else(|| BindError::UnknownSheet { name: name.clone() }),
         }
     }
+}
+
+/// Puts the child nodes of `node` on the walk's stack, the first on top.
+fn visit_children<'t>(node: &'t SyntaxNode, pending: &mut Vec<Visit<'t>>) {
+    let first = pending.len();
+    pending.extend(node.child_nodes().map(Visit::Node));
+    pending[first..].reverse();
 }
 
 /// A qualified endpoint's site given its binding alone: that binding, or, when its text is no

@@ -57,6 +57,22 @@
         "cfml_m1_3__reuse_plan": ["windows", "linux", "wasm"],
         "cfml_m1_3__lazy_if": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-2mlz",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-fml", "--test", "acceptance", "dc_2mlz"],
+        ["cargo", "xtask", "accept", "--id", "dc-2mlz", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-2mlz", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-2mlz", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_2mlz__maximum_length"
+      ],
+      "platforms": {
+        "dc_2mlz__maximum_length": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

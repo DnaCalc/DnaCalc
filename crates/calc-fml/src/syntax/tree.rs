@@ -1,6 +1,13 @@
 //! The lossless Excel syntax tree: nodes over tokens, where the tokens in tree order, each
 //! preceded by its leading trivia, reproduce the formula text exactly, malformed and incomplete
 //! input included.
+//!
+//! A tree is as deep as its formula nests: `=1+1+...+1` of Excel's maximum length (8,192
+//! characters) is 4,096 nodes deep. Dropping, cloning and comparing a node, and listing its
+//! tokens, therefore walk the tree with a stack of their own instead of recursing, so none of them
+//! grows the native stack with the tree's depth. The derived `Debug` of [`SyntaxNode`],
+//! [`SyntaxChild`] and [`SyntaxTree`] is the one walk that still recurses, once per level of the
+//! tree: nothing on the route from formula text to value formats a tree.
 
 use super::token::{SyntaxDiagnostic, TextSpan, Token};
 
@@ -77,12 +84,95 @@ impl SyntaxChild {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct SyntaxNode {
     kind: SyntaxKind,
     span: TextSpan,
     children: Vec<SyntaxChild>,
 }
+
+impl Drop for SyntaxNode {
+    /// Takes the child nodes out of every node below this one before it is dropped, so each
+    /// drops with no child nodes left and the drop does not recurse.
+    fn drop(&mut self) {
+        let mut pending = Vec::new();
+        take_child_nodes(&mut self.children, &mut pending);
+        while let Some(mut node) = pending.pop() {
+            take_child_nodes(&mut node.children, &mut pending);
+        }
+    }
+}
+
+/// Moves the child nodes of `children` to `out`, dropping its tokens.
+fn take_child_nodes(children: &mut Vec<SyntaxChild>, out: &mut Vec<SyntaxNode>) {
+    for child in children.drain(..) {
+        if let SyntaxChild::Node(node) = child {
+            out.push(node);
+        }
+    }
+}
+
+impl Clone for SyntaxNode {
+    /// A copy built bottom-up on a stack of the nodes being copied, without recursion.
+    fn clone(&self) -> Self {
+        // Each entry: a node being copied, the index of its next child, and its children copied
+        // so far.
+        let mut copying: Vec<(&SyntaxNode, usize, Vec<SyntaxChild>)> =
+            vec![(self, 0, Vec::with_capacity(self.children.len()))];
+        loop {
+            let top = copying.len() - 1;
+            let (node, next) = (copying[top].0, copying[top].1);
+            if let Some(child) = node.children.get(next) {
+                copying[top].1 += 1;
+                match child {
+                    SyntaxChild::Token(token) => {
+                        copying[top].2.push(SyntaxChild::Token(token.clone()))
+                    }
+                    SyntaxChild::Node(inner) => {
+                        copying.push((inner, 0, Vec::with_capacity(inner.children.len())))
+                    }
+                }
+                continue;
+            }
+            let (node, _, children) = copying.pop().expect("the node being copied");
+            let copy = SyntaxNode {
+                kind: node.kind,
+                span: node.span,
+                children,
+            };
+            match copying.last_mut() {
+                Some((_, _, copied)) => copied.push(SyntaxChild::Node(copy)),
+                None => return copy,
+            }
+        }
+    }
+}
+
+impl PartialEq for SyntaxNode {
+    /// Compares the two trees node by node on a stack of the pairs still to compare, without
+    /// recursion.
+    fn eq(&self, other: &Self) -> bool {
+        let mut pending = vec![(self, other)];
+        while let Some((left, right)) = pending.pop() {
+            if left.kind != right.kind
+                || left.span != right.span
+                || left.children.len() != right.children.len()
+            {
+                return false;
+            }
+            for pair in left.children.iter().zip(&right.children) {
+                match pair {
+                    (SyntaxChild::Token(a), SyntaxChild::Token(b)) if a == b => {}
+                    (SyntaxChild::Node(a), SyntaxChild::Node(b)) => pending.push((a, b)),
+                    _ => return false,
+                }
+            }
+        }
+        true
+    }
+}
+
+impl Eq for SyntaxNode {}
 
 impl SyntaxNode {
     /// A node over `children`, spanning its first child's start to its last child's end (leading
@@ -152,10 +242,13 @@ impl SyntaxNode {
     }
 }
 
+/// Appends the tokens under `node` to `out` in source order, walking the tree on a stack of the
+/// children still to visit, the next one on top.
 fn collect_tokens<'a>(node: &'a SyntaxNode, out: &mut Vec<&'a Token>) {
-    for child in &node.children {
+    let mut pending: Vec<&'a SyntaxChild> = node.children.iter().rev().collect();
+    while let Some(child) = pending.pop() {
         match child {
-            SyntaxChild::Node(inner) => collect_tokens(inner, out),
+            SyntaxChild::Node(inner) => pending.extend(inner.children.iter().rev()),
             SyntaxChild::Token(token) => out.push(token),
         }
     }

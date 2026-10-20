@@ -6,6 +6,15 @@
 //! parameter takes a value and holds a reference is replaced by its cell's value; a reference
 //! passed to a parameter that admits one reaches the kernel as a reference, which the kernel
 //! reads through the shared reader.
+//!
+//! Operator chains and eager calls, however long or deep, run in one block's loop over the
+//! operand stack. Evaluation recurses on the native stack in one place: a lazy call's arguments
+//! run from inside calc-func's kernel (`Run::block`, `Run::lazy_call`, `calc_func::invoke`, the
+//! kernel, `Blocks::argument`, then `Run::block` for the argument's block), once for each lazy
+//! call nested inside another's argument. The parser gives a diagnostic to a call nested more
+//! than 64 levels deep (Excel's documented limit of nested levels of functions), and compile refuses every
+//! formula with a diagnostic, so this recursion is at most 64 lazy calls deep. The explicit evaluation stack that removes the recursion
+//! is bead cfml-m2.3's (plan section 4.3).
 
 use super::cells::{ReaderCells, SharedReader};
 use super::{EvalFrame, EvaluationServices, FormulaInstance, Instruction, Target};

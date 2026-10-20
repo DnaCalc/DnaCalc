@@ -31,6 +31,15 @@
 //!
 //! cfunc-m1.2's oracle capture is the Excel evidence for the operators and functions; bead
 //! dc-r4ci reads it for the near-zero rows.
+//!
+//! The dc-2mlz case runs formulas of Excel's maximum length (8,192 characters) and its deepest
+//! nesting of functions (64) through the same public route, parse_formula, bind_references,
+//! compile, instantiate and evaluate, natively on a thread spawned with a 1 MB stack (the size of
+//! the Windows main thread's) and on wasm32 on the browser's main thread. Both limits are Excel's
+//! documented specifications, not measured here. Its expected values are derived by hand (4,096
+//! ones sum to 4,096), and the depth of each tree is counted by the case's own walk, which keeps
+//! its own stack. A stack overflow aborts the native test process, so a native run that reports
+//! the case passed shows that the 1 MB stack sufficed.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -2546,5 +2555,313 @@ fn cfml_m1_3__lazy_if() {
         table.len(),
         evaluations,
         unrequested
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-2mlz: formulas of Excel's maximum length, on a 1 MB stack.
+
+/// Excel's maximum formula length, in characters (its specifications and limits).
+const EXCEL_MAX_FORMULA_CHARS: usize = 8192;
+
+/// The stack the dc-2mlz case runs on natively: 1 MB, the size of the Windows main thread's.
+#[cfg(not(target_arch = "wasm32"))]
+const ONE_MEGABYTE: usize = 1 << 20;
+
+/// Runs `body` natively on a thread spawned with a 1 MB stack, passing on its panic; on wasm32 on
+/// the browser's main thread, where the case runs.
+fn on_a_one_megabyte_stack(body: fn()) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let thread = std::thread::Builder::new()
+            .name("dc_2mlz__maximum_length".to_owned())
+            .stack_size(ONE_MEGABYTE)
+            .spawn(body)
+            .expect("a thread with a 1 MB stack");
+        if let Err(panic) = thread.join() {
+            std::panic::resume_unwind(panic);
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    body();
+}
+
+/// The depth of the tree under `node` in nodes, and the deepest nesting of calls in it, counted
+/// on a stack of the nodes still to visit: a recursive walk is what the case must not need.
+fn nesting(node: &SyntaxNode) -> (usize, usize) {
+    let (mut depth, mut calls) = (0, 0);
+    let mut pending = vec![(node, 1, 0)];
+    while let Some((node, at, calls_above)) = pending.pop() {
+        let calls_here = calls_above + usize::from(node.kind() == SyntaxKind::CallExpr);
+        depth = depth.max(at);
+        calls = calls.max(calls_here);
+        pending.extend(node.child_nodes().map(|child| (child, at + 1, calls_here)));
+    }
+    (depth, calls)
+}
+
+/// `levels` nested IFs: level k is `IF(A1>=k, level k+1, -k)`, and the innermost IF's TRUE
+/// branch is the text "innermost". With A1 at least `levels`, every condition is TRUE, so the
+/// value is "innermost"; a FALSE condition at level k would give -k.
+fn nested_ifs(levels: usize) -> String {
+    let mut formula = String::from("=");
+    for level in 1..=levels {
+        formula.push_str(&format!("IF(A1>={level},"));
+    }
+    formula.push_str("\"innermost\"");
+    for level in (1..=levels).rev() {
+        formula.push_str(&format!(",-{level})"));
+    }
+    formula
+}
+
+/// A value as the case's notes print it: a number, or text in quotes.
+fn shown(value: &CalcValue) -> String {
+    match (value.as_number(), value.as_text()) {
+        (Some(number), _) => format!("the number {number}"),
+        (_, Some(text)) => format!("the text {:?}", text.to_string_lossy()),
+        _ => format!("{value:?}"),
+    }
+}
+
+/// A refusal as the case compares it: its variant and, where it has one, its owner or bind error.
+fn refusal_kind(refusal: &CompileError) -> String {
+    match refusal {
+        CompileError::Unsupported { owner, .. } => format!("Unsupported {owner}"),
+        CompileError::Reference { error, .. } => format!("Reference {error:?}"),
+        other => format!("{other:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_2mlz__maximum_length() {
+    on_a_one_megabyte_stack(maximum_length_formulas);
+}
+
+fn maximum_length_formulas() {
+    let catalog = LoggingCatalog::new(&["Sheet1"]);
+    let sheet = catalog.id("Sheet1");
+    let c10 = anchor_at(sheet, "C10");
+    let mut cache = PlanCache::new();
+    let mut scratch = EvalScratch::new();
+    let mut reader = RunReader::default();
+    reader.store(sheet, "A1", CalcValue::number(64.0));
+    let a1 = one_cell(sheet, "A1");
+
+    // Each formula with the depth of its tree in nodes and its deepest nesting of calls, the
+    // number of references binding finds, its value and the areas its evaluation reads, all
+    // derived by hand. The first four are 8,192 characters long.
+    type Calculated = (
+        &'static str,
+        String,
+        (usize, usize),
+        usize,
+        CalcValue,
+        Vec<GridArea>,
+    );
+    let calculated: Vec<Calculated> = vec![
+        // 4,096 ones: a left-deep chain of 4,095 additions.
+        (
+            "left-deep chain =1+1+...+1",
+            format!("=1{}", "+1".repeat(4095)),
+            (4096, 0),
+            0,
+            CalcValue::number(4096.0),
+            vec![],
+        ),
+        // Each addition's right operand is the parenthesised rest: 2,047 groups and 2,049 ones.
+        (
+            "right-deep chain =1+(1+(...(1+1)...))",
+            format!("={}1+1{}", "1+(".repeat(2047), ")".repeat(2047)),
+            (4096, 0),
+            0,
+            CalcValue::number(2049.0),
+            vec![],
+        ),
+        // One literal inside 4,095 parentheses.
+        (
+            "parenthesised group =((...(1)...))",
+            format!("={}1{}", "(".repeat(4095), ")".repeat(4095)),
+            (4096, 0),
+            0,
+            CalcValue::number(1.0),
+            vec![],
+        ),
+        // 8,190 prefix minus signs, an even number of them.
+        (
+            "prefix chain =--...-1",
+            format!("={}1", "-".repeat(8190)),
+            (8191, 0),
+            0,
+            CalcValue::number(1.0),
+            vec![],
+        ),
+        // 64 nested IFs (each a call and its argument list, two nodes), the innermost argument
+        // list holding the condition A1>=64 (a binary operator over two leaves). Each condition
+        // reads A1, which holds 64.
+        (
+            "64 nested IFs",
+            nested_ifs(64),
+            (130, 64),
+            64,
+            text_value("innermost"),
+            vec![a1; 64],
+        ),
+    ];
+    for (name, formula, ..) in &calculated[..4] {
+        assert_eq!(
+            formula.encode_utf16().count(),
+            EXCEL_MAX_FORMULA_CHARS,
+            "{name}"
+        );
+    }
+    for (name, formula, shape, references, value, reads) in &calculated {
+        let tree = parse_formula(formula);
+        assert!(
+            tree.diagnostics().is_empty(),
+            "{name}: {:?}",
+            tree.diagnostics().first()
+        );
+        assert!(
+            tree.source_text() == *formula,
+            "{name}: the tree does not reprint the formula"
+        );
+        let expression = tree.expression().expect("a formula's expression");
+        assert_eq!(nesting(expression), *shape, "{name}");
+        assert!(tree.clone() == tree, "{name}: a copy of the tree differs");
+        let sites = bind_references(&tree, ReferenceNotation::A1, c10, &catalog);
+        assert_eq!(sites.len(), *references, "{name}");
+        let plan = compile(&tree, ReferenceNotation::A1, c10, &catalog, &mut cache)
+            .unwrap_or_else(|refused| panic!("{name}: {refused:?}"));
+        let instance = instantiate(&plan, c10);
+        let (result, read) = evaluated(&instance, &mut reader, &mut scratch);
+        assert_eq!(result.as_ref(), Ok(value), "{name}");
+        assert_eq!(&read, reads, "{name}");
+        note!(
+            "ACCEPT-NOTE: dc_2mlz__maximum_length: {name}: {} characters, a tree {} nodes deep with calls nested {} deep; parsed without diagnostics and reprinted, {} references bound, compiled, and evaluated to {} with {} reads",
+            formula.encode_utf16().count(),
+            shape.0,
+            shape.1,
+            sites.len(),
+            shown(value),
+            read.len()
+        );
+    }
+
+    // The other directions of nesting, at 8,192 characters: compile refuses each, typed, after
+    // parsing and binding it without diagnostics. Each with the depth of its tree, its number of
+    // binding sites and its refusal.
+    let refused: Vec<(&str, String, usize, usize, &str)> = vec![
+        (
+            "prefix @ chain",
+            format!("={}A1", "@".repeat(8189)),
+            8190,
+            1,
+            "Unsupported cfml-m3.3",
+        ),
+        (
+            "qualifier chain",
+            format!("={}A10", "S!".repeat(4094)),
+            4095,
+            1,
+            "Reference QualifiedNonReference",
+        ),
+        (
+            "range operator chain",
+            format!("=1{}", ":1".repeat(4095)),
+            4096,
+            1,
+            "Unsupported cfml-m3.3",
+        ),
+        (
+            "union chain",
+            format!("=(1{})", ",1".repeat(4094)),
+            4096,
+            0,
+            "Unsupported cfml-m3.3",
+        ),
+        (
+            "intersection chain",
+            format!("=1{}", " 1".repeat(4095)),
+            4096,
+            0,
+            "Unsupported cfml-m3.3",
+        ),
+        (
+            "nested array constants",
+            format!("={}1{}", "{".repeat(4095), "}".repeat(4095)),
+            4096,
+            0,
+            "Unsupported cfml-m3.4",
+        ),
+        (
+            "invocation chain",
+            format!("=A{}", "(1)".repeat(2730)),
+            2732,
+            0,
+            "Unsupported cfml-m2.3",
+        ),
+    ];
+    for (name, formula, depth, references, refusal) in &refused {
+        assert_eq!(
+            formula.encode_utf16().count(),
+            EXCEL_MAX_FORMULA_CHARS,
+            "{name}"
+        );
+        let tree = parse_formula(formula);
+        assert!(
+            tree.diagnostics().is_empty(),
+            "{name}: {:?}",
+            tree.diagnostics().first()
+        );
+        assert!(
+            tree.source_text() == *formula,
+            "{name}: the tree does not reprint the formula"
+        );
+        assert_eq!(
+            nesting(tree.expression().expect("a formula's expression")).0,
+            *depth,
+            "{name}"
+        );
+        let sites = bind_references(&tree, ReferenceNotation::A1, c10, &catalog);
+        assert_eq!(sites.len(), *references, "{name}");
+        let seen = compile(&tree, ReferenceNotation::A1, c10, &catalog, &mut cache)
+            .map(|_| "compiled".to_owned())
+            .unwrap_or_else(|refused| refusal_kind(&refused));
+        assert_eq!(seen, *refusal, "{name}");
+        note!(
+            "ACCEPT-NOTE: dc_2mlz__maximum_length: {name}: 8192 characters, a tree {depth} nodes deep, {references} binding sites; compile refused it: {seen}"
+        );
+    }
+
+    // One IF more than Excel's 64 nested levels of functions: the parser refuses the 65th call,
+    // and compile refuses the formula at that call's name.
+    let too_deep = nested_ifs(65);
+    let tree = parse_formula(&too_deep);
+    let at = too_deep.find("IF(A1>=65,").expect("the 65th IF");
+    let name = TextSpan::new(at, 2);
+    assert_eq!(tree.diagnostics().len(), 1, "{:?}", tree.diagnostics());
+    let diagnostic = &tree.diagnostics()[0];
+    assert_eq!(diagnostic.span, name);
+    assert_eq!(diagnostic.kind, SyntaxDiagnosticKind::Message);
+    assert!(
+        diagnostic
+            .message
+            .starts_with("more than 64 nested levels of functions"),
+        "{}",
+        diagnostic.message
+    );
+    assert_eq!(nesting(tree.expression().expect("an expression")).1, 65);
+    assert_eq!(
+        compile(&tree, ReferenceNotation::A1, c10, &catalog, &mut cache).err(),
+        Some(CompileError::Syntax { span: name })
+    );
+    note!(
+        "ACCEPT-NOTE: dc_2mlz__maximum_length: 65 nested IFs ({} characters): one parse diagnostic, at the 65th IF ({}..{}): {:?}; compile refused it as CompileError::Syntax at that span",
+        too_deep.len(),
+        name.start,
+        name.end(),
+        diagnostic.message
     );
 }
