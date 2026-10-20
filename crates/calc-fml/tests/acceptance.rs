@@ -1205,6 +1205,45 @@ fn cfml_m1_2__relative_absolute() {
             refusals += 1;
         }
     }
+    // `Sheet2!#REF!`, which Excel writes for a reference whose cells were deleted, binds on Sheet2
+    // as a deleted reference, and placing it anywhere is #REF!. A range between two `#REF!`
+    // qualified ends is one reference on the deleted sheet.
+    let deleted_cells = sites("=Sheet2!#REF!+#REF!A1:#REF!B2", A1, c5, &catalog);
+    assert_eq!(texts(&deleted_cells), ["Sheet2!#REF!", "#REF!A1:#REF!B2"]);
+    let deleted_cells = operands(&deleted_cells);
+    assert_eq!(
+        deleted_cells,
+        [
+            on(SheetTarget::Sheet(s2), ReferenceShape::Deleted),
+            on(
+                SheetTarget::Deleted,
+                ReferenceShape::Area {
+                    first: CellRef {
+                        row: rel(-4),
+                        column: rel(-2)
+                    },
+                    last: CellRef {
+                        row: rel(-3),
+                        column: rel(-1)
+                    },
+                }
+            ),
+        ]
+    );
+    for (operand, expected) in deleted_cells
+        .iter()
+        .zip([PlacementError::DeletedCells, PlacementError::DeletedSheet])
+    {
+        for caller in [c5, f10, sheet3_f10] {
+            let refused = operand.instantiate(caller);
+            assert_eq!(refused, Err(expected), "{operand:?} at {caller:?}");
+            assert_eq!(
+                refused.unwrap_err().worksheet_error(),
+                WorksheetErrorCode::Ref
+            );
+            refusals += 1;
+        }
+    }
 
     // Placed where a relative part leaves the grid, a reference is refused as #REF!: three of the
     // mixed cells and the three shapes at A1, D7 (entered in C5) at the last row and the last
@@ -1299,11 +1338,39 @@ fn cfml_m1_2__relative_absolute() {
     );
     // Without a `$`, cell-like text outside the grid is a name, which this binding leaves alone.
     assert!(sites("=XFE1+Sales2023+A0+XFE:XFE", A1, c5, &catalog).is_empty());
-    // Only the Sheet2 qualifiers reached the catalogue, once per qualified reference.
-    assert_eq!(*catalog.requests.borrow(), ["Sheet2"; 4]);
+    // A number is no reference, even where its digits would name a row outside the grid: each of
+    // these formulas gives the A1 site only.
+    for formula in ["=A1+0", "=IF(A1>0,1,2)", "=A1*1048577"] {
+        assert_eq!(
+            sites(formula, A1, c5, &catalog),
+            [(
+                "A1".to_owned(),
+                Ok(on(SheetTarget::Anchor, cell(rel(-4), rel(-2))))
+            )],
+            "{formula}"
+        );
+    }
+    // In A1 notation a row or column alone is no reference, and with a `$` it is no name or
+    // number either: each is refused, one outside the grid as such, without asking the catalogue.
+    for (formula, refused) in [
+        ("=$B", BindError::LoneRowOrColumn),
+        ("=$3", BindError::LoneRowOrColumn),
+        ("=$XFE", BindError::OutsideGrid),
+        ("=Sheet2!$B", BindError::LoneRowOrColumn),
+        ("=Sheet2!$3", BindError::LoneRowOrColumn),
+    ] {
+        assert_eq!(
+            sites(formula, A1, c5, &catalog),
+            [(formula[1..].to_owned(), Err(refused))],
+            "{formula}"
+        );
+        refusals += 1;
+    }
+    // Only the Sheet2 qualifiers reached the catalogue, once per qualified reference bound.
+    assert_eq!(*catalog.requests.borrow(), ["Sheet2"; 5]);
 
     note!(
-        "ACCEPT-NOTE: cfml_m1_2__relative_absolute: {placements} placements at two or more callers gave the areas decoded by the case; {refusals} references refused (#REF! qualifier, off-grid placement, or outside the grid at binding)"
+        "ACCEPT-NOTE: cfml_m1_2__relative_absolute: {placements} placements at two or more callers gave the areas decoded by the case; {refusals} references refused (#REF! qualifier or deleted cells, off-grid placement, or outside the grid or a lone $ row or column at binding)"
     );
 }
 
@@ -1382,6 +1449,36 @@ impl ReferenceReader for LoggingReader {
     }
 }
 
+/// A reader over one block of stored values, kept row-major from `first` across `width`
+/// columns, that lends them in runs of up to `chunk` values: a run continues from the end of one
+/// row of the area to the start of the next. It serves areas across the block's columns.
+struct BlockReader {
+    first: CellKey,
+    width: u32,
+    values: Vec<CalcValue>,
+    chunk: usize,
+    requests: Vec<GridArea>,
+}
+
+impl ReferenceReader for BlockReader {
+    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+        self.requests.push(area);
+        let start = area.first();
+        assert_eq!(
+            (start.sheet(), start.column(), area.column_count()),
+            (self.first.sheet(), self.first.column(), self.width),
+            "an area across the block's columns"
+        );
+        let skip = ((start.row() - self.first.row()) * self.width) as usize;
+        let cells = &self.values[skip..skip + area.cell_count() as usize];
+        for run in cells.chunks(self.chunk) {
+            if sink(CellRun::Values(run)).is_break() {
+                return;
+            }
+        }
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn cfml_m1_2__provider_reads() {
@@ -1445,10 +1542,10 @@ fn cfml_m1_2__provider_reads() {
         "=Sheet1:Sheet3!(A1)",
         "=Nope!(A1)",
         "=Sheet2!Sheet3!A1",
+        "=#REF!(A1)",
         "=#REF!SUM(A1)",
         "=Sheet2!SUM(A1)",
         "=Sheet2!3",
-        "=Sheet2!#REF!",
     ] {
         assert_eq!(
             sites(formula, ReferenceNotation::A1, anchor, &catalog),
@@ -1459,6 +1556,43 @@ fn cfml_m1_2__provider_reads() {
             "{formula}"
         );
     }
+    // A range whose ends share a qualifier naming another workbook, or whose first end is a run
+    // of sheets, is one refused site.
+    for (formula, refused) in [
+        ("=[B.xlsx]S!A1:[B.xlsx]S!B2", BindError::ExternalWorkbook),
+        ("=Sheet1:Sheet3!A1:Sheet3!B2", BindError::SheetSpan),
+    ] {
+        assert_eq!(
+            sites(formula, ReferenceNotation::A1, anchor, &catalog),
+            [(formula[1..].to_owned(), Err(refused))],
+            "{formula}"
+        );
+    }
+    // An array constant holds constants only: each reference inside one is refused, a qualified
+    // one without asking the catalogue, and the constants and the name give no site.
+    assert_eq!(
+        sites("={A1}", ReferenceNotation::A1, anchor, &catalog),
+        [("A1".to_owned(), Err(BindError::InArrayConstant))]
+    );
+    assert_eq!(
+        sites(
+            "=SUM({1,Sheet2!B3;A1:B2,TRUE},Sheet2!TaxRate)+C1",
+            ReferenceNotation::A1,
+            anchor,
+            &catalog
+        ),
+        [
+            ("Sheet2!B3".to_owned(), Err(BindError::InArrayConstant)),
+            ("A1:B2".to_owned(), Err(BindError::InArrayConstant)),
+            (
+                "C1".to_owned(),
+                Ok(on(
+                    SheetTarget::Anchor,
+                    cell(AxisRef::Relative(-9), AxisRef::Relative(-1))
+                ))
+            ),
+        ]
+    );
     // Syntax the parser refused is one refused site, and the references inside it are not bound:
     // neither Sheet1!A1 nor B10 of the trim range, nor A1 under the member selector. C1 binds.
     for (formula, refused, after) in [
@@ -1492,6 +1626,72 @@ fn cfml_m1_2__provider_reads() {
         );
     }
     assert_eq!(catalog.requests.borrow().len(), asked);
+
+    // Between two sheet qualifiers each is asked of the catalogue once. On one sheet the range is
+    // one site; across two sheets, or where the catalogue knows no sheet of one qualifier, each
+    // end is a site of its own, bound or refused alone.
+    let d10 = |row: i32, column: i32| cell(AxisRef::Relative(row), AxisRef::Relative(column));
+    let two_ends: [(&str, [&str; 2], Bound); 3] = [
+        (
+            "=Sheet2!B3:sheet2!D7",
+            ["Sheet2", "sheet2"],
+            vec![(
+                "Sheet2!B3:sheet2!D7".to_owned(),
+                Ok(on(
+                    SheetTarget::Sheet(s2),
+                    ReferenceShape::Area {
+                        first: CellRef {
+                            row: AxisRef::Relative(-7),
+                            column: AxisRef::Relative(-2),
+                        },
+                        last: CellRef {
+                            row: AxisRef::Relative(-3),
+                            column: AxisRef::Relative(0),
+                        },
+                    },
+                )),
+            )],
+        ),
+        (
+            "=Sheet2!A1:Sheet1!B2",
+            ["Sheet2", "Sheet1"],
+            vec![
+                (
+                    "Sheet2!A1".to_owned(),
+                    Ok(on(SheetTarget::Sheet(s2), d10(-9, -3))),
+                ),
+                (
+                    "Sheet1!B2".to_owned(),
+                    Ok(on(SheetTarget::Sheet(s1), d10(-8, -2))),
+                ),
+            ],
+        ),
+        (
+            "=Nope!B3:Sheet2!D7",
+            ["Nope", "Sheet2"],
+            vec![
+                (
+                    "Nope!B3".to_owned(),
+                    Err(BindError::UnknownSheet {
+                        name: "Nope".to_owned(),
+                    }),
+                ),
+                (
+                    "Sheet2!D7".to_owned(),
+                    Ok(on(SheetTarget::Sheet(s2), d10(-3, 0))),
+                ),
+            ],
+        ),
+    ];
+    for (formula, requests, expected) in two_ends {
+        let before = catalog.requests.borrow().len();
+        assert_eq!(
+            sites(formula, ReferenceNotation::A1, anchor, &catalog),
+            expected,
+            "{formula}"
+        );
+        assert_eq!(catalog.requests.borrow()[before..], requests, "{formula}");
+    }
 
     // Sheet2: B2 and C2 hold values, B3 is blank, C3 is an input left unresolved, and B5 holds a
     // value further down column B. Sheet1's B4 is blank; It's B3 is unresolved.
@@ -1606,12 +1806,97 @@ fn cfml_m1_2__provider_reads() {
         assert_eq!(cells, area.cell_count());
     }
 
+    // A reader that lends several values per run. Sheet1's B7:D9 holds 1 to 9 row by row, lent
+    // four at a time, so runs continue from the end of one row of the area to the start of the
+    // next. Each run starts at the cell calc-fml reports, and the case places each value at its
+    // own cell from that start by its own row-major count.
+    let mut block = BlockReader {
+        first: cell_at(s1, "B7"),
+        width: 3,
+        values: (1..=9).map(|n| CalcValue::number(f64::from(n))).collect(),
+        chunk: 4,
+        requests: Vec::new(),
+    };
+    let wrapped = operands(&sites(
+        "=B7:D9+B8:D9",
+        ReferenceNotation::A1,
+        anchor,
+        &catalog,
+    ));
+    let mut wrapped_reads = Vec::new();
+    for operand in &wrapped {
+        let area = operand.instantiate(anchor).expect("on the grid at D10");
+        let first = area.first();
+        let mut starts = Vec::new();
+        let mut cells = Vec::new();
+        read_cells(&mut block, area, &mut |start, run| {
+            let CellRun::Values(values) = run else {
+                panic!("the block reader lends values only: {run:?}");
+            };
+            starts.push((start, values.len()));
+            let offset = (start.row() - first.row()) * 3 + (start.column() - first.column());
+            for (index, value) in values.iter().enumerate() {
+                let at = offset + index as u32;
+                let cell =
+                    CellKey::new(first.sheet(), first.row() + at / 3, first.column() + at % 3)
+                        .expect("a cell of the area");
+                cells.push((cell, value as *const CalcValue as usize, value.clone()));
+            }
+            ControlFlow::Continue(())
+        })
+        .unwrap_or_else(|broken| panic!("{operand:?}: {broken:?}"));
+        wrapped_reads.push((starts, cells));
+    }
+    assert_eq!(
+        block.requests,
+        [area_of(s1, "B7", "D9"), area_of(s1, "B8", "D9")]
+    );
+    let lent_at = |addresses: &[&str], from: usize| -> Vec<(CellKey, usize, CalcValue)> {
+        addresses
+            .iter()
+            .enumerate()
+            .map(|(index, address)| {
+                let value = &block.values[from + index];
+                (
+                    cell_at(s1, address),
+                    value as *const CalcValue as usize,
+                    value.clone(),
+                )
+            })
+            .collect()
+    };
+    assert_eq!(
+        wrapped_reads,
+        [
+            (
+                vec![
+                    (cell_at(s1, "B7"), 4),
+                    (cell_at(s1, "C8"), 4),
+                    (cell_at(s1, "D9"), 1)
+                ],
+                lent_at(&["B7", "C7", "D7", "B8", "C8", "D8", "B9", "C9", "D9"], 0),
+            ),
+            (
+                vec![(cell_at(s1, "B8"), 4), (cell_at(s1, "C9"), 2)],
+                lent_at(&["B8", "C8", "D8", "B9", "C9", "D9"], 3),
+            ),
+        ]
+    );
+
     note!(
-        "ACCEPT-NOTE: cfml_m1_2__provider_reads: the catalogue was asked for {} sheet names and the reader for {} typed areas; {} values lent in place, {} blank and {} missing cells counted apart",
+        "ACCEPT-NOTE: cfml_m1_2__provider_reads: the catalogue was asked for {} sheet names and the reader for {} typed areas; {} values lent in place, {} blank and {} missing cells counted apart; {} values lent in {} runs of up to four cells that continue across row ends",
         catalog.requests.borrow().len(),
         reader.requests.len(),
         counted[0],
         counted[1],
-        counted[2]
+        counted[2],
+        wrapped_reads
+            .iter()
+            .map(|(_, cells)| cells.len())
+            .sum::<usize>(),
+        wrapped_reads
+            .iter()
+            .map(|(starts, _)| starts.len())
+            .sum::<usize>()
     );
 }

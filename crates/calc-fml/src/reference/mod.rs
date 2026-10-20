@@ -10,7 +10,8 @@
 //! are held in an order that does not depend on the anchor either, so `=R[-2]C[-1]:R7C4` is one
 //! operand wherever it is bound. [`ReferenceOperand::instantiate`] places an operand at
 //! an anchor and gives the [`GridArea`] it names there, or the typed [`PlacementError`] (a
-//! worksheet `#REF!`) when the area would leave the grid or names a deleted sheet.
+//! worksheet `#REF!`) when the area would leave the grid or names a deleted sheet or deleted
+//! cells.
 //!
 //! A [`ReferenceReader`] supplies the values of an area: [`read_cells`] asks it for one area by
 //! its typed coordinates and receives row-major [`CellRun`]s that borrow stored values and keep
@@ -106,6 +107,10 @@ pub enum ReferenceShape {
     /// Whole columns, every row: `B:$D`, `C1:C3`, `C[1]`, `C`, the pair ordered as an
     /// [`ReferenceShape::Area`]'s columns are.
     Columns { first: AxisRef, last: AxisRef },
+    /// The `#REF!` Excel writes in place of a reference whose cells were deleted
+    /// (`Sheet2!#REF!`): it covers no cell, and placing the operand gives
+    /// [`PlacementError::DeletedCells`].
+    Deleted,
 }
 
 /// The sheet a reference names.
@@ -136,6 +141,8 @@ pub struct ReferenceOperand {
 pub enum PlacementError {
     /// The reference is qualified by `#REF!`: its sheet was deleted.
     DeletedSheet,
+    /// The reference is `#REF!` on its sheet (`Sheet2!#REF!`): its cells were deleted.
+    DeletedCells,
     /// A row lands at `resolved`, outside rows 1 to [`MAX_ROWS`].
     RowOffGrid { resolved: i64 },
     /// A column lands at `resolved`, outside columns 1 to [`MAX_COLUMNS`].
@@ -149,6 +156,7 @@ impl PlacementError {
     pub fn worksheet_error(self) -> WorksheetErrorCode {
         match self {
             PlacementError::DeletedSheet
+            | PlacementError::DeletedCells
             | PlacementError::RowOffGrid { .. }
             | PlacementError::ColumnOffGrid { .. } => WorksheetErrorCode::Ref,
         }
@@ -158,7 +166,8 @@ impl PlacementError {
 impl ReferenceOperand {
     /// The area this operand names for a formula anchored at `anchor`: its relative coordinates
     /// are offsets from the anchor's, and an unqualified operand lies on the anchor's sheet. The
-    /// row of a cell is checked before its column, and the first corner before the last.
+    /// sheet is checked before the cells, the row of a cell before its column, and the first
+    /// corner before the last.
     pub fn instantiate(&self, anchor: FormulaAnchor) -> Result<GridArea, PlacementError> {
         let sheet = match self.sheet {
             SheetTarget::Anchor => anchor.sheet(),
@@ -185,6 +194,7 @@ impl ReferenceOperand {
             ReferenceShape::Columns { first, last } => {
                 (1, column_at(first, at)?, MAX_ROWS, column_at(last, at)?)
             }
+            ReferenceShape::Deleted => return Err(PlacementError::DeletedCells),
         };
         Ok(area(sheet, top, left, bottom, right))
     }

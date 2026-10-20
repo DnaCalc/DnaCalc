@@ -1,14 +1,12 @@
 {
   "format": "dnacalc-port-record/1",
   "bead": "cfml-m1.2",
-  "written": "2026-10-20",
   "sources": [
     {
       "repository": "OxFml",
       "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
       "path": "crates/oxfml_core/src/binding/profile.rs",
       "blob": "b5d7caccdab8b9c772722160723920ee6896f143",
-      "pin": "migration/source-manifest.json (pin date 2026-10-15); read at the pinned blob with git cat-file",
       "lookup": {
         "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/binding/profile.rs",
         "exit": 0,
@@ -18,9 +16,6 @@
         {
           "symbol": "ReferenceNormalFormKey",
           "to": "crates/calc-fml/src/reference/mod.rs ReferenceOperand (its Eq and Hash)",
-          "kept": [
-            "a reference's identity is its normal form: its sheet, its shape and each coordinate as absolute or relative to the caller, not its source spelling"
-          ],
           "changes": [
             {
               "change": "The identity is the typed value ReferenceOperand (SheetTarget, ReferenceShape, AxisRef), compared and hashed as a value, instead of a String formatted from a profile name, workbook and sheet id strings and R/C axis text.",
@@ -35,9 +30,6 @@
         {
           "symbol": "ReferenceFingerprintPolicy::ExcludeCallerAnchorForTemplate",
           "to": "crates/calc-fml/src/reference/mod.rs ReferenceOperand, FormulaAnchor, ReferenceOperand::instantiate",
-          "kept": [
-            "the identity of a reference excludes the caller anchor; the anchor is supplied when the reference is placed"
-          ],
           "changes": [
             {
               "change": "No policy enum: an operand never holds an anchor, and ReferenceOperand::instantiate takes one.",
@@ -48,10 +40,6 @@
         {
           "symbol": "ReferenceValidity::InvalidStatic, ReferenceValidity::InvalidForCurrentPlacement, InstantiatedReference::RefError",
           "to": "crates/calc-fml/src/reference/bind.rs BindError::OutsideGrid; crates/calc-fml/src/reference/mod.rs PlacementError, PlacementError::worksheet_error",
-          "kept": [
-            "a reference that no placement puts on the grid is refused when it is bound",
-            "a reference whose placement leaves the grid is #REF! at that placement"
-          ],
           "changes": [
             {
               "change": "Placement validity is not stored with the bound reference: instantiate returns PlacementError::RowOffGrid or PlacementError::ColumnOffGrid, with the coordinate reached, at an anchor where the operand leaves the grid, and worksheet_error gives #REF!.",
@@ -62,9 +50,6 @@
         {
           "symbol": "ReferenceAtomBindRequest, ReferenceRangeBindRequest",
           "to": "crates/calc-fml/src/reference/bind.rs ReferenceCatalog::sheet_named; crates/calc-fml/src/reference/read.rs ReferenceReader::read_area",
-          "kept": [
-            "binding asks a provider that owns the workbook's identities"
-          ],
           "changes": [
             {
               "change": "The provider receives a sheet name (catalogue) or a GridArea (reader), never source text, a parsed qualifier string or caller coordinates.",
@@ -79,7 +64,6 @@
       "commit": "1bd514efd522b3739ff02ede93eb033148859a34",
       "path": "src/oxcalc-core/src/grid/reference_engine.rs",
       "blob": "169c58891f55f93225caeac10a076f551eb468e9",
-      "pin": "migration/source-manifest.json (pin date 2026-10-15); read at the pinned blob with git cat-file",
       "lookup": {
         "command": "cargo xtask pin-sources --lookup OxCalc/src/oxcalc-core/src/grid/reference_engine.rs",
         "exit": 6,
@@ -91,12 +75,7 @@
       "ported": [
         {
           "symbol": "StrictExcelGridReferenceProfile (bind_atom, bind_range)",
-          "to": "crates/calc-fml/src/reference/bind.rs bind_references, Binder::walk, Binder::qualified, Binder::lone, Binder::range, Binder::spell, qualifier_of",
-          "kept": [
-            "A1 and R1C1 notation each read by their own rules, chosen per formula (FormulaChannelKind::WorksheetR1C1 becomes ReferenceNotation::R1C1)",
-            "Excel's grid of 1048576 rows by 16384 columns (calc-value MAX_ROWS and MAX_COLUMNS)",
-            "a qualified reference binds to the qualifier's sheet"
-          ],
+          "to": "crates/calc-fml/src/reference/bind.rs bind_references, Binder::walk, Binder::qualified, Binder::alone, Binder::lone, Binder::range, Binder::end_alone, Binder::spell, qualifier_of",
           "changes": [
             {
               "change": "A qualifier naming another workbook is refused with BindError::ExternalWorkbook. The pinned bind_range bound an external whole-axis range ([Book2]Sheet1!A:A) as a host-sensitive record.",
@@ -119,8 +98,8 @@
               "reason": "Excel does not allow those characters in a sheet name, so a name holding one cannot be a single sheet. Not measured against Excel by this bead: the character test itself, including how Excel reads a quoted qualifier such as 'C:\\[B.xlsx]S'!B3 or 'S 1:S 2'!B3. Witnessed by reference::bind::tests::qualifiers_and_refusals and cfml_m1_2__provider_reads ('Sheet 1:Sheet 3'!A1)."
             },
             {
-              "change": "A qualifier (one sheet, a run of sheets, another workbook or #REF!) applies to its whole operand, which binds with the qualifier or is refused: before an operand that is no reference endpoint and no name (Sheet2!(A1), [Book2.xlsx]Sheet1!(A1), Sheet1:Sheet3!(A1), Nope!(A1), Sheet2!Sheet3!A1, #REF!SUM(A1), Sheet2!SUM(A1), Sheet2!3, Sheet2!#REF!) it is one BindError::QualifiedNonReference site, and the catalogue is not asked. A qualified name (Sheet2!TaxRate) gives no site.",
-              "reason": "The round-1 walk entered such an operand and bound the reference inside it as unqualified, a hidden fallback onto the anchor's sheet (honesty rule 2). Not measured against Excel by this bead: whether Excel accepts any of these forms. Sheet2!#REF! is the form Excel writes for a deleted cell; it is refused here, not modelled. Witnessed by cfml_m1_2__provider_reads (each formula gives exactly that one refused site and the catalogue log does not grow)."
+              "change": "A qualifier (one sheet, a run of sheets, another workbook or #REF!) applies to its whole operand, which binds with the qualifier or is refused: before an operand that is no reference endpoint, no name and not #REF! (Sheet2!(A1), [Book2.xlsx]Sheet1!(A1), Sheet1:Sheet3!(A1), Nope!(A1), Sheet2!Sheet3!A1, #REF!(A1), #REF!SUM(A1), Sheet2!SUM(A1), Sheet2!3) it is one BindError::QualifiedNonReference site, and the catalogue is not asked. #REF!(A1), which the parser reads as a call of the #REF! error value, is refused whole in the same way. A qualified name (Sheet2!TaxRate) gives no site.",
+              "reason": "The round-1 walk entered such an operand and bound the reference inside it as unqualified, a hidden fallback onto the anchor's sheet (honesty rule 2). Not measured against Excel by this bead: whether Excel accepts any of these forms, and how it reads #REF!(A1). Witnessed by cfml_m1_2__provider_reads (each formula gives exactly that one refused site and the catalogue log does not grow)."
             },
             {
               "change": "Syntax the parser refused (an UnsupportedExpr: a trim reference such as Sheet1!A1.:B10, a . member selector such as (A1).Value) is one BindError::UnsupportedSyntax site, and no reference inside it is bound.",
@@ -131,15 +110,10 @@
         {
           "symbol": "ExcelGridReferenceSystemProvider (dereference, enumerate_values, cell_value, instantiate_axis)",
           "to": "crates/calc-fml/src/reference/read.rs ReferenceReader, CellRun, read_cells; crates/calc-fml/src/reference/mod.rs ReferenceOperand::instantiate, AxisRef::at",
-          "kept": [
-            "a relative axis lands at the caller's coordinate plus its offset, and outside 1 to the grid's size it names no cell",
-            "a cell the provider cannot supply is never read as a blank cell (the pinned provider's unrouted-sheet rule)",
-            "a whole-row or whole-column read does not produce every blank cell"
-          ],
           "changes": [
             {
               "change": "Values come through ReferenceReader::read_area as row-major CellRuns: values borrowed from the reader's storage, counts of blank cells and counts of missing cells. The pinned provider returned cloned values (dereference) or the defined cells of a sparse extent (enumerate_values) from BTreeMap<ExcelGridCellAddress, CalcValue> maps keyed by workbook and sheet id strings.",
-              "reason": "The Do: a reader returning borrowed, chunked values with missing and blank kept apart, and no BTreeMap<String,...> providers. Witnessed by cfml_m1_2__provider_reads: values arrive at the reader's own storage addresses, and Sheet2!B:B arrives in five runs covering 1048576 cells."
+              "reason": "The Do: a reader returning borrowed, chunked values with missing and blank kept apart, and no BTreeMap<String,...> providers. Witnessed by cfml_m1_2__provider_reads: values arrive at the reader's own storage addresses, and Sheet2!B:B arrives in five runs covering 1048576 cells; B7:D9 and B8:D9, read through a reader that lends up to four values per run, arrive in runs that continue across row ends, each starting at the cell read_cells reports and each value at its own cell."
             },
             {
               "change": "A cell the reader cannot supply is CellRun::Missing. The pinned provider turned every cell of an unrouted sheet into the #REF! value; which worksheet value evaluation gives a missing cell is not decided by this bead.",
@@ -162,7 +136,6 @@
       "commit": "1bd514efd522b3739ff02ede93eb033148859a34",
       "path": "src/oxcalc-core/src/grid/reference_engine/parse.rs",
       "blob": "e507dfe0a37d60b560e91fba168ef7fcd17a5066",
-      "pin": "migration/source-manifest.json (pin date 2026-10-15); read at the pinned blob with git cat-file",
       "lookup": {
         "command": "cargo xtask pin-sources --lookup OxCalc/src/oxcalc-core/src/grid/reference_engine/parse.rs",
         "exit": 0,
@@ -172,31 +145,20 @@
         {
           "symbol": "parse_a1_cell_reference, parse_a1_row_axis_fragment, parse_a1_col_axis_fragment, strip_optional_dollar, column_to_index, axis_delta",
           "to": "crates/calc-fml/src/reference/notation.rs a1, a1_axis, column_number, decimal",
-          "kept": [
-            "[$]letters[$]digits is a cell, [$]digits a row and [$]letters a column; a $ makes the axis after it absolute",
-            "column letters in either case, A being 1",
-            "a relative A1 coordinate becomes its offset from the caller's",
-            "a fixed coordinate outside the grid is refused ($XFE$1, 1:1048577, $XFE:$XFE)"
-          ],
           "changes": [
             {
               "change": "A cell or column form without a $ that lies outside the grid (XFE1, Sales2023, A0, XFE:XFE) is not a reference; binding leaves it to name binding. The pinned parser refused it as outside the grid.",
               "reason": "Excel names such as Sales2023 have the letters-then-digits form, so refusing every such text outside the grid refuses valid names; a form with a $ cannot be a name and stays refused. Not measured against Excel by this bead: that Excel reads cell-like text outside the grid (XFE1, Sales2023, A0, XFE:XFE) as a name. Witnessed by cfml_m1_2__relative_absolute (=XFE1+Sales2023+A0+XFE:XFE binds no site; the five $ and row forms are refused) and reference::notation::tests::a1_forms_at_an_anchor."
             },
             {
-              "change": "A row endpoint is a number token (1:3) or an identifier ($1), and a lone row or column is not a reference in A1 notation.",
-              "reason": "cfml-m1.1's parser presents 1:3 as two number literals and $1 as an identifier; A1 notation has no lone row or column reference. Witnessed by reference::bind::tests::ranges_bind_as_one_reference_only_between_endpoints_of_one_form_and_sheet."
+              "change": "A row endpoint is a number token (1:3) or an identifier ($1), and a lone row or column is not a reference in A1 notation: without a $ it gives no site (3 is a number, B a name), and with one it is neither, so it is refused with BindError::LoneRowOrColumn ($B, $3, Sheet2!$B), or with BindError::OutsideGrid outside the grid ($XFE), without asking the catalogue.",
+              "reason": "cfml-m1.1's parser presents 1:3 as two number literals and $1 as an identifier; A1 notation has no lone row or column reference. Not measured against Excel by this bead: that Excel refuses =$B and =$3 at entry. Witnessed by cfml_m1_2__relative_absolute (=$B, =$3, =$XFE, =Sheet2!$B and =Sheet2!$3 each give one refused site; =A1+0, =IF(A1>0,1,2) and =A1*1048577 give the A1 site only) and reference::bind::tests::ranges_bind_as_one_reference_only_between_endpoints_of_one_form_and_sheet."
             }
           ]
         },
         {
           "symbol": "parse_r1c1_cell_reference, parse_r1c1_axis, parse_r1c1_row_axis_fragment, parse_r1c1_col_axis_fragment, validate_r1c1_axis_fragment",
           "to": "crates/calc-fml/src/reference/notation.rs r1c1, r1c1_axis",
-          "kept": [
-            "R and C each followed by nothing (the caller's own row or column), a 1-based number or a bracketed signed offset",
-            "an absolute R1C1 coordinate outside the grid is refused",
-            "a bracketed offset may carry a + sign (R[+2]C reads as R[2]C), as the pinned parser's i32 parse accepted. Not measured against Excel by this bead. Witnessed by reference::notation::tests::r1c1_forms."
-          ],
           "changes": [
             {
               "change": "R and C are read in either case.",
@@ -214,11 +176,7 @@
         },
         {
           "symbol": "whole_row_range_reference, whole_column_range_reference, canonical_axis_pair, axis_resolved_for_order, parsed_axis_pair, range_sheet_id, axis_valid_for_current_placement, range_axis_validity",
-          "to": "crates/calc-fml/src/reference/bind.rs Binder::range, pair, ordered; crates/calc-fml/src/reference/mod.rs ReferenceOperand::instantiate",
-          "kept": [
-            "two row endpoints make whole rows and two column endpoints whole columns",
-            "both endpoints lie on one sheet"
-          ],
+          "to": "crates/calc-fml/src/reference/bind.rs Binder::range, Binder::end_alone, pair, ordered; crates/calc-fml/src/reference/mod.rs ReferenceOperand::instantiate",
           "changes": [
             {
               "change": "Each pair of ends (an area's rows and columns, a run of rows or of columns) is held in an order that no anchor changes: two absolute or two relative coordinates by position, an absolute and a relative one absolute first (ordered). The pinned canonical_axis_pair ordered each pair by its position at the binding caller (axis_resolved_for_order). Placing the operand orders the corners on the grid.",
@@ -229,27 +187,44 @@
               "reason": "The Do: cell and rectangular references. Witnessed by cfml_m1_2__relative_absolute (B3:$D$7 placed at C5 and F10) and reference::bind::tests::endpoints_are_ordered_per_axis_without_the_anchor."
             },
             {
-              "change": "One sheet is decided by the catalogue's SheetId (Sheet2!B3:sheet2!D7 is one area), not by comparing sheet id strings; endpoints on two sheets, or an unqualified endpoint before a qualified one, are the range operator between two separately bound references.",
-              "reason": "Sheet names match regardless of case, and the range operator between separate references is cfml-m3.3's. Witnessed by reference::bind::tests::ranges_bind_as_one_reference_only_between_endpoints_of_one_form_and_sheet."
-            }
-          ]
-        },
-        {
-          "symbol": "ExcelGridAxisRef (Absolute(u32), Relative(i32)) and ExcelGridReferenceStyle (A1, R1C1), as parse.rs and reference_engine.rs use them",
-          "to": "crates/calc-fml/src/reference/mod.rs AxisRef, ReferenceNotation",
-          "defined_in": "OxCalc src/oxcalc-core/src/grid/coords.rs at commit 1bd514efd522b3739ff02ede93eb033148859a34 (blob 8d85d92b8b330524b4ffd30b100785ebe2dd26ad), which is not a pinned input of migration/source-manifest.json. The two calc-fml types match these two in shape (variant names and payload types); they are written in calc-fml's own terms (other type names, no serde derives, AxisRef::at), and no code of coords.rs is copied into calc-fml.",
-          "kept": [
-            "an axis is a 1-based absolute index or a signed offset from the caller's",
-            "A1 and R1C1 are the two notations"
-          ],
-          "changes": [
-            {
-              "change": "The names AxisRef and ReferenceNotation, without the serde derives, and with AxisRef::at giving an axis's coordinate at an anchor.",
-              "reason": "calc-fml's operands are typed values, not serialized records. Witnessed by cfml_m1_2__relative_absolute."
+              "change": "One sheet is decided by the catalogue's SheetId (Sheet2!B3:sheet2!D7 is one area), not by comparing sheet id strings, and each of two sheet qualifiers is asked of the catalogue once. Endpoints on two sheets, or with a qualifier the catalogue does not know, are each a site of their own, bound or refused alone; an unqualified endpoint before a qualified one is the same. Two ends qualified by #REF!, or a first end qualified by another workbook or a run of sheets, are one site.",
+              "reason": "Sheet names match regardless of case, and the range operator between separate references is cfml-m3.3's. Witnessed by cfml_m1_2__provider_reads (Sheet2!B3:sheet2!D7 is one site and two catalogue requests; Sheet2!A1:Sheet1!B2 two bound sites and two requests; Nope!B3:Sheet2!D7 an UnknownSheet site and a bound Sheet2!D7 site, two requests; [B.xlsx]S!A1:[B.xlsx]S!B2 and Sheet1:Sheet3!A1:Sheet3!B2 one refused site each), cfml_m1_2__relative_absolute (#REF!A1:#REF!B2 is one site) and reference::bind::tests::ranges_bind_as_one_reference_only_between_endpoints_of_one_form_and_sheet."
             }
           ]
         }
       ]
+    }
+  ],
+  "fresh": [
+    {
+      "items": [
+        "AxisRef",
+        "ReferenceNotation"
+      ],
+      "file": "crates/calc-fml/src/reference/mod.rs",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxCalc/src/oxcalc-core/src/grid/coords.rs",
+        "exit": 1
+      },
+      "what": "An axis is a 1-based absolute index or a signed offset from the anchor's (AxisRef::at gives its coordinate at an anchor), and A1 and R1C1 are the two notations. OxCalc's coords.rs, whose ExcelGridAxisRef and ExcelGridReferenceStyle have the same shape, is not a pinned input (the lookup exits 1), so nothing of it is ported."
+    },
+    {
+      "items": [
+        "BindError::InArrayConstant",
+        "Binder::walk (array constants)",
+        "Binder::sheet_target"
+      ],
+      "file": "crates/calc-fml/src/reference/bind.rs",
+      "what": "A reference inside an array constant ({A1}, {1,Sheet2!B3;A1:B2,TRUE}) is refused with BindError::InArrayConstant, without asking the catalogue: an array constant holds constants only. Not measured against Excel by this bead: that Excel refuses such a formula at entry. Witnessed by cfml_m1_2__provider_reads."
+    },
+    {
+      "items": [
+        "ReferenceShape::Deleted",
+        "PlacementError::DeletedCells",
+        "Binder::qualified (Sheet2!#REF!)"
+      ],
+      "file": "crates/calc-fml/src/reference/bind.rs, mod.rs",
+      "what": "Sheet2!#REF!, the form Excel writes for a reference whose cells were deleted, binds on the qualifier's sheet to a ReferenceShape::Deleted operand, and placing it gives PlacementError::DeletedCells (#REF!), as #REF!A1 gives DeletedSheet. Not measured against Excel by this bead. Witnessed by cfml_m1_2__relative_absolute (placed at C5, F10 and Sheet3!F10)."
     }
   ],
   "not_ported": [
@@ -261,8 +236,7 @@
         "src/oxcalc-core/src/grid/reference_engine/profile_codec.rs (blob 0908479a0ef754b89cf009921e596d706bc22933, commit 1bd514efd522b3739ff02ede93eb033148859a34, lookup exit 0, calls_quarantined []): the whole file"
       ],
       "reason": "Profile machinery: a profile's identity, capability flags, payload codec and string keys. The typed operand replaces the key and the payload.",
-      "beads": [],
-      "beads_basis": "cfml-m1.2's Port-from says to extract Excel semantics, not profiles; the Port-from lines of cfml-m1.3, cfml-m2.1 and onecalc-m1.1 say to discard ReferencePolicy and the tree profile."
+      "beads": []
     },
     {
       "items": [
@@ -272,16 +246,14 @@
       "beads": [
         "cfml-m1.3",
         "cfml-m2.1"
-      ],
-      "beads_basis": "cfml-m1.3 and cfml-m2.1 list ReferenceNormalFormKey and ReferenceFingerprintPolicy in their Port-from; cfml-m2.1 Do: 'Key templates by typed R1C1 offsets/absolutes'."
+      ]
     },
     {
       "items": [
         "profile.rs: ReferenceSelectorKind, ReferenceSelectorSyntax, ReferenceSelectorBindRequest"
       ],
       "reason": "The selector grammar that cfml-m1.1 removed at entry.",
-      "beads": [],
-      "beads_basis": "cfml-m1.1's record: no bead needs the selector grammar; every bead's Out of scope forbids a tree reference language."
+      "beads": []
     },
     {
       "items": [
@@ -292,8 +264,7 @@
       "reason": "Defined names and the rules for valid names.",
       "beads": [
         "cfml-m3.1"
-      ],
-      "beads_basis": "cfml-m3.1 Do: 'Resolve workbook and sheet-local names, shadowing, forward names and relative name formulas'."
+      ]
     },
     {
       "items": [
@@ -303,8 +274,7 @@
       "reason": "Structured references and 3D sheet spans.",
       "beads": [
         "cfml-m3.2"
-      ],
-      "beads_basis": "cfml-m3.2 Do: 'Compile table sections, escaped column labels, row-context references and 3D sheet spans'."
+      ]
     },
     {
       "items": [
@@ -313,8 +283,7 @@
       "reason": "Reference operators (range, union, intersection, spill) and text or offset resolution.",
       "beads": [
         "cfml-m3.3"
-      ],
-      "beads_basis": "cfml-m3.3 Do: 'Implement range, union, intersection, spill and implicit-intersection operators; route INDIRECT/OFFSET text resolution through CalcFml's Excel binder'."
+      ]
     },
     {
       "items": [
@@ -325,8 +294,7 @@
       "beads": [
         "cfml-m2.2",
         "cfml-m3.3"
-      ],
-      "beads_basis": "cfml-m2.2 Do: 'lookup-dependency fingerprints for scoped names, tables, function registry and structural transforms'; cfml-m3.3 Do: 'Return dynamic read footprints'."
+      ]
     },
     {
       "items": [
@@ -338,8 +306,7 @@
       "beads": [
         "cfml-m4.1",
         "cfml-m4.2"
-      ],
-      "beads_basis": "cfml-m4.1 Do: 'pure structural transforms over reference operands and source spans'; cfml-m4.2 Do: 'insert/delete cells, rows and columns; sheet add/rename/move/delete'."
+      ]
     },
     {
       "items": [
@@ -351,8 +318,7 @@
         "cfml-m2.5",
         "cfml-m4.1",
         "cfml-m6.2"
-      ],
-      "beads_basis": "cfml-m2.5 Do: 'completion, signature help ... into an explicit EditSession'; cfml-m4.1 Do: 'formula reconstruction'; cfml-m6.2 Do: 'point-mode range insertion, F4 cycling, reference colorization'."
+      ]
     },
     {
       "items": [
@@ -361,8 +327,7 @@
       "reason": "External workbook references.",
       "beads": [
         "cfml-m3.5"
-      ],
-      "beads_basis": "cfml-m3.5 Do: 'Add external book IDs, link versions and open/closed book resolution'."
+      ]
     }
   ],
   "owner_search": {

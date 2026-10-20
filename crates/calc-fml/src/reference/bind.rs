@@ -4,14 +4,16 @@
 //! notation (see the `notation` module), unqualified or qualified by one sheet, and a range of two
 //! such endpoints of one form on one sheet (`B3:D7`, `2:4`, `B:D`, `Sheet2!B3:C4`,
 //! `Sheet2!B3:Sheet2!C4`). A lone row or column is a reference in R1C1 notation (`R3`, `C`) and
-//! not in A1 notation, where `3` is a number and `B` a name. Everything else is left to the
-//! formula's own operators and to later binding: a `:` between other operands, or between
-//! endpoints of different forms or sheets, is the range operator over separately bound
-//! references; names, tables and calls are not references here.
+//! not in A1 notation, where `3` is a number and `B` a name, and `$3` and `$B`, which can be
+//! neither, are refused. Everything else is left to the formula's own operators and to later
+//! binding: a `:` between other operands, or between endpoints of different forms or sheets, is
+//! the range operator over separately bound references; names, tables and calls are not
+//! references here.
 //!
 //! A qualifier belongs to its whole operand. A qualified operand is bound with its qualifier or
 //! refused; the walk never enters it, so nothing inside it can bind as an unqualified reference.
-//! The same holds for syntax the parser refused.
+//! The same holds for syntax the parser refused. A reference inside an array constant is refused:
+//! an array constant holds constants only.
 
 use super::notation::{self, Spelled};
 use super::{
@@ -19,7 +21,7 @@ use super::{
     SheetTarget,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
-use calc_func::value::SheetId;
+use calc_func::value::{SheetId, WorksheetErrorCode};
 
 /// The workbook identities a formula's references are bound against. Binding asks it only for
 /// sheets, by the name a qualifier spells, never for reference text.
@@ -53,11 +55,20 @@ pub enum BindError {
     /// cfml-m3.2.
     SheetSpan,
     /// A qualifier (one sheet, a run of sheets, another workbook or `#REF!`) before an operand
-    /// that is neither a cell, row or column of the formula's notation nor a name:
-    /// `Sheet2!(A1)`, `Sheet2!Sheet3!A1`, `#REF!SUM(A1)`, `Sheet2!3`, and
-    /// `Sheet2!#REF!`, which Excel writes for a deleted cell and which this binding does not
-    /// model. The site spans the qualifier and its operand, and the catalogue is not asked.
+    /// that is neither a cell, row or column of the formula's notation nor a name nor `#REF!`:
+    /// `Sheet2!(A1)`, `Sheet2!Sheet3!A1`, `#REF!SUM(A1)`, `Sheet2!3`, and `#REF!(A1)`, which the
+    /// parser reads as a call of the `#REF!` error value. The site spans the qualifier and its
+    /// operand, and the catalogue is not asked.
     QualifiedNonReference,
+    /// In A1 notation, a row or column written alone with a `$` (`$B`, `$3`, `Sheet2!$B`). A1
+    /// notation has no lone row or column reference (the whole column is `B:B`, the whole row
+    /// `3:3`), and a `$` form is neither a name nor a number. Without a `$`, `B` is left to name
+    /// binding and `3` is a number, and neither gives a site. The catalogue is not asked.
+    LoneRowOrColumn,
+    /// A reference inside an array constant (`{A1}`, `{1,Sheet2!B3}`): an array constant holds
+    /// constants only, so a reference there is no live operand. The catalogue is not asked. A
+    /// site inside an array constant that is refused for another reason keeps that reason.
+    InArrayConstant,
     /// Syntax the parser refused with an unsupported-syntax diagnostic, such as a trim reference
     /// (`Sheet1!A1.:B10`) or a `.` member selector (`(A1).Value`). The site spans the refused
     /// syntax, and no reference inside it is bound.
@@ -65,14 +76,17 @@ pub enum BindError {
 }
 
 /// Binds every grid reference of `tree`, read in `notation`, for a formula anchored at `anchor`;
-/// the sites come in source order. A range of two endpoints of one form is one site.
+/// the sites come in source order. A range of two endpoints of one form on one sheet is one site.
 ///
 /// A qualified operand is one site, bound to the sheet its qualifier names or refused: a
-/// qualifier before anything but a reference endpoint is [`BindError::QualifiedNonReference`],
-/// except a name (`Sheet2!TaxRate`), which gives no site and is left to name binding. Syntax the
-/// parser refused is refused here as one [`BindError::UnsupportedSyntax`] site, whatever it
-/// holds: the references inside it (`Sheet1!A1` and `B10` in `=SUM(Sheet1!A1.:B10)`) give no
-/// sites of their own.
+/// qualifier before anything but a reference endpoint or `#REF!` is
+/// [`BindError::QualifiedNonReference`], except a name (`Sheet2!TaxRate`), which gives no site
+/// and is left to name binding. `Sheet2!#REF!`, the form Excel writes for a reference whose cells
+/// were deleted, binds to a [`ReferenceShape::Deleted`] operand on that sheet. Syntax the parser
+/// refused is refused here as one [`BindError::UnsupportedSyntax`] site, whatever it holds: the
+/// references inside it (`Sheet1!A1` and `B10` in `=SUM(Sheet1!A1.:B10)`) give no sites of their
+/// own. Each reference inside an array constant is refused with
+/// [`BindError::InArrayConstant`].
 pub fn bind_references(
     tree: &SyntaxTree,
     notation: ReferenceNotation,
@@ -83,6 +97,7 @@ pub fn bind_references(
         notation,
         anchor,
         catalog,
+        in_array_constant: false,
         sites: Vec::new(),
     };
     binder.walk(tree.root());
@@ -103,6 +118,8 @@ struct Binder<'c> {
     notation: ReferenceNotation,
     anchor: FormulaAnchor,
     catalog: &'c dyn ReferenceCatalog,
+    /// The walk is inside an array constant, where nothing binds as a live reference.
+    in_array_constant: bool,
     sites: Vec<ReferenceSite>,
 }
 
@@ -115,26 +132,33 @@ impl Binder<'_> {
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
                 self.qualified(node)
             }
-            SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
-                only_token(node).and_then(|token| self.lone(&Qualifier::Unqualified, token))
+            // `#REF!(A1)`: the `#REF!` qualifier before a parenthesised operand, which the parser
+            // reads as a call of the error value. Refused whole, as `Sheet2!(A1)` is.
+            SyntaxKind::InvokeExpr if node.child_nodes().next().is_some_and(is_ref_error) => {
+                Some(Err(BindError::QualifiedNonReference))
             }
-            SyntaxKind::RangeExpr => match self.range(node) {
-                Some(binding) => Some(binding),
-                None => {
+            SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
+                only_token(node).and_then(|token| self.alone(&Qualifier::Unqualified, token))
+            }
+            SyntaxKind::RangeExpr => {
+                if !self.range(node) {
                     self.walk_children(node);
-                    return;
                 }
-            },
+                return;
+            }
+            SyntaxKind::ArrayLiteralExpr => {
+                let outer = std::mem::replace(&mut self.in_array_constant, true);
+                self.walk_children(node);
+                self.in_array_constant = outer;
+                return;
+            }
             _ => {
                 self.walk_children(node);
                 return;
             }
         };
         if let Some(binding) = binding {
-            self.sites.push(ReferenceSite {
-                span: node.span(),
-                binding,
-            });
+            self.push(node.span(), binding);
         }
     }
 
@@ -144,92 +168,144 @@ impl Binder<'_> {
         }
     }
 
-    /// The binding of a qualified operand standing alone: the operand bound on the qualifier's
-    /// sheet when it is a reference endpoint, `None` when it is a name, which name binding
-    /// resolves, and [`BindError::QualifiedNonReference`] for anything else.
-    fn qualified(&self, node: &SyntaxNode) -> Option<Result<ReferenceOperand, BindError>> {
-        let Some((qualifier, token)) = endpoint(node) else {
-            return Some(Err(BindError::QualifiedNonReference));
-        };
-        match self.lone(&qualifier, token) {
-            Some(binding) => Some(binding),
-            None if token.kind() == TokenKind::Identifier => None,
-            None => Some(Err(BindError::QualifiedNonReference)),
-        }
+    fn push(&mut self, span: TextSpan, binding: Result<ReferenceOperand, BindError>) {
+        self.sites.push(ReferenceSite { span, binding });
     }
 
-    /// The binding of one endpoint standing alone; `None` when its text is no reference alone in
-    /// the formula's notation.
-    fn lone(
+    /// The binding of a qualified operand standing alone: the operand bound on the qualifier's
+    /// sheet when it is a reference endpoint or `#REF!`, `None` when it is a name, which name
+    /// binding resolves, and [`BindError::QualifiedNonReference`] for anything else.
+    fn qualified(&self, node: &SyntaxNode) -> Option<Result<ReferenceOperand, BindError>> {
+        let Some((qualifier, target)) = qualified_parts(node) else {
+            return Some(Err(BindError::QualifiedNonReference));
+        };
+        if is_ref_error(target) {
+            // `Sheet2!#REF!`: a reference on that sheet whose cells were deleted.
+            return Some(self.sheet_target(&qualifier).map(|sheet| ReferenceOperand {
+                sheet,
+                shape: ReferenceShape::Deleted,
+            }));
+        }
+        let Some(token) = only_token(target) else {
+            return Some(Err(BindError::QualifiedNonReference));
+        };
+        qualified_site(token, self.alone(&qualifier, token))
+    }
+
+    /// The binding of one endpoint standing alone with `qualifier`, whose sheet is resolved only
+    /// once the endpoint's text gives a shape; `None` when its text is no reference alone in the
+    /// formula's notation.
+    fn alone(
         &self,
         qualifier: &Qualifier,
         token: &Token,
     ) -> Option<Result<ReferenceOperand, BindError>> {
-        let shape = match self.spell(token)? {
-            Spelled::Cell(cell) => ReferenceShape::Cell(cell),
-            // Alone, a row or a column is a reference only in R1C1 notation (`R3`, `C`).
-            Spelled::Row(row) if self.notation == ReferenceNotation::R1C1 => ReferenceShape::Rows {
-                first: row,
-                last: row,
-            },
-            Spelled::Column(column) if self.notation == ReferenceNotation::R1C1 => {
-                ReferenceShape::Columns {
-                    first: column,
-                    last: column,
-                }
-            }
-            Spelled::OutsideGrid(form)
-                if self.notation == ReferenceNotation::R1C1 || form == notation::Form::Cell =>
-            {
-                return Some(Err(BindError::OutsideGrid));
-            }
-            Spelled::Row(_) | Spelled::Column(_) | Spelled::OutsideGrid(_) => return None,
-        };
-        Some(
-            self.sheet_target(qualifier)
-                .map(|sheet| ReferenceOperand { sheet, shape }),
-        )
+        Some(self.lone(token)?.and_then(|shape| {
+            Ok(ReferenceOperand {
+                sheet: self.sheet_target(qualifier)?,
+                shape,
+            })
+        }))
     }
 
-    /// `left:right` as one reference when both are endpoints of one form, and the right one is
-    /// unqualified or names the left one's sheet; otherwise `None`, and each side binds alone.
-    fn range(&self, node: &SyntaxNode) -> Option<Result<ReferenceOperand, BindError>> {
-        let mut operands = node.child_nodes();
-        let (left, right) = (operands.next()?, operands.next()?);
-        let (left_qualifier, left_token) = endpoint(left)?;
-        let (right_qualifier, right_token) = endpoint(right)?;
-        let left = self.spell(left_token)?;
-        let right = self.spell(right_token)?;
-        if left.form() != right.form() {
-            return None;
-        }
-        let one_sheet = matches!(
-            (&left_qualifier, &right_qualifier),
-            (_, Qualifier::Unqualified)
-                | (Qualifier::External | Qualifier::Span, _)
-                | (Qualifier::Deleted, Qualifier::Deleted)
-                | (Qualifier::Sheet(_), Qualifier::Sheet(_))
-        );
-        if !one_sheet {
-            return None;
-        }
-        let shape = match pair(left, right) {
-            Ok(shape) => shape,
-            Err(refused) => return Some(Err(refused)),
-        };
-        let sheet = match self.sheet_target(&left_qualifier) {
-            Ok(sheet) => sheet,
-            Err(refused) => return Some(Err(refused)),
-        };
-        if let Qualifier::Sheet(_) = right_qualifier {
-            match self.sheet_target(&right_qualifier) {
-                Err(refused) => return Some(Err(refused)),
-                // Two sheets: the range operator between two references, not one area.
-                Ok(other) if other != sheet => return None,
-                Ok(_) => {}
+    /// The shape one endpoint's text names standing alone, or why it is refused; `None` when it
+    /// is no reference alone in the formula's notation: in A1 notation a name (`B`, `XFE1`) or a
+    /// number (`3`, `0`, `1048577`).
+    fn lone(&self, token: &Token) -> Option<Result<ReferenceShape, BindError>> {
+        let r1c1 = self.notation == ReferenceNotation::R1C1;
+        // In A1 notation a row or column form holds a `$` only at its start, and a text with one
+        // is neither a name nor a number.
+        let dollar = token.text().starts_with('$');
+        Some(match self.spell(token)? {
+            Spelled::Cell(cell) => Ok(ReferenceShape::Cell(cell)),
+            // Alone, a row or a column is a reference only in R1C1 notation (`R3`, `C`).
+            Spelled::Row(row) if r1c1 => Ok(ReferenceShape::Rows {
+                first: row,
+                last: row,
+            }),
+            Spelled::Column(column) if r1c1 => Ok(ReferenceShape::Columns {
+                first: column,
+                last: column,
+            }),
+            Spelled::OutsideGrid(form) if r1c1 || form == notation::Form::Cell || dollar => {
+                Err(BindError::OutsideGrid)
             }
+            Spelled::Row(_) | Spelled::Column(_) if dollar => Err(BindError::LoneRowOrColumn),
+            Spelled::Row(_) | Spelled::Column(_) | Spelled::OutsideGrid(_) => return None,
+        })
+    }
+
+    /// Binds `left:right` as one site when both are endpoints of one form on one sheet, and
+    /// returns whether it bound anything; when it returns `false`, each side is walked alone.
+    /// The ends lie on one sheet when the right one is unqualified or its qualifier names the
+    /// left one's sheet. Each of two sheet qualifiers is asked of the catalogue once; when they
+    /// name two sheets, or the catalogue does not know one of them, each end is a site of its
+    /// own, bound or refused alone (the range operator between two references).
+    fn range(&mut self, node: &SyntaxNode) -> bool {
+        let mut operands = node.child_nodes();
+        let (Some(left_node), Some(right_node)) = (operands.next(), operands.next()) else {
+            return false;
+        };
+        let (Some((left_qualifier, left_token)), Some((right_qualifier, right_token))) =
+            (endpoint(left_node), endpoint(right_node))
+        else {
+            return false;
+        };
+        let (Some(left), Some(right)) = (self.spell(left_token), self.spell(right_token)) else {
+            return false;
+        };
+        if left.form() != right.form() {
+            return false;
         }
-        Some(Ok(ReferenceOperand { sheet, shape }))
+        let binding = match (&left_qualifier, &right_qualifier) {
+            (_, Qualifier::Unqualified)
+            | (Qualifier::External | Qualifier::Span, _)
+            | (Qualifier::Deleted, Qualifier::Deleted) => pair(left, right).and_then(|shape| {
+                Ok(ReferenceOperand {
+                    sheet: self.sheet_target(&left_qualifier)?,
+                    shape,
+                })
+            }),
+            (Qualifier::Sheet(_), Qualifier::Sheet(_)) => {
+                match (
+                    self.sheet_target(&left_qualifier),
+                    self.sheet_target(&right_qualifier),
+                ) {
+                    (Ok(sheet), Ok(other)) if sheet == other => {
+                        pair(left, right).map(|shape| ReferenceOperand { sheet, shape })
+                    }
+                    (left_sheet, right_sheet) => {
+                        self.end_alone(left_node, left_token, left_sheet);
+                        self.end_alone(right_node, right_token, right_sheet);
+                        return true;
+                    }
+                }
+            }
+            _ => return false,
+        };
+        self.push(node.span(), binding);
+        true
+    }
+
+    /// One end of a range whose ends are not on one sheet, bound alone on `sheet`, its
+    /// qualifier's resolution, as [`Binder::qualified`] binds it.
+    fn end_alone(
+        &mut self,
+        node: &SyntaxNode,
+        token: &Token,
+        sheet: Result<SheetTarget, BindError>,
+    ) {
+        let binding = self.lone(token).map(|shape| {
+            shape.and_then(|shape| {
+                Ok(ReferenceOperand {
+                    sheet: sheet?,
+                    shape,
+                })
+            })
+        });
+        if let Some(binding) = qualified_site(token, binding) {
+            self.push(node.span(), binding);
+        }
     }
 
     fn spell(&self, token: &Token) -> Option<Spelled> {
@@ -242,7 +318,12 @@ impl Binder<'_> {
         }
     }
 
+    /// The sheet a qualifier names. Inside an array constant nothing is a live reference: every
+    /// endpoint there, qualified or not, is refused without asking the catalogue.
     fn sheet_target(&self, qualifier: &Qualifier) -> Result<SheetTarget, BindError> {
+        if self.in_array_constant {
+            return Err(BindError::InArrayConstant);
+        }
         match qualifier {
             Qualifier::Unqualified => Ok(SheetTarget::Anchor),
             Qualifier::Deleted => Ok(SheetTarget::Deleted),
@@ -254,6 +335,20 @@ impl Binder<'_> {
                 .map(SheetTarget::Sheet)
                 .ok_or_else(|| BindError::UnknownSheet { name: name.clone() }),
         }
+    }
+}
+
+/// A qualified endpoint's site given its binding alone: that binding, or, when its text is no
+/// reference alone, no site for a name (`Sheet2!TaxRate`, left to name binding) and
+/// [`BindError::QualifiedNonReference`] for anything else (`Sheet2!3`).
+fn qualified_site(
+    token: &Token,
+    binding: Option<Result<ReferenceOperand, BindError>>,
+) -> Option<Result<ReferenceOperand, BindError>> {
+    match binding {
+        Some(binding) => Some(binding),
+        None if token.kind() == TokenKind::Identifier => None,
+        None => Some(Err(BindError::QualifiedNonReference)),
     }
 }
 
@@ -301,25 +396,41 @@ fn ordered(a: AxisRef, b: AxisRef) -> (AxisRef, AxisRef) {
     if swap { (b, a) } else { (a, b) }
 }
 
-// A node that can be a reference endpoint: an identifier or number, alone, after one sheet's
+/// A node that can be a reference endpoint: an identifier or number, alone, after one sheet's
 /// qualifier, or after a run of sheets. Gives its qualifier and the token to spell.
 fn endpoint(node: &SyntaxNode) -> Option<(Qualifier, &Token)> {
     match node.kind() {
         SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
             Some((Qualifier::Unqualified, only_token(node)?))
         }
+        _ => {
+            let (qualifier, target) = qualified_parts(node)?;
+            Some((qualifier, only_token(target)?))
+        }
+    }
+}
+
+/// The qualifier of a qualified operand and the operand it qualifies.
+fn qualified_parts(node: &SyntaxNode) -> Option<(Qualifier, &SyntaxNode)> {
+    match node.kind() {
         SyntaxKind::QualifiedReferenceExpr => {
-            let target = only_token(node.child_nodes().next()?)?;
             let SyntaxChild::Token(qualifier) = node.children().first()? else {
                 return None;
             };
-            Some((qualifier_of(qualifier), target))
+            Some((qualifier_of(qualifier), node.child_nodes().next()?))
         }
-        SyntaxKind::SheetSpan3DReferenceExpr => {
-            Some((Qualifier::Span, only_token(node.child_nodes().next()?)?))
-        }
+        SyntaxKind::SheetSpan3DReferenceExpr => Some((Qualifier::Span, node.child_nodes().next()?)),
         _ => None,
     }
+}
+
+/// Whether `node` is the error literal `#REF!`.
+fn is_ref_error(node: &SyntaxNode) -> bool {
+    node.kind() == SyntaxKind::ErrorLiteralExpr
+        && matches!(
+            node.children(),
+            [SyntaxChild::Token(token)] if token.error_code() == Some(WorksheetErrorCode::Ref)
+        )
 }
 
 /// The token of an identifier or number node.
@@ -440,8 +551,15 @@ mod tests {
         assert_eq!(texts("=@B3:B5+-C1%+D2#", A1), ["B3:B5", "C1", "D2"]);
         // `#` binds tighter than `:`, so B5# is the operand of the range operator here.
         assert_eq!(texts("=B3:B5#", A1), ["B3", "B5"]);
-        // A lone row or column is a reference in R1C1 notation only.
-        assert_eq!(texts("=B+3+$B+$3", A1), Vec::<String>::new());
+        // A lone row or column is a reference in R1C1 notation only. In A1 notation `B` is a name
+        // and `3` a number; `$B` and `$3` are neither, and are refused.
+        assert_eq!(
+            bound("=B+3+$B+$3", A1),
+            [
+                ("$B".to_owned(), Err(BindError::LoneRowOrColumn)),
+                ("$3".to_owned(), Err(BindError::LoneRowOrColumn)),
+            ]
+        );
         assert_eq!(
             texts("=R3+C+R[1]:R[2]+R1C1:R2C2", R1C1),
             ["R3", "C", "R[1]:R[2]", "R1C1:R2C2"]
