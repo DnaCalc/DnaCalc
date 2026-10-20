@@ -7,17 +7,32 @@
 //! the `calc_fml::syntax` types). They check the tree against the input text by their own walk:
 //! the UTF-16 code units of the input are cut at each token's and trivia's span and compared with
 //! its text, and those pieces must tile the input from offset 0 to its end with nothing left out.
+//!
+//! The cfml-m1.2 cases reach reference binding only through the same API
+//! (`calc_fml::bind_references`, `ReferenceOperand::instantiate`, `calc_fml::read_cells`), with a
+//! catalogue and a reader defined here that log every call they receive. Expected cells and areas
+//! come from the cases' own A1 decoding, not from calc-fml.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
 use calc_fml::parse_formula;
+use calc_fml::reference::{
+    AxisRef, BindError, CellRef, CellRun, FormulaAnchor, PlacementError, ReferenceNotation,
+    ReferenceOperand, ReferenceShape, SheetTarget,
+};
 use calc_fml::syntax::{
     SyntaxChild, SyntaxDiagnosticKind, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token,
     TokenKind,
 };
-use calc_func::value::WorksheetErrorCode;
-use std::collections::BTreeSet;
+use calc_fml::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
+use calc_func::value::{
+    CalcValue, CellKey, ExcelText, GridArea, IdAllocator, MAX_COLUMNS, MAX_ROWS, SheetId,
+    WorksheetErrorCode,
+};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
+use std::ops::ControlFlow;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -784,5 +799,819 @@ fn cfml_m1_1__tree_syntax_rejected() {
         "ACCEPT-NOTE: cfml_m1_1__tree_syntax_rejected: {} legacy selector formulas each refused with one unsupported-syntax diagnostic spanning exactly the selector tokens, held unstructured in an UnsupportedExpr; {} neighbouring Excel formulas parsed without a diagnostic",
         TREE_SYNTAX.len(),
         EXCEL_NEIGHBOURS.len()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfml-m1.2: typed reference binding, placement and reads.
+
+/// The cell an A1 address names, decoded here without calc-fml.
+fn cell_at(sheet: SheetId, address: &str) -> CellKey {
+    let digits = address
+        .find(|ch: char| ch.is_ascii_digit())
+        .expect("an address has a row");
+    let (letters, row) = address.split_at(digits);
+    let column = letters.bytes().fold(0u32, |number, letter| {
+        number * 26 + u32::from(letter - b'A' + 1)
+    });
+    CellKey::new(sheet, row.parse().expect("a row number"), column).expect("a cell of the grid")
+}
+
+fn area_of(sheet: SheetId, first: &str, last: &str) -> GridArea {
+    GridArea::new(cell_at(sheet, first), cell_at(sheet, last)).expect("one sheet")
+}
+
+fn one_cell(sheet: SheetId, address: &str) -> GridArea {
+    GridArea::cell(cell_at(sheet, address))
+}
+
+fn anchor_at(sheet: SheetId, address: &str) -> FormulaAnchor {
+    FormulaAnchor::new(cell_at(sheet, address))
+}
+
+/// A catalogue of named sheets that logs every request it receives. It matches names regardless
+/// of case, as Excel matches sheet names.
+struct LoggingCatalog {
+    sheets: Vec<(&'static str, SheetId)>,
+    requests: RefCell<Vec<String>>,
+}
+
+impl LoggingCatalog {
+    fn new(names: &[&'static str]) -> Self {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        LoggingCatalog {
+            sheets: names
+                .iter()
+                .map(|name| (*name, ids.issue().expect("a sheet id")))
+                .collect(),
+            requests: RefCell::new(Vec::new()),
+        }
+    }
+
+    fn id(&self, name: &str) -> SheetId {
+        self.sheets
+            .iter()
+            .find(|(known, _)| *known == name)
+            .map(|(_, id)| *id)
+            .expect("a fixture sheet")
+    }
+}
+
+impl ReferenceCatalog for LoggingCatalog {
+    fn sheet_named(&self, name: &str) -> Option<SheetId> {
+        self.requests.borrow_mut().push(name.to_owned());
+        self.sheets
+            .iter()
+            .find(|(known, _)| known.to_lowercase() == name.to_lowercase())
+            .map(|(_, id)| *id)
+    }
+}
+
+type Bound = Vec<(String, Result<ReferenceOperand, BindError>)>;
+
+/// Binds `formula` and gives each site's source text, cut from the formula at the site's UTF-16
+/// span, with its binding.
+fn sites(
+    formula: &str,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+) -> Bound {
+    let tree = parse_formula(formula);
+    assert!(
+        tree.diagnostics().is_empty(),
+        "{formula}: {:?}",
+        tree.diagnostics()
+    );
+    tree_sites(formula, &tree, notation, anchor, catalog)
+}
+
+/// Binds the tree parsed from `formula`, which may hold diagnostics, as [`sites`] does.
+fn tree_sites(
+    formula: &str,
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+) -> Bound {
+    let units: Vec<u16> = formula.encode_utf16().collect();
+    bind_references(tree, notation, anchor, catalog)
+        .into_iter()
+        .map(|site| (utf16_slice(&units, site.span), site.binding))
+        .collect()
+}
+
+fn texts(bound: &Bound) -> Vec<&str> {
+    bound.iter().map(|(text, _)| text.as_str()).collect()
+}
+
+fn operands(bound: &Bound) -> Vec<ReferenceOperand> {
+    bound
+        .iter()
+        .map(|(text, binding)| match binding {
+            Ok(operand) => *operand,
+            Err(refused) => panic!("{text} was refused: {refused:?}"),
+        })
+        .collect()
+}
+
+fn cell(row: AxisRef, column: AxisRef) -> ReferenceShape {
+    ReferenceShape::Cell(CellRef { row, column })
+}
+
+fn on(sheet: SheetTarget, shape: ReferenceShape) -> ReferenceOperand {
+    ReferenceOperand { sheet, shape }
+}
+
+/// The whole-column area from row 1 to the last row.
+fn columns_of(sheet: SheetId, first: &str, last: &str) -> GridArea {
+    area_of(sheet, &format!("{first}1"), &format!("{last}{MAX_ROWS}"))
+}
+
+/// The whole-row area from column A to the last column (XFD).
+fn rows_of(sheet: SheetId, first: u32, last: u32) -> GridArea {
+    area_of(sheet, &format!("A{first}"), &format!("XFD{last}"))
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfml_m1_2__relative_absolute() {
+    use AxisRef::{Absolute as abs, Relative as rel};
+    use ReferenceNotation::{A1, R1C1};
+    let catalog = LoggingCatalog::new(&["Sheet1", "Sheet2", "Sheet3"]);
+    let (s1, s2, s3) = (
+        catalog.id("Sheet1"),
+        catalog.id("Sheet2"),
+        catalog.id("Sheet3"),
+    );
+    assert_eq!(cell_at(s1, "XFD1").column(), MAX_COLUMNS);
+    let c5 = anchor_at(s1, "C5");
+    let f10 = anchor_at(s1, "F10");
+    let mut placements = 0;
+    let mut refusals = 0;
+
+    // Mixed dollar cells entered in C5: each relative row or column is an offset from C5.
+    let mixed = sites("=B3+$B3+B$3+$B$3", A1, c5, &catalog);
+    assert_eq!(texts(&mixed), ["B3", "$B3", "B$3", "$B$3"]);
+    let mixed = operands(&mixed);
+    assert_eq!(
+        mixed,
+        [
+            on(SheetTarget::Anchor, cell(rel(-2), rel(-1))),
+            on(SheetTarget::Anchor, cell(rel(-2), abs(2))),
+            on(SheetTarget::Anchor, cell(abs(3), rel(-1))),
+            on(SheetTarget::Anchor, cell(abs(3), abs(2))),
+        ]
+    );
+
+    // Two callers: C5, where it was entered, and F10, five rows down and three columns right,
+    // where the relative parts move with the caller and the absolute parts stay.
+    for (caller, expected) in [
+        (c5, ["B3", "B3", "B3", "B3"]),
+        (f10, ["E8", "B8", "E3", "B3"]),
+    ] {
+        for (operand, address) in mixed.iter().zip(expected) {
+            assert_eq!(operand.instantiate(caller), Ok(one_cell(s1, address)));
+            placements += 1;
+        }
+    }
+
+    // The text Excel shows for the copy in F10 binds there to the same operands, and so does the
+    // R1C1 spelling at either caller; the original A1 text bound at F10 is another reference.
+    let copied = sites("=E8+$B8+E$3+$B$3", A1, f10, &catalog);
+    assert_eq!(operands(&copied), mixed);
+    for caller in [c5, f10] {
+        let r1c1 = sites("=R[-2]C[-1]+R[-2]C2+R3C[-1]+R3C2", R1C1, caller, &catalog);
+        assert_eq!(operands(&r1c1), mixed);
+    }
+    let moved = sites("=B3", A1, f10, &catalog);
+    assert_eq!(
+        operands(&moved),
+        [on(SheetTarget::Anchor, cell(rel(-7), rel(-4)))]
+    );
+
+    // On another sheet, an unqualified reference reads the caller's sheet and a qualified one
+    // stays on its own.
+    let qualified = operands(&sites("=Sheet2!B3+B3", A1, c5, &catalog));
+    assert_eq!(
+        qualified,
+        [
+            on(SheetTarget::Sheet(s2), cell(rel(-2), rel(-1))),
+            on(SheetTarget::Anchor, cell(rel(-2), rel(-1))),
+        ]
+    );
+    let sheet3_f10 = anchor_at(s3, "F10");
+    assert_eq!(qualified[0].instantiate(sheet3_f10), Ok(one_cell(s2, "E8")));
+    assert_eq!(qualified[1].instantiate(sheet3_f10), Ok(one_cell(s3, "E8")));
+    placements += 2;
+
+    // A rectangle, whole rows and whole columns, each with a relative and an absolute end, which
+    // the operand holds absolute end first. At F10 the relative corner E8 passes the absolute D7,
+    // and the area is D7:E8.
+    let shapes = operands(&sites("=B3:$D$7+2:$4+B:$D", A1, c5, &catalog));
+    assert_eq!(
+        shapes,
+        [
+            on(
+                SheetTarget::Anchor,
+                ReferenceShape::Area {
+                    first: CellRef {
+                        row: abs(7),
+                        column: abs(4)
+                    },
+                    last: CellRef {
+                        row: rel(-2),
+                        column: rel(-1)
+                    },
+                }
+            ),
+            on(
+                SheetTarget::Anchor,
+                ReferenceShape::Rows {
+                    first: abs(4),
+                    last: rel(-3)
+                }
+            ),
+            on(
+                SheetTarget::Anchor,
+                ReferenceShape::Columns {
+                    first: abs(4),
+                    last: rel(-1)
+                }
+            ),
+        ]
+    );
+    for (caller, expected) in [
+        (
+            c5,
+            [
+                area_of(s1, "B3", "D7"),
+                rows_of(s1, 2, 4),
+                columns_of(s1, "B", "D"),
+            ],
+        ),
+        (
+            f10,
+            [
+                area_of(s1, "D7", "E8"),
+                rows_of(s1, 4, 7),
+                columns_of(s1, "D", "E"),
+            ],
+        ),
+    ] {
+        for (operand, area) in shapes.iter().zip(expected) {
+            assert_eq!(operand.instantiate(caller), Ok(area));
+            placements += 1;
+        }
+    }
+
+    // An operand does not depend on the anchor it was bound at. R[-2]C[-1]:R7C4 is B3:$D$7 at
+    // C5, where its relative corner lies above and left of the absolute one, and $D$7:E8 at F10,
+    // where it lies below and right; R[-3]:R4 is 2:$4 at C5 and $4:7 at F10. Bound at either
+    // caller, in R1C1 or in either A1 order, each is one operand, which places at each caller.
+    let at_c5 = operands(&sites("=R[-2]C[-1]:R7C4+R[-3]:R4", R1C1, c5, &catalog));
+    let at_f10 = operands(&sites("=R[-2]C[-1]:R7C4+R[-3]:R4", R1C1, f10, &catalog));
+    assert_eq!(at_c5, at_f10);
+    assert_eq!(at_c5, shapes[..2]);
+    for (formula, caller) in [
+        ("=B3:$D$7+2:$4", c5),
+        ("=$D$7:B3+$4:2", c5),
+        ("=E8:$D$7+7:$4", f10),
+        ("=$D$7:E8+$4:7", f10),
+    ] {
+        assert_eq!(
+            operands(&sites(formula, A1, caller, &catalog)),
+            at_c5,
+            "{formula}"
+        );
+    }
+    for (operands, caller, expected) in [
+        (&at_c5, c5, [area_of(s1, "B3", "D7"), rows_of(s1, 2, 4)]),
+        (&at_f10, f10, [area_of(s1, "D7", "E8"), rows_of(s1, 4, 7)]),
+    ] {
+        for (operand, area) in operands.iter().zip(expected) {
+            assert_eq!(operand.instantiate(caller), Ok(area));
+            placements += 1;
+        }
+    }
+
+    // Sheet-qualified R1C1: a cell, a rectangle and a whole row on Sheet2, each bound at C5 and
+    // placed at C5, at F10 and on Sheet3 at F10. The relative parts move with the caller, and the
+    // sheet stays Sheet2.
+    let qualified_r1c1 = [
+        (
+            "=Sheet2!R3C2",
+            ReferenceShape::Cell(CellRef {
+                row: abs(3),
+                column: abs(2),
+            }),
+            [one_cell(s2, "B3"), one_cell(s2, "B3"), one_cell(s2, "B3")],
+        ),
+        (
+            "=Sheet2!R[-1]C:R1C1",
+            ReferenceShape::Area {
+                first: CellRef {
+                    row: abs(1),
+                    column: abs(1),
+                },
+                last: CellRef {
+                    row: rel(-1),
+                    column: rel(0),
+                },
+            },
+            [
+                area_of(s2, "A1", "C4"),
+                area_of(s2, "A1", "F9"),
+                area_of(s2, "A1", "F9"),
+            ],
+        ),
+        (
+            "=Sheet2!R3",
+            ReferenceShape::Rows {
+                first: abs(3),
+                last: abs(3),
+            },
+            [rows_of(s2, 3, 3), rows_of(s2, 3, 3), rows_of(s2, 3, 3)],
+        ),
+    ];
+    for (formula, shape, areas) in qualified_r1c1 {
+        let bound = sites(formula, R1C1, c5, &catalog);
+        assert_eq!(texts(&bound), [&formula[1..]]);
+        let operand = operands(&bound);
+        assert_eq!(operand, [on(SheetTarget::Sheet(s2), shape)], "{formula}");
+        for (caller, area) in [c5, f10, sheet3_f10].into_iter().zip(areas) {
+            assert_eq!(operand[0].instantiate(caller), Ok(area), "{formula}");
+            placements += 1;
+        }
+    }
+
+    // R1C1 whole rows and columns, placed at F10.
+    let axes = operands(&sites("=R[-1]:R[1]+C2:C[1]+R+C", R1C1, c5, &catalog));
+    assert_eq!(
+        axes,
+        [
+            on(
+                SheetTarget::Anchor,
+                ReferenceShape::Rows {
+                    first: rel(-1),
+                    last: rel(1)
+                }
+            ),
+            on(
+                SheetTarget::Anchor,
+                ReferenceShape::Columns {
+                    first: abs(2),
+                    last: rel(1)
+                }
+            ),
+            on(
+                SheetTarget::Anchor,
+                ReferenceShape::Rows {
+                    first: rel(0),
+                    last: rel(0)
+                }
+            ),
+            on(
+                SheetTarget::Anchor,
+                ReferenceShape::Columns {
+                    first: rel(0),
+                    last: rel(0)
+                }
+            ),
+        ]
+    );
+    for (operand, area) in axes.iter().zip([
+        rows_of(s1, 9, 11),
+        columns_of(s1, "B", "G"),
+        rows_of(s1, 10, 10),
+        columns_of(s1, "F", "F"),
+    ]) {
+        assert_eq!(operand.instantiate(f10), Ok(area));
+        placements += 1;
+    }
+
+    // The `#REF!` qualifier binds, and placing it anywhere is #REF!.
+    let deleted = operands(&sites("=#REF!B3+#REF!$B$3:C4", A1, c5, &catalog));
+    assert_eq!(deleted.len(), 2);
+    for operand in &deleted {
+        assert_eq!(operand.sheet, SheetTarget::Deleted);
+        for caller in [c5, f10] {
+            let refused = operand.instantiate(caller);
+            assert_eq!(refused, Err(PlacementError::DeletedSheet));
+            assert_eq!(
+                refused.unwrap_err().worksheet_error(),
+                WorksheetErrorCode::Ref
+            );
+            refusals += 1;
+        }
+    }
+
+    // Placed where a relative part leaves the grid, a reference is refused as #REF!: three of the
+    // mixed cells and the three shapes at A1, D7 (entered in C5) at the last row and the last
+    // column, and R[-1]C at row 1.
+    let a1 = anchor_at(s1, "A1");
+    let d7 = operands(&sites("=D7", A1, c5, &catalog))[0];
+    let r1c1_up = operands(&sites("=R[-1]C", R1C1, anchor_at(s1, "D1"), &catalog))[0];
+    let crossing = [
+        (mixed[0], a1, PlacementError::RowOffGrid { resolved: -1 }),
+        (mixed[1], a1, PlacementError::RowOffGrid { resolved: -1 }),
+        (mixed[2], a1, PlacementError::ColumnOffGrid { resolved: 0 }),
+        (shapes[0], a1, PlacementError::RowOffGrid { resolved: -1 }),
+        (shapes[1], a1, PlacementError::RowOffGrid { resolved: -2 }),
+        (shapes[2], a1, PlacementError::ColumnOffGrid { resolved: 0 }),
+        (
+            d7,
+            anchor_at(s1, &format!("XFD{MAX_ROWS}")),
+            PlacementError::RowOffGrid {
+                resolved: i64::from(MAX_ROWS) + 2,
+            },
+        ),
+        (
+            d7,
+            anchor_at(s1, "XFD1"),
+            PlacementError::ColumnOffGrid {
+                resolved: i64::from(MAX_COLUMNS) + 1,
+            },
+        ),
+        (
+            r1c1_up,
+            anchor_at(s1, "D1"),
+            PlacementError::RowOffGrid { resolved: 0 },
+        ),
+    ];
+    for (operand, caller, expected) in crossing {
+        let refused = operand.instantiate(caller);
+        assert_eq!(refused, Err(expected), "{operand:?} at {caller:?}");
+        assert_eq!(
+            refused.unwrap_err().worksheet_error(),
+            WorksheetErrorCode::Ref
+        );
+        refusals += 1;
+    }
+    // The absolute cell, and the same references one step inside the grid, still place.
+    assert_eq!(mixed[3].instantiate(a1), Ok(one_cell(s1, "B3")));
+    assert_eq!(
+        r1c1_up.instantiate(anchor_at(s1, "D2")),
+        Ok(one_cell(s1, "D1"))
+    );
+    assert_eq!(
+        d7.instantiate(anchor_at(s1, &format!("XFC{}", MAX_ROWS - 2))),
+        Ok(one_cell(s1, &format!("XFD{MAX_ROWS}")))
+    );
+    placements += 3;
+
+    // Text that no caller puts on the grid is refused when it is bound.
+    let outside_a1 = sites(
+        "=$XFE$1+A$1048577+0:3+1:1048577+$XFE:$XFE",
+        A1,
+        c5,
+        &catalog,
+    );
+    let outside_r1c1 = sites(
+        "=R1048577C1+R0+C16385+R[1048576]C+R1C1:R1C16385",
+        R1C1,
+        c5,
+        &catalog,
+    );
+    assert_eq!(
+        texts(&outside_a1),
+        ["$XFE$1", "A$1048577", "0:3", "1:1048577", "$XFE:$XFE"]
+    );
+    assert_eq!(
+        texts(&outside_r1c1),
+        ["R1048577C1", "R0", "C16385", "R[1048576]C", "R1C1:R1C16385"]
+    );
+    for (text, binding) in outside_a1.iter().chain(&outside_r1c1) {
+        assert_eq!(binding, &Err(BindError::OutsideGrid), "{text}");
+        refusals += 1;
+    }
+    // The longest offset the grid allows binds, and places only where it lands on the grid.
+    let longest = operands(&sites("=R[-1048575]C", R1C1, c5, &catalog))[0];
+    assert_eq!(
+        longest.instantiate(anchor_at(s1, &format!("C{MAX_ROWS}"))),
+        Ok(one_cell(s1, "C1"))
+    );
+    assert_eq!(
+        longest.instantiate(c5),
+        Err(PlacementError::RowOffGrid {
+            resolved: 5 - 1_048_575
+        })
+    );
+    // Without a `$`, cell-like text outside the grid is a name, which this binding leaves alone.
+    assert!(sites("=XFE1+Sales2023+A0+XFE:XFE", A1, c5, &catalog).is_empty());
+    // Only the Sheet2 qualifiers reached the catalogue, once per qualified reference.
+    assert_eq!(*catalog.requests.borrow(), ["Sheet2"; 4]);
+
+    note!(
+        "ACCEPT-NOTE: cfml_m1_2__relative_absolute: {placements} placements at two or more callers gave the areas decoded by the case; {refusals} references refused (#REF! qualifier, off-grid placement, or outside the grid at binding)"
+    );
+}
+
+/// What a read's visit received for one run: each value with the address it was lent at, or a
+/// count of blank or missing cells.
+#[derive(Debug, PartialEq)]
+enum Seen {
+    Values(Vec<(usize, CalcValue)>),
+    Blank(u64),
+    Missing(u64),
+}
+
+/// A reader over stored values and unresolved cells; every other cell of a sheet is blank. It
+/// logs each area it is asked for, lends stored values in place, and reports runs in row-major
+/// order: one per stored or unresolved cell and one per stretch of blanks between them.
+#[derive(Default)]
+struct LoggingReader {
+    values: BTreeMap<CellKey, CalcValue>,
+    unresolved: BTreeSet<CellKey>,
+    requests: Vec<GridArea>,
+}
+
+impl LoggingReader {
+    fn store(&mut self, sheet: SheetId, address: &str, value: CalcValue) {
+        self.values.insert(cell_at(sheet, address), value);
+    }
+
+    fn leave_unresolved(&mut self, sheet: SheetId, address: &str) {
+        self.unresolved.insert(cell_at(sheet, address));
+    }
+
+    /// Where the reader keeps the value of a cell.
+    fn address(&self, sheet: SheetId, address: &str) -> usize {
+        &self.values[&cell_at(sheet, address)] as *const CalcValue as usize
+    }
+}
+
+impl ReferenceReader for LoggingReader {
+    fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
+        self.requests.push(area);
+        let first = area.first();
+        let width = u64::from(area.column_count());
+        let offset = |key: &CellKey| {
+            u64::from(key.row() - first.row()) * width + u64::from(key.column() - first.column())
+        };
+        let mut marks: Vec<(u64, Option<&CalcValue>)> = self
+            .values
+            .iter()
+            .filter(|(key, _)| area.contains(**key))
+            .map(|(key, value)| (offset(key), Some(value)))
+            .chain(
+                self.unresolved
+                    .iter()
+                    .filter(|key| area.contains(**key))
+                    .map(|key| (offset(key), None)),
+            )
+            .collect();
+        marks.sort_by_key(|(at, _)| *at);
+        let mut next = 0;
+        for (at, mark) in marks {
+            if at > next && sink(CellRun::Blank(at - next)).is_break() {
+                return;
+            }
+            let run = match mark {
+                Some(value) => CellRun::Values(std::slice::from_ref(value)),
+                None => CellRun::Missing(1),
+            };
+            if sink(run).is_break() {
+                return;
+            }
+            next = at + 1;
+        }
+        if next < area.cell_count() {
+            let _ = sink(CellRun::Blank(area.cell_count() - next));
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfml_m1_2__provider_reads() {
+    let catalog = LoggingCatalog::new(&["Sheet1", "Sheet2", "Q2 Data", "It's"]);
+    let (s1, s2) = (catalog.id("Sheet1"), catalog.id("Sheet2"));
+    let (q2, its) = (catalog.id("Q2 Data"), catalog.id("It's"));
+    let anchor = anchor_at(s1, "D10");
+
+    let formula = "=SUM(sheet2!$B$2:C3,'Q2 Data'!A1,'It''s'!B2:B3,B2:B4,Sheet2!B:B,Missing!A1,[Book2.xlsx]Sheet1!A1,Sheet1:Sheet3!A1,'Sheet 1:Sheet 3'!A1,Sheet2!TaxRate)";
+    let bound = sites(formula, ReferenceNotation::A1, anchor, &catalog);
+
+    // The catalogue was asked for sheets only, by the names the qualifiers spell, unquoted and
+    // as written: never for reference text, and not for the other workbook, the runs of sheets
+    // or the sheet-qualified name.
+    assert_eq!(
+        *catalog.requests.borrow(),
+        ["sheet2", "Q2 Data", "It's", "Sheet2", "Missing"]
+    );
+    assert_eq!(
+        texts(&bound),
+        [
+            "sheet2!$B$2:C3",
+            "'Q2 Data'!A1",
+            "'It''s'!B2:B3",
+            "B2:B4",
+            "Sheet2!B:B",
+            "Missing!A1",
+            "[Book2.xlsx]Sheet1!A1",
+            "Sheet1:Sheet3!A1",
+            "'Sheet 1:Sheet 3'!A1",
+        ]
+    );
+    let sheets: Vec<Result<SheetTarget, BindError>> = bound
+        .iter()
+        .map(|(_, binding)| binding.clone().map(|operand| operand.sheet))
+        .collect();
+    assert_eq!(
+        sheets,
+        [
+            Ok(SheetTarget::Sheet(s2)),
+            Ok(SheetTarget::Sheet(q2)),
+            Ok(SheetTarget::Sheet(its)),
+            Ok(SheetTarget::Anchor),
+            Ok(SheetTarget::Sheet(s2)),
+            Err(BindError::UnknownSheet {
+                name: "Missing".to_owned()
+            }),
+            Err(BindError::ExternalWorkbook),
+            Err(BindError::SheetSpan),
+            Err(BindError::SheetSpan),
+        ]
+    );
+
+    // A qualifier belongs to its whole operand. Before an operand that is no reference endpoint
+    // it is refused as one site spanning both, without a catalogue request, so nothing inside
+    // binds as a reference of the anchor's sheet or of an inner qualifier's.
+    let asked = catalog.requests.borrow().len();
+    for formula in [
+        "=Sheet2!(A1)",
+        "=[Book2.xlsx]Sheet1!(A1)",
+        "=Sheet1:Sheet3!(A1)",
+        "=Nope!(A1)",
+        "=Sheet2!Sheet3!A1",
+        "=#REF!SUM(A1)",
+        "=Sheet2!SUM(A1)",
+        "=Sheet2!3",
+        "=Sheet2!#REF!",
+    ] {
+        assert_eq!(
+            sites(formula, ReferenceNotation::A1, anchor, &catalog),
+            [(
+                formula[1..].to_owned(),
+                Err(BindError::QualifiedNonReference)
+            )],
+            "{formula}"
+        );
+    }
+    // Syntax the parser refused is one refused site, and the references inside it are not bound:
+    // neither Sheet1!A1 nor B10 of the trim range, nor A1 under the member selector. C1 binds.
+    for (formula, refused, after) in [
+        ("=SUM(Sheet1!A1.:B10)+C1", "Sheet1!A1.:B10", "C1"),
+        ("=(A1).Value+C1", "(A1).Value", "C1"),
+    ] {
+        let tree = parse_formula(formula);
+        let kinds: Vec<SyntaxDiagnosticKind> = tree
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.kind.clone())
+            .collect();
+        assert_eq!(
+            kinds,
+            [SyntaxDiagnosticKind::UnsupportedSyntax],
+            "{formula}"
+        );
+        assert_eq!(
+            tree_sites(formula, &tree, ReferenceNotation::A1, anchor, &catalog),
+            [
+                (refused.to_owned(), Err(BindError::UnsupportedSyntax)),
+                (
+                    after.to_owned(),
+                    Ok(on(
+                        SheetTarget::Anchor,
+                        cell(AxisRef::Relative(-9), AxisRef::Relative(-1))
+                    ))
+                ),
+            ],
+            "{formula}"
+        );
+    }
+    assert_eq!(catalog.requests.borrow().len(), asked);
+
+    // Sheet2: B2 and C2 hold values, B3 is blank, C3 is an input left unresolved, and B5 holds a
+    // value further down column B. Sheet1's B4 is blank; It's B3 is unresolved.
+    let mut reader = LoggingReader::default();
+    reader.store(s2, "B2", CalcValue::number(1.0));
+    reader.store(
+        s2,
+        "C2",
+        CalcValue::text(ExcelText::from_interop_assignment("x")),
+    );
+    reader.leave_unresolved(s2, "C3");
+    reader.store(s2, "B5", CalcValue::number(5.0));
+    reader.store(q2, "A1", CalcValue::logical(true));
+    reader.store(its, "B2", CalcValue::number(2.0));
+    reader.leave_unresolved(its, "B3");
+    reader.store(s1, "B2", CalcValue::number(10.0));
+    reader.store(s1, "B3", CalcValue::number(20.0));
+
+    // Each bound reference, placed at the anchor and read through calc-fml.
+    let mut reads: Vec<Vec<(CellKey, Seen)>> = Vec::new();
+    for (text, binding) in &bound {
+        let Ok(operand) = binding else { continue };
+        let area = operand
+            .instantiate(anchor)
+            .unwrap_or_else(|refused| panic!("{text}: {refused:?}"));
+        let mut runs = Vec::new();
+        read_cells(&mut reader, area, &mut |start, run| {
+            runs.push((
+                start,
+                match run {
+                    CellRun::Values(values) => Seen::Values(
+                        values
+                            .iter()
+                            .map(|value| (value as *const CalcValue as usize, value.clone()))
+                            .collect(),
+                    ),
+                    CellRun::Blank(count) => Seen::Blank(count),
+                    CellRun::Missing(count) => Seen::Missing(count),
+                },
+            ));
+            ControlFlow::Continue(())
+        })
+        .unwrap_or_else(|broken| panic!("{text}: {broken:?}"));
+        reads.push(runs);
+    }
+
+    // The reader was asked for typed areas, one per bound reference.
+    assert_eq!(
+        reader.requests,
+        [
+            area_of(s2, "B2", "C3"),
+            one_cell(q2, "A1"),
+            area_of(its, "B2", "B3"),
+            area_of(s1, "B2", "B4"),
+            columns_of(s2, "B", "B"),
+        ]
+    );
+
+    // Values arrive lent from the reader's own storage; blank and unresolved cells arrive as
+    // counts, kept apart; every run starts at the cell calc-fml reports for it.
+    let lent = |sheet: SheetId, address: &str, value: CalcValue| {
+        Seen::Values(vec![(reader.address(sheet, address), value)])
+    };
+    let expected = vec![
+        vec![
+            (cell_at(s2, "B2"), lent(s2, "B2", CalcValue::number(1.0))),
+            (
+                cell_at(s2, "C2"),
+                lent(
+                    s2,
+                    "C2",
+                    CalcValue::text(ExcelText::from_interop_assignment("x")),
+                ),
+            ),
+            (cell_at(s2, "B3"), Seen::Blank(1)),
+            (cell_at(s2, "C3"), Seen::Missing(1)),
+        ],
+        vec![(cell_at(q2, "A1"), lent(q2, "A1", CalcValue::logical(true)))],
+        vec![
+            (cell_at(its, "B2"), lent(its, "B2", CalcValue::number(2.0))),
+            (cell_at(its, "B3"), Seen::Missing(1)),
+        ],
+        vec![
+            (cell_at(s1, "B2"), lent(s1, "B2", CalcValue::number(10.0))),
+            (cell_at(s1, "B3"), lent(s1, "B3", CalcValue::number(20.0))),
+            (cell_at(s1, "B4"), Seen::Blank(1)),
+        ],
+        // The whole column in five runs, its last 1048571 blank cells as one count.
+        vec![
+            (cell_at(s2, "B1"), Seen::Blank(1)),
+            (cell_at(s2, "B2"), lent(s2, "B2", CalcValue::number(1.0))),
+            (cell_at(s2, "B3"), Seen::Blank(2)),
+            (cell_at(s2, "B5"), lent(s2, "B5", CalcValue::number(5.0))),
+            (cell_at(s2, "B6"), Seen::Blank(u64::from(MAX_ROWS) - 5)),
+        ],
+    ];
+    assert_eq!(reads, expected);
+
+    // Every cell is accounted for: values, blanks and missing cells add up to each area's size.
+    let mut counted = [0u64; 3];
+    for (runs, area) in reads.iter().zip(&reader.requests) {
+        let mut cells = 0u64;
+        for (_, seen) in runs {
+            let (slot, count) = match seen {
+                Seen::Values(values) => (0, values.len() as u64),
+                Seen::Blank(count) => (1, *count),
+                Seen::Missing(count) => (2, *count),
+            };
+            counted[slot] += count;
+            cells += count;
+        }
+        assert_eq!(cells, area.cell_count());
+    }
+
+    note!(
+        "ACCEPT-NOTE: cfml_m1_2__provider_reads: the catalogue was asked for {} sheet names and the reader for {} typed areas; {} values lent in place, {} blank and {} missing cells counted apart",
+        catalog.requests.borrow().len(),
+        reader.requests.len(),
+        counted[0],
+        counted[1],
+        counted[2]
     );
 }

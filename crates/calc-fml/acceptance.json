@@ -19,6 +19,25 @@
         "cfml_m1_1__lossless_roundtrip": ["windows", "linux", "wasm"],
         "cfml_m1_1__tree_syntax_rejected": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cfml-m1.2",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-fml", "--test", "acceptance", "cfml_m1_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-fml", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cfml-m1.2", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfml-m1.2", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfml-m1.2", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfml_m1_2__relative_absolute",
+        "cfml_m1_2__provider_reads"
+      ],
+      "platforms": {
+        "cfml_m1_2__relative_absolute": ["windows", "linux", "wasm"],
+        "cfml_m1_2__provider_reads": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }
