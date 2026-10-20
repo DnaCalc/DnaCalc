@@ -13,8 +13,14 @@
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -45,8 +51,14 @@
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -78,8 +90,14 @@
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
@@ -118,11 +136,11 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 1,
-          "calc-doc-model": 10,
-          "calc-engine": 1,
-          "calc-fml": 1,
-          "calc-func": 8,
+          "calc-doc": 10,
+          "calc-doc-model": 11,
+          "calc-engine": 4,
+          "calc-fml": 11,
+          "calc-func": 10,
           "calc-host": 1,
           "calc-value": 5,
           "calc-verdict": 11,
@@ -138,7 +156,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "40 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "65 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -236,7 +254,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 40,
+        "files_scanned": 65,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -249,41 +267,41 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "40 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "65 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
       "details": {
         "packages": {
           "calc-doc": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 50,
+            "entries_reach_unproven": 50,
+            "pub_enum_variants": 48,
+            "pub_traits": 2
           },
           "calc-doc-model": {
-            "entries": 51,
-            "entries_reach_unproven": 51,
-            "pub_enum_variants": 51,
+            "entries": 56,
+            "entries_reach_unproven": 56,
+            "pub_enum_variants": 56,
             "pub_traits": 0
           },
           "calc-engine": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
+            "entries": 16,
+            "entries_reach_unproven": 16,
+            "pub_enum_variants": 16,
             "pub_traits": 0
           },
           "calc-fml": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 85,
+            "entries_reach_unproven": 85,
+            "pub_enum_variants": 83,
+            "pub_traits": 2
           },
           "calc-func": {
-            "entries": 18,
-            "entries_reach_unproven": 18,
-            "pub_enum_variants": 17,
-            "pub_traits": 1
+            "entries": 20,
+            "entries_reach_unproven": 20,
+            "pub_enum_variants": 18,
+            "pub_traits": 2
           },
           "calc-host": {
             "entries": 0,
@@ -317,14 +335,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 155,
+          "entries_reach_unproven": 313,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 153 pub enum variants and 2 pub traits; their seams.json files list 155 entries, 155 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 306 pub enum variants and 7 pub traits; their seams.json files list 313 entries, 313 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -415,9 +433,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 45,
+          "commit_messages": 70,
           "files": 20,
-          "tracker_records": 316
+          "tracker_records": 322
         },
         "tracker": {
           "ceng-m7.1": {
@@ -468,7 +486,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 316 tracker records, 0 in 0 of 45 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 322 tracker records, 0 in 0 of 70 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -809,19 +827,19 @@
         "--nocapture"
       ],
       "case": "cfunc_m1_1__catalogue_consistency",
-      "duration_s": 0.032,
+      "duration_s": 0.048,
       "exit_code": 0,
       "log": "target/accept/cfunc-m1.1/linux/cfunc_m1_1__catalogue_consistency.log",
       "notes": [
-        "17 admitted IDs; the dispatch, name, help, arity and oracle views each enumerate the same 17; computing entries [FunctionId(4.1)]; lazy entries [FunctionId(5.1)]",
-        "SUM(1,2,3) through calc_func::invoke = Some(6.0) (bits 0x4018000000000000); arguments asked [0, 1, 2]; allocation calls: 1 on fresh scratch, 0 on warm scratch",
-        "IF demand BranchOnCondition, discriminator Some(0); invoke asked for [] of IF's 3 arguments and [0, 1] of the 2 arguments of the eager = operator",
+        "17 catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same 17; at the minimum arity 16 entries compute ([FunctionId(1.1), FunctionId(1.2), FunctionId(1.3), FunctionId(1.4), FunctionId(1.5), FunctionId(1.6), FunctionId(1.7), FunctionId(1.8), FunctionId(2.1), FunctionId(2.2), FunctionId(2.3), FunctionId(2.4), FunctionId(2.5), FunctionId(2.6), FunctionId(4.1), FunctionId(5.1)]) and 1 refuse under their own ID ([FunctionId(3.1)]); lazy entries [FunctionId(5.1)]",
+        "SUM(1,2,3) through calc_func::invoke = Some(6.0) (bits 0x4018000000000000); SUM(0.5,-2,10) = Some(8.5) (bits 0x4021000000000000); arguments asked [0, 1, 2]; allocation calls: 1 on fresh scratch, 0 on warm scratch",
+        "IF demand BranchOnCondition, discriminator Some(0); invoke asked for [0, 1] of IF(TRUE,#DIV/0!,#N/A), [0] of IF(#REF!,#DIV/0!,#N/A) and [0, 1] of the 2 arguments of the eager = operator",
         "help \"SUM(number1, [number2], ...)\"; oracle formula Some(\"=SUM(1,2,3)\")"
       ],
       "outcome": "passed",
       "package": "calc-func",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s"
     },
     {
       "argv": [
@@ -840,17 +858,16 @@
         "--nocapture"
       ],
       "case": "cfunc_m1_1__unknown_function",
-      "duration_s": 0.031,
+      "duration_s": 0.048,
       "exit_code": 0,
       "log": "target/accept/cfunc-m1.1/linux/cfunc_m1_1__unknown_function.log",
       "notes": [
-        "29 unknown IDs refused with UnknownId; 15 unknown surfaces refused with UnknownSurface; 17 admitted IDs round-trip through their raw values",
-        "scanned 58 string literals in 8 calc-func source files; each of the 15 distinct admitted spellings occurs exactly as often as entries declare it (17 declarations)"
+        "29 unknown IDs refused with UnknownId; 15 unknown surfaces refused with UnknownSurface; 17 admitted IDs round-trip through their raw values"
       ],
       "outcome": "passed",
       "package": "calc-func",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s"
     }
   ],
   "command": [
@@ -876,13 +893,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 2.231,
+      "duration_s": 0.057,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/cfunc-m1.1/linux/command-1.log",
       "outcome": "passed",
@@ -907,7 +924,7 @@
         "calc-func",
         "--lib"
       ],
-      "duration_s": 0.745,
+      "duration_s": 0.058,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -1009,7 +1026,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 8.802,
+  "duration_s": 9.148,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1017,9 +1034,15 @@
     "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
     "git": {
       "branch": "master",
-      "dirty": false,
-      "dirty_paths": [],
-      "head": "73238c502f37e5580ef9b6618d38b920b9988e1f",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "fc1669f759bc5318b0f2fca30a0d67c8c2845877",
+          "path": "accept-receipts/cfunc-m1.2/linux.json",
+          "status": "??"
+        }
+      ],
+      "head": "5e0b3bb3eb7f39fb53025f97ee43af03b6b4fa10",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -1038,6 +1061,7 @@
     "files": [
       "crates/calc-value/acceptance.json",
       "crates/calc-func/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
       "crates/calc-fml/acceptance.json",
       "crates/calc-doc-model/acceptance.json",
       "crates/calc-doc/acceptance.json",
@@ -1047,7 +1071,6 @@
       "apps/dna-calc/acceptance.json",
       "platform/calc-platform-desktop/acceptance.json",
       "platform/calc-oracle-excel/acceptance.json",
-      "tools/calc-verdict/acceptance.json",
       "tools/xtask/acceptance.json"
     ]
   },
@@ -1058,5 +1081,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-19T20:13:07Z"
+  "started_utc": "2026-10-20T15:10:12Z"
 }
