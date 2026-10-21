@@ -3,17 +3,19 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
 # writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx,
-# <directory>/cfunc_m3_4/oracle.xlsx and <directory>/cfunc_m3_5/oracle.xlsx. Run with this
-# directory as -OutDir it rewrites the committed fixtures; the acceptance cases
-# cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries, cfunc_m3_2__large_integers,
-# cfunc_m3_4__argument_classes and cfunc_m3_5__criteria_semantics run it into a fresh directory on
-# Windows and compare its output with the committed workbooks byte for byte.
+# <directory>/cfunc_m3_4/oracle.xlsx, <directory>/cfunc_m3_5/oracle.xlsx and
+# <directory>/dc_q9rb/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
+# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
+# cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes, cfunc_m3_5__criteria_semantics and
+# dc_q9rb__number_text_for_concatenation run it into a fresh directory on Windows and compare its
+# output with the committed workbooks byte for byte.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
 # (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`),
 # cfunc_m3_2/oracle.xlsx the one an Excel capture of cfunc-m3.2's rounding and integer rows reads,
-# cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads, and
-# cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads. Each has one
+# cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads,
+# cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads, and
+# dc_q9rb/oracle.xlsx the one an Excel capture of dc-q9rb's number-text rows reads. Each has one
 # sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
 # holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
 # its rows. Each case checks that its sheet holds exactly those formulas and cells. No formula cell
@@ -243,7 +245,7 @@ $mixedFormulas = @(
     '"a"<="A"', '1>=1', '1<=0', 'TRUE>FALSE', ('"' + $eSmall + '"="' + $eSmall + '"'), '1=2',
     '0.1+0.2=0.3', ('"' + $eSmall + '"="' + $eCapital + '"'), '"a-b"<"ab"',
     '"apple pie"<"banana"', '"a"<"B"', '"A"="a"', '1+1E-15=1',
-    # Concatenation; a number's General text is cfml-m2.6's.
+    # Concatenation, a number's text included (dc-q9rb measures it).
     '"a"&"b"', '"a"&TRUE', '"a"&FALSE', 'A5&"x"', 'A2&A4', '"a"&1', '1&"a"', 'C1&"b"',
     'C2&"b"',
     # SUM.
@@ -581,4 +583,107 @@ $shapeFormulas = @(
 Write-Workbook (Join-Path $OutDir 'cfunc_m3_5/oracle.xlsx') @(
     @('criteria_semantics', (New-OracleSheet $criteriaInputs @($criteriaFormulas | ForEach-Object { Get-Stored $_ }))),
     @('mismatched_shapes', (New-OracleSheet $shapeInputs @($shapeFormulas | ForEach-Object { Get-Stored $_ })))
+)
+
+# --- dc_q9rb/oracle.xlsx ------------------------------------------------------------------------
+
+# Sheet number_text_for_concatenation: the cells of dc_q9rb__number_text_for_concatenation's test
+# sheet and its oracle rows' formulas in its order. Each number a row reads from a cell is in
+# column A of the row's own line, written as the shortest decimal that reads back as it (up to 17
+# significant digits, so it cannot be typed); a row whose number is a literal or a sum leaves
+# column A blank. -0, the largest subnormal and the smallest subnormal of both signs are written
+# as they are; the capture records the & text of those rows.
+$numberTextInputs = @(
+    (New-Number 'A1' '1'),
+    (New-Number 'A2' '123456789012345'),
+    (New-Number 'A3' '999999999999999'),
+    (New-Number 'A4' '999999999999999.4'),
+    (New-Number 'A5' '999999999999999.5'),
+    (New-Number 'A6' '999999999999999.9'),
+    (New-Number 'A8' '1000000000000001'),
+    (New-Number 'A9' '1000000000000000.5'),
+    (New-Number 'A10' '1234567890123456'),
+    (New-Number 'A11' '1234567890123455'),
+    (New-Number 'A12' '1234567890123465'),
+    (New-Number 'A13' '9007199254740992'),
+    (New-Number 'A15' '1E+19'),
+    (New-Number 'A16' '99999999999999900000'),
+    (New-Number 'A17' '9.999999999999999E+19'),
+    (New-Number 'A19' '1.2345678901234568E+20'),
+    (New-Number 'A21' '9.999999999999999E+20'),
+    (New-Number 'A22' '1.2345678901234568E+21'),
+    (New-Number 'A31' '0.000123456789012345'),
+    (New-Number 'A32' '1.23456789012345E-05'),
+    (New-Number 'A33' '1.2345678901234E-06'),
+    (New-Number 'A38' '0.30000000000000004'),
+    (New-Number 'A42' '0.9999999999999999'),
+    (New-Number 'A44' '-0.5'),
+    (New-Number 'A45' '-1000000000000000'),
+    (New-Number 'A46' '-1.23456789012345E-05'),
+    (New-Number 'A47' '-1.7976931348623157E+308'),
+    (New-Number 'A49' '-0'),
+    (New-Number 'A50' '1.7976931348623157E+308'),
+    (New-Number 'A51' '2.2250738585072014E-308'),
+    (New-Number 'A52' '2.225073858507201E-308'),
+    (New-Number 'A53' '5E-324'),
+    (New-Number 'A54' '-5E-324'),
+    (New-Number 'A55' '1.23456789012345E+98'),
+    (New-Number 'A56' '1.23456789012345E+99'),
+    (New-Number 'A57' '1.23456789012345E+100'),
+    (New-Number 'A58' '1.23456789012345E-99'),
+    (New-Number 'A60' '1.8055722654199485E-306'),
+    (New-Number 'A61' '7200547821627.375'),
+    (New-Number 'A67' '-1E+19'),
+    (New-Number 'A68' '-99999999999999900000'),
+    (New-Number 'A69' '-9.999999999999999E+19'),
+    (New-Number 'A70' '-0.000123456789012345'),
+    (New-Number 'A72' '-1234567890123455'),
+    (New-Number 'A73' '-7200547821627.375'),
+    (New-Number 'A74' '-1.8055722654199485E-306'),
+    (New-Number 'A75' '9.99999999999995E-99'),
+    (New-Number 'A76' '-9.99999999999995E-99'),
+    (New-Number 'A77' '521310271410497.5'),
+    (New-Number 'A78' '5758361573115.375'),
+    (New-Number 'A79' '-6278515587045.875'),
+    (New-Number 'A80' '543212677140.0625'),
+    (New-Number 'A81' '4037429.935952025'),
+    (New-Number 'A82' '5.248519552626765E-06'),
+    (New-Number 'A83' '-0.9198894815859745'),
+    (New-Number 'A84' '-7.302438853328905E+163'),
+    (New-Number 'A85' '23.61461297829835'),
+    (New-Number 'A86' '80216.89735826345')
+)
+$numberTextFormulas = @(
+    # Integers up to and past 15 significant digits, and the boundaries around 1E+15.
+    'A1&""', 'A2&""', 'A3&""', 'A4&""', 'A5&""', 'A6&""', '1E+15&""', 'A8&""', 'A9&""',
+    'A10&""', 'A11&""', 'A12&""', 'A13&""', '"x"&1E+16',
+    # Where the text switches to E notation, around 1E+20 and 1E+21.
+    'A15&""', 'A16&""', 'A17&""', '1E+20&""', 'A19&""', '1E+21&""', 'A21&""', 'A22&""',
+    '1E+22&""',
+    # Small numbers from 1E-4 to 1E-10, and past them.
+    '0.0001&""', '0.00001&""', '0.000001&""', '1E-7&""', '1E-8&""', '1E-9&""', '1E-10&""',
+    'A31&""', 'A32&""', 'A33&""', '1E-18&""', '1.5E-18&""', '1E-19&""',
+    # Sums whose 16th and 17th digits differ from their 15-digit text.
+    '0.1+0.2&""', 'A38&""', '1/3&""', '2/3&""', '1-1E-16&""', 'A42&""',
+    # Negative numbers and negative zero.
+    '-1&""', 'A44&""', 'A45&""', 'A46&""', 'A47&""', '-0&""', 'A49&""',
+    # The largest and smallest normal and subnormal binary64 values.
+    'A50&""', 'A51&""', 'A52&""', 'A53&""', 'A54&""',
+    # Three-digit exponents, the exponent 99 of either sign, and a tie at the 16th digit.
+    'A55&""', 'A56&""', 'A57&""', 'A58&""', '1E+100&""', 'A60&""', 'A61&""',
+    # A number on either side, two numbers, and the "op"&cell form of a criterion.
+    '"a"&1', '1&"a"', '"="&A2', 'A1&"-"', 'A2&A3',
+    # Negative numbers whose magnitude's text takes 20 characters (the sign does not count), a
+    # negative tie at the 16th digit and at the second rounding, and a second rounding that
+    # carries into the exponent.
+    'A67&""', 'A68&""', 'A69&""', 'A70&""', '-1E-18&""', 'A72&""', 'A73&""', 'A74&""',
+    'A75&""', 'A76&""',
+    # Exact ties at the 16th digit that Excel rounds away from zero; numbers within a relative
+    # 2^-59 of such a tie; and two just beyond that distance.
+    'A77&""', 'A78&""', 'A79&""', 'A80&""', 'A81&""', 'A82&""', 'A83&""', 'A84&""', 'A85&""',
+    'A86&""'
+)
+
+Write-Workbook (Join-Path $OutDir 'dc_q9rb/oracle.xlsx') @(
+    , @('number_text_for_concatenation', (New-OracleSheet $numberTextInputs $numberTextFormulas))
 )
