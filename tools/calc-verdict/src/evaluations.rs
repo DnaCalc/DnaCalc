@@ -13,8 +13,9 @@
 //! records by hand. Provenance comes from the writer: CalcEngine's `step` shows a `ReadObserver`
 //! the report CalcFml's evaluator makes for each evaluation it runs (a value only CalcFml can
 //! build), and the record is to be made from those reports, not from the results the engine
-//! publishes. Today only the dc-qguw acceptance cases write a version 2 record that way; the
-//! product writer is infra-m1.3's round trip.
+//! publishes. `cargo xtask compare` (bead dc-kt3l) is the only product writer of a version 2
+//! record made that way, which infra-m1.3's round trip builds on; the dc-qguw acceptance cases
+//! also write one from their own observer.
 //! Version 1 ([`EvaluationRecord`]) carries no returned value: an evaluation it lists proves that
 //! the cell was evaluated at that tick, not which value the evaluation gave, so a result that
 //! publishes another value than its evaluation returned is not caught. The version 1 records judged

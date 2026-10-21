@@ -52,6 +52,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-value",
                 "calc-verdict"
               ]
@@ -105,6 +111,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -159,6 +171,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -483,7 +501,7 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 207,
+          "commit_messages": 208,
           "files": 20,
           "tracker_records": 367
         },
@@ -536,7 +554,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 367 tracker records, 1 in 1 of 207 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 367 tracker records, 1 in 1 of 208 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -877,14 +895,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_3__zero_tests_fail",
-      "duration_s": 200.78,
+      "duration_s": 208.786,
       "exit_code": 0,
       "log": "target/accept/infra-m0.3/windows/infra_m0_3__zero_tests_fail.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 200.51s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 208.50s"
     },
     {
       "argv": [
@@ -903,14 +921,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_3__forbidden_dependency",
-      "duration_s": 314.037,
+      "duration_s": 340.516,
       "exit_code": 0,
       "log": "target/accept/infra-m0.3/windows/infra_m0_3__forbidden_dependency.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 313.74s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 340.25s"
     }
   ],
   "command": [
@@ -936,13 +954,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 484.545,
+      "duration_s": 557.119,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 476.72s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 549.50s"
       ],
       "log": "target/accept/infra-m0.3/windows/command-1.log",
       "outcome": "passed",
@@ -967,13 +985,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 6.211,
+      "duration_s": 6.682,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s"
+        "test result: ok. 130 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s"
       ],
       "log": "target/accept/infra-m0.3/windows/command-2.log",
       "outcome": "passed",
@@ -1047,7 +1065,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 1020.441,
+  "duration_s": 1128.908,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1058,117 +1076,87 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "355ee2e121523ebd3c8ebf2030e4e35688913b6d",
+          "blob": "efe16257a537bd0403bf277649a9768cb1b66121",
           "path": "Cargo.lock",
           "status": "M"
         },
         {
-          "blob": "ce93cca10b4df52a1be0c993d53640aa95184290",
-          "path": "accept-receipts/cfunc-m1.1/windows.json",
+          "blob": "474f85a034a057206adcf08517d7b73117bc1862",
+          "path": "accept-receipts/dc-qguw/windows.json",
           "status": "M"
         },
         {
-          "blob": "7a065c290724cdbe3c82d0cfa92865a2b4e86a12",
-          "path": "accept-receipts/dc-besk/windows.json",
+          "blob": "9c2d053a5f36166bc0e1842b4c06e60a868a1b3a",
+          "path": "tools/calc-verdict/src/evaluations.rs",
           "status": "M"
         },
         {
-          "blob": "6167c3a22c72838183b181f0a8aba0ecfe37630a",
-          "path": "crates/calc-fml/Cargo.toml",
+          "blob": "c3bd2e81ec73c1bda410a08842b48259c9415a94",
+          "path": "tools/calc-verdict/src/lib.rs",
           "status": "M"
         },
         {
-          "blob": "df55417cde4078441a341737b6dd7f72433090b8",
-          "path": "crates/calc-fml/acceptance.json",
+          "blob": "7d5c3ad4737ad62e4eaf93381dd8ded6454fc50e",
+          "path": "tools/calc-verdict/src/typed.rs",
           "status": "M"
         },
         {
-          "blob": "6acf75d7ce43907a171ef9b99364f16103131e66",
-          "path": "crates/calc-fml/src/eval/compile.rs",
+          "blob": "a28c522e3089088acf3302185f7c41d86e7b3afa",
+          "path": "tools/xtask/Cargo.toml",
           "status": "M"
         },
         {
-          "blob": "bcb2b79affa7b126fcbc9a6b0f58d27772c347ce",
-          "path": "crates/calc-fml/src/eval/mod.rs",
+          "blob": "45210c3c3ad877f179d20e7930c98722fc59c437",
+          "path": "tools/xtask/acceptance.json",
           "status": "M"
         },
         {
-          "blob": "5790fe78841fd169b7e80220ee8274f705e389b3",
-          "path": "crates/calc-fml/src/eval/run.rs",
+          "blob": "a322888d78263cc55f358abae5b0efdd1195a990",
+          "path": "tools/xtask/src/main.rs",
           "status": "M"
         },
         {
-          "blob": "4639db9edc6c7ce3fb212c261281404e0176eabd",
-          "path": "crates/calc-fml/tests/acceptance.rs",
+          "blob": "709eb1e278008bf32624be725f10352a633f0836",
+          "path": "tools/xtask/src/verdict.rs",
           "status": "M"
         },
         {
-          "blob": "8d3d8fcf44d7124da99a83e53a16ddf0d10d73ee",
-          "path": "crates/calc-func/seams.json",
+          "blob": "b634ffab3399a397da5178b591b20fd14b54bf0a",
+          "path": "tools/xtask/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "6bd901d433e6df6686d2cf85fa2af22cb327bb5d",
-          "path": "crates/calc-func/src/catalogue.rs",
-          "status": "M"
-        },
-        {
-          "blob": "b54d20f8662d2728e13668eaea23d4ad18e6ff85",
-          "path": "crates/calc-func/tests/acceptance.rs",
-          "status": "M"
-        },
-        {
-          "blob": "1d360c9dbd92a7b96df12531a437e6d0cb5dc272",
-          "path": "accept-receipts/dc-ibp2/excel.json",
+          "blob": "18a91fde6f2b3cb73b519ffbb814ae240623f8b9",
+          "path": "accept-receipts/dc-kt3l/excel.json",
           "status": "??"
         },
         {
-          "blob": "718a9f2d7060db2222cd98ca3356853f4707e6e9",
-          "path": "accept-receipts/dc-ibp2/wasm.json",
+          "blob": "828a49b5fecaf86d2101a715c5b870b2d49de45a",
+          "path": "accept-receipts/dc-kt3l/windows.json",
           "status": "??"
         },
         {
-          "blob": "72fb3b0060fa95ba616335117d03f06ee88519b5",
-          "path": "accept-receipts/dc-ibp2/windows.json",
+          "blob": "7f3f1bf264a3893915d9f3876aa335d17be84423",
+          "path": "tools/xtask/src/compare.rs",
           "status": "??"
         },
         {
-          "blob": "15a61429deac886b2135dd51379e9e2124536e57",
-          "path": "crates/calc-fml/tests/captures/.gitattributes",
+          "blob": "68102816ec774f3113483393f17aa15e64f711fd",
+          "path": "tools/xtask/src/compare_triage.rs",
           "status": "??"
         },
         {
-          "blob": "92b8fb6cee21ff53f756d63ee3e9ce21bf00eb28",
-          "path": "crates/calc-fml/tests/captures/dc_ibp2/oracle.capture.json",
+          "blob": "bee643d10379a430aee944b14259072208c64a04",
+          "path": "tools/xtask/tests/acceptance/dc_kt3l.rs",
           "status": "??"
         },
         {
-          "blob": "f31e4a7290af16723089475bbe5e4d6dc6704fad",
-          "path": "crates/calc-fml/tests/fixtures/.gitattributes",
-          "status": "??"
-        },
-        {
-          "blob": "3a1505ef4d6268e95be3d38372aa957942672622",
-          "path": "crates/calc-fml/tests/fixtures/dc_ibp2/oracle.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "492b12813845745a58fc7073acd47a5965ebf5db",
-          "path": "crates/calc-fml/tests/fixtures/make-fixtures.ps1",
-          "status": "??"
-        },
-        {
-          "blob": "f5f598c9b0aa1d885dd88925f5f3ef6e663d14f9",
-          "path": "crates/calc-func/src/catalogue/error_fallback.rs",
-          "status": "??"
-        },
-        {
-          "blob": "b0ab2499680749fbb1a01c02018846fb54affb78",
-          "path": "migration/ports/dc-ibp2.json",
+          "blob": "2834fb4dbbc28355c0afa3c505b09258bb3c7aad",
+          "path": "tools/xtask/tests/acceptance/dc_kt3l_package.rs",
           "status": "??"
         }
       ],
-      "head": "fce24e64e9bd1a269dd6624c767236d2c79b513b",
+      "head": "7b59bf679bd70ecb7e435d6d09788d9951b3bf31",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -1207,5 +1195,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-21T15:33:09Z"
+  "started_utc": "2026-10-21T15:54:01Z"
 }

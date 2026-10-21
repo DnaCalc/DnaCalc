@@ -300,7 +300,12 @@ pub(crate) fn ulp_distance(a: f64, b: f64) -> Option<u64> {
 
 /// How `actual` differs from `expected`, or `None` when they are equal (see the module
 /// documentation for what equal means). A callable compares as its worksheet-visible core.
-pub(crate) fn compare(expected: &CalcValue, actual: &CalcValue) -> Option<MismatchClass> {
+///
+/// [`crate::judge`] compares every calculated value with this function. It is public so that a
+/// caller deciding which evidence of a run to keep for a later triage (`cargo xtask compare` keeps
+/// the reads and calls of an evaluation whose value differs from the capture's) uses this same
+/// comparison rather than one of its own; the verdict is still [`crate::judge`]'s alone.
+pub fn compare(expected: &CalcValue, actual: &CalcValue) -> Option<MismatchClass> {
     match (expected.core(), actual.core()) {
         (CoreValue::Number(e), CoreValue::Number(a)) => {
             (e.to_bits() != a.to_bits()).then(|| MismatchClass::Number {

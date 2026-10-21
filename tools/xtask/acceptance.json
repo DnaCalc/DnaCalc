@@ -135,6 +135,24 @@
       "platforms": {
         "dc_cyd7__workspace_license": ["windows", "linux"]
       }
+    },
+    {
+      "id": "dc-kt3l",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "xtask", "--bins"],
+        ["cargo", "xtask", "accept", "--id", "dc-kt3l", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-kt3l", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-kt3l", "--platform", "excel", "--require-all"]
+      ],
+      "cases": [
+        "dc_kt3l__every_cell_classified",
+        "dc_kt3l__live_capture"
+      ],
+      "platforms": {
+        "dc_kt3l__every_cell_classified": ["windows", "linux"],
+        "dc_kt3l__live_capture": ["excel"]
+      }
     }
   ]
 }

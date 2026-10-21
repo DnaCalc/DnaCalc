@@ -2007,3 +2007,27 @@ fn dc_cyd7__workspace_license() {
     let _serial = serial();
     dc_cyd7::workspace_license();
 }
+
+/// The bodies of the dc-kt3l cases, which compare a generated workbook's calculation with its
+/// capture through `cargo xtask compare`.
+#[path = "acceptance/dc_kt3l.rs"]
+mod dc_kt3l;
+
+/// A generated workbook (a SUM chain, a deliberately wrong formula cache, a function no catalogue
+/// holds and a reader of it) compared with captures authored in the test from hand-derived values
+/// (no Excel runs): every inventory cell gets exactly one class and the wrong cache never scores;
+/// an authored one-ulp difference is a kernel-bits root under SUM; context, cyclic and refused
+/// variants and a capture of other bytes are classed or refused. See `acceptance/dc_kt3l.rs`.
+#[test]
+fn dc_kt3l__every_cell_classified() {
+    let _serial = serial();
+    dc_kt3l::every_cell_classified();
+}
+
+/// The same workbook captured live in Excel on this machine and compared (excel route only). See
+/// `acceptance/dc_kt3l.rs`.
+#[test]
+fn dc_kt3l__live_capture() {
+    let _serial = serial();
+    dc_kt3l::live_capture();
+}

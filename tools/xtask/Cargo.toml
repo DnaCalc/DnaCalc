@@ -13,7 +13,16 @@ portability = "native-only"
 # proc-macro2 parse Rust sources for the architecture checks (module trees, test-only items, pub
 # enum variants and traits, and the token scans), with span-locations for line numbers;
 # calc-verdict is the one verdict path `cargo xtask verdict` runs.
+# calc-host is the route `cargo xtask compare` opens, recalculates and projects a workbook through
+# (HostState::open, step, project); calc-engine, calc-fml and calc-func supply the types its read
+# observer is shown (ObservedEvaluation, ExecutedCall) and the typed refusals its triage reads
+# (NotModeled's CompileError, EvalFault and FunctionFault, and the catalogue that spells a
+# FunctionId).
 [dependencies]
+calc-engine = { path = "../../crates/calc-engine" }
+calc-fml = { path = "../../crates/calc-fml" }
+calc-func = { path = "../../crates/calc-func" }
+calc-host = { path = "../../crates/calc-host" }
 calc-verdict = { path = "../calc-verdict" }
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 quote = { version = "1", default-features = false }

@@ -79,7 +79,7 @@ fn judge_failure(error: JudgeError) -> Failure {
 }
 
 /// The Exact target `<excel build>,<channel>,<compatibility>,<numeric environment>`.
-fn parse_target(text: &str) -> Result<NumericTargetId, String> {
+pub(crate) fn parse_target(text: &str) -> Result<NumericTargetId, String> {
     let parts: Vec<&str> = text.split(',').collect();
     match parts[..] {
         [build, channel, compatibility, environment] => {

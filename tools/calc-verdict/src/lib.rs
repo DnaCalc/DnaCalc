@@ -70,7 +70,7 @@ pub use session::{
     STAGE_ISOLATION, SharedRange,
 };
 pub use sha256::sha256_hex;
-pub use typed::MismatchClass;
+pub use typed::{MismatchClass, compare};
 pub use verdict::{
     CaptureFailureCounts, CellVerdict, Certainty, Counts, OutsideResult, REPORT_FORMAT,
     REPORT_VERSION, StaleSource, Strata, UncertifiedReason, Verdict, VerdictPolicy, VerdictReport,

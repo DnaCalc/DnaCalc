@@ -34,6 +34,13 @@
 //! environment>]` judges a canonical CaptureRecord, result set and evaluation record through
 //! calc-verdict, the one verdict path, and writes the CellVerdict report (`verdict.rs`).
 //!
+//! `cargo xtask compare --fixture <xlsx> --capture <capture.json> --out <dir> [--exact-target
+//! ...]` opens the workbook through calc-host, recalculates and projects it, judges every formula
+//! cell of the capture's inventory through calc-verdict against an evaluation record built from
+//! the evaluator's own reports, classifies every cell, and writes `report.json`,
+//! `evaluations.json` and `triage.json` with a one-screen summary (`compare.rs`,
+//! `compare_triage.rs`).
+//!
 //! `cargo xtask capture --fixture <xlsx|xlsm> --out <capture.json> [--timeout <s>] [--case <id>]
 //! [--verdict <report.json>] ...` takes one live capture through calc-oracle-excel, the one Excel
 //! capture adapter, writes the CaptureRecord version 2 and, with `--verdict`, the verdict record of
@@ -58,6 +65,8 @@ mod capture;
 mod cargo;
 mod ci;
 mod ci_audit;
+mod compare;
+mod compare_triage;
 mod evidence;
 mod evidence_labels;
 mod manifest;
@@ -83,6 +92,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "ci-audit" => ci_audit::run(rest),
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
         Some((command, rest)) if command == "verdict" => verdict::run(rest),
+        Some((command, rest)) if command == "compare" => compare::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "capture" => capture::run(rest),
         _ => {
@@ -94,6 +104,7 @@ fn main() -> ExitCode {
                 ci_audit::USAGE,
                 evidence::USAGE,
                 verdict::USAGE,
+                compare::USAGE,
             ];
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(capture::USAGE);
