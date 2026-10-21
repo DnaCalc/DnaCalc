@@ -93,7 +93,7 @@
     {"item": "eval::compile::CompileError::Syntax", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "compile"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::expression"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::call"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "text"}], "case": "cfml_m1_3__reuse_plan"},
     {"item": "eval::compile::CompileError::Reference", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::reference"}], "case": "cfml_m1_3__reuse_plan"},
     {"item": "eval::compile::CompileError::Unsupported", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "unsupported"}], "case": "cfml_m1_3__reuse_plan"},
-    {"item": "eval::compile::CompileError::UnknownFunction", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "target"}], "case": "cfml_m1_3__reuse_plan"},
+    {"item": "eval::compile::CompileError::UnknownFunction", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "call_target"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "target"}], "case": "cfml_m1_3__reuse_plan"},
     {"item": "eval::compile::CompileError::Arity", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "Lowering::call"}], "case": "cfml_m1_3__reuse_plan"},
     {"item": "eval::compile::CompileError::NumberLiteral", "callers": [{"file": "crates/calc-fml/src/eval/compile.rs", "fn": "number"}], "case": "cfml_m1_3__reuse_plan"},
     {"item": "eval::run::EvalFault::Function", "callers": [{"file": "crates/calc-fml/src/eval/run.rs", "fn": "Run::function_fault"}], "case": "cfml_m1_3__reuse_plan"},

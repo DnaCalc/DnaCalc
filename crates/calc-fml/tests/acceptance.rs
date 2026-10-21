@@ -40,6 +40,14 @@
 //! ones sum to 4,096), and the depth of each tree is counted by the case's own walk, which keeps
 //! its own stack. A stack overflow aborts the native test process, so a native run that reports
 //! the case passed shows that the 1 MB stack sufficed.
+//!
+//! The dc-besk case compiles function names as a file spells them (`_xlfn.MAXIFS`,
+//! `_xlfn._xlws.MAXIFS`) through `calc_fml::compile` and evaluates them through
+//! `calc_fml::evaluate`, beside the same formula as a cell entry spells it: the two must share one
+//! plan from the `PlanCache`, which holds one plan per distinct set of catalogue entries, and
+//! give the value derived by hand from the functions' documented rules. Which spellings compile
+//! reads as a function, and which as an unknown name, is the rule `file_unprefixed` in
+//! `src/eval/compile.rs` states; the case holds no value read from Excel.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -2864,4 +2872,234 @@ fn maximum_length_formulas() {
         name.end(),
         diagnostic.message
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-besk: function names as a file spells them, with Excel's `_xlfn.` prefix.
+
+/// What compiling and evaluating a formula of the dc-besk case gives: its value, or the compile
+/// refusal it meets.
+#[derive(Clone, Debug, PartialEq)]
+enum Outcome {
+    Value(CalcValue),
+    Refused(CompileError),
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_besk__prefixed_calls_evaluate() {
+    const CASE: &str = "dc_besk__prefixed_calls_evaluate";
+    let catalog = LoggingCatalog::new(&["Sheet1"]);
+    let sheet = catalog.id("Sheet1");
+    let e1 = anchor_at(sheet, "E1");
+    let mut cache = PlanCache::new();
+    let mut scratch = EvalScratch::new();
+    let mut reader = RunReader::default();
+    for (address, value) in [
+        ("A1", CalcValue::number(1.0)),
+        ("A2", CalcValue::number(5.0)),
+        ("A3", CalcValue::number(3.0)),
+        ("B1", text_value("x")),
+        ("B2", text_value("y")),
+        ("B3", text_value("x")),
+        ("C1", CalcValue::error(WorksheetErrorCode::NA)),
+    ] {
+        reader.store(sheet, address, value);
+    }
+    let compiled_at = |formula: &str, cache: &mut PlanCache| {
+        compile(
+            &parse_formula(formula),
+            ReferenceNotation::A1,
+            e1,
+            &catalog,
+            cache,
+        )
+    };
+    // The refusal of `formula` as an unknown function written `spelling`, at that spelling.
+    let unknown = |formula: &str, spelling: &str| {
+        let start = formula
+            .find(spelling)
+            .expect("the spelling is in the formula");
+        CompileError::UnknownFunction {
+            span: TextSpan::new(start, spelling.len()),
+            spelling: spelling.to_owned(),
+        }
+    };
+    // The refusal of `formula`, one call after its `=`, for supplying `supplied` arguments.
+    let arity = |formula: &str, supplied: usize| CompileError::Arity {
+        span: TextSpan::new(1, formula.len() - 1),
+        supplied,
+    };
+    let value = |value: CalcValue| (Outcome::Value(value.clone()), Outcome::Value(value));
+
+    // IFNA is catalogued by dc-ibp2. Until it lands, its file spelling is refused as an unknown
+    // function with that spelling, as its plain spelling is with its own.
+    let ifna_catalogued = catalogue().resolve_surface(Notation::Call, "IFNA").is_ok();
+    let ifna = if ifna_catalogued {
+        value(CalcValue::number(7.0))
+    } else {
+        (
+            Outcome::Refused(unknown("=_xlfn.IFNA(C1,7)", "_xlfn.IFNA")),
+            Outcome::Refused(unknown("=IFNA(C1,7)", "IFNA")),
+        )
+    };
+
+    // Each formula as a file spells it, the same formula as a cell entry spells it (its plain
+    // twin), and what each gives. The values are derived by hand from the documented rules of
+    // MAXIFS, MINIFS, SUM, IF and IFNA over A1:A3 = 1, 5, 3, B1:B3 = "x", "y", "x" and C1 = #N/A.
+    let maxifs = r#"=MAXIFS(A1:A3,B1:B3,"x")"#;
+    let rows: Vec<(&str, &str, (Outcome, Outcome))> = vec![
+        (
+            r#"=_xlfn.MAXIFS(A1:A3,B1:B3,"x")"#,
+            maxifs,
+            value(CalcValue::number(3.0)),
+        ),
+        (
+            r#"=_xlfn.MINIFS(A1:A3,B1:B3,"x")"#,
+            r#"=MINIFS(A1:A3,B1:B3,"x")"#,
+            value(CalcValue::number(1.0)),
+        ),
+        (
+            r#"=_xlfn._xlws.MAXIFS(A1:A3,B1:B3,"x")"#,
+            maxifs,
+            value(CalcValue::number(3.0)),
+        ),
+        // The prefixes and the name match in any ASCII case.
+        (
+            r#"=_XLFN.MAXIFS(A1:A3,B1:B3,"x")"#,
+            maxifs,
+            value(CalcValue::number(3.0)),
+        ),
+        (
+            r#"=_xlfn.maxifs(A1:A3,B1:B3,"x")"#,
+            maxifs,
+            value(CalcValue::number(3.0)),
+        ),
+        (
+            r#"=_XLFN._XLWS.MAXIFS(A1:A3,B1:B3,"x")"#,
+            maxifs,
+            value(CalcValue::number(3.0)),
+        ),
+        (
+            r#"=_XlFn.MAXIFS(A1:A3,B1:B3,"x")"#,
+            maxifs,
+            value(CalcValue::number(3.0)),
+        ),
+        (
+            r#"=_xLfN._xLwS.MAXIFS(A1:A3,B1:B3,"x")"#,
+            maxifs,
+            value(CalcValue::number(3.0)),
+        ),
+        // A function Excel never stores with a prefix, read through one.
+        (
+            "=_xlfn.SUM(A1:A3)",
+            "=SUM(A1:A3)",
+            value(CalcValue::number(9.0)),
+        ),
+        // A lazy entry through the prefix.
+        (
+            r#"=_xlfn.IF(A2,"big","small")"#,
+            r#"=IF(A2,"big","small")"#,
+            value(text_value("big")),
+        ),
+        // Prefixed calls inside arithmetic: 3*10+1.
+        (
+            r#"=_xlfn.MAXIFS(A1:A3,B1:B3,"x")*10+_xlfn.MINIFS(A1:A3,B1:B3,"x")"#,
+            r#"=MAXIFS(A1:A3,B1:B3,"x")*10+MINIFS(A1:A3,B1:B3,"x")"#,
+            value(CalcValue::number(31.0)),
+        ),
+        ("=_xlfn.IFNA(C1,7)", "=IFNA(C1,7)", ifna),
+        // The entry's arity applies to the prefixed spelling as to the plain one.
+        (
+            "=_xlfn.MAXIFS(A1:A3,B1:B3)",
+            "=MAXIFS(A1:A3,B1:B3)",
+            (
+                Outcome::Refused(arity("=_xlfn.MAXIFS(A1:A3,B1:B3)", 2)),
+                Outcome::Refused(arity("=MAXIFS(A1:A3,B1:B3)", 2)),
+            ),
+        ),
+    ];
+    let mut evaluated_rows = 0;
+    for (file, entered, (file_expected, entered_expected)) in &rows {
+        let file_plan = compiled_at(file, &mut cache);
+        let entered_plan = compiled_at(entered, &mut cache);
+        let mut outcome = |plan: &Result<Arc<CompiledPlan>, CompileError>| match plan {
+            Ok(plan) => Outcome::Value(
+                evaluated(&instantiate(plan, e1), &mut reader, &mut scratch)
+                    .0
+                    .unwrap_or_else(|fault| panic!("{file}: {fault:?}")),
+            ),
+            Err(refused) => Outcome::Refused(refused.clone()),
+        };
+        assert_eq!(&outcome(&file_plan), file_expected, "{file}");
+        assert_eq!(&outcome(&entered_plan), entered_expected, "{entered}");
+        match (&file_plan, &entered_plan) {
+            (Ok(file_plan), Ok(entered_plan)) => {
+                assert!(
+                    Arc::ptr_eq(file_plan, entered_plan),
+                    "{file} and {entered} compile to one shared plan: the same catalogue entries"
+                );
+                evaluated_rows += 1;
+            }
+            (Err(_), Err(_)) => {}
+            _ => panic!("{file} and {entered}: one compiled and the other did not"),
+        }
+        note!(
+            "ACCEPT-NOTE: {CASE}: {file} gives {}, {entered} gives {}{}",
+            described(file_expected),
+            described(entered_expected),
+            if file_plan.is_ok() {
+                ", on one shared plan"
+            } else {
+                ""
+            }
+        );
+    }
+
+    // Prefixes compile does not take off (`_xlws.` alone, a second `_xlfn.`, `_xlws.` before
+    // `_xlfn.`), and names no catalogue holds after the prefixes: each is refused as an unknown
+    // function, at its span, with its spelling as written.
+    let refused = [
+        ("=_xlfn.NOSUCHFUNCTION(A1)", "_xlfn.NOSUCHFUNCTION"),
+        (r#"=_xlws.MAXIFS(A1:A3,B1:B3,"x")"#, "_xlws.MAXIFS"),
+        (
+            r#"=_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,"x")"#,
+            "_xlfn._xlfn.MAXIFS",
+        ),
+        (
+            r#"=_xlws._xlfn.MAXIFS(A1:A3,B1:B3,"x")"#,
+            "_xlws._xlfn.MAXIFS",
+        ),
+        (
+            "=_xlfn._xlws.NOSUCHFUNCTION(A1)",
+            "_xlfn._xlws.NOSUCHFUNCTION",
+        ),
+        ("=1+_xlfn.NOSUCHFUNCTION(A1)", "_xlfn.NOSUCHFUNCTION"),
+    ];
+    for (formula, spelling) in refused {
+        assert_eq!(
+            compiled_at(formula, &mut cache).err(),
+            Some(unknown(formula, spelling)),
+            "{formula}"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} formulas refused as CompileError::UnknownFunction at the name, with its spelling as written: {}",
+        refused.len(),
+        refused.map(|(formula, _)| formula).join(" ")
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {evaluated_rows} prefixed formulas evaluated through calc_fml::evaluate, each on the plan of its unprefixed spelling; IFNA catalogued: {ifna_catalogued}; every expected value derived by hand from the functions' documented rules"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: counted divergence, owned by bead dc-xrxb: compile reads {maxifs} as MAXIFS whether the text came from a file or from a cell entry, while a file that spells MAXIFS or IFNA without its prefix loads in Excel 16.0 as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input"
+    );
+}
+
+/// An outcome as the dc-besk case's notes print it.
+fn described(outcome: &Outcome) -> String {
+    match outcome {
+        Outcome::Value(value) => shown(value),
+        Outcome::Refused(refused) => format!("the refusal {refused:?}"),
+    }
 }

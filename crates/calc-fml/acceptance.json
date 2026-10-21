@@ -73,6 +73,22 @@
       "platforms": {
         "dc_2mlz__maximum_length": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-besk",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-fml", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_besk__prefixed_calls_evaluate"
+      ],
+      "platforms": {
+        "dc_besk__prefixed_calls_evaluate": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }
