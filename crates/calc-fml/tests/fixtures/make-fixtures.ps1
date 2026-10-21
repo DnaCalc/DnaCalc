@@ -2,9 +2,10 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
-# writes <directory>/dc_ibp2/oracle.xlsx. Run with this directory as -OutDir it rewrites the
-# committed fixture; the acceptance case dc_ibp2__error_fallback runs it into a fresh directory on
-# Windows and compares its output with the committed workbook byte for byte.
+# writes <directory>/dc_ibp2/oracle.xlsx and <directory>/dc_l10u/oracle.xlsx. Run with this
+# directory as -OutDir it rewrites the committed fixtures; the acceptance cases
+# dc_ibp2__error_fallback and dc_l10u__reference_results_as_values run it into a fresh directory on
+# Windows and compare its output with the committed workbooks byte for byte.
 #
 # dc_ibp2/oracle.xlsx is the workbook the Excel capture of bead dc-ibp2 reads
 # (`cargo xtask capture --fixture crates/calc-fml/tests/fixtures/dc_ibp2/oracle.xlsx ...`). It has
@@ -117,10 +118,10 @@ function Split-Ref([string]$Ref) {
 
 # A formula as the file stores it: a function added to Excel after Excel 2007 carries the prefix
 # _xlfn. in the package (FILTER also _xlws.), and Excel reads the name without it as an unknown
-# name (#NAME?). IFNA (Excel 2013) and the source formulas' FILTER, SEQUENCE and FIELDVALUE are the
-# functions of these cells that need it.
+# name (#NAME?). IFNA (Excel 2013), the source formulas' FILTER, SEQUENCE and FIELDVALUE, and
+# XLOOKUP are the functions of these cells that need it.
 function ConvertTo-FileForm([string]$Formula) {
-    return $Formula.Replace('IFNA(', '_xlfn.IFNA(').Replace('FILTER(', '_xlfn._xlws.FILTER(').Replace('SEQUENCE(', '_xlfn.SEQUENCE(').Replace('FIELDVALUE(', '_xlfn.FIELDVALUE(')
+    return $Formula.Replace('IFNA(', '_xlfn.IFNA(').Replace('FILTER(', '_xlfn._xlws.FILTER(').Replace('SEQUENCE(', '_xlfn.SEQUENCE(').Replace('FIELDVALUE(', '_xlfn.FIELDVALUE(').Replace('XLOOKUP(', '_xlfn.XLOOKUP(')
 }
 
 # A worksheet part: the constant cells $Inputs (each @(reference, XML), in columns A to C and F),
@@ -285,4 +286,65 @@ $fallbackFormulas = @(
 
 Write-Workbook (Join-Path $OutDir 'dc_ibp2/oracle.xlsx') @(
     , @('error_fallback', (New-OracleSheet $fallbackInputs $fallbackSources $fallbackFormulas))
+)
+
+# --- dc_l10u/oracle.xlsx ------------------------------------------------------------------------
+
+# dc_l10u/oracle.xlsx is the workbook the Excel capture of bead dc-l10u reads
+# (`cargo xtask capture --fixture crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx --case
+# dc_l10u__reference_results_as_values ...`). It has one sheet, reference_values, whose oracle rows
+# pass the reference a function returns (INDEX, XLOOKUP, CHOOSE) to an operator or to a value
+# parameter of another function, so the consuming context, not the formula's root, dereferences it.
+# Columns A to C hold the constant cells: A1:C3 the numbers 1 to 9; A4 blank, B4 #DIV/0!, C4 -2.5;
+# A6:A10 the keys k1 to k5, B6:B10 the numbers 10, 20 and 30, a blank (B9) and #N/A, C6:C10 the
+# text a and b, the numeric text 7, TRUE and empty text. Column D holds one formula per oracle row,
+# from row 1, in the order the case runs its rows. No formula cell carries a cache.
+$referenceInputs = @(
+    (New-Number 'A1' '1'), (New-Number 'B1' '2'), (New-Number 'C1' '3'),
+    (New-Number 'A2' '4'), (New-Number 'B2' '5'), (New-Number 'C2' '6'),
+    (New-Number 'A3' '7'), (New-Number 'B3' '8'), (New-Number 'C3' '9'),
+    (New-Error 'B4' '#DIV/0!'), (New-Number 'C4' '-2.5'),
+    (New-Text 'A6' 'k1'), (New-Number 'B6' '10'), (New-Text 'C6' 'a'),
+    (New-Text 'A7' 'k2'), (New-Number 'B7' '20'), (New-Text 'C7' 'b'),
+    (New-Text 'A8' 'k3'), (New-Number 'B8' '30'), (New-Text 'C8' '7'),
+    (New-Text 'A9' 'k4'), (New-Logical 'C9' $true),
+    (New-Text 'A10' 'k5'), (New-Error 'B10' '#N/A'), (New-Text 'C10' '')
+)
+$referenceFormulas = @(
+    # INDEX's reference result as an operand.
+    'INDEX(A1:C3,2,2)+1', '1+INDEX(A1:C3,2,2)', '-INDEX(A1:C3,2,2)',
+    'INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1)', 'INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3)',
+    'INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2)', 'INDEX(A1:C3,1,2)^2', 'INDEX(A1:C3,2,2)%',
+    'INDEX(A1:C3,2,2)&"x"', 'INDEX(A1:C3,2,2)=5', 'INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1)',
+    'INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1)',
+    # INDEX(range, MATCH(key, column, 0)) as an operand.
+    'INDEX(B:B,MATCH("k3",A:A,0))*2', 'INDEX(B:B,MATCH("k3",A:A,0))+INDEX(B:B,MATCH("k1",A:A,0))',
+    'INDEX(C:C,MATCH("k1",A:A,0))&INDEX(C:C,MATCH("k2",A:A,0))',
+    # INDEX's reference result inside another function's argument: at that function's value
+    # parameter, or at an operator within the argument (/ in ROUND, - in SIGN, > in IF).
+    'ABS(INDEX(A1:C4,4,3))', 'ROUND(INDEX(B:B,MATCH("k3",A:A,0))/7,2)', 'INT(INDEX(A1:C4,4,3))',
+    'MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2))', 'SIGN(-INDEX(A1:C3,1,1))',
+    'IF(INDEX(A1:C3,2,2)>1,"big","small")', 'IF(INDEX(A1:C3,1,1),"t","f")',
+    'CHOOSE(INDEX(A1:C3,1,2),"a","b","c")', 'INDEX(A1:C3,INDEX(A1:C3,1,2),1)',
+    'MATCH(INDEX(A6:A10,3),A:A,0)', 'ROUND(INDEX(A1:C4,4,3),0)',
+    # XLOOKUP's and CHOOSE's reference results as operands and at value parameters.
+    'XLOOKUP("k3",A6:A10,B6:B10)+1', '-XLOOKUP("k2",A6:A10,B6:B10)', 'XLOOKUP("k2",A6:A10,C6:C10)&"!"',
+    'CHOOSE(2,A1,B1)+1', 'CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2)', 'ABS(CHOOSE(1,C4,C3))',
+    # A reference result that points at a blank cell.
+    'INDEX(A1:C4,4,1)+1', '-INDEX(A1:C4,4,1)', 'INDEX(A1:C4,4,1)&"x"', 'INDEX(A1:C4,4,1)=0',
+    'INDEX(A1:C4,4,1)=""', 'ABS(INDEX(A1:C4,4,1))', 'IF(INDEX(A1:C4,4,1),"t","f")',
+    'INDEX(B:B,MATCH("k4",A:A,0))+1', 'XLOOKUP("k4",A6:A10,B6:B10)+1', 'CHOOSE(2,A1,A4)+1',
+    'XLOOKUP("k4",A6:A10,B6:B10)&"|"',
+    # A reference result that points at an error cell, and a lookup that finds no key.
+    'INDEX(A1:C4,4,2)+1', 'INDEX(A1:C4,4,2)&"x"', 'ABS(INDEX(A1:C4,4,2))',
+    'IF(INDEX(A1:C4,4,2),"t","f")', 'IFERROR(INDEX(A1:C4,4,2),"caught")',
+    'INDEX(B:B,MATCH("k5",A:A,0))*2', 'XLOOKUP("k5",A6:A10,B6:B10)&""', 'CHOOSE(2,A1,B4)*1',
+    'INDEX(B:B,MATCH("k9",A:A,0))+1',
+    # A reference result that points at text, numeric text, a logical or empty text.
+    'INDEX(C6:C10,1)+1', 'INDEX(C6:C10,3)+1', 'INDEX(C6:C10,4)+1', 'INDEX(C6:C10,5)&"|"',
+    'INDEX(C6:C10,5)+1'
+)
+
+Write-Workbook (Join-Path $OutDir 'dc_l10u/oracle.xlsx') @(
+    , @('reference_values', (New-OracleSheet $referenceInputs @() $referenceFormulas))
 )
