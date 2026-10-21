@@ -61,6 +61,25 @@
       }
     },
     {
+      "id": "cfunc-m3.2",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m3_2", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.2", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.2", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.2", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfunc_m3_2__rounding_boundaries",
+        "cfunc_m3_2__large_integers"
+      ],
+      "platforms": {
+        "cfunc_m3_2__rounding_boundaries": ["windows", "linux", "wasm"],
+        "cfunc_m3_2__large_integers": ["windows", "linux", "wasm"]
+      }
+    },
+    {
       "id": "cfunc-m3.4",
       "test": "acceptance",
       "commands": [

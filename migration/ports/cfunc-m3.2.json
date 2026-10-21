@@ -1,0 +1,1074 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfunc-m3.2",
+  "written": "2026-10-20",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings, on 2026-10-20 over .beads/issues.jsonl of master commit b62b17a64f787a52f610136697514e9b94a05262: CEILING.MATH, FLOOR.MATH, CEILING.PRECISE, ISO.CEILING, FLOOR.PRECISE, lift, elementwise, FunctionMeta, subnormal, NumberTextService, unary_numeric, unary numeric, binary_numeric, broadcast, array lifting, lifted, implicit intersection, cfml-m3.4, CEILING, FLOOR, MROUND, x87 (transcript target/accept/cfunc-m3.2/owner-search/owner-search.log; target/ is not committed). Each beads list below is the hits of the terms named in its basis, without a hit the basis names as not doing the work.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+      "blob": "76520e4100ce8eaccecd0b4c180ef33a9754cb07",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-surface_dispatch-rs.log (exit in lookup-functions-surface_dispatch-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/acos.rs",
+          "crates/oxfunc_core/src/functions/acot.rs",
+          "crates/oxfunc_core/src/functions/acoth.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/array_text_split_family.rs",
+          "crates/oxfunc_core/src/functions/asin.rs",
+          "crates/oxfunc_core/src/functions/atan.rs",
+          "crates/oxfunc_core/src/functions/atanh.rs",
+          "crates/oxfunc_core/src/functions/base_fn.rs",
+          "crates/oxfunc_core/src/functions/bessel_convert_family.rs",
+          "crates/oxfunc_core/src/functions/beta_gamma_stats_family.rs",
+          "crates/oxfunc_core/src/functions/bitand_fn.rs",
+          "crates/oxfunc_core/src/functions/bitlshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitor_fn.rs",
+          "crates/oxfunc_core/src/functions/bitrshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitxor_fn.rs",
+          "crates/oxfunc_core/src/functions/bond_core_family.rs",
+          "crates/oxfunc_core/src/functions/cashflow_rate_family.rs",
+          "crates/oxfunc_core/src/functions/chi_f_t_family.rs",
+          "crates/oxfunc_core/src/functions/combin.rs",
+          "crates/oxfunc_core/src/functions/combina.rs",
+          "crates/oxfunc_core/src/functions/complex_family.rs",
+          "crates/oxfunc_core/src/functions/cos.rs",
+          "crates/oxfunc_core/src/functions/cosh.rs",
+          "crates/oxfunc_core/src/functions/cot.rs",
+          "crates/oxfunc_core/src/functions/coth.rs",
+          "crates/oxfunc_core/src/functions/count.rs",
+          "crates/oxfunc_core/src/functions/counta.rs",
+          "crates/oxfunc_core/src/functions/countblank_fn.rs",
+          "crates/oxfunc_core/src/functions/csc.rs",
+          "crates/oxfunc_core/src/functions/csch.rs",
+          "crates/oxfunc_core/src/functions/cumulative_finance_family.rs",
+          "crates/oxfunc_core/src/functions/date_fn.rs",
+          "crates/oxfunc_core/src/functions/date_parts_family.rs",
+          "crates/oxfunc_core/src/functions/date_week_family.rs",
+          "crates/oxfunc_core/src/functions/depreciation_family.rs",
+          "crates/oxfunc_core/src/functions/devsq_fn.rs",
+          "crates/oxfunc_core/src/functions/discrete_dist_family.rs",
+          "crates/oxfunc_core/src/functions/engineering_radix_family.rs",
+          "crates/oxfunc_core/src/functions/exact_fn.rs",
+          "crates/oxfunc_core/src/functions/exp_fn.rs",
+          "crates/oxfunc_core/src/functions/fact.rs",
+          "crates/oxfunc_core/src/functions/financial_time_value_family.rs",
+          "crates/oxfunc_core/src/functions/fisher_fn.rs",
+          "crates/oxfunc_core/src/functions/gcd_fn.rs",
+          "crates/oxfunc_core/src/functions/harmean_fn.rs",
+          "crates/oxfunc_core/src/functions/if_fn.rs",
+          "crates/oxfunc_core/src/functions/iferror.rs",
+          "crates/oxfunc_core/src/functions/ifna_fn.rs",
+          "crates/oxfunc_core/src/functions/int_fn.rs",
+          "crates/oxfunc_core/src/functions/is_predicates_family.rs",
+          "crates/oxfunc_core/src/functions/iseven_fn.rs",
+          "crates/oxfunc_core/src/functions/lcm_fn.rs",
+          "crates/oxfunc_core/src/functions/ln_fn.rs",
+          "crates/oxfunc_core/src/functions/log10_fn.rs",
+          "crates/oxfunc_core/src/functions/log_fn.rs",
+          "crates/oxfunc_core/src/functions/matrix_family.rs",
+          "crates/oxfunc_core/src/functions/median_fn.rs",
+          "crates/oxfunc_core/src/functions/misc_conversion_family.rs",
+          "crates/oxfunc_core/src/functions/mod_fn.rs",
+          "crates/oxfunc_core/src/functions/mround.rs",
+          "crates/oxfunc_core/src/functions/normal_log_family.rs",
+          "crates/oxfunc_core/src/functions/not_fn.rs",
+          "crates/oxfunc_core/src/functions/odd_bond_family.rs",
+          "crates/oxfunc_core/src/functions/permut_fn.rs",
+          "crates/oxfunc_core/src/functions/permutationa_fn.rs",
+          "crates/oxfunc_core/src/functions/phi_fn.rs",
+          "crates/oxfunc_core/src/functions/power_fn.rs",
+          "crates/oxfunc_core/src/functions/quotient_fn.rs",
+          "crates/oxfunc_core/src/functions/radians.rs",
+          "crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+          "crates/oxfunc_core/src/functions/regression_forecast_family.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs",
+          "crates/oxfunc_core/src/functions/rounddown_fn.rs",
+          "crates/oxfunc_core/src/functions/roundup_fn.rs",
+          "crates/oxfunc_core/src/functions/sec.rs",
+          "crates/oxfunc_core/src/functions/sech.rs",
+          "crates/oxfunc_core/src/functions/sin.rs",
+          "crates/oxfunc_core/src/functions/sinh.rs",
+          "crates/oxfunc_core/src/functions/special_dist_family.rs",
+          "crates/oxfunc_core/src/functions/sqrt_fn.rs",
+          "crates/oxfunc_core/src/functions/standardize_fn.rs",
+          "crates/oxfunc_core/src/functions/statistical_tests_family.rs",
+          "crates/oxfunc_core/src/functions/tan.rs",
+          "crates/oxfunc_core/src/functions/tanh.rs",
+          "crates/oxfunc_core/src/functions/text_b_compat_family.rs",
+          "crates/oxfunc_core/src/functions/text_slice_family.rs",
+          "crates/oxfunc_core/src/functions/trunc_fn.rs",
+          "crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+          "crates/oxfunc_core/src/functions/web_text_xml_family.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. The catalogue entries of the 14 IDs are written fresh in crates/calc-func/src/catalogue/rounding.rs from Microsoft's pages (ABS, SIGN, INT, EVEN and ODD take 1 argument, TRUNC 1 or 2, the others 2; every parameter takes a single value).",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function_call.rs",
+      "blob": "426cf6877cc60ce74caddc55a66bb287510baaec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function_call.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-function_call-rs.log (exit in lookup-function_call-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 6): the exit-6 allowance admits a file only against clean replacements of every module its calls_quarantined list names, and surface_dispatch.rs (exit 5, not read) has no clean replacement in calc-func, whose catalogue replaces only this family's 14 entries of it. Nothing of it is ported: FunctionCallTarget has been calc_func's own since cfunc-m1.1, and this bead adds catalogue entries and no call-interface symbol.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/abs.rs",
+      "blob": "b85de262b604f4e7f550a23cbc5ac2d361eda385",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/abs.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-abs-rs.log (exit in lookup-functions-abs-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh) and adapters.rs by numbers() in crates/calc-func/src/catalogue/rounding.rs (written fresh), which refuses an array argument and reads each argument through Site::number_argument.",
+      "ported": [
+        "abs_kernel: the number without its sign"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature and FEC-dependency classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::eval_abs_adapter_scalar_prepared_on_number",
+            "tests::eval_abs_scalar_on_number",
+            "tests::eval_abs_adapter_scalar_prepared_value_wraps_scalar_result_as_eval_number",
+            "tests::eval_abs_scalar_value_wraps_scalar_result_as_eval_number",
+            "tests::eval_abs_adapter_scalar_prepared_is_values_only_and_needs_no_resolver"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries rows ABS(-2.5)=2.5 and ABS(-2)=2 (the legacy -3 and -9 are the same rule)"
+        },
+        {
+          "tests": [
+            "tests::eval_abs_adapter_scalar_prepared_text_numeric_is_coerced",
+            "tests::eval_abs_scalar_text_numeric_is_coerced"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries row ABS(\" -2 \")=2"
+        },
+        {
+          "tests": [
+            "tests::eval_abs_adapter_scalar_prepared_non_numeric_text_returns_coercion_error",
+            "tests::eval_abs_scalar_non_numeric_text_returns_coercion_error"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries row ABS(\"asd\")=#VALUE!",
+          "reason": "The coercion error is the worksheet value #VALUE! the call returns, not a typed coercion error of the kernel."
+        },
+        {
+          "tests": [
+            "tests::eval_abs_adapter_scalar_prepared_propagates_worksheet_error_via_coercion",
+            "tests::eval_abs_scalar_propagates_worksheet_error_via_coercion"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries row ABS(#DIV/0!)=#DIV/0!"
+        },
+        {
+          "tests": [
+            "tests::abs_kernel_negative_zero_is_normalized_to_positive_zero"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries: ABS of a -0 argument through the call interface is +0 (bits 0)"
+        },
+        {
+          "tests": [
+            "tests::eval_abs_adapter_scalar_prepared_rejects_non_unary_calls",
+            "tests::eval_abs_scalar_rejects_non_unary_calls"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m1_1__catalogue_consistency, which calls every catalogue entry with one argument too few and one too many",
+          "reason": "An argument count outside the arity is FunctionFault::ArityMismatch at the call interface, before any argument is asked for (cfunc-m1.1)."
+        },
+        {
+          "tests": [
+            "tests::eval_abs_scalar_reference_uses_resolver"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries: ABS with a reference argument ends in ReferenceArgument at admission",
+          "reason": "The caller dereferences a single-value parameter before the call; a kernel never resolves a reference."
+        },
+        {
+          "tests": [
+            "tests::eval_abs_adapter_array_lift_prepared_preserves_per_element_outcome",
+            "tests::eval_abs_adapter_array_lift_prepared_maps_without_reference_seam",
+            "tests::eval_abs_array_lift_preserves_per_element_outcome"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries row ABS({-1,2}), refused as not modelled",
+          "reason": "Lifting a function over an array argument is cfml-m3.4's; calc-func refuses an array argument before reading any argument."
+        },
+        {
+          "tests": [
+            "tests::abs_kernel_infinity_and_nan_behavior"
+          ],
+          "disposition": "dropped",
+          "reason": "An infinity or a NaN is no worksheet value: worksheet number coercion refuses a non-finite operand as not modelled."
+        },
+        {
+          "tests": [
+            "tests::abs_meta_matches_w5_contract_shape",
+            "tests::abs_coercion_lift_profile_is_declared"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries (ABS takes exactly 1 single-value argument, eager, with ID 6.1)",
+          "reason": "Only the metadata calc-func routes on is declared; the other FunctionMeta axes are cfunc-m3.22's."
+        },
+        {
+          "tests": [
+            "tests::eval_abs_surface_scalar_matches_adapter_for_prepared_numeric_input"
+          ],
+          "disposition": "dropped",
+          "reason": "calc-func has one route, calc_func::invoke through the catalogue; there is no second surface to compare."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/sign_fn.rs",
+      "blob": "ed37a4bc802e36025b06a2cff15aecb8107234a2",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/sign_fn.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-sign_fn-rs.log (exit in lookup-functions-sign_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "no disposition printed (release source allowlist: admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0).",
+      "ported": [
+        "sign_kernel: 1 for a positive number, -1 for a negative one, 0 for zero"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature and FEC-dependency classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::sign_kernel_maps_signs"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries rows SIGN(10)=1, SIGN(-0.00001)=-1 and SIGN(0)=0, and SIGN of -0 through the call interface is +0",
+          "reason": "The rows use the SIGN page's example inputs; the expectation for each sign is the legacy one."
+        },
+        {
+          "tests": [
+            "tests::sign_meta_function_id_is_stable"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries: SIGN is the catalogue entry with FunctionId 6.2",
+          "reason": "The stable identity is the catalogue's FunctionId, not a string."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/even_fn.rs",
+      "blob": "22d4b1659e2c7d2d0d5b798f2a7ba22a70361fca",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/even_fn.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-even_fn-rs.log (exit in lookup-functions-even_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "no disposition printed (release source allowlist: admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0).",
+      "ported": [
+        "even_kernel: 0 is 0; otherwise the integer above the magnitude, the next even one when it is odd, with the number's sign"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature and FEC-dependency classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::even_kernel_rounds_away_from_zero_to_even"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries rows EVEN(1.5)=2, EVEN(-1.5)=-2 and EVEN(2)=2"
+        },
+        {
+          "tests": [
+            "tests::even_meta_function_id_is_stable"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries: EVEN is the catalogue entry with FunctionId 6.13",
+          "reason": "The stable identity is the catalogue's FunctionId, not a string."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "The parity of the magnitude is read from the binary64 itself (half of it is an integer), not from `magnitude as i64`.",
+          "reason": "The cast saturates from 2^63 on (to i64::MAX, which is odd); the bead asks that inputs around binary64 integer boundaries 'never pass through an integer cast that can overflow or depend on the host'; Rust's saturating cast is the same on every target, and under NumericMode::Fast the old and new parity tests give the same binary64 result on every input, so no row of the two cases tells them apart; under NumericMode::Exact they differ from 2^63 on (the old test sends EVEN(2^63) to the stepping addition and so to ExactUnavailable, and the new test does that to ODD(2^63)), and no row runs such an input under Exact."
+        },
+        {
+          "change": "The step to the next integer is an addition at an arithmetic site: refused with ExactUnavailable under NumericMode::Exact; the integer above the magnitude is found from the bits.",
+          "reason": "NumericMode reaches every arithmetic site (plan 5)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/odd_fn.rs",
+      "blob": "2a2d1449c2ed401e7a6f44eb4992e48a29d35688",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/odd_fn.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-odd_fn-rs.log (exit in lookup-functions-odd_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "no disposition printed (release source allowlist: admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0).",
+      "ported": [
+        "odd_kernel: 0 is 1; otherwise the integer above the magnitude, the next odd one when it is even, with the number's sign"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature and FEC-dependency classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::odd_kernel_rounds_away_from_zero_to_odd"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries rows ODD(1.5)=3, ODD(-1.5)=-3 and ODD(2)=3"
+        },
+        {
+          "tests": [
+            "tests::odd_meta_function_id_is_stable"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_2__rounding_boundaries: ODD is the catalogue entry with FunctionId 6.14",
+          "reason": "The stable identity is the catalogue's FunctionId, not a string."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "The parity of the magnitude is read from the binary64 itself, not from `magnitude as i64`; from 2^53 on, where every binary64 is even, the odd integer is rounded once to binary64 by the addition (ODD(2^53) is 2^53, ODD(2^53+2) is 2^53+4).",
+          "reason": "The cast saturates from 2^63 on (to i64::MAX, which is odd); the bead asks that inputs around binary64 integer boundaries 'never pass through an integer cast that can overflow or depend on the host'; Rust's saturating cast is the same on every target, and under NumericMode::Fast the old and new parity tests give the same binary64 result on every input, so no row of the two cases tells them apart; under NumericMode::Exact they differ from 2^63 on (the old test sends EVEN(2^63) to the stepping addition and so to ExactUnavailable, and the new test does that to ODD(2^63)), and no row runs such an input under Exact. The rows ODD(2^53), ODD(2^53+2), ODD(2^63) and ODD of the largest binary64 of cfunc_m3_2__large_integers, each labelled an unmeasured choice, show the even results both tests give from 2^53 on; that departs from the ODD page, and ODD's per-ID entry lists it as divergent."
+        },
+        {
+          "change": "The step to the next integer is an addition at an arithmetic site: refused with ExactUnavailable under NumericMode::Exact.",
+          "reason": "NumericMode reaches every arithmetic site (plan 5)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/ceiling_floor_family.rs",
+      "blob": "ade28547a5db0acd858602bd43b8ae6cc2887800",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/ceiling_floor_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-ceiling_floor_family-rs.log (exit in lookup-functions-ceiling_floor_family-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh) and adapters.rs by numbers() in crates/calc-func/src/catalogue/rounding.rs (written fresh).",
+      "ported": [
+        "ceiling_kernel: a zero significance gives 0, a positive number with a negative significance is #NUM!, otherwise significance * ceil(number / significance) in binary64, in that order of operations (the integer above the quotient found from its bits, equal to f64::ceil on every binary64)",
+        "floor_kernel: a zero significance is #DIV/0!, a positive number with a negative significance is #NUM!, otherwise significance * floor(number / significance) in binary64, in that order of operations (the integer below the quotient found from its bits, equal to f64::floor on every binary64)"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature and FEC-dependency classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        },
+        {
+          "items": [
+            "CEILING.MATH",
+            "CEILING.PRECISE",
+            "ISO.CEILING",
+            "FLOOR.MATH",
+            "FLOOR.PRECISE"
+          ],
+          "reason": "Not this bead's family: its Do names CEILING and FLOOR only.",
+          "beads": [
+            "cfunc-m3.25"
+          ],
+          "basis": "CEILING.MATH, CEILING.PRECISE, ISO.CEILING, FLOOR.MATH and FLOOR.PRECISE have no hit; the source manifest's families assign them to no family bead, and cfunc-m3.25's Do requires a disposition for every source ID"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::ceiling_legacy_seed_lanes_match_excel_probe"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries rows CEILING(4.3,2)=6, CEILING(-4.3,2)=-4, CEILING(-4.3,-2)=-6, CEILING(4.3,-2)=#NUM! and CEILING(5,0)=0 (the last two labelled unmeasured: the CEILING page names no result for them)"
+        },
+        {
+          "tests": [
+            "tests::floor_legacy_seed_lanes_match_excel_probe"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_2__rounding_boundaries rows FLOOR(4.3,2)=4, FLOOR(-4.3,2)=-6, FLOOR(-4.3,-2)=-4, FLOOR(4.3,-2)=#NUM! and FLOOR(5,0)=#DIV/0! (the last labelled unmeasured: the FLOOR page names no result for a zero significance)"
+        },
+        {
+          "tests": [
+            "tests::math_and_precise_seed_lanes_match_excel_probe",
+            "tests::eval_ceiling_math_spills_optional_array_argument"
+          ],
+          "disposition": "dropped",
+          "reason": "Functions outside this family (see not_ported)."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "The division and the product are arithmetic sites: under NumericMode::Exact a call that divides is refused with ExactUnavailable. A zero number gives 0 without dividing, the value the kernel's order gives, so it computes under Exact. A product beyond binary64's range, which the kernel returned as an infinity, is #NUM! by the number rule.",
+          "reason": "The number publication rule of cfunc-m1.2, and NumericMode reaching every arithmetic site (plan 5)."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/int_fn.rs",
+      "blob": "6bc944ce966981a9ac661b8f3a03712c6a50ebcb",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/int_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-int_fn-rs.log (exit in lookup-functions-int_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/round_fn.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. INT is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/trunc_fn.rs",
+      "blob": "c174d312afbcfb161c5ad2724e9766875cc54376",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/trunc_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-trunc_fn-rs.log (exit in lookup-functions-trunc_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs",
+          "crates/oxfunc_core/src/functions/rounddown_fn.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. TRUNC is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/round_fn.rs",
+      "blob": "d9db34dfde4b19cc32db790237735eb7824f0082",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/round_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-round_fn-rs.log (exit in lookup-functions-round_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. ROUND is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/roundup_fn.rs",
+      "blob": "9159d5280621671459f1b6c73a1e074fba6ac8ac",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/roundup_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-roundup_fn-rs.log (exit in lookup-functions-roundup_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. ROUNDUP is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/rounddown_fn.rs",
+      "blob": "806ad97bc851179523a17bc22af6791ed6b091e6",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/rounddown_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-rounddown_fn-rs.log (exit in lookup-functions-rounddown_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. ROUNDDOWN is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/mround.rs",
+      "blob": "994b8e19bd3325b0020ebfda74a64cd7c8855ea5",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/mround.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-mround-rs.log (exit in lookup-functions-mround-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/excel_numeric/mod.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/elementary_prepared.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. MROUND is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/mod_fn.rs",
+      "blob": "863bdd1a53a74d3327652a72c12fbfc06ae74063",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/mod_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-mod_fn-rs.log (exit in lookup-functions-mod_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/elementary_prepared.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. MOD is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/quotient_fn.rs",
+      "blob": "df6deea82f3752d37bc4c97167fe0f60bb2c1ee2",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/quotient_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-quotient_fn-rs.log (exit in lookup-functions-quotient_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/elementary_prepared.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. QUOTIENT is written fresh in crates/calc-func/src/catalogue/rounding.rs and crates/calc-func/src/decimal.rs from Microsoft's page for the function.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/unary_numeric.rs",
+      "blob": "923d3a0393dd7400c3f06bcbde20e239872c44b5",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/unary_numeric.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-unary_numeric-rs.log (exit in lookup-functions-unary_numeric-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Not read: a transitive helper of sign_fn.rs, even_fn.rs and odd_fn.rs (lookup exit 6), admissible against the clean replacements of coercion.rs and adapters.rs that abs.rs and ceiling_floor_family.rs were ported against, but not needed: its executor is replaced by calc_func::invoke and numbers() in crates/calc-func/src/catalogue/rounding.rs, written fresh. Nothing of it is ported.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function.rs",
+      "blob": "9acb95927fe737f54d8dfbb17047b8c4ad9195ff",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-function-rs.log (exit in lookup-function-rs.exit; target/ is not committed)",
+        "numeric_provenance": "no disposition printed (release source allowlist: admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Not read: a transitive helper (FunctionMeta) of the ported kernels' files; lookup exit 0. Nothing of it is ported.",
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature and FEC-dependency classes"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/coercion.rs",
+      "blob": "3b3d42dc3aa83ddfbca7945ef9abd76234e4ead2",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/coercion.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-coercion-rs.log (exit in lookup-coercion-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion_decimal.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. It is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh).",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/adapters.rs",
+      "blob": "09ce48dfbcea33cc597226ec02ce4aecbee7ab50",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/adapters.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-functions-adapters-rs.log (exit in lookup-functions-adapters-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/numeric_text.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. It is replaced by numbers() in crates/calc-func/src/catalogue/rounding.rs and Site::scalar_operands and Site::number_argument in crates/calc-func/src/kernel.rs, written fresh.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/unary_numeric_equivalence_law.rs",
+      "blob": "9fa396bfd0b8d94b0569a18ac3f76148ecc2c907",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/unary_numeric_equivalence_law.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-unary_numeric_equivalence_law-rs.log (exit in lookup-tests-unary_numeric_equivalence_law-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/acot.rs",
+          "crates/oxfunc_core/src/functions/atan.rs",
+          "crates/oxfunc_core/src/functions/atanh.rs",
+          "crates/oxfunc_core/src/functions/cos.rs",
+          "crates/oxfunc_core/src/functions/cosh.rs",
+          "crates/oxfunc_core/src/functions/cot.rs",
+          "crates/oxfunc_core/src/functions/coth.rs",
+          "crates/oxfunc_core/src/functions/csc.rs",
+          "crates/oxfunc_core/src/functions/csch.rs",
+          "crates/oxfunc_core/src/functions/exp_fn.rs",
+          "crates/oxfunc_core/src/functions/fact.rs",
+          "crates/oxfunc_core/src/functions/int_fn.rs",
+          "crates/oxfunc_core/src/functions/ln_fn.rs",
+          "crates/oxfunc_core/src/functions/log10_fn.rs",
+          "crates/oxfunc_core/src/functions/radians.rs",
+          "crates/oxfunc_core/src/functions/sec.rs",
+          "crates/oxfunc_core/src/functions/sech.rs",
+          "crates/oxfunc_core/src/functions/sin.rs",
+          "crates/oxfunc_core/src/functions/sinh.rs",
+          "crates/oxfunc_core/src/functions/sqrt_fn.rs",
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+          "crates/oxfunc_core/src/functions/tan.rs",
+          "crates/oxfunc_core/src/functions/tanh.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its harness and its input tables. Reading it was outside the exit-6 allowance, which admits a file only against clean replacements of every module its calls_quarantined list names: that list names int_fn.rs (exit 5, written fresh here, not a replacement of the legacy module) and 22 modules of functions outside this family, none of which has a replacement in calc-func. Nothing of it is ported, and no row, rule or expectation of this bead rests on it.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "law1_kernel_publication_equivalence_scalar_array_lift_xll",
+            "law2_coercion_and_lift_equivalence_scalar_vs_array_lift",
+            "law2_broadcast_equivalence_array_matches_scalar_elementwise",
+            "law3_overflowing_kernel_declares_non_pass_policy",
+            "family_table_is_the_full_q_eligible_unary_set_and_non_trivial",
+            "family_table_contains_each_policy_shape"
+          ],
+          "disposition": "dropped",
+          "reason": "The laws equate the legacy scalar, array-lift and XLL routes of each unary function; calc-func has one route, calc_func::invoke through the catalogue, and refuses an array argument (lifting is cfml-m3.4's). Its calls_quarantined list names int_fn.rs and functions outside this family, which have no clean replacement here."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/unary_numeric_executor_routing.rs",
+      "blob": "e1c40412c599ceda2930e67aa44eb590250e7b53",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/unary_numeric_executor_routing.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-unary_numeric_executor_routing-rs.log (exit in lookup-tests-unary_numeric_executor_routing-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its routing guard. Reading it was outside the exit-6 allowance, which admits a file only against clean replacements of every module its calls_quarantined list names: surface_dispatch.rs (exit 5, not read) has no clean replacement in calc-func, whose catalogue replaces only this family's 14 entries of it. Nothing of it is ported, and no row, rule or expectation of this bead rests on it; the disposition below names the existing case that covers the guard's purpose.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "former_calc_dispatch_ids_all_route_to_a_real_result"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m1_1__catalogue_consistency, which invokes every catalogue ID at its minimum arity and requires a value or a refusal under that ID, and the cfunc_m3_2__rounding_boundaries rows ABS(-2), EVEN(1.5), ODD(1.5), INT(8.9) and SIGN(10)",
+          "reason": "The guard caught a legacy id falling off a dispatch path; the one generated catalogue has no second dispatch path."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/binary_numeric_executor_routing.rs",
+      "blob": "7b59c05ddec49004f8ddbf27d559ddfa741c09ef",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/binary_numeric_executor_routing.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-binary_numeric_executor_routing-rs.log (exit in lookup-tests-binary_numeric_executor_routing-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its routing guard. Reading it was outside the exit-6 allowance, which admits a file only against clean replacements of every module its calls_quarantined list names: surface_dispatch.rs (exit 5, not read) has no clean replacement in calc-func, whose catalogue replaces only this family's 14 entries of it. Nothing of it is ported, and no row, rule or expectation of this bead rests on it; the disposition below names the existing case that covers the guard's purpose.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "former_calc_dispatch_binary_ids_all_route_to_a_real_result"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m1_1__catalogue_consistency and the cfunc_m3_2__rounding_boundaries MOD rows",
+          "reason": "As for the unary routing guard."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/w111_mod_publication.rs",
+      "blob": "435adfe5138cac432ac3b211a4319761830b4db8",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/w111_mod_publication.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-w111_mod_publication-rs.log (exit in lookup-tests-w111_mod_publication-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit, include-of-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/mod_fn.rs",
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). None of its replay rows is ported; the rows of crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx stand for Excel's values until the owner captures them.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/w111_mround_live_replay.rs",
+      "blob": "e6a3804a6548d78ae1280c6583968baea4dd694b",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/w111_mround_live_replay.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-w111_mround_live_replay-rs.log (exit in lookup-tests-w111_mround_live_replay-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit, include-of-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). None of its replay rows is ported; the rows of crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx stand for Excel's values until the owner captures them.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/w111_mround_prepared_live_replay.rs",
+      "blob": "0cb3f234e973328dfdaf4ecce3898089ab4e2785",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/w111_mround_prepared_live_replay.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-w111_mround_prepared_live_replay-rs.log (exit in lookup-tests-w111_mround_prepared_live_replay-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit, include-of-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/mround.rs",
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). None of its replay rows is ported; the rows of crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx stand for Excel's values until the owner captures them.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/w111_quotient_live_replay.rs",
+      "blob": "363cb0821dfaa8809a7fa90e82860877fe3b45f9",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/w111_quotient_live_replay.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-w111_quotient_live_replay-rs.log (exit in lookup-tests-w111_quotient_live_replay-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit, include-of-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). None of its replay rows is ported; the rows of crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx stand for Excel's values until the owner captures them.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/w111_quotient_prepared_live_replay.rs",
+      "blob": "5a8bad49df7320c68e9db01ef5ce5f22ef670fd4",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/w111_quotient_prepared_live_replay.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.2/lookups/lookup-tests-w111_quotient_prepared_live_replay-rs.log (exit in lookup-tests-w111_quotient_prepared_live_replay-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit, include-of-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/quotient_fn.rs",
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). None of its replay rows is ported; the rows of crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx stand for Excel's values until the owner captures them.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "a function of this family lifted over an array argument, such as ABS({-1,2})"
+      ],
+      "reason": "Refused with NotImplemented naming the argument, before any argument is read.",
+      "beads": [
+        "cfml-m3.4"
+      ],
+      "basis": "broadcast (descriptions: cfml-m3.4, which implements broadcasting and array evaluation contexts); lift has hits only in dc-8abf (a deferred scope epic), dc-ime9, dc-m33w and dc-qfqa (numeric-provenance work); elementwise, array lifting, lifted and implicit intersection have no hit"
+    },
+    {
+      "items": [
+        "a subnormal result, such as ROUNDDOWN(2.5E-308,308)",
+        "a non-zero exact result too small for binary64, which would convert to 0, such as MOD(A6,5.70820472448858E-308) with A6 = 1.141640944897716E-307"
+      ],
+      "reason": "Refused with NotImplemented by the number rule and by Site::nearest: Excel's handling of a result below the normal range is not modelled.",
+      "beads": [
+        "cfunc-m3.23"
+      ],
+      "basis": "subnormal (descriptions: cfunc-m3.23, whose Do standardizes rounding, subnormal and error handling; notes: cdoc-m0.1 keeps subnormal cell inputs and computes nothing)"
+    },
+    {
+      "items": [
+        "typed text that Excel's number-text rules may read as a number"
+      ],
+      "reason": "Refused by worksheet coercion, as in cfunc-m1.2.",
+      "beads": [
+        "cfml-m2.6"
+      ],
+      "basis": "NumberTextService (cfml-m2.6)"
+    },
+    {
+      "items": [
+        "NumericMode::Exact for a call that reaches an arithmetic site"
+      ],
+      "reason": "Refused with ExactUnavailable: no Exact implementation exists.",
+      "beads": [
+        "cfunc-m3.24"
+      ],
+      "basis": "x87 (descriptions: cfunc-m3.24 implements a reviewed native Exact instruction adapter; cfunc-m3.23 the Fast backend; the other hits are numeric-provenance and measurement work)"
+    },
+    {
+      "items": [
+        "the comparison of this family's oracle rows with Excel"
+      ],
+      "reason": "crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx holds every row of the two cfunc_m3_2 cases for the owner's capture; no case compares a capture of it yet.",
+      "beads": [
+        "dc-e6k2"
+      ],
+      "basis": "dc-e6k2 owns comparing the rows of cfunc_m3_2__rounding_boundaries and cfunc_m3_2__large_integers with an Excel capture of crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx, as dc-ro0p does for cfunc-m3.4."
+    }
+  ],
+  "functions_evidence": "Per-ID manifest of the 14 IDs: what each implements, where its result departs from Microsoft's page for it or from the page's formula evaluated in binary64 steps (divergent), and what it refuses (unsupported). '(documented)' marks a rule the page states and '(unmeasured)' one no page settles. Every divergent item is an unmeasured departure from the page or its formula, not a measured mismatch with Excel; no entry has been compared with Excel: crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx holds every row of the two cfunc_m3_2 cases for the owner's capture, which dc-e6k2 compares, so no parity is claimed.",
+  "functions": [
+    {"id": "6.1", "spelling": "ABS",
+     "implemented": ["the number without its sign (documented: the ABS page, https://support.microsoft.com/en-us/office/abs-function-3420200f-5628-4e8c-99da-c99d7c87713c, fetched 2026-10-21, lists the example rows =ABS(2) and =ABS(-2), each with the result 2, which cfunc_m3_2__rounding_boundaries asserts)", "acts on the binary64 itself, so a number with more than 15 significant digits keeps them (unmeasured choice: ABS(-4503599627370495.5) is 4503599627370495.5, where the 15-digit reading gives 4503599627370500)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted: no arithmetic site (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, and a subnormal result; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a number-text argument, which is converted to its nearest binary64 at an arithmetic site (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.2", "spelling": "SIGN",
+     "implemented": ["1 for a positive number, -1 for a negative one, 0 for zero (documented)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted: no arithmetic site (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, and a subnormal result; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a number-text argument, which is converted to its nearest binary64 at an arithmetic site (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.3", "spelling": "INT",
+     "implemented": ["rounded down to the nearest integer (documented), found exactly from the binary64 at every size, 2^63 and the largest binary64 included", "the binary64 is rounded down, which equals rounding down the decimal the number shows when that has at most 15 significant digits (unmeasured choice, the binary64 reading of a number with more than 15 significant digits: INT(2.9999999999999996) is 2 where the 15-digit reading gives 3, and INT(4503599627370495.5) is 4503599627370495 where it gives 4503599627370500)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted: no arithmetic site (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, and a subnormal result; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a number-text argument, which is converted to its nearest binary64 at an arithmetic site (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.4", "spelling": "TRUNC",
+     "implemented": ["the fractional part removed, toward zero; TRUNC(-4.3) is -4 where INT(-4.3) is -5 (documented)", "num_digits optional, 0 when absent or omitted (documented: the default is 0)", "a negative num_digits truncates to the left of the decimal point (unmeasured: the TRUNC page is silent on a negative num_digits; the ROUNDDOWN page states it for ROUNDDOWN)", "the number is read as the decimal it shows when that has at most 15 significant digits, otherwise as its binary64 value, rounded exactly and converted once to binary64 (unmeasured choice; the ROUND page's example ROUND(2.15,1) = 2.2 rules out rounding the exact binary64 2.14999999999999991..., which gives 2.1, but not scaling in binary64; ROUND(1.005,2) is 1.01 and ROUNDDOWN(0.57,2) is 0.57 here, where scaling by 100 in binary64 gives 100.49999999999999 and 56.99999999999999, so 1.00 and 0.56; ROUND(2.675,2) is 2.68, where rounding the exact binary64 2.67499999999999982... gives 2.67)", "num_digits counts by its integer part; one beyond any digit reaches no integer type (unmeasured)", "a result beyond binary64's range is #NUM! (unmeasured)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and no digit is dropped (ROUND(1.5,400)) or the number is 0 (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable): when a digit is dropped or an argument is number text; owned by cfunc-m3.24"]},
+    {"id": "6.5", "spelling": "ROUND",
+     "implemented": ["a half rounds away from zero at 1 and 2 decimal places (documented: the examples ROUND(2.15,1) = 2.2 and ROUND(-1.475,2) = -1.48)", "a half at num_digits 0 or below rounds away from zero (unmeasured choice: no example on the page shows a half there; ROUND(2.5,0) is 3, ROUND(-2.5,0) -3 and ROUND(25,-1) 30)", "a negative num_digits rounds left of the decimal point (documented)", "the number is read as the decimal it shows when that has at most 15 significant digits, otherwise as its binary64 value, rounded exactly and converted once to binary64 (unmeasured choice; the ROUND page's example ROUND(2.15,1) = 2.2 rules out rounding the exact binary64 2.14999999999999991..., which gives 2.1, but not scaling in binary64; ROUND(1.005,2) is 1.01 and ROUNDDOWN(0.57,2) is 0.57 here, where scaling by 100 in binary64 gives 100.49999999999999 and 56.99999999999999, so 1.00 and 0.56; ROUND(2.675,2) is 2.68, where rounding the exact binary64 2.67499999999999982... gives 2.67)", "num_digits counts by its integer part; one beyond any digit reaches no integer type (unmeasured)", "a result beyond binary64's range is #NUM! (unmeasured)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and no digit is dropped (ROUND(1.5,400)) or the number is 0 (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable): when a digit is dropped or an argument is number text; owned by cfunc-m3.24"]},
+    {"id": "6.6", "spelling": "ROUNDUP",
+     "implemented": ["away from zero whenever a dropped digit is not zero (documented)", "a negative num_digits rounds left of the decimal point (documented)", "the number is read as the decimal it shows when that has at most 15 significant digits, otherwise as its binary64 value, rounded exactly and converted once to binary64 (unmeasured choice; the ROUND page's example ROUND(2.15,1) = 2.2 rules out rounding the exact binary64 2.14999999999999991..., which gives 2.1, but not scaling in binary64; ROUND(1.005,2) is 1.01 and ROUNDDOWN(0.57,2) is 0.57 here, where scaling by 100 in binary64 gives 100.49999999999999 and 56.99999999999999, so 1.00 and 0.56; ROUND(2.675,2) is 2.68, where rounding the exact binary64 2.67499999999999982... gives 2.67)", "num_digits counts by its integer part; one beyond any digit reaches no integer type (unmeasured)", "a result beyond binary64's range is #NUM! (unmeasured)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and no digit is dropped (ROUND(1.5,400)) or the number is 0 (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable): when a digit is dropped or an argument is number text; owned by cfunc-m3.24"]},
+    {"id": "6.7", "spelling": "ROUNDDOWN",
+     "implemented": ["toward zero (documented)", "a negative num_digits rounds left of the decimal point (documented)", "the number is read as the decimal it shows when that has at most 15 significant digits, otherwise as its binary64 value, rounded exactly and converted once to binary64 (unmeasured choice; the ROUND page's example ROUND(2.15,1) = 2.2 rules out rounding the exact binary64 2.14999999999999991..., which gives 2.1, but not scaling in binary64; ROUND(1.005,2) is 1.01 and ROUNDDOWN(0.57,2) is 0.57 here, where scaling by 100 in binary64 gives 100.49999999999999 and 56.99999999999999, so 1.00 and 0.56; ROUND(2.675,2) is 2.68, where rounding the exact binary64 2.67499999999999982... gives 2.67)", "num_digits counts by its integer part; one beyond any digit reaches no integer type (unmeasured)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and no digit is dropped (ROUND(1.5,400)) or the number is 0 (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that reaches an arithmetic site (ExactUnavailable): when a digit is dropped or an argument is number text; owned by cfunc-m3.24"]},
+    {"id": "6.8", "spelling": "MROUND",
+     "implemented": ["the nearest multiple; a remainder of at least half the multiple rounds away from zero (documented)", "number and multiple of different signs are #NUM! (documented)", "a zero multiple, or a zero number, gives 0 (unmeasured)", "the count of multiples is the binary64 quotient number / multiple rounded to the nearest integer, a half away from zero (unmeasured choice that agrees with both outcomes of the page's Known Limitations example, MROUND(6.05,0.1) returns 6.0 while MROUND(7.05,0.1) returns 7.1, whose binary64 quotients are 60.49999999999999 and 70.5; the page says the rounding direction is undefined for midpoint numbers when the multiple is a decimal. The example rules out counting on the exact decimal readings, which gives the half 60.5 and so 6.1 for the first, but does not require the binary64 quotient: the exact quotient of the two binary64 values also lies below 60.5)", "the count times the multiple's decimal reading is computed exactly and converted once (unmeasured choice: the page shows its results as 15 digits, so its 1.4 and 7.1 do not tell this from a binary64 product, 1.4000000000000001 and 7.1000000000000005; the rows MROUND(1.3,0.2) and MROUND(7.05,0.1) of cfunc_m3_2__rounding_boundaries are labelled unmeasured choices naming the exact product, and their oracle rows tell the two apart)", "with both signs negative the quotient is the same binary64, so MROUND(-6.05,-0.1) is -6 (unmeasured choice: the page's example is positive)", "a number with more than 15 significant digits enters the quotient as its binary64 (unmeasured choice: MROUND(1000000000000000.5,1) is 1000000000000001, where the 15-digit reading gives 1E15)", "a binary64 quotient beyond binary64's range is #NUM! (unmeasured choice: MROUND of the largest binary64 by 0.5, whose exact nearest multiple is the number itself)", "a result beyond binary64's range is #NUM! (unmeasured)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and it does not divide: a zero number or multiple (0) and arguments of different signs (#NUM!, MROUND(5,-2)) (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": ["MROUND(A1,3) with A1 = 2^53 is 2^53, not a multiple of 3: the binary64 quotient 3002399751580330.5 rounds to 3002399751580331 multiples, whose exact product 9007199254740993 (2^53+1, the nearest multiple) has no binary64 and converts, ties to even, to 2^53 (unmeasured choice of that conversion; row of cfunc_m3_2__large_integers)", "MROUND(A7,0.5) with A7 the largest binary64 is #NUM!, although A7 is itself a multiple of 0.5: the binary64 quotient overflows (unmeasured choice: the binary64 order; row of cfunc_m3_2__large_integers)"],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that divides (every call with non-zero arguments of one sign) or has a number-text argument (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.9", "spelling": "CEILING",
+     "implemented": ["rounded up to a multiple of the significance; a negative number with a positive significance toward zero, with a negative one away from zero (documented)", "the multiple is significance * ceil(number / significance) in binary64, the quotient and the product each rounded once (unmeasured choice: the arithmetic order of the ported kernel, kept as the bead's Do requires; no page shows a result that tells it from computing on the decimal readings, and the oracle row CEILING(0.3,0.1) tells them apart, compared under dc-e6k2)", "a number whose binary64 is an exact multiple of the significance's binary64 is unchanged, the quotient then being an exact integer, unless their binary64 quotient overflows (see divergent) (documented for the binary64 values: an exact multiple is not rounded; for typed decimals see divergent)", "a positive number with a negative significance is #NUM! (unmeasured: the CEILING page names no result for it, its remarks covering a negative number with either significance; the FLOOR page states it for FLOOR, and the legacy test expects it)", "a zero significance gives 0 (unmeasured: the page names no result for it; the legacy test expects it)", "a result beyond binary64's range is #NUM! (unmeasured: CEILING(A7,1E308) of cfunc_m3_2__large_integers)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and it does not divide: a zero significance or number (0, CEILING(5,0)) and a positive number with a negative significance (#NUM!) (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": ["where the typed numbers are an exact multiple but their binary64 quotient rounds to just below the integer, the result is one multiple more: CEILING(0.3,0.1) is 0.30000000000000004, the quotient being 2.9999999999999996, where the page, read on the typed decimals, says an exact multiple is not rounded (unmeasured choice: the binary64 order)", "a quotient below binary64's range rounds to 0, so the result is 0: CEILING(1E-300,1E300) is 0, where the page's next multiple above is 1E300 (unmeasured choice: the binary64 order; row of cfunc_m3_2__large_integers)", "a binary64 quotient of number by significance that overflows is #NUM!, even when the true result is in range, for example CEILING(A7,0.5) with A7 the largest binary64 and CEILING(1E308,1E-10) (unmeasured choice: the binary64 order; no row yet)"],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that divides or has a number-text argument (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.10", "spelling": "FLOOR",
+     "implemented": ["rounded down to a multiple of the significance; a negative number with a positive significance away from zero (documented)", "a positive number with a negative significance is #NUM! (documented)", "the multiple is significance * floor(number / significance) in binary64, the quotient and the product each rounded once (unmeasured choice: the arithmetic order of the ported kernel, kept as the bead's Do requires; no page shows a result that tells it from computing on the decimal readings, and the oracle rows FLOOR(0.15,0.05), FLOOR(0.3,0.1) and FLOOR(A2,0.1) tell them apart, compared under dc-e6k2)", "a result beyond binary64's range is #NUM! (unmeasured: FLOOR(A8,1E308) of cfunc_m3_2__large_integers, whose product is -2E308)", "a zero significance is #DIV/0! (unmeasured: the page names no result for it; the legacy test expects it)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and it does not divide: a zero significance (#DIV/0!), a positive number with a negative significance (#NUM!, FLOOR(2.5,-2)) and a zero number (0) (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": ["a negative number with a negative significance is rounded toward zero, so FLOOR(-4.3,-2) is -4 (documented: the page's own example FLOOR(-2.5,-2) = -2 shows it); this departs from the page's remark that a negative number is rounded down, adjusted away from zero, which is followed for a positive significance only (FLOOR(-4.3,2) is -6)", "where the typed numbers are an exact multiple but their binary64 quotient rounds to just below the integer, the result is one multiple less: FLOOR(0.3,0.1) is 0.2 and FLOOR(0.15,0.05) is 0.1, the quotients being 2.9999999999999996, where the typed 0.3 and 0.15 are multiples the page would return unchanged (unmeasured choice: the binary64 order)", "a negative number's quotient below binary64's range rounds to -0, so the result is 0: FLOOR(-1E-300,1E300) is 0, where the page's multiple below, away from zero, is -1E300 (unmeasured choice: the binary64 order; row of cfunc_m3_2__large_integers)", "a binary64 quotient of number by significance that overflows is #NUM!, even when the true result is in range, for example FLOOR(A7,0.5) with A7 the largest binary64 and FLOOR(1E308,1E-10) (unmeasured choice: the binary64 order; no row yet)"],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that divides or has a number-text argument (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.11", "spelling": "MOD",
+     "implemented": ["n - d*INT(n/d), the result with the divisor's sign (documented)", "a zero divisor is #DIV/0! (documented)", "the remainder is exact on the decimal readings for every quotient, with no limit on its size, converted once to binary64 (unmeasured choice, written fresh: Excel's limit is undocumented, and the page shows no result that tells this rule from its formula evaluated in binary64 steps; the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings and says nothing direct about MOD. The oracle rows MOD(0.3,0.1), MOD(1,0.1), MOD(A3,3) and MOD(1E23,1E8) tell the rules apart, compared under dc-e6k2)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and it converts no remainder: a zero divisor (#DIV/0!, MOD(3,0)) and a zero number (0) (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": ["the page's formula n - d*INT(n/d) is evaluated exactly on the decimal readings, not in binary64 steps: MOD(0.3,0.1) is 0 where those steps give 0.09999999999999998, and MOD(2^53+2,3) is 1 where they give 2 (unmeasured choice; rows MOD(0.3,0.1) of cfunc_m3_2__rounding_boundaries and MOD(A3,3) of cfunc_m3_2__large_integers)"],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that converts an exact result or has a number-text argument (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.12", "spelling": "QUOTIENT",
+     "implemented": ["the integer portion of the division (documented)", "a nonnumeric argument is #VALUE! (documented)", "a zero denominator is #DIV/0! (unmeasured: the page names no result for it)", "the integer part is exact on the decimal readings, converted once to binary64 (unmeasured choice, written fresh: the page shows no result that tells this from the integer part of a binary64 quotient; the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings and says nothing direct about QUOTIENT. The oracle row QUOTIENT(0.3,0.1) tells the rules apart, compared under dc-e6k2)", "a result beyond binary64's range is #NUM! (unmeasured)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when every argument is a number, a logical or omitted and it converts no quotient: a zero denominator (#DIV/0!, QUOTIENT(1,0)) and a zero numerator (0) (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": ["the integer portion is taken from the exact quotient of the decimal readings, not from a binary64 quotient: QUOTIENT(0.3,0.1) is 3 where the binary64 quotient 2.9999999999999996 gives 2 (unmeasured choice; row QUOTIENT(0.3,0.1) of cfunc_m3_2__rounding_boundaries)"],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, a subnormal result, and a non-zero exact result too small for binary64, which would convert to 0; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that converts an exact result or has a number-text argument (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.13", "spelling": "EVEN",
+     "implemented": ["rounded up, away from zero, to an even integer; an even integer, 0 included, is unchanged (documented)", "a nonnumeric argument is #VALUE! (documented)", "the parity is read exactly from the binary64 at every size, and every binary64 from 2^53 on is an even integer, left unchanged (unmeasured choice, the binary64 reading of a number with more than 15 significant digits: EVEN(2^53-1) is 2^53, where the 15-digit reading 9007199254740990 is even and unchanged)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when it takes no step to the next integer and its argument is not number text (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": [],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, and a subnormal result; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that steps to the next integer or has a number-text argument (ExactUnavailable); owned by cfunc-m3.24"]},
+    {"id": "6.14", "spelling": "ODD",
+     "implemented": ["rounded up, away from zero, to an odd integer; an odd integer is unchanged (documented)", "a nonnumeric argument is #VALUE! (documented)", "0 gives 1 (unmeasured: the page is silent; the legacy kernel gives 1)", "the integer above the magnitude is read from the binary64 (unmeasured choice, the binary64 reading of a number with more than 15 significant digits: ODD(4503599627370495.5) is 4503599627370497, where the 15-digit reading gives 4503599627370501)", "typed numbers, logicals and number text read through worksheet number coercion; other typed text is #VALUE! and an omitted argument is 0 (unmeasured: kept from cfunc-m1.2)", "the first argument's error, in argument order, is the result before any domain rule (unmeasured)", "a zero result is +0, a -0 argument reads as 0 (unmeasured choice: the number rule of cfunc-m1.2; no page speaks of a negative zero)", "computes under NumericMode::Exact when it takes no step to the next integer and its argument is not number text (unmeasured: plan section 5's mode rule, not an Excel behaviour)"],
+     "divergent": ["from 2^53 on, where no odd integer is a binary64, the odd integer is rounded once to binary64, ties to even, so the result is even: ODD(2^53) is 2^53, ODD(2^53+2) is 2^53+4, ODD(2^63) is 2^63 and ODD of the largest binary64 is that number, where the page returns the number rounded up to the nearest odd integer (unmeasured choice of that rounding; the page's rule has no binary64 result there)"],
+     "unsupported": ["an array argument, over which Excel lifts the function, refused before any argument is read; owned by cfml-m3.4", "typed text that Excel's number-text rules may read as a number (a date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant digit), refused by worksheet coercion; owned by cfml-m2.6", "a NaN, infinite or subnormal operand, and a subnormal result; subnormal handling is cfunc-m3.23's", "a reference argument: the caller dereferences a single-value parameter, and the call interface refuses a reference with ReferenceArgument", "under NumericMode::Exact, a call that steps to the next integer or has a number-text argument (ExactUnavailable); owned by cfunc-m3.24"]}
+  ]
+}

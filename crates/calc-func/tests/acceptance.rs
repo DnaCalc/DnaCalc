@@ -1505,7 +1505,11 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 2] = ["cfunc_m1_2/oracle.xlsx", "cfunc_m3_4/oracle.xlsx"];
+const GENERATED_WORKBOOKS: [&str; 3] = [
+    "cfunc_m1_2/oracle.xlsx",
+    "cfunc_m3_2/oracle.xlsx",
+    "cfunc_m3_4/oracle.xlsx",
+];
 
 /// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
 /// the number of cells visited are recorded.
@@ -4138,11 +4142,24 @@ enum Basis {
 
 use Basis::{Choice, Documented, Unsupported};
 
+/// A row of cfunc-m3.4: [`basis_row`] for that bead.
+fn aggregate_row(
+    rows: &mut Rows,
+    sheet: &mut TestSheet,
+    surface: (Notation, &str),
+    args: &[Arg],
+    expect: Expect,
+    basis: Basis,
+) {
+    basis_row("cfunc-m3.4", rows, sheet, surface, args, expect, basis);
+}
+
 /// Runs the named call `surface` on `args` through calc_func::invoke under Fast with the test
 /// sheet as the cell reader and asserts `expect`, that the eager call asked for each argument once
 /// in order, and that the result fits `basis` (a value, or a refusal for an unsupported row). Then
-/// records the row with the next cell of column D and prints it with its basis.
-fn aggregate_row(
+/// records the row, a row of `bead`, with the next cell of column D and prints it with its basis.
+fn basis_row(
+    bead: &str,
     rows: &mut Rows,
     sheet: &mut TestSheet,
     surface: (Notation, &str),
@@ -4161,7 +4178,7 @@ fn aggregate_row(
         ),
         Documented(_) | Choice(_) => assert!(
             result.is_ok(),
-            "{formula}: a row of cfunc-m3.4 computes a value"
+            "{formula}: a row of {bead} computes a value"
         ),
     }
     let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
@@ -6011,4 +6028,2249 @@ fn cfunc_m3_4__sparse_blanks() {
 
     assert_workbook_sheet(AGGREGATE_WORKBOOK, AGGREGATE_WORKBOOK_PATH, &rows, s);
     aggregate_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc-m3.2: the rounding and integer functions (ABS, SIGN, INT, TRUNC, ROUND, ROUNDUP,
+// ROUNDDOWN, MROUND, CEILING, FLOOR, MOD, QUOTIENT, EVEN and ODD) through calc_func::invoke on
+// catalogue targets.
+//
+// Each oracle row runs one call and asserts a value derived here by hand, and says how, as the
+// cfunc-m3.4 rows do. A `documented` row applies a rule or an example that Microsoft's page for
+// the function states. An `unmeasured choice` row applies a rule no page settles; most of them
+// tell candidate rules apart: a number read as the decimal it shows (2.675) or as its binary64
+// (2.67499999999999982...), a quotient read exactly or rounded to binary64 first, a result beyond
+// binary64's range, an odd integer above 2^53. A `refused` row ends in a fault, listed as
+// unsupported in the per-ID manifest of `migration/ports/cfunc-m3.2.json`. No row has been
+// compared with Excel.
+//
+// `tests/fixtures/cfunc_m3_2/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of a sheet named after
+// its case, in the order the case runs its rows, beside the cells the rows read, so that the owner
+// can capture Excel's values; each case checks that its sheet holds exactly those formulas and
+// cells. The cases do not wait for that capture: green shows the rules as written here, not
+// agreement with Excel.
+
+/// The rounding oracle workbook, as committed.
+const ROUNDING_WORKBOOK: &[u8] = include_bytes!("fixtures/cfunc_m3_2/oracle.xlsx");
+const ROUNDING_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/cfunc_m3_2/oracle.xlsx";
+/// The bead's migration record, whose per-ID manifest the boundary case checks against the
+/// catalogue.
+const ROUNDING_RECORD: &str = include_str!("../../../migration/ports/cfunc-m3.2.json");
+
+/// The family's entries: each spelling and the member number of its FunctionId in family 6.
+const ROUNDING: [(&str, u32); 14] = [
+    ("ABS", 1),
+    ("SIGN", 2),
+    ("INT", 3),
+    ("TRUNC", 4),
+    ("ROUND", 5),
+    ("ROUNDUP", 6),
+    ("ROUNDDOWN", 7),
+    ("MROUND", 8),
+    ("CEILING", 9),
+    ("FLOOR", 10),
+    ("MOD", 11),
+    ("QUOTIENT", 12),
+    ("EVEN", 13),
+    ("ODD", 14),
+];
+
+/// Runs a row of cfunc-m3.2: `rnd!(rows, sheet, "SPELLING", [args], expect, basis)`.
+macro_rules! rnd {
+    ($rows:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], $expect:expr, $basis:expr) => {{
+        let args = [$($arg),*];
+        basis_row("cfunc-m3.2", $rows, $sheet, named($spelling), &args, $expect, $basis)
+    }};
+}
+
+/// Prints how many rows a case ran and on what basis each expects its value.
+fn rounding_rows_note(rows: &Rows) {
+    let (choices, refused) = (rows.choices(), rows.refused());
+    note!(
+        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet {} of {ROUNDING_WORKBOOK_PATH}: {} from documented rules, {} unmeasured choices, {} refused; none is compared with Excel until the owner captures that workbook",
+        rows.case,
+        rows.oracle.len(),
+        rows.sheet,
+        rows.oracle.len() - choices - refused,
+        choices,
+        refused
+    );
+}
+
+/// Checks that the committed rounding oracle workbook is its generator's output, on the route
+/// where the generator runs.
+fn assert_rounding_workbook_generated(case: &str) {
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["cfunc_m3_2/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == ROUNDING_WORKBOOK,
+            "the committed rounding oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(ROUNDING_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {case}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed rounding oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {case}: the generator runs under Windows PowerShell, so the check that the committed rounding oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+}
+
+// Rules the rows apply.
+const HALF_AWAY: &str = "a half at num_digits 0 or below rounds away from zero, as the ROUND page's examples ROUND(2.15,1) = 2.2 and ROUND(-1.475,2) = -1.48 show for halves at 1 and 2 places; no example on the page shows a half at 0 or a negative num_digits";
+const LEFT_OF_POINT: &str = "a negative num_digits rounds to the left of the decimal point";
+const MROUND_LIMITATION: &str = "the MROUND page's Known Limitations example: MROUND(6.05,0.1) returns 6.0 while MROUND(7.05,0.1) returns 7.1";
+const NO_NEGATIVE_ZERO: &str = "the result is a zero, published as +0: a worksheet number carries no negative zero (the number rule of cfunc-m1.2)";
+const NONNUMERIC: &str = "a nonnumeric argument is #VALUE!";
+const FIRST_ERROR: &str = "the first argument's error is the result, before any domain rule, as the operators of cfunc-m1.2 read their operands";
+const EXAMPLE: &str = "an example row of the function's page";
+const SIGN_OF_DIVISOR: &str = "MOD(n, d) = n - d*INT(n/d): the result has the divisor's sign";
+const LIFTED: &str = "an array argument, over which Excel lifts the function, is not modelled (array lifting is cfml-m3.4's)";
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_2__rounding_boundaries
+
+/// The cells the boundary rows read: numbers whose shortest decimal needs more than 15
+/// significant digits, so that they cannot be typed and are read as their binary64 values, beside
+/// the INT page's example cell (A3). A6 is a normal number whose remainder by the typed
+/// 5.70820472448858E-308 is not zero but too small for binary64.
+fn rounding_boundaries_sheet() -> TestSheet {
+    TestSheet::new(&[
+        (
+            "A1",
+            "2.6749999999999994",
+            CalcValue::number(2.674_999_999_999_999_4),
+        ),
+        (
+            "A2",
+            "0.30000000000000004",
+            CalcValue::number(0.300_000_000_000_000_04),
+        ),
+        ("A3", "19.5", CalcValue::number(19.5)),
+        (
+            "A4",
+            "1.0049999999999997",
+            CalcValue::number(1.004_999_999_999_999_7),
+        ),
+        (
+            "A5",
+            "2.9999999999999996",
+            CalcValue::number(2.999_999_999_999_999_6),
+        ),
+        (
+            "A6",
+            "1.141640944897716E-307",
+            CalcValue::number(1.141_640_944_897_716e-307),
+        ),
+    ])
+}
+
+/// The rows of cfunc_m3_2__rounding_boundaries, run through calc_func::invoke on `s`, in the
+/// order the rounding oracle workbook's sheet `rounding_boundaries` holds their formulas.
+// 3.142 and 3.141 are the ROUNDUP and ROUNDDOWN pages' example results, not approximations of pi.
+#[allow(clippy::approx_constant)]
+fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
+    const CASE: &str = "cfunc_m3_2__rounding_boundaries";
+    let mut rows = Rows::new(CASE, "rounding_boundaries", false);
+    let r = &mut rows;
+    use WorksheetErrorCode::{Div0, NA, Num, Ref, Value};
+
+    // ROUND: the page's examples, half cases of both signs, signed zero and negative digits.
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("2.15"), num("1")],
+        N(2.2),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("2.149"), num("1")],
+        N(2.1),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-1.475"), num("2")],
+        N(-1.48),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("21.5"), num("-1")],
+        N(20.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("626.3"), num("-3")],
+        N(1000.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1.98"), num("-1")],
+        N(0.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-50.55"), num("-2")],
+        N(-100.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("2.5"), num("0")],
+        N(3.0),
+        Choice(HALF_AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-2.5"), num("0")],
+        N(-3.0),
+        Choice(HALF_AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("0.5"), num("0")],
+        N(1.0),
+        Choice(HALF_AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-0.5"), num("0")],
+        N(-1.0),
+        Choice(HALF_AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-0.4"), num("0")],
+        N(0.0),
+        Choice(NO_NEGATIVE_ZERO)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-0.0001"), num("2")],
+        N(0.0),
+        Choice(NO_NEGATIVE_ZERO)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("25"), num("-1")],
+        N(30.0),
+        Choice(HALF_AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-15"), num("-1")],
+        N(-20.0),
+        Choice(HALF_AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1250"), num("-2")],
+        N(1300.0),
+        Choice(HALF_AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1234"), num("-2")],
+        N(1200.0),
+        Documented(LEFT_OF_POINT)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("0.5"), num("-1")],
+        N(0.0),
+        Documented(LEFT_OF_POINT)
+    );
+
+    // The reading: a number is the decimal it shows when that has at most 15 significant digits,
+    // and its binary64 value otherwise. The page's example ROUND(2.15,1) = 2.2 above already rules
+    // out rounding the exact binary64 (2.14999999999999991... gives 2.1). These rows tell the
+    // reading from that binary rule and from the 15-digit rule (every number read at 15
+    // significant digits).
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("2.675"), num("2")],
+        N(2.68),
+        Choice(
+            "2.675 is read as the decimal it shows, a half; its binary64 2.67499999999999982... lies below the half, so the binary rule gives 2.67"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("-2.675"), num("2")],
+        N(-2.68),
+        Choice(
+            "-2.675 is read as the decimal it shows, a half rounded away from zero; the binary rule gives -2.67"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1.005"), num("2")],
+        N(1.01),
+        Choice(
+            "1.005 is read as the decimal it shows; its binary64 1.00499999999999989... gives 1.00 by the binary rule"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A1"), num("2")],
+        N(2.67),
+        Choice(
+            "a number whose shortest decimal has 17 digits is read as its binary64, 2.67499999999999937..., below the half; the 15-digit rule reads 2.67500000000000 and gives 2.68"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A4"), num("2")],
+        N(1.0),
+        Choice("read as its binary64 1.00499999999999967...; the 15-digit rule gives 1.01")
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [cell(s, "A2"), num("1")],
+        N(0.4),
+        Choice(
+            "read as its binary64 0.30000000000000004440..., above 0.3, so rounding up to one place gives 0.4; the 15-digit rule reads 0.3 and gives 0.3"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("0.57"), num("2")],
+        N(0.57),
+        Choice(
+            "0.57 is read as the decimal it shows; its binary64 0.56999999999999995... gives 0.56 by the binary rule"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [num("0.57"), num("2")],
+        N(0.57),
+        Choice("TRUNC reads as ROUNDDOWN does; the binary rule gives 0.56")
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [cell(s, "A5")],
+        N(2.0),
+        Choice(
+            "read as its binary64 2.99999999999999955...: the integer part is 2, as INT gives (the TRUNC page: TRUNC and INT differ only for negative numbers); the 15-digit rule gives 3"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A5")],
+        N(2.0),
+        Choice("the binary64 2.99999999999999955... is rounded down; the 15-digit rule gives 3")
+    );
+
+    // ROUNDUP and ROUNDDOWN: the pages' examples.
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("3.2"), num("0")],
+        N(4.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("76.9"), num("0")],
+        N(77.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("3.14159"), num("3")],
+        N(3.142),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("-3.14159"), num("1")],
+        N(-3.2),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("31415.92654"), num("-2")],
+        N(31500.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("-0.1"), num("0")],
+        N(-1.0),
+        Documented(
+            "ROUNDUP rounds away from zero, as its example ROUNDUP(-3.14159,1) = -3.2 shows"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("3.2"), num("0")],
+        N(3.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("76.9"), num("0")],
+        N(76.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("3.14159"), num("3")],
+        N(3.141),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("-3.14159"), num("1")],
+        N(-3.1),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("31415.92654"), num("-2")],
+        N(31400.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("-0.5"), num("0")],
+        N(0.0),
+        Choice(NO_NEGATIVE_ZERO)
+    );
+
+    // num_digits: only its integer part counts, and a position beyond every digit is reached
+    // without an integer type.
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1.2345"), num("2.9")],
+        N(1.23),
+        Choice("num_digits counts by its integer part, 2.9 as 2; the page is silent")
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1234.5"), num("-1.9")],
+        N(1230.0),
+        Choice("num_digits counts by its integer part, -1.9 as -1; the page is silent")
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1.5"), num("400")],
+        N(1.5),
+        Choice("no digit lies 400 places right of the point, so nothing is rounded")
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1.5"), num("-400")],
+        N(0.0),
+        Choice("the nearest multiple of 10^400 is 0")
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("1.5"), num("-400")],
+        E(Num),
+        Choice("rounded up to 10^400, beyond binary64's range: #NUM!, the number rule's overflow")
+    );
+
+    // TRUNC and INT: the pages' examples.
+    rnd!(r, s, "TRUNC", [num("8.9")], N(8.0), Documented(EXAMPLE));
+    rnd!(r, s, "TRUNC", [num("-8.9")], N(-8.0), Documented(EXAMPLE));
+    rnd!(r, s, "TRUNC", [num("0.45")], N(0.0), Documented(EXAMPLE));
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [num("-4.3")],
+        N(-4.0),
+        Documented("TRUNC removes the fractional part: TRUNC(-4.3) is -4 where INT(-4.3) is -5")
+    );
+    rnd!(
+        r,
+        s,
+        "INT",
+        [num("-4.3")],
+        N(-5.0),
+        Documented("INT rounds down to the lower integer: INT(-4.3) is -5")
+    );
+    rnd!(r, s, "INT", [num("8.9")], N(8.0), Documented(EXAMPLE));
+    rnd!(r, s, "INT", [num("-8.9")], N(-9.0), Documented(EXAMPLE));
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A3")],
+        N(19.0),
+        Documented(
+            "INT rounds down to the nearest integer: the page's example =A2-INT(A2) is 0.5 for A2 = 19.5, so INT(19.5) is 19"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [num("-0.5")],
+        N(0.0),
+        Choice(NO_NEGATIVE_ZERO)
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [num("8.9"), omitted()],
+        N(8.0),
+        Choice("an omitted num_digits is 0, as an omitted argument is the number 0")
+    );
+
+    // MROUND: the count of multiples comes from the binary64 quotient, an unmeasured choice that
+    // agrees with both outcomes of the page's Known Limitations example; the count times the
+    // multiple's exact decimal reading is converted once, an unmeasured choice.
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("10"), num("3")],
+        N(9.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("-10"), num("-3")],
+        N(-9.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("1.3"), num("0.2")],
+        N(1.4),
+        Choice(
+            "the exact product: the page's example gives 1.4; the binary64 quotient 6.5 rounds away from zero to 7 multiples, and 7 times 0.2 as typed is 1.4 exactly, converted once to the binary64 nearest 1.4; a binary64 product of 7 and 0.2 gives 1.4000000000000001, which the page's 1.4, shown to 15 digits, does not tell apart"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("5"), num("-2")],
+        E(Num),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("-5"), num("2")],
+        E(Num),
+        Documented("number and multiple of different signs are #NUM!")
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("7.5"), num("5")],
+        N(10.0),
+        Documented("a remainder of at least half the multiple rounds up, away from zero")
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("6.05"), num("0.1")],
+        N(6.0),
+        Documented(MROUND_LIMITATION)
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("7.05"), num("0.1")],
+        N(7.1),
+        Choice(
+            "the exact product: the page's Known Limitations example gives 7.1; the binary64 quotient 70.5 rounds away from zero to 71 multiples, and 71 times 0.1 as typed is 7.1 exactly, converted once to the binary64 nearest 7.1; a binary64 product of 71 and 0.1 gives 7.1000000000000005, which the page's 7.1 does not tell apart"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("-6.05"), num("-0.1")],
+        N(-6.0),
+        Choice(
+            "as the page's example MROUND(6.05,0.1) = 6.0, with both signs negative: the binary64 quotient is again 60.49999999999999, rounded to 60 multiples; the exact decimal readings give the half 60.5 and so -6.1"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [num("5"), num("0")],
+        N(0.0),
+        Choice("a zero multiple gives 0; the page is silent")
+    );
+
+    // CEILING.
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("2.5"), num("1")],
+        N(3.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("-2.5"), num("-2")],
+        N(-4.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("-2.5"), num("2")],
+        N(-2.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("1.5"), num("0.1")],
+        N(1.5),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("0.234"), num("0.01")],
+        N(0.24),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("4.3"), num("2")],
+        N(6.0),
+        Documented("a value is rounded up, away from zero, to a multiple of the significance")
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("-4.3"), num("2")],
+        N(-4.0),
+        Documented("a negative number with a positive significance is rounded up, toward zero")
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("-4.3"), num("-2")],
+        N(-6.0),
+        Documented(
+            "a negative number with a negative significance is rounded down, away from zero"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("4.3"), num("-2")],
+        E(Num),
+        Choice(
+            "a positive number with a negative significance is #NUM!, as the FLOOR page states for FLOOR and the legacy CEILING test expects; the CEILING page names no result for it: its remarks cover a negative number with either significance and say only that a value is rounded up when adjusted away from zero"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("5"), num("0")],
+        N(0.0),
+        Choice("a zero significance gives 0, as the legacy test expects; the page is silent")
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("0.3"), num("0.1")],
+        N(0.300_000_000_000_000_04),
+        Choice(
+            "the binary64 order: the quotient 0.3/0.1 rounds to 2.9999999999999996, whose integer above is 3, and 0.1*3 rounds to 0.30000000000000004; read as typed decimals 0.3 is 3 multiples of 0.1, an exact multiple the page says is not rounded, so 0.3"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("-0.5"), num("1")],
+        N(0.0),
+        Choice(NO_NEGATIVE_ZERO)
+    );
+
+    // FLOOR.
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("3.7"), num("2")],
+        N(2.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("-2.5"), num("-2")],
+        N(-2.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("2.5"), num("-2")],
+        E(Num),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("1.58"), num("0.1")],
+        N(1.5),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("0.234"), num("0.01")],
+        N(0.23),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("4.3"), num("2")],
+        N(4.0),
+        Documented("a positive number is rounded down, toward zero")
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("-4.3"), num("2")],
+        N(-6.0),
+        Documented("a negative number is rounded down, away from zero")
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("-4.3"), num("-2")],
+        N(-4.0),
+        Documented("both negative, toward zero, as the page's example FLOOR(-2.5,-2) = -2 shows")
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("4.3"), num("-2")],
+        E(Num),
+        Documented("a positive number with a negative significance is #NUM!")
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("-2.5"), num("2")],
+        N(-4.0),
+        Documented("a negative number is rounded down, away from zero")
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("5"), num("0")],
+        E(Div0),
+        Choice("a zero significance is #DIV/0!, as the legacy test expects; the page is silent")
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("0.15"), num("0.05")],
+        N(0.1),
+        Choice(
+            "the binary64 order: the quotient 0.15/0.05 rounds to 2.9999999999999996, whose integer below is 2, and 0.05*2 is 0.1; read as typed decimals 0.15 is 3 multiples of 0.05, so 0.15"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("0.3"), num("0.1")],
+        N(0.2),
+        Choice(
+            "the binary64 order: the quotient 0.3/0.1 rounds to 2.9999999999999996, whose integer below is 2, and 0.1*2 is 0.2; read as typed decimals 0.3 is 3 multiples of 0.1, so 0.3"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [cell(s, "A2"), num("0.1")],
+        N(0.300_000_000_000_000_04),
+        Choice(
+            "the binary64 order: A2's binary64 0.30000000000000004 divided by 0.1 rounds to 3.0000000000000004, whose integer below is 3, and 0.1*3 rounds to 0.30000000000000004; A2 read exactly is just above 3 multiples of 0.1 read as typed, so 0.3"
+        )
+    );
+
+    // MOD.
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("3"), num("2")],
+        N(1.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("-3"), num("2")],
+        N(1.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("3"), num("-2")],
+        N(-1.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("-3"), num("-2")],
+        N(-1.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("3"), num("0")],
+        E(Div0),
+        Documented("a divisor of 0 is #DIV/0!")
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("-7"), num("2.5")],
+        N(0.5),
+        Documented(SIGN_OF_DIVISOR)
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("0.3"), num("0.1")],
+        N(0.0),
+        Choice(
+            "the exact decimal rule, kept for MOD although the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings: the remainder of 0.3 and 0.1 as the typed numbers read is 0; n - d*INT(n/d) in binary64 steps gives 0.09999999999999998"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("1"), num("0.1")],
+        N(0.0),
+        Choice(
+            "the exact decimal rule, kept for MOD although the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings: the remainder of 1 and 0.1 as typed is 0; the exact remainder of their binary64 values is 0.09999999999999995"
+        )
+    );
+
+    // QUOTIENT.
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("5"), num("2")],
+        N(2.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("4.5"), num("3.1")],
+        N(1.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("-10"), num("3")],
+        N(-3.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [txt("a"), num("2")],
+        E(Value),
+        Documented(NONNUMERIC)
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("1"), num("0")],
+        E(Div0),
+        Choice("a zero denominator is #DIV/0!; the page is silent")
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("0.3"), num("0.1")],
+        N(3.0),
+        Choice(
+            "the exact decimal rule, kept for QUOTIENT although the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings: 0.3 is 3 times 0.1 as the typed numbers read; the binary64 quotient 2.9999999999999996 gives 2"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("-1"), num("3")],
+        N(0.0),
+        Choice(NO_NEGATIVE_ZERO)
+    );
+
+    // EVEN and ODD.
+    rnd!(r, s, "EVEN", [num("1.5")], N(2.0), Documented(EXAMPLE));
+    rnd!(r, s, "EVEN", [num("3")], N(4.0), Documented(EXAMPLE));
+    rnd!(r, s, "EVEN", [num("2")], N(2.0), Documented(EXAMPLE));
+    rnd!(r, s, "EVEN", [num("-1")], N(-2.0), Documented(EXAMPLE));
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [num("-0.5")],
+        N(-2.0),
+        Documented("a value is rounded up when adjusted away from zero")
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [num("-1.5")],
+        N(-2.0),
+        Documented("a value is rounded up when adjusted away from zero")
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [num("0")],
+        N(0.0),
+        Documented("an even integer is not rounded")
+    );
+    rnd!(r, s, "EVEN", [txt("a")], E(Value), Documented(NONNUMERIC));
+    rnd!(r, s, "ODD", [num("1.5")], N(3.0), Documented(EXAMPLE));
+    rnd!(r, s, "ODD", [num("3")], N(3.0), Documented(EXAMPLE));
+    rnd!(r, s, "ODD", [num("2")], N(3.0), Documented(EXAMPLE));
+    rnd!(r, s, "ODD", [num("-1")], N(-1.0), Documented(EXAMPLE));
+    rnd!(r, s, "ODD", [num("-2")], N(-3.0), Documented(EXAMPLE));
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [num("-1.5")],
+        N(-3.0),
+        Documented("a value is rounded up when adjusted away from zero")
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [num("0")],
+        N(1.0),
+        Choice("0 rounds to 1, as the legacy kernel does; the page is silent on zero")
+    );
+    rnd!(r, s, "ODD", [txt("a")], E(Value), Documented(NONNUMERIC));
+
+    // ABS and SIGN.
+    rnd!(r, s, "ABS", [num("2")], N(2.0), Documented(EXAMPLE));
+    rnd!(r, s, "ABS", [num("-2")], N(2.0), Documented(EXAMPLE));
+    rnd!(
+        r,
+        s,
+        "ABS",
+        [num("-2.5")],
+        N(2.5),
+        Documented("ABS is the number without its sign")
+    );
+    rnd!(
+        r,
+        s,
+        "ABS",
+        [txt(" -2 ")],
+        N(2.0),
+        Choice(
+            "number text typed as an argument is read through worksheet number coercion, as cfunc-m1.2 reads it and the legacy test expects"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ABS",
+        [txt("asd")],
+        E(Value),
+        Choice("typed text that does not read as a number is #VALUE!, as the legacy test expects")
+    );
+    rnd!(
+        r,
+        s,
+        "ABS",
+        [logical(true)],
+        N(1.0),
+        Choice(
+            "a logical typed as an argument is a number, TRUE as 1, as cfunc-m1.2's coercion reads it"
+        )
+    );
+    rnd!(r, s, "ABS", [err(Div0)], E(Div0), Choice(FIRST_ERROR));
+    rnd!(r, s, "SIGN", [num("10")], N(1.0), Documented(EXAMPLE));
+    rnd!(
+        r,
+        s,
+        "SIGN",
+        [num("-0.00001")],
+        N(-1.0),
+        Documented(EXAMPLE)
+    );
+    rnd!(
+        r,
+        s,
+        "SIGN",
+        [num("0")],
+        N(0.0),
+        Documented("SIGN returns zero (0) if the number is 0")
+    );
+
+    // Argument order, coercion and arrays.
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [err(NA), err(Div0)],
+        E(NA),
+        Choice(FIRST_ERROR)
+    );
+    rnd!(r, s, "MOD", [err(NA), num("0")], E(NA), Choice(FIRST_ERROR));
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("1"), err(Ref)],
+        E(Ref),
+        Choice(FIRST_ERROR)
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [txt("2.5"), logical(true)],
+        N(3.0),
+        Choice(
+            "number text and a logical typed as arguments are read as numbers, as cfunc-m1.2's coercion reads them"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [txt("a"), num("1")],
+        E(Value),
+        Documented(NONNUMERIC)
+    );
+    rnd!(
+        r,
+        s,
+        "ABS",
+        [array_arg(
+            "{-1,2}",
+            vec![vec![CalcValue::number(-1.0), CalcValue::number(2.0)]]
+        )],
+        Refused(Some(0)),
+        Unsupported(LIFTED)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [
+            num("1.5"),
+            array_arg(
+                "{0,1}",
+                vec![vec![CalcValue::number(0.0), CalcValue::number(1.0)]]
+            )
+        ],
+        Refused(Some(1)),
+        Unsupported(LIFTED)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [num("2.5E-308"), num("308")],
+        Refused(None),
+        Unsupported(
+            "the result 2E-308 is subnormal, and Excel's handling of a subnormal result is not modelled (subnormal handling is cfunc-m3.23's)"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [cell(s, "A6"), num("5.70820472448858E-308")],
+        Refused(None),
+        Unsupported(
+            "the exact remainder of A6's binary64 by 5.70820472448858E-308 is not zero but lies below half the smallest subnormal, so it would convert to 0; it is refused as a subnormal result is, since Excel's handling of a result below the normal range is not modelled (subnormal handling is cfunc-m3.23's)"
+        )
+    );
+    rows
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_2__rounding_boundaries() {
+    const CASE: &str = "cfunc_m3_2__rounding_boundaries";
+    let fast = NumericMode::Fast;
+    let exact = exact_mode();
+    let mut sheet = rounding_boundaries_sheet();
+    note!("ACCEPT-NOTE: {CASE}: the sheet holds {}", sheet.described());
+    let rows = rounding_boundaries_rows(&mut sheet);
+
+    // Metadata and dispatch come from the one generated catalogue: family 6 holds exactly these
+    // entries, each eager, with single-value parameters, Excel's arity and its signature help.
+    let family: BTreeSet<(u32, String)> = catalogue()
+        .targets()
+        .filter(|target| target.id().raw() >> 16 == 6)
+        .map(|target| (target.id().raw(), target.spelling().to_owned()))
+        .collect();
+    let expected: BTreeSet<(u32, String)> = ROUNDING
+        .iter()
+        .map(|(spelling, member)| ((6 << 16) | member, (*spelling).to_owned()))
+        .collect();
+    assert_eq!(family, expected, "the rounding family in the catalogue");
+    for (spelling, _) in ROUNDING {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            target.argument_demand(),
+            ArgumentDemand::Eager,
+            "{spelling}"
+        );
+        let arity = target.arity();
+        let shape = match spelling {
+            "ABS" | "SIGN" | "INT" | "EVEN" | "ODD" => (1, 1),
+            "TRUNC" => (1, 2),
+            _ => (2, 2),
+        };
+        assert_eq!((arity.min, arity.max), shape, "{spelling}");
+        for index in 0..arity.max {
+            assert_eq!(
+                target.parameter_class(index),
+                Some(ParameterClass::Value),
+                "{spelling} argument {index}"
+            );
+        }
+    }
+    for (spelling, display) in [
+        ("ABS", "ABS(number)"),
+        ("TRUNC", "TRUNC(number, [num_digits])"),
+        ("ROUND", "ROUND(number, num_digits)"),
+        ("MROUND", "MROUND(number, multiple)"),
+        ("CEILING", "CEILING(number, significance)"),
+        ("MOD", "MOD(number, divisor)"),
+        ("QUOTIENT", "QUOTIENT(numerator, denominator)"),
+    ] {
+        assert_eq!(
+            surface(Notation::Call, spelling).signature_help().display,
+            display
+        );
+    }
+    let manifest = manifest_ids(ROUNDING_RECORD);
+    let listed: BTreeSet<(String, String)> = ROUNDING
+        .iter()
+        .map(|(spelling, member)| (format!("6.{member}"), (*spelling).to_owned()))
+        .collect();
+    assert_eq!(
+        manifest, listed,
+        "the per-ID manifest of migration/ports/cfunc-m3.2.json against the catalogue"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the catalogue's family 6 holds exactly the {} entries {:?}, each eager with single-value parameters; TRUNC takes 1 or 2 arguments, ABS, SIGN, INT, EVEN and ODD 1, the others 2; the per-ID manifest of migration/ports/cfunc-m3.2.json lists the same IDs and spellings",
+        family.len(),
+        ROUNDING.map(|(spelling, _)| spelling)
+    );
+
+    // A value parameter never receives a reference: the caller dereferences it, and the call
+    // interface refuses one at admission, before the kernel runs.
+    for (spelling, index) in [("ABS", 0), ("ROUND", 1), ("MOD", 0)] {
+        let target = surface(Notation::Call, spelling);
+        let mut values = vec![CalcValue::number(1.0); target.arity().min];
+        values[index] = a1_reference();
+        let mut given = Recorded::new(values);
+        assert_eq!(
+            run(target, &mut given, &fast),
+            Err(FunctionFault::ReferenceArgument {
+                id: target.id(),
+                index
+            }),
+            "{spelling} with a reference at argument {index}"
+        );
+    }
+
+    // Through the call interface alone (no formula or cell holds -0): a negative zero argument
+    // reads as 0, and no result is a negative zero.
+    let negative_zero: [(&str, Vec<f64>, Result<f64, WorksheetErrorCode>); 20] = [
+        ("ABS", vec![-0.0], Ok(0.0)),
+        ("SIGN", vec![-0.0], Ok(0.0)),
+        ("INT", vec![-0.0], Ok(0.0)),
+        ("TRUNC", vec![-0.0], Ok(0.0)),
+        ("ROUND", vec![-0.0, 2.0], Ok(0.0)),
+        ("ROUNDUP", vec![-0.0, 0.0], Ok(0.0)),
+        ("ROUNDDOWN", vec![-0.0, 0.0], Ok(0.0)),
+        ("MROUND", vec![-0.0, 2.0], Ok(0.0)),
+        ("CEILING", vec![-0.0, 1.0], Ok(0.0)),
+        ("FLOOR", vec![-0.0, 1.0], Ok(0.0)),
+        ("MOD", vec![-0.0, 3.0], Ok(0.0)),
+        ("QUOTIENT", vec![-0.0, 3.0], Ok(0.0)),
+        ("EVEN", vec![-0.0], Ok(0.0)),
+        ("ODD", vec![-0.0], Ok(1.0)),
+        ("ROUND", vec![2.5, -0.0], Ok(3.0)),
+        ("CEILING", vec![1.0, -0.0], Ok(0.0)),
+        ("MROUND", vec![1.0, -0.0], Ok(0.0)),
+        ("FLOOR", vec![1.0, -0.0], Err(WorksheetErrorCode::Div0)),
+        ("MOD", vec![1.0, -0.0], Err(WorksheetErrorCode::Div0)),
+        ("QUOTIENT", vec![1.0, -0.0], Err(WorksheetErrorCode::Div0)),
+    ];
+    for (spelling, numbers, expected) in &negative_zero {
+        let target = surface(Notation::Call, spelling);
+        let mut given = Recorded::new(numbers.iter().map(|&n| CalcValue::number(n)).collect());
+        let result = run(target, &mut given, &fast);
+        let holds = match expected {
+            Ok(n) => result
+                .as_ref()
+                .is_ok_and(|value| value.as_number().map(f64::to_bits) == Some(n.to_bits())),
+            Err(code) => result
+                .as_ref()
+                .is_ok_and(|value| value.as_error() == Some(*code)),
+        };
+        assert!(
+            holds,
+            "{spelling}{numbers:?}: expected {expected:?}, got {result:?}"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} calls with a -0 argument through the call interface alone gave +0 (bits 0x0000000000000000) or the value of a 0 argument, never -0",
+        negative_zero.len()
+    );
+
+    // NumericMode::Exact: a call that reaches no arithmetic site computes the value of its Fast
+    // row; one that converts number text or an exact result, divides (MROUND, CEILING and FLOOR),
+    // or steps ODD or EVEN on, is refused.
+    let mut exact_computed = 0;
+    for (spelling, args) in [
+        ("ABS", vec![num("-2")]),
+        ("SIGN", vec![num("-0.00001")]),
+        ("INT", vec![num("-8.9")]),
+        ("EVEN", vec![num("1.5")]),
+        ("EVEN", vec![num("2")]),
+        ("ODD", vec![num("3")]),
+        ("ODD", vec![num("0")]),
+        ("ROUND", vec![num("1.5"), num("400")]),
+        ("MOD", vec![num("3"), num("0")]),
+        ("MROUND", vec![num("5"), num("-2")]),
+        ("FLOOR", vec![num("2.5"), num("-2")]),
+        ("CEILING", vec![num("5"), num("0")]),
+        ("QUOTIENT", vec![num("1"), num("0")]),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+        let formula = target.oracle_formula(&texts).expect("a formula");
+        let under_fast = row_value(&rows, &formula);
+        let under_exact = run(
+            target,
+            &mut Recorded::new(args.iter().map(|a| a.value.clone()).collect()),
+            &exact,
+        );
+        assert!(
+            under_exact
+                .as_ref()
+                .is_ok_and(|value| identical(value, under_fast)),
+            "{formula} under Exact gives {under_exact:?}, under Fast {under_fast:?}"
+        );
+        exact_computed += 1;
+    }
+    let mut exact_refused = 0;
+    for (spelling, args) in [
+        ("ROUND", vec![num("2.675"), num("2")]),
+        ("ROUNDUP", vec![num("3.2"), num("0")]),
+        ("ROUNDDOWN", vec![num("3.2"), num("0")]),
+        ("TRUNC", vec![num("8.9")]),
+        ("MROUND", vec![num("10"), num("3")]),
+        ("CEILING", vec![num("2.5"), num("1")]),
+        ("FLOOR", vec![num("3.7"), num("2")]),
+        ("MOD", vec![num("3"), num("2")]),
+        ("QUOTIENT", vec![num("5"), num("2")]),
+        ("EVEN", vec![num("3")]),
+        ("ODD", vec![num("2")]),
+        // Number text is converted to its nearest binary64 at an arithmetic site, so even the
+        // functions that act on the binary64 itself refuse it under Exact.
+        ("ABS", vec![txt(" -2 ")]),
+        ("INT", vec![txt("8.9")]),
+        ("SIGN", vec![txt("-0.00001")]),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let result = run(
+            target,
+            &mut Recorded::new(args.iter().map(|a| a.value.clone()).collect()),
+            &exact,
+        );
+        assert_eq!(
+            result,
+            Err(FunctionFault::ExactUnavailable { id: target.id() }),
+            "{spelling} under Exact"
+        );
+        exact_refused += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: under NumericMode::Exact {exact_computed} calls that reach no arithmetic site (ABS, SIGN, INT, EVEN and ODD on a number with no step, a ROUND with no digit to drop, and the domain errors) computed the value of their Fast oracle row, and {exact_refused} calls that convert number text or an exact result, divide (MROUND, CEILING and FLOOR), or step EVEN or ODD on, were refused with ExactUnavailable"
+    );
+
+    // The oracle workbook: this case's sheet holds exactly its rows and cells, and the committed
+    // workbook is its generator's output.
+    assert_workbook_sheet(ROUNDING_WORKBOOK, ROUNDING_WORKBOOK_PATH, &rows, &sheet);
+    assert_rounding_workbook_generated(CASE);
+    rounding_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_2__large_integers
+
+/// The cells the large-integer rows read: numbers around 2^53, 2^52 and 1E15 with a half, 2^60,
+/// 2^63, 2^64 and the largest binary64 of both signs. Each but A12 (2^53-2, which has 15
+/// significant digits) needs more than 15 significant digits, so it cannot be typed and is read
+/// as its binary64 value; a row whose value would differ under the 15-digit reading (each such
+/// cell rounded to 15 significant digits first) is an unmeasured choice that names that reading.
+fn large_integers_sheet() -> TestSheet {
+    TestSheet::new(&[
+        ("A1", "2^53", CalcValue::number(9_007_199_254_740_992.0)),
+        ("A2", "2^53-1", CalcValue::number(9_007_199_254_740_991.0)),
+        ("A3", "2^53+2", CalcValue::number(9_007_199_254_740_994.0)),
+        ("A4", "2^52-0.5", CalcValue::number(4_503_599_627_370_495.5)),
+        (
+            "A5",
+            "-(2^52-0.5)",
+            CalcValue::number(-4_503_599_627_370_495.5),
+        ),
+        ("A6", "1E15+0.5", CalcValue::number(1_000_000_000_000_000.5)),
+        ("A7", "the largest binary64", CalcValue::number(f64::MAX)),
+        (
+            "A8",
+            "minus the largest binary64",
+            CalcValue::number(f64::MIN),
+        ),
+        ("A9", "2^63", CalcValue::number(9_223_372_036_854_775_808.0)),
+        (
+            "A10",
+            "2^60",
+            CalcValue::number(1_152_921_504_606_846_976.0),
+        ),
+        (
+            "A11",
+            "2^64",
+            CalcValue::number(18_446_744_073_709_551_616.0),
+        ),
+        ("A12", "2^53-2", CalcValue::number(9_007_199_254_740_990.0)),
+    ])
+}
+
+/// The rows of cfunc_m3_2__large_integers, run through calc_func::invoke on `s`, in the order the
+/// rounding oracle workbook's sheet `large_integers` holds their formulas.
+fn large_integers_rows(s: &mut TestSheet) -> Rows {
+    const CASE: &str = "cfunc_m3_2__large_integers";
+    const DOWN: &str = "INT rounds down to the nearest integer; an integer is unchanged";
+    const TRUNCATED: &str = "TRUNC removes the fractional part; an integer is unchanged";
+    const OVERFLOW: &str =
+        "the exact result lies beyond binary64's range: #NUM!, the number rule's overflow";
+    const AWAY: &str =
+        "rounded up, away from zero, to an integer of that parity; one of that parity is unchanged";
+    const INTEGER_PORTION: &str = "QUOTIENT is the integer portion of the division";
+    let mut rows = Rows::new(CASE, "large_integers", false);
+    let r = &mut rows;
+    use WorksheetErrorCode::Num;
+    let max = f64::MAX;
+
+    // INT and TRUNC: a cast through a 64-bit integer would saturate from 2^63 on.
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A4")],
+        N(4_503_599_627_370_495.0),
+        Choice(
+            "A4 is read as its binary64 4503599627370495.5 and rounded down; the 15-digit reading 4503599627370500 gives 4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A5")],
+        N(-4_503_599_627_370_496.0),
+        Choice(
+            "A5 is read as its binary64 -4503599627370495.5 and rounded down; the 15-digit reading -4503599627370500 gives -4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A1")],
+        N(9_007_199_254_740_992.0),
+        Choice(
+            "A1 is read as its binary64 2^53, an integer; the 15-digit reading 9007199254740990 gives 9007199254740990"
+        )
+    );
+    rnd!(r, s, "INT", [cell(s, "A6")], N(1e15), Documented(DOWN));
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A9")],
+        N(9_223_372_036_854_775_808.0),
+        Choice(
+            "A9 is read as its binary64 2^63, an integer; the 15-digit reading 9223372036854780000 gives its nearest binary64 9223372036854779904"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A11")],
+        N(18_446_744_073_709_551_616.0),
+        Choice(
+            "A11 is read as its binary64 2^64, an integer; the 15-digit reading 18446744073709600000 gives its nearest binary64 18446744073709600768"
+        )
+    );
+    rnd!(r, s, "INT", [num("1E20")], N(1e20), Documented(DOWN));
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A7")],
+        N(max),
+        Choice(
+            "A7 is read as the largest binary64, an integer; the 15-digit reading 1.79769313486232E308 lies beyond binary64's range and gives #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "INT",
+        [cell(s, "A8")],
+        N(-max),
+        Choice(
+            "A8 is read as minus the largest binary64, an integer; the 15-digit reading -1.79769313486232E308 lies beyond binary64's range and gives #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [cell(s, "A5")],
+        N(-4_503_599_627_370_495.0),
+        Choice(
+            "A5 is read as its binary64 -4503599627370495.5, whose fractional part is removed; the 15-digit reading gives -4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [cell(s, "A6")],
+        N(1e15),
+        Documented(TRUNCATED)
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [cell(s, "A9")],
+        N(9_223_372_036_854_775_808.0),
+        Choice(
+            "A9 is read as its binary64 2^63, an integer; the 15-digit reading gives 9223372036854779904"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [cell(s, "A8")],
+        N(-max),
+        Choice(
+            "A8 is read as minus the largest binary64, an integer; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [num("9.99999999999999E307"), num("-307")],
+        N(9e307),
+        Choice(
+            "a negative num_digits truncates to the left of the decimal point, as the ROUNDDOWN page states for ROUNDDOWN; the TRUNC page is silent on a negative num_digits. To -307 the digit of 10^307 is kept"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "TRUNC",
+        [cell(s, "A7"), num("-308")],
+        N(1e308),
+        Choice(
+            "a negative num_digits truncates to the left of the decimal point, as the ROUNDDOWN page states for ROUNDDOWN; the TRUNC page is silent on a negative num_digits. To -308 the digit of 10^308 of 1.797...E308 is kept, under either reading of A7"
+        )
+    );
+
+    // ROUND, ROUNDUP and ROUNDDOWN at the boundaries.
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A4"), num("0")],
+        N(4_503_599_627_370_496.0),
+        Choice(
+            "A4 is read as its binary64 4503599627370495.5, a half rounded away from zero (no ROUND page example shows a half at 0 places); the 15-digit reading 4503599627370500 gives 4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A5"), num("0")],
+        N(-4_503_599_627_370_496.0),
+        Choice(
+            "A5 is read as its binary64 -4503599627370495.5, a half rounded away from zero (no ROUND page example shows a half at 0 places); the 15-digit reading gives -4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A6"), num("0")],
+        N(1_000_000_000_000_001.0),
+        Choice(
+            "A6 is read as its binary64 1000000000000000.5, a half rounded away from zero (no ROUND page example shows a half at 0 places); the 15-digit reading 1E15 gives 1E15"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A1"), num("0")],
+        N(9_007_199_254_740_992.0),
+        Choice(
+            "A1 is read as its binary64 2^53, an integer, unchanged; the 15-digit reading gives 9007199254740990"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A3"), num("-1")],
+        N(9_007_199_254_740_990.0),
+        Documented(LEFT_OF_POINT)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("999999999999999"), num("-1")],
+        N(1e15),
+        Documented(LEFT_OF_POINT)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A9"), num("-3")],
+        N(9_223_372_036_854_775_808.0),
+        Choice(
+            "A9 is read as its binary64 2^63, which rounds exactly to 9223372036854776000 and converts back to 2^63; the 15-digit reading 9223372036854780000 gives 9223372036854779904"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A7"), num("0")],
+        N(max),
+        Choice(
+            "A7 is read as the largest binary64, an integer, unchanged; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("9.99999999999999E307"), num("-307")],
+        N(1e308),
+        Documented(LEFT_OF_POINT)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [cell(s, "A7"), num("-308")],
+        E(Num),
+        Choice(OVERFLOW)
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDDOWN",
+        [cell(s, "A7"), num("-308")],
+        N(1e308),
+        Documented("ROUNDDOWN rounds toward zero, here to 1E308")
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1.5"), num("1E300")],
+        N(1.5),
+        Choice(
+            "a num_digits of 1E300 passes through no integer type: no digit lies that far right"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ROUND",
+        [num("1.5"), num("-1E300")],
+        N(0.0),
+        Choice("a num_digits of -1E300: the nearest multiple of that power of ten is 0")
+    );
+    rnd!(
+        r,
+        s,
+        "ROUNDUP",
+        [num("1.5"), num("-1E300")],
+        E(Num),
+        Choice(OVERFLOW)
+    );
+
+    // MOD: the remainder is exact for every quotient. Excel's limit on the quotient is
+    // undocumented, so every row here is an unmeasured choice; a row with a large quotient names
+    // the no-limit choice.
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [cell(s, "A1"), num("3")],
+        N(2.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: A1 is read as its binary64 2^53 = 3*3002399751580330 + 2 exactly, as n - d*INT(n/d) in binary64 steps also gives; the 15-digit reading 9007199254740990 gives 0"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [cell(s, "A3"), num("3")],
+        N(1.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: A3 is read as its binary64 2^53+2 = 3*3002399751580331 + 1 exactly; n - d*INT(n/d) in binary64 steps gives 2, and the 15-digit reading 9007199254740990 gives 0"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("999999999999999"), num("2")],
+        N(1.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: the quotient 499999999999999.5 leaves 1, the remainder with the divisor's sign"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("1E15"), num("7")],
+        N(6.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: 1E15 = 7*142857142857142 + 6, the remainder with the divisor's sign"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("-1E15"), num("7")],
+        N(1.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: -1E15 = 7*(-142857142857143) + 1, the remainder with the divisor's sign"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [cell(s, "A10"), num("1024")],
+        N(0.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: A10 is read as its binary64 2^60, a multiple of 1024; the 15-digit reading 1152921504606850000 gives 976"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [cell(s, "A10"), num("3")],
+        N(1.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: A10 is read as its binary64 2^60 = 3*384307168202282325 + 1 exactly (the 15-digit reading also leaves 1); n - d*INT(n/d) in binary64 steps gives 0"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("1E300"), num("7")],
+        N(1.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: 1E300 is read as the decimal it shows, 10^300, whose remainder by 7 is exactly 1"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("1E23"), num("1E8")],
+        N(0.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: 1E23 is read as the decimal it shows, 10^23, a multiple of 10^8, so 0; read as its binary64 99999999999999991611392 it leaves 91611392"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [cell(s, "A7"), num("3")],
+        N(2.0),
+        Choice(
+            "no limit on the quotient, whose limit in Excel is undocumented: the remainder of the largest binary64 by 3 is exactly 2, under either reading of A7"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [cell(s, "A7"), cell(s, "A8")],
+        N(0.0),
+        Choice(NO_NEGATIVE_ZERO)
+    );
+    rnd!(
+        r,
+        s,
+        "MOD",
+        [num("-5"), num("1E308")],
+        N(1e308),
+        Choice("1E308 - 5, the remainder with the divisor's sign, rounds once to 1E308")
+    );
+
+    // QUOTIENT.
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [cell(s, "A1"), num("1")],
+        N(9_007_199_254_740_992.0),
+        Choice(
+            "A1 is read as its binary64 2^53, an integer; the 15-digit reading gives 9007199254740990"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [cell(s, "A3"), num("2")],
+        N(4_503_599_627_370_497.0),
+        Choice(
+            "A3 is read as its binary64 2^53+2, whose half 4503599627370497 is exact; the 15-digit reading 9007199254740990 gives 4503599627370495"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("1E16"), num("3")],
+        N(3_333_333_333_333_333.0),
+        Documented(INTEGER_PORTION)
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("-1E16"), num("3")],
+        N(-3_333_333_333_333_333.0),
+        Documented(INTEGER_PORTION)
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("1E20"), num("3")],
+        N(33_333_333_333_333_333_333.0),
+        Choice("the integer part 33333333333333333333 rounds once to a binary64")
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [cell(s, "A7"), num("0.5")],
+        E(Num),
+        Choice(OVERFLOW)
+    );
+    rnd!(
+        r,
+        s,
+        "QUOTIENT",
+        [num("1E300"), num("1E-10")],
+        E(Num),
+        Choice(OVERFLOW)
+    );
+
+    // EVEN and ODD: no parity test through a 64-bit integer.
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [cell(s, "A2")],
+        N(9_007_199_254_740_992.0),
+        Choice(
+            "A2 is read as its binary64 2^53-1, odd, and rounded up to 2^53; the 15-digit reading 9007199254740990 is even and unchanged"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [cell(s, "A5")],
+        N(-4_503_599_627_370_496.0),
+        Choice(
+            "A5 is read as its binary64 -4503599627370495.5, rounded away from zero to the even -4503599627370496; the 15-digit reading -4503599627370500 is even and unchanged"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [cell(s, "A1")],
+        N(9_007_199_254_740_992.0),
+        Choice(
+            "A1 is read as its binary64 2^53, even and unchanged; the 15-digit reading gives 9007199254740990"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [num("999999999999999")],
+        N(1e15),
+        Documented(AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [cell(s, "A9")],
+        N(9_223_372_036_854_775_808.0),
+        Choice(
+            "A9 is read as its binary64 2^63, even and unchanged; the 15-digit reading gives 9223372036854779904"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [cell(s, "A7")],
+        N(max),
+        Choice(
+            "A7 is read as the largest binary64, an even integer, unchanged; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "EVEN",
+        [cell(s, "A8")],
+        N(-max),
+        Choice(
+            "A8 is read as minus the largest binary64, an even integer, unchanged; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [cell(s, "A2")],
+        N(9_007_199_254_740_991.0),
+        Documented(AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [cell(s, "A12")],
+        N(9_007_199_254_740_991.0),
+        Documented(AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [cell(s, "A4")],
+        N(4_503_599_627_370_497.0),
+        Choice(
+            "A4 is read as its binary64 4503599627370495.5, rounded up to 4503599627370496 and on to the odd 4503599627370497; the 15-digit reading 4503599627370500 gives 4503599627370501"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [num("1E15")],
+        N(1_000_000_000_000_001.0),
+        Documented(AWAY)
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [cell(s, "A1")],
+        N(9_007_199_254_740_992.0),
+        Choice(
+            "the odd integer 2^53+1 is no binary64; the addition rounds it, ties to even, to 2^53, an even result, departing from the page's nearest odd integer; the 15-digit reading 9007199254740990 gives 9007199254740991"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [cell(s, "A3")],
+        N(9_007_199_254_740_996.0),
+        Choice(
+            "the odd integer 2^53+3 rounds, ties to even, to 2^53+4, an even result, departing from the page's nearest odd integer; the 15-digit reading 9007199254740990 gives 9007199254740991"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [cell(s, "A9")],
+        N(9_223_372_036_854_775_808.0),
+        Choice(
+            "the odd integer 2^63+1 rounds to 2^63, an even result, departing from the page's nearest odd integer; the 15-digit reading gives 9223372036854779904"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ODD",
+        [cell(s, "A7")],
+        N(max),
+        Choice(
+            "the odd integer above the largest binary64 rounds back to it, an even result, departing from the page's nearest odd integer; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        )
+    );
+
+    // CEILING, FLOOR and MROUND.
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [cell(s, "A4"), num("1")],
+        N(4_503_599_627_370_496.0),
+        Choice(
+            "the binary64 order: A4's binary64 4503599627370495.5 divided by 1 is itself, whose integer above is 4503599627370496, times 1; the 15-digit reading 4503599627370500 would give 4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [cell(s, "A5"), num("1")],
+        N(-4_503_599_627_370_496.0),
+        Choice(
+            "the binary64 order: A5's binary64 -4503599627370495.5 divided by 1 is itself, whose integer below, away from zero, is -4503599627370496, times 1; the 15-digit reading would give -4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [cell(s, "A7"), num("1")],
+        N(max),
+        Choice(
+            "the binary64 order: the largest binary64 divided by 1 is itself, an integer, and times 1 is A7 again, so an exact multiple is not rounded (documented); the 15-digit reading would lie beyond binary64's range and give #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [cell(s, "A10"), num("1024")],
+        N(1_152_921_504_606_846_976.0),
+        Choice(
+            "the binary64 order: A10's binary64 2^60 divided by 1024 is 2^50 exactly, an integer, and 1024*2^50 is 2^60 again, so an exact multiple is not rounded (documented); the 15-digit reading 1152921504606850000 (binary64 1152921504606850048) would give 1152921504606850048"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [cell(s, "A7"), num("1E308")],
+        E(Num),
+        Choice(OVERFLOW)
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [cell(s, "A8"), num("1E308")],
+        E(Num),
+        Choice(OVERFLOW)
+    );
+    rnd!(
+        r,
+        s,
+        "CEILING",
+        [num("1E-300"), num("1E300")],
+        N(0.0),
+        Choice(
+            "the binary64 order: the quotient 1E-600 lies below binary64's range and rounds to 0, whose integer above is 0, so the result is 0; the page's next multiple of 1E300 above 1E-300 is 1E300"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "FLOOR",
+        [num("-1E-300"), num("1E300")],
+        N(0.0),
+        Choice(
+            "the binary64 order: the quotient -1E-600 lies below binary64's range and rounds to -0, whose integer below is -0, so the result is a zero, published as +0; the page's multiple of 1E300 below -1E-300, away from zero, is -1E300"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [cell(s, "A6"), num("1")],
+        N(1_000_000_000_000_001.0),
+        Choice(
+            "A6 is read as its binary64 1000000000000000.5, which is also the binary64 quotient: a half, rounded away from zero; the 15-digit reading 1E15 gives 1E15"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [cell(s, "A1"), num("3")],
+        N(9_007_199_254_740_992.0),
+        Choice(
+            "the binary64 quotient of 2^53 by 3 is 3002399751580330.5, rounded away from zero to 3002399751580331 multiples, 9007199254740993, which rounds, ties to even, to 2^53; the 15-digit reading 9007199254740990 gives 9007199254740990"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "MROUND",
+        [cell(s, "A7"), num("0.5")],
+        E(Num),
+        Choice(
+            "the binary64 quotient of the largest binary64 by 0.5 overflows: #NUM!, as under the 15-digit reading of A7; the exact nearest multiple is A7 itself"
+        )
+    );
+
+    // ABS and SIGN.
+    rnd!(
+        r,
+        s,
+        "ABS",
+        [cell(s, "A8")],
+        N(max),
+        Choice(
+            "A8 is read as minus the largest binary64; the 15-digit reading lies beyond binary64's range and gives #NUM!"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "ABS",
+        [cell(s, "A5")],
+        N(4_503_599_627_370_495.5),
+        Choice(
+            "A5 is read as its binary64 -4503599627370495.5; the 15-digit reading gives 4503599627370500"
+        )
+    );
+    rnd!(
+        r,
+        s,
+        "SIGN",
+        [cell(s, "A8")],
+        N(-1.0),
+        Documented("SIGN returns -1 if the number is negative")
+    );
+    rows
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_2__large_integers() {
+    const CASE: &str = "cfunc_m3_2__large_integers";
+    let mut sheet = large_integers_sheet();
+    note!("ACCEPT-NOTE: {CASE}: the sheet holds {}", sheet.described());
+    let rows = large_integers_rows(&mut sheet);
+    assert_workbook_sheet(ROUNDING_WORKBOOK, ROUNDING_WORKBOOK_PATH, &rows, &sheet);
+    assert_rounding_workbook_generated(CASE);
+    rounding_rows_note(&rows);
 }

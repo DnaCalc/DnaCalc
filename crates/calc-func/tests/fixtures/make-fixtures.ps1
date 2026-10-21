@@ -2,14 +2,16 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
-# writes <directory>/cfunc_m1_2/oracle.xlsx and <directory>/cfunc_m3_4/oracle.xlsx. Run with this
-# directory as -OutDir it rewrites the committed fixtures; the acceptance cases
-# cfunc_m1_2__mixed_operands and cfunc_m3_4__argument_classes run it into a fresh directory on
+# writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx and
+# <directory>/cfunc_m3_4/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
+# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
+# cfunc_m3_2__large_integers and cfunc_m3_4__argument_classes run it into a fresh directory on
 # Windows and compare its output with the committed workbooks byte for byte.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
-# (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`), and
-# cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads. Each has one
+# (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`),
+# cfunc_m3_2/oracle.xlsx the one an Excel capture of cfunc-m3.2's rounding and integer rows reads,
+# and cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads. Each has one
 # sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
 # holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
 # its rows. Each case checks that its sheet holds exactly those formulas and cells. No formula cell
@@ -355,4 +357,93 @@ $sparseFormulas = @(
 Write-Workbook (Join-Path $OutDir 'cfunc_m3_4/oracle.xlsx') @(
     @('argument_classes', (New-OracleSheet $classInputs $classFormulas)),
     @('sparse_blanks', (New-OracleSheet $sparseInputs $sparseFormulas))
+)
+
+# --- cfunc_m3_2/oracle.xlsx ---------------------------------------------------------------------
+
+# Sheet rounding_boundaries: the cells of cfunc_m3_2__rounding_boundaries' test sheet (A1, A2, A4,
+# A5 and A6 hold numbers whose shortest decimal needs more than 15 significant digits, so they
+# cannot be typed; A3 holds the INT page's example cell; A6 is a normal number whose remainder by
+# 5.70820472448858E-308 is too small for binary64), and its oracle rows' formulas in its order.
+$boundaryInputs = @(
+    (New-Number 'A1' '2.6749999999999994'),
+    (New-Number 'A2' '0.30000000000000004'),
+    (New-Number 'A3' '19.5'),
+    (New-Number 'A4' '1.0049999999999997'),
+    (New-Number 'A5' '2.9999999999999996'),
+    (New-Number 'A6' '1.141640944897716E-307')
+)
+$boundaryFormulas = @(
+    'ROUND(2.15,1)', 'ROUND(2.149,1)', 'ROUND(-1.475,2)', 'ROUND(21.5,-1)', 'ROUND(626.3,-3)',
+    'ROUND(1.98,-1)', 'ROUND(-50.55,-2)', 'ROUND(2.5,0)', 'ROUND(-2.5,0)', 'ROUND(0.5,0)',
+    'ROUND(-0.5,0)', 'ROUND(-0.4,0)', 'ROUND(-0.0001,2)', 'ROUND(25,-1)', 'ROUND(-15,-1)',
+    'ROUND(1250,-2)', 'ROUND(1234,-2)', 'ROUND(0.5,-1)', 'ROUND(2.675,2)', 'ROUND(-2.675,2)',
+    'ROUND(1.005,2)', 'ROUND(A1,2)', 'ROUND(A4,2)', 'ROUNDUP(A2,1)', 'ROUNDDOWN(0.57,2)',
+    'TRUNC(0.57,2)', 'TRUNC(A5)', 'INT(A5)', 'ROUNDUP(3.2,0)', 'ROUNDUP(76.9,0)',
+    'ROUNDUP(3.14159,3)', 'ROUNDUP(-3.14159,1)', 'ROUNDUP(31415.92654,-2)', 'ROUNDUP(-0.1,0)',
+    'ROUNDDOWN(3.2,0)', 'ROUNDDOWN(76.9,0)', 'ROUNDDOWN(3.14159,3)', 'ROUNDDOWN(-3.14159,1)',
+    'ROUNDDOWN(31415.92654,-2)', 'ROUNDDOWN(-0.5,0)', 'ROUND(1.2345,2.9)', 'ROUND(1234.5,-1.9)',
+    'ROUND(1.5,400)', 'ROUND(1.5,-400)', 'ROUNDUP(1.5,-400)', 'TRUNC(8.9)', 'TRUNC(-8.9)',
+    'TRUNC(0.45)', 'TRUNC(-4.3)', 'INT(-4.3)', 'INT(8.9)', 'INT(-8.9)', 'INT(A3)', 'TRUNC(-0.5)',
+    'TRUNC(8.9,)', 'MROUND(10,3)', 'MROUND(-10,-3)', 'MROUND(1.3,0.2)', 'MROUND(5,-2)',
+    'MROUND(-5,2)', 'MROUND(7.5,5)', 'MROUND(6.05,0.1)', 'MROUND(7.05,0.1)',
+    'MROUND(-6.05,-0.1)', 'MROUND(5,0)',
+    'CEILING(2.5,1)', 'CEILING(-2.5,-2)', 'CEILING(-2.5,2)', 'CEILING(1.5,0.1)',
+    'CEILING(0.234,0.01)', 'CEILING(4.3,2)', 'CEILING(-4.3,2)', 'CEILING(-4.3,-2)',
+    'CEILING(4.3,-2)', 'CEILING(5,0)', 'CEILING(0.3,0.1)', 'CEILING(-0.5,1)', 'FLOOR(3.7,2)',
+    'FLOOR(-2.5,-2)', 'FLOOR(2.5,-2)', 'FLOOR(1.58,0.1)', 'FLOOR(0.234,0.01)', 'FLOOR(4.3,2)',
+    'FLOOR(-4.3,2)', 'FLOOR(-4.3,-2)', 'FLOOR(4.3,-2)', 'FLOOR(-2.5,2)', 'FLOOR(5,0)',
+    'FLOOR(0.15,0.05)', 'FLOOR(0.3,0.1)', 'FLOOR(A2,0.1)', 'MOD(3,2)', 'MOD(-3,2)', 'MOD(3,-2)',
+    'MOD(-3,-2)', 'MOD(3,0)', 'MOD(-7,2.5)', 'MOD(0.3,0.1)', 'MOD(1,0.1)', 'QUOTIENT(5,2)',
+    'QUOTIENT(4.5,3.1)', 'QUOTIENT(-10,3)', 'QUOTIENT("a",2)', 'QUOTIENT(1,0)',
+    'QUOTIENT(0.3,0.1)', 'QUOTIENT(-1,3)', 'EVEN(1.5)', 'EVEN(3)', 'EVEN(2)', 'EVEN(-1)',
+    'EVEN(-0.5)', 'EVEN(-1.5)', 'EVEN(0)', 'EVEN("a")', 'ODD(1.5)', 'ODD(3)', 'ODD(2)', 'ODD(-1)',
+    'ODD(-2)', 'ODD(-1.5)', 'ODD(0)', 'ODD("a")', 'ABS(2)', 'ABS(-2)', 'ABS(-2.5)', 'ABS(" -2 ")',
+    'ABS("asd")', 'ABS(TRUE)', 'ABS(#DIV/0!)', 'SIGN(10)', 'SIGN(-0.00001)', 'SIGN(0)',
+    'ROUND(#N/A,#DIV/0!)', 'MOD(#N/A,0)', 'FLOOR(1,#REF!)', 'CEILING("2.5",TRUE)',
+    'CEILING("a",1)', 'ABS({-1,2})', 'ROUND(1.5,{0,1})', 'ROUNDDOWN(2.5E-308,308)',
+    'MOD(A6,5.70820472448858E-308)'
+)
+
+# Sheet large_integers: the cells of cfunc_m3_2__large_integers' test sheet (2^53 and its
+# neighbours, 2^52-0.5 of both signs, 1E15+0.5, the largest binary64 of both signs, 2^63, 2^60,
+# 2^64 and 2^53-2, each written as the shortest decimal that reads back as it, of 15 to 17
+# significant digits), and its oracle rows' formulas in its order.
+$largeInputs = @(
+    (New-Number 'A1' '9007199254740992'),
+    (New-Number 'A2' '9007199254740991'),
+    (New-Number 'A3' '9007199254740994'),
+    (New-Number 'A4' '4503599627370495.5'),
+    (New-Number 'A5' '-4503599627370495.5'),
+    (New-Number 'A6' '1000000000000000.5'),
+    (New-Number 'A7' '1.7976931348623157E+308'),
+    (New-Number 'A8' '-1.7976931348623157E+308'),
+    (New-Number 'A9' '9.223372036854776E+18'),
+    (New-Number 'A10' '1.152921504606847E+18'),
+    (New-Number 'A11' '1.8446744073709552E+19'),
+    (New-Number 'A12' '9007199254740990')
+)
+$largeFormulas = @(
+    'INT(A4)', 'INT(A5)', 'INT(A1)', 'INT(A6)', 'INT(A9)', 'INT(A11)', 'INT(1E20)', 'INT(A7)',
+    'INT(A8)', 'TRUNC(A5)', 'TRUNC(A6)', 'TRUNC(A9)', 'TRUNC(A8)',
+    'TRUNC(9.99999999999999E307,-307)', 'TRUNC(A7,-308)', 'ROUND(A4,0)', 'ROUND(A5,0)',
+    'ROUND(A6,0)', 'ROUND(A1,0)', 'ROUND(A3,-1)', 'ROUND(999999999999999,-1)', 'ROUND(A9,-3)',
+    'ROUND(A7,0)', 'ROUND(9.99999999999999E307,-307)', 'ROUND(A7,-308)', 'ROUNDDOWN(A7,-308)',
+    'ROUND(1.5,1E300)', 'ROUND(1.5,-1E300)', 'ROUNDUP(1.5,-1E300)', 'MOD(A1,3)', 'MOD(A3,3)',
+    'MOD(999999999999999,2)', 'MOD(1E15,7)', 'MOD(-1E15,7)', 'MOD(A10,1024)', 'MOD(A10,3)',
+    'MOD(1E300,7)', 'MOD(1E23,1E8)', 'MOD(A7,3)', 'MOD(A7,A8)', 'MOD(-5,1E308)', 'QUOTIENT(A1,1)',
+    'QUOTIENT(A3,2)', 'QUOTIENT(1E16,3)', 'QUOTIENT(-1E16,3)', 'QUOTIENT(1E20,3)',
+    'QUOTIENT(A7,0.5)', 'QUOTIENT(1E300,1E-10)', 'EVEN(A2)', 'EVEN(A5)', 'EVEN(A1)',
+    'EVEN(999999999999999)',
+    'EVEN(A9)', 'EVEN(A7)', 'EVEN(A8)', 'ODD(A2)', 'ODD(A12)', 'ODD(A4)', 'ODD(1E15)', 'ODD(A1)',
+    'ODD(A3)', 'ODD(A9)', 'ODD(A7)', 'CEILING(A4,1)', 'FLOOR(A5,1)', 'FLOOR(A7,1)',
+    'FLOOR(A10,1024)', 'CEILING(A7,1E308)', 'FLOOR(A8,1E308)', 'CEILING(1E-300,1E300)',
+    'FLOOR(-1E-300,1E300)', 'MROUND(A6,1)', 'MROUND(A1,3)', 'MROUND(A7,0.5)',
+    'ABS(A8)', 'ABS(A5)',
+    'SIGN(A8)'
+)
+
+Write-Workbook (Join-Path $OutDir 'cfunc_m3_2/oracle.xlsx') @(
+    @('rounding_boundaries', (New-OracleSheet $boundaryInputs $boundaryFormulas)),
+    @('large_integers', (New-OracleSheet $largeInputs $largeFormulas))
 )

@@ -19,16 +19,18 @@ mod aggregate;
 mod arithmetic;
 mod comparison;
 mod logical;
+mod rounding;
 mod text;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 5] = [
+const FAMILIES: [&Family; 6] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
     &aggregate::FAMILY,
     &logical::FAMILY,
+    &rounding::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);

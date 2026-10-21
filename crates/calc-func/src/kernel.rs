@@ -5,6 +5,7 @@
 use crate::call::{EvalServices, FunctionFault};
 use crate::catalogue::FunctionId;
 use crate::coerce::{self, Numeric, Stop};
+use crate::decimal::ExactDecimal;
 use crate::value::{CalcValue, CoreValue, NumericMode, WorksheetErrorCode};
 
 /// Why a kernel stopped before its value.
@@ -82,9 +83,10 @@ impl<'m> Site<'m> {
         }
     }
 
-    /// Refuses the first array operand of an operator: an operator applied to an array lifts over
-    /// its elements, which is not modelled. This comes before any operand's error, since a lifted
-    /// result is an array even when an operand is an error.
+    /// Refuses the first array operand of an operator, or the first array argument of a function
+    /// whose parameters take single values: either applied to an array lifts over its elements,
+    /// which is not modelled. This comes before any operand's error, since a lifted result is an
+    /// array even when an operand is an error.
     pub(crate) fn scalar_operands(&self, operands: &[CalcValue]) -> Step<()> {
         match operands
             .iter()
@@ -119,6 +121,23 @@ impl<'m> Site<'m> {
     pub(crate) fn multiply(&self, a: f64, b: f64) -> Step<f64> {
         self.rounding()?;
         Ok(a * b)
+    }
+
+    /// The binary64 nearest a decimal that a kernel computed exactly. The conversion rounds once;
+    /// a decimal beyond binary64's range converts to an infinity, which the number rule publishes
+    /// as #NUM!. A decimal that is not zero but lies at or below half the smallest subnormal
+    /// would round to a zero: it is refused, as a subnormal result is, because Excel's handling of
+    /// a result below the normal range is not modelled.
+    pub(crate) fn nearest(&self, decimal: &ExactDecimal) -> Step<f64> {
+        self.rounding()?;
+        let nearest: f64 = decimal
+            .text()
+            .parse()
+            .expect("an exact decimal reads as a binary64");
+        if nearest == 0.0 && !decimal.coefficient.is_zero() {
+            return Err(self.not_modelled(None));
+        }
+        Ok(nearest)
     }
 
     /// `a / b`; #DIV/0! when `b` is 0, which needs no rounding.

@@ -17,6 +17,7 @@ pub use calc_value as value;
 mod call;
 mod catalogue;
 mod coerce;
+mod decimal;
 mod kernel;
 
 pub use call::{
