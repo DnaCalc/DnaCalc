@@ -1,4 +1,23 @@
 {
   "package": "calc-host",
-  "beads": []
+  "beads": [
+    {
+      "id": "chost-m1.1",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-host", "--test", "acceptance", "chost_m1_1", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "chost-m1.1", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "chost-m1.1", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "chost-m1.1", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "chost_m1_1__atomic_prepare_failure",
+        "chost_m1_1__recalc_failure_keeps_edit"
+      ],
+      "platforms": {
+        "chost_m1_1__atomic_prepare_failure": ["windows", "linux", "wasm"],
+        "chost_m1_1__recalc_failure_keeps_edit": ["windows", "linux", "wasm"]
+      }
+    }
+  ]
 }

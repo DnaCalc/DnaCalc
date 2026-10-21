@@ -186,6 +186,14 @@ dependencies = [
 [[package]]
 name = "calc-host"
 version = "0.1.0"
+dependencies = [
+ "calc-doc",
+ "calc-doc-model",
+ "calc-engine",
+ "calc-fml",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
 
 [[package]]
 name = "calc-oracle-excel"

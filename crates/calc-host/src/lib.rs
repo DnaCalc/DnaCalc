@@ -1,1 +1,62 @@
 //! The package for CalcHost: the authoritative authored workbook state, transactions, commands and the skin contract.
+//!
+//! Every caller, a skin, a headless tool or future automation, changes and reads a workbook
+//! through the same four calls on one [`HostState`]:
+//!
+//! - [`HostState::open`] opens a package ([`calc_doc::open`]), loads its workbook
+//!   ([`calc_doc::load`]) and builds the [`calc_engine::EngineState`] of the loaded revision, with
+//!   the results the file cached for its formulas published as file caches
+//!   ([`calc_engine::EngineState::with_file_caches`]). The host is the one owner that changes the
+//!   authored revision or the engine state.
+//! - [`dispatch`] translates a [`HostCommand`] (cell edits on existing sheets) into one
+//!   [`calc_doc_model::OpBatch`] based on the revision the command names, refusing a command with
+//!   no edit and a command based on another revision than the current one. It prepares the document's share of the batch
+//!   ([`calc_doc::prepare_edit`]) and then the engine's ([`calc_engine::prepare_edit`], which
+//!   reserves the IDs of the formula nodes it adds) against that one base, admits the reserved
+//!   nodes against the host's formula-cell budget, reserves the receipt it will fill, and only
+//!   then commits both: [`calc_engine::commit_edit`], which returns no error, and the adoption of
+//!   the prepared revision. A refusal at any step before the commit drops both preparations, so
+//!   the authored revision, the engine state and every cell stay as they were. A commit publishes
+//!   one authored revision and its dirty set ([`CommandReceipt`]).
+//! - [`step`] drives the engine's recalculation ([`calc_engine::begin_recalc`],
+//!   [`calc_engine::step`], [`calc_engine::finish`]) a budget at a time. A recalculation is not
+//!   part of an edit's transaction: when it fails or is refused, the committed edit stays, nothing
+//!   is published, and the calculated results and refusals it would have replaced are projected
+//!   as stale; a file cache stays a file cache while no edit since open has changed an input or
+//!   a formula.
+//! - [`project`] reads requested cells: each one's authored input and its value with the value's
+//!   provenance ([`ProjectedValue`]): an authored literal, a file cache (never counted as
+//!   calculated, and shown only while no edit since the workbook was opened has changed an input
+//!   or a formula), a value the engine calculated that still stands, a typed refusal, or a stale
+//!   value.
+//!
+//! The types these calls take and return are re-exported here, with calc-value as [`value`];
+//! calc-doc, calc-doc-model and calc-engine themselves are not, so calc-host offers its callers
+//! no way around these calls to change the authored revision or the engine state.
+
+mod command;
+mod project;
+mod recalc;
+mod state;
+
+pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
+pub use project::{
+    ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,
+    StaleValue, project,
+};
+pub use recalc::{HostProgress, RecalcFailed, step};
+pub use state::{HostOptions, HostState, OpenFailure};
+
+pub use calc_doc::{
+    CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
+};
+pub use calc_doc_model::value;
+pub use calc_doc_model::{
+    AuthoredRevision, CachedValue, CellInput, CellText, FileCached, FiniteNumber, FormulaText,
+    SheetEntry, SourcePart,
+};
+pub use calc_engine::{
+    CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,
+    RecalcFailure, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
+};
+pub use calc_fml::reference::CellRun;

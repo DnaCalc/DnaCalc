@@ -1,4 +1,30 @@
 {
   "package": "calc-host",
-  "seams": []
+  "seams": [
+    {"item": "command::CellEdit::Set", "callers": [{"file": "crates/calc-host/src/command.rs", "fn": "CellEdit::operation"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "command::CellEdit::Clear", "callers": [{"file": "crates/calc-host/src/command.rs", "fn": "CellEdit::operation"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "command::CommandError::NoEdits", "callers": [{"file": "crates/calc-host/src/command.rs", "fn": "dispatch"}, {"file": "crates/calc-host/src/command.rs", "fn": "CommandError::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "command::CommandError::StaleBase", "callers": [{"file": "crates/calc-host/src/command.rs", "fn": "dispatch"}, {"file": "crates/calc-host/src/command.rs", "fn": "CommandError::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "command::CommandError::Document", "callers": [{"file": "crates/calc-host/src/command.rs", "fn": "dispatch"}, {"file": "crates/calc-host/src/command.rs", "fn": "CommandError::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "command::CommandError::Engine", "callers": [{"file": "crates/calc-host/src/command.rs", "fn": "dispatch"}, {"file": "crates/calc-host/src/command.rs", "fn": "CommandError::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "command::CommandError::FormulaBudget", "callers": [{"file": "crates/calc-host/src/command.rs", "fn": "dispatch"}, {"file": "crates/calc-host/src/command.rs", "fn": "CommandError::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "project::StaleCause::AwaitingRecalc", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "project"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::StaleCause::RecalcFailed", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "project"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::StaleCause::FileCacheUnverified", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "formula_value"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::ProjectedValue::Empty", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "project"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::ProjectedValue::Literal", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "project"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::ProjectedValue::FileCached", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "formula_value"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::ProjectedValue::Calculated", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "formula_value"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::ProjectedValue::NotModeled", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "formula_value"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "project::ProjectedValue::Stale", "callers": [{"file": "crates/calc-host/src/project.rs", "fn": "formula_value"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "recalc::RecalcFailed::Refused", "callers": [{"file": "crates/calc-host/src/recalc.rs", "fn": "step"}, {"file": "crates/calc-host/src/recalc.rs", "fn": "RecalcFailed::fmt"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "recalc::RecalcFailed::Failed", "callers": [{"file": "crates/calc-host/src/recalc.rs", "fn": "step"}, {"file": "crates/calc-host/src/recalc.rs", "fn": "RecalcFailed::fmt"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "recalc::HostProgress::Current", "callers": [{"file": "crates/calc-host/src/recalc.rs", "fn": "step"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "recalc::HostProgress::Calculating", "callers": [{"file": "crates/calc-host/src/recalc.rs", "fn": "step"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "recalc::HostProgress::Published", "callers": [{"file": "crates/calc-host/src/recalc.rs", "fn": "step"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "recalc::HostProgress::Failed", "callers": [{"file": "crates/calc-host/src/recalc.rs", "fn": "failed"}], "case": "chost_m1_1__recalc_failure_keeps_edit"},
+    {"item": "state::OpenFailure::Package", "callers": [{"file": "crates/calc-host/src/state.rs", "fn": "HostState::open"}, {"file": "crates/calc-host/src/state.rs", "fn": "OpenFailure::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "state::OpenFailure::Workbook", "callers": [{"file": "crates/calc-host/src/state.rs", "fn": "HostState::open"}, {"file": "crates/calc-host/src/state.rs", "fn": "OpenFailure::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"},
+    {"item": "state::OpenFailure::Caches", "callers": [{"file": "crates/calc-host/src/state.rs", "fn": "HostState::open"}, {"file": "crates/calc-host/src/state.rs", "fn": "OpenFailure::fmt"}], "case": "chost_m1_1__atomic_prepare_failure"}
+  ]
 }

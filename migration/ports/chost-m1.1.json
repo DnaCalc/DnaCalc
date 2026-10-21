@@ -1,0 +1,477 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "chost-m1.1",
+  "sources": [
+    {
+      "repository": "DnaTreeCalc",
+      "commit": "bf6dfd7f0655867cabbebfe99b3de4ea5be89803",
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "blob": "f346fc53a7b345b25b83d1ed8bbab37d866ad075",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup DnaTreeCalc/src/dnacalc-host-core/src/workbook.rs",
+        "exit": 0,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core",
+          "DnaTreeCalc run-time loads"
+        ]
+      },
+      "ported": [],
+      "used_as_reference": [
+        {
+          "symbol": "WorkbookSession (one owner of the document's live state; open from bytes keeps the source for a later save; typed refusal of bytes that are no package)",
+          "to": "crates/calc-host/src/state.rs HostState::open",
+          "difference": "The legacy session's engine context owns authoring (enter_grid_cell writes into the engine). HostState owns a calc-doc-model revision and an EngineState separately and commits a calc_doc::prepare_edit and a calc_engine::prepare_edit together (crates/calc-host/src/command.rs dispatch); the engine never authors."
+        },
+        {
+          "symbol": "XlsxSourceState (the host-owned source kept beside, never inside, the calculation state)",
+          "to": "crates/calc-host/src/state.rs HostState (its calc_doc::LoadedWorkbook, which keeps the opened package, held for a later save)",
+          "difference": "No load report, ledger or document name is kept; calc-doc's LoadedWorkbook carries the package and the loaded records."
+        }
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "WorkbookSession::save_xlsx_bytes",
+            "XlsxSourceState::name"
+          ],
+          "beads": [
+            "chost-m1.2"
+          ],
+          "beads_basis": "chost-m1.2's Do: save APIs and a headless calcctl caller"
+        },
+        {
+          "items": [
+            "WorkbookSession::snapshot",
+            "WorkbookSession::grid_projection",
+            "WorkbookSession::grid_projection_from_view",
+            "WorkbookSession::peer_grid_projections",
+            "WorkbookSession::sheet_projections"
+          ],
+          "beads": [
+            "chost-m1.2",
+            "chost-m2.1"
+          ],
+          "beads_basis": "chost-m1.2's Do: delta projections; chost-m2.1's Do: capability APIs and range subscriptions"
+        },
+        {
+          "items": [
+            "WorkbookSession::add_sheet",
+            "WorkbookSession::rename_sheet",
+            "WorkbookSession::delete_sheet",
+            "WorkbookSession::move_sheet",
+            "WorkbookSession::sheets"
+          ],
+          "beads": [
+            "chost-m4.3"
+          ],
+          "beads_basis": "chost-m4.3's Do: sheet create/copy/rename/reorder/hide/delete"
+        },
+        {
+          "items": [
+            "WorkbookSession::validation_mode",
+            "WorkbookSession::open_xlsx_bytes_with_validation",
+            "WorkbookSession::grid_view (differential mismatches)"
+          ],
+          "beads": [
+            "ceng-m7.1"
+          ],
+          "beads_basis": "ceng-m7.1's Do: the reference strategy and differential-twin harness"
+        },
+        {
+          "items": [
+            "WorkbookSession::recalc_accounting",
+            "XlsxSourceState::load_report"
+          ],
+          "beads": [
+            "ceng-m4.5"
+          ],
+          "beads_basis": "ceng-m4.5's Do: typed RecalcFacts with evaluated IDs and full-recalc reasons"
+        },
+        {
+          "items": [
+            "WorkbookSession::create (an in-memory workbook with no package)",
+            "workbook tokens (sheet_grid_node_id, parse_sheet_grid_node_id, ingested_workbook_token, seeded_workbook_token)"
+          ],
+          "beads": [],
+          "beads_basis": "no counterpart: sheets are addressed by calc-value SheetId and CellKey, with no engine address strings; a new workbook without a package is chost-m6.4's backstage new command"
+        }
+      ]
+    },
+    {
+      "repository": "DnaTreeCalc",
+      "commit": "bf6dfd7f0655867cabbebfe99b3de4ea5be89803",
+      "path": "src/dnacalc-host-core/src/command.rs",
+      "blob": "16e64da8b132c4e5dc32d981b221f121ec4ab9b5",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup DnaTreeCalc/src/dnacalc-host-core/src/command.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [],
+      "used_as_reference": [
+        {
+          "symbol": "HostCommand (a typed command surface; a refused command leaves the session untouched; errors travel as typed data)",
+          "to": "crates/calc-host/src/command.rs HostCommand, CellEdit, CommandError, dispatch",
+          "difference": "The command carries the authored revision it was prepared against and is refused when that is not the current one; it holds cell edits only, translated into one calc-doc-model OpBatch."
+        }
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "HostCommand::DispatchWorkspaceIntent",
+            "HostCommandOutcome::Dispatched"
+          ],
+          "beads": [
+            "chost-m2.1",
+            "chost-m2.2"
+          ],
+          "beads_basis": "chost-m2.1's Do: capability-organized skin intents; chost-m2.2's Do: generated command IDs and argument schemas"
+        },
+        {
+          "items": [
+            "HostCommand::OpenXlsxBytes",
+            "HostCommandOutcome::Opened"
+          ],
+          "beads": [
+            "chost-m1.2"
+          ],
+          "beads_basis": "chost-m1.2's Do: wire open through dispatch for a headless caller (this bead opens through HostState::open)"
+        },
+        {
+          "items": [
+            "HostCommand::SaveActiveXlsx",
+            "HostCommandOutcome::Saved"
+          ],
+          "beads": [
+            "chost-m1.2"
+          ],
+          "beads_basis": "chost-m1.2's Do: save"
+        },
+        {
+          "items": [
+            "ProjectionPublisher",
+            "RecordingPublisher"
+          ],
+          "beads": [
+            "chost-m1.2",
+            "chost-m3.1"
+          ],
+          "beads_basis": "chost-m1.2's Do: delta projections; chost-m3.1's Do: publication generations and subscriptions"
+        }
+      ]
+    },
+    {
+      "repository": "DnaTreeCalc",
+      "commit": "bf6dfd7f0655867cabbebfe99b3de4ea5be89803",
+      "path": "src/dnacalc-host-core/src/grid_publication.rs",
+      "blob": "452603858718c2a8e1c7d287c7865da76f18b8d7",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup DnaTreeCalc/src/dnacalc-host-core/src/grid_publication.rs",
+        "exit": 0,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "ported": [],
+      "used_as_reference": [
+        {
+          "symbol": "a projection filled only for the cells a caller asks for, each with its authored metadata and its value's provenance",
+          "to": "crates/calc-host/src/project.rs project, ProjectionRequest, ProjectedCell, ProjectedValue",
+          "difference": "Provenance is the plan 2.2 set (literal, file cache, calculated with revision, tick and numeric mode, not modelled, stale with its cause); a stale or file-cached result is never projected as calculated. No display text, editability or overlays."
+        }
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "grid_value_projection",
+            "literal_display_text",
+            "grid_authored_cell_projection",
+            "grid_editability_projection",
+            "grid_cell_ref_projection"
+          ],
+          "beads": [
+            "chost-m2.1"
+          ],
+          "beads_basis": "chost-m2.1's Do: Workbook/Formula/Viewport capability APIs"
+        },
+        {
+          "items": [
+            "merged, spill and table overlay projection (GridOverlayBundle and its descriptors)"
+          ],
+          "beads": [
+            "chost-m3.1"
+          ],
+          "beads_basis": "chost-m3.1's Do: value/spill/dependency/object deltas"
+        },
+        {
+          "items": [
+            "differential mismatch projection (GridDifferentialMismatchProjection)"
+          ],
+          "beads": [
+            "ceng-m7.1"
+          ],
+          "beads_basis": "ceng-m7.1's Do: the differential-twin harness"
+        }
+      ]
+    }
+  ],
+  "owner_search": {
+    "rule": "Each not_ported item was matched to the Do section of every bead in docs/plan/BEAD_DETAILS.md whose title starts chost- or that is ceng-m4.5 or ceng-m7.1, by the concept it names: save, projection or subscription, sheet lifecycle, intents and command IDs, publication, validation or differential lane, recalculation accounting.",
+    "found": {
+      "save": [
+        "chost-m1.2"
+      ],
+      "projection and subscriptions": [
+        "chost-m1.2",
+        "chost-m2.1",
+        "chost-m3.1"
+      ],
+      "sheet lifecycle": [
+        "chost-m4.3"
+      ],
+      "skin intents and command IDs": [
+        "chost-m2.1",
+        "chost-m2.2"
+      ],
+      "differential lane": [
+        "ceng-m7.1"
+      ],
+      "recalculation accounting": [
+        "ceng-m4.5"
+      ],
+      "new workbook without a package": [
+        "chost-m6.4"
+      ]
+    }
+  },
+  "witness_search": {
+    "rule": "Every #[test] function of the three pinned files, read with git show bf6dfd7f0655867cabbebfe99b3de4ea5be89803:<path>; a test's body runs from its fn line to the brace that closes it. 10 of the 30 bodies name WorkbookSession, XlsxSourceState or HostCommand as a whole word; the other 20 reach WorkbookSession through a fixture helper, so all 30 are listed.",
+    "found": 30,
+    "by_file": {
+      "src/dnacalc-host-core/src/workbook.rs": 26,
+      "src/dnacalc-host-core/src/command.rs": 0,
+      "src/dnacalc-host-core/src/grid_publication.rs": 4
+    }
+  },
+  "semantic_witnesses": [
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1227,
+      "legacy_test": "tests::open_xlsx_bytes_owns_source_and_reports_ledger",
+      "disposition": "changed",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit (opened from generated package bytes; every cache names the part it was read from, with that part's CRC-32 and size)",
+      "reason": "Kept: the host owns the opened source. Changed: no fidelity ledger is reported; the cache provenance is checked instead."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1828,
+      "legacy_test": "tests::open_xlsx_bytes_rejects_garbage_with_typed_xlsx_error",
+      "disposition": "kept",
+      "replaced_by": "chost_m1_1__atomic_prepare_failure (bytes that are no archive give OpenFailure::Package; a cell of type d gives OpenFailure::Workbook with calc-doc's LoadError)",
+      "reason": "A refused package is a typed refusal and makes no host."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1329,
+      "legacy_test": "tests::open_fixture_ingests_and_publishes_calculated_21",
+      "disposition": "changed",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit (with no edit, caches project as FileCached until the first step publishes calculated values, none equal to its wrong cache)",
+      "reason": "Changed: the legacy open recalculated under calcMode=auto; calc-doc does not read calcPr, so the host calculates when the caller steps, and until then every formula with a file cache projects it (as stale once an edit has changed an input or a formula), never as calculated. Calculation modes are ceng-m4.2's and calcPr policies ceng-m4.3's."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2254,
+      "legacy_test": "tests::open_manual_fixture_renders_file_cached_21_with_zero_engine_passes",
+      "disposition": "kept",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit and chost_m1_1__atomic_prepare_failure (before the first step and before any edit that changes an input or a formula, every cache is FileCached and no cell is Calculated)",
+      "reason": "A file cache is shown as a file cache with no calculation."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1458,
+      "legacy_test": "tests::open_fixture_edit_smoke_dependent_recalculates",
+      "disposition": "changed",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit and chost_m1_1__atomic_prepare_failure (an edit commits one revision; its dependents project as stale until a step publishes their recalculated values)",
+      "reason": "Changed: the edit goes through dispatch as a revision-checked batch committed to the document and the engine together; recalculation is a separate step."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1170,
+      "legacy_test": "tests::snapshot_reflects_a_live_edit_and_its_dependent_recalc",
+      "disposition": "changed",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit",
+      "reason": "Changed: on an in-memory demo workbook in the legacy test; here on a loaded package, read through project rather than a whole-workspace snapshot."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2793,
+      "legacy_test": "tests::cross_sheet_edit_on_loaded_fixture_propagates_to_sheet2",
+      "disposition": "kept",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit (edits on Inputs recalculate formulas on Calc)",
+      "reason": "An edit on one sheet recalculates the formulas of another sheet that read it."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2665,
+      "legacy_test": "tests::open_cross_sheet_fixture_publishes_10_under_automatic",
+      "disposition": "changed",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit",
+      "reason": "Changed as open_fixture_ingests_and_publishes_calculated_21: calculation happens when the caller steps."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1636,
+      "legacy_test": "tests::snapshot_of_loaded_fixture_projects_authored_and_provenance",
+      "disposition": "changed",
+      "replaced_by": "chost_m1_1__recalc_failure_keeps_edit (each cell's authored input and value provenance through project)",
+      "reason": "Changed: the provenance set is plan 2.2's; a stale result keeps its last value labelled Stale."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1024,
+      "legacy_test": "tests::grid_authored_cells_projects_formula_cell",
+      "disposition": "left to chost-m2.1",
+      "reason": "Authored-metadata projection (kind, display text, editability) is chost-m2.1's; project returns the authored input only."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1050,
+      "legacy_test": "tests::grid_authored_cells_projects_spill_display_member",
+      "disposition": "left to chost-m3.1",
+      "reason": "Spills are not calculated yet (ceng-m3.4); their projection is chost-m3.1's."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1094,
+      "legacy_test": "tests::snapshot_of_demo_workbook_projects_grids_values_and_calc_state",
+      "disposition": "left to chost-m2.1",
+      "reason": "A whole-workspace snapshot of an in-memory demo workbook; plan 2.2 projections are bounded requests."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1515,
+      "legacy_test": "tests::workbook_token_matches_engine_addresses_for_both_origins",
+      "disposition": "dropped",
+      "reason": "No workbook tokens or engine address strings exist; cells are calc-value CellKeys."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1819,
+      "legacy_test": "tests::in_memory_workbook_has_no_xlsx_source",
+      "disposition": "left to chost-m6.4",
+      "reason": "A workbook without a package is the backstage new command's."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 1926,
+      "legacy_test": "tests::save_after_edit_reopens_with_cached_30",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2057,
+      "legacy_test": "tests::save_without_edit_round_trips_cleanly",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2094,
+      "legacy_test": "tests::save_of_out_of_scope_edit_is_typed_rejection",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2155,
+      "legacy_test": "tests::save_on_session_without_source_is_typed_error",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2367,
+      "legacy_test": "tests::manual_mode_save_before_recalc_writes_last_calculated_cache",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2536,
+      "legacy_test": "tests::emit_saved_fixture_for_excel_compare",
+      "disposition": "left to infra-m1.3",
+      "reason": "Excel reopening a saved package is infra-m1.3's round trip."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 2876,
+      "legacy_test": "tests::cross_sheet_save_after_edit_reopens_with_cached_20",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 3017,
+      "legacy_test": "tests::cross_sheet_save_without_edit_round_trips_cleanly",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 3155,
+      "legacy_test": "tests::open_named_input_fixture_seeds_the_name_and_publishes_14",
+      "disposition": "left to ceng-m3.2",
+      "reason": "Defined names are counted and not loaded by calc-doc; names as graph nodes are ceng-m3.2's."
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 3260,
+      "legacy_test": "tests::named_input_edit_on_loaded_fixture_recalculates_through_the_name",
+      "disposition": "left to ceng-m3.2",
+      "reason": "names"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 3329,
+      "legacy_test": "tests::named_input_save_after_edit_reopens_with_cached_20_and_the_name",
+      "disposition": "left to chost-m1.2 and ceng-m3.2",
+      "reason": "save with names"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/workbook.rs",
+      "line": 3464,
+      "legacy_test": "tests::named_input_save_without_edit_round_trips_cleanly",
+      "disposition": "left to chost-m1.2",
+      "reason": "save"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/grid_publication.rs",
+      "line": 324,
+      "legacy_test": "tests::projects_formula_cell_kind_source_text_and_editable",
+      "disposition": "left to chost-m2.1",
+      "reason": "authored-metadata projection"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/grid_publication.rs",
+      "line": 340,
+      "legacy_test": "tests::projects_spill_display_member_with_anchor",
+      "disposition": "left to chost-m3.1",
+      "reason": "spill projection"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/grid_publication.rs",
+      "line": 361,
+      "legacy_test": "tests::projects_literal_cell_display_text",
+      "disposition": "left to chost-m2.1",
+      "reason": "display text"
+    },
+    {
+      "path": "src/dnacalc-host-core/src/grid_publication.rs",
+      "line": 394,
+      "legacy_test": "tests::injected_leaf_arithmetic_twin_mismatch_is_a_typed_projection_diagnostic",
+      "disposition": "left to ceng-m7.1",
+      "reason": "differential-twin lane"
+    }
+  ]
+}

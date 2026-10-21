@@ -8,3 +8,20 @@ description = "The package for CalcHost: the authoritative authored workbook sta
 
 [package.metadata.dnacalc]
 portability = "portable"
+
+# calc-doc opens, loads and edits the package (plan 2.1: HOST to DOC); calc-doc-model supplies the
+# authored revision, the operations and the file caches (HOST to MODEL); calc-engine holds the one
+# graph and calculates (HOST to ENG); calc-fml supplies the cell runs a read observer passed to
+# step is shown (HOST to FML).
+[dependencies]
+calc-doc = { path = "../calc-doc" }
+calc-doc-model = { path = "../calc-doc-model" }
+calc-engine = { path = "../calc-engine" }
+calc-fml = { path = "../calc-fml" }
+
+# The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which runs
+# only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the
+# release built on that wasm-bindgen (the pair the CI browser fixture pins). Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"
