@@ -1,8 +1,75 @@
 {
-  "format": "dnacalc-capture-absent",
-  "version": 1,
+  "format": "dnacalc-verdict-report",
+  "version": 4,
   "case": "infra_m1_2__capture_replays",
-  "artifact": "verdict record (the file-cache replay of the capture record beside it)",
-  "fixture": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx",
-  "command": "cargo xtask capture --fixture platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx --case infra_m1_2__capture_replays --out tools/calc-verdict/tests/captures/infra_m1_2/replay.capture.json --verdict tools/calc-verdict/tests/captures/infra_m1_2/replay.verdict.json"
+  "source": "sha256:d39bd9653704097d68772e0f095d00bad22aa43efa87c28cb9913837a8dddc17",
+  "acquisition": {
+    "kind": "live_capture"
+  },
+  "numeric_mode": {
+    "mode": "fast"
+  },
+  "run": {
+    "revision": 0,
+    "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"
+  },
+  "captured": {
+    "revision": 0,
+    "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"
+  },
+  "capture_failures": {
+    "total": 0,
+    "by_stage": {}
+  },
+  "com_add_ins_connected": 1,
+  "evaluation_record_version": 1,
+  "headline": {
+    "calculated_of_denominator": [0,12],
+    "matched_of_calculated": [0,0]
+  },
+  "counts": {
+    "denominator": 12,
+    "calculated": 0,
+    "matched": 0,
+    "mismatched": 0,
+    "not_run": 0,
+    "strict_certified": 0,
+    "uncertified": 0,
+    "unproven": 0,
+    "stale": 0,
+    "file_cached": 12,
+    "not_modeled": 0,
+    "failed": 0,
+    "missing": 0,
+    "not_calculated_equal_to_expectation": 12,
+    "outside_inventory": 0,
+    "evaluator_calls": 0,
+    "calculated_without_value_check": 0
+  },
+  "uncertified_by_reason": {},
+  "strata": {
+    "visible_sheet": 10,
+    "hidden_sheet": 2,
+    "very_hidden_sheet": 0,
+    "ordinary": 9,
+    "shared_master": 1,
+    "shared_child": 2,
+    "observed": 12,
+    "error_expected": 1
+  },
+  "cells": [
+    {"sheet":"Sheet1","row":1,"column":2,"cell":"B1","kind":"ordinary","sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":1,"column":3,"cell":"C1","kind":"shared_master","group":0,"sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":1,"column":4,"cell":"D1","kind":"ordinary","sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":2,"column":2,"cell":"B2","kind":"ordinary","sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":2,"column":3,"cell":"C2","kind":"shared_child","group":0,"sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":2,"column":4,"cell":"D2","kind":"ordinary","sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":3,"column":2,"cell":"B3","kind":"ordinary","sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":3,"column":3,"cell":"C3","kind":"shared_child","group":0,"sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":4,"column":2,"cell":"B4","kind":"ordinary","sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Sheet1","row":5,"column":2,"cell":"B5","kind":"ordinary","sheet_visibility":"visible","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Hidden","row":1,"column":1,"cell":"A1","kind":"ordinary","sheet_visibility":"hidden","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true},
+    {"sheet":"Hidden","row":2,"column":1,"cell":"A2","kind":"ordinary","sheet_visibility":"hidden","observation":"excel_raw","verdict":"file_cached","source":"sha256:0b100ffdfe265ef38dd8758ff3d3603a7cc34d87be65b5a8ed890a7cffc6ed14","value_equals_expectation":true}
+  ],
+  "outside_inventory": []
 }

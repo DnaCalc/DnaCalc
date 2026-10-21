@@ -16,9 +16,10 @@
 //!   exited); with a worker that reports the sentinel's PID, the run must refuse it and terminate
 //!   nothing of it. What is running is read from the operating system (Win32_Process), not from
 //!   what the adapter reports. Only this part runs on the windows route: the macro and link half
-//!   is the excel part, the owner's run.
-//! - The excel part, only on the owner's `--platform excel` run (the runner sets
-//!   `DNACALC_ACCEPT_PLATFORM=excel`; no agent runs it): live captures of the untrusted fixtures
+//!   is the excel part.
+//! - The excel part, only on the `--platform excel` run (the runner sets
+//!   `DNACALC_ACCEPT_PLATFORM=excel`), which any agent may run on the owner's machine (AGENTS.md,
+//!   Excel on this machine): live captures of the untrusted fixtures
 //!   through [`capture`], the route `cargo xtask capture` takes. `untrusted-link.xlsx` reads
 //!   `link-target.xlsx` (copied beside it) through an external link whose cached value is 111
 //!   while the file holds 333; the capture must observe 111 and 112 (=A1+1) after the full
@@ -37,14 +38,23 @@
 //!   Dynamic-array Excel may save `=MarkUdf()` as a single-cell dynamic-array formula; the
 //!   capture records it as an ordinary formula flagged as dynamic.
 //!
-//! The excel part needs an Excel profile with no loaded add-ins: the worker reads every add-in's
-//! state, switches none off, and refuses the capture, naming each, when one is open in the instance or
-//! connected (or its state cannot be read). A refusal of this kind on the owner's run lists the
-//! add-ins to unload in Excel's add-in dialogs before running again. That refusal itself is
-//! exercised without Excel by the worker unit tests, with a stand-in Application.
+//! The excel part needs an Excel instance with no add-in open in it: the worker reads every
+//! add-in's state, switches none off, and refuses the capture, naming each, when one is open in
+//! the instance (or its state cannot be read) or XLL functions are registered. A connected COM
+//! add-in does not refuse it: the record lists each in its setting `com_add_ins_connected`
+//! (which calc-verdict counts), and each installed add-in in `add_ins_installed`, by name only;
+//! the case checks that no add-in setting holds a path and prints them. That refusal and that
+//! record are exercised without Excel by the worker unit tests, with a stand-in Application. The
+//! case also checks that Excel opened each fixture read-only (the record's `opened_read_only`),
+//! the third argument the worker passes Workbooks.Open through COM's own call.
 //!
-//! The macro workbook cannot be authored honestly without Excel, so the owner authors it once
-//! (this is the handover text the case names when the file is absent). In Excel:
+//! The macro half's positive control is the fixture as authored: its saved cache holds 7 for
+//! Sheet1!C1, the value MarkUdf returns when VBA runs, so the function exists and ran when the
+//! fixture was authored. The capture must then give `#NAME?` there, exactly.
+//!
+//! The macro workbook cannot be authored honestly without Excel, so it is authored once in Excel
+//! (in the UI or through COM automation), by these steps, which the case names when the file is
+//! absent:
 //!
 //! 1. A new workbook with Sheet1!A1 = 1 and Sheet1!B1 = `=A1*2`.
 //! 2. In the VBA editor, in `ThisWorkbook`:
@@ -120,7 +130,7 @@
 //!     record is judged; a listed cell outside the spill: an inventory failure.
 //!
 //!   What the stand-in part does not show is what Excel itself reports; the excel part shows it.
-//! - The excel part, only on the owner's `--platform excel` run (no agent runs it): a live capture
+//! - The excel part, only on the `--platform excel` run: a live capture
 //!   of `worker/spill.xlsx` through [`capture`]. It shows what the stand-in cannot: Range.HasSpill
 //!   True for B1 and False for D1 and E1; B1's SpillingToRange, read through Get-ComProperty with
 //!   arguments, as `Address(False, False)` B1:C3 with Rows.Count 3 and Columns.Count 2 of the
@@ -139,7 +149,7 @@ use calc_oracle_excel::{
     excel_available, run_isolated, sha256_hex, windows_powershell,
 };
 #[cfg(windows)]
-use calc_verdict::value::{CalcValue, CoreValue};
+use calc_verdict::value::{CalcValue, CoreValue, WorksheetErrorCode};
 #[cfg(windows)]
 use calc_verdict::{
     CacheCellType, CaptureRecord, CellAddress, CellObservation, CellResult, Evaluation,
@@ -173,7 +183,7 @@ fn infra_m1_2__untrusted_workbook() {
         match std::env::var(PLATFORM_VARIABLE).as_deref() {
             Ok("excel") => windows::excel_part(),
             route => println!(
-                "ACCEPT-NOTE: {CASE}: the excel part (live captures of the untrusted fixtures: macros, the user-defined function and the external link) runs only on the owner's excel route; this run's route is {route:?}, so only the isolation part ran and no Excel was started"
+                "ACCEPT-NOTE: {CASE}: the excel part (live captures of the untrusted fixtures: macros, the user-defined function and the external link) runs only on the excel route; this run's route is {route:?}, so only the isolation part ran and no Excel was started"
             ),
         }
     }
@@ -196,7 +206,7 @@ fn dc_xb26__spill_shape() {
             windows::spill_excel_part();
         } else {
             println!(
-                "ACCEPT-NOTE: {SPILL_CASE}: the excel part (a live capture of worker/spill.xlsx: HasSpill, SpillingToRange's address, rows and columns, the saved package's ref and cell metadata, and whether SpecialCells lists the cells of a spill) runs only on the owner's excel route; this run's route is {route:?}, so only the stand-in part ran and no Excel was started"
+                "ACCEPT-NOTE: {SPILL_CASE}: the excel part (a live capture of worker/spill.xlsx: HasSpill, SpillingToRange's address, rows and columns, the saved package's ref and cell metadata, and whether SpecialCells lists the cells of a spill) runs only on the excel route; this run's route is {route:?}, so only the stand-in part ran and no Excel was started"
             );
         }
     }
@@ -681,15 +691,17 @@ mod windows {
         })
     }
 
-    /// The capture recorded no isolation failure, and Excel read back the session settings the
-    /// worker set. (The worker refuses a capture when an add-in is loaded, so a capture taken
-    /// shows only that the worker read none as loaded; `add_ins` lists what it read.)
+    /// The capture recorded no isolation failure, Excel read back the session settings the worker
+    /// set, and Excel opened the input read-only. (The worker refuses a capture when an add-in is
+    /// open in its instance, so a capture taken shows only that the worker read none as open;
+    /// `add_ins`, `com_add_ins_connected` and `add_ins_installed` list what it read.)
     fn assert_isolated(record: &CaptureRecord, what: &str) {
         for (name, expected) in [
             ("automation_security", "3"),
             ("enable_events", "false"),
             ("interactive", "false"),
             ("display_alerts", "false"),
+            ("opened_read_only", "true"),
             ("ole_dde_links", ""),
             ("connections", ""),
         ] {
@@ -711,7 +723,7 @@ mod windows {
         let macro_fixture = fixtures.join("untrusted-macro.xlsm");
         if !macro_fixture.is_file() {
             println!(
-                "ACCEPT-NOT-RUN: {CASE}: the owner-authored fixture {} is absent; the documentation at the top of platform/calc-oracle-excel/tests/acceptance.rs says how to author it in Excel",
+                "ACCEPT-NOT-RUN: {CASE}: the Excel-authored fixture {} is absent; the documentation at the top of platform/calc-oracle-excel/tests/acceptance.rs says how to author it in Excel",
                 macro_fixture.display()
             );
             return;
@@ -802,11 +814,30 @@ mod windows {
                 .map_or("?", |environment| environment.target.excel_build()),
             link_parts.len()
         );
+        for name in ["add_ins", "com_add_ins_connected", "add_ins_installed"] {
+            let value = setting(record, name)
+                .unwrap_or_else(|| panic!("the record carries no setting {name}"));
+            assert!(
+                !value.contains('\\') && !value.contains('/'),
+                "the setting {name} holds a path: {value:?}"
+            );
+        }
+        let connected = setting(record, "com_add_ins_connected").unwrap_or_default();
         println!(
-            "ACCEPT-NOTE: {CASE}: the add-ins the worker read (none loaded, or the capture would have been refused): {:?}",
-            setting(record, "add_ins")
+            "ACCEPT-NOTE: {CASE}: the add-ins the worker read (none open in its instance, or the capture would have been refused), by name only: add_ins {:?}; {} connected COM add-ins, recorded, left connected and counted by the verdict: {connected:?}; installed add-ins: {:?}",
+            setting(record, "add_ins"),
+            connected.split(';').filter(|item| !item.is_empty()).count(),
+            setting(record, "add_ins_installed")
         );
 
+        // The positive control: as authored, the fixture caches 7 for C1, what MarkUdf returns
+        // when VBA runs, read from the committed file on disk.
+        let authored = caches_on_disk(&macro_fixture, "Sheet1");
+        assert_eq!(
+            authored.get("C1"),
+            Some(&("n".to_owned(), "7".to_owned())),
+            "the fixture as authored must cache MarkUdf's 7 in Sheet1!C1"
+        );
         let macros = capture(&request(macro_fixture, Vec::new(), root.join("macro")))
             .unwrap_or_else(|e| panic!("the capture of untrusted-macro.xlsm failed: {e}"));
         let record = &macros.record;
@@ -827,8 +858,9 @@ mod windows {
             );
             let udf = raw_at(observed, "Sheet1", 1, 3);
             assert!(
-                udf.is_some_and(|value| matches!(value.core(), CoreValue::Error(_))),
-                "Sheet1!C1 (=MarkUdf()) must be a worksheet error {when}, not the 7 MarkUdf returns when VBA runs: {udf:?}"
+                udf.is_some_and(|value| value.core()
+                    == &CoreValue::Error(WorksheetErrorCode::Name)),
+                "Sheet1!C1 (=MarkUdf()) must be #NAME? {when}, not the 7 MarkUdf returns when VBA runs: {udf:?}"
             );
         }
         // The saved file on disk: B1 caches 2 and C1 an error, as the record says.
@@ -838,10 +870,10 @@ mod windows {
             Some(&("n".to_owned(), "2".to_owned())),
             "the saved package's Sheet1!B1 cache, read from disk"
         );
-        assert!(
-            on_disk.get("C1").is_some_and(|(t, _)| t == "e"),
-            "the saved package's Sheet1!C1 cache, read from disk, must be an error: {:?}",
-            on_disk.get("C1")
+        assert_eq!(
+            on_disk.get("C1"),
+            Some(&("e".to_owned(), "#NAME?".to_owned())),
+            "the saved package's Sheet1!C1 cache, read from disk"
         );
         for (a1, column) in [("B1", 2), ("C1", 3)] {
             assert_eq!(
@@ -856,7 +888,7 @@ mod windows {
             .collect();
         assert!(markers.is_empty(), "a macro ran and wrote {markers:?}");
         println!(
-            "ACCEPT-NOTE: {CASE}: untrusted-macro.xlsm (with a VBA project) captured, saved and reopened with B1 = 2 and C1 (=MarkUdf()) = {:?} through the full rebuild, and no macro-ran.txt in the work directory or beside the fixture: neither Workbook_Open, Auto_Open nor the user-defined function ran",
+            "ACCEPT-NOTE: {CASE}: untrusted-macro.xlsm (with a VBA project; as authored it caches C1 = 7, MarkUdf's value) captured, saved and reopened with B1 = 2 and C1 (=MarkUdf()) = {:?} through the full rebuild, and no macro-ran.txt in the work directory or beside the fixture: neither Workbook_Open, Auto_Open nor the user-defined function ran",
             raw_at(&record.observations, "Sheet1", 1, 3)
         );
         let _ = std::fs::remove_dir_all(&root);
@@ -1012,7 +1044,7 @@ mod windows {
         (parts, xml)
     }
 
-    /// The excel part, only on the owner's excel route: a live capture of `worker/spill.xlsx`
+    /// The excel part, only on the excel route: a live capture of `worker/spill.xlsx`
     /// through [`capture`], the route `cargo xtask capture` takes, showing what the stand-in
     /// cannot. Excel's own reports are read from the worker's result file in the capture's work
     /// directory, and the saved package from the file on disk.

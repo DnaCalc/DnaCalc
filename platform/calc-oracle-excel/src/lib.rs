@@ -27,11 +27,21 @@
 //!   workbook opens, and both are read back; one that does not read back as set refuses the
 //!   capture before the workbook is opened.
 //! - Add-ins: after Excel starts, the worker reads every add-in's state (AddIns2: IsOpen and
-//!   Installed; COMAddIns: Connect) and whether XLL functions are registered, and switches none
-//!   off. One that is open in the capture's instance or connected, one whose state cannot be read, and registered
-//!   XLL functions refuse the capture as isolation failures that name each, and Excel quits
-//!   without the workbook having been opened. A capture therefore needs an Excel profile with no
-//!   loaded add-ins.
+//!   Installed; COMAddIns: Connect; AddIns: Installed) and whether XLL functions are registered,
+//!   and switches none off or on. One that is open in the capture's instance, one of AddIns2 whose
+//!   state cannot be read, and registered XLL functions refuse the capture as isolation failures
+//!   that name each by its file name, and Excel quits without the workbook having been opened. A
+//!   connected COM add-in does not refuse it and is not disconnected: on the owner's machine the
+//!   COM add-in VS15ExcelAdaptor, registered under HKLM with LoadBehavior 3, reads as connected in
+//!   every automation instance measured, and the worker writes no add-in's state. This deviates
+//!   from an isolated capture, and it is counted: the record lists every connected COM add-in as
+//!   `ProgId|Description` in the setting `com_add_ins_connected`, and calc-verdict's report
+//!   counts them (`com_add_ins_connected`) and certifies no raw comparison against such a record
+//!   (`com_add_in_connected`); bead dc-quhd owns capturing without one. Every installed add-in of
+//!   Application.AddIns is listed by its Name, a file name, in `add_ins_installed`. One whose state
+//!   or names cannot be read is an environment failure. What a connected COM add-in does during
+//!   the capture is not observed. These list settings separate items with `;` and fields with
+//!   `|`, and write `%`, `;` and `|` within a name as `%25`, `%3B` and `%7C`.
 //! - External content, refused before Excel starts (Excel never opens the workbook), by these
 //!   checks of the package and no others: a data connection, pivot cache definition or query table
 //!   with refreshOnLoad; an external link part that is not a link to another workbook (an OLE or
@@ -63,8 +73,9 @@
 //!   kept empty, and its environment failure leaves every comparison against the record
 //!   uncertified. Two collections are read plainly because a method is called on them at once:
 //!   Application.Workbooks before Open, and Workbook.Worksheets and Worksheet.Cells before Item.
-//!   A failed read there gives nothing, and the method call on it throws. The add-in states the
-//!   record carries name each add-in by its file name, never by a path.
+//!   A failed read there gives nothing, and the method call on it throws. The add-in states and
+//!   lists the record carries (`add_ins`, `com_add_ins_connected`, `add_ins_installed`) name each
+//!   add-in by its ProgId or file name, never by a path.
 //! - Processes: one worker process per capture, a timeout, and termination only of that worker and
 //!   of the Excel process the adapter attributes to the capture ([`run_isolated`]): the PID the
 //!   worker reported, when no process had that PID in the snapshot of the Excel image's processes

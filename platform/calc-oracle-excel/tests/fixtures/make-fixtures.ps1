@@ -1,5 +1,5 @@
 # The generator of every workbook fixture under platform/calc-oracle-excel/tests/fixtures/ except
-# infra_m1_2/untrusted-macro.xlsm, which the owner authors in Excel (tests/acceptance.rs says how).
+# infra_m1_2/untrusted-macro.xlsm, which is authored in Excel (tests/acceptance.rs says how).
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
@@ -170,7 +170,10 @@ function Write-Workbook([string]$Path, $Spec) {
     }
     foreach ($part in $Spec.parts) {
         [void]$parts.Add(@($part[0], $part[1]))
-        if ($part[2] -ne '') { [void]$overrides.Add(@('/' + $part[0], $part[2])) }
+        # The parentheses matter: the comma binds tighter than +, and without them the part's name
+        # and content type were joined into one PartName with an empty ContentType, a package Excel
+        # refuses to open.
+        if ($part[2] -ne '') { [void]$overrides.Add(@(('/' + $part[0]), $part[2])) }
     }
     $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><bookViews><workbookView/></bookViews>' +
         '<sheets>' + $entries + $Spec.sheetsExtra + '</sheets>' + $Spec.inWorkbook[0] + '<calcPr fullCalcOnLoad="1"/>' + $Spec.inWorkbook[1] + '</workbook>'

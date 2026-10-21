@@ -27,12 +27,18 @@
 #      standard output before anything else touches it;
 #   4. sets the session settings above (DisplayAlerts, ScreenUpdating, EnableEvents and Interactive
 #      off, AutomationSecurity 3, force-disable macros), each read back, and reads the state of
-#      every add-in (AddIns2: IsOpen and Installed; COMAddIns: Connect) and whether XLL functions
-#      are registered. A setting that does not read back as set, an add-in that is open in this
-#      instance, a COM add-in that is connected, an add-in whose state cannot be read and
-#      registered XLL functions refuse the capture as isolation failures, each named, and Excel
-#      quits without the workbook having been opened. An add-in that is installed in the profile
-#      but not open in this instance is recorded and does not refuse it. Nothing is switched off;
+#      every add-in (AddIns2: IsOpen and Installed; COMAddIns: Connect; AddIns: Installed) and
+#      whether XLL functions are registered. A setting that does not read back as set, an add-in
+#      that is open in this instance, an add-in of AddIns2 whose state cannot be read and
+#      registered XLL functions refuse the capture as isolation failures, each named by its file
+#      name, and Excel quits without the workbook having been opened. A connected COM add-in does
+#      not refuse it, and it is not disconnected (the worker writes no add-in's state): on the
+#      owner's machine the COM add-in VS15ExcelAdaptor, registered under HKLM with LoadBehavior 3,
+#      reads as connected in every automation instance measured. Each connected COM add-in
+#      (ProgId and Description) is recorded in the setting com_add_ins_connected, which the
+#      verdict counts (calc-verdict), and each installed add-in (its Name, a file name) in
+#      add_ins_installed; an add-in installed in the profile but not open in this instance does
+#      not refuse the capture. Nothing is switched off;
 #   5. opens the input read-only with UpdateLinks 0, sets the calculation policy of the request,
 #      forces a full rebuild, and reads each inventory cell's formula (Formula2 only), raw Value2
 #      (numbers as their binary64 bits) and spill (Read-Spill: Range.HasSpill, and for a spill the
@@ -596,8 +602,25 @@ function Open-Workbook($Application, [string]$Path) {
     # FileName, UpdateLinks 0 (never), ReadOnly, Format, Password, WriteResPassword,
     # IgnoreReadOnlyRecommended, Origin, Delimiter, Editable, Notify, Converter, AddToMru, Local,
     # CorruptLoad 0 (normal load, no repair). A password that cannot be the workbook's makes an
-    # encrypted workbook fail to open instead of prompting.
-    return $Application.Workbooks.Open($Path, 0, $true, $Missing, $NoPassword, $NoPassword, $true, $Missing, $Missing, $false, $false, $Missing, $false, $false, 0)
+    # encrypted workbook fail to open instead of prompting. WriteResPassword is left out: Excel
+    # 16.0.20430 failed Open of replay.xlsx, which has no write reservation, given one ("Open
+    # method of Workbooks class failed"). A write-reserved workbook given none opened read-only
+    # without a prompt (16.0.20430, this function and the session settings above: ReadOnly True,
+    # in 0.3 s). The call goes through Invoke-ComMethod: Windows PowerShell's own call of Open with
+    # these arguments failed on that build ("Unable to get the Open property of the Workbooks
+    # class"). $Path is a [string], not a PSObject wrapping one: InvokeMember hands a wrapped
+    # string to COM as an object Open refuses (DISP_E_TYPEMISMATCH, measured the same way).
+    return (Invoke-ComMethod $Application.Workbooks 'Open' @($Path, 0, $true, $Missing, $NoPassword, $Missing, $true, $Missing, $Missing, $false, $false, $Missing, $false, $false, 0))
+}
+
+# A method of a COM object called through COM's own call (InvokeMember), which passes
+# [System.Type]::Missing as an omitted argument. Any other object (the unit tests' stand-in
+# Application) has the method called as a PowerShell method.
+function Invoke-ComMethod($Object, [string]$Name, [object[]]$Arguments) {
+    if ($Object -is [System.__ComObject]) {
+        return , [System.__ComObject].InvokeMember($Name, [System.Reflection.BindingFlags]::InvokeMethod, $null, $Object, $Arguments)
+    }
+    return , $Object.$Name.Invoke($Arguments)
 }
 
 function Read-Cell($Workbook, $Entry) {
@@ -669,15 +692,41 @@ function Read-Spill($Cell) {
     }
 }
 
-# The add-ins of an Excel instance, read and never changed: in loaded, each COM add-in that is
-# connected, each add-in that is open in this instance (one installed in the profile but not open
-# is recorded only), each add-in or list whose state cannot be read,
-# and registered XLL functions, every one named (by its full name, for the owner to find); in
-# states, the state read of every add-in, named by its file name only, since the states go into
-# the capture record and a full name can hold the user's profile path.
+# One field of an item of a setting that lists several things (add-ins, links, connections): such a
+# setting separates its items with ';' and an item's fields with '|', so a field writes '%', ';'
+# and '|' as %25, %3B and %7C, and a name that holds a separator stays one field of one item
+# (calc-verdict's ExcelEnvironment::settings states the same rule).
+function Get-ListField([string]$Text) {
+    return $Text.Replace('%', '%25').Replace(';', '%3B').Replace('|', '%7C')
+}
+
+# The last part of a path or name, after its last backslash or '/' (split by hand, so a name with
+# characters .NET's path functions refuse is still split): how the record and the refusals name an
+# add-in or a linked workbook, never by a path.
+function Get-LeafName([string]$Path) {
+    $cut = $Path.LastIndexOfAny([char[]]@([char]'\', [char]'/'))
+    if ($cut -ge 0) { return $Path.Substring($cut + 1) }
+    return $Path
+}
+
+# The add-ins of an Excel instance, read and never changed (no add-in is switched off or on, and
+# no setting is written). Every add-in is named by its ProgId or its file name, never by a path.
+# In loaded, what refuses the capture: each add-in that is open in this instance (AddIns2: IsOpen;
+# one installed in the profile but not open is recorded only), each add-in or list of AddIns2
+# whose state cannot be read, and registered XLL functions, every one named. A connected COM
+# add-in does not refuse the capture and is not disconnected; it is recorded, and the verdict
+# counts it (bead dc-quhd owns capturing without one). In connected, each COM add-in whose Connect
+# reads as True, as "ProgId|Description" (COMAddIns); in installed, each add-in of
+# Application.AddIns whose Installed reads as True, by its Name (a file name, its last part
+# through Get-LeafName). Each field goes through Get-ListField. A COM add-in or an installed
+# add-in whose state or names cannot be read is an environment failure (the record then says it
+# is incomplete), not a refusal. In states, the state read of every COM add-in and every add-in
+# of AddIns2, by ProgId or file name.
 function Get-AddInStates($Application) {
     $loaded = New-Object System.Collections.ArrayList
     $states = New-Object System.Collections.ArrayList
+    $connectedAddIns = New-Object System.Collections.ArrayList
+    $installedAddIns = New-Object System.Collections.ArrayList
     try {
         $comAddIns = Get-ComProperty $Application 'COMAddIns'
         if ($null -eq $comAddIns) { throw 'COMAddIns reads as nothing' }
@@ -687,16 +736,41 @@ function Get-AddInStates($Application) {
             $label = "COM add-in $index"
             try {
                 $progId = Get-ComProperty $comAddIn 'ProgId'
-                if ($progId -is [string] -and $progId -ne '') { $label = "COM add-in $progId" }
-                $connected = Get-Flag $comAddIn 'Connect'
-                [void]$states.Add("$label connect=" + ([string]$connected).ToLowerInvariant())
-                if ($connected) { [void]$loaded.Add("$label is connected") }
+                if ($progId -isnot [string] -or $progId -eq '') { throw ('its ProgId reads as ' + (Get-Shown $progId)) }
+                $label = "COM add-in $progId"
+                $isConnected = Get-Flag $comAddIn 'Connect'
+                [void]$states.Add('COM add-in ' + (Get-ListField $progId) + ' connect=' + ([string]$isConnected).ToLowerInvariant())
+                if ($isConnected) {
+                    $description = Get-ComProperty $comAddIn 'Description'
+                    if ($description -isnot [string]) { throw ('its Description reads as ' + (Get-Shown $description)) }
+                    [void]$connectedAddIns.Add((Get-ListField $progId) + '|' + (Get-ListField $description))
+                }
             } catch {
-                [void]$loaded.Add("the state of $label cannot be read: $($_.Exception.Message)")
+                Add-Failure 'environment' $null "the state of $label cannot be read, so the record may omit it from com_add_ins_connected: $($_.Exception.Message)"
             }
         }
     } catch {
-        [void]$loaded.Add("the COM add-ins cannot be listed: $($_.Exception.Message)")
+        Add-Failure 'environment' $null "the COM add-ins cannot be listed, so com_add_ins_connected may be incomplete: $($_.Exception.Message)"
+    }
+    try {
+        $managed = Get-ComProperty $Application 'AddIns'
+        if ($null -eq $managed) { throw 'AddIns reads as nothing' }
+        $index = 0
+        foreach ($addIn in $managed) {
+            $index += 1
+            try {
+                $isInstalled = Get-Flag $addIn 'Installed'
+                if ($isInstalled) {
+                    $name = Get-ComProperty $addIn 'Name'
+                    if ($name -isnot [string] -or $name -eq '') { throw ('its Name reads as ' + (Get-Shown $name)) }
+                    [void]$installedAddIns.Add((Get-ListField (Get-LeafName $name)))
+                }
+            } catch {
+                Add-Failure 'environment' $null "the state of installed add-in $index (Application.AddIns) cannot be read, so the record may omit it from add_ins_installed: $($_.Exception.Message)"
+            }
+        }
+    } catch {
+        Add-Failure 'environment' $null "the installed add-ins (Application.AddIns) cannot be listed, so add_ins_installed may be incomplete: $($_.Exception.Message)"
     }
     try {
         $addIns = Get-ComProperty $Application 'AddIns2'
@@ -709,8 +783,9 @@ function Get-AddInStates($Application) {
             try {
                 $fullName = Get-ComProperty $addIn 'FullName'
                 if ($fullName -is [string] -and $fullName -ne '') {
-                    $label = "add-in $fullName"
-                    $shown = 'add-in ' + [System.IO.Path]::GetFileName($fullName)
+                    $leaf = Get-LeafName $fullName
+                    $label = "add-in $leaf"
+                    $shown = 'add-in ' + (Get-ListField $leaf)
                 }
                 $open = Get-Flag $addIn 'IsOpen'
                 $installed = Get-Flag $addIn 'Installed'
@@ -733,7 +808,7 @@ function Get-AddInStates($Application) {
     } catch {
         [void]$loaded.Add("the registered XLL functions cannot be read: $($_.Exception.Message)")
     }
-    return @{ loaded = $loaded; states = $states }
+    return @{ loaded = $loaded; states = $states; connected = $connectedAddIns; installed = $installedAddIns }
 }
 
 # Dot-sourced, the script ends here, with its functions defined and nothing started.
@@ -804,13 +879,14 @@ try {
         }
         if (-not $same) { [void]$notIsolated.Add("$name reads back as " + (Get-Shown $value) + " after it was set to $want") }
     }
-    # Add-ins are read, never switched off: one that is loaded, or whose state cannot be read,
-    # refuses the capture before the workbook is opened.
+    # Add-ins are read, never switched off: one that is open in this instance, one whose state
+    # cannot be read, and registered XLL functions refuse the capture before the workbook is
+    # opened; connected COM add-ins and installed add-ins are recorded by name (Get-AddInStates).
     $addIns = Get-AddInStates $excel
     foreach ($entry in $addIns.loaded) { [void]$notIsolated.Add($entry) }
     if ($notIsolated.Count -gt 0) {
         foreach ($entry in $notIsolated) { Add-Failure 'isolation' $null "$entry; the workbook was not opened" }
-        throw ('refused before the workbook was opened: this Excel instance is not isolated (a capture needs an Excel profile with no loaded add-ins, and nothing was switched off): ' + ($notIsolated -join '; '))
+        throw ('refused before the workbook was opened: this Excel instance is not isolated (a capture needs an Excel instance with no add-in open in it, and nothing was switched off): ' + ($notIsolated -join '; '))
     }
 
     $workbook = Open-Workbook $excel $req.input
@@ -840,15 +916,28 @@ try {
     }
     # The text a setting of $Kind is recorded as, or $null when $Value is not of that kind's type:
     # a flag as true or false, an integer in decimal, a number as its binary64 bits in hex, a text
-    # as itself, and a scalar (an Application.International value) as its text or integer.
+    # as itself, and a scalar (an Application.International value) as its text or integer. Read
+    # through Get-ComProperty (InvokeMember), Excel 16.0.20430 gave Application.Build,
+    # MaxIterations and International(1), (2) and (32) as doubles (CalculationVersion as an
+    # integer), so an integer is also a double that holds a whole number (within 2^53); any other
+    # double is not one.
     function Format-Setting($Value, [string]$Kind) {
         $integer = ($Value -is [int]) -or ($Value -is [long]) -or ($Value -is [int16]) -or ($Value -is [byte])
+        $text = $null
+        if ($integer) {
+            $text = [string]$Value
+        } elseif ($Value -is [double] -and [Math]::Abs($Value) -le 9007199254740992 -and $Value -eq [Math]::Truncate($Value)) {
+            $text = ([int64]$Value).ToString([System.Globalization.CultureInfo]::InvariantCulture)
+        }
         switch ($Kind) {
             'flag' { if ($Value -is [bool]) { return ([string]$Value).ToLowerInvariant() } }
-            'integer' { if ($integer) { return [string]$Value } }
+            'integer' { if ($null -ne $text) { return $text } }
             'number' { if ($Value -is [double]) { return [BitConverter]::DoubleToInt64Bits($Value).ToString('x16') } }
             'text' { if ($Value -is [string]) { return $Value } }
-            'scalar' { if ($integer -or $Value -is [string]) { return [string]$Value } }
+            'scalar' {
+                if ($Value -is [string]) { return $Value }
+                if ($null -ne $text) { return $text }
+            }
         }
         return $null
     }
@@ -957,7 +1046,11 @@ try {
     Read-Setting 'ask_to_update_links' $excel 'AskToUpdateLinks' 'flag'
     Read-Setting 'ignore_remote_requests' $excel 'IgnoreRemoteRequests' 'flag'
     Add-Setting 'add_ins' ($addIns.states -join ';')
+    Add-Setting 'com_add_ins_connected' ($addIns.connected -join ';')
+    Add-Setting 'add_ins_installed' ($addIns.installed -join ';')
     Read-Setting 'has_vb_project' $workbook 'HasVBProject' 'flag'
+    # Whether Excel opened the input read-only, as Open-Workbook's third argument asks.
+    Read-Setting 'opened_read_only' $workbook 'ReadOnly' 'flag'
 
     # External content, recorded and never refreshed: links to other workbooks (xlExcelLinks 1),
     # OLE and DDE links (xlOLELinks 2, an isolation failure), and data connections with their
@@ -965,12 +1058,12 @@ try {
     # isolation failure).
     $links = $workbook.LinkSources(1)
     $linkNames = @()
-    if ($null -ne $links) { foreach ($link in $links) { $linkNames += [System.IO.Path]::GetFileName([string]$link) } }
+    if ($null -ne $links) { foreach ($link in $links) { $linkNames += (Get-ListField (Get-LeafName ([string]$link))) } }
     Add-Setting 'external_links' ($linkNames -join ';')
     $oleLinks = $workbook.LinkSources(2)
     $oleNames = @()
     if ($null -ne $oleLinks) { foreach ($link in $oleLinks) { $oleNames += [string]$link } }
-    Add-Setting 'ole_dde_links' ($oleNames -join ';')
+    Add-Setting 'ole_dde_links' (($oleNames | ForEach-Object { Get-ListField $_ }) -join ';')
     if ($oleNames.Count -gt 0) {
         Add-Failure 'isolation' $null ('the workbook holds OLE or DDE links, which this capture never updates: ' + ($oleNames -join '; '))
     }
@@ -1005,7 +1098,7 @@ try {
                     $source = 'package'
                 }
             }
-            [void]$connectionSettings.Add("$name|type $type|refresh_on_open " + ([string]$refresh).ToLowerInvariant() + " ($source)")
+            [void]$connectionSettings.Add((Get-ListField $name) + "|type $type|refresh_on_open " + ([string]$refresh).ToLowerInvariant() + " ($source)")
             if ($refresh) { Add-Failure 'isolation' $null "data connection '$name' refreshes when the workbook opens; this capture did not refresh it" }
         } catch {
             Add-Failure 'isolation' $null "the refresh-on-open setting of data connection $index cannot be read: $($_.Exception.Message)"

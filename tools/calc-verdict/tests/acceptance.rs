@@ -24,14 +24,17 @@
 //! capture` runs before it writes a record.
 //!
 //! `infra_m1_2__capture_replays` reads the capture artifacts under `tests/captures/infra_m1_2/`,
-//! which no one here authors: `cargo xtask capture` writes them on the owner's Windows machine with
-//! Excel. Until it has, each path holds the absent-capture marker and the case reports
-//! `ACCEPT-NOT-RUN` with the library's typed `MissingCapture`, which the runner records as not run.
+//! which no one authors by hand: `cargo xtask capture` writes them on a Windows machine with
+//! Excel (on the owner's machine any agent may run it). Until it has, each path holds the
+//! absent-capture marker and the case reports `ACCEPT-NOT-RUN` with the library's typed
+//! `MissingCapture`, which the runner records as not run.
 //! Once it has, the case first ties the capture to its inputs as committed: the capture's input
 //! package hash and source must be the SHA-256 of
 //! `platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx`, and its capture-tool
 //! revision must name the SHA-256 of `platform/calc-oracle-excel/worker/capture-worker.ps1`, so a
 //! capture of another workbook, by another worker, or written by hand does not replay as passed.
+//! The replayed report must also count the COM add-ins the capture's environment lists as
+//! connected while it was taken (`com_add_ins_connected`), counted here without the library.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -637,7 +640,8 @@ fn saved_equals_raw(saved: &Value, raw: &Value) -> bool {
 fn infra_m1_2__capture_replays() {
     const CASE: &str = "infra_m1_2__capture_replays";
 
-    // The capture path: the record the owner's Excel run wrote, or the absent-capture marker.
+    // The capture path: the record an Excel run of `cargo xtask capture` wrote, or the
+    // absent-capture marker.
     if let Some(missing) = MissingCapture::recognize(REPLAY_CAPTURE) {
         assert_eq!(missing.case, CASE, "the marker names this case");
         note!("ACCEPT-NOT-RUN: {CASE}: {missing}");
@@ -757,14 +761,26 @@ fn infra_m1_2__capture_replays() {
     };
     assert_eq!(session.context, context.fingerprint());
 
+    // The COM add-ins the capture lists as connected (items separated by ';', a ';' within a
+    // name escaped as %3B), counted here without the library: the replayed report counts the same
+    // number, so a capture taken with an add-in connected is never reported as an isolated one.
+    let connected = setting("com_add_ins_connected");
+    let connected_count = connected.split(';').filter(|item| !item.is_empty()).count();
+    assert_eq!(
+        replayed["com_add_ins_connected"],
+        json!(connected_count),
+        "the replayed report counts the COM add-ins the capture lists as connected ({connected:?})"
+    );
+
     note!(
-        "ACCEPT-NOTE: {CASE}: the committed capture ({} formula cells, Excel {}, {} capture failures) replays to the committed verdict record byte for byte: calculated 0 of {denominator}, file_cached {saved_count}, missing {}, not_calculated_equal_to_expectation {equal}",
+        "ACCEPT-NOTE: {CASE}: the committed capture ({} formula cells, Excel {}, {} capture failures, {connected_count} COM add-ins connected: {connected:?}) replays to the committed verdict record byte for byte: calculated 0 of {denominator}, file_cached {saved_count}, missing {}, not_calculated_equal_to_expectation {equal}, com_add_ins_connected {}",
         denominator,
         raw["environment"]["excel_build"]
             .as_str()
             .unwrap_or("unknown"),
         session.failures.len(),
-        denominator - saved_count
+        denominator - saved_count,
+        replayed["com_add_ins_connected"]
     );
 }
 
