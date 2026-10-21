@@ -1,0 +1,8 @@
+{
+  "format": "dnacalc-capture-absent",
+  "version": 1,
+  "case": "cfunc_m3_5__excel_comparison",
+  "artifact": "capture record (Excel's raw values for the oracle rows of cfunc_m3_5__criteria_semantics and cfunc_m3_5__mismatched_shapes)",
+  "fixture": "crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx",
+  "command": "cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx --case cfunc_m3_5__excel_comparison --out crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json"
+}
