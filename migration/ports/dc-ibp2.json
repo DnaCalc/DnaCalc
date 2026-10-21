@@ -1,0 +1,268 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "dc-ibp2",
+  "written": "2026-10-21",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), case-insensitive substrings, on 2026-10-21 over .beads/issues.jsonl of commit 012ca378464482afb2690d2c08c303a99e101e3d (sha256 d396d5dc5aefa513730e69aeee063680e2bd972d8691f5233edf218897be27e2, unmodified in the working tree): _xlfn, xlfn, array lifting, array evaluation, implicit intersection, intersection, LAMBDA, callable, IFERROR, IFNA (transcript target/accept/dc-ibp2/round4/owner-search.log; target/ is not committed). Each beads list below is drawn from the hits of the terms its basis names, read by title and text.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function.rs",
+      "blob": "9acb95927fe737f54d8dfbb17047b8c4ad9195ff",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "ArgumentLazinessProfile::FallbackOnError",
+          "to": "crates/calc-func/src/catalogue.rs ArgumentDemand::FallbackOnError (with ArgumentDemand::is_lazy, ArgumentDemand::discriminator, ArgumentDemand::holds_back); crates/calc-func/src/catalogue/error_fallback.rs FAMILY (IFERROR and IFNA declare it)",
+          "changes": [
+            {
+              "change": "The variant joins calc-func's ArgumentDemand (cfunc-m1.1's port of the same axis, named for its caller) and answers holds_back(index) as index > 0, beside the discriminator Some(0) the pinned enum gives.",
+              "reason": "Every lazy entry must answer what the declaration's readers ask of it, and these are the readers. The catalogue's declaration check (crates/calc-func/src/catalogue.rs, check_declaration, which the compiler runs over every entry when it evaluates the static tables BY_ID and BY_SURFACE) requires a lazy entry's discriminator to be a required argument, and a lazy kernel exactly when is_lazy holds. The case cfunc_m1_1__catalogue_consistency asks every lazy entry for its discriminator first and for at most one argument that holds_back marks (the lazy entries are IF, IFERROR and IFNA). In calc-fml, holds_back is read only by carries_final_sum (crates/calc-fml/src/eval/compile.rs), for IF's BranchOnCondition alone (it answers false for FallbackOnError), and discriminator is not read at all. calc-fml schedules IFERROR's and IFNA's arguments by the kernel's requests, not by these answers: compile gives each argument of an entry whose demand is_lazy a block of its own, and a block runs only when the kernel asks LazyArguments for that argument (crates/calc-fml/src/eval/run.rs, Blocks::argument). dc_ibp2__error_fallback witnesses that a fallback is evaluated only on an error the entry catches."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/eval/mod.rs",
+      "blob": "9e815094f12634345776eaf2b99eaefdb680b2c7",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/eval/mod.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/iferror.rs",
+      "blob": "444da41452ef58bd449db5344fd8690a2cdd93f7",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/iferror.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/conditional_common.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/ifna_fn.rs",
+      "blob": "ea577bafca09eecd14ac96754b4dc99a82e152eb",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/ifna_fn.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/conditional_common.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+      "blob": "76520e4100ce8eaccecd0b4c180ef33a9754cb07",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/acos.rs",
+          "crates/oxfunc_core/src/functions/acot.rs",
+          "crates/oxfunc_core/src/functions/acoth.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/array_text_split_family.rs",
+          "crates/oxfunc_core/src/functions/asin.rs",
+          "crates/oxfunc_core/src/functions/atan.rs",
+          "crates/oxfunc_core/src/functions/atanh.rs",
+          "crates/oxfunc_core/src/functions/base_fn.rs",
+          "crates/oxfunc_core/src/functions/bessel_convert_family.rs",
+          "crates/oxfunc_core/src/functions/beta_gamma_stats_family.rs",
+          "crates/oxfunc_core/src/functions/bitand_fn.rs",
+          "crates/oxfunc_core/src/functions/bitlshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitor_fn.rs",
+          "crates/oxfunc_core/src/functions/bitrshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitxor_fn.rs",
+          "crates/oxfunc_core/src/functions/bond_core_family.rs",
+          "crates/oxfunc_core/src/functions/cashflow_rate_family.rs",
+          "crates/oxfunc_core/src/functions/chi_f_t_family.rs",
+          "crates/oxfunc_core/src/functions/combin.rs",
+          "crates/oxfunc_core/src/functions/combina.rs",
+          "crates/oxfunc_core/src/functions/complex_family.rs",
+          "crates/oxfunc_core/src/functions/cos.rs",
+          "crates/oxfunc_core/src/functions/cosh.rs",
+          "crates/oxfunc_core/src/functions/cot.rs",
+          "crates/oxfunc_core/src/functions/coth.rs",
+          "crates/oxfunc_core/src/functions/count.rs",
+          "crates/oxfunc_core/src/functions/counta.rs",
+          "crates/oxfunc_core/src/functions/countblank_fn.rs",
+          "crates/oxfunc_core/src/functions/csc.rs",
+          "crates/oxfunc_core/src/functions/csch.rs",
+          "crates/oxfunc_core/src/functions/cumulative_finance_family.rs",
+          "crates/oxfunc_core/src/functions/date_fn.rs",
+          "crates/oxfunc_core/src/functions/date_parts_family.rs",
+          "crates/oxfunc_core/src/functions/date_week_family.rs",
+          "crates/oxfunc_core/src/functions/depreciation_family.rs",
+          "crates/oxfunc_core/src/functions/devsq_fn.rs",
+          "crates/oxfunc_core/src/functions/discrete_dist_family.rs",
+          "crates/oxfunc_core/src/functions/engineering_radix_family.rs",
+          "crates/oxfunc_core/src/functions/exact_fn.rs",
+          "crates/oxfunc_core/src/functions/exp_fn.rs",
+          "crates/oxfunc_core/src/functions/fact.rs",
+          "crates/oxfunc_core/src/functions/financial_time_value_family.rs",
+          "crates/oxfunc_core/src/functions/fisher_fn.rs",
+          "crates/oxfunc_core/src/functions/gcd_fn.rs",
+          "crates/oxfunc_core/src/functions/harmean_fn.rs",
+          "crates/oxfunc_core/src/functions/if_fn.rs",
+          "crates/oxfunc_core/src/functions/iferror.rs",
+          "crates/oxfunc_core/src/functions/ifna_fn.rs",
+          "crates/oxfunc_core/src/functions/int_fn.rs",
+          "crates/oxfunc_core/src/functions/is_predicates_family.rs",
+          "crates/oxfunc_core/src/functions/iseven_fn.rs",
+          "crates/oxfunc_core/src/functions/lcm_fn.rs",
+          "crates/oxfunc_core/src/functions/ln_fn.rs",
+          "crates/oxfunc_core/src/functions/log10_fn.rs",
+          "crates/oxfunc_core/src/functions/log_fn.rs",
+          "crates/oxfunc_core/src/functions/matrix_family.rs",
+          "crates/oxfunc_core/src/functions/median_fn.rs",
+          "crates/oxfunc_core/src/functions/misc_conversion_family.rs",
+          "crates/oxfunc_core/src/functions/mod_fn.rs",
+          "crates/oxfunc_core/src/functions/mround.rs",
+          "crates/oxfunc_core/src/functions/normal_log_family.rs",
+          "crates/oxfunc_core/src/functions/not_fn.rs",
+          "crates/oxfunc_core/src/functions/odd_bond_family.rs",
+          "crates/oxfunc_core/src/functions/permut_fn.rs",
+          "crates/oxfunc_core/src/functions/permutationa_fn.rs",
+          "crates/oxfunc_core/src/functions/phi_fn.rs",
+          "crates/oxfunc_core/src/functions/power_fn.rs",
+          "crates/oxfunc_core/src/functions/quotient_fn.rs",
+          "crates/oxfunc_core/src/functions/radians.rs",
+          "crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+          "crates/oxfunc_core/src/functions/regression_forecast_family.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs",
+          "crates/oxfunc_core/src/functions/rounddown_fn.rs",
+          "crates/oxfunc_core/src/functions/roundup_fn.rs",
+          "crates/oxfunc_core/src/functions/sec.rs",
+          "crates/oxfunc_core/src/functions/sech.rs",
+          "crates/oxfunc_core/src/functions/sin.rs",
+          "crates/oxfunc_core/src/functions/sinh.rs",
+          "crates/oxfunc_core/src/functions/special_dist_family.rs",
+          "crates/oxfunc_core/src/functions/sqrt_fn.rs",
+          "crates/oxfunc_core/src/functions/standardize_fn.rs",
+          "crates/oxfunc_core/src/functions/statistical_tests_family.rs",
+          "crates/oxfunc_core/src/functions/tan.rs",
+          "crates/oxfunc_core/src/functions/tanh.rs",
+          "crates/oxfunc_core/src/functions/text_b_compat_family.rs",
+          "crates/oxfunc_core/src/functions/text_slice_family.rs",
+          "crates/oxfunc_core/src/functions/trunc_fn.rs",
+          "crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+          "crates/oxfunc_core/src/functions/web_text_xml_family.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/conditional_common.rs",
+      "blob": "83cdc0c7ac55f6dbdb4273b041b72780776ad3ce",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/conditional_common.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function_call.rs",
+      "blob": "426cf6877cc60ce74caddc55a66bb287510baaec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function_call.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFml",
+      "commit": "15daac56f29bce951ee9be04a64c765f3646e58a",
+      "path": "crates/oxfml_core/src/semantics/mod.rs",
+      "blob": "8195c5802d92da45fb7ebb6894fb88b35bf518bc",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFml/crates/oxfml_core/src/semantics/mod.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "OxFunc crate oxfunc_core"
+        ]
+      },
+      "ported": []
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "IFERROR and IFNA over an array value or a range in an array context (Excel returns an array of results, one per element)"
+      ],
+      "beads": [
+        "cfml-m3.4",
+        "cfml-m3.3"
+      ],
+      "basis": "array lifting: a notes hit in dc-ibp2 alone; array evaluation: cfml-m3.4 (Preserve array evaluation and legacy array contexts), which implements scalar, dynamic-array and legacy-CSE evaluation contexts and broadcasting, and which calc-fml's compile refusal of array constants and EvalFault::AreaAsValue already name; intersection and implicit intersection: cfml-m3.3 (Report dynamic references and reference algebra reads), which implements the implicit-intersection operator for a range where one value is needed in a legacy formula, and which EvalFault::AreaAsValue also names (the other hits, ceng-m3.1 and infra-m7.10, index ranges and publish reports)."
+    },
+    {
+      "items": [
+        "a callable value (LAMBDA) given to IFERROR or IFNA"
+      ],
+      "beads": [
+        "cfml-m2.3"
+      ],
+      "basis": "LAMBDA and callable: cfml-m2.3 (Compile LET LAMBDA closures and invocation); the other hits name LAMBDA or a callable without evaluating one as a worksheet function's argument."
+    },
+    {
+      "items": [
+        "IFNA written in its package form _xlfn.IFNA when a workbook is saved"
+      ],
+      "beads": [
+        "dc-552j"
+      ],
+      "basis": "_xlfn and xlfn: dc-552j (Write formula prefixes and newer error values the way Excel saves them), whose Do adds the prefixes on save from CalcFunc's catalogue metadata; reading _xlfn.IFNA on load is dc-besk's (compile resolves the prefix), and a file's unprefixed IFNA, which Excel loads as an unknown name, is dc-xrxb's."
+    }
+  ],
+  "legacy_tests": [
+    {
+      "file": "OxFml crates/oxfml_core/src/eval/mod.rs (its #[cfg(test)] modules)",
+      "blob": "9e815094f12634345776eaf2b99eaefdb680b2c7",
+      "tests": [
+        {
+          "test": "surface_probe_covers_exactly_the_probing_forms",
+          "disposition": "dropped",
+          "replaced_by": null,
+          "reason": "It checks that the IfNa and IfError special forms take no surface probe; here no special form or probe exists: the catalogue's demand schedules the arguments and the kernel decides. cfml-m1.3 dropped its IFS, CHOOSE and SWITCH rows for cfml-m2.4."
+        }
+      ]
+    }
+  ]
+}

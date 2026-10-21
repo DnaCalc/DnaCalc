@@ -19,13 +19,14 @@ mod aggregate;
 mod arithmetic;
 mod comparison;
 mod conditional;
+mod error_fallback;
 mod logical;
 mod rounding;
 mod text;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 7] = [
+const FAMILIES: [&Family; 8] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -33,6 +34,7 @@ const FAMILIES: [&Family; 7] = [
     &logical::FAMILY,
     &rounding::FAMILY,
     &conditional::FAMILY,
+    &error_fallback::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);
@@ -116,6 +118,9 @@ pub enum ArgumentDemand {
     Eager,
     /// IF's shape: argument 0 decides, and then at most one of the other arguments is evaluated.
     BranchOnCondition,
+    /// IFERROR's and IFNA's shape: argument 0 is always evaluated, and argument 1 only when
+    /// argument 0 is an error the entry catches; which errors it catches is the entry's own rule.
+    FallbackOnError,
 }
 
 impl ArgumentDemand {
@@ -123,7 +128,7 @@ impl ArgumentDemand {
     pub const fn is_lazy(self) -> bool {
         match self {
             Self::Eager => false,
-            Self::BranchOnCondition => true,
+            Self::BranchOnCondition | Self::FallbackOnError => true,
         }
     }
 
@@ -132,7 +137,7 @@ impl ArgumentDemand {
     pub const fn discriminator(self) -> Option<usize> {
         match self {
             Self::Eager => None,
-            Self::BranchOnCondition => Some(0),
+            Self::BranchOnCondition | Self::FallbackOnError => Some(0),
         }
     }
 
@@ -140,7 +145,7 @@ impl ArgumentDemand {
     pub const fn holds_back(self, index: usize) -> bool {
         match self {
             Self::Eager => false,
-            Self::BranchOnCondition => index > 0,
+            Self::BranchOnCondition | Self::FallbackOnError => index > 0,
         }
     }
 }

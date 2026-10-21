@@ -21,7 +21,7 @@ use crate::reference::{
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::ExcelText;
-use calc_func::{Notation, catalogue};
+use calc_func::{ArgumentDemand, Notation, catalogue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -104,8 +104,9 @@ struct Lowering {
 /// and its first operand last.
 enum Task<'t> {
     /// Append to block `block` the instructions that push the value of `node`. `tail` says
-    /// whether that value is the formula's result: the root expression, through parentheses, a
-    /// prefix `+` or `-` and the arguments a lazy function may return.
+    /// whether that value is the formula's result for the check of a final `+` or `-`: the root
+    /// expression, through parentheses, a prefix `+` or `-` and IF's branches
+    /// ([`carries_final_sum`]).
     Lower {
         node: &'t SyntaxNode,
         tail: bool,
@@ -380,7 +381,7 @@ impl Lowering {
         for (index, argument) in arguments.into_iter().enumerate().rev() {
             tasks.push(Task::Lower {
                 node: argument,
-                tail: tail && demand.holds_back(index),
+                tail: tail && carries_final_sum(demand, index),
                 block: first_block + index,
             });
         }
@@ -400,6 +401,19 @@ impl Lowering {
                 Ok(true)
             }
         }
+    }
+}
+
+/// Whether the check of the formula's final `+` or `-` follows argument `index` of a lazy call
+/// with demand `demand` at the formula's tail. It follows IF's branches, a choice the check makes
+/// rather than guess (bead dc-r4ci measures it). It does not follow IFERROR's and IFNA's
+/// arguments: a near-zero sum there is published as computed, as Excel 16.0.20430.20182 publishes
+/// it (bead dc-ibp2's capture: `=IFERROR(0.5-0.4-0.1,1)` and `=IFERROR(#N/A,0.5-0.4-0.1)` are
+/// both -2.7755575615628914e-17, not adjusted to 0).
+fn carries_final_sum(demand: ArgumentDemand, index: usize) -> bool {
+    match demand {
+        ArgumentDemand::BranchOnCondition => demand.holds_back(index),
+        ArgumentDemand::Eager | ArgumentDemand::FallbackOnError => false,
     }
 }
 
@@ -725,7 +739,7 @@ mod tests {
     }
 
     /// The final operation of the formula is checked, through parentheses, a prefix `+` or `-`
-    /// and the branches of IF, and nowhere else.
+    /// and the branches of IF, and nowhere else: not through IFERROR's or IFNA's arguments.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn final_sums_are_marked() {
@@ -742,6 +756,10 @@ mod tests {
         assert_eq!(marked("=(0.5-0.4-0.1)"), 1);
         assert_eq!(marked("=+(1+2)"), 1);
         assert_eq!(marked("=IF(1+1,2-1,3+4)"), 2);
+        assert_eq!(marked("=IFERROR(0.5-0.4-0.1,1)"), 0);
+        assert_eq!(marked("=IFNA(#N/A,2-1)"), 0);
+        assert_eq!(marked("=IFERROR(IF(TRUE,2-1),1)"), 0);
+        assert_eq!(marked("=IF(TRUE,IFERROR(1,2-1))"), 0);
         assert_eq!(marked("=1*(0.5-0.4-0.1)"), 0);
         assert_eq!(marked("=-(1+2)"), 1);
         assert_eq!(marked("=2*-(1+2)"), 0);

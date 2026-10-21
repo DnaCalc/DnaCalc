@@ -15,7 +15,8 @@
 //! Every operator and function runs through `calc_func::invoke`. Every value a formula reads
 //! comes from the caller's [`ReferenceReader`], which is also the `calc_func::CellReader` the
 //! kernels read reference arguments through (see the `cells` module). A function whose catalogue
-//! entry is lazy (IF) asks for its arguments itself, and only the arguments it asks for run.
+//! entry is lazy (IF, IFERROR, IFNA) asks for its arguments itself, and only the arguments it asks
+//! for run.
 //!
 //! Evaluation does not compile: [`evaluate`] receives no formula text, syntax tree or catalogue.
 //!

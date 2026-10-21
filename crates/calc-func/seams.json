@@ -19,6 +19,7 @@
     {"item": "catalogue::ParameterClass::Reference", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "admit_argument"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "catalogue::ArgumentDemand::Eager", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "ArgumentDemand::is_lazy"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "catalogue::ArgumentDemand::BranchOnCondition", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "ArgumentDemand::is_lazy"}], "case": "cfunc_m1_1__catalogue_consistency"},
+    {"item": "catalogue::ArgumentDemand::FallbackOnError", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "ArgumentDemand::is_lazy"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "carries_final_sum"}], "case": "dc_ibp2__error_fallback"},
     {"item": "catalogue::RegistrationError::UnknownId", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "Catalogue::resolve"}], "case": "cfunc_m1_1__unknown_function"},
     {"item": "catalogue::RegistrationError::UnknownSurface", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "Catalogue::resolve_surface"}], "case": "cfunc_m1_1__unknown_function"}
   ]

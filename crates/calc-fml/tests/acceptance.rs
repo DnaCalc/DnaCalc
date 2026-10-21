@@ -48,6 +48,21 @@
 //! give the value derived by hand from the functions' documented rules. Which spellings compile
 //! reads as a function, and which as an unknown name, is the rule `file_unprefixed` in
 //! `src/eval/compile.rs` states; the case holds no value read from Excel.
+//!
+//! The dc-ibp2 cases run IFERROR and IFNA through the same public route (parse_formula, compile,
+//! instantiate, evaluate), over a reader that logs the areas it is asked for and an
+//! EvaluationObserver that records the calls the evaluator shows it, so a fallback that is not
+//! evaluated shows as areas never requested and calls never run. Each oracle row's expected value
+//! is derived by hand and labelled: `documented` when Microsoft's IFERROR or IFNA page (or the
+//! operator and function rules the row nests them in) gives it, `unmeasured choice` with the
+//! choice named otherwise, including where the implementation departs from the page's text. The
+//! rows' formulas are column D of the sheet error_fallback of `tests/fixtures/dc_ibp2/oracle.xlsx`,
+//! written by the committed generator `tests/fixtures/make-fixtures.ps1`; Excel's capture of that
+//! workbook (`tests/captures/dc_ibp2/oracle.capture.json`, written by `cargo xtask capture`) is the
+//! Excel evidence, judged row by row through calc_verdict::judge. Column F holds
+//! source formulas calc-fml does not compile (FILTER, SEQUENCE, FIELDVALUE), whose errors
+//! (#CALC!, #SPILL!, #FIELD!) some rows read: the case's reader holds the error each is assumed to
+//! give, and the comparison checks that assumption against Excel's capture of the source cell.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -62,15 +77,23 @@ use calc_fml::syntax::{
     TokenKind,
 };
 use calc_fml::{
-    CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationServices,
-    FormulaInstance, PlanCache, compile, evaluate, instantiate,
+    CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
+    EvaluationReport, EvaluationServices, ExecutedCall, FormulaInstance, PlanCache, compile,
+    evaluate, instantiate,
 };
 use calc_fml::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 use calc_func::value::{
-    CalcValue, CellKey, ExcelText, GridArea, IdAllocator, MAX_COLUMNS, MAX_ROWS, NumericMode,
-    SheetId, WorksheetErrorCode,
+    CalcValue, CellKey, CoreValue, ExcelText, GridArea, IdAllocator, MAX_COLUMNS, MAX_ROWS,
+    NumericMode, SheetId, WorksheetErrorCode,
 };
 use calc_func::{FunctionFault, Notation, catalogue};
+use calc_verdict::{
+    Acquisition, CalculationContext, CaptureRecord, CaptureSession, CellAddress, CellObservation,
+    CellResult, Evaluation as VerdictEvaluation, FormulaCell, FormulaKind, InstrumentRecord,
+    InstrumentedEvaluation, MissingCapture, Observation, Provenance, ResultSet, RunIdentity,
+    STAGE_ENVIRONMENT, STAGE_INVENTORY, STAGE_ISOLATION, SheetEntry, SheetVisibility, Verdict,
+    VerdictPolicy, VerdictReport, judge, sha256_hex,
+};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
@@ -3101,5 +3124,1839 @@ fn described(outcome: &Outcome) -> String {
     match outcome {
         Outcome::Value(value) => shown(value),
         Outcome::Refused(refused) => format!("the refusal {refused:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-ibp2: IFERROR and IFNA, evaluated lazily through calc_fml::evaluate, and their Excel
+// comparison through calc_verdict::judge.
+
+/// The oracle workbook, as committed (its bytes are kept across checkouts by `.gitattributes`).
+const FALLBACK_WORKBOOK: &[u8] = include_bytes!("fixtures/dc_ibp2/oracle.xlsx");
+const FALLBACK_WORKBOOK_PATH: &str = "crates/calc-fml/tests/fixtures/dc_ibp2/oracle.xlsx";
+/// Excel's capture of the oracle workbook, or the absent-capture marker until it is taken.
+const FALLBACK_CAPTURE: &[u8] = include_bytes!("captures/dc_ibp2/oracle.capture.json");
+/// The capture worker, whose content hash a capture's tool revision must name.
+const CAPTURE_WORKER: &[u8] =
+    include_bytes!("../../../platform/calc-oracle-excel/worker/capture-worker.ps1");
+/// The case the capture is recorded under, and the command that writes it.
+const FALLBACK_CASE: &str = "dc_ibp2__error_fallback";
+const FALLBACK_CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-fml/tests/fixtures/dc_ibp2/oracle.xlsx --case dc_ibp2__error_fallback --out crates/calc-fml/tests/captures/dc_ibp2/oracle.capture.json";
+/// The oracle workbook's sheet, and its column (D) of formulas, one per oracle row from row 1.
+const FALLBACK_SHEET: &str = "error_fallback";
+const FALLBACK_COLUMN: u32 = 4;
+/// The sheet of the cells only the rows that are not compared with Excel read.
+const ELSEWHERE: &str = "elsewhere";
+/// The authored revision the rows calculate: the oracle workbook as committed.
+const FALLBACK_REVISION: u64 = 0;
+
+/// Why a row's expected value is what it is.
+#[derive(Clone, Copy, Debug)]
+enum Basis {
+    /// Microsoft's IFERROR or IFNA page, or the operator and function rules the row nests them
+    /// in, gives the value.
+    Documented,
+    /// The pages give the value under a condition about the oracle workbook, which the
+    /// comparison checks against the capture.
+    DocumentedWhen(Condition),
+    /// The pages do not give the value, or say otherwise: the implementation's choice, named.
+    Unmeasured(&'static str),
+}
+
+const EVERY_ERROR: &str = "IFERROR catches every error; its page lists seven (#N/A, #VALUE!, #REF!, #DIV/0!, #NUM!, #NAME?, #NULL!), not #GETTING_DATA";
+const BLANK_VALUE: &str = "a blank cell's value becomes the result as the empty value, which the formula's result shows as 0; the pages say an empty cell is treated as empty text";
+const BLANK_OPERAND: &str = "the empty value IFERROR returns for a blank cell reads as 0 in arithmetic and equals 0; the pages' empty text would give #VALUE! and FALSE";
+const OMITTED: &str = "an omitted argument that becomes the result is the empty value, which the formula's result shows as 0; the pages do not say";
+const OMITTED_OPERAND: &str = "an omitted argument that IFERROR returns is the empty value, which concatenates as empty text (calc-func's IF returns 0 for an omitted branch, which would give \"0|\"); the pages do not say";
+const NOT_A_REFERENCE: &str = "IFERROR's value parameter takes a value, so a reference reaches it as its cell's value and IFERROR returns no reference; the page does not say";
+const IF_REFERENCE: &str = "IF returns its chosen branch as written, a reference here, whose text SUM skips (cfml-m1.3's choice): the contrast with the row before";
+const NEAR_ZERO: &str = "the check of a final + or - does not follow IFERROR's arguments, so the binary64 result is published; Excel's adjustment of a final sum near zero (KB 78113) is not documented inside a function's argument";
+const NOT_IN_WORKBOOK: &str = "IFERROR catches every error, these too; these rows read them from cells of the sheet elsewhere, which the oracle workbook does not hold, so they are not compared with Excel (whether Excel takes any of these errors as a formula literal or a cell constant is not measured); #CALC!, #SPILL! and #FIELD! are compared through the source formulas of column F, while for #BLOCKED!, #CONNECT! and #BUSY! catching is an unmeasured choice, since the functions that give them in Excel (IMAGE, STOCKHISTORY, PY and other external-data routes) are ones the capture refuses";
+const SOURCE_CAUGHT: &str = "IFERROR catches the error of the source formula of column F, which Microsoft's page, listing seven errors, does not name; the reader holds the error the case assumes Excel gives the source";
+const SOURCE_PASSED: &str = "IFNA passes on the error of the source formula of column F, as its page says of every error but #N/A; the reader holds the error the case assumes Excel gives the source";
+
+/// A condition about the oracle workbook under which the pages give a row's value, checked by
+/// [`judge_excel_capture`] against the capture.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Condition {
+    /// Excel loads the generator's empty inline string at A5 as empty text, not as a blank cell:
+    /// the row's raw value in the capture is empty text, where the row over the blank A4 gives 0.
+    EmptyTextCell,
+    /// The workbook holds the formula in its legacy form: the capture's formula cell is no
+    /// dynamic-array formula, and Excel reports it with the implicit-intersection operator `@`.
+    LegacyForm,
+}
+
+impl Condition {
+    fn text(self) -> &'static str {
+        match self {
+            Condition::EmptyTextCell => {
+                "Excel loads the generator's empty inline string at A5 as empty text, not as a blank cell"
+            }
+            Condition::LegacyForm => {
+                "the oracle workbook holds the formula in its legacy form, without dynamic-array cell metadata, and the value holds for that form; its dynamic-array form, whose range argument is array evaluation (cfml-m3.4), is not compared"
+            }
+        }
+    }
+}
+
+/// An oracle row: its formula as entered, in column D of the sheet error_fallback at its position
+/// (the first row is row 1), its hand-derived value and the value's basis, and, for a row that
+/// reads a source cell of column F, that cell's address: the row's value is then conditional on
+/// the error the reader holds for that cell, and the comparison publishes it as not modelled.
+struct FallbackRow {
+    formula: &'static str,
+    expected: CalcValue,
+    basis: Basis,
+    source: Option<&'static str>,
+}
+
+fn fallback_rows() -> Vec<FallbackRow> {
+    use Basis::{Documented as D, DocumentedWhen as DW, Unmeasured as U};
+    use WorksheetErrorCode as W;
+    let n = CalcValue::number;
+    let e = CalcValue::error;
+    let t = text_value;
+    let row = |formula, expected, basis| FallbackRow {
+        formula,
+        expected,
+        basis,
+        source: None,
+    };
+    let reads = |source, formula, expected, basis| FallbackRow {
+        formula,
+        expected,
+        basis,
+        source: Some(source),
+    };
+    let near_zero = n(-2.7755575615628914e-17);
+    vec![
+        // The bead's four rows, then an error literal of each kind a cell can hold as a constant,
+        // and #GETTING_DATA.
+        row("=IFERROR(1/0,5)", n(5.0), D),
+        row("=IFERROR(2,1/0)", n(2.0), D),
+        row("=IFNA(#N/A,1)", n(1.0), D),
+        row("=IFNA(#DIV/0!,1)", e(W::Div0), D),
+        row("=IFERROR(#N/A,\"na\")", t("na"), D),
+        row("=IFERROR(#VALUE!,1)", n(1.0), D),
+        row("=IFERROR(#REF!,1)", n(1.0), D),
+        row("=IFERROR(#NAME?,1)", n(1.0), D),
+        row("=IFERROR(#NUM!,1)", n(1.0), D),
+        row("=IFERROR(#NULL!,1)", n(1.0), D),
+        row("=IFERROR(#DIV/0!,1)", n(1.0), D),
+        row("=IFERROR(#GETTING_DATA,1)", n(1.0), U(EVERY_ERROR)),
+        row("=IFNA(#GETTING_DATA,1)", e(W::GettingData), D),
+        row("=IFNA(#VALUE!,1)", e(W::Value), D),
+        row("=IFNA(#REF!,\"x\")", e(W::Ref), D),
+        row("=IFNA(#NAME?,1)", e(W::Name), D),
+        row("=IFNA(#NUM!,1)", e(W::Num), D),
+        row("=IFNA(#NULL!,1)", e(W::Null), D),
+        // References to error cells.
+        row("=IFERROR(A2,\"caught\")", t("caught"), D),
+        row("=IFNA(A2,\"caught\")", e(W::Div0), D),
+        row("=IFNA(A3,\"caught\")", t("caught"), D),
+        row("=IFERROR(A3,\"caught\")", t("caught"), D),
+        row("=IFERROR(B1,1)", n(1.0), D),
+        row("=IFERROR(B2,1)", n(1.0), D),
+        row("=IFERROR(B3,1)", n(1.0), D),
+        row("=IFERROR(B4,1)", n(1.0), D),
+        row("=IFERROR(B5,1)", n(1.0), D),
+        row("=IFNA(B1,1)", e(W::Ref), D),
+        row("=IFNA(B5,1)", e(W::Null), D),
+        // References to cells holding values, a blank cell and empty text among them, and
+        // omitted arguments.
+        row("=IFERROR(A1,0)", n(5.0), D),
+        row("=IFNA(A1,0)", n(5.0), D),
+        row("=IFERROR(A6,1)", t("a"), D),
+        row("=IFERROR(A7,1)", CalcValue::logical(true), D),
+        row("=IFERROR(A5,\"x\")", t(""), DW(Condition::EmptyTextCell)),
+        row("=IFERROR(A4,\"x\")", n(0.0), U(BLANK_VALUE)),
+        row("=IFNA(A4,\"x\")", n(0.0), U(BLANK_VALUE)),
+        row("=IFERROR(#N/A,A4)", n(0.0), U(BLANK_VALUE)),
+        row("=IFERROR(A4,1)&\"|\"", t("|"), D),
+        row("=IFERROR(A4,1)+1", n(1.0), U(BLANK_OPERAND)),
+        row(
+            "=IFERROR(A4,1)=0",
+            CalcValue::logical(true),
+            U(BLANK_OPERAND),
+        ),
+        row("=IFERROR(,1)", n(0.0), U(OMITTED)),
+        row("=IFERROR(#N/A,)", n(0.0), U(OMITTED)),
+        row("=IFNA(,1)", n(0.0), U(OMITTED)),
+        row("=IFERROR(#N/A,)&\"|\"", t("|"), U(OMITTED_OPERAND)),
+        row("=IFERROR(,1)&\"|\"", t("|"), U(OMITTED_OPERAND)),
+        // The fallback: read only on an error, and returned as it is.
+        row("=IFERROR(A2,B7)", n(2.0), D),
+        row("=IFERROR(A1,B7)", n(5.0), D),
+        row("=IFERROR(A2,A3)", e(W::NA), D),
+        row("=IFNA(#N/A,#DIV/0!)", e(W::Div0), D),
+        row("=IFERROR(1/0,1/0)", e(W::Div0), D),
+        row("=IFERROR(1,2^0.5)", n(1.0), D),
+        row("=IFERROR(1,A1:A2)", n(1.0), DW(Condition::LegacyForm)),
+        row("=IFNA(A1,2^0.5)", n(5.0), D),
+        // Nested inside arithmetic and other calls.
+        row("=1+IFERROR(1/0,5)", n(6.0), D),
+        row("=IFERROR(A2,1)*10", n(10.0), D),
+        row("=2*IFNA(A3,4)", n(8.0), D),
+        row("=-IFERROR(A2,3)", n(-3.0), D),
+        row("=IFERROR(IFERROR(1/0,#N/A),2)", n(2.0), D),
+        row("=IFNA(IFERROR(A2,#N/A),\"x\")", t("x"), D),
+        row("=IFERROR(\"a\"+1,\"bad\")", t("bad"), D),
+        row("=IFERROR(A6*2,0)", n(0.0), D),
+        row("=IFERROR(A1/B6,\"div\")", t("div"), D),
+        row("=IFERROR(A1/B7,\"div\")", n(2.5), D),
+        row("=IF(IFERROR(A2,FALSE),1,2)", n(2.0), D),
+        row("=IFERROR(IF(A1>3,A2,1),\"x\")", t("x"), D),
+        row("=SUM(IFERROR(A2,1),A1)", n(6.0), D),
+        row("=IFERROR(SUM(A1:A3),0)", n(0.0), D),
+        row("=SUM(IFERROR(A8,0))", n(2.0), U(NOT_A_REFERENCE)),
+        row("=SUM(IF(TRUE,A8))", n(0.0), U(IF_REFERENCE)),
+        row("=IFERROR(1/0,\"a\")&\"b\"", t("ab"), D),
+        // A final sum near zero inside either argument, and two values as they are.
+        row("=IFERROR(0.5-0.4-0.1,1)", near_zero.clone(), U(NEAR_ZERO)),
+        row("=IFERROR(#N/A,0.5-0.4-0.1)", near_zero, U(NEAR_ZERO)),
+        row("=IFERROR(TRUE,1)", CalcValue::logical(true), D),
+        row("=IFERROR(\"\",1)", t(""), D),
+        // The errors of the source formulas of column F, as the reader holds them: conditional
+        // rows.
+        reads("F1", "=IFERROR(F1,1)", n(1.0), U(SOURCE_CAUGHT)),
+        reads("F1", "=IFNA(F1,1)", e(W::Calc), U(SOURCE_PASSED)),
+        reads("F2", "=IFERROR(F2,1)", n(1.0), U(SOURCE_CAUGHT)),
+        reads("F2", "=IFNA(F2,1)", e(W::Spill), U(SOURCE_PASSED)),
+        reads("F4", "=IFERROR(F4,1)", n(1.0), U(SOURCE_CAUGHT)),
+        reads("F4", "=IFNA(F4,1)", e(W::Field), U(SOURCE_PASSED)),
+    ]
+}
+
+/// A source formula of column F of the sheet error_fallback: a call to a function that calc-fml
+/// does not compile (calc-func's catalogue has no entry for it), which the oracle workbook holds as
+/// a dynamic-array formula over its one cell. Rows read its error, which the case's reader holds
+/// as `assumed`: the error the case assumes Excel gives the formula, not measured until the
+/// capture, which the comparison checks against Excel's raw value of the cell.
+struct SourceCell {
+    address: &'static str,
+    formula: &'static str,
+    assumed: WorksheetErrorCode,
+    /// The function calc-fml does not model, and what Excel is assumed to give.
+    feature: &'static str,
+}
+
+fn fallback_sources() -> [SourceCell; 3] {
+    use WorksheetErrorCode as W;
+    [
+        SourceCell {
+            address: "F1",
+            formula: "=FILTER(B6:B7,B6:B7>100)",
+            assumed: W::Calc,
+            feature: "FILTER (no row matches: #CALC!)",
+        },
+        SourceCell {
+            address: "F2",
+            formula: "=SEQUENCE(2)",
+            assumed: W::Spill,
+            feature: "SEQUENCE (its spill blocked by F3: #SPILL!)",
+        },
+        SourceCell {
+            address: "F4",
+            formula: "=FIELDVALUE(A1,\"x\")",
+            assumed: W::Field,
+            feature: "FIELDVALUE (A1 holds no data type: #FIELD!)",
+        },
+    ]
+}
+
+/// What an [`EvaluationObserver`] is shown of one evaluation: each call, as its notation and
+/// spelling with ` *` when compile inserted it, and the report's cell and outcome.
+#[derive(Default)]
+struct CallLog {
+    calls: Vec<String>,
+    reported: Vec<(CellKey, Result<CalcValue, EvalFault>)>,
+}
+
+impl EvaluationObserver for CallLog {
+    fn called(&mut self, call: ExecutedCall) {
+        let target = call.target();
+        self.calls.push(format!(
+            "{:?} {}{}",
+            target.notation(),
+            target.spelling(),
+            if call.synthetic() { " *" } else { "" }
+        ));
+    }
+
+    fn returned(&mut self, report: EvaluationReport<'_>) {
+        self.reported.push((
+            report.anchor().cell(),
+            report.outcome().cloned().map_err(Clone::clone),
+        ));
+    }
+}
+
+/// One evaluation as the case sees it: its outcome, the areas the reader was asked for in order,
+/// and what the observer was shown.
+struct Shown {
+    outcome: Result<CalcValue, EvalFault>,
+    reads: Vec<GridArea>,
+    log: CallLog,
+}
+
+/// The cells the rows read, on the sheet error_fallback (as the oracle workbook holds them) and
+/// on the sheet elsewhere (errors no oracle row can give, and an unresolved input), and the state
+/// the rows are compiled and evaluated in.
+struct FallbackBook {
+    catalog: LoggingCatalog,
+    sheet: SheetId,
+    elsewhere: SheetId,
+    reader: RunReader,
+    cache: PlanCache,
+    scratch: EvalScratch,
+}
+
+/// The constant cells of the sheet error_fallback, by address, as the generator writes them: A4
+/// is blank, A5 empty text, F3 the text that blocks F2's spill.
+fn fallback_cells() -> Vec<(&'static str, CalcValue)> {
+    use WorksheetErrorCode as W;
+    vec![
+        ("A1", CalcValue::number(5.0)),
+        ("A2", CalcValue::error(W::Div0)),
+        ("A3", CalcValue::error(W::NA)),
+        ("A5", text_value("")),
+        ("A6", text_value("a")),
+        ("A7", CalcValue::logical(true)),
+        ("A8", text_value("2")),
+        ("B1", CalcValue::error(W::Ref)),
+        ("B2", CalcValue::error(W::Value)),
+        ("B3", CalcValue::error(W::Num)),
+        ("B4", CalcValue::error(W::Name)),
+        ("B5", CalcValue::error(W::Null)),
+        ("B6", CalcValue::number(0.0)),
+        ("B7", CalcValue::number(2.0)),
+        ("F3", text_value("block")),
+    ]
+}
+
+/// The errors no constant cell of the oracle workbook holds, on the sheet elsewhere at A1 to A6.
+const ELSEWHERE_ERRORS: [WorksheetErrorCode; 6] = [
+    WorksheetErrorCode::Calc,
+    WorksheetErrorCode::Spill,
+    WorksheetErrorCode::Field,
+    WorksheetErrorCode::Blocked,
+    WorksheetErrorCode::Connect,
+    WorksheetErrorCode::Busy,
+];
+
+impl FallbackBook {
+    fn new() -> Self {
+        let catalog = LoggingCatalog::new(&[FALLBACK_SHEET, ELSEWHERE]);
+        let (sheet, elsewhere) = (catalog.id(FALLBACK_SHEET), catalog.id(ELSEWHERE));
+        let mut reader = RunReader::default();
+        for (address, value) in fallback_cells() {
+            reader.store(sheet, address, value);
+        }
+        for source in fallback_sources() {
+            reader.store(sheet, source.address, CalcValue::error(source.assumed));
+        }
+        for (row, code) in ELSEWHERE_ERRORS.iter().enumerate() {
+            reader.store(elsewhere, &format!("A{}", row + 1), CalcValue::error(*code));
+        }
+        reader.leave_unresolved(elsewhere, "D1");
+        FallbackBook {
+            catalog,
+            sheet,
+            elsewhere,
+            reader,
+            cache: PlanCache::new(),
+            scratch: EvalScratch::new(),
+        }
+    }
+
+    /// The anchor of oracle row `row`: column D of the sheet error_fallback.
+    fn anchor(&self, row: u32) -> FormulaAnchor {
+        FormulaAnchor::new(CellKey::new(self.sheet, row, FALLBACK_COLUMN).expect("a cell"))
+    }
+
+    fn compile(
+        &mut self,
+        formula: &str,
+        anchor: FormulaAnchor,
+    ) -> Result<Arc<CompiledPlan>, CompileError> {
+        compile(
+            &parse_formula(formula),
+            ReferenceNotation::A1,
+            anchor,
+            &self.catalog,
+            &mut self.cache,
+        )
+    }
+
+    /// One evaluation of `instance` under Fast, observed, with the reader's logs cleared first.
+    fn run(&mut self, instance: &FormulaInstance) -> Shown {
+        self.reader.requests.clear();
+        self.reader.value_runs.clear();
+        let mode = NumericMode::Fast;
+        let mut log = CallLog::default();
+        let outcome = evaluate(
+            EvalFrame::new(instance, &mut self.scratch),
+            &mut EvaluationServices::new(&mode, &mut self.reader).observed_by(&mut log),
+        );
+        Shown {
+            outcome,
+            reads: std::mem::take(&mut self.reader.requests),
+            log,
+        }
+    }
+
+    /// `formula` compiled at `anchor` and evaluated once.
+    fn evaluate(&mut self, formula: &str, anchor: FormulaAnchor) -> Shown {
+        let plan = self
+            .compile(formula, anchor)
+            .unwrap_or_else(|refused| panic!("{formula}: {refused:?}"));
+        self.run(&instantiate(&plan, anchor))
+    }
+
+    /// The areas these A1 texts name: a cell or `first:last`, on the sheet error_fallback unless
+    /// qualified with `elsewhere!`.
+    fn areas(&self, texts: &[&str]) -> Vec<GridArea> {
+        texts
+            .iter()
+            .map(|text| {
+                let (sheet, text) = match text.strip_prefix("elsewhere!") {
+                    Some(rest) => (self.elsewhere, rest),
+                    None => (self.sheet, *text),
+                };
+                match text.split_once(':') {
+                    Some((first, last)) => area_of(sheet, first, last),
+                    None => one_cell(sheet, text),
+                }
+            })
+            .collect()
+    }
+}
+
+/// A value as the dc-ibp2 notes show it.
+fn value_shown(value: &CalcValue) -> String {
+    match value.core() {
+        CoreValue::Number(n) => format!("{n:?}"),
+        CoreValue::Text(text) => format!("{:?}", text.to_string_lossy()),
+        CoreValue::Logical(b) => (if *b { "TRUE" } else { "FALSE" }).to_owned(),
+        CoreValue::Error(code) => format!("#{code:?}"),
+        other => format!("{other:?}"),
+    }
+}
+
+/// Whether two values are the same value, numbers bit for bit.
+fn same_value(a: &CalcValue, b: &CalcValue) -> bool {
+    match (a.as_number(), b.as_number()) {
+        (Some(a), Some(b)) => a.to_bits() == b.to_bits(),
+        _ => a == b,
+    }
+}
+
+/// An oracle row as one run evaluated it: its row, the evaluation, and the tick it ran at.
+struct OracleRun {
+    row: u32,
+    formula: &'static str,
+    expected: CalcValue,
+    basis: Basis,
+    source: Option<&'static str>,
+    shown: Shown,
+    tick: u64,
+}
+
+/// Every oracle row, evaluated in order at its cell, one tick each from tick 1.
+fn fallback_run(book: &mut FallbackBook) -> Vec<OracleRun> {
+    fallback_rows()
+        .into_iter()
+        .zip(1u32..)
+        .map(|(row, at)| {
+            let shown = book.evaluate(row.formula, book.anchor(at));
+            OracleRun {
+                row: at,
+                formula: row.formula,
+                expected: row.expected,
+                basis: row.basis,
+                source: row.source,
+                shown,
+                tick: u64::from(at),
+            }
+        })
+        .collect()
+}
+
+/// Each source formula of column F with calc-fml's refusal to compile it at its own cell: the
+/// diagnostic its not-modelled result carries.
+fn source_refusals(book: &mut FallbackBook) -> Vec<(SourceCell, CompileError)> {
+    fallback_sources()
+        .into_iter()
+        .map(|source| {
+            let anchor = anchor_at(book.sheet, source.address);
+            let refused = book
+                .compile(source.formula, anchor)
+                .err()
+                .unwrap_or_else(|| panic!("{} compiles", source.formula));
+            (source, refused)
+        })
+        .collect()
+}
+
+/// A formula in the form the oracle workbook stores it: without `=`, and with the prefix
+/// `_xlfn.` that a package gives a function added to Excel after Excel 2007 (IFNA, Excel 2013, and
+/// the source formulas' SEQUENCE and FIELDVALUE), and `_xlfn._xlws.` for FILTER.
+fn file_form(formula: &str) -> String {
+    formula[1..]
+        .replace("IFNA(", "_xlfn.IFNA(")
+        .replace("FILTER(", "_xlfn._xlws.FILTER(")
+        .replace("SEQUENCE(", "_xlfn.SEQUENCE(")
+        .replace("FIELDVALUE(", "_xlfn.FIELDVALUE(")
+}
+
+/// The parts of a ZIP package whose entries are stored (not compressed), as the generator writes
+/// them, by name.
+fn stored_parts(package: &[u8]) -> BTreeMap<String, &[u8]> {
+    let u16_at = |at: usize| usize::from(u16::from_le_bytes([package[at], package[at + 1]]));
+    let u32_at = |at: usize| {
+        u32::from_le_bytes([
+            package[at],
+            package[at + 1],
+            package[at + 2],
+            package[at + 3],
+        ]) as usize
+    };
+    let mut parts = BTreeMap::new();
+    let mut at = 0;
+    while at + 30 <= package.len() && u32_at(at) == 0x0403_4b50 {
+        assert_eq!(
+            u16_at(at + 8),
+            0,
+            "a part of the oracle workbook is compressed"
+        );
+        let size = u32_at(at + 18);
+        let (name_length, extra_length) = (u16_at(at + 26), u16_at(at + 28));
+        let name = String::from_utf8(package[at + 30..at + 30 + name_length].to_vec())
+            .expect("an ASCII part name");
+        let data = at + 30 + name_length + extra_length;
+        assert!(
+            parts.insert(name, &package[data..data + size]).is_none(),
+            "a part repeats"
+        );
+        at = data + size;
+    }
+    assert_eq!(
+        u32_at(at),
+        0x0201_4b50,
+        "the local entries of the oracle workbook end where its central directory starts"
+    );
+    parts
+}
+
+fn part_text<'p>(parts: &BTreeMap<String, &'p [u8]>, name: &str) -> &'p str {
+    let bytes = parts
+        .get(name)
+        .unwrap_or_else(|| panic!("the oracle workbook has no part {name}"));
+    std::str::from_utf8(bytes).unwrap_or_else(|e| panic!("{name}: {e}"))
+}
+
+/// The value of attribute `name` of a start tag.
+fn attribute<'x>(tag: &'x str, name: &str) -> Option<&'x str> {
+    let marker = format!(" {name}=\"");
+    let start = tag.find(&marker)? + marker.len();
+    let end = tag[start..].find('"')? + start;
+    Some(&tag[start..end])
+}
+
+fn unescape(text: &str) -> String {
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
+}
+
+/// The error literals of the constant cells the generator writes.
+const CELL_ERRORS: [(&str, WorksheetErrorCode); 7] = [
+    ("#NULL!", WorksheetErrorCode::Null),
+    ("#DIV/0!", WorksheetErrorCode::Div0),
+    ("#VALUE!", WorksheetErrorCode::Value),
+    ("#REF!", WorksheetErrorCode::Ref),
+    ("#NAME?", WorksheetErrorCode::Name),
+    ("#NUM!", WorksheetErrorCode::Num),
+    ("#N/A", WorksheetErrorCode::NA),
+];
+
+/// A cell of the oracle sheet: a formula, in its file form, a dynamic-array formula over its one
+/// cell, in its file form, or a constant.
+#[derive(Debug)]
+enum SheetCell {
+    Formula(String),
+    DynamicArray(String),
+    Constant(CalcValue),
+}
+
+/// The cells of the oracle workbook's sheet error_fallback as the generator writes them,
+/// `<c r="..." [t="..."]>` holding an `<f>`, a `<v>` or an inline string, or `<c r="..." cm="1">`
+/// holding `<f t="array" ref="...">` over the cell itself, by address; the metadata part must mark
+/// `cm="1"` as a dynamic-array formula.
+fn workbook_cells(package: &[u8]) -> BTreeMap<String, SheetCell> {
+    let parts = stored_parts(package);
+    let workbook = part_text(&parts, "xl/workbook.xml");
+    assert!(
+        workbook.contains(&format!(
+            "<sheet name=\"{FALLBACK_SHEET}\" sheetId=\"1\" r:id=\"rId1\"/>"
+        )) && workbook.contains("<calcPr fullCalcOnLoad=\"1\"/>")
+            && !workbook.contains("<workbookPr"),
+        "the oracle workbook's workbook part: {workbook}"
+    );
+    let relationships = part_text(&parts, "xl/_rels/workbook.xml.rels");
+    assert!(relationships.contains("Id=\"rId1\""));
+    assert!(relationships.contains("Target=\"worksheets/sheet1.xml\""));
+    assert!(relationships.contains("/relationships/sheetMetadata\" Target=\"metadata.xml\""));
+    assert!(part_text(&parts, "[Content_Types].xml").contains(
+        "<Override PartName=\"/xl/metadata.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml\"/>"
+    ));
+    let metadata = part_text(&parts, "xl/metadata.xml");
+    assert!(
+        metadata.contains("<metadataTypes count=\"1\"><metadataType name=\"XLDAPR\" ")
+            && metadata.contains("<futureMetadata name=\"XLDAPR\" count=\"1\"><bk><extLst><ext uri=\"{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}\"><xda:dynamicArrayProperties fDynamic=\"1\" fCollapsed=\"0\"/>")
+            && metadata.contains("<cellMetadata count=\"1\"><bk><rc t=\"1\" v=\"0\"/></bk></cellMetadata>"),
+        "the metadata part marks cm=\"1\" as a dynamic-array formula: {metadata}"
+    );
+    let xml = part_text(&parts, "xl/worksheets/sheet1.xml");
+    let mut cells = BTreeMap::new();
+    let mut rest = xml;
+    while let Some(at) = rest.find("<c ") {
+        rest = &rest[at..];
+        let tag_end = rest.find('>').expect("a cell's start tag ends");
+        let tag = &rest[..tag_end];
+        let close = rest.find("</c>").expect("a cell ends");
+        let body = &rest[tag_end + 1..close];
+        rest = &rest[close + 4..];
+        let inner = |name: &str| -> Option<String> {
+            let open = format!("<{name}>");
+            let start = body.find(&open)? + open.len();
+            let end = body[start..].find(&format!("</{name}>"))? + start;
+            Some(unescape(&body[start..end]))
+        };
+        let address = attribute(tag, "r")
+            .expect("a cell names its address")
+            .to_owned();
+        let value = |name: &str| inner(name).unwrap_or_else(|| panic!("{address} has no <{name}>"));
+        let array_open = format!("<f t=\"array\" ref=\"{address}\">");
+        let array = body.find(&array_open).map(|start| {
+            let start = start + array_open.len();
+            let end = body[start..].find("</f>").expect("an array formula ends") + start;
+            unescape(&body[start..end])
+        });
+        let cell = match (inner("f"), array, attribute(tag, "t"), attribute(tag, "cm")) {
+            (Some(formula), None, None, None) => SheetCell::Formula(formula),
+            (None, Some(formula), None, Some("1")) => SheetCell::DynamicArray(formula),
+            (None, None, None, None) => {
+                SheetCell::Constant(CalcValue::number(value("v").parse().expect("a number")))
+            }
+            (None, None, Some("b"), None) => {
+                SheetCell::Constant(CalcValue::logical(value("v") == "1"))
+            }
+            (None, None, Some("inlineStr"), None) => SheetCell::Constant(text_value(&value("t"))),
+            (None, None, Some("e"), None) => {
+                let literal = value("v");
+                let code = CELL_ERRORS
+                    .iter()
+                    .find(|(known, _)| *known == literal)
+                    .unwrap_or_else(|| panic!("{address}: {literal} is no error literal"))
+                    .1;
+                SheetCell::Constant(CalcValue::error(code))
+            }
+            (formula, array, kind, metadata) => panic!(
+                "{address}: {formula:?}, array {array:?}, of type {kind:?} with cell metadata {metadata:?}"
+            ),
+        };
+        assert!(
+            cells.insert(address.clone(), cell).is_none(),
+            "{address} repeats"
+        );
+    }
+    cells
+}
+
+/// Runs the committed generator under Windows PowerShell into a new directory under the target
+/// directory's temporary directory and returns the bytes of the workbook it wrote. The directory
+/// is removed when the function returns or panics.
+#[cfg(all(windows, not(target_arch = "wasm32")))]
+fn generated_workbook() -> Vec<u8> {
+    use std::path::{Path, PathBuf};
+    use std::process::{Command, Stdio};
+    struct Removed(PathBuf);
+    impl Drop for Removed {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let generator = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("make-fixtures.ps1");
+    let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("calc-fml-fixtures-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out);
+    let _removed = Removed(out.clone());
+    let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
+    let powershell = Path::new(&system_root)
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe");
+    let ran = Command::new(&powershell)
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(&generator)
+        .arg("-OutDir")
+        .arg(&out)
+        .stdin(Stdio::null())
+        .output()
+        .expect("Windows PowerShell starts");
+    assert!(
+        ran.status.success(),
+        "the generator failed ({:?}):\n{}\n{}",
+        ran.status,
+        String::from_utf8_lossy(&ran.stdout),
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    let written =
+        std::fs::read(out.join("dc_ibp2").join("oracle.xlsx")).expect("the generated workbook");
+    let mut files = 0;
+    let mut pending = vec![out.clone()];
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory).expect("the generator's directory") {
+            let path = entry.expect("a directory entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                files += 1;
+            }
+        }
+    }
+    assert_eq!(files, 1, "the generator writes one workbook");
+    written
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_ibp2__error_fallback() {
+    const CASE: &str = "dc_ibp2__error_fallback";
+    let mut book = FallbackBook::new();
+    let run = fallback_run(&mut book);
+
+    // Every oracle row evaluates to its hand-derived value, and the observer was shown exactly
+    // that outcome, for the row's cell. A row reads a source cell of column F exactly when it is
+    // marked conditional on that cell.
+    let mut documented = 0;
+    let mut conditions = Vec::new();
+    let mut choices = Vec::new();
+    let mut conditional = Vec::new();
+    for row in &run {
+        let shown = &row.shown;
+        let sources_read: Vec<&str> = fallback_sources()
+            .iter()
+            .map(|source| source.address)
+            .filter(|address| shown.reads.contains(&book.areas(&[*address])[0]))
+            .collect();
+        assert_eq!(
+            sources_read,
+            Vec::from_iter(row.source),
+            "{}: the source cells of column F it reads",
+            row.formula
+        );
+        if let Some(source) = row.source {
+            conditional.push(format!("D{} {} reads {source}", row.row, row.formula));
+        }
+        assert!(
+            matches!(&shown.outcome, Ok(value) if same_value(value, &row.expected)),
+            "{} (D{}): {:?}, expected {:?} ({:?})",
+            row.formula,
+            row.row,
+            shown.outcome,
+            row.expected,
+            row.basis
+        );
+        assert_eq!(
+            shown.log.reported,
+            [(book.anchor(row.row).cell(), shown.outcome.clone())],
+            "{}",
+            row.formula
+        );
+        match row.basis {
+            Basis::Documented => documented += 1,
+            Basis::DocumentedWhen(condition) => conditions.push(format!(
+                "{} gives {} when {}",
+                row.formula,
+                value_shown(&row.expected),
+                condition.text()
+            )),
+            Basis::Unmeasured(choice) => choices.push(format!(
+                "{} gives {}: {choice}",
+                row.formula,
+                value_shown(&row.expected)
+            )),
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} oracle rows evaluated through parse_formula, compile, instantiate and evaluate, each equal to its hand-derived value (not compared with Excel here): {} read only the workbook's constant cells and {} are conditional on the error the reader holds for the source cell of column F they read ({}), which the comparison publishes as not modelled; {documented} documented, {} documented under a condition about the workbook, {} unmeasured choices:",
+        run.len(),
+        run.len() - conditional.len(),
+        conditional.len(),
+        conditional.join(", "),
+        conditions.len(),
+        choices.len()
+    );
+    for condition in &conditions {
+        note!("ACCEPT-NOTE: {CASE}: documented under a condition: {condition}");
+    }
+    for choice in &choices {
+        note!("ACCEPT-NOTE: {CASE}: unmeasured choice: {choice}");
+    }
+
+    // The fallback is evaluated only on a caught error: the reader is asked for its areas, and
+    // the calls it holds run, only then. `2^0.5` is refused by calc-func (NotImplemented) and
+    // `A1:A2` where one value is needed by the evaluator (AreaAsValue), so a fallback holding
+    // either would end the evaluation in a fault had it run.
+    let by_formula = |formula: &str| -> &OracleRun {
+        run.iter()
+            .find(|row| row.formula == formula)
+            .unwrap_or_else(|| panic!("{formula} is no oracle row"))
+    };
+    let lazy: [(&str, &[&str], &[&str]); 12] = [
+        ("=IFERROR(1/0,5)", &[], &["Infix /", "Call IFERROR"]),
+        ("=IFERROR(2,1/0)", &[], &["Call IFERROR"]),
+        ("=IFNA(#N/A,1)", &[], &["Call IFNA"]),
+        ("=IFNA(#DIV/0!,1)", &[], &["Call IFNA"]),
+        ("=IFERROR(A2,B7)", &["A2", "B7"], &["Call IFERROR"]),
+        ("=IFERROR(A1,B7)", &["A1"], &["Call IFERROR"]),
+        ("=IFNA(A2,\"caught\")", &["A2"], &["Call IFNA"]),
+        ("=IFERROR(1,2^0.5)", &[], &["Call IFERROR"]),
+        ("=IFERROR(1,A1:A2)", &[], &["Call IFERROR"]),
+        ("=IFNA(A1,2^0.5)", &["A1"], &["Call IFNA"]),
+        (
+            "=IFERROR(IFERROR(1/0,#N/A),2)",
+            &[],
+            &["Infix /", "Call IFERROR", "Call IFERROR"],
+        ),
+        (
+            "=1+IFERROR(1/0,5)",
+            &[],
+            &[
+                "Infix /",
+                "Call IFERROR",
+                "Infix +",
+                "Prefix - *",
+                "Prefix - *",
+            ],
+        ),
+    ];
+    for (formula, reads, calls) in lazy {
+        let shown = &by_formula(formula).shown;
+        assert_eq!(shown.reads, book.areas(reads), "{formula}: areas read");
+        assert_eq!(shown.log.calls, calls, "{formula}: calls run");
+    }
+    // IFNA passes an error other than #N/A on without evaluating its fallback, whose read of B7
+    // would show. Not an oracle row (the oracle workbook and its capture hold no IFNA over another
+    // error with an observable fallback), so its hand-derived value, #DIV/0! (IFNA's page: every
+    // error but #N/A is the result), is not compared with Excel.
+    let (formula, reads, calls): (&str, &[&str], &[&str]) =
+        ("=IFNA(A2,B7)", &["A2"], &["Call IFNA"]);
+    let passed_on = book.evaluate(formula, book.anchor(100));
+    assert_eq!(
+        passed_on.outcome,
+        Ok(CalcValue::error(WorksheetErrorCode::Div0)),
+        "{formula}"
+    );
+    assert_eq!(passed_on.reads, book.areas(reads), "{formula}: areas read");
+    assert_eq!(passed_on.log.calls, calls, "{formula}: calls run");
+    // One plan, two evaluations: B7 is read once A1 holds an error, and not before.
+    let anchor = book.anchor(by_formula("=IFERROR(A1,B7)").row);
+    let plan = book.compile("=IFERROR(A1,B7)", anchor).expect("compiles");
+    let instance = instantiate(&plan, anchor);
+    let before = book.run(&instance);
+    book.reader
+        .store(book.sheet, "A1", CalcValue::error(WorksheetErrorCode::NA));
+    let after = book.run(&instance);
+    book.reader.store(book.sheet, "A1", CalcValue::number(5.0));
+    assert_eq!(
+        (before.outcome, before.reads),
+        (Ok(CalcValue::number(5.0)), book.areas(&["A1"]))
+    );
+    assert_eq!(
+        (after.outcome, after.reads),
+        (Ok(CalcValue::number(2.0)), book.areas(&["A1", "B7"]))
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the reader logs and the observer show each fallback evaluated only on a caught error: {} rows checked area by area and call by call (a fallback of 2^0.5, which calc-func refuses, and of A1:A2, which the evaluator refuses where one value is needed, never runs); =IFNA(A2,B7), not an oracle row and not compared with Excel, gives #DIV/0! (hand-derived) reading A2 alone, so IFNA passes a non-#N/A error on without reading its fallback; one plan of =IFERROR(A1,B7) reads A1 alone while A1 is 5 and A1 then B7 while A1 is #N/A",
+        lazy.len()
+    );
+
+    // Rows not compared with Excel: errors read from cells the oracle workbook does not hold, typed
+    // refusals, and faults, each with the areas read.
+    let caret = catalogue()
+        .resolve_surface(Notation::Infix, "^")
+        .expect("^")
+        .id();
+    let at = book.anchor(100);
+    for (index, code) in ELSEWHERE_ERRORS.iter().enumerate() {
+        let cell = format!("elsewhere!A{}", index + 1);
+        let caught = book.evaluate(&format!("=IFERROR({cell},1)"), at);
+        assert_eq!(
+            caught.outcome,
+            Ok(CalcValue::number(1.0)),
+            "{code:?} ({NOT_IN_WORKBOOK})"
+        );
+        let passed = book.evaluate(&format!("=IFNA({cell},1)"), at);
+        assert_eq!(
+            passed.outcome,
+            Ok(CalcValue::error(*code)),
+            "IFNA passes {code:?} on"
+        );
+    }
+    let missing_input = book.evaluate("=IFERROR(elsewhere!D1,A1)", at);
+    assert_eq!(
+        (
+            missing_input.outcome,
+            missing_input.reads,
+            missing_input.log.calls
+        ),
+        (
+            Err(EvalFault::MissingInput {
+                cell: cell_at(book.elsewhere, "D1")
+            }),
+            book.areas(&["elsewhere!D1"]),
+            vec!["Call IFERROR".to_owned()]
+        ),
+        "a value the reader cannot supply stops the call; the fallback is not read"
+    );
+    let unread = book.evaluate("=IFERROR(1,elsewhere!D1)", at);
+    assert_eq!(
+        (unread.outcome, unread.reads),
+        (Ok(CalcValue::number(1.0)), vec![])
+    );
+    let refused = book.evaluate("=IFERROR(2^0.5,A1)", at);
+    assert!(
+        matches!(
+            &refused.outcome,
+            Err(EvalFault::Function(FunctionFault::NotImplemented { id, .. })) if *id == caret
+        ),
+        "{:?}",
+        refused.outcome
+    );
+    assert_eq!(
+        refused.reads,
+        vec![],
+        "a refused value: the fallback is not read"
+    );
+    assert_eq!(refused.log.calls, ["Infix ^", "Call IFERROR"]);
+    for (formula, area) in [
+        ("=IFERROR(A1:A2,0)", "A1:A2"),
+        ("=IFNA(#N/A,A1:A2)", "A1:A2"),
+        ("=SUM(IFERROR(A1:A3,0))", "A1:A3"),
+    ] {
+        assert_eq!(
+            book.evaluate(formula, at).outcome,
+            Err(EvalFault::AreaAsValue {
+                area: book.areas(&[area])[0]
+            }),
+            "{formula}: a range where one value is needed (array lifting is cfml-m3.4's)"
+        );
+    }
+    let compiled = |book: &mut FallbackBook, formula: &str| book.compile(formula, at).err();
+    assert!(matches!(
+        compiled(&mut book, "=IFERROR({1,#N/A},0)"),
+        Some(CompileError::Unsupported {
+            owner: "cfml-m3.4",
+            ..
+        })
+    ));
+    assert!(matches!(
+        compiled(&mut book, "=IFERROR(1)"),
+        Some(CompileError::Arity { supplied: 1, .. })
+    ));
+    assert!(matches!(
+        compiled(&mut book, "=IFNA(1,2,3)"),
+        Some(CompileError::Arity { supplied: 3, .. })
+    ));
+    // The package form of IFNA, as a workbook file stores it, compiles to IFNA (compile reads
+    // `_xlfn.` names as the catalogued function, bead dc-besk) and gives IFNA's result.
+    let packaged = book.evaluate("=_xlfn.IFNA(#N/A,1)", book.anchor(100));
+    assert_eq!(
+        packaged.outcome,
+        Ok(CalcValue::number(1.0)),
+        "=_xlfn.IFNA(#N/A,1)"
+    );
+    // The source formulas of column F are not compiled: calc-func's catalogue has none of their
+    // functions, so the rows that read them read the error the reader holds for each.
+    let sources = source_refusals(&mut book);
+    for (source, refused) in &sources {
+        let function = &source.formula[1..source.formula.find('(').expect("a call")];
+        assert!(
+            matches!(refused, CompileError::UnknownFunction { spelling, .. } if spelling == function),
+            "{}: {refused:?}",
+            source.formula
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: the source formulas of column F are refused at compile as unknown functions ({}); the rows that read them read the errors the reader holds for them ({}), which the comparison checks against Excel's capture of those cells",
+        sources
+            .iter()
+            .map(|(source, _)| format!("{} {}", source.address, source.formula))
+            .collect::<Vec<_>>()
+            .join(", "),
+        sources
+            .iter()
+            .map(|(source, _)| format!(
+                "{} {}",
+                source.address,
+                value_shown(&CalcValue::error(source.assumed))
+            ))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: not compared with Excel: IFERROR catches and IFNA passes on #CALC!, #SPILL!, #FIELD!, #BLOCKED!, #CONNECT! and #BUSY! read from cells of the sheet elsewhere (unmeasured choice: {NOT_IN_WORKBOOK}); a value that reads an unresolved input stops the call with MissingInput and a value calc-func refuses with NotImplemented, neither reading its fallback; a range as IFERROR's or IFNA's value or fallback, and IFERROR over a range inside SUM, is refused with AreaAsValue (array lifting is cfml-m3.4's); an array constant is refused at compile (cfml-m3.4); one and three arguments are refused at compile; the package form =_xlfn.IFNA(#N/A,1) compiles to IFNA (bead dc-besk) and gives 1"
+    );
+
+    // The oracle workbook's sheet holds exactly the rows' formulas, in their file form, in
+    // column D in row order, and the cells the reader holds on that sheet.
+    let cells = workbook_cells(FALLBACK_WORKBOOK);
+    let mut expected: BTreeMap<String, SheetCell> = run
+        .iter()
+        .map(|row| {
+            (
+                format!("D{}", row.row),
+                SheetCell::Formula(file_form(row.formula)),
+            )
+        })
+        .collect();
+    for (address, value) in fallback_cells() {
+        expected.insert(address.to_owned(), SheetCell::Constant(value));
+    }
+    for source in fallback_sources() {
+        expected.insert(
+            source.address.to_owned(),
+            SheetCell::DynamicArray(file_form(source.formula)),
+        );
+    }
+    let differences: Vec<String> = expected
+        .keys()
+        .chain(cells.keys())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter(
+            |address| match (expected.get(*address), cells.get(*address)) {
+                (Some(SheetCell::Formula(a)), Some(SheetCell::Formula(b)))
+                | (Some(SheetCell::DynamicArray(a)), Some(SheetCell::DynamicArray(b))) => a != b,
+                (Some(SheetCell::Constant(a)), Some(SheetCell::Constant(b))) => !same_value(a, b),
+                _ => true,
+            },
+        )
+        .map(|address| {
+            format!(
+                "{address}: the case has {:?}, the workbook {:?}",
+                expected.get(address),
+                cells.get(address)
+            )
+        })
+        .collect();
+    assert!(
+        differences.is_empty(),
+        "the oracle workbook's sheet {FALLBACK_SHEET} differs from the case:\n{}",
+        differences.join("\n")
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {FALLBACK_WORKBOOK_PATH} (sha256 {}): sheet {FALLBACK_SHEET} holds exactly the {} oracle rows' formulas in column D in row order (IFNA in its package form _xlfn.IFNA), the {} constant cells the rows read and the {} source formulas of column F as dynamic-array formulas (cell metadata naming XLDAPR)",
+        sha256_hex(FALLBACK_WORKBOOK),
+        run.len(),
+        fallback_cells().len(),
+        fallback_sources().len()
+    );
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_workbook();
+        assert!(
+            generated == FALLBACK_WORKBOOK,
+            "the committed generator writes a workbook (sha256 {}) that differs from the committed one (sha256 {})",
+            sha256_hex(&generated),
+            sha256_hex(FALLBACK_WORKBOOK)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: the committed generator tests/fixtures/make-fixtures.ps1, run into a new directory under the target directory's temporary directory (removed when the generator's run returns or panics), wrote the committed workbook byte for byte"
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the check that the committed generator tests/fixtures/make-fixtures.ps1 writes the committed workbook byte for byte did not run on this target: the generator is a Windows PowerShell script, which the case runs only in its native Windows build"
+        );
+    }
+}
+
+/// The calculation context the rows calculate under: the oracle workbook declares no
+/// `workbookPr` and a `calcPr` with no calculation setting, so every setting is at its
+/// SpreadsheetML default (checked by [`workbook_cells`]).
+fn fallback_context() -> CalculationContext {
+    CalculationContext {
+        date1904: false,
+        iteration: false,
+        max_iterations: 100,
+        max_change: 0.001,
+        precision_as_displayed: false,
+    }
+}
+
+fn fallback_address(row: u32) -> CellAddress {
+    CellAddress::new(FALLBACK_SHEET, row, FALLBACK_COLUMN).expect("a cell of the grid")
+}
+
+/// The address of a source cell of column F on the sheet error_fallback.
+fn source_address(source: &SourceCell) -> CellAddress {
+    let digits = source
+        .address
+        .find(|c: char| c.is_ascii_digit())
+        .expect("a row");
+    assert_eq!(
+        &source.address[..digits],
+        "F",
+        "a source cell is in column F"
+    );
+    CellAddress::new(
+        FALLBACK_SHEET,
+        source.address[digits..].parse().expect("a row number"),
+        6,
+    )
+    .expect("a cell of the grid")
+}
+
+/// What the run publishes, judged by calc_verdict: a result for each oracle row's cell, calculated
+/// at its tick (or failed with its fault), a not-modelled result for each source cell of column F
+/// with calc-fml's compile refusal, and the evaluation record made from what the observer was
+/// shown, each evaluation with the outcome the evaluator reported. A row that reads a source cell
+/// is not calculated from the workbook: the product route does not calculate its source, and the
+/// row's value rests on the error the reader holds for it. It is published not modelled, with the
+/// value it is conditional on in its diagnostic, never as calculated.
+fn fallback_documents(
+    run: &[OracleRun],
+    sources: &[(SourceCell, CompileError)],
+) -> (ResultSet, InstrumentRecord) {
+    let source = format!("sha256:{}", sha256_hex(FALLBACK_WORKBOOK));
+    let context = fallback_context().fingerprint();
+    let mut results = Vec::new();
+    let mut evaluations = Vec::new();
+    for row in run {
+        let cell = fallback_address(row.row);
+        let (provenance, value) = match (&row.shown.outcome, row.source) {
+            (Ok(value), None) => (
+                Provenance::Calculated {
+                    tick: row.tick,
+                    revision: FALLBACK_REVISION,
+                    context: context.clone(),
+                },
+                Some(value.clone()),
+            ),
+            (Ok(value), Some(read)) => {
+                let (source, refused) = sources
+                    .iter()
+                    .find(|(source, _)| source.address == read)
+                    .unwrap_or_else(|| panic!("{read} is no source cell"));
+                (
+                    Provenance::NotModeled {
+                        feature: format!("reads {read}, {}", source.feature),
+                        diagnostic: format!(
+                            "conditional on Excel's value of {read}, whose formula {} calc_fml::compile refuses ({refused:?}): with the reader holding {} for {read}, calc_fml::evaluate gives {}",
+                            source.formula,
+                            value_shown(&CalcValue::error(source.assumed)),
+                            value_shown(value)
+                        ),
+                    },
+                    None,
+                )
+            }
+            (Err(fault), _) => (
+                Provenance::Failed {
+                    fault: format!("{fault:?}"),
+                },
+                None,
+            ),
+        };
+        results.push(CellResult {
+            cell,
+            provenance,
+            value,
+        });
+        for (key, returned) in &row.shown.log.reported {
+            assert_eq!(key.row(), row.row);
+            assert_eq!(key.column(), FALLBACK_COLUMN);
+            evaluations.push(InstrumentedEvaluation::new(
+                VerdictEvaluation {
+                    cell: CellAddress::new(FALLBACK_SHEET, key.row(), key.column())
+                        .expect("a cell"),
+                    tick: row.tick,
+                    revision: FALLBACK_REVISION,
+                    context: context.clone(),
+                },
+                returned.clone().map_err(|fault| format!("{fault:?}")),
+            ));
+        }
+    }
+    for (source, refused) in sources {
+        results.push(CellResult {
+            cell: source_address(source),
+            provenance: Provenance::NotModeled {
+                feature: source.feature.to_owned(),
+                diagnostic: format!("calc_fml::compile refuses {}: {refused:?}", source.formula),
+            },
+            value: None,
+        });
+    }
+    (
+        ResultSet {
+            case: FALLBACK_CASE.to_owned(),
+            source: source.clone(),
+            run: RunIdentity {
+                revision: FALLBACK_REVISION,
+                context,
+            },
+            results,
+        },
+        InstrumentRecord {
+            case: FALLBACK_CASE.to_owned(),
+            source,
+            evaluations,
+        },
+    )
+}
+
+/// The verdict on `capture` of what `run` publishes, and what on it disagrees with the rows: a
+/// formula cell of the sheet that no row or source has, a row that reads only constant cells whose
+/// verdict is not `matched`, a conditional row whose verdict is not `not_modeled` or whose raw
+/// value in the capture is not the value calc_fml::evaluate gave it, a source cell whose verdict
+/// is not `not_modeled` or whose raw value in the capture is not the error the rows assume, and a
+/// row whose cell the inventory lacks. A conditional row that agrees is counted apart from the
+/// calculated rows: its agreement holds given Excel's value of its source cell, which the source
+/// cell's check compares with the error the reader held.
+fn fallback_comparison(
+    capture: &CaptureRecord,
+    run: &[OracleRun],
+    sources: &[(SourceCell, CompileError)],
+) -> Comparison {
+    let (results, evaluations) = fallback_documents(run, sources);
+    let policy = VerdictPolicy {
+        numeric_mode: NumericMode::Fast,
+        evidence: None,
+    };
+    let report = judge(capture, &results, &evaluations, &policy)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    let rows: BTreeMap<u32, &OracleRun> = run.iter().map(|row| (row.row, row)).collect();
+    let mut problems = Vec::new();
+    let mut conditional_agreed = 0;
+    for cell in &report.cells {
+        let address = &cell.formula.cell;
+        let at = format!("{}!{}", address.sheet(), address.a1());
+        let raw = capture
+            .observations
+            .iter()
+            .find(|observed| observed.cell == *address)
+            .map(|observed| &observed.observation);
+        if let Some((source, _)) = sources
+            .iter()
+            .find(|(source, _)| source_address(source) == *address)
+        {
+            let assumed = CalcValue::error(source.assumed);
+            match (&cell.verdict, raw) {
+                (Verdict::NotModeled { .. }, Some(Observation::ExcelRaw(value)))
+                    if same_value(value, &assumed) => {}
+                (verdict, raw) => problems.push(format!(
+                    "{at} {}: the source of rows that assume {}: {}, Excel's raw value {raw:?}",
+                    source.formula,
+                    value_shown(&assumed),
+                    verdict.name()
+                )),
+            }
+            continue;
+        }
+        let row = (address.sheet() == FALLBACK_SHEET && address.column() == FALLBACK_COLUMN)
+            .then(|| rows.get(&address.row()))
+            .flatten();
+        match (row, &cell.verdict) {
+            (None, verdict) => problems.push(format!(
+                "{at}: a formula cell that no oracle row has ({})",
+                verdict.name()
+            )),
+            (Some(row), verdict) if row.source.is_some() => {
+                let read = row.source.unwrap_or_default();
+                match (verdict, raw, &row.shown.outcome) {
+                    (Verdict::NotModeled { .. }, Some(Observation::ExcelRaw(excel)), Ok(value))
+                        if same_value(excel, value) =>
+                    {
+                        conditional_agreed += 1;
+                    }
+                    (verdict, raw, outcome) => problems.push(format!(
+                        "{at} {}: conditional on {read}: {}, calc_fml::evaluate gave {outcome:?}, Excel's raw value {raw:?} ({:?})",
+                        row.formula,
+                        verdict.name(),
+                        row.basis
+                    )),
+                }
+            }
+            (Some(_), Verdict::Matched { .. }) => {}
+            (
+                Some(row),
+                Verdict::Mismatched {
+                    expected, actual, ..
+                },
+            ) => problems.push(format!(
+                "{at} {}: calc_fml::evaluate gave {actual:?}, Excel's raw value is {expected:?} ({:?})",
+                row.formula, row.basis
+            )),
+            (Some(row), verdict) => problems.push(format!(
+                "{at} {}: {}, not matched: {verdict:?}",
+                row.formula,
+                verdict.name()
+            )),
+        }
+    }
+    for outside in &report.outside_inventory {
+        problems.push(format!(
+            "{}!{}: the capture's inventory lacks this oracle row's cell",
+            outside.cell.sheet(),
+            outside.cell.a1()
+        ));
+    }
+    Comparison {
+        report,
+        problems,
+        conditional_agreed,
+    }
+}
+
+/// The verdict on a capture, what disagrees with the rows, and how many conditional rows agree.
+struct Comparison {
+    report: VerdictReport,
+    problems: Vec<String>,
+    conditional_agreed: usize,
+}
+
+/// A capture record that observes, for each row, the value `observe` gives it, and for each source
+/// cell of column F, as a dynamic-array formula, the value `source_raw` gives it: the shape of a
+/// version 2 live capture of the oracle workbook as committed, by the committed worker. It is
+/// made here, so it is evidence about the comparison's documents, not about Excel.
+fn made_capture(
+    run: &[OracleRun],
+    sources: &[(SourceCell, CompileError)],
+    observe: impl Fn(&OracleRun) -> CalcValue,
+    source_raw: impl Fn(&SourceCell) -> CalcValue,
+) -> CaptureRecord {
+    let source = format!("sha256:{}", sha256_hex(FALLBACK_WORKBOOK));
+    CaptureRecord {
+        case: FALLBACK_CASE.to_owned(),
+        source: source.clone(),
+        // This record is built by the test and is not Excel's. calc_verdict has no acquisition
+        // kind for a made record: a FileCacheReplay record may hold no raw observation (and
+        // calc_verdict::judge refuses one that does), and LegacyEvidence names an entry of a legacy
+        // evidence record.
+        acquisition: Acquisition::LiveCapture,
+        environment: None,
+        sheets: vec![SheetEntry {
+            name: FALLBACK_SHEET.to_owned(),
+            visibility: SheetVisibility::Visible,
+        }],
+        formulas: run
+            .iter()
+            .map(|row| FormulaCell {
+                cell: fallback_address(row.row),
+                kind: FormulaKind::Ordinary,
+                formula: Some(row.formula.to_owned()),
+                dynamic_array: false,
+            })
+            .chain(sources.iter().map(|(source, _)| FormulaCell {
+                cell: source_address(source),
+                kind: FormulaKind::Ordinary,
+                formula: Some(source.formula.to_owned()),
+                dynamic_array: true,
+            }))
+            .collect(),
+        observations: run
+            .iter()
+            .map(|row| CellObservation {
+                cell: fallback_address(row.row),
+                observation: Observation::ExcelRaw(observe(row)),
+            })
+            .chain(sources.iter().map(|(source, _)| CellObservation {
+                cell: source_address(source),
+                observation: Observation::ExcelRaw(source_raw(source)),
+            }))
+            .collect(),
+        session: Some(CaptureSession {
+            revision: FALLBACK_REVISION,
+            operations: Vec::new(),
+            context: fallback_context().fingerprint(),
+            tool: format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER)),
+            input_package: source,
+            output_package: None,
+            failures: Vec::new(),
+            shared_ranges: Vec::new(),
+            saved: Vec::new(),
+            reopened: Vec::new(),
+        }),
+    }
+}
+
+/// Judges an Excel capture of the oracle workbook against `run`: it must be a live capture of the
+/// workbook as committed, by the committed worker, with Excel's environment and no failure that
+/// leaves its raw values unobserved or untrusted (isolation, environment, inventory, value or
+/// spill); each
+/// row's cell must hold the row's formula as an ordinary formula and each source cell its formula
+/// as a dynamic-array formula, and each condition a row's documented value rests on must hold;
+/// every row that reads only constant cells must be calculated and matched, every conditional row
+/// must be not modelled and agree with Excel given its source cell's value, and every source cell
+/// must hold the error the rows assume. `what` says which capture it is, for the note.
+fn judge_excel_capture(
+    case: &str,
+    what: &str,
+    bytes: &[u8],
+    run: &[OracleRun],
+    sources: &[(SourceCell, CompileError)],
+) {
+    let capture = CaptureRecord::decode(bytes)
+        .unwrap_or_else(|refusal| panic!("{what} does not decode: {refusal}"));
+    assert_eq!(capture.case, FALLBACK_CASE, "{what}");
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture, "{what}");
+    let workbook = format!("sha256:{}", sha256_hex(FALLBACK_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "{what}: not of the oracle workbook as committed"
+    );
+    let session = capture.session.as_ref().expect("a version 2 record");
+    assert_eq!(session.input_package, workbook, "{what}");
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "{what}: the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    // A failure that leaves the raw values unobserved or untrusted fails the comparison; a failure
+    // of a later stage (the saved cache, the value after reopening) concerns no raw value and is
+    // reported. "value" and "spill" (a cell that spills gets no raw value) are the stage names of
+    // calc-oracle-excel's conversion, a native-only package this portable package cannot depend on.
+    let raw_stages = [
+        STAGE_ISOLATION,
+        STAGE_ENVIRONMENT,
+        STAGE_INVENTORY,
+        "value",
+        "spill",
+    ];
+    let unobserved: Vec<_> = session
+        .failures
+        .iter()
+        .filter(|failure| raw_stages.contains(&failure.stage.as_str()))
+        .collect();
+    assert!(
+        unobserved.is_empty(),
+        "{what} records failures of its raw values: {unobserved:?}"
+    );
+    let later: Vec<String> = session
+        .failures
+        .iter()
+        .map(|failure| {
+            let at = failure
+                .cell
+                .as_ref()
+                .map(|cell| format!(" {}!{}", cell.sheet(), cell.a1()))
+                .unwrap_or_default();
+            format!("[{}]{at}: {}", failure.stage, failure.message)
+        })
+        .collect();
+    let environment = capture
+        .environment
+        .as_ref()
+        .unwrap_or_else(|| panic!("{what} records no Excel environment"));
+
+    // The capture is of the rows: each row's cell holds its formula as Excel reports it, an
+    // ordinary formula, and each source cell its formula as a dynamic-array formula. The conditions
+    // the pages' values rest on hold.
+    let formula_cell = |address: &CellAddress| {
+        capture
+            .formulas
+            .iter()
+            .find(|formula| formula.cell == *address)
+            .unwrap_or_else(|| panic!("{what}: no formula cell {}", address.a1()))
+    };
+    let raw_value = |address: &CellAddress| {
+        capture
+            .observations
+            .iter()
+            .find(|observed| observed.cell == *address)
+            .map(|observed| &observed.observation)
+    };
+    let mut conditions_held = Vec::new();
+    for row in run {
+        let address = fallback_address(row.row);
+        let cell = formula_cell(&address);
+        let condition = match row.basis {
+            Basis::DocumentedWhen(condition) => Some(condition),
+            _ => None,
+        };
+        let reported = match condition {
+            Some(Condition::LegacyForm) => format!("=@{}", &row.formula[1..]),
+            _ => row.formula.to_owned(),
+        };
+        assert_eq!(
+            (cell.formula.as_deref(), cell.dynamic_array),
+            (Some(reported.as_str()), false),
+            "{what}: D{} {}: Excel's formula text and dynamic-array flag",
+            row.row,
+            row.formula
+        );
+        match condition {
+            Some(Condition::EmptyTextCell) => {
+                assert!(
+                    matches!(raw_value(&address), Some(Observation::ExcelRaw(value)) if same_value(value, &text_value(""))),
+                    "{what}: D{} {}: {}: Excel's raw value {:?}",
+                    row.row,
+                    row.formula,
+                    Condition::EmptyTextCell.text(),
+                    raw_value(&address)
+                );
+                conditions_held.push(format!(
+                    "D{} {} is empty text in Excel (A5 loads as empty text; the blank A4 gives 0)",
+                    row.row, row.formula
+                ));
+            }
+            Some(Condition::LegacyForm) => conditions_held.push(format!(
+                "D{} {} is no dynamic-array formula in the capture and Excel reports it as {reported}",
+                row.row, row.formula
+            )),
+            None => {}
+        }
+    }
+    for (source, _) in sources {
+        let cell = formula_cell(&source_address(source));
+        assert_eq!(
+            (cell.formula.as_deref(), cell.dynamic_array),
+            (Some(source.formula), true),
+            "{what}: {} {}",
+            source.address,
+            source.formula
+        );
+    }
+
+    let Comparison {
+        report,
+        problems,
+        conditional_agreed,
+    } = fallback_comparison(&capture, run, sources);
+    assert!(
+        problems.is_empty(),
+        "{} problems in the verdict on {what} by Excel {} ({}):\n{}",
+        problems.len(),
+        environment.target.excel_build(),
+        report.summary(),
+        problems.join("\n")
+    );
+    let conditional = run.iter().filter(|row| row.source.is_some()).count();
+    let calculated = run.len() - conditional;
+    assert_eq!(conditional_agreed, conditional);
+    assert_eq!(
+        (
+            report.counts.calculated,
+            report.counts.matched,
+            report.counts.mismatched
+        ),
+        (calculated as u64, calculated as u64, 0)
+    );
+    let unmeasured: Vec<String> = run
+        .iter()
+        .filter(|row| row.source.is_none() && matches!(row.basis, Basis::Unmeasured(_)))
+        .map(|row| format!("D{} {}", row.row, row.formula))
+        .collect();
+    note!(
+        "ACCEPT-NOTE: {case}: {what}, taken by Excel {}: through calc_verdict::judge, calculated {calculated} of {} formula cells, matched {} of {calculated} calculated, mismatched {}; the {conditional} conditional rows are not modelled (not counted as calculated) and each agrees with Excel's raw value given Excel's value of the source cell it reads; each of the {} source cells of column F is not modelled and holds the error the rows assume ({})",
+        environment.target.excel_build(),
+        report.counts.denominator,
+        report.counts.matched,
+        report.counts.mismatched,
+        sources.len(),
+        report.summary()
+    );
+    note!(
+        "ACCEPT-NOTE: {case}: {what}: of the matched rows, {} were labelled unmeasured choices before the capture and agree with Excel: {}",
+        unmeasured.len(),
+        unmeasured.join(", ")
+    );
+    note!(
+        "ACCEPT-NOTE: {case}: {what}: each row's cell holds the row's formula as an ordinary formula (the legacy-form row's with Excel's @) and each source cell its formula as a dynamic-array formula; conditions of the pages' values that hold in the capture: {}",
+        conditions_held.join("; ")
+    );
+    note!(
+        "ACCEPT-NOTE: {case}: {what}: COM add-ins connected during the capture {:?}; capture failures of stages after the raw values (counted, not compared): {}",
+        report.com_add_ins_connected,
+        if later.is_empty() {
+            "none".to_owned()
+        } else {
+            later.join("; ")
+        }
+    );
+}
+
+/// A live capture of the oracle workbook through `cargo xtask capture`, the one capture route,
+/// with a target directory of its own: the record's bytes, or why none was written. Its record,
+/// work directory and `capture.log` (the command, its exit status and its full standard output and
+/// standard error) go to a new directory under the workspace's `target/accept/dc-ibp2/excel-route/`,
+/// which is kept and named in the result, so nothing is left in the temp directory. The command
+/// runs from the workspace root with the paths relative to it, as the committed capture's command
+/// was run: given the work directory as a verbatim (`\\?\`) path, which canonicalizing the root
+/// gives on Windows, Excel's Workbooks.Open failed in the worker.
+#[cfg(all(windows, not(target_arch = "wasm32")))]
+fn live_capture() -> Result<Vec<u8>, String> {
+    use std::path::Path;
+    use std::process::{Command, Stdio};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("the workspace root, two directories above calc-fml's manifest");
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or_default();
+    let place = format!(
+        "target/accept/dc-ibp2/excel-route/live-capture-{}-{stamp}",
+        std::process::id()
+    );
+    let directory = root.join(&place);
+    std::fs::create_dir_all(&directory).expect("a new directory");
+    let out = directory.join("capture.json");
+    let log = directory.join("capture.log");
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let ran = Command::new(cargo)
+        .current_dir(root)
+        .args([
+            "xtask",
+            "capture",
+            "--fixture",
+            FALLBACK_WORKBOOK_PATH,
+            "--case",
+            FALLBACK_CASE,
+            "--out",
+        ])
+        .arg(format!("{place}/capture.json"))
+        .arg("--work-dir")
+        .arg(format!("{place}/work"))
+        .env(
+            "CARGO_TARGET_DIR",
+            root.join("target").join("dc-ibp2-capture"),
+        )
+        .stdin(Stdio::null())
+        .output();
+    let transcript = match &ran {
+        Ok(ran) => format!(
+            "exit: {:?}\n--- stdout ---\n{}\n--- stderr ---\n{}\n",
+            ran.status.code(),
+            String::from_utf8_lossy(&ran.stdout),
+            String::from_utf8_lossy(&ran.stderr)
+        ),
+        Err(e) => format!("did not start: {e}\n"),
+    };
+    std::fs::write(
+        &log,
+        format!(
+            "cargo xtask capture --fixture {FALLBACK_WORKBOOK_PATH} --case {FALLBACK_CASE} --out {place}/capture.json --work-dir {place}/work (CARGO_TARGET_DIR target/dc-ibp2-capture)\n{transcript}"
+        ),
+    )
+    .expect("the capture log is written");
+    let ran =
+        ran.map_err(|e| format!("cargo xtask capture did not start ({place}/capture.log): {e}"))?;
+    match std::fs::read(&out) {
+        Ok(bytes) if ran.status.success() => Ok(bytes),
+        _ => {
+            let stderr = String::from_utf8_lossy(&ran.stderr);
+            let lines: Vec<&str> = stderr
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .collect();
+            let last = lines
+                .iter()
+                .rev()
+                .find(|line| line.starts_with("xtask capture:"))
+                .or(lines.last())
+                .copied()
+                .unwrap_or("");
+            Err(format!(
+                "cargo xtask capture exited {:?} and wrote no record; its full output is in {place}/capture.log; its last line of standard error from xtask capture (or the last line, if it wrote none): {last}",
+                ran.status.code()
+            ))
+        }
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_ibp2__excel_comparison() {
+    const CASE: &str = "dc_ibp2__excel_comparison";
+    let mut book = FallbackBook::new();
+    let run = fallback_run(&mut book);
+    let sources = source_refusals(&mut book);
+    let assumed = |source: &SourceCell| CalcValue::error(source.assumed);
+
+    // The comparison's documents, judged against captures made here (evidence about the
+    // documents and the judge, not about Excel): observing every row's hand-derived value and
+    // every source's assumed error, each row is matched and each source not modelled; observing
+    // one row otherwise, that row alone is mismatched; observing one source otherwise, that source
+    // alone is reported.
+    let agreeing = made_capture(&run, &sources, |row| row.expected.clone(), assumed);
+    let Comparison {
+        report,
+        problems,
+        conditional_agreed,
+    } = fallback_comparison(&agreeing, &run, &sources);
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+    assert_eq!(report.evaluation_record_version, 2);
+    let conditional: Vec<&OracleRun> = run.iter().filter(|row| row.source.is_some()).collect();
+    let calculated = run.len() - conditional.len();
+    let not_modeled = report
+        .cells
+        .iter()
+        .filter(|cell| matches!(cell.verdict, Verdict::NotModeled { .. }))
+        .count();
+    assert_eq!(
+        (
+            report.counts.calculated,
+            report.counts.matched,
+            not_modeled,
+            conditional_agreed
+        ),
+        (
+            calculated as u64,
+            calculated as u64,
+            sources.len() + conditional.len(),
+            conditional.len()
+        ),
+        "{}",
+        report.summary()
+    );
+    let changed_row = 1;
+    let changed = made_capture(
+        &run,
+        &sources,
+        |row| {
+            if row.row == changed_row {
+                CalcValue::number(6.0)
+            } else {
+                row.expected.clone()
+            }
+        },
+        assumed,
+    );
+    let problems = fallback_comparison(&changed, &run, &sources).problems;
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].starts_with("error_fallback!D1 =IFERROR(1/0,5): calc_fml::evaluate gave"));
+    let first_conditional = conditional[0];
+    let changed_conditional = made_capture(
+        &run,
+        &sources,
+        |row| {
+            if row.row == first_conditional.row {
+                CalcValue::number(2.0)
+            } else {
+                row.expected.clone()
+            }
+        },
+        assumed,
+    );
+    let problems = fallback_comparison(&changed_conditional, &run, &sources).problems;
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    let conditional_problem = format!(
+        "error_fallback!D{} {}: conditional on {}: not_modeled,",
+        first_conditional.row,
+        first_conditional.formula,
+        first_conditional.source.unwrap_or_default()
+    );
+    assert!(
+        problems[0].starts_with(&conditional_problem),
+        "{problems:?}"
+    );
+    let changed_source = made_capture(
+        &run,
+        &sources,
+        |row| row.expected.clone(),
+        |source| {
+            if source.address == "F1" {
+                CalcValue::error(WorksheetErrorCode::NA)
+            } else {
+                assumed(source)
+            }
+        },
+    );
+    let problems = fallback_comparison(&changed_source, &run, &sources).problems;
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(
+        problems[0].starts_with(
+            "error_fallback!F1 =FILTER(B6:B7,B6:B7>100): the source of rows that assume #Calc"
+        ),
+        "{problems:?}"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: against captures made by the case from the hand-derived values and the assumed source errors (not Excel's), calc_verdict::judge counts {calculated} rows calculated and matches them, and gives not_modeled to the {} conditional rows ({}), which the comparison counts apart as agreeing given their source cells' values, and to the {} source cells ({}); with D1 observed as 6 it mismatches D1 alone, with D{} observed as 2 the comparison reports D{} alone, and with F1 observed as #N/A it reports F1 alone; the evaluation record is version {} (each evaluation with the outcome the evaluator reported to the observer)",
+        conditional.len(),
+        conditional
+            .iter()
+            .map(|row| format!("D{} reads {}", row.row, row.source.unwrap_or_default()))
+            .collect::<Vec<_>>()
+            .join(", "),
+        sources.len(),
+        report.summary(),
+        first_conditional.row,
+        first_conditional.row,
+        report.evaluation_record_version
+    );
+
+    // Excel's capture, as committed.
+    match MissingCapture::recognize(FALLBACK_CAPTURE) {
+        Some(missing) => {
+            assert_eq!(
+                (
+                    missing.case.as_str(),
+                    missing.fixture.as_str(),
+                    missing.command.as_str()
+                ),
+                (
+                    FALLBACK_CASE,
+                    FALLBACK_WORKBOOK_PATH,
+                    FALLBACK_CAPTURE_COMMAND
+                ),
+                "the absent-capture marker names this capture"
+            );
+            note!("ACCEPT-NOT-RUN: {CASE}: {missing}");
+        }
+        None => judge_excel_capture(
+            CASE,
+            "the committed capture",
+            FALLBACK_CAPTURE,
+            &run,
+            &sources,
+        ),
+    }
+
+    // On the excel route, a live capture taken now, judged the same way.
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    if std::env::var("DNACALC_ACCEPT_PLATFORM").as_deref() == Ok("excel") {
+        match live_capture() {
+            Ok(bytes) => judge_excel_capture(
+                CASE,
+                "a live capture taken on the excel route",
+                &bytes,
+                &run,
+                &sources,
+            ),
+            Err(why) => note!("ACCEPT-NOT-RUN: {CASE}: the excel route's live capture: {why}"),
+        }
     }
 }

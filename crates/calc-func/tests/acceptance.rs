@@ -1125,7 +1125,15 @@ fn cfunc_m1_1__catalogue_consistency() {
         computed.contains(&(sum.id(), CalcValue::number(1.0))),
         "SUM(1) computes 1: {computed:?}"
     );
-    assert_eq!(lazy, [iff.id()], "only IF is lazy");
+    let fallbacks = [
+        surface(Notation::Call, "IFERROR").id(),
+        surface(Notation::Call, "IFNA").id(),
+    ];
+    assert_eq!(
+        lazy,
+        [iff.id(), fallbacks[0], fallbacks[1]],
+        "only IF, IFERROR and IFNA are lazy"
+    );
     note!(
         "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}",
         dispatch_ids.len(),

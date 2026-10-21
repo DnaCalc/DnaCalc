@@ -169,6 +169,7 @@ name = "calc-fml"
 version = "0.1.0"
 dependencies = [
  "calc-func",
+ "calc-verdict",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

@@ -1,0 +1,3 @@
+# Capture artifacts: their bytes are judged as committed on every platform, so keep them
+# unchanged across checkouts, including Windows core.autocrlf.
+* -text

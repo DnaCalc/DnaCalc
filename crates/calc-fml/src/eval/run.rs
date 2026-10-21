@@ -62,13 +62,19 @@ pub enum EvalFault {
 const NEAR_ZERO_BAND: f64 = 1e-13;
 
 /// The argument a lazy kernel receives after one of its arguments faulted. The call's result is
-/// discarded and the fault reported, so this value is never published; an error makes IF stop
-/// without asking for another argument.
+/// discarded and the fault reported, so this value is never published. An error makes IF stop
+/// without asking for another argument; IFERROR asks for its fallback, which receives this value
+/// too without its block running.
 const ABANDONED: WorksheetErrorCode = WorksheetErrorCode::Calc;
 
 /// Runs `frame` to its value: the formula's result, with a reference to one cell replaced by the
-/// cell's value, or the fault that stopped it. A result that refers to a blank cell is the number
-/// 0, the value Excel shows for `=A1` when A1 is blank (not measured by this package).
+/// cell's value, or the fault that stopped it. A result that is the empty value (a reference to a
+/// blank cell, or a blank value a function returned, as IFERROR returns a blank `value`) is the
+/// number 0, the value Excel shows for `=A1` when A1 is blank (not measured by this package). The
+/// rule applies to every formula, not only to IFERROR and IFNA. Microsoft's IFERROR and IFNA pages
+/// say an empty cell is treated as an empty string, yet Excel 16.0.20430.20182 shows 0 for each of
+/// bead dc-ibp2's oracle rows whose result is a blank or omitted value or fallback, as this rule
+/// gives (its capture of `tests/fixtures/dc_ibp2/oracle.xlsx`).
 ///
 /// When the services carry an [`EvaluationObserver`], it is shown each call the evaluation runs
 /// and then this outcome, before it is returned.
@@ -91,16 +97,16 @@ pub fn evaluate(
             None => None,
         },
     };
-    let outcome = run.block(0).and_then(|value| match value.core() {
-        CoreValue::Reference(reference) => {
-            let value = reader.value_of(reference)?;
-            Ok(if value.is_empty() {
-                CalcValue::number(0.0)
-            } else {
-                value
-            })
-        }
-        _ => Ok(value),
+    let outcome = run.block(0).and_then(|value| {
+        let value = match value.core() {
+            CoreValue::Reference(reference) => reader.value_of(reference)?,
+            _ => value,
+        };
+        Ok(if value.is_empty() {
+            CalcValue::number(0.0)
+        } else {
+            value
+        })
     });
     if let Some(observer) = run.observer {
         observer.returned(EvaluationReport {
@@ -698,6 +704,43 @@ mod tests {
             evaluated("=SUM(A1:B2)", CalcValue::number(1.5)),
             Ok(CalcValue::number(6.0))
         );
+    }
+
+    /// IFERROR's fallback runs only when its value is an error; a value whose evaluation faults
+    /// stops the call without running the fallback; a blank value is the formula's 0.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn iferror_runs_its_fallback_only_on_an_error() {
+        let blank = CalcValue::empty();
+        let cases: [(&str, &[&str]); 4] = [
+            ("=IFERROR(1/0,5)", &["Infix /", "Call IFERROR"]),
+            ("=IFERROR(2,1/0)", &["Call IFERROR"]),
+            ("=IFERROR(2^0.5,1/0)", &["Infix ^", "Call IFERROR"]),
+            ("=IFNA(1/0,1/0)", &["Infix /", "Call IFNA"]),
+        ];
+        let outcomes = [
+            Ok(CalcValue::number(5.0)),
+            Ok(CalcValue::number(2.0)),
+            evaluated("=2^0.5", blank.clone()),
+            Ok(CalcValue::error(WorksheetErrorCode::Div0)),
+        ];
+        for ((formula, calls), expected) in cases.into_iter().zip(outcomes) {
+            let (outcome, shown) = observed(formula, blank.clone());
+            assert_eq!(outcome, expected, "{formula}");
+            assert_eq!(shown.calls, calls, "{formula}");
+        }
+        assert_eq!(
+            evaluated("=IFERROR(A1,\"x\")", blank.clone()),
+            Ok(CalcValue::number(0.0))
+        );
+        assert_eq!(
+            evaluated("=IFERROR(A1,1)&\"|\"", blank.clone()),
+            Ok(text("|"))
+        );
+        assert!(matches!(
+            evaluated("=IFERROR(A1:A2,1)", blank),
+            Err(EvalFault::AreaAsValue { .. })
+        ));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

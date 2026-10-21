@@ -12,6 +12,12 @@ portability = "portable"
 [dependencies]
 calc-func = { path = "../calc-func" }
 
+# The dc-ibp2 Excel comparison reads the capture of its oracle workbook through the one verdict
+# library and judges its rows with calc_verdict::judge. Test-only: calc-verdict never depends on
+# calc-fml, so the code under test is not part of its own judge.
+[dev-dependencies]
+calc-verdict = { path = "../../tools/calc-verdict" }
+
 # The acceptance cases and unit tests run in Chrome and Firefox under wasm-bindgen-test-runner
 # 0.2.117, which runs only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test
 # 0.3.67 is the release built on that wasm-bindgen (the pair the CI browser fixture pins).

@@ -185,7 +185,7 @@
           "calc-doc-model": 13,
           "calc-engine": 7,
           "calc-fml": 15,
-          "calc-func": 12,
+          "calc-func": 15,
           "calc-host": 5,
           "calc-value": 5,
           "calc-verdict": 11,
@@ -201,7 +201,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "100 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "103 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -299,7 +299,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 100,
+        "files_scanned": 103,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -312,7 +312,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "100 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "103 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
@@ -343,9 +343,9 @@
             "pub_traits": 3
           },
           "calc-func": {
-            "entries": 20,
-            "entries_reach_unproven": 20,
-            "pub_enum_variants": 18,
+            "entries": 21,
+            "entries_reach_unproven": 21,
+            "pub_enum_variants": 19,
             "pub_traits": 2
           },
           "calc-host": {
@@ -361,9 +361,9 @@
             "pub_traits": 1
           },
           "calc-verdict": {
-            "entries": 54,
-            "entries_reach_unproven": 54,
-            "pub_enum_variants": 54,
+            "entries": 55,
+            "entries_reach_unproven": 55,
+            "pub_enum_variants": 55,
             "pub_traits": 0
           },
           "dna-calc": {
@@ -380,14 +380,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 470,
+          "entries_reach_unproven": 472,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 461 pub enum variants and 9 pub traits; their seams.json files list 470 entries, 470 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 463 pub enum variants and 9 pub traits; their seams.json files list 472 entries, 472 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -483,9 +483,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 162,
+          "commit_messages": 207,
           "files": 20,
-          "tracker_records": 353
+          "tracker_records": 367
         },
         "tracker": {
           "ceng-m7.1": {
@@ -536,7 +536,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 353 tracker records, 1 in 1 of 162 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 367 tracker records, 1 in 1 of 207 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -877,14 +877,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_3__zero_tests_fail",
-      "duration_s": 211.761,
+      "duration_s": 200.78,
       "exit_code": 0,
       "log": "target/accept/infra-m0.3/windows/infra_m0_3__zero_tests_fail.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 211.49s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 200.51s"
     },
     {
       "argv": [
@@ -903,14 +903,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_3__forbidden_dependency",
-      "duration_s": 269.659,
+      "duration_s": 314.037,
       "exit_code": 0,
       "log": "target/accept/infra-m0.3/windows/infra_m0_3__forbidden_dependency.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 269.31s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 313.74s"
     }
   ],
   "command": [
@@ -936,13 +936,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 553.881,
+      "duration_s": 484.545,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 537.15s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 476.72s"
       ],
       "log": "target/accept/infra-m0.3/windows/command-1.log",
       "outcome": "passed",
@@ -967,13 +967,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 17.471,
+      "duration_s": 6.211,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s"
+        "test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s"
       ],
       "log": "target/accept/infra-m0.3/windows/command-2.log",
       "outcome": "passed",
@@ -1047,7 +1047,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 1064.552,
+  "duration_s": 1020.441,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1058,57 +1058,117 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "7144294442c66d33703ed5603cd0b33042b20ea5",
+          "blob": "355ee2e121523ebd3c8ebf2030e4e35688913b6d",
           "path": "Cargo.lock",
           "status": "M"
         },
         {
-          "blob": "3b1192d430db92912f431a13d58235b6144488bc",
-          "path": "accept-receipts/chost-m1.1/windows.json",
+          "blob": "ce93cca10b4df52a1be0c993d53640aa95184290",
+          "path": "accept-receipts/cfunc-m1.1/windows.json",
           "status": "M"
         },
         {
-          "blob": "fa1e55d03812a87cfb7998fbe293d772b99e2119",
-          "path": "crates/calc-host/Cargo.toml",
+          "blob": "7a065c290724cdbe3c82d0cfa92865a2b4e86a12",
+          "path": "accept-receipts/dc-besk/windows.json",
           "status": "M"
         },
         {
-          "blob": "a85dcfd1e23f5aa9ef8adaf97df394f1d000817f",
-          "path": "crates/calc-host/acceptance.json",
+          "blob": "6167c3a22c72838183b181f0a8aba0ecfe37630a",
+          "path": "crates/calc-fml/Cargo.toml",
           "status": "M"
         },
         {
-          "blob": "f8832d739a69e9d43c891119ea18acd7bb180fe6",
-          "path": "crates/calc-host/src/lib.rs",
+          "blob": "df55417cde4078441a341737b6dd7f72433090b8",
+          "path": "crates/calc-fml/acceptance.json",
           "status": "M"
         },
         {
-          "blob": "15ffacd6c7abba4f1cc317f99764df04f5f689ca",
-          "path": "crates/calc-host/src/state.rs",
+          "blob": "6acf75d7ce43907a171ef9b99364f16103131e66",
+          "path": "crates/calc-fml/src/eval/compile.rs",
           "status": "M"
         },
         {
-          "blob": "4b275e9e5160ecfdc129b223428936e88e152318",
-          "path": "crates/calc-host/tests/acceptance.rs",
+          "blob": "bcb2b79affa7b126fcbc9a6b0f58d27772c347ce",
+          "path": "crates/calc-fml/src/eval/mod.rs",
           "status": "M"
         },
         {
-          "blob": "702cd2d87b7b190b4c6a5ad960a73319bd6d7de9",
-          "path": "accept-receipts/dc-hqcv/wasm.json",
+          "blob": "5790fe78841fd169b7e80220ee8274f705e389b3",
+          "path": "crates/calc-fml/src/eval/run.rs",
+          "status": "M"
+        },
+        {
+          "blob": "4639db9edc6c7ce3fb212c261281404e0176eabd",
+          "path": "crates/calc-fml/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "8d3d8fcf44d7124da99a83e53a16ddf0d10d73ee",
+          "path": "crates/calc-func/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "6bd901d433e6df6686d2cf85fa2af22cb327bb5d",
+          "path": "crates/calc-func/src/catalogue.rs",
+          "status": "M"
+        },
+        {
+          "blob": "b54d20f8662d2728e13668eaea23d4ad18e6ff85",
+          "path": "crates/calc-func/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "1d360c9dbd92a7b96df12531a437e6d0cb5dc272",
+          "path": "accept-receipts/dc-ibp2/excel.json",
           "status": "??"
         },
         {
-          "blob": "4c9498b1d4680b064d90cd939e4b7e37df8e304a",
-          "path": "accept-receipts/dc-hqcv/windows.json",
+          "blob": "718a9f2d7060db2222cd98ca3356853f4707e6e9",
+          "path": "accept-receipts/dc-ibp2/wasm.json",
           "status": "??"
         },
         {
-          "blob": "0a44617009808522cb72081b11f6bf3c07794c35",
-          "path": "crates/calc-host/tests/dc_hqcv_support/mod.rs",
+          "blob": "72fb3b0060fa95ba616335117d03f06ee88519b5",
+          "path": "accept-receipts/dc-ibp2/windows.json",
+          "status": "??"
+        },
+        {
+          "blob": "15a61429deac886b2135dd51379e9e2124536e57",
+          "path": "crates/calc-fml/tests/captures/.gitattributes",
+          "status": "??"
+        },
+        {
+          "blob": "92b8fb6cee21ff53f756d63ee3e9ce21bf00eb28",
+          "path": "crates/calc-fml/tests/captures/dc_ibp2/oracle.capture.json",
+          "status": "??"
+        },
+        {
+          "blob": "f31e4a7290af16723089475bbe5e4d6dc6704fad",
+          "path": "crates/calc-fml/tests/fixtures/.gitattributes",
+          "status": "??"
+        },
+        {
+          "blob": "3a1505ef4d6268e95be3d38372aa957942672622",
+          "path": "crates/calc-fml/tests/fixtures/dc_ibp2/oracle.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "492b12813845745a58fc7073acd47a5965ebf5db",
+          "path": "crates/calc-fml/tests/fixtures/make-fixtures.ps1",
+          "status": "??"
+        },
+        {
+          "blob": "f5f598c9b0aa1d885dd88925f5f3ef6e663d14f9",
+          "path": "crates/calc-func/src/catalogue/error_fallback.rs",
+          "status": "??"
+        },
+        {
+          "blob": "b0ab2499680749fbb1a01c02018846fb54affb78",
+          "path": "migration/ports/dc-ibp2.json",
           "status": "??"
         }
       ],
-      "head": "75140c85985a4eb6b2a23980f9b4cc0992a52fb4",
+      "head": "fce24e64e9bd1a269dd6624c767236d2c79b513b",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -1147,5 +1207,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-21T10:49:58Z"
+  "started_utc": "2026-10-21T15:33:09Z"
 }
