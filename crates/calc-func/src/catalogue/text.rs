@@ -4,9 +4,7 @@ use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{
-    CalcValue, CoreValue, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, WorksheetErrorCode,
-};
+use crate::value::{CalcValue, CoreValue, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText};
 
 const CODE: u16 = 3;
 
@@ -35,7 +33,11 @@ fn concatenate(
 
 /// The operands' text joined, a number's text as coercion gives it. An operand's error is the
 /// result, the left operand's first, before any operand is read as text: no operand's text can be
-/// an error. A result longer than a cell holds is #VALUE!.
+/// an error. A result longer than a cell holds is cut to its first 32767 UTF-16 code units, even
+/// where the cut parts a surrogate pair. Only a top-level & in a cell was measured: the
+/// mixed_operands rows of cfunc-m1.2's oracle workbook =C2&"b", with 32767 characters in C2, and
+/// C1, with 32766 characters, joined with a text of the one character U+1F600. The cut of an &
+/// whose result another operator or function reads is unmeasured.
 fn joined(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     site.scalar_operands(arguments)?;
     if let Some(code) = arguments.iter().find_map(|argument| match argument.core() {
@@ -46,11 +48,10 @@ fn joined(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     }
     let left = site.argument(0, coerce::text(&arguments[0]))?;
     let right = site.argument(1, coerce::text(&arguments[1]))?;
-    if left.len() + right.len() > EXCEL_TEXT_MAX_UTF16_CODE_UNITS {
-        return Err(Exit::Error(WorksheetErrorCode::Value));
-    }
     let mut units = Vec::with_capacity(left.len() + right.len());
     units.extend_from_slice(&left);
     units.extend_from_slice(&right);
+    // Measured for a top-level & only (see above).
+    units.truncate(EXCEL_TEXT_MAX_UTF16_CODE_UNITS);
     Ok(CalcValue::text(ExcelText::from_utf16_code_units(units)))
 }

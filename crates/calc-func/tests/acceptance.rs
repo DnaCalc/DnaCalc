@@ -1471,18 +1471,20 @@ fn cfunc_m1_1__unknown_function() {
 // targets.
 //
 // Each oracle row runs one call and asserts a result written here by hand. That assertion is the
-// code's own consistency check and says nothing about Excel: no hand-written expectation has been
-// compared with Excel. A row labelled `unmeasured choice` encodes a choice of this implementation
-// that no Excel result has settled (which operand's error wins, the order SUM reads a range in,
-// an overflow against a later error, a zero's sign, an underflow of number text).
+// code's own consistency check and says nothing about Excel; the Excel comparison against the
+// committed capture, below, is the evidence. A row labelled `unmeasured choice` encodes a choice
+// of this implementation that its hand-written expectation alone does not settle (which
+// operand's error wins, the order SUM reads a range in, an overflow against a later error, a
+// zero's sign); the comparison's verdict on its cell does.
 //
 // Each row names the bead that owns the Excel behaviour it shows. A row of cfunc-m1.2 computes a
 // value, and the Excel comparison must find it equal to Excel's. A row whose behaviour another
 // bead owns (text collation and nearly equal numbers, the near-zero adjustment of a formula's
-// final + or -, ^ beyond the powers computed here, number text read by locale rules, array
-// lifting, subnormal results) is run and asserted the same way, whether
-// calc-func computes it or refuses it, and is published to the comparison as not modeled, with
-// its owner: it is counted as not modeled and never as matched.
+// final + or -, ^ beyond the powers computed here, number text read by locale rules, an array
+// condition in a legacy formula, subnormal results, number text read by COUNT and by COUNTIF's
+// criteria) is run and asserted the same way, whether calc-func computes it or refuses it, and is
+// published to the comparison as not modeled, with its owner: it is counted as not modeled and
+// never as matched.
 //
 // The Excel comparison goes through the one capture route and the one verdict path.
 // `tests/fixtures/cfunc_m1_2/oracle.xlsx`, written by the committed generator
@@ -1493,13 +1495,15 @@ fn cfunc_m1_1__unknown_function() {
 // `tests/captures/cfunc_m1_2/oracle.capture.json`. Each case then runs the rows of both sheets,
 // publishes each row's calc_func::invoke result as a calc_verdict ResultSet and each recorded
 // invoke call as an EvaluationRecord, and asserts on the VerdictReport that calc_verdict::judge
-// computes from them and the capture. Until the capture is taken that path holds the
+// computes from them and the capture. Before a capture is taken that path holds the
 // absent-capture marker, and each case prints ACCEPT-NOT-RUN with calc-verdict's MissingCapture,
 // so the runner records it as not run.
 //
 // The retained witness `migration/witnesses/w111-extended-power.json` holds Excel's results of the
 // POWER function. The mixed-operand case applies it to the ^ operator, which assumes that ^
-// computes POWER; the oracle workbook's ^ rows test that assumption once they are captured.
+// computes POWER. Of the oracle workbook's ^ rows that ^ refuses (=2^3, =10^-2 and =2^0.5), the
+// witness holds the arguments of =10^-2 alone; the case compares Excel's captured value of each
+// such row with the witness's row for its arguments.
 
 /// The oracle workbook, as committed (its bytes are kept across checkouts by `.gitattributes`).
 const ORACLE_WORKBOOK: &[u8] = include_bytes!("fixtures/cfunc_m1_2/oracle.xlsx");
@@ -1742,6 +1746,9 @@ enum Expect {
     Number(f64),
     Logical(bool),
     Text(String),
+    /// Text given as its UTF-16 code units, for a text that no Rust string holds (an unpaired
+    /// surrogate).
+    Units(Vec<u16>),
     Error(WorksheetErrorCode),
     /// `FunctionFault::NotImplemented` under the entry's own ID, naming this argument.
     Refused(Option<usize>),
@@ -1762,6 +1769,9 @@ impl Expect {
             (L(b), Ok(value)) => value.as_logical() == Some(*b),
             (Expect::Text(text), Ok(value)) => {
                 value.as_text() == Some(&ExcelText::from_interop_assignment(text))
+            }
+            (Expect::Units(units), Ok(value)) => {
+                value.as_text().map(ExcelText::utf16_code_units) == Some(units.as_slice())
             }
             (E(code), Ok(value)) => {
                 value.as_error() == Some(*code) && value.callable_value().is_none()
@@ -1789,6 +1799,11 @@ impl Expect {
                 format!("text of {} characters", text.len())
             }
             Expect::Text(text) => format!("text {text:?}"),
+            Expect::Units(units) => format!(
+                "text of {} UTF-16 code units ending {:#06x}",
+                units.len(),
+                units.last().copied().unwrap_or_default()
+            ),
             E(code) => spelled(*code).to_owned(),
             Refused(argument) => format!("NotImplemented (argument {argument:?})"),
             Expect::Required(argument) => format!("ReferenceRequired (argument {argument})"),
@@ -1856,13 +1871,26 @@ const NUMBER_TEXT: Owner = Owner {
     bead: "cfml-m2.6",
     behaviour: "text read as a number or a logical by Excel's number-text rules",
 };
-const ARRAY_LIFT: Owner = Owner {
+/// Excel loads the oracle workbook's IF({TRUE,FALSE},1,2) as the legacy formula
+/// =@IF({TRUE,FALSE},1,2) and gives 1, so its row measures that legacy formula, not IF lifted over
+/// the array; calc_func refuses the array condition.
+const LEGACY_ARRAY_IF: Owner = Owner {
     bead: "cfml-m3.4",
-    behaviour: "an operator or IF lifted over an array",
+    behaviour: "an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)",
 };
 const SUBNORMAL: Owner = Owner {
     bead: "cfunc-m3.23",
     behaviour: "subnormal results",
+};
+/// COUNT and COUNTIF read number text through cfunc-m1.2's coercion, but each is another bead's
+/// function, so their rows here leave cfunc-m1.2's own count of matches.
+const COUNT_TEXT: Owner = Owner {
+    bead: "cfunc-m3.4",
+    behaviour: "number text read by COUNT",
+};
+const CRITERIA_TEXT: Owner = Owner {
+    bead: "cfunc-m3.5",
+    behaviour: "number text in COUNTIF's criteria and range cells",
 };
 
 /// An oracle row: its formula's cell in the oracle workbook (column D of its case's sheet, at row
@@ -2015,9 +2043,13 @@ fn check(
         let shown = expect.shown();
         match owner {
             None => {
-                let label = match choice {
-                    Some(choice) => format!("unmeasured choice: {choice}"),
-                    None => "unmeasured".to_owned(),
+                let label = match (captured(), choice) {
+                    (true, Some(choice)) => {
+                        format!("compared with Excel's capture below; the rule it shows: {choice}")
+                    }
+                    (true, None) => "compared with Excel's capture below".to_owned(),
+                    (false, Some(choice)) => format!("unmeasured choice: {choice}"),
+                    (false, None) => "unmeasured".to_owned(),
                 };
                 note!(
                     "ACCEPT-NOTE: {case}: oracle {at} {formula}{cells} -> {shown} (hand-written, asserted as the code's own consistency check; {label})"
@@ -2042,8 +2074,14 @@ fn check(
     asked
 }
 
+/// Whether the committed capture is Excel's capture of the oracle workbook rather than the
+/// absent-capture marker; [`compare_with_excel`] then compares every row with it.
+fn captured() -> bool {
+    MissingCapture::recognize(ORACLE_CAPTURE).is_none()
+}
+
 /// Runs a row of cfunc-m1.2: `row!(surface, [args], expect)`, or with a fourth argument naming
-/// the unmeasured choice the row encodes. Evaluates to the arguments the call interface asked for.
+/// the rule the row shows. Evaluates to the arguments the call interface asked for.
 macro_rules! row {
     ($rows:expr, $sheet:expr, $surface:expr, [$($arg:expr),* $(,)?], $expect:expr $(, $choice:expr)?) => {{
         let args = [$($arg),*];
@@ -2077,6 +2115,8 @@ const GE: (Notation, &str) = (Notation::Infix, ">=");
 const AMPERSAND: (Notation, &str) = (Notation::Infix, "&");
 const SUM: (Notation, &str) = (Notation::Call, "SUM");
 const IF: (Notation, &str) = (Notation::Call, "IF");
+const COUNT: (Notation, &str) = (Notation::Call, "COUNT");
+const COUNTIF: (Notation, &str) = (Notation::Call, "COUNTIF");
 
 fn exact_mode() -> NumericMode {
     NumericMode::Exact(
@@ -2671,12 +2711,17 @@ fn sheet_verdicts(report: &VerdictReport, case: &Rows) -> String {
 fn rows_note(rows: &Rows) {
     let elsewhere = rows.elsewhere();
     note!(
-        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet {} of the oracle workbook: {} of cfunc-m1.2 ({} of them unmeasured choices) and {} whose behaviour another bead owns ({} of them refused by calc-func)",
+        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet {} of the oracle workbook: {} of cfunc-m1.2 ({} of them naming the rule they show), {}, and {} whose behaviour another bead owns ({} of them refused by calc-func)",
         rows.case,
         rows.oracle.len(),
         rows.sheet,
         rows.oracle.len() - elsewhere,
         rows.choices(),
+        if captured() {
+            "each compared with Excel's capture below"
+        } else {
+            "unmeasured until the owner's capture"
+        },
         elsewhere,
         rows.refused()
     );
@@ -2760,7 +2805,8 @@ fn compare_with_excel(rows: &Rows, other: fn(bool) -> Rows) {
 
 /// The cells the mixed-operand rows read; A5 and A6 are blank. C2 holds a text of 32767
 /// characters, the longest a cell holds, and C1 one character less. C3 and C4 hold two numbers
-/// of 14 significant digits that differ in the last.
+/// of 14 significant digits that differ in the last, C5 holds 0, and C6 and C7 hold the texts
+/// 1e-400 and 1e-309.
 fn mixed_operands_sheet() -> TestSheet {
     let (shorter, longest) = ("a".repeat(32_766), "a".repeat(32_767));
     TestSheet::new(&[
@@ -2784,6 +2830,9 @@ fn mixed_operands_sheet() -> TestSheet {
             "123456789012.33",
             CalcValue::number(123_456_789_012.33),
         ),
+        ("C5", "0", CalcValue::number(0.0)),
+        ("C6", "text \"1e-400\"", text_value("1e-400")),
+        ("C7", "text \"1e-309\"", text_value("1e-309")),
     ])
 }
 
@@ -2839,15 +2888,15 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     row!(r, s, PLUS, [txt(".5"), num("0")], N(0.5));
     row!(r, s, PLUS, [txt("5."), num("0")], N(5.0));
     row!(r, s, PLUS, [txt("1E+3"), num("0")], N(1000.0));
-    // Decimal text is read as its nearest binary64.
+    // Decimal text is read as its nearest binary64; text beyond the range Excel reads is #VALUE!
+    // (the rows at the end of the case measure that range's edges).
     row!(r, s, PLUS, [txt("0.1"), num("0")], N(0.1));
     row!(
         r,
         s,
         PLUS,
         [txt("1e-400"), num("0")],
-        N(0.0),
-        "number text below the smallest subnormal reads as +0"
+        E(WorksheetErrorCode::Value)
     );
     // Text forms that Excel's locale rules may read as numbers, and a 16th or 17th significant
     // digit, are refused, not guessed.
@@ -2899,21 +2948,22 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [txt("1.2345678901234567"), num("0")],
         Refused(Some(0))
     );
-    owned_by!(
+    row!(
         r,
         s,
-        NUMBER_TEXT,
         PLUS,
         [num("0"), txt("1e400")],
-        Refused(Some(1))
+        E(WorksheetErrorCode::Value)
     );
     // Results: an overflow is #NUM!, division by 0 is #DIV/0!, a zero is +0 whatever its sign,
-    // and a subnormal result is refused.
+    // and a subnormal result is refused. The literals are ones Excel loads from a file unchanged
+    // (see the generator): 9.99999999999999E+307 is the largest number a cell can be given, and
+    // 2.2250738585073E-308 is just above the smallest normal number.
     row!(
         r,
         s,
         TIMES,
-        [num("1E308"), num("10")],
+        [num("9.99999999999999E+307"), num("10")],
         E(WorksheetErrorCode::Num)
     );
     row!(r, s, TIMES, [num("0"), num("-1")], N(0.0), ZERO);
@@ -2936,7 +2986,7 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         SUBNORMAL,
         DIVIDE,
-        [num("2.2250738585072014E-308"), num("2")],
+        [num("2.2250738585073E-308"), num("2")],
         Refused(None)
     );
     // ^ computes only the powers that need no power algorithm; the others are refused.
@@ -2967,7 +3017,15 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         Refused(None)
     );
     row!(r, s, POWER, [num("3"), num("1")], N(3.0));
-    row!(r, s, NEGATE, [num("0")], N(0.0), ZERO);
+    // Written -(0): Excel loads the formula -0 from a file as the literal 0, with no negation.
+    row!(
+        r,
+        s,
+        NEGATE,
+        [arg("(0)", CalcValue::number(0.0))],
+        N(0.0),
+        ZERO
+    );
     row!(r, s, NEGATE, [txt("2")], N(-2.0));
     row!(r, s, NEGATE, [logical(true)], N(-1.0));
     row!(r, s, NEGATE, [cell(s, "A5")], N(0.0), ZERO);
@@ -3063,7 +3121,13 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     row!(r, s, NE, [cell(s, "A1"), num("2")], L(true));
     row!(r, s, LT, [num("1"), txt("a")], L(true));
     row!(r, s, LT, [txt("a"), logical(true)], L(true));
-    row!(r, s, GT, [logical(false), num("1E308")], L(true));
+    row!(
+        r,
+        s,
+        GT,
+        [logical(false), num("9.99999999999999E+307")],
+        L(true)
+    );
     owned_by!(r, s, COLLATION, EQ, [txt("a"), txt("A")], L(true));
     row!(r, s, EQ, [cell(s, "A5"), num("0")], L(true));
     row!(r, s, EQ, [cell(s, "A5"), txt("")], L(true));
@@ -3129,8 +3193,8 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     // rows number_text_for_concatenation!D62 and D63).
     row!(r, s, AMPERSAND, [txt("a"), num("1")], t("a1"));
     row!(r, s, AMPERSAND, [num("1"), txt("a")], t("1a"));
-    // A joined text of 32767 characters is a cell's longest; one more is #VALUE!.
-    let shorter = "a".repeat(32_766);
+    // A joined text of 32767 characters is a cell's longest; a longer one is cut to 32767.
+    let (shorter, longest) = ("a".repeat(32_766), "a".repeat(32_767));
     row!(
         r,
         s,
@@ -3138,13 +3202,7 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [cell(s, "C1"), txt("b")],
         t(&format!("{shorter}b"))
     );
-    row!(
-        r,
-        s,
-        AMPERSAND,
-        [cell(s, "C2"), txt("b")],
-        E(WorksheetErrorCode::Value)
-    );
+    row!(r, s, AMPERSAND, [cell(s, "C2"), txt("b")], t(&longest));
 
     // SUM: direct text and logicals are coerced; the same values held by referenced cells or by
     // an array are skipped.
@@ -3179,14 +3237,18 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         r,
         s,
         SUM,
-        [num("1E308"), num("1E308")],
+        [num("9.99999999999999E+307"), num("9.99999999999999E+307")],
         E(WorksheetErrorCode::Num)
     );
     row!(
         r,
         s,
         SUM,
-        [num("1E308"), num("1E308"), num("-1E308")],
+        [
+            num("9.99999999999999E+307"),
+            num("9.99999999999999E+307"),
+            num("-9.99999999999999E+307")
+        ],
         E(WorksheetErrorCode::Num),
         "a running total that overflows stays #NUM! when a later number would bring it back"
     );
@@ -3252,6 +3314,8 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     row!(r, s, IF, [logical(true), omitted(), num("2")], N(0.0));
     row!(r, s, IF, [logical(false), num("1"), omitted()], N(0.0));
     row!(r, s, IF, [omitted(), num("1"), num("2")], N(2.0));
+    // A legacy formula (cfml-m3.4): Excel loads IF({TRUE,FALSE},1,2) from the file as
+    // =@IF({TRUE,FALSE},1,2) and gives 1, the array's first element; calc_func refuses the array.
     let conditions = CalcArray::from_rows(vec![vec![
         CalcValue::logical(true),
         CalcValue::logical(false),
@@ -3260,7 +3324,7 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     owned_by!(
         r,
         s,
-        ARRAY_LIFT,
+        LEGACY_ARRAY_IF,
         IF,
         [
             arg("{TRUE,FALSE}", CalcValue::array(conditions)),
@@ -3268,6 +3332,127 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
             num("2")
         ],
         Refused(Some(0))
+    );
+
+    // Number text at the edges of the range Excel reads: its scale, the k for which its value is
+    // 0.d1d2... times 10^k, must be from -308 to 308, whatever its sign, and text in binary64's
+    // subnormal range reads as 0, which the products show apart from the + rows.
+    use WorksheetErrorCode::Value;
+    const ZERO_SCALE: &str = "a zero mantissa's digits after its point lower its scale";
+    const SUBNORMAL_TEXT: &str = "text in binary64's subnormal range reads as 0";
+    row!(r, s, PLUS, [txt("1e308"), num("0")], E(Value));
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt("9.99999999999999e307"), num("0")],
+        N(9.99999999999999e307)
+    );
+    row!(r, s, PLUS, [txt("0e308"), num("0")], N(0.0));
+    row!(r, s, PLUS, [txt("0e309"), num("0")], E(Value));
+    row!(r, s, PLUS, [txt("0e-308"), num("0")], N(0.0));
+    row!(r, s, PLUS, [txt("0e-309"), num("0")], E(Value));
+    row!(r, s, PLUS, [txt("0.0e309"), num("0")], N(0.0), ZERO_SCALE);
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt("0.0e-308"), num("0")],
+        E(Value),
+        ZERO_SCALE
+    );
+    row!(
+        r,
+        s,
+        PLUS,
+        [txt("1e-309"), num("0")],
+        N(0.0),
+        SUBNORMAL_TEXT
+    );
+    row!(r, s, PLUS, [txt("9e-310"), num("0")], E(Value));
+    row!(r, s, PLUS, [txt("0.01e309"), num("0")], N(1e307));
+    row!(r, s, PLUS, [txt("1000e-310"), num("0")], N(1e-307));
+    row!(r, s, PLUS, [txt("0.01e-308"), num("0")], E(Value));
+    row!(
+        r,
+        s,
+        TIMES,
+        [txt("1e-309"), num("1E+300")],
+        N(0.0),
+        SUBNORMAL_TEXT
+    );
+    row!(
+        r,
+        s,
+        TIMES,
+        [txt("2.2250738585072E-308"), num("1E+300")],
+        N(0.0),
+        SUBNORMAL_TEXT
+    );
+    row!(r, s, PLUS, [txt("-1e308"), num("0")], E(Value));
+    row!(
+        r,
+        s,
+        TIMES,
+        [txt("-1e-309"), num("1E+300")],
+        N(0.0),
+        SUBNORMAL_TEXT
+    );
+
+    // & cuts its result at 32767 UTF-16 code units, even between the halves of a surrogate pair:
+    // C1 holds 32766 characters, and U+1F600 is two code units.
+    let mut parted: Vec<u16> = "a".repeat(32_766).encode_utf16().collect();
+    parted.push(0xD83D);
+    row!(
+        r,
+        s,
+        AMPERSAND,
+        [cell(s, "C1"), txt("\u{1F600}")],
+        Expect::Units(parted),
+        "the cut parts a surrogate pair"
+    );
+
+    // Number text beyond the range Excel reads, and in binary64's subnormal range, read by COUNT
+    // (cfunc-m3.4's function) and by COUNTIF (cfunc-m3.5's), in a criterion and in a cell of the
+    // range; their own oracle workbooks hold no such row. calc-func computes each through
+    // cfunc-m1.2's coercion: text beyond the range is no number, so COUNT does not count it, a
+    // criterion holding it is text, which no number meets, and a range cell holding it meets no
+    // number; text in the subnormal range reads as 0. Excel 16.0.20430.20182's capture of the
+    // oracle workbook gives each of these six rows the value calc-func gives (0, 0, 0, 0, 1 and 1),
+    // which the comparison does not score: each is published as not modeled with its owner.
+    owned_by!(r, s, COUNT_TEXT, COUNT, [txt("1e-400")], N(0.0));
+    owned_by!(
+        r,
+        s,
+        CRITERIA_TEXT,
+        COUNTIF,
+        [reference(s, &["C5"]), txt("1e-400")],
+        N(0.0)
+    );
+    owned_by!(
+        r,
+        s,
+        CRITERIA_TEXT,
+        COUNTIF,
+        [reference(s, &["C5"]), txt("<1e308")],
+        N(0.0)
+    );
+    owned_by!(
+        r,
+        s,
+        CRITERIA_TEXT,
+        COUNTIF,
+        [reference(s, &["C6"]), num("0")],
+        N(0.0)
+    );
+    owned_by!(r, s, COUNT_TEXT, COUNT, [txt("1e-309")], N(1.0));
+    owned_by!(
+        r,
+        s,
+        CRITERIA_TEXT,
+        COUNTIF,
+        [reference(s, &["C7"]), txt("1e-309")],
+        N(1.0)
     );
     rows
 }
@@ -3498,9 +3683,8 @@ fn cfunc_m1_2__mixed_operands() {
     );
 
     // The retained Excel witness of the POWER function, applied to the ^ operator on the
-    // assumption that ^ computes POWER, which the oracle workbook's ^ rows test once captured:
-    // every result ^ computes equals the witness's bit for bit or error for error, and every other
-    // row is refused as not modelled.
+    // assumption that ^ computes POWER: every result ^ computes equals the witness's bit for bit
+    // or error for error, and every other row is refused as not modelled.
     let power = surface(POWER.0, POWER.1);
     let witness = power_witness_rows();
     assert_eq!(witness.len(), 111, "the witness selection holds 111 rows");
@@ -3531,9 +3715,62 @@ fn cfunc_m1_2__mixed_operands() {
         (56, 19, 55),
         "witness rows computed, of them errors, and refused"
     );
+    // Excel's captured value of each oracle row of ^ that ^ refuses, against the witness's POWER
+    // row for the same arguments where the witness holds one: equal bits support the assumption
+    // for those arguments, and different bits would refute it.
+    let mut captured_powers = Vec::new();
+    if captured() {
+        let capture = CaptureRecord::decode(ORACLE_CAPTURE).expect("the committed capture decodes");
+        for (formula, x, y) in [
+            ("=2^3", 2.0, 3.0),
+            ("=10^-2", 10.0, -2.0),
+            ("=2^0.5", 2.0, 0.5),
+        ] {
+            let row = rows
+                .oracle
+                .iter()
+                .find(|row| row.formula == formula && row.owner == Some(POWER_ALGORITHM))
+                .unwrap_or_else(|| panic!("no row {formula} owned by {}", POWER_ALGORITHM.bead));
+            let cell = oracle_cell(rows.sheet, row.row);
+            let at = format!("{}!{}", cell.sheet(), cell.a1());
+            let excel = capture
+                .observations
+                .iter()
+                .find(|observed| observed.cell == cell)
+                .and_then(|observed| match &observed.observation {
+                    Observation::ExcelRaw(value) => value.as_number(),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("the capture holds no raw number at {at}"));
+            let witnessed = witness.iter().find(|(_, wx, wy, _)| *wx == x && *wy == y);
+            if let Some((id, _, _, expected)) = witnessed {
+                assert_eq!(
+                    &Ok(excel.to_bits()),
+                    expected,
+                    "{at} {formula}: Excel's ^ against the witness's POWER row {id}"
+                );
+            }
+            captured_powers.push(format!(
+                "{at} {formula} {excel:?} (bits {:#018x}; {})",
+                excel.to_bits(),
+                witnessed.map_or_else(
+                    || "the witness holds no row for these arguments".to_owned(),
+                    |(id, ..)| format!("equal to the witness's POWER row {id}")
+                )
+            ));
+        }
+    }
     note!(
-        "ACCEPT-NOTE: {CASE}: retained witness of the POWER function (migration/witnesses/w111-extended-power.json, {} rows), applied to ^ on the assumption that ^ computes POWER until the oracle's ^ rows are captured: ^ computed {computed} rows equal to Excel's POWER results ({errors} of them #NUM! or #DIV/0!) and refused {refused} rows that need a power algorithm",
-        witness.len()
+        "ACCEPT-NOTE: {CASE}: retained witness of the POWER function (migration/witnesses/w111-extended-power.json, {} rows), applied to ^ on the assumption that ^ computes POWER: ^ computed {computed} rows equal to Excel's POWER results ({errors} of them #NUM! or #DIV/0!) and refused {refused} rows that need a power algorithm; {}",
+        witness.len(),
+        if captured_powers.is_empty() {
+            "the oracle's ^ rows that ^ refuses are not captured".to_owned()
+        } else {
+            format!(
+                "Excel's capture gives the oracle's ^ rows that ^ refuses (not modeled here): {}",
+                captured_powers.join(", ")
+            )
+        }
     );
 
     // The oracle workbook: this case's sheet holds exactly its rows and cells, and the committed
@@ -3628,7 +3865,10 @@ fn error_order_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     let r = &mut rows;
     use WorksheetErrorCode::{Div0, NA, Null, Ref, Value};
     const LEFT_FIRST: &str = "the left operand's error before the right operand's";
-    const ARGUMENT_ORDER: &str = "the first error in argument order";
+    const ARGUMENT_ORDER: &str = "the first direct argument's error, in argument order";
+    const DIRECT_FIRST: &str =
+        "a direct argument's error, a coercion's included, before a reference's or an array's";
+    const HELD_ORDER: &str = "a reference's and an array's errors in argument order";
     const CHOSEN_BRANCH: &str = "only the chosen branch is read";
 
     // Two operands: an operand's error is the result. An arithmetic operator reads its operands
@@ -3694,15 +3934,15 @@ fn error_order_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         E(NA),
         "an operand's error before the rules for a power of 0"
     );
-    // A number's text is not modelled, but no number reads as an error, so & still returns the
-    // other operand's error.
+    // No number's text is an error, so & returns the other operand's error.
     row!(r, s, AMPERSAND, [num("1"), err(NA)], E(NA));
     row!(r, s, NEGATE, [err(NA)], E(NA));
     row!(r, s, PERCENT, [err(Div0)], E(Div0));
     row!(r, s, UNARY_PLUS, [err(Ref)], E(Ref));
 
-    // SUM: the first error in argument order; within a reference, area by area in the
-    // reference's order and row-major within an area. The cell reader is visited no further.
+    // SUM: the first error among the direct arguments, in argument order, a coercion's #VALUE!
+    // included; then the first error of the references and arrays in argument order, area by area
+    // in a reference's order and row-major within an area. The cell reader is visited no further.
     row!(r, s, SUM, [err(NA), err(Div0)], E(NA), ARGUMENT_ORDER);
     row!(
         r,
@@ -3740,31 +3980,39 @@ fn error_order_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [s.area("A2:B2")],
         "SUM read past the area holding its first error"
     );
+    s.reads.clear();
     row!(
         r,
         s,
         SUM,
         [reference(s, &["A1:B2"]), err(Null)],
-        E(NA),
-        ARGUMENT_ORDER
+        E(Null),
+        DIRECT_FIRST
     );
-    s.reads.clear();
+    assert!(
+        s.reads.is_empty(),
+        "SUM read a reference before its direct argument's error"
+    );
     row!(
         r,
         s,
         SUM,
         [err(Ref), reference(s, &["A1:B2"])],
         E(Ref),
-        ARGUMENT_ORDER
+        DIRECT_FIRST
     );
     assert!(s.reads.is_empty(), "SUM read a reference after an error");
     row!(
         r,
         s,
         SUM,
-        [num("1E308"), num("1E308"), err(NA)],
+        [
+            num("9.99999999999999E+307"),
+            num("9.99999999999999E+307"),
+            err(NA)
+        ],
         E(NA),
-        "a later error over an earlier overflow of the running total"
+        "a direct argument's error before the fold, so before the running total overflows"
     );
 
     // IF: an error condition is the result before any branch is asked for; otherwise only the
@@ -3805,6 +4053,72 @@ fn error_order_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "the condition's #VALUE! before any branch"
     );
     assert_eq!(asked, [0]);
+
+    // SUM again: an array's error against a direct argument's error or #VALUE!, and against a
+    // reference's error, each way round; a direct #VALUE! against a reference's error; a
+    // reference's error after the running total overflowed.
+    let held_ref = || {
+        let array = CalcArray::from_rows(vec![vec![CalcValue::number(1.0), CalcValue::error(Ref)]])
+            .expect("a 1-by-2 array");
+        arg("{1,#REF!}", CalcValue::array(array))
+    };
+    row!(r, s, SUM, [held_ref(), err(NA)], E(NA), DIRECT_FIRST);
+    row!(r, s, SUM, [err(NA), held_ref()], E(NA), DIRECT_FIRST);
+    row!(r, s, SUM, [held_ref(), txt("a")], E(Value), DIRECT_FIRST);
+    s.reads.clear();
+    row!(
+        r,
+        s,
+        SUM,
+        [held_ref(), reference(s, &["A1:B2"])],
+        E(Ref),
+        HELD_ORDER
+    );
+    assert!(
+        s.reads.is_empty(),
+        "SUM read a reference after an earlier array's error"
+    );
+    row!(
+        r,
+        s,
+        SUM,
+        [reference(s, &["A1:B2"]), held_ref()],
+        E(NA),
+        HELD_ORDER
+    );
+    s.reads.clear();
+    row!(
+        r,
+        s,
+        SUM,
+        [reference(s, &["B1"]), txt("a")],
+        E(Value),
+        DIRECT_FIRST
+    );
+    row!(
+        r,
+        s,
+        SUM,
+        [reference(s, &["A1:B2"]), txt("a")],
+        E(Value),
+        DIRECT_FIRST
+    );
+    assert!(
+        s.reads.is_empty(),
+        "SUM read a reference before its direct argument's #VALUE!"
+    );
+    row!(
+        r,
+        s,
+        SUM,
+        [
+            num("9.99999999999999E+307"),
+            num("9.99999999999999E+307"),
+            reference(s, &["B1"])
+        ],
+        E(NA),
+        "a reference's error after the running total overflowed"
+    );
     rows
 }
 

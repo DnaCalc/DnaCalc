@@ -2,7 +2,7 @@
   "format": "dnacalc-port-record/1",
   "bead": "cfunc-m1.2",
   "written": "2026-10-20",
-  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings. On 2026-10-20 over .beads/issues.jsonl of master commit 04ed1920091a4a2064e3b92fba858350d9d86295 (read with git show from the DnaCalc-infra clone): array lift, lifting, broadcast, lifted over; NumericBackend, numerical sensitivity, subnormal, denormal; error propagation, error order; NumberTextService, value-parsing, General format; POWER, Fast backend; collation, sort order, case-insensitive, text compar, string compar; near-equal, nearly equal, near-equality, tolerance, 15 significant (transcript target/accept/cfunc-m1.2/owner-search/owner-search.log). Again on 2026-10-20 over .beads/issues.jsonl of master commit 637cfa6903d4832f78b171c21515804994856f04, after cfml-m1.3's claim note: near-zero, near zero, final operation, near-zero correction; CellReader, ReferenceReader (transcript target/accept/cfunc-m1.2/owner-search/owner-search-r4.log). target/ is not committed. Each beads list below is the hits of the terms named in its basis, without cfunc-m1.2 itself and without a hit the basis names as not doing the work.",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings. On 2026-10-20 over .beads/issues.jsonl of master commit 04ed1920091a4a2064e3b92fba858350d9d86295 (read with git show from the DnaCalc-infra clone): array lift, lifting, broadcast, lifted over; NumericBackend, numerical sensitivity, subnormal, denormal; error propagation, error order; NumberTextService, value-parsing, General format; POWER, Fast backend; collation, sort order, case-insensitive, text compar, string compar; near-equal, nearly equal, near-equality, tolerance, 15 significant (transcript target/accept/cfunc-m1.2/owner-search/owner-search.log). Again on 2026-10-20 over .beads/issues.jsonl of master commit 637cfa6903d4832f78b171c21515804994856f04, after cfml-m1.3's claim note: near-zero, near zero, final operation, near-zero correction; CellReader, ReferenceReader (transcript target/accept/cfunc-m1.2/owner-search/owner-search-r4.log). Again on 2026-10-21 over .beads/issues.jsonl of master commit de522c66ff299b072710e522d74dbc4bd9e75933, after dc-r4ci was created: near-zero, near zero, final operation, near-zero correction (transcript target/accept/cfunc-m1.2/owner-search/owner-search-r5.log). target/ is not committed. Each beads list below is the hits of the terms named in its basis, without cfunc-m1.2 itself and without a hit the basis names as not doing the work.",
   "sources": [
     {
       "repository": "OxFunc",
@@ -36,7 +36,7 @@
             "NonFinite",
             "PrecisionRoundingProfile"
           ],
-          "reason": "The number publication rule is written once in kernel.rs (an overflow is #NUM!, a zero is +0, a subnormal result is refused) and decimal text is converted to binary64 at an arithmetic site; rounding and subnormal policy as metadata belong to the numeric backend and its routing.",
+          "reason": "The number publication rule is written once in kernel.rs (an overflow is #NUM!, a zero is +0, a subnormal result is refused) and decimal text is converted to binary64 at an arithmetic site; rounding and subnormal policy as metadata belong to the numeric backend and its routing. The subnormal policy differs by route: Decimal::nearest (crates/calc-func/src/coerce.rs) reads text whose nearest binary64 is subnormal as +0, as Excel's capture shows for \"1e-309\"+0, \"1e-309\"*1E+300, \"2.2250738585072E-308\"*1E+300 and \"-1e-309\"*1E+300 (mixed_operands!D132, D137, D138 and D140), while a subnormal number given as an operand (coerce::operand) and a subnormal result (Site::number in kernel.rs) are refused as not modelled; cfunc-m3.23 owns subnormal numbers.",
           "beads": [
             "cfunc-m3.3",
             "cfunc-m3.22",
@@ -49,7 +49,7 @@
             "ErrorCollapseProfile",
             "ErrorAlgebra"
           ],
-          "reason": "Error order is written in each kernel (the left operand first; SUM in argument order, area order and row-major order; IF's condition before its branches) and asserted by cfunc_m1_2__error_order as unmeasured choices that the Excel capture settles; no metadata axis is declared here.",
+          "reason": "Error order is written in each kernel (the left operand first; SUM's direct arguments first in argument order, a coercion's #VALUE! included, then the errors its references and arrays hold, in argument order, area order and row-major order, and an error read after the running total overflowed; IF's condition before its branches) and asserted by cfunc_m1_2__error_order, whose rows Excel's capture of the oracle workbook matches; SUM's order is measured by the error_order rows =SUM(A1:B2,#NULL!), =SUM(#REF!,A1:B2), =SUM(B1,\"a\"), =SUM(A1:B2,\"a\"), =SUM({1,#REF!},#N/A), =SUM(#N/A,{1,#REF!}), =SUM({1,#REF!},\"a\"), =SUM({1,#REF!},A1:B2), =SUM(A1:B2,{1,#REF!}) and =SUM(9.99999999999999E+307,9.99999999999999E+307,B1). No metadata axis is declared here.",
           "beads": [
             "cfml-m2.4",
             "cfunc-m3.17"
@@ -294,7 +294,7 @@
       "items": [
         "^ beyond its domain errors and the powers whose result is exact or one rounding (exponent 0, 1, 2 or -1; base 0, 1 or -1)"
       ],
-      "reason": "^ is partial: it refuses every other power, such as 2^3, 10^-2 and 2^0.5, with NotImplemented, because they need a pinned power implementation. The retained witness migration/witnesses/w111-extended-power.json holds Excel's results of the POWER function; applied to ^ on the assumption that ^ computes POWER (the oracle workbook's rows =2^3, =10^-2 and =2^0.5 test that assumption once captured), ^ computes 56 of its 111 rows equal to it and refuses the other 55.",
+      "reason": "^ is partial: it refuses every other power, such as 2^3, 10^-2 and 2^0.5, with NotImplemented, because they need a pinned power implementation. The retained witness migration/witnesses/w111-extended-power.json holds Excel's results of the POWER function; applied to ^ on the assumption that ^ computes POWER, ^ computes 56 of its 111 rows equal to it and refuses the other 55. Excel's capture of the oracle workbook (Excel 16.0.20430.20182) gives 8 for =2^3, 0.01 (bits 0x3f847ae147ae147b) for =10^-2 and 1.4142135623730951 (bits 0x3ff6a09e667f3bcd) for =2^0.5 (mixed_operands!D34:D36, published as not modeled with these owners because ^ refuses them), each the correctly rounded power. The witness holds a row for one of these pairs, POWER(10,-2) (w111extended-2026092903-POWER-00046), with the same bits as =10^-2, and none for the other two, so the capture agrees with the assumption on that one pair and does not test it further.",
       "beads": [
         "cfunc-m3.3",
         "cfunc-m3.23"
@@ -337,11 +337,11 @@
       "items": [
         "The near-zero adjustment of + and -: Excel may give 0 for a + or - result near zero when that operation is the formula's final one (=0.5-0.4-0.1 against =1*(0.5-0.4-0.1))"
       ],
-      "reason": "+ and - give the binary64 result. Whether Excel adjusts it depends on the formula's final operation, which the formula evaluator knows and the call interface does not carry. The oracle workbook's rows =0.5-0.4-0.1, =1*(0.5-0.4-0.1) and =1.333+1.225-1.333-1.225 measure it and are published to the Excel comparison as not modeled with this owner.",
+      "reason": "+ and - give the binary64 result. Whether Excel adjusts it depends on the formula's final operation, which the formula evaluator knows and the call interface does not carry. The oracle workbook's rows mixed_operands!D53:D59 (=0.5-0.4-0.1, =1*(0.5-0.4-0.1), =1.333+1.225-1.333-1.225 and the boundary rows =1E15+1-1E15, =0.1+0.2-0.3, =1+1E-15-1 and =C3-C4) measure it, and cfunc_m1_2__mixed_operands publishes each to the Excel comparison as not modeled with this owner (NEAR_ZERO in crates/calc-func/tests/acceptance.rs).",
       "beads": [
-        "cfml-m1.3"
+        "dc-r4ci"
       ],
-      "basis": "near-zero, near-zero correction (owner-search-r4.log): the notes hit cfml-m1.3 alone, whose claim note of 2026-10-20 names the behaviour: \"Excel's near-zero correction for a final + or - (KB 78113): the evaluator knows whether an operation is the formula's last, so the correction is applied there or refused with a typed result\", and says that cfunc-m1.2's oracle rows measure it; near-zero in descriptions hits only cfunc-m3.12 (the cash-flow functions); near zero and final operation have no hit."
+      "basis": "near-zero, near zero, final operation (owner-search-r5.log): the descriptions hit dc-r4ci, whose Do states Excel's measured rule from the captured rows, implements it in calc_fml's final-operation step and changes the owner of calc-func's NEAR_ZERO rows, and, for near-zero, cfunc-m3.12 (the cash-flow functions); the notes hit dc-r4ci, cfml-m1.3, which applies a final + or - near zero with a chosen band and refuses inside it (EvalFault::NearZeroFinalSum) and names dc-r4ci as the bead that replaces the band with Excel's rule (migration/ports/cfml-m1.3.json), ceng-m1.2, which publishes a near-zero refusal as not modelled, and dc-qguw, which marks the near-zero check's instructions; near-zero correction hits the notes of cfml-m1.3 alone. The search of owner-search-r4.log, before dc-r4ci existed, hit cfml-m1.3 alone."
     }
   ],
   "carried_witnesses": [

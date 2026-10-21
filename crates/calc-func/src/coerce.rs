@@ -8,13 +8,14 @@
 //!
 //! Text reads as a number only in the plain decimal form: optional spaces, an optional sign,
 //! digits with at most one '.', an optional exponent and optional spaces, with at most 15
-//! significant digits. Text with no digit at all is #VALUE!. Any other text holding a digit (a
+//! significant digits. Plain decimal text whose scale is outside -308..308 ([`Decimal::nearest`])
+//! is #VALUE!, not refused, and so is text with no digit at all. Any other text holding a digit (a
 //! date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant
 //! digit) is refused as not modelled, because Excel may read it as a number through its locale's
 //! number-text rules, which no service supplies yet; the same holds for a logical's text forms,
 //! which are the English TRUE and FALSE. Coercion only reads the decimal ([`Numeric::Decimal`]):
 //! finding its nearest binary64 rounds, so the kernel does that at an arithmetic site, under the
-//! call's numeric mode.
+//! call's numeric mode, and the scale's #VALUE! comes from there.
 //!
 //! A number read as text takes its text from [`number_text`]. A subnormal number reads as text as
 //! 0, since Excel holds none and reads a cell written as one back as +0; read as a number
@@ -61,12 +62,62 @@ pub(crate) enum Numeric {
 pub(crate) struct Decimal(String);
 
 impl Decimal {
-    /// The nearest binary64, ties to even. A zero ("-0" included) and a value below the smallest
-    /// subnormal read as +0; a value beyond binary64's range or in its subnormal range is refused
-    /// as not modelled.
+    /// The nearest binary64, ties to even, of text that Excel reads as a number; a zero ("-0"
+    /// included) and a number in binary64's subnormal range read as +0.
+    ///
+    /// Excel reads the text only when its scale ([`Decimal::scale`]) is from -308 to 308, and
+    /// gives #VALUE! otherwise. The oracle rows of cfunc_m1_2__mixed_operands measure both ends:
+    /// "9.99999999999999e307", "0.01e309", "1000e-310", "0e308", "0e-308", "0.0e309" and
+    /// "1e-309" read (the last as 0, also when multiplied by 1E+300), while "1e308", "-1e308",
+    /// "0e309", "0e-309", "0.0e-308", "9e-310", "0.01e-308" and "1e-400" are #VALUE!. The rule is
+    /// applied unmeasured to the shapes no row holds: a whole part with leading zeros ("001e308"),
+    /// a whole part of several digits at the upper end ("10e307"; "1000e-310" measures one at the
+    /// lower end), a zero mantissa with no digit after its point ("0.e309"), and a written
+    /// exponent beyond the cap of [`Decimal::scale`].
     pub(crate) fn nearest(&self) -> Result<f64, Stop> {
+        if !(-308..=308).contains(&self.scale()) {
+            return Err(Stop::Error(WorksheetErrorCode::Value));
+        }
         let n: f64 = self.0.parse().map_err(|_| Stop::NotModelled)?;
-        if n == 0.0 { Ok(0.0) } else { operand(n) }
+        if n == 0.0 || n.is_subnormal() {
+            Ok(0.0)
+        } else {
+            operand(n)
+        }
+    }
+
+    /// The power of ten k for which the text's value is 0.d1d2... times 10^k: its written exponent
+    /// plus the digits of its whole part from the first that is not 0 (unmeasured with leading
+    /// zeros, "001e308" having scale 309), or less the zeros that follow the point before the
+    /// first digit that is not 0. A zero mantissa counts every digit after its point as such a
+    /// zero ("0.0e309" has scale 308, measured; "0.e309" has 309, unmeasured). A written exponent
+    /// beyond a million in size is taken as a million, so that one of 19 digits or more cannot
+    /// overflow i64; no mantissa of a cell's text brings that back into range. No row measures
+    /// such an exponent.
+    fn scale(&self) -> i64 {
+        let unsigned = self.0.trim_start_matches(['+', '-']);
+        let (mantissa, exponent) = match unsigned.find(['e', 'E']) {
+            Some(at) => (&unsigned[..at], &unsigned[at + 1..]),
+            None => (unsigned, ""),
+        };
+        let (negative, digits) = match exponent.as_bytes().first() {
+            Some(b'-') => (true, &exponent[1..]),
+            Some(b'+') => (false, &exponent[1..]),
+            _ => (false, exponent),
+        };
+        let size = digits.bytes().fold(0_i64, |size, digit| {
+            (size * 10 + i64::from(digit - b'0')).min(1_000_000)
+        });
+        let written = if negative { -size } else { size };
+        let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+        let count = |digits: &str| i64::try_from(digits.len()).unwrap_or(i64::MAX);
+        match whole.find(|c| c != '0') {
+            Some(first) => written + count(&whole[first..]),
+            None => match fraction.find(|c| c != '0') {
+                Some(zeros) => written - count(&fraction[..zeros]),
+                None => written - count(fraction),
+            },
+        }
     }
 }
 
@@ -231,4 +282,37 @@ fn eq_ignore_ascii_case(units: &[u16], upper: &[u16]) -> bool {
         && units.iter().zip(upper).all(|(&unit, &expected)| {
             u8::try_from(unit).is_ok_and(|byte| u16::from(byte.to_ascii_uppercase()) == expected)
         })
+}
+
+/// The cap on a written exponent's size in [`Decimal::scale`], which no oracle row reaches.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The text read as a number, converted as a kernel converts it.
+    fn read(text: &str) -> Result<f64, Stop> {
+        match number(&CalcValue::text(ExcelText::from_interop_assignment(text)))? {
+            Numeric::Number(n) => Ok(n),
+            Numeric::Decimal(decimal) => decimal.nearest(),
+        }
+    }
+
+    /// An exponent of 19 digits or more is beyond i64 (and 2^64 wraps to 0 where overflow is not
+    /// checked); with the cap each is #VALUE!, as any scale beyond -308..308 is.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn an_exponent_beyond_i64_is_value() {
+        for text in [
+            "1e9999999999999999999",
+            "1e-9999999999999999999",
+            "1e18446744073709551616",
+            "0.0e18446744073709551616",
+        ] {
+            assert_eq!(
+                read(text),
+                Err(Stop::Error(WorksheetErrorCode::Value)),
+                "{text}"
+            );
+        }
+    }
 }

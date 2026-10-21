@@ -920,7 +920,7 @@ fn criterion_text(site: &Site<'_>, index: usize, units: &[u16]) -> Step<Criterio
     let operand = CalcValue::text(ExcelText::from_utf16_code_units(rest.to_vec()));
     match site.number_argument(index, &operand) {
         Ok(n) => Ok(Criterion::Number(op, n)),
-        // Text with no digit, which is no number.
+        // Text that reads as no number: no digit, or out of the range Excel reads.
         Err(Exit::Error(_)) => {
             let logical = if spells(rest, TRUE_TEXT) {
                 Some(true)
@@ -973,7 +973,7 @@ impl Criterion {
                     CoreValue::Text(_) if *op != Op::Equal => None,
                     CoreValue::Text(_) => match site.number_argument(index, value) {
                         Ok(n) => Some(n),
-                        // Text with no digit, which is no number.
+                        // Text that reads as no number: no digit, or out of the range Excel reads.
                         Err(Exit::Error(_)) => None,
                         Err(exit) => return decided(Err(exit)),
                     },

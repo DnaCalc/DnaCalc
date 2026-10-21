@@ -206,8 +206,9 @@ $eCapital = [string][char]0xC9
 
 # Sheet mixed_operands: the cells of cfunc_m1_2__mixed_operands' test sheet (A5 and A6 blank; C2
 # holds a text of 32767 characters, the longest a cell holds, and C1 one character less; C3 and C4
-# hold two numbers of 14 significant digits that differ in the last), and its oracle rows'
-# formulas in its order, the rows whose behaviour another bead owns included.
+# hold two numbers of 14 significant digits that differ in the last; C5 holds 0, C6 the text
+# 1e-400 and C7 the text 1e-309), and its oracle rows' formulas in its order, the rows whose
+# behaviour another bead owns included.
 $mixedInputs = @(
     (New-Text 'A1' '2'),
     (New-Logical 'A2' $true),
@@ -220,8 +221,16 @@ $mixedInputs = @(
     (New-Text 'C1' ('a' * 32766)),
     (New-Text 'C2' ('a' * 32767)),
     (New-Number 'C3' '123456789012.34'),
-    (New-Number 'C4' '123456789012.33')
+    (New-Number 'C4' '123456789012.33'),
+    (New-Number 'C5' '0'),
+    (New-Text 'C6' '1e-400'),
+    (New-Text 'C7' '1e-309')
 )
+# The literals of both sheets are ones Excel loads from a file unchanged (Excel 16.0.20430, opening
+# the workbook with CorruptLoad 0): a number above 9.99999999999999E+307, the largest a cell can
+# be given, is not loaded, written 1E308 or 1E+308 alike (Excel asks to repair the workbook, and
+# the repair removes the formula); the literal 2.2250738585072014E-308 loads as 0; and the formula
+# -0 loads as the literal 0, so the negation of 0 is written -(0).
 $mixedFormulas = @(
     # Arithmetic operands through worksheet number coercion, decimal text included; then text
     # that Excel's number-text rules may read (cfml-m2.6).
@@ -234,14 +243,14 @@ $mixedFormulas = @(
     # cfunc-m3.23), the unary operators, percent (x/100 against x*0.01 at 35% and 57%), and a +
     # or - near zero (dc-r4ci: the formula's final operation), with boundary rows for its
     # measurement.
-    '1E308*10', '0*-1', '1/0', 'A5/A6', '2.2250738585072014E-308/2', '"2"^2', 'TRUE^2', '2^3',
-    '10^-2', '2^0.5', '3^1', '-0', '-"2"', '-TRUE', '-A5', '-""', '-2', '+"a"', '+TRUE', '+A5',
+    '9.99999999999999E+307*10', '0*-1', '1/0', 'A5/A6', '2.2250738585073E-308/2', '"2"^2',
+    'TRUE^2', '2^3', '10^-2', '2^0.5', '3^1', '-(0)', '-"2"', '-TRUE', '-A5', '-""', '-2', '+"a"', '+TRUE', '+A5',
     '50%', '"50"%', 'TRUE%', '7%', '35%', '57%',
     '0.5-0.4-0.1', '1*(0.5-0.4-0.1)', '1.333+1.225-1.333-1.225', '1E15+1-1E15', '0.1+0.2-0.3',
     '1+1E-15-1', 'C3-C4',
     # Comparison; text collation and nearly equal numbers are cdoc-jpha's.
-    '"1"=1', 'A1<>2', '1<"a"', '"a"<TRUE', 'FALSE>1E308', '"a"="A"', 'A5=0', 'A5=""',
-    'A5=FALSE', 'A5=A6', 'A5<1', '"abc"<"abd"', '"B">"a"', '"a1"<"aa"', '"10"<"9"', '""<"a"',
+    '"1"=1', 'A1<>2', '1<"a"', '"a"<TRUE', 'FALSE>9.99999999999999E+307', '"a"="A"', 'A5=0',
+    'A5=""', 'A5=FALSE', 'A5=A6', 'A5<1', '"abc"<"abd"', '"B">"a"', '"a1"<"aa"', '"10"<"9"', '""<"a"',
     '"a"<="A"', '1>=1', '1<=0', 'TRUE>FALSE', ('"' + $eSmall + '"="' + $eSmall + '"'), '1=2',
     '0.1+0.2=0.3', ('"' + $eSmall + '"="' + $eCapital + '"'), '"a-b"<"ab"',
     '"apple pie"<"banana"', '"a"<"B"', '"A"="a"', '1+1E-15=1',
@@ -250,12 +259,27 @@ $mixedFormulas = @(
     'C2&"b"',
     # SUM.
     'SUM("2",TRUE)', 'SUM(A1:A3)', 'SUM(A1:A3,"2",TRUE)', 'SUM({1,"2",TRUE})', 'SUM("a")',
-    'SUM(A4)', 'SUM(A5)', 'SUM("")', 'SUM(1,)', 'SUM(1E308,1E308)', 'SUM(1E308,1E308,-1E308)',
-    'SUM(B1:B3)', 'SUM((A3,A7))', 'SUM(A:A)',
-    # IF; IF lifted over an array is cfml-m3.4's.
+    'SUM(A4)', 'SUM(A5)', 'SUM("")', 'SUM(1,)',
+    'SUM(9.99999999999999E+307,9.99999999999999E+307)',
+    'SUM(9.99999999999999E+307,9.99999999999999E+307,-9.99999999999999E+307)', 'SUM(B1:B3)', 'SUM((A3,A7))', 'SUM(A:A)',
+    # IF; the last row is a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2) (cfml-m3.4).
     'IF("TRUE",1,2)', 'IF("false",1,2)', 'IF("x",1,2)', 'IF("",1,2)', 'IF("1",1,2)',
     'IF(A5,1,2)', 'IF(0,1)', 'IF(2,"a",1/0)', 'IF(TRUE,,2)', 'IF(FALSE,1,)', 'IF(,1,2)',
-    'IF({TRUE,FALSE},1,2)'
+    'IF({TRUE,FALSE},1,2)',
+    # Number text at the edges of the range Excel reads, a zero mantissa, a mantissa with leading
+    # or trailing zeros and a negative one among them; three products show whether text in
+    # binary64's subnormal range reads as 0.
+    '"1e308"+0', '"9.99999999999999e307"+0', '"0e308"+0', '"0e309"+0', '"0e-308"+0',
+    '"0e-309"+0', '"0.0e309"+0', '"0.0e-308"+0', '"1e-309"+0', '"9e-310"+0', '"0.01e309"+0',
+    '"1000e-310"+0', '"0.01e-308"+0', '"1e-309"*1E+300', '"2.2250738585072E-308"*1E+300',
+    '"-1e308"+0', '"-1e-309"*1E+300',
+    # & cut where the cut would part a surrogate pair (U+1F600 after C1's 32766 characters).
+    ('C1&"' + [char]::ConvertFromUtf32(0x1F600) + '"'),
+    # Number text beyond the range Excel reads and in binary64's subnormal range, read by COUNT
+    # (cfunc-m3.4's function) and by COUNTIF (cfunc-m3.5's function), in a criterion and in a cell
+    # of the range; their own workbooks hold no such row.
+    'COUNT("1e-400")', 'COUNTIF(C5,"1e-400")', 'COUNTIF(C5,"<1e308")', 'COUNTIF(C6,0)',
+    'COUNT("1e-309")', 'COUNTIF(C7,"1e-309")'
 )
 
 # Sheet error_order: the cells of cfunc_m1_2__error_order's test sheet, and its oracle rows'
@@ -275,9 +299,16 @@ foreach ($op in @('+', '-', '*', '/', '^', '=', '<>', '<', '<=', '>', '>=', '&')
 foreach ($formula in @(
     '#N/A/0', '"a"/0', '0/"a"', '0^#N/A', '1&#N/A', '-#N/A', '#DIV/0!%', '+#REF!',
     'SUM(#N/A,#DIV/0!)', 'SUM(1,"a",#N/A)', 'SUM(A1:B2)', 'SUM((A2:B2,A1:B1))',
-    'SUM(A1:B2,#NULL!)', 'SUM(#REF!,A1:B2)', 'SUM(1E308,1E308,#N/A)',
+    'SUM(A1:B2,#NULL!)', 'SUM(#REF!,A1:B2)',
+    'SUM(9.99999999999999E+307,9.99999999999999E+307,#N/A)',
     'IF(#N/A,#DIV/0!,#REF!)', 'IF(TRUE,#DIV/0!,#N/A)', 'IF(FALSE,#DIV/0!,#N/A)',
-    'IF("x",#DIV/0!,#N/A)'
+    'IF("x",#DIV/0!,#N/A)',
+    # SUM: an array's error against a direct argument's error or coercion error and against a
+    # reference's error, each way round; a direct coercion error against a reference's error; a
+    # reference's error after an overflow of the running total.
+    'SUM({1,#REF!},#N/A)', 'SUM(#N/A,{1,#REF!})', 'SUM({1,#REF!},"a")', 'SUM({1,#REF!},A1:B2)',
+    'SUM(A1:B2,{1,#REF!})', 'SUM(B1,"a")', 'SUM(A1:B2,"a")',
+    'SUM(9.99999999999999E+307,9.99999999999999E+307,B1)'
 )) {
     [void]$orderFormulas.Add($formula)
 }

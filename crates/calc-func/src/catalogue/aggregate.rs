@@ -8,7 +8,8 @@
 //! row-major order. The arithmetic is a sequential left fold in that order from the operation's
 //! identity, each operation an arithmetic site that rounds under the call's numeric mode, so
 //! under Exact, which has no implementation, a call that reaches one is refused with
-//! ExactUnavailable. The first error met in that order is the result; the counts return none.
+//! ExactUnavailable. The first error met in that order is the result, except that SUM returns an
+//! error of its direct arguments first (see [`sum`]); the counts return none.
 //!
 //! A direct argument and a value that a reference or an array holds follow different rules. For
 //! the sums, products, averages and extremes, a direct argument is read through worksheet number
@@ -107,19 +108,43 @@ pub(super) const FAMILY: Family = Family {
     ],
 };
 
-/// SUM: the numbers added from 0. A total that overflows is #NUM!, even when a later number would
-/// bring it back.
+/// SUM: the numbers added from 0, in the reading order. The error is the first among the direct
+/// arguments, in argument order, a coercion's #VALUE! included, before any error that a reference
+/// or an array holds; among those, the first in the reading order. A total that overflows is
+/// #NUM!, even when a later number would bring it back, and an error read after the overflow is
+/// the result. The error_order rows of cfunc-m1.2's oracle workbook measure each of these orders
+/// (with #N/A in B1, #DIV/0! in A2 and numbers in A1 and B2): =SUM(A1:B2,#NULL!) is #NULL!,
+/// =SUM(B1,"a") and =SUM({1,#REF!},"a") are #VALUE!, =SUM({1,#REF!},#N/A) and
+/// =SUM(#N/A,{1,#REF!}) are #N/A, =SUM({1,#REF!},A1:B2) is #REF! and =SUM(A1:B2,{1,#REF!}) #N/A,
+/// and =SUM(9.99999999999999E+307,9.99999999999999E+307,B1) is #N/A.
 fn sum(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(SUM, services);
     let mut total = 0.0;
-    let read = each_number(&site, arguments, services, Held::Numbers, &mut |n| {
-        total = site.add(total, n)?;
-        Ok(())
+    let read = direct_first(&site, arguments).and_then(|()| {
+        each_number(&site, arguments, services, Held::Numbers, &mut |n| {
+            total = site.add(total, n)?;
+            Ok(())
+        })
     });
     Site::finish(read.and_then(|()| site.number(total)))
+}
+
+/// Reads the direct arguments through worksheet number coercion, in order, and stops at the first
+/// that is an error or that coercion stops on. Their numbers are not used: the fold reads them
+/// again in the reading order.
+fn direct_first(site: &Site<'_>, arguments: &[CalcValue]) -> Step<()> {
+    for (index, argument) in arguments.iter().enumerate() {
+        if !matches!(
+            argument.core(),
+            CoreValue::Reference(_) | CoreValue::Array(_)
+        ) {
+            site.number_argument(index, argument)?;
+        }
+    }
+    Ok(())
 }
 
 /// PRODUCT: the numbers multiplied from 1, or 0 when there is none.
@@ -263,7 +288,12 @@ fn counts_as_number(
         (Origin::Direct, CoreValue::Logical(_) | CoreValue::Empty | CoreValue::Missing) => Ok(true),
         // Whether the text reads as a number decides; its value is not used, so nothing rounds.
         (Origin::Direct, CoreValue::Text(_)) => match coerce::number(value) {
-            Ok(Numeric::Decimal(decimal)) => site.argument(index, decimal.nearest()).map(|_| true),
+            Ok(Numeric::Decimal(decimal)) => match decimal.nearest() {
+                Ok(_) => Ok(true),
+                // Decimal text beyond the range Excel reads is no number, not an error.
+                Err(Stop::Error(_)) => Ok(false),
+                Err(stop) => Err(site.stop(stop, Some(index))),
+            },
             Ok(Numeric::Number(_)) => Ok(true),
             Err(Stop::Error(_)) => Ok(false),
             Err(stop) => Err(site.stop(stop, Some(index))),
