@@ -638,6 +638,10 @@ fn the_calculation_context_fingerprint_names_every_setting() {
         precision_as_displayed: false,
     };
     assert_eq!(context.fingerprint(), CONTEXT);
+    assert_eq!(
+        CalculationContext::without_iteration(false, false).fingerprint(),
+        CONTEXT
+    );
     for changed in [
         CalculationContext {
             date1904: true,
@@ -648,19 +652,34 @@ fn the_calculation_context_fingerprint_names_every_setting() {
             ..context
         },
         CalculationContext {
-            max_iterations: 101,
-            ..context
-        },
-        CalculationContext {
-            max_change: f64::from_bits(0.001f64.to_bits() + 1),
-            ..context
-        },
-        CalculationContext {
             precision_as_displayed: true,
             ..context
         },
     ] {
         assert_ne!(changed.fingerprint(), CONTEXT, "{changed:?}");
+    }
+    // While iteration is off the limits change no value, so they do not change the fingerprint;
+    // while it is on, each limit is part of it.
+    for limits in [
+        (101, 0.001),
+        (100, f64::from_bits(0.001f64.to_bits() + 1)),
+        (1, 0.5),
+    ] {
+        let off = CalculationContext {
+            max_iterations: limits.0,
+            max_change: limits.1,
+            ..context
+        };
+        assert_eq!(off.fingerprint(), CONTEXT, "{off:?}");
+        let on = CalculationContext {
+            iteration: true,
+            ..off
+        };
+        let on_defaults = CalculationContext {
+            iteration: true,
+            ..context
+        };
+        assert_ne!(on.fingerprint(), on_defaults.fingerprint(), "{on:?}");
     }
 }
 

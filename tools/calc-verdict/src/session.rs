@@ -183,16 +183,39 @@ pub struct CalculationContext {
 }
 
 impl CalculationContext {
+    /// Excel's default iteration limits: 100 iterations and a maximum change of 0.001.
+    const DEFAULT_LIMITS: (u32, f64) = (100, 0.001);
+
+    /// A context without iterative calculation. Its limits are Excel's defaults, which play no
+    /// part in any value while iteration is off.
+    pub const fn without_iteration(date1904: bool, precision_as_displayed: bool) -> Self {
+        CalculationContext {
+            date1904,
+            iteration: false,
+            max_iterations: Self::DEFAULT_LIMITS.0,
+            max_change: Self::DEFAULT_LIMITS.1,
+            precision_as_displayed,
+        }
+    }
+
     /// The fingerprint, one line naming every setting (`max_change` as its binary64 bits):
     /// `excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;`
-    /// `max_change=3f50624dd2f1a9fc;precision_as_displayed=false`.
+    /// `max_change=3f50624dd2f1a9fc;precision_as_displayed=false`. While iteration is off the
+    /// limits change no value, so the fingerprint names Excel's defaults whatever the context
+    /// holds: a capture taken with iteration off and a run that applies no iteration name the
+    /// same context.
     pub fn fingerprint(&self) -> String {
+        let (max_iterations, max_change) = if self.iteration {
+            (self.max_iterations, self.max_change)
+        } else {
+            Self::DEFAULT_LIMITS
+        };
         format!(
             "excel-calc-context/1;date1904={};iteration={};max_iterations={};max_change={:016x};precision_as_displayed={}",
             self.date1904,
             self.iteration,
-            self.max_iterations,
-            self.max_change.to_bits(),
+            max_iterations,
+            max_change.to_bits(),
             self.precision_as_displayed
         )
     }
