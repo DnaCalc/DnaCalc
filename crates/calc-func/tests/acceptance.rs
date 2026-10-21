@@ -1021,7 +1021,8 @@ fn cfunc_m1_1__catalogue_consistency() {
 
     // Arity and dispatch: every ID of the dispatch table, invoked with its arity's minimum,
     // reaches its own entry, which computes a value or refuses under its own ID; outside its
-    // arity no argument is asked for. An eager entry is asked for each argument once, in order;
+    // arity no argument is asked for. An eager entry is asked for each argument once, in order,
+    // and admission stops at the first argument it refuses (a number at a reference parameter);
     // a lazy entry is asked for its discriminator first and then at most one held-back argument.
     let mut arity_ids = BTreeSet::new();
     let mut computed = Vec::new();
@@ -1048,6 +1049,9 @@ fn cfunc_m1_1__catalogue_consistency() {
 
         let demand = target.argument_demand();
         let mut at_minimum = Recorded::numbers(arity.min);
+        // The arguments an eager call asks for: all of them, in order, unless one is refused at
+        // admission, which ends the call after asking for it.
+        let mut asked_through = arity.min;
         match run(target, &mut at_minimum, &fast) {
             Ok(value) => computed.push((target.id(), value)),
             Err(FunctionFault::NotImplemented { id, .. }) => {
@@ -1062,6 +1066,7 @@ fn cfunc_m1_1__catalogue_consistency() {
                     Some(ParameterClass::Reference),
                     "{target:?} refused a number at a parameter that admits one"
                 );
+                asked_through = index + 1;
                 refused.push(target.id());
             }
             Err(fault) => panic!("{target:?} at its minimum arity: {fault:?}"),
@@ -1083,7 +1088,7 @@ fn cfunc_m1_1__catalogue_consistency() {
                 at_minimum.asked
             );
         } else {
-            let in_order: Vec<usize> = (0..arity.min).collect();
+            let in_order: Vec<usize> = (0..asked_through).collect();
             assert_eq!(at_minimum.asked, in_order, "{target:?}");
         }
 
@@ -1505,10 +1510,11 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 3] = [
+const GENERATED_WORKBOOKS: [&str; 4] = [
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
     "cfunc_m3_4/oracle.xlsx",
+    "cfunc_m3_5/oracle.xlsx",
 ];
 
 /// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
@@ -2214,6 +2220,15 @@ fn worksheet_cells(xml: &str) -> BTreeMap<(u32, u32), FixtureCell> {
     cells
 }
 
+/// A formula as SpreadsheetML stores it: a function added to Excel after the file format's first
+/// version is written with the `_xlfn.` prefix, which Excel requires to recognize it in a file
+/// (MAXIFS and MINIFS among the functions these fixtures call).
+fn stored_formula(formula: &str) -> String {
+    formula
+        .replace("MAXIFS(", "_xlfn.MAXIFS(")
+        .replace("MINIFS(", "_xlfn.MINIFS(")
+}
+
 /// Asserts that the oracle workbook's sheet for this case holds exactly the test sheet's cells
 /// and the case's oracle formulas, each in column D at its row, and nothing else.
 fn assert_oracle_sheet(rows: &Rows, sheet: &TestSheet) {
@@ -2252,7 +2267,7 @@ fn assert_workbook_sheet(package: &[u8], path: &str, rows: &Rows, sheet: &TestSh
     let expected: BTreeMap<(u32, u32), String> = rows
         .oracle
         .iter()
-        .map(|row| ((row.row, FORMULA_COLUMN), row.formula[1..].to_owned()))
+        .map(|row| ((row.row, FORMULA_COLUMN), stored_formula(&row.formula[1..])))
         .collect();
     let at = |(row, column): (u32, u32)| format!("{}!{}", rows.sheet, encode_a1(row, column));
     let mut differences = Vec::new();
@@ -2384,7 +2399,12 @@ const AUTHORED_REVISION: u64 = 0;
 /// absent element or attribute at its SpreadsheetML default. No row's value depends on these
 /// settings; a capture taken under another context leaves every calculated row stale.
 fn workbook_context() -> CalculationContext {
-    let parts = stored_parts(ORACLE_WORKBOOK);
+    package_context(ORACLE_WORKBOOK)
+}
+
+/// [`workbook_context`] of the oracle workbook `package`.
+fn package_context(package: &[u8]) -> CalculationContext {
+    let parts = stored_parts(package);
     let workbook = part_text(&parts, "xl/workbook.xml");
     let element = |name: &str| -> Option<&str> {
         let tags = start_tags(workbook, name);
@@ -2424,8 +2444,17 @@ fn oracle_cell(sheet: &str, row: u32) -> CellAddress {
 /// another bead), and the evaluation record of the invoke calls the rows recorded at their call
 /// sites.
 fn published(run: &[&Rows]) -> (ResultSet, EvaluationRecord) {
-    let source = format!("sha256:{}", sha256_hex(ORACLE_WORKBOOK));
-    let context = workbook_context().fingerprint();
+    published_in(ORACLE_WORKBOOK, CAPTURE_CASE, run)
+}
+
+/// [`published`] for the oracle workbook `package`, whose capture is recorded under `capture_case`.
+fn published_in(
+    package: &[u8],
+    capture_case: &str,
+    run: &[&Rows],
+) -> (ResultSet, EvaluationRecord) {
+    let source = format!("sha256:{}", sha256_hex(package));
+    let context = package_context(package).fingerprint();
     let mut results = Vec::new();
     let mut evaluations = Vec::new();
     for rows in run {
@@ -2473,7 +2502,7 @@ fn published(run: &[&Rows]) -> (ResultSet, EvaluationRecord) {
     }
     (
         ResultSet {
-            case: CAPTURE_CASE.to_owned(),
+            case: capture_case.to_owned(),
             source: source.clone(),
             run: RunIdentity {
                 revision: AUTHORED_REVISION,
@@ -2482,7 +2511,7 @@ fn published(run: &[&Rows]) -> (ResultSet, EvaluationRecord) {
             results,
         },
         EvaluationRecord {
-            case: CAPTURE_CASE.to_owned(),
+            case: capture_case.to_owned(),
             source,
             evaluations,
         },
@@ -2524,9 +2553,20 @@ fn judged(
     Ok(Comparison { report, problems })
 }
 
+/// Whether `owner` names the bead whose acceptance case `case` is, the case name's prefix: a
+/// bead's own refusal is not modelled by that bead, so it never counts as owned elsewhere.
+fn owned_by_own_bead(owner: Owner, case: &Rows) -> bool {
+    let bead = case.case.split("__").next().expect("a case name");
+    owner
+        .bead
+        .split(", ")
+        .any(|named| named.replace(['-', '.'], "_") == bead)
+}
+
 /// What on `report` disagrees with the rows of `case`'s sheet: an inventory cell of the sheet that
-/// no row has, a row of cfunc-m1.2 whose verdict is not `matched`, a row of another bead whose
-/// verdict is not `not_modeled` with its owner, and a row whose cell the inventory lacks.
+/// no row has, a row whose owner is the case's own bead, a row of cfunc-m1.2 whose verdict is not
+/// `matched`, a row of another bead whose verdict is not `not_modeled` with its owner, and a row
+/// whose cell the inventory lacks.
 fn verdict_problems(report: &VerdictReport, case: &Rows) -> Vec<String> {
     let rows: BTreeMap<u32, &OracleRow> = case.oracle.iter().map(|row| (row.row, row)).collect();
     let mut problems = Vec::new();
@@ -2548,6 +2588,16 @@ fn verdict_problems(report: &VerdictReport, case: &Rows) -> Vec<String> {
             continue;
         };
         let formula = &row.formula;
+        if let Some(owner) = row.owner.filter(|owner| owned_by_own_bead(*owner, case)) {
+            problems.push(format!(
+                "{at} {formula}: a row of {} names its own bead {} as the owner of what it refuses ({}): {:?}",
+                case.case,
+                owner.bead,
+                cell.verdict.name(),
+                cell.verdict
+            ));
+            continue;
+        }
         match (row.owner, &cell.verdict) {
             (None, Verdict::Matched { .. }) => {}
             (Some(owner), Verdict::NotModeled { feature, .. }) if *feature == owner.feature() => {}
@@ -2562,7 +2612,8 @@ fn verdict_problems(report: &VerdictReport, case: &Rows) -> Vec<String> {
                 shown_value(expected)
             )),
             (None, verdict) => problems.push(format!(
-                "{at} {formula}: a row of cfunc-m1.2 is {}, not matched: {verdict:?}",
+                "{at} {formula}: a row of {} is {}, not matched: {verdict:?}",
+                case.case,
                 verdict.name()
             )),
             (Some(owner), verdict) => problems.push(format!(
@@ -3795,7 +3846,17 @@ fn capture_of(
     run: &[&Rows],
     observe: impl Fn(&str, &OracleRow) -> Option<CalcValue>,
 ) -> CaptureRecord {
-    let source = format!("sha256:{}", sha256_hex(ORACLE_WORKBOOK));
+    capture_in(ORACLE_WORKBOOK, CAPTURE_CASE, run, observe)
+}
+
+/// [`capture_of`] for the oracle workbook `package`, recorded under `capture_case`.
+fn capture_in(
+    package: &[u8],
+    capture_case: &str,
+    run: &[&Rows],
+    observe: impl Fn(&str, &OracleRow) -> Option<CalcValue>,
+) -> CaptureRecord {
+    let source = format!("sha256:{}", sha256_hex(package));
     let mut sheets = Vec::new();
     let mut formulas = Vec::new();
     let mut observations = Vec::new();
@@ -3820,7 +3881,7 @@ fn capture_of(
         }
     }
     CaptureRecord {
-        case: CAPTURE_CASE.to_owned(),
+        case: capture_case.to_owned(),
         source: source.clone(),
         acquisition: Acquisition::LiveCapture,
         environment: None,
@@ -3830,7 +3891,7 @@ fn capture_of(
         session: Some(CaptureSession {
             revision: AUTHORED_REVISION,
             operations: Vec::new(),
-            context: workbook_context().fingerprint(),
+            context: package_context(package).fingerprint(),
             tool: format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER)),
             input_package: source,
             output_package: None,
@@ -8273,4 +8334,2620 @@ fn cfunc_m3_2__large_integers() {
     assert_workbook_sheet(ROUNDING_WORKBOOK, ROUNDING_WORKBOOK_PATH, &rows, &sheet);
     assert_rounding_workbook_generated(CASE);
     rounding_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc-m3.5: the conditional aggregates (COUNTIF, COUNTIFS, SUMIF, SUMIFS, AVERAGEIF, AVERAGEIFS,
+// MAXIFS and MINIFS) and their criteria language through calc_func::invoke on catalogue targets.
+//
+// Each oracle row runs one call and asserts a value derived here by hand, and says how, as the
+// cfunc-m3.4 rows do. A `documented` row applies a rule or an example that Microsoft's page for
+// the function states, named in the row. An `unmeasured choice` row applies a rule that no page
+// settles, or one this implementation follows against its page (TRUE in a SUMIFS or AVERAGEIFS
+// target, a blank cell of an AVERAGEIFS criteria range, a logical cell of an AVERAGEIF range),
+// each such disagreement listed as divergent in the per-ID manifest of
+// `migration/ports/cfunc-m3.5.json`. A `refused` row ends in a fault, listed there as
+// unsupported, and names the bead that owns the behaviour it refuses, never cfunc-m3.5 itself.
+// Where a choice cites Excel, it cites Excel 16.0's ad-hoc COM read of a scratch copy of the oracle
+// workbook, or of probe cells written into such a copy, on this machine (2026-10-21), which is not
+// a capture and is not compared through calc_verdict.
+//
+// `tests/fixtures/cfunc_m3_5/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of a sheet named after
+// its case, in the order the case runs its rows, beside the cells the rows read; each case checks
+// that its sheet holds exactly those formulas and cells. cfunc_m3_5__excel_comparison compares
+// the rows of both sheets with Excel's capture of that workbook through calc_verdict::judge: each
+// computed row must be matched, and each refused row not modelled with its owner. Until
+// `cargo xtask capture` writes that capture to `tests/captures/cfunc_m3_5/oracle.capture.json`,
+// the path holds the absent-capture marker and the case prints ACCEPT-NOT-RUN with calc-verdict's
+// MissingCapture, so the runner records it as not run. The other two cases do not wait for the
+// capture: their green shows the rules as written here, not agreement with Excel.
+
+/// The conditional oracle workbook, as committed.
+const CONDITIONAL_WORKBOOK: &[u8] = include_bytes!("fixtures/cfunc_m3_5/oracle.xlsx");
+const CONDITIONAL_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx";
+/// Excel's capture of the conditional oracle workbook, or the absent-capture marker until it is
+/// taken.
+const CONDITIONAL_CAPTURE: &[u8] = include_bytes!("captures/cfunc_m3_5/oracle.capture.json");
+/// The case the conditional capture is recorded under.
+const CONDITIONAL_CAPTURE_CASE: &str = "cfunc_m3_5__excel_comparison";
+/// The command that writes the conditional capture.
+const CONDITIONAL_CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx --case cfunc_m3_5__excel_comparison --out crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json";
+/// The bead's migration record, whose per-ID manifest the criteria case checks against the
+/// catalogue.
+const CONDITIONAL_RECORD: &str = include_str!("../../../migration/ports/cfunc-m3.5.json");
+
+/// The family's entries: each spelling and the member number of its FunctionId in family 7.
+const CONDITIONALS: [(&str, u32); 8] = [
+    ("COUNTIF", 1),
+    ("COUNTIFS", 2),
+    ("SUMIF", 3),
+    ("SUMIFS", 4),
+    ("AVERAGEIF", 5),
+    ("AVERAGEIFS", 6),
+    ("MAXIFS", 7),
+    ("MINIFS", 8),
+];
+
+/// Runs a row of cfunc-m3.5: `cnd!(rows, sheet, "SPELLING", [args], expect, basis)`.
+macro_rules! cnd {
+    ($rows:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], $expect:expr, $basis:expr) => {{
+        let args = [$($arg),*];
+        basis_row("cfunc-m3.5", $rows, $sheet, named($spelling), &args, $expect, $basis)
+    }};
+}
+
+/// Records `owner` as the bead that owns the behaviour the row just run refuses, so the Excel
+/// comparison publishes that row as not modelled with this owner: counted, never matched.
+fn owned(rows: &mut Rows, owner: Owner) {
+    let row = rows.oracle.last_mut().expect("a row just run");
+    assert!(
+        row.outcome.is_err(),
+        "{}: only a refused row names an owner",
+        row.formula
+    );
+    row.owner = Some(owner);
+}
+
+/// The behaviours that refused rows of cfunc-m3.5 show, by the bead that owns each. No row names
+/// cfunc-m3.5 itself: the Excel comparison counts such a row as a problem.
+const DIGIT_LABEL: Owner = Owner {
+    bead: "dc-e00t",
+    behaviour: "the not-a-number verdict for digit-bearing text such as Q1 or 2016-17 Winter",
+};
+const SEVERAL_AREAS: Owner = Owner {
+    bead: "dc-gdii",
+    behaviour: "a range of several areas in the conditional aggregates",
+};
+const SHAPED_PAST: Owner = Owner {
+    bead: "dc-1mc8",
+    behaviour: "a SUMIF or AVERAGEIF sum range shaped past the reference the formula gives, as a recalculation prerequisite",
+};
+const NUMBER_JOINED: Owner = Owner {
+    bead: "dc-q9rb",
+    behaviour: "a number's text when & reads the number",
+};
+
+/// Prints how many rows a case ran and on what basis each expects its value.
+fn conditional_rows_note(rows: &Rows) {
+    let (choices, refused) = (rows.choices(), rows.refused());
+    let mut owners: BTreeMap<&str, usize> = BTreeMap::new();
+    for row in &rows.oracle {
+        assert_eq!(
+            row.owner.is_some(),
+            row.outcome.is_err(),
+            "{}: a refused row names its owner, a computed row none",
+            row.formula
+        );
+        if let Some(owner) = row.owner {
+            *owners.entry(owner.bead).or_default() += 1;
+        }
+    }
+    let owners: Vec<String> = owners.iter().map(|(b, c)| format!("{c} {b}")).collect();
+    note!(
+        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet {} of {CONDITIONAL_WORKBOOK_PATH}: {} from documented rules, {} unmeasured choices, {} refused (owned by: {}); none is compared with Excel here (cfunc_m3_5__excel_comparison compares them once that workbook is captured)",
+        rows.case,
+        rows.oracle.len(),
+        rows.sheet,
+        rows.oracle.len() - choices - refused,
+        choices,
+        refused,
+        owners.join(", ")
+    );
+}
+
+/// Checks that the committed conditional oracle workbook is its generator's output, on the route
+/// where the generator runs.
+fn assert_conditional_workbook_generated(case: &str) {
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["cfunc_m3_5/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == CONDITIONAL_WORKBOOK,
+            "the committed conditional oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(CONDITIONAL_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {case}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed conditional oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {case}: the generator runs under Windows PowerShell, so the check that the committed conditional oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+}
+
+/// What `"op"&A1` gives: calc_func::invoke of the catalogue's & entry on the operator's text and
+/// the value of the cell, which the caller dereferences for &'s value parameter, as the formula's
+/// own evaluation joins them before the conditional call receives the result.
+fn join(sheet: &TestSheet, op: &str, a1: &str) -> Result<CalcValue, FunctionFault> {
+    run(
+        surface(Notation::Infix, "&"),
+        &mut Recorded::new(vec![text_value(op), sheet.value(a1)]),
+        &NumericMode::Fast,
+    )
+}
+
+/// A criterion written as text joined to a cell's value, as `"op"&A1` writes it, with the value
+/// [`join`] gives.
+fn joined(sheet: &TestSheet, op: &str, a1: &str) -> Arg {
+    let value = join(sheet, op, a1)
+        .unwrap_or_else(|fault| panic!("\"{op}\"&{a1}: the & entry refuses: {fault:?}"));
+    Arg {
+        reads: sheet.entries(&[a1]),
+        ..arg(&format!("\"{op}\"&{a1}"), value)
+    }
+}
+
+/// A row of cfunc-m3.5 whose last argument is the criterion `"op"&A1` over a cell the & entry
+/// refuses to read as text, so the formula's evaluation ends in that refusal before the call of
+/// `spelling`: asserts the refusal, then records the & call and the row, refused and owned by
+/// `owner`, with the next cell of column D, and prints it with `reason`.
+#[allow(clippy::too_many_arguments)]
+fn refused_join_row(
+    rows: &mut Rows,
+    sheet: &TestSheet,
+    spelling: &str,
+    before: &[Arg],
+    op: &str,
+    a1: &str,
+    owner: Owner,
+    reason: &str,
+) {
+    let concatenate = surface(Notation::Infix, "&");
+    let tick = next_tick();
+    let outcome = join(sheet, op, a1);
+    let criterion = format!("\"{op}\"&{a1}");
+    let mut texts: Vec<&str> = before.iter().map(|a| a.excel.as_str()).collect();
+    texts.push(&criterion);
+    let formula = surface(Notation::Call, spelling)
+        .oracle_formula(&texts)
+        .unwrap_or_else(|| panic!("{spelling} does not admit {texts:?}"));
+    assert_eq!(
+        outcome,
+        Err(FunctionFault::NotImplemented {
+            id: concatenate.id(),
+            argument: Some(1)
+        }),
+        "{formula}: the & entry over {a1}"
+    );
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    if !rows.quiet {
+        let mut reads: Vec<String> = before.iter().flat_map(|a| a.reads.clone()).collect();
+        reads.extend(sheet.entries(&[a1]));
+        note!(
+            "ACCEPT-NOTE: {}: oracle {}!{} {formula} with {} -> & refuses: {:?} (refused as not modelled: {reason}; not compared with Excel)",
+            rows.case,
+            rows.sheet,
+            encode_a1(row, FORMULA_COLUMN),
+            reads.join(", "),
+            outcome
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome,
+        choice: None,
+        owner: Some(owner),
+        tick,
+    });
+}
+
+// Rules the rows apply, as the functions' pages state them.
+const IGNORES_CASE: &str =
+    "matching ignores case: \"apples\" and \"APPLES\" match the same cells (the COUNTIF page)";
+const ONE_CHARACTER: &str = "? matches any single character";
+const TILDE: &str = "a ~ before * or ? finds that character itself";
+const EMPTY_IS_ZERO: &str = "an empty cell given as the criterion is treated as 0 (the COUNTIFS, AVERAGEIF, MAXIFS and MINIFS pages)";
+const EMPTY_IS_ZERO_ELSEWHERE: &str = "an empty cell given as the criterion is treated as 0, as the COUNTIFS, AVERAGEIF, MAXIFS and MINIFS pages state for those functions; this function's page is silent";
+const NUMBER_TEXT_MEETS: &str = "number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number; no page states it (Excel's ad-hoc read agrees on every such row)";
+const NOT_EQUAL: &str = "<> holds wherever = does not: blank cells, numbers, logicals and errors meet a <> text criterion";
+const TOP_LEFT: &str = "a third range of another size is used from its top-left cell over the range's size (the SUMIF and AVERAGEIF pages)";
+const SHAPED_PAST_TEXT: &str = "the third argument shaped from its top-left cell to the range's size (the SUMIF and AVERAGEIF pages) extends past the reference the formula gives, whose cells past it the engine does not yet take as the formula's prerequisites; owned by dc-1mc8";
+const SAME_SHAPE: &str =
+    "every range has the same size and shape; positions align even when the ranges do not";
+const SHAPE_VALUE: &str = "ranges of different sizes or shapes return #VALUE!, as the MAXIFS page states for MAXIFS; this page names no error";
+const SKIPPED: &str =
+    "text and logicals in the target are skipped, as SUM skips them in a reference";
+const MATCHED_ERROR: &str =
+    "an error in a matched target cell is the result, the first in row-major order";
+const DIGIT_LABEL_TEXT: &str = "a criterion or an = criterion's range cell that holds a digit outside the plain decimal form, such as the label Q1 or 2016-17 Winter, is not modelled: whether Excel reads it as a number is owned by dc-e00t";
+const NUMBER_TEXT_FORMS: &str = "a criterion that Excel's number-text rules may read as a number, such as the fraction or date 1/2, is not modelled; owned by cfml-m2.6";
+const COLLATION_TEXT: &str = "text compared beyond the comparison operators' modelled rule needs Excel's collation; owned by cdoc-jpha";
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_5__criteria_semantics
+
+/// The cells the criteria rows read. A1:A16 hold one value of each kind the criteria language
+/// tells apart (A8 is blank, A9 holds empty text); B1:B16 hold the powers of two 1 to 32768, so a
+/// sum names the rows it added; C1:C16 hold their row numbers. A18:A22 and B18:B22 hold a target
+/// with number text, a logical and an error; A23 holds non-ASCII text, A24 a number within a
+/// relative 1e-13 of 0.3, A25 a label holding digits, A26 text holding a ~, A27 FALSE and A28
+/// #VALUE!.
+fn criteria_semantics_sheet() -> TestSheet {
+    let mut owned: Vec<(String, String, CalcValue)> = vec![
+        ("A1".into(), "text \"apple\"".into(), text_value("apple")),
+        (
+            "A2".into(),
+            "text \"Apple Pie\"".into(),
+            text_value("Apple Pie"),
+        ),
+        ("A3".into(), "text \"banana\"".into(), text_value("banana")),
+        ("A4".into(), "5".into(), CalcValue::number(5.0)),
+        ("A5".into(), "text \"5\"".into(), text_value("5")),
+        ("A6".into(), "10".into(), CalcValue::number(10.0)),
+        ("A7".into(), "TRUE".into(), CalcValue::logical(true)),
+        ("A9".into(), "empty text".into(), text_value("")),
+        ("A10".into(), "text \"a*b\"".into(), text_value("a*b")),
+        ("A11".into(), "text \"axb\"".into(), text_value("axb")),
+        (
+            "A12".into(),
+            "#N/A".into(),
+            CalcValue::error(WorksheetErrorCode::NA),
+        ),
+        ("A13".into(), "text \"abc\"".into(), text_value("abc")),
+        ("A14".into(), "text \"a?c\"".into(), text_value("a?c")),
+        ("A15".into(), "0".into(), CalcValue::number(0.0)),
+        ("A16".into(), "text \"APPLE\"".into(), text_value("APPLE")),
+    ];
+    for row in 1..=16u32 {
+        let power = 2f64.powi(row as i32 - 1);
+        owned.push((
+            format!("B{row}"),
+            format!("{power}"),
+            CalcValue::number(power),
+        ));
+        owned.push((
+            format!("C{row}"),
+            format!("{row}"),
+            CalcValue::number(f64::from(row)),
+        ));
+    }
+    owned.extend([
+        ("A18".into(), "text \"k\"".into(), text_value("k")),
+        ("A19".into(), "text \"k\"".into(), text_value("k")),
+        ("A20".into(), "text \"k\"".into(), text_value("k")),
+        ("A21".into(), "text \"k\"".into(), text_value("k")),
+        ("A22".into(), "text \"j\"".into(), text_value("j")),
+        (
+            "A23".into(),
+            "text \"caf\\u{e9}\"".into(),
+            text_value("caf\u{e9}"),
+        ),
+        (
+            "A24".into(),
+            "0.30000000000000004".into(),
+            CalcValue::number(0.300_000_000_000_000_04),
+        ),
+        (
+            "A25".into(),
+            "text \"2016-17 Winter\"".into(),
+            text_value("2016-17 Winter"),
+        ),
+        ("A26".into(), "text \"a~b\"".into(), text_value("a~b")),
+        ("A27".into(), "FALSE".into(), CalcValue::logical(false)),
+        (
+            "A28".into(),
+            "#VALUE!".into(),
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
+        ("B18".into(), "3".into(), CalcValue::number(3.0)),
+        ("B19".into(), "text \"4\"".into(), text_value("4")),
+        ("B20".into(), "TRUE".into(), CalcValue::logical(true)),
+        (
+            "B21".into(),
+            "#DIV/0!".into(),
+            CalcValue::error(WorksheetErrorCode::Div0),
+        ),
+        ("B22".into(), "100".into(), CalcValue::number(100.0)),
+    ]);
+    let cells: Vec<(&str, &str, CalcValue)> = owned
+        .iter()
+        .map(|(address, entry, value)| (address.as_str(), entry.as_str(), value.clone()))
+        .collect();
+    TestSheet::new(&cells)
+}
+
+/// The rows of cfunc_m3_5__criteria_semantics, run through calc_func::invoke on `s`, in the order
+/// the conditional oracle workbook's sheet `criteria_semantics` holds their formulas.
+fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
+    const CASE: &str = "cfunc_m3_5__criteria_semantics";
+    let mut rows = Rows::new(CASE, "criteria_semantics", quiet);
+    let r = &mut rows;
+    use WorksheetErrorCode::{Div0, NA};
+    let a = |s: &TestSheet| reference(s, &["A1:A16"]);
+    let b = |s: &TestSheet| reference(s, &["B1:B16"]);
+    let c = |s: &TestSheet| reference(s, &["C1:C16"]);
+
+    // COUNTIF: text, patterns and escapes.
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("apple")],
+        N(2.0),
+        Documented(IGNORES_CASE)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("=apple")],
+        N(2.0),
+        Documented(
+            "= before text asks for equal text, as the COUNTIFS page's criterion \"=Yes\" does"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<>apple")],
+        N(14.0),
+        Choice(NOT_EQUAL)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("app*")],
+        N(3.0),
+        Documented("* matches any sequence of characters: apple, Apple Pie and APPLE")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("*")],
+        N(10.0),
+        Choice(
+            "* matches every text, A5's number text and A9's empty text included; numbers, logicals, errors and blank cells are not text (the page: \"*\" counts the cells containing any text)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("?????")],
+        N(2.0),
+        Documented("? matches any single character: the five-character apple and APPLE")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("a*b")],
+        N(2.0),
+        Documented("* matches any sequence of characters: a*b and axb")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("a~*b")],
+        N(1.0),
+        Documented(TILDE)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("a?c")],
+        N(2.0),
+        Documented("? matches any single character: abc and a?c")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("a~?c")],
+        N(1.0),
+        Documented(TILDE)
+    );
+
+    // COUNTIF: numbers, blanks, logicals, errors and cell criteria.
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), num("5")],
+        N(2.0),
+        Choice(NUMBER_TEXT_MEETS)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("5")],
+        N(2.0),
+        Choice(NUMBER_TEXT_MEETS)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt(">=5")],
+        N(2.0),
+        Choice(
+            "5 and 10 meet >=5; text \"5\" does not, since an ordering never reads text as a number (Excel's ad-hoc read: 2)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<5")],
+        N(1.0),
+        Choice("only the number 0 meets <5: blank cells and TRUE do not meet a number criterion")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<>5")],
+        N(15.0),
+        Choice(
+            "<> a number holds for every cell but that number: text \"5\" meets <>5 although it meets 5, and so do the other texts, TRUE, #N/A and the blank A8 (Excel's ad-hoc read: 15)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), joined(s, "=", "A16")],
+        N(2.0),
+        Documented(
+            "a criterion may join an operator to a cell's value with &, as the page's example COUNTIF(B2:B5,\"<>\"&B4) does; calc_func's & entry joins =APPLE here, while a join over a number stays refused until dc-q9rb (row D91)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("")],
+        N(2.0),
+        Choice(
+            "\"\" matches a blank cell, as the SUMIF page's example SUMIF(A2:A7,\"\",C2:C7) shows, and empty text, which no page settles"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("=")],
+        N(1.0),
+        Choice("= alone matches blank cells only, not empty text")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<>")],
+        N(15.0),
+        Choice("<> alone matches every cell but a blank one, empty text included")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), logical(true)],
+        N(1.0),
+        Choice("a logical criterion matches that logical only")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("TRUE")],
+        N(1.0),
+        Choice("the text TRUE asks for the logical TRUE")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("#N/A")],
+        N(1.0),
+        Choice("the text of an error literal asks for cells holding that error")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<>#N/A")],
+        N(15.0),
+        Choice("<> an error literal holds for every cell but those holding that error")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), reference(s, &["A8"])],
+        N(1.0),
+        Choice(EMPTY_IS_ZERO_ELSEWHERE)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), reference(s, &["A1"])],
+        N(2.0),
+        Documented(
+            "a cell given as the criterion asks for its value, as the page's example COUNTIF(A2:A5,A4) does"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A3:A6"]), txt("<b")],
+        N(1.0),
+        Choice(
+            "text orders by the comparison operators' rule (digits before letters, a prefix first): text \"5\" is below b and banana is not; the numbers 5 and 10 do not meet a text criterion"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("*5*")],
+        N(1.0),
+        Choice("a pattern matches text only: text \"5\" matches *5* and the number 5 does not")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<>*")],
+        N(6.0),
+        Choice("<>* matches every cell that holds no text: 5, 10, TRUE, the blank A8, #N/A and 0")
+    );
+
+    // COUNTIF: refused criteria and cells.
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<b")],
+        Refused(Some(0)),
+        Unsupported(
+            "\"Apple Pie\" ordered against b needs a space ordered; owned by cdoc-jpha (Excel's collation)"
+        )
+    );
+    owned(r, COLLATION);
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("Q1")],
+        Refused(Some(1)),
+        Unsupported(DIGIT_LABEL_TEXT)
+    );
+    owned(r, DIGIT_LABEL);
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("1/2")],
+        Refused(Some(1)),
+        Unsupported(NUMBER_TEXT_FORMS)
+    );
+    owned(r, NUMBER_TEXT);
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("#VALUE!")],
+        N(0.0),
+        Choice(
+            "the literal #VALUE! asks for cells holding that error, as the other error literals do, and A1:A16 holds none (Excel's ad-hoc read: 0; 1 over a probe cell holding #VALUE!, row D97); the SUMIF page says only that matching the string #VALUE! gives incorrect results"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("a~b")],
+        N(0.0),
+        Choice(
+            "a ~ before a character other than *, ? or ~ is itself, so a~b asks for the text a~b, which A1:A16 does not hold (Excel's ad-hoc read: 0; over probe cells, 1 for the text a~b and 0 for ab, row D93)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), err(NA)],
+        N(1.0),
+        Choice(
+            "an error value given as the criterion asks for cells holding that error: A12 (Excel's ad-hoc read: 1)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), omitted()],
+        N(1.0),
+        Choice(
+            "an omitted criterion is 0, as an empty cell given as the criterion is: A15 (Excel's ad-hoc read: 1; row D92 tells 0 from a blank)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt("<TRUE")],
+        N(0.0),
+        Choice(
+            "an ordering against a logical compares logicals only, FALSE below TRUE: A7's TRUE is not below TRUE (Excel's ad-hoc read: 0; FALSE meets <TRUE, row D94)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt(&"a".repeat(256))],
+        E(WorksheetErrorCode::Value),
+        Choice(
+            "a criterion longer than 255 characters, operator included, is #VALUE! (Excel's ad-hoc read: #VALUE!, also for REPT(\"a\",256), for \"<>\" joined to 254 characters and over a single blank cell, while \"<>\" joined to 253 computes); the COUNTIF and SUMIF pages say only that such a criterion gives incorrect results"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A23"]), txt("caf\u{e9}")],
+        N(1.0),
+        Choice(
+            "identical texts are equal, the comparison operators' rule, whatever their characters"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A23"]), txt("CAF\u{c9}")],
+        Refused(Some(0)),
+        Unsupported(COLLATION_TEXT)
+    );
+    owned(r, COLLATION);
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A22:A23"]), txt("*")],
+        N(2.0),
+        Choice("* alone matches every text, whatever its characters")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A22:A23"]), txt("caf*")],
+        Refused(Some(0)),
+        Unsupported(
+            "a pattern matched against text beyond ASCII needs Excel's collation; owned by cdoc-jpha"
+        )
+    );
+    owned(r, COLLATION);
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A24"]), num("0.3")],
+        Refused(Some(0)),
+        Unsupported(
+            "0.30000000000000004 and 0.3 lie within a relative 1e-13; Excel's comparison of nearly equal numbers is owned by cdoc-jpha"
+        )
+    );
+    owned(r, NEAR_EQUAL);
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A18:A22"]), txt("K")],
+        N(4.0),
+        Documented(IGNORES_CASE)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["B18:B22"]), txt(">0")],
+        N(2.0),
+        Choice("3 and 100 meet >0; text \"4\", TRUE and #DIV/0! do not (Excel's ad-hoc read: 2)")
+    );
+
+    // SUMIF.
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), txt("apple"), b(s)],
+        N(32769.0),
+        Documented(
+            "the sum_range cells of the rows whose range cell meets the criterion are added: rows 1 and 16"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), txt("a*"), b(s)],
+        N(46595.0),
+        Documented("* matches any sequence of characters: rows 1, 2, 10, 11, 13, 14 and 16")
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), txt(""), b(s)],
+        N(384.0),
+        Choice(
+            "\"\" matches the blank A8, as the page's example SUMIF(A2:A7,\"\",C2:C7) shows, and A9's empty text"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), txt("<>"), b(s)],
+        N(65407.0),
+        Choice("<> alone matches every row but the blank A8")
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), num("5"), b(s)],
+        N(24.0),
+        Choice(NUMBER_TEXT_MEETS)
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), txt("<>5"), b(s)],
+        N(65527.0),
+        Choice(
+            "<>5 matches every row but row 4, which holds the number 5; text \"5\" and the blank A8 meet it: 65535 - 8 (Excel's ad-hoc read: 65527)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), txt(">=5")],
+        N(15.0),
+        Choice("5 and 10 meet >=5 and are added; text \"5\" does not meet it: 5 + 10")
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), txt("<>#N/A"), b(s)],
+        N(63487.0),
+        Choice("<>#N/A matches every row but row 12")
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), logical(true), b(s)],
+        N(64.0),
+        Choice("a logical criterion matches that logical only")
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), reference(s, &["A8"]), b(s)],
+        N(16384.0),
+        Choice(EMPTY_IS_ZERO_ELSEWHERE)
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [c(s), txt(">8")],
+        N(100.0),
+        Documented(
+            "with sum_range omitted, the range's own cells that meet the criterion are added: 9 to 16"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [c(s), txt(">8"), reference(s, &["B1"])],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT)
+    );
+    owned(r, SHAPED_PAST);
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [c(s), txt("<3"), reference(s, &["B5:B6"])],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT)
+    );
+    owned(r, SHAPED_PAST);
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [
+            reference(s, &["A18:A20"]),
+            txt("k"),
+            reference(s, &["B18:B20"])
+        ],
+        N(3.0),
+        Choice(SKIPPED)
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [
+            reference(s, &["A18:A22"]),
+            txt("k"),
+            reference(s, &["B18:B22"])
+        ],
+        E(Div0),
+        Choice(MATCHED_ERROR)
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [
+            reference(s, &["A18:A22"]),
+            txt("j"),
+            reference(s, &["B18:B22"])
+        ],
+        N(100.0),
+        Choice("an error in a row the criterion rules out is not used")
+    );
+
+    // SUMIFS.
+    cnd!(
+        r,
+        s,
+        "SUMIFS",
+        [b(s), a(s), txt("a*"), c(s), txt(">10")],
+        N(46080.0),
+        Documented("a cell is added when its row meets every criterion: rows 11, 13, 14 and 16")
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIFS",
+        [b(s), a(s), txt("<>apple"), c(s), txt("<=4")],
+        N(14.0),
+        Choice(NOT_EQUAL)
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIFS",
+        [b(s), a(s), txt("a?c")],
+        N(12288.0),
+        Documented(ONE_CHARACTER)
+    );
+    cnd!(
+        r,
+        s,
+        "SUMIFS",
+        [
+            reference(s, &["B18:B20"]),
+            reference(s, &["A18:A20"]),
+            txt("k")
+        ],
+        N(3.0),
+        Choice(
+            "text and logicals in sum_range are skipped; the SUMIFS page says TRUE counts as 1 (divergent)"
+        )
+    );
+
+    // COUNTIFS.
+    cnd!(
+        r,
+        s,
+        "COUNTIFS",
+        [a(s), txt("a*"), c(s), txt(">10")],
+        N(4.0),
+        Documented("a position counts when its cells meet every criterion")
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIFS",
+        [a(s), txt("<>apple"), c(s), txt("<=4")],
+        N(3.0),
+        Choice(NOT_EQUAL)
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIFS",
+        [c(s), txt(">3"), c(s), txt("<6")],
+        N(2.0),
+        Documented(
+            "one range may take two criteria, as the page's example COUNTIFS(A2:A7,\"<6\",A2:A7,\">1\") does"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIFS",
+        [a(s), txt("="), c(s), txt(">0")],
+        N(1.0),
+        Choice("= alone matches blank cells only")
+    );
+
+    // AVERAGEIF and AVERAGEIFS.
+    cnd!(
+        r,
+        s,
+        "AVERAGEIF",
+        [c(s), txt(">12")],
+        N(14.5),
+        Documented(
+            "with average_range omitted, the range's own cells that meet the criterion are averaged"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIF",
+        [a(s), txt("a*"), c(s)],
+        N(67.0 / 7.0),
+        Documented(
+            "* matches any sequence of characters: the average of 1, 2, 10, 11, 13, 14 and 16, 67 divided by 7 once"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIF",
+        [a(s), txt("zzz"), b(s)],
+        E(Div0),
+        Documented("no cell meets the criterion: #DIV/0!")
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIF",
+        [a(s), txt(">=5")],
+        N(7.5),
+        Choice("5 and 10 meet >=5 and are averaged; text \"5\" does not meet it: (5 + 10) / 2")
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIF",
+        [
+            reference(s, &["A18:A20"]),
+            txt("k"),
+            reference(s, &["B18:B20"])
+        ],
+        N(3.0),
+        Choice(SKIPPED)
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIFS",
+        [c(s), a(s), txt("a*"), c(s), txt(">10")],
+        N(13.5),
+        Documented("a cell is averaged when its row meets every criterion: 11, 13, 14 and 16")
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIFS",
+        [b(s), a(s), txt("zzz")],
+        E(Div0),
+        Documented("no cell meets every criterion: #DIV/0!")
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIFS",
+        [
+            reference(s, &["B18:B20"]),
+            reference(s, &["A18:A20"]),
+            txt("k")
+        ],
+        N(3.0),
+        Choice(
+            "text and logicals in average_range are skipped; the AVERAGEIFS page says TRUE counts as 1 (divergent)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIFS",
+        [c(s), a(s), txt("<1")],
+        N(15.0),
+        Choice(
+            "only A15's 0 meets <1, so the average is C15; the AVERAGEIFS page says an empty criteria-range cell is treated as 0, which would add the blank A8's row and give 11.5 (divergent)"
+        )
+    );
+
+    // MAXIFS and MINIFS.
+    cnd!(
+        r,
+        s,
+        "MAXIFS",
+        [b(s), a(s), txt("a*")],
+        N(32768.0),
+        Documented("the largest cell of max_range whose row meets the criterion")
+    );
+    cnd!(
+        r,
+        s,
+        "MINIFS",
+        [b(s), a(s), txt("a*")],
+        N(1.0),
+        Documented("the smallest cell of min_range whose row meets the criterion")
+    );
+    cnd!(
+        r,
+        s,
+        "MAXIFS",
+        [b(s), a(s), txt("zzz")],
+        N(0.0),
+        Documented("no cell meets the criteria: 0")
+    );
+    cnd!(
+        r,
+        s,
+        "MINIFS",
+        [c(s), a(s), txt(">=5")],
+        N(4.0),
+        Choice("rows 4 and 6 meet >=5; text \"5\" in row 5 does not")
+    );
+    cnd!(
+        r,
+        s,
+        "MAXIFS",
+        [c(s), a(s), reference(s, &["A8"])],
+        N(15.0),
+        Documented(EMPTY_IS_ZERO)
+    );
+    cnd!(
+        r,
+        s,
+        "MAXIFS",
+        [
+            reference(s, &["B18:B22"]),
+            reference(s, &["A18:A22"]),
+            txt("k")
+        ],
+        E(Div0),
+        Choice(MATCHED_ERROR)
+    );
+    cnd!(
+        r,
+        s,
+        "MINIFS",
+        [
+            reference(s, &["B18:B22"]),
+            reference(s, &["A18:A22"]),
+            txt("j")
+        ],
+        N(100.0),
+        Choice("an error in a row the criterion rules out is not used")
+    );
+
+    // A logical cell of an AVERAGEIF range meets a criterion as it does in the other functions.
+    cnd!(
+        r,
+        s,
+        "AVERAGEIF",
+        [a(s), logical(true), b(s)],
+        N(64.0),
+        Choice(
+            "TRUE in A7 meets the criterion TRUE, as in COUNTIF and SUMIF; the AVERAGEIF page says cells in range that contain TRUE or FALSE are ignored, which would give #DIV/0! (divergent; Excel's ad-hoc read: 64)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "AVERAGEIF",
+        [a(s), txt("<>apple"), b(s)],
+        N(32766.0 / 14.0),
+        Choice(
+            "every row but 1 and 16 meets <>apple, TRUE in A7 included: 32766 divided by 14 once; the AVERAGEIF page's rule that TRUE and FALSE in range are ignored would leave row 7 out (divergent; Excel's ad-hoc read: 2340.4285714285716)"
+        )
+    );
+
+    // A25 holds a label with digits, as the criteria built "="&cell in the Ofgem workbooks name.
+    cnd!(
+        r,
+        s,
+        "SUMIFS",
+        [b(s), a(s), joined(s, "=", "A25")],
+        Refused(Some(2)),
+        Unsupported(DIGIT_LABEL_TEXT)
+    );
+    owned(r, DIGIT_LABEL);
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A23:A25"]), txt(">0")],
+        N(1.0),
+        Choice(
+            "an ordering against a number never meets text, whatever it holds: only A24 meets >0, not the label 2016-17 Winter (Excel's ad-hoc read: 1)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A25"]), txt("<>2016")],
+        N(1.0),
+        Choice(
+            "<> a number holds for every text, the label 2016-17 Winter included (Excel's ad-hoc read: 1)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A25"]), num("2016")],
+        Refused(Some(0)),
+        Unsupported(DIGIT_LABEL_TEXT)
+    );
+    owned(r, DIGIT_LABEL);
+
+    // A criterion joined over a number: & refuses the number's text, so the formula ends there.
+    refused_join_row(
+        r,
+        s,
+        "COUNTIF",
+        &[c(s)],
+        "=",
+        "C4",
+        NUMBER_JOINED,
+        "& reads the number 4 as text, which calc_func refuses until dc-q9rb gives a number's text as Excel does",
+    );
+
+    // Rows that tell the choices of the rows above apart where those rows' values do not.
+    cnd!(
+        r,
+        s,
+        "SUMIF",
+        [a(s), omitted(), b(s)],
+        N(16384.0),
+        Choice(
+            "an omitted criterion is 0: row 15's 0 meets it, not the blank A8 (128) or the empty text A9 (256) (Excel's ad-hoc read: 16384)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A26"]), txt("a~b")],
+        N(1.0),
+        Choice(
+            "a ~ before b is itself: a~b meets the text a~b (Excel's ad-hoc read over a probe cell holding a~b: 1)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A27"]), txt("<TRUE")],
+        N(1.0),
+        Choice(
+            "an ordering against a logical compares logicals, FALSE below TRUE (Excel's ad-hoc read over a probe cell holding FALSE: 1)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [a(s), txt(">=")],
+        N(0.0),
+        Choice(
+            "<, <=, > or >= with no operand meets no cell, not even the empty text A9 or the blank A8 (Excel's ad-hoc read: 0, and 0 for each of the four over A1:A16)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["B18:B22"]), txt("<#N/A")],
+        N(1.0),
+        Choice(
+            "an ordering against an error literal compares errors only, #DIV/0! below #N/A; errors order as ERROR.TYPE numbers them, #NULL! 1 to #N/A 7, which is measured for this pair only (Excel's ad-hoc read: 1)"
+        )
+    );
+    cnd!(
+        r,
+        s,
+        "COUNTIF",
+        [reference(s, &["A28"]), txt("#VALUE!")],
+        N(1.0),
+        Choice(
+            "the literal #VALUE! asks for cells holding #VALUE! (Excel's ad-hoc read over a probe cell holding #VALUE!: 1)"
+        )
+    );
+    rows
+}
+
+/// The pairs `(family 7 member, spelling)` the catalogue holds.
+fn conditional_family() -> BTreeSet<(u32, String)> {
+    catalogue()
+        .targets()
+        .filter(|target| target.id().raw() >> 16 == 7)
+        .map(|target| (target.id().raw(), target.spelling().to_owned()))
+        .collect()
+}
+
+/// One call of `spelling` on `values` through calc_func::invoke with `cells` as the reader.
+fn conditional_call(
+    spelling: &str,
+    values: Vec<CalcValue>,
+    mode: &NumericMode,
+    cells: &mut dyn CellReader,
+) -> Result<CalcValue, FunctionFault> {
+    invoke(
+        surface(Notation::Call, spelling),
+        &mut Recorded::new(values),
+        &mut EvalServices::with_cells(mode, cells),
+        &mut FunctionCallScratch::new(),
+    )
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_5__criteria_semantics() {
+    const CASE: &str = "cfunc_m3_5__criteria_semantics";
+    let fast = NumericMode::Fast;
+    let mut sheet = criteria_semantics_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; A8 is blank",
+        sheet.described()
+    );
+    let rows = criteria_semantics_rows(&mut sheet, false);
+    let s = &mut sheet;
+
+    // Metadata and dispatch come from the one generated catalogue: family 7 holds exactly these
+    // entries, each eager, with Excel's arity, its parameter classes and its signature help.
+    let expected: BTreeSet<(u32, String)> = CONDITIONALS
+        .iter()
+        .map(|(spelling, member)| ((7 << 16) | member, (*spelling).to_owned()))
+        .collect();
+    assert_eq!(
+        conditional_family(),
+        expected,
+        "the conditional family in the catalogue"
+    );
+    let reference_class = Some(ParameterClass::Reference);
+    let either = Some(ParameterClass::ValueOrReference);
+    for (spelling, arity, classes) in [
+        ("COUNTIF", (2, 2), vec![reference_class, either]),
+        (
+            "COUNTIFS",
+            (2, 254),
+            vec![reference_class, either, reference_class, either, either],
+        ),
+        (
+            "SUMIF",
+            (2, 3),
+            vec![reference_class, either, reference_class],
+        ),
+        (
+            "SUMIFS",
+            (3, 255),
+            vec![
+                reference_class,
+                reference_class,
+                either,
+                reference_class,
+                either,
+                either,
+            ],
+        ),
+        (
+            "AVERAGEIF",
+            (2, 3),
+            vec![reference_class, either, reference_class],
+        ),
+        (
+            "AVERAGEIFS",
+            (3, 255),
+            vec![
+                reference_class,
+                reference_class,
+                either,
+                reference_class,
+                either,
+            ],
+        ),
+        (
+            "MAXIFS",
+            (3, 255),
+            vec![
+                reference_class,
+                reference_class,
+                either,
+                reference_class,
+                either,
+            ],
+        ),
+        (
+            "MINIFS",
+            (3, 255),
+            vec![
+                reference_class,
+                reference_class,
+                either,
+                reference_class,
+                either,
+            ],
+        ),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            target.argument_demand(),
+            ArgumentDemand::Eager,
+            "{spelling}"
+        );
+        let shape = target.arity();
+        assert_eq!((shape.min, shape.max), arity, "{spelling}");
+        for (index, class) in classes.iter().enumerate() {
+            assert_eq!(
+                target.parameter_class(index),
+                *class,
+                "{spelling} argument {index}"
+            );
+        }
+        assert_eq!(target.parameter_class(shape.max), None, "{spelling}");
+    }
+    for (spelling, display) in [
+        ("COUNTIF", "COUNTIF(range, criteria)"),
+        ("SUMIF", "SUMIF(range, criteria, [sum_range])"),
+        ("AVERAGEIF", "AVERAGEIF(range, criteria, [average_range])"),
+        (
+            "COUNTIFS",
+            "COUNTIFS(criteria_range1, criteria1, [criteria_range2], [criteria2], ...)",
+        ),
+        (
+            "SUMIFS",
+            "SUMIFS(sum_range, criteria_range1, criteria1, [criteria_range2], [criteria2], ...)",
+        ),
+        (
+            "MAXIFS",
+            "MAXIFS(max_range, criteria_range1, criteria1, [criteria_range2], [criteria2], ...)",
+        ),
+    ] {
+        assert_eq!(
+            surface(Notation::Call, spelling).signature_help().display,
+            display
+        );
+    }
+    let manifest = manifest_ids(CONDITIONAL_RECORD);
+    let listed: BTreeSet<(String, String)> = CONDITIONALS
+        .iter()
+        .map(|(spelling, member)| (format!("7.{member}"), (*spelling).to_owned()))
+        .collect();
+    assert_eq!(
+        manifest, listed,
+        "the per-ID manifest of migration/ports/cfunc-m3.5.json against the catalogue"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the catalogue's family 7 holds exactly the 8 entries {:?}, each eager; COUNTIF takes 2 arguments, SUMIF and AVERAGEIF 2 or 3, COUNTIFS 2 to 254 and the others 3 to 255; ranges are reference parameters and criteria values or references; the per-ID manifest of migration/ports/cfunc-m3.5.json lists the same IDs and spellings",
+        CONDITIONALS.map(|(spelling, _)| spelling)
+    );
+
+    // Through the call interface alone. A range that is not a reference is refused naming it:
+    // at admission for a declared reference parameter, by the kernel for a criteria range past
+    // the declared ones; a count of arguments that does not form pairs is ArityMismatch.
+    let range = reference(s, &["A1:A16"]).value;
+    let one = CalcValue::number(1.0);
+    let array = CalcValue::array(
+        CalcArray::from_rows(vec![vec![CalcValue::number(1.0), CalcValue::number(2.0)]])
+            .expect("a 1-by-2 array"),
+    );
+    let mut refused_calls = 0;
+    for (spelling, values, fault_index) in [
+        ("COUNTIF", vec![array.clone(), one.clone()], 0),
+        ("SUMIF", vec![range.clone(), one.clone(), one.clone()], 2),
+        ("AVERAGEIF", vec![one.clone(), one.clone()], 0),
+        ("SUMIFS", vec![array.clone(), range.clone(), one.clone()], 0),
+        (
+            "COUNTIFS",
+            vec![
+                range.clone(),
+                one.clone(),
+                range.clone(),
+                one.clone(),
+                array.clone(),
+                one.clone(),
+            ],
+            4,
+        ),
+        (
+            "MAXIFS",
+            vec![
+                range.clone(),
+                range.clone(),
+                one.clone(),
+                range.clone(),
+                one.clone(),
+                one.clone(),
+                one.clone(),
+            ],
+            5,
+        ),
+    ] {
+        let id = surface(Notation::Call, spelling).id();
+        assert_eq!(
+            conditional_call(spelling, values, &fast, s),
+            Err(FunctionFault::ReferenceRequired {
+                id,
+                index: fault_index
+            }),
+            "{spelling} with a non-reference range at argument {fault_index}"
+        );
+        refused_calls += 1;
+    }
+    for (spelling, count) in [
+        ("COUNTIFS", 3),
+        ("SUMIFS", 4),
+        ("AVERAGEIFS", 6),
+        ("MINIFS", 254),
+    ] {
+        let id = surface(Notation::Call, spelling).id();
+        // Ranges where the function takes them, criteria between them: COUNTIFS's pairs start
+        // at argument 0, the others' behind the target at argument 1.
+        let first_criterion = if spelling == "COUNTIFS" { 1 } else { 2 };
+        let mut values = vec![range.clone(); count];
+        for value in values.iter_mut().skip(first_criterion).step_by(2) {
+            *value = one.clone();
+        }
+        assert_eq!(
+            conditional_call(spelling, values, &fast, s),
+            Err(FunctionFault::ArityMismatch {
+                id,
+                supplied: count
+            }),
+            "{spelling} with {count} arguments"
+        );
+        refused_calls += 1;
+    }
+    // A criterion that is an array or a reference of several cells lifts the function over it,
+    // which is not modelled; so is a NaN criterion, which no formula writes. A blank given
+    // directly reads as an empty cell does, 0.
+    for criterion in [
+        array.clone(),
+        reference(s, &["A1:A2"]).value,
+        reference(s, &["A1", "A2"]).value,
+        CalcValue::number(f64::NAN),
+    ] {
+        let id = surface(Notation::Call, "COUNTIF").id();
+        assert_eq!(
+            conditional_call("COUNTIF", vec![range.clone(), criterion.clone()], &fast, s),
+            Err(FunctionFault::NotImplemented {
+                id,
+                argument: Some(1)
+            }),
+            "COUNTIF with the criterion {criterion:?}"
+        );
+        refused_calls += 1;
+    }
+    assert_eq!(
+        conditional_call("COUNTIF", vec![range.clone(), CalcValue::empty()], &fast, s)
+            .map(|value| value.as_number()),
+        Ok(Some(1.0)),
+        "COUNTIF over A1:A16 with a direct blank criterion"
+    );
+    // A reference criterion is read first, through the reader: asked for A8, then A1:A16.
+    s.reads.clear();
+    let criterion_cell = reference(s, &["A8"]).value;
+    let counted = conditional_call(
+        "COUNTIF",
+        vec![range.clone(), criterion_cell.clone()],
+        &fast,
+        s,
+    );
+    assert_eq!(counted.map(|value| value.as_number()), Ok(Some(1.0)));
+    assert_eq!(s.reads, vec![s.area("A8"), s.area("A1:A16")]);
+    // Without a reader, or over a refusing one, a call ends in ReferenceUnreadable naming the
+    // argument it was reading: the criterion cell before the range.
+    let mut unreadable = 0;
+    for (spelling, values, index) in [
+        ("COUNTIF", vec![range.clone(), one.clone()], 0),
+        ("COUNTIF", vec![range.clone(), criterion_cell.clone()], 1),
+        ("SUMIFS", vec![range.clone(), range.clone(), one.clone()], 1),
+        ("SUMIF", vec![range.clone(), one.clone(), range.clone()], 0),
+        ("MINIFS", vec![range.clone(), range.clone(), one.clone()], 1),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let fault = Err(FunctionFault::ReferenceUnreadable {
+            id: target.id(),
+            index,
+        });
+        assert_eq!(
+            run(target, &mut Recorded::new(values.clone()), &fast),
+            fault,
+            "{spelling} without a cell reader"
+        );
+        s.refuse = true;
+        let refused = conditional_call(spelling, values, &fast, s);
+        s.refuse = false;
+        assert_eq!(refused, fault, "{spelling} over a refusing reader");
+        unreadable += 2;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: through the call interface alone: {refused_calls} calls refused a non-reference range (ReferenceRequired naming it), an argument count that does not form pairs (ArityMismatch), or a criterion that is an array, a reference of several cells or NaN (NotImplemented naming it); a direct blank criterion counts the one 0; COUNTIF(A1:A16,A8) asked the reader for A8 and then A1:A16; {unreadable} calls without a reader or over a refusing one ended in ReferenceUnreadable naming the argument being read"
+    );
+
+    // NumericMode reaches every arithmetic site. Under Exact, a call that compares two different
+    // numbers, reads number text or adds is refused; one that compares only texts, logicals,
+    // errors and blank cells, or chooses an extreme, computes the value of its Fast row.
+    let exact = exact_mode();
+    let mut exact_computed = 0;
+    for (spelling, args) in [
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("apple")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("a*b")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), logical(true)]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("#N/A")]),
+        (
+            "MAXIFS",
+            vec![
+                reference(s, &["B1:B16"]),
+                reference(s, &["A1:A16"]),
+                txt("a*"),
+            ],
+        ),
+        (
+            "MINIFS",
+            vec![
+                reference(s, &["B1:B16"]),
+                reference(s, &["A1:A16"]),
+                txt("a*"),
+            ],
+        ),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+        let formula = target.oracle_formula(&texts).expect("a formula");
+        let under_fast = row_value(&rows, &formula);
+        let under_exact = conditional_call(
+            spelling,
+            args.iter().map(|a| a.value.clone()).collect(),
+            &exact,
+            s,
+        );
+        assert!(
+            under_exact
+                .as_ref()
+                .is_ok_and(|value| identical(value, under_fast)),
+            "{formula} under Exact gives {under_exact:?}, under Fast {under_fast:?}"
+        );
+        exact_computed += 1;
+    }
+    let mut exact_refused = 0;
+    for (spelling, args) in [
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), num("5")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("5")]),
+        (
+            "SUMIF",
+            vec![
+                reference(s, &["A1:A16"]),
+                txt("apple"),
+                reference(s, &["B1:B16"]),
+            ],
+        ),
+        ("AVERAGEIF", vec![reference(s, &["C1:C16"]), txt(">12")]),
+        (
+            "COUNTIFS",
+            vec![
+                reference(s, &["A1:A16"]),
+                txt("a*"),
+                reference(s, &["C1:C16"]),
+                txt(">10"),
+            ],
+        ),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let result = conditional_call(
+            spelling,
+            args.iter().map(|a| a.value.clone()).collect(),
+            &exact,
+            s,
+        );
+        assert_eq!(
+            result,
+            Err(FunctionFault::ExactUnavailable { id: target.id() }),
+            "{spelling} under Exact"
+        );
+        exact_refused += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: under NumericMode::Exact {exact_computed} calls that compare only texts, logicals, errors and blank cells, or choose an extreme, computed the value of their Fast oracle row, and {exact_refused} calls that compare different numbers, read number text or add were refused with ExactUnavailable"
+    );
+
+    // A reader may also visit a blank cell, as Empty: over such a reader every call that counts
+    // or matches blank cells gives the value of its Fast oracle row.
+    let mut dense_calls = 0;
+    for (spelling, args) in [
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("<>apple")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("=")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("<>")]),
+        ("COUNTIF", vec![reference(s, &["A1:A16"]), txt("<>*")]),
+        (
+            "COUNTIF",
+            vec![reference(s, &["A1:A16"]), reference(s, &["A8"])],
+        ),
+        (
+            "SUMIF",
+            vec![
+                reference(s, &["A1:A16"]),
+                txt(""),
+                reference(s, &["B1:B16"]),
+            ],
+        ),
+        (
+            "COUNTIFS",
+            vec![
+                reference(s, &["A1:A16"]),
+                txt("="),
+                reference(s, &["C1:C16"]),
+                txt(">0"),
+            ],
+        ),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+        let formula = target.oracle_formula(&texts).expect("a formula");
+        let mut dense = DenseReader(s);
+        let visited_blanks = conditional_call(
+            spelling,
+            args.iter().map(|a| a.value.clone()).collect(),
+            &fast,
+            &mut dense,
+        );
+        let under_fast = row_value(&rows, &formula);
+        assert!(
+            visited_blanks
+                .as_ref()
+                .is_ok_and(|value| identical(value, under_fast)),
+            "{formula} over a reader that visits blank cells gives {visited_blanks:?}, the row {under_fast:?}"
+        );
+        dense_calls += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {dense_calls} calls over a reader that also visits every blank cell as Empty gave the values of their Fast oracle rows"
+    );
+
+    // A reader that breaks the CellReader contract cannot supply the range, and the call ends in
+    // ReferenceUnreadable naming it: a visit outside the area, cells out of row-major order, and
+    // a cell visited twice. Each call first gives a value over the test sheet's reader.
+    let breaches: [(&str, &str, &str, Breach, f64); 3] = [
+        ("COUNTIF", "A1:A2", "apple", Breach::Outside("C1"), 1.0),
+        ("COUNTIF", "A1:A2", "*", Breach::Reversed, 2.0),
+        ("SUMIF", "C1", ">0", Breach::Twice, 1.0),
+    ];
+    for (spelling, area, criterion, breach, kept) in breaches {
+        let target = surface(Notation::Call, spelling);
+        let values = vec![reference(s, &[area]).value, text_value(criterion)];
+        let honest = conditional_call(spelling, values.clone(), &fast, s);
+        assert_eq!(
+            honest
+                .as_ref()
+                .map(|value| value.as_number().map(f64::to_bits)),
+            Ok(Some(kept.to_bits())),
+            "{spelling}({area},{criterion:?}) over the test sheet's reader: {honest:?}"
+        );
+        let mut breaching = BreachingReader { sheet: s, breach };
+        let broken = conditional_call(spelling, values, &fast, &mut breaching);
+        assert_eq!(
+            broken,
+            Err(FunctionFault::ReferenceUnreadable {
+                id: target.id(),
+                index: 0
+            }),
+            "{spelling}({area}) over a reader that breaks the contract by {breach:?}"
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: {spelling}({area},\"{criterion}\") = {kept} over the test sheet's reader, and ReferenceUnreadable (argument 0) over a reader that breaks the CellReader contract by {breach:?}"
+        );
+    }
+
+    assert_workbook_sheet(CONDITIONAL_WORKBOOK, CONDITIONAL_WORKBOOK_PATH, &rows, s);
+    assert_conditional_workbook_generated(CASE);
+    conditional_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_5__mismatched_shapes
+
+/// The cells the shape rows read: A2:A5 and B3:B6 are the MAXIFS page's example of ranges of one
+/// size at different rows; C2:C5 holds a second criterion aligned with A2:A5; row 1048576, the
+/// last, holds a cell in each column, so a whole column's cells span the sheet.
+fn mismatched_shapes_sheet() -> TestSheet {
+    TestSheet::new(&[
+        ("A2", "10", CalcValue::number(10.0)),
+        ("A3", "1", CalcValue::number(1.0)),
+        ("A4", "100", CalcValue::number(100.0)),
+        ("A5", "1", CalcValue::number(1.0)),
+        ("A1048576", "7", CalcValue::number(7.0)),
+        ("B3", "text \"a\"", text_value("a")),
+        ("B4", "text \"a\"", text_value("a")),
+        ("B5", "text \"b\"", text_value("b")),
+        ("B6", "text \"a\"", text_value("a")),
+        ("B1048576", "text \"a\"", text_value("a")),
+        ("C2", "text \"x\"", text_value("x")),
+        ("C3", "text \"y\"", text_value("y")),
+        ("C4", "text \"x\"", text_value("x")),
+        ("C5", "text \"x\"", text_value("x")),
+        ("C1048576", "text \"x\"", text_value("x")),
+    ])
+}
+
+/// Runs a shape row and checks, by the test sheet's own instruments, that the call asked the
+/// reader for exactly `reads`, in order, once each, and was visited only with their held cells;
+/// then calls it again and counts the bytes this thread allocated during the call. Returns the
+/// cells of the areas read, the cells visited and the bytes.
+fn shape_row(
+    rows: &mut Rows,
+    s: &mut TestSheet,
+    spelling: &'static str,
+    args: &[Arg],
+    reads: &[&str],
+    expect: Expect,
+    basis: Basis,
+) -> (u64, usize, u64) {
+    s.reads.clear();
+    s.visited = 0;
+    basis_row(
+        "cfunc-m3.5",
+        rows,
+        s,
+        named(spelling),
+        args,
+        expect.clone(),
+        basis,
+    );
+    let areas: Vec<GridArea> = reads.iter().map(|text| s.area(text)).collect();
+    let held: usize = areas
+        .iter()
+        .map(|area| {
+            s.cells
+                .keys()
+                .filter(|(row, column)| {
+                    area.contains(CellKey::new(s.id, *row, *column).expect("a held cell"))
+                })
+                .count()
+        })
+        .sum();
+    let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+    assert_eq!(
+        (s.reads.as_slice(), s.visited),
+        (areas.as_slice(), held),
+        "{spelling}({}) asks for exactly these areas and is visited only with their held cells",
+        texts.join(",")
+    );
+    let cells: u64 = areas.iter().map(|area| area.cell_count()).sum();
+    let mut again = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+    let target = surface(Notation::Call, spelling);
+    let fast = NumericMode::Fast;
+    let (result, bytes) = bytes_allocated_during(|| {
+        black_box(invoke(
+            target,
+            &mut again,
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        ))
+    });
+    assert!(
+        expect.holds(target.id(), &result),
+        "{spelling} again: {result:?}"
+    );
+    assert!(
+        bytes < SPARSE_BYTES,
+        "{spelling}({}) allocated {bytes} bytes over {cells} cells",
+        texts.join(",")
+    );
+    (cells, held, bytes)
+}
+
+/// The rows of cfunc_m3_5__mismatched_shapes, run through calc_func::invoke on `s`, in the order
+/// the conditional oracle workbook's sheet `mismatched_shapes` holds their formulas, each checked
+/// by the test sheet's instruments ([`shape_row`]); with, for each row, what the reader was asked
+/// for and visited and the bytes the call allocated.
+fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>) {
+    const CASE: &str = "cfunc_m3_5__mismatched_shapes";
+    let mut rows = Rows::new(CASE, "mismatched_shapes", quiet);
+    let r = &mut rows;
+    use WorksheetErrorCode::Value;
+    let mut measured = Vec::new();
+    let mut measure = |r: &mut Rows,
+                       s: &mut TestSheet,
+                       spelling: &'static str,
+                       args: Vec<Arg>,
+                       reads: &[&str],
+                       expect: Expect,
+                       basis: Basis| {
+        let texts: Vec<String> = args.iter().map(|a| a.excel.clone()).collect();
+        let (cells, visited, bytes) = shape_row(r, s, spelling, &args, reads, expect, basis);
+        measured.push(format!(
+            "{spelling}({}): {} areas read [{}], {cells} cells, {visited} visited, {bytes} bytes allocated",
+            texts.join(","),
+            reads.len(),
+            reads.join(", ")
+        ));
+    };
+    let at = |s: &TestSheet, texts: &[&str]| reference(s, texts);
+
+    // Ranges of one shape align by position, wherever they lie; ranges of different sizes or
+    // shapes are #VALUE!, decided before any cell or criterion is read.
+    measure(
+        r,
+        s,
+        "MAXIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B3:B6"]), txt("a")],
+        &["B3:B6", "A2:A5"],
+        N(10.0),
+        Documented(
+            "the MAXIFS page's example MAXIFS(A2:A5,B3:B6,\"a\") = 10: the ranges need the same size and shape, not the same rows",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "MINIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B3:B6"]), txt("a")],
+        &["B3:B6", "A2:A5"],
+        N(1.0),
+        Documented(SAME_SHAPE),
+    );
+    measure(
+        r,
+        s,
+        "MAXIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B2:C6"]), txt("a")],
+        &[],
+        E(Value),
+        Documented(
+            "the MAXIFS page's example MAXIFS(A2:A5,B2:c6,\"a\") = #VALUE!: the ranges differ in size and shape",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "MINIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B3:C4"]), txt("a")],
+        &[],
+        E(Value),
+        Documented(
+            "4 rows by 1 column against 2 by 2: as many cells, another shape, #VALUE!, as the MINIFS page states: the size and shape of min_range and every criteria_range must be the same, otherwise #VALUE!",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "SUMIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B3:B6"]), txt("a")],
+        &["B3:B6", "A2:A5"],
+        N(12.0),
+        Documented(SAME_SHAPE),
+    );
+    measure(
+        r,
+        s,
+        "SUMIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B3:B5"]), txt("a")],
+        &[],
+        E(Value),
+        Choice(SHAPE_VALUE),
+    );
+    measure(
+        r,
+        s,
+        "SUMIFS",
+        vec![
+            at(s, &["A2:A5"]),
+            at(s, &["B3:B6"]),
+            txt("a"),
+            at(s, &["C2:C5"]),
+            txt("x"),
+        ],
+        &["B3:B6", "C2:C5", "A2:A5"],
+        N(11.0),
+        Documented("a cell is added when its position meets every criterion: positions 1 and 4"),
+    );
+    measure(
+        r,
+        s,
+        "SUMIFS",
+        vec![
+            at(s, &["A2:A5"]),
+            at(s, &["B3:B6"]),
+            txt("a"),
+            at(s, &["C2:C4"]),
+            txt("x"),
+        ],
+        &[],
+        E(Value),
+        Choice(SHAPE_VALUE),
+    );
+    measure(
+        r,
+        s,
+        "SUMIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B3:B5"]), txt("Q1")],
+        &[],
+        E(Value),
+        Choice(
+            "the shapes are compared before any criterion is read, so a criterion that is not modelled does not refuse the call",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIFS",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["C2:C5"]), txt("x")],
+        &["B3:B6", "C2:C5"],
+        N(2.0),
+        Documented(
+            "the COUNTIFS page: each range has the same rows and columns as criteria_range1, and the cells are checked position by position",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIFS",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["C2:C6"]), txt("x")],
+        &[],
+        E(Value),
+        Choice(SHAPE_VALUE),
+    );
+    measure(
+        r,
+        s,
+        "AVERAGEIFS",
+        vec![at(s, &["A2:A5"]), at(s, &["B3:B6"]), txt("a")],
+        &["B3:B6", "A2:A5"],
+        N(4.0),
+        Documented(SAME_SHAPE),
+    );
+    measure(
+        r,
+        s,
+        "AVERAGEIFS",
+        vec![
+            at(s, &["A2:A5"]),
+            at(s, &["B3:B6"]),
+            txt("a"),
+            at(s, &["C2:C3"]),
+            txt("x"),
+        ],
+        &[],
+        E(Value),
+        Choice(
+            "the AVERAGEIFS page: unlike AVERAGEIF, each criteria range has average_range's size and shape; the error is #VALUE!, as the MAXIFS page states for MAXIFS",
+        ),
+    );
+
+    // SUMIF and AVERAGEIF shape their third argument from its top-left cell. A shaped range
+    // inside the reference the formula gives is read; one that extends past it is refused, the
+    // engine not yet taking the cells past it as the formula's prerequisites (dc-1mc8).
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2"])],
+        &[],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT),
+    );
+    owned(r, SHAPED_PAST);
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2:A3"])],
+        &[],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT),
+    );
+    owned(r, SHAPED_PAST);
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2:C9"])],
+        &["B3:B6", "A2:A5"],
+        N(12.0),
+        Documented(
+            "a larger sum_range is cut to the range's size from its top-left cell, as the SUMIF page's table shows B1:K5 used as B1:B5",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "AVERAGEIF",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2"])],
+        &[],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT),
+    );
+    owned(r, SHAPED_PAST);
+    measure(
+        r,
+        s,
+        "AVERAGEIF",
+        vec![at(s, &["B3:B6"]), txt("b"), at(s, &["A2:B2"])],
+        &[],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT),
+    );
+    owned(r, SHAPED_PAST);
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B3:C4"]), txt("a"), at(s, &["A2"])],
+        &[],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT),
+    );
+    owned(r, SHAPED_PAST);
+    measure(
+        r,
+        s,
+        "COUNTIFS",
+        vec![at(s, &["B3:C4"]), txt("a"), at(s, &["A2:B3"]), txt(">5")],
+        &["B3:C4", "A2:B3"],
+        N(1.0),
+        Documented("two-dimensional ranges align position by position in row-major order"),
+    );
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A1048575"])],
+        &[],
+        Refused(Some(2)),
+        Unsupported(
+            "the sum_range shaped from A1048575 to 4 rows extends past A1048575 and past the sheet's last row; owned by dc-1mc8 (Excel's ad-hoc read gives 7 for it and for SUMIF(B3:B6,\"a\",A1048575:A1048576), as if the shaped range were cut at the last row)",
+        ),
+    );
+    owned(r, SHAPED_PAST);
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B3:B4", "B6"]), txt("a")],
+        &[],
+        Refused(Some(0)),
+        Unsupported("a range of several areas is not modelled"),
+    );
+    owned(r, SEVERAL_AREAS);
+
+    // Whole columns: the reader visits the held cells only, and a count adds every blank row at
+    // once.
+    measure(
+        r,
+        s,
+        "COUNTIF",
+        vec![at(s, &["A:A"]), txt(">5")],
+        &["A:A"],
+        N(3.0),
+        Documented("comparison operators work inside the criterion: 10, 100 and 7"),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIF",
+        vec![at(s, &["B:B"]), txt("a")],
+        &["B:B"],
+        N(4.0),
+        Documented("text criteria match the cells holding that text"),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIF",
+        vec![at(s, &["B:B"]), txt("<>a")],
+        &["B:B"],
+        N(1_048_572.0),
+        Choice(
+            "<>a holds for every cell of the column but the four holding a, the blank cells included",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIF",
+        vec![at(s, &["A:A"]), txt("")],
+        &["A:A"],
+        N(1_048_571.0),
+        Documented(
+            "\"\" matches a blank cell, as the SUMIF page's example SUMIF(A2:A7,\"\",C2:C7) shows: the column less its five numbers",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIF",
+        vec![at(s, &["A:A"]), txt("<>1")],
+        &["A:A"],
+        N(1_048_574.0),
+        Choice("<>1 holds for every cell of the column but A3 and A5, the blank cells included"),
+    );
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B:B"]), txt("a"), at(s, &["A:A"])],
+        &["B:B", "A:A"],
+        N(108.0),
+        Documented("rows 3, 4, 6 and 1048576 meet the criterion; A6 is blank: 1 + 100 + 7"),
+    );
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B:B"]), txt("a"), at(s, &["A1"])],
+        &[],
+        Refused(Some(2)),
+        Unsupported(SHAPED_PAST_TEXT),
+    );
+    owned(r, SHAPED_PAST);
+    measure(
+        r,
+        s,
+        "SUMIFS",
+        vec![
+            at(s, &["A:A"]),
+            at(s, &["B:B"]),
+            txt("a"),
+            at(s, &["C:C"]),
+            txt("x"),
+        ],
+        &["B:B", "C:C", "A:A"],
+        N(107.0),
+        Documented("rows 4 and 1048576 meet both criteria: 100 + 7"),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIFS",
+        vec![at(s, &["A:A"]), txt(">0"), at(s, &["C:C"]), txt("<>y")],
+        &["A:A", "C:C"],
+        N(4.0),
+        Choice("rows 2, 4, 5 and 1048576: a blank row of A does not meet >0"),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIFS",
+        vec![at(s, &["B:B"]), txt("<>a"), at(s, &["C:C"]), txt("<>y")],
+        &["B:B", "C:C"],
+        N(1_048_572.0),
+        Choice(
+            "rows 2 and 5 of the six held rows, and the 1048570 rows blank in both columns, which meet both <> criteria",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "AVERAGEIFS",
+        vec![at(s, &["A:A"]), at(s, &["B:B"]), txt("a")],
+        &["B:B", "A:A"],
+        N(36.0),
+        Documented(
+            "the average of the cells whose row meets the criterion; the blank A6 is skipped: (1 + 100 + 7) / 3",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "MAXIFS",
+        vec![at(s, &["A:A"]), at(s, &["B:B"]), txt("a")],
+        &["B:B", "A:A"],
+        N(100.0),
+        Documented("the largest cell of max_range whose row meets the criterion"),
+    );
+    measure(
+        r,
+        s,
+        "MINIFS",
+        vec![at(s, &["A:A"]), at(s, &["C:C"]), txt("x")],
+        &["C:C", "A:A"],
+        N(1.0),
+        Documented(
+            "the smallest cell of min_range whose row meets the criterion: 10, 100, 1 and 7",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "SUMIFS",
+        vec![at(s, &["A:A"]), at(s, &["B1:B1048575"]), txt("a")],
+        &[],
+        E(Value),
+        Choice(SHAPE_VALUE),
+    );
+    measure(
+        r,
+        s,
+        "COUNTIFS",
+        vec![at(s, &["A:A"]), txt(">0"), at(s, &["B:C"]), txt("a")],
+        &[],
+        E(Value),
+        Choice(SHAPE_VALUE),
+    );
+
+    // Shaped third arguments inside the reference the formula gives.
+    measure(
+        r,
+        s,
+        "SUMIF",
+        vec![at(s, &["B3:C4"]), txt("a"), at(s, &["A2:C9"])],
+        &["B3:C4", "A2:B3"],
+        N(11.0),
+        Documented(
+            "a two-dimensional range takes a sum_range of its rows and columns from the top-left cell, a larger one cut, as the SUMIF page's table shows B1:K5 used as B1:B5: A2:B3 aligns with B3:C4, and B3 and B4 hold a: 10 + 1",
+        ),
+    );
+    measure(
+        r,
+        s,
+        "AVERAGEIF",
+        vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2:B5"])],
+        &["B3:B6", "A2:A5"],
+        N(4.0),
+        Documented(TOP_LEFT),
+    );
+    (rows, measured)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_5__mismatched_shapes() {
+    const CASE: &str = "cfunc_m3_5__mismatched_shapes";
+    let mut sheet = mismatched_shapes_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; every other cell is blank",
+        sheet.described()
+    );
+    let s = &mut sheet;
+    let (rows, measured) = mismatched_shapes_rows(s, false);
+    for line in &measured {
+        note!("ACCEPT-NOTE: {CASE}: instrumented reader: {line}");
+    }
+
+    // The whole sheet, through the call interface alone: 2^34 cells, of which the reader visits
+    // the 15 held, once per range.
+    let whole = CalcValue::reference(ReferenceLike::area(GridArea::full_sheet(s.id)));
+    let fast = NumericMode::Fast;
+    for (spelling, values, expected, areas) in [
+        (
+            "COUNTIF",
+            vec![whole.clone(), text_value("<>a")],
+            17_179_869_180.0_f64,
+            1,
+        ),
+        (
+            "COUNTIFS",
+            vec![
+                whole.clone(),
+                text_value("<>a"),
+                whole.clone(),
+                text_value("<>b"),
+            ],
+            17_179_869_179.0,
+            2,
+        ),
+        // The target is the criteria range itself, read once.
+        (
+            "SUMIFS",
+            vec![whole.clone(), whole.clone(), text_value("<>a")],
+            119.0,
+            1,
+        ),
+    ] {
+        s.reads.clear();
+        s.visited = 0;
+        let target = surface(Notation::Call, spelling);
+        let mut given = Recorded::new(values);
+        let (result, bytes) = bytes_allocated_during(|| {
+            black_box(invoke(
+                target,
+                &mut given,
+                &mut EvalServices::with_cells(&fast, s),
+                &mut FunctionCallScratch::new(),
+            ))
+        });
+        assert_eq!(
+            result
+                .as_ref()
+                .map(|value| value.as_number().map(f64::to_bits)),
+            Ok(Some(expected.to_bits())),
+            "{spelling} of the whole sheet: {result:?}"
+        );
+        let full = GridArea::full_sheet(s.id);
+        assert_eq!(
+            (s.reads.clone(), s.visited),
+            (vec![full; areas], 15 * areas),
+            "{spelling} of the whole sheet"
+        );
+        assert!(bytes < SPARSE_BYTES, "{spelling} allocated {bytes} bytes");
+        note!(
+            "ACCEPT-NOTE: {CASE}: {spelling} over A1:XFD1048576 through calc_func::invoke = {expected} over {} cells per range; the reader was asked for {areas} areas and visited {} cells; {bytes} bytes allocated",
+            full.cell_count(),
+            15 * areas
+        );
+    }
+
+    assert_workbook_sheet(CONDITIONAL_WORKBOOK, CONDITIONAL_WORKBOOK_PATH, &rows, s);
+    conditional_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_5__excel_comparison
+
+/// The Excel comparison of the conditional rows: `run`, the rows of both sheets of the conditional
+/// oracle workbook, published under that workbook and judged against `capture` by
+/// calc_verdict::judge. Returns each sheet's comparison, in `run`'s order; refused exactly when
+/// judge refuses.
+fn conditional_comparison(
+    capture: &CaptureRecord,
+    run: &[&Rows],
+) -> Result<Vec<Comparison>, JudgeError> {
+    let (results, evaluations) = published_in(CONDITIONAL_WORKBOOK, CONDITIONAL_CAPTURE_CASE, run);
+    run.iter()
+        .map(|rows| judged(capture, &results, &evaluations, rows))
+        .collect()
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_5__excel_comparison() {
+    const CASE: &str = "cfunc_m3_5__excel_comparison";
+    let mut criteria_sheet = criteria_semantics_sheet();
+    let criteria = criteria_semantics_rows(&mut criteria_sheet, true);
+    let mut shapes_sheet = mismatched_shapes_sheet();
+    let (shapes, _) = mismatched_shapes_rows(&mut shapes_sheet, true);
+    let run = [&criteria, &shapes];
+    let all: usize = run.iter().map(|rows| rows.oracle.len()).sum();
+    let refused: usize = run.iter().map(|rows| rows.refused()).sum();
+    let computed = all - refused;
+    for rows in run {
+        assert!(
+            rows.oracle
+                .iter()
+                .all(|row| row.owner.is_some() == row.outcome.is_err()),
+            "{}: a refused row names its owner, a computed row none",
+            rows.sheet
+        );
+    }
+
+    // The comparison itself, on capture records built here in memory, which carry no Excel
+    // evidence: a capture that observes each computed row's own value matches every computed row
+    // and counts every refused row not modelled with its owner, and a capture whose observation
+    // of one computed row differs in its last bit is exactly one problem, at that row's cell.
+    let agreeing_capture = capture_in(
+        CONDITIONAL_WORKBOOK,
+        CONDITIONAL_CAPTURE_CASE,
+        &run,
+        agreeing,
+    );
+    let comparisons = conditional_comparison(&agreeing_capture, &run)
+        .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
+    for (rows, comparison) in run.iter().zip(&comparisons) {
+        assert_eq!(comparison.problems, Vec::<String>::new(), "{}", rows.sheet);
+    }
+    let report = &comparisons[0].report;
+    let counts = &report.counts;
+    assert_eq!(
+        (
+            counts.denominator,
+            counts.calculated,
+            counts.matched,
+            counts.not_modeled,
+            counts.mismatched + counts.not_run + counts.unproven + counts.stale,
+            counts.evaluator_calls
+        ),
+        (
+            all as u64,
+            computed as u64,
+            computed as u64,
+            refused as u64,
+            0,
+            all as u64
+        ),
+        "{}",
+        report.summary()
+    );
+    let changed = criteria
+        .oracle
+        .iter()
+        .find(|row| {
+            row.outcome
+                .as_ref()
+                .is_ok_and(|value| value.as_number().is_some_and(|n| n != 0.0))
+        })
+        .expect("a computed row with a nonzero number")
+        .row;
+    let one_bit = capture_in(
+        CONDITIONAL_WORKBOOK,
+        CONDITIONAL_CAPTURE_CASE,
+        &run,
+        |sheet, row| {
+            if sheet == criteria.sheet && row.row == changed {
+                let n = row.outcome.as_ref().ok()?.as_number()?;
+                Some(CalcValue::number(f64::from_bits(n.to_bits() ^ 1)))
+            } else {
+                agreeing(sheet, row)
+            }
+        },
+    );
+    let problems: Vec<String> = conditional_comparison(&one_bit, &run)
+        .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"))
+        .into_iter()
+        .flat_map(|comparison| comparison.problems)
+        .collect();
+    let cell = format!("{}!{}", criteria.sheet, encode_a1(changed, FORMULA_COLUMN));
+    assert!(
+        problems.len() == 1 && problems[0].starts_with(&format!("{cell} ")),
+        "a capture changed in the last bit at {cell} gives {problems:?}"
+    );
+    // A refused row that names cfunc-m3.5 itself as its owner is a problem, though the capture
+    // agrees with it: this bead's refusals are not modelled elsewhere.
+    let mut self_owned = criteria_semantics_rows(&mut criteria_semantics_sheet(), true);
+    let row = self_owned
+        .oracle
+        .iter_mut()
+        .find(|row| row.outcome.is_err())
+        .expect("a refused row");
+    row.owner = Some(Owner {
+        bead: "cfunc-m3.5",
+        behaviour: "a refusal of the bead under test",
+    });
+    let self_cell = format!(
+        "{}!{}",
+        self_owned.sheet,
+        encode_a1(row.row, FORMULA_COLUMN)
+    );
+    let probed = [&self_owned, &shapes];
+    let problems: Vec<String> = conditional_comparison(
+        &capture_in(
+            CONDITIONAL_WORKBOOK,
+            CONDITIONAL_CAPTURE_CASE,
+            &probed,
+            agreeing,
+        ),
+        &probed,
+    )
+    .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"))
+    .into_iter()
+    .flat_map(|comparison| comparison.problems)
+    .collect();
+    assert!(
+        problems.len() == 1
+            && problems[0].starts_with(&format!("{self_cell} "))
+            && problems[0].contains("names its own bead cfunc-m3.5"),
+        "a row owned by cfunc-m3.5 at {self_cell} gives {problems:?}"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: on in-memory captures of {CONDITIONAL_WORKBOOK_PATH} (no Excel evidence; {all} rows: {computed} computed, {refused} refused): calc_verdict::judge's report through the comparison matches every computed row of the agreeing capture and counts every refused row not modeled with its owner, none of which is cfunc-m3.5; a capture changed in the last bit at {cell} is exactly one problem, at that cell; the refused row at {self_cell} given cfunc-m3.5 as its owner is exactly one problem, at that cell"
+    );
+
+    // Excel's capture of the workbook.
+    if let Some(missing) = MissingCapture::recognize(CONDITIONAL_CAPTURE) {
+        assert_eq!(
+            (
+                missing.case.as_str(),
+                missing.fixture.as_str(),
+                missing.command.as_str()
+            ),
+            (
+                CONDITIONAL_CAPTURE_CASE,
+                CONDITIONAL_WORKBOOK_PATH,
+                CONDITIONAL_CAPTURE_COMMAND
+            ),
+            "the absent-capture marker names this capture"
+        );
+        note!("ACCEPT-NOT-RUN: {CASE}: {missing}");
+        return;
+    }
+    let capture =
+        CaptureRecord::decode(CONDITIONAL_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, CONDITIONAL_CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(CONDITIONAL_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the conditional oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the conditional oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    let comparisons = conditional_comparison(&capture, &run)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    for (rows, comparison) in run.iter().zip(&comparisons) {
+        assert!(
+            comparison.problems.is_empty(),
+            "{} problems on sheet {} of the verdict on Excel {}'s capture ({}):\n{}",
+            comparison.problems.len(),
+            rows.sheet,
+            environment.target.excel_build(),
+            comparison.report.summary(),
+            comparison.problems.join("\n")
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of {CONDITIONAL_WORKBOOK_PATH}: sheet {}: {} (every computed row matched, every refused row not modeled with its owner); the whole workbook: {}",
+            environment.target.excel_build(),
+            rows.sheet,
+            sheet_verdicts(&comparison.report, rows),
+            comparison.report.summary()
+        );
+    }
 }

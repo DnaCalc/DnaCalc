@@ -18,19 +18,21 @@ use std::fmt;
 mod aggregate;
 mod arithmetic;
 mod comparison;
+mod conditional;
 mod logical;
 mod rounding;
 mod text;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 6] = [
+const FAMILIES: [&Family; 7] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
     &aggregate::FAMILY,
     &logical::FAMILY,
     &rounding::FAMILY,
+    &conditional::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);

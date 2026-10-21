@@ -60,7 +60,7 @@ const NEAR: f64 = 1e-13;
 
 /// What a comparison asks of two texts: whether they are equal, or how they order.
 #[derive(Clone, Copy)]
-enum Want {
+pub(super) enum Want {
     Equality,
     Order,
 }
@@ -201,7 +201,7 @@ fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering>
 /// near-equality test computes their difference and the band [`NEAR`] around the larger magnitude
 /// at the call's arithmetic sites, which round under its numeric mode; a pair within the band is
 /// refused as not modelled.
-fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
+pub(super) fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
     if a == b {
         return Ok(Ordering::Equal);
     }
@@ -215,7 +215,7 @@ fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
 
 /// The order of two texts, or `None` when it needs Excel's collation. For [`Want::Equality`] any
 /// unequal pair is `Less`.
-fn texts(a: &[u16], b: &[u16], want: Want) -> Option<Ordering> {
+pub(super) fn texts(a: &[u16], b: &[u16], want: Want) -> Option<Ordering> {
     if a == b {
         return Some(Ordering::Equal);
     }

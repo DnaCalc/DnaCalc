@@ -1,0 +1,877 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfunc-m3.5",
+  "written": "2026-10-21",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings, on 2026-10-21 over .beads/issues.jsonl of master commit 541cf5a7f21b30cf9b028ced17af55a334181d7e, the commit this work is built on: FunctionMeta, collation, nearly equal, near-equal, NumberTextService, value-parsing, number-text, multi-area, several areas, union reference, array lifting, lifted, ReferenceSystemProvider, CellReader, _xlfn, repeating, SUMIF, COUNTIF, MAXIFS, criteria, shaped, sum range, prerequisite, number's text, digit-bearing, and 'br search lift' (transcript target/accept/cfunc-m3.5/round3/owner-search.log; target/ is not committed). Each beads list below is the hits of the terms named in its basis, without a hit the basis names as not doing the work.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+      "blob": "76520e4100ce8eaccecd0b4c180ef33a9754cb07",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-functions-surface_dispatch-rs.log (exit in lookup-functions-surface_dispatch-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/acos.rs",
+          "crates/oxfunc_core/src/functions/acot.rs",
+          "crates/oxfunc_core/src/functions/acoth.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/array_text_split_family.rs",
+          "crates/oxfunc_core/src/functions/asin.rs",
+          "crates/oxfunc_core/src/functions/atan.rs",
+          "crates/oxfunc_core/src/functions/atanh.rs",
+          "crates/oxfunc_core/src/functions/base_fn.rs",
+          "crates/oxfunc_core/src/functions/bessel_convert_family.rs",
+          "crates/oxfunc_core/src/functions/beta_gamma_stats_family.rs",
+          "crates/oxfunc_core/src/functions/bitand_fn.rs",
+          "crates/oxfunc_core/src/functions/bitlshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitor_fn.rs",
+          "crates/oxfunc_core/src/functions/bitrshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitxor_fn.rs",
+          "crates/oxfunc_core/src/functions/bond_core_family.rs",
+          "crates/oxfunc_core/src/functions/cashflow_rate_family.rs",
+          "crates/oxfunc_core/src/functions/chi_f_t_family.rs",
+          "crates/oxfunc_core/src/functions/combin.rs",
+          "crates/oxfunc_core/src/functions/combina.rs",
+          "crates/oxfunc_core/src/functions/complex_family.rs",
+          "crates/oxfunc_core/src/functions/cos.rs",
+          "crates/oxfunc_core/src/functions/cosh.rs",
+          "crates/oxfunc_core/src/functions/cot.rs",
+          "crates/oxfunc_core/src/functions/coth.rs",
+          "crates/oxfunc_core/src/functions/count.rs",
+          "crates/oxfunc_core/src/functions/counta.rs",
+          "crates/oxfunc_core/src/functions/countblank_fn.rs",
+          "crates/oxfunc_core/src/functions/csc.rs",
+          "crates/oxfunc_core/src/functions/csch.rs",
+          "crates/oxfunc_core/src/functions/cumulative_finance_family.rs",
+          "crates/oxfunc_core/src/functions/date_fn.rs",
+          "crates/oxfunc_core/src/functions/date_parts_family.rs",
+          "crates/oxfunc_core/src/functions/date_week_family.rs",
+          "crates/oxfunc_core/src/functions/depreciation_family.rs",
+          "crates/oxfunc_core/src/functions/devsq_fn.rs",
+          "crates/oxfunc_core/src/functions/discrete_dist_family.rs",
+          "crates/oxfunc_core/src/functions/engineering_radix_family.rs",
+          "crates/oxfunc_core/src/functions/exact_fn.rs",
+          "crates/oxfunc_core/src/functions/exp_fn.rs",
+          "crates/oxfunc_core/src/functions/fact.rs",
+          "crates/oxfunc_core/src/functions/financial_time_value_family.rs",
+          "crates/oxfunc_core/src/functions/fisher_fn.rs",
+          "crates/oxfunc_core/src/functions/gcd_fn.rs",
+          "crates/oxfunc_core/src/functions/harmean_fn.rs",
+          "crates/oxfunc_core/src/functions/if_fn.rs",
+          "crates/oxfunc_core/src/functions/iferror.rs",
+          "crates/oxfunc_core/src/functions/ifna_fn.rs",
+          "crates/oxfunc_core/src/functions/int_fn.rs",
+          "crates/oxfunc_core/src/functions/is_predicates_family.rs",
+          "crates/oxfunc_core/src/functions/iseven_fn.rs",
+          "crates/oxfunc_core/src/functions/lcm_fn.rs",
+          "crates/oxfunc_core/src/functions/ln_fn.rs",
+          "crates/oxfunc_core/src/functions/log10_fn.rs",
+          "crates/oxfunc_core/src/functions/log_fn.rs",
+          "crates/oxfunc_core/src/functions/matrix_family.rs",
+          "crates/oxfunc_core/src/functions/median_fn.rs",
+          "crates/oxfunc_core/src/functions/misc_conversion_family.rs",
+          "crates/oxfunc_core/src/functions/mod_fn.rs",
+          "crates/oxfunc_core/src/functions/mround.rs",
+          "crates/oxfunc_core/src/functions/normal_log_family.rs",
+          "crates/oxfunc_core/src/functions/not_fn.rs",
+          "crates/oxfunc_core/src/functions/odd_bond_family.rs",
+          "crates/oxfunc_core/src/functions/permut_fn.rs",
+          "crates/oxfunc_core/src/functions/permutationa_fn.rs",
+          "crates/oxfunc_core/src/functions/phi_fn.rs",
+          "crates/oxfunc_core/src/functions/power_fn.rs",
+          "crates/oxfunc_core/src/functions/quotient_fn.rs",
+          "crates/oxfunc_core/src/functions/radians.rs",
+          "crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+          "crates/oxfunc_core/src/functions/regression_forecast_family.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs",
+          "crates/oxfunc_core/src/functions/rounddown_fn.rs",
+          "crates/oxfunc_core/src/functions/roundup_fn.rs",
+          "crates/oxfunc_core/src/functions/sec.rs",
+          "crates/oxfunc_core/src/functions/sech.rs",
+          "crates/oxfunc_core/src/functions/sin.rs",
+          "crates/oxfunc_core/src/functions/sinh.rs",
+          "crates/oxfunc_core/src/functions/special_dist_family.rs",
+          "crates/oxfunc_core/src/functions/sqrt_fn.rs",
+          "crates/oxfunc_core/src/functions/standardize_fn.rs",
+          "crates/oxfunc_core/src/functions/statistical_tests_family.rs",
+          "crates/oxfunc_core/src/functions/tan.rs",
+          "crates/oxfunc_core/src/functions/tanh.rs",
+          "crates/oxfunc_core/src/functions/text_b_compat_family.rs",
+          "crates/oxfunc_core/src/functions/text_slice_family.rs",
+          "crates/oxfunc_core/src/functions/trunc_fn.rs",
+          "crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+          "crates/oxfunc_core/src/functions/web_text_xml_family.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. The catalogue entries of the 8 IDs are written fresh in crates/calc-func/src/catalogue/conditional.rs: the arities come from criteria_family.rs (read, exit 6) and Microsoft's pages.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function_call.rs",
+      "blob": "426cf6877cc60ce74caddc55a66bb287510baaec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function_call.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-function_call-rs.log (exit in lookup-function_call-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 6: admitted only against clean replacements of surface_dispatch.rs, which is itself exit 5 and not read). Nothing of it is ported: FunctionCallTarget has been calc_func's own since cfunc-m1.1, and this bead adds catalogue entries and no call-interface symbol.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/criteria_family.rs",
+      "blob": "3a8756f47273a4fe94f0df519208265ecd5fe90a",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/criteria_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-functions-criteria_family-rs.log (exit in lookup-functions-criteria_family-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh) and Site::number_argument; adapters.rs (prepare_arg_values_only, the criterion's dereference) by criterion and read_range in crates/calc-func/src/catalogue/conditional.rs, which read the one cell through CellReader with aggregate.rs's reader and read_reference (cfunc-m3.4, written fresh).",
+      "ported": [
+        "COUNTIF_META..MINIFS_META arities: COUNTIF 2, COUNTIFS 2 to 254, SUMIF and AVERAGEIF 2 to 3, SUMIFS, AVERAGEIFS, MAXIFS and MINIFS 3 to 255",
+        "parse_operator_prefix: the operators <=, >=, <>, <, >, = tried in that order, none meaning =",
+        "contains_unescaped_wildcard: = and <> followed by text holding * or ? ask for a pattern",
+        "criteria_from_prepared: a number, a logical or text criterion; empty text after the operator is a blank criterion",
+        "parse_criteria_pairs and matching_mask: a row meets an *IFS call when every pair meets it",
+        "ensure_same_shape: ranges of different shapes return #VALUE!",
+        "eval_sum_filtered, eval_average_filtered and eval_extreme_filtered: matched numbers added, averaged (#DIV/0! with none) or chosen (0 with none); text, logicals and blanks skipped; an error in a matched target cell is the result",
+        "eval_sumif_surface and eval_averageif_surface: the range itself when the third argument is omitted, otherwise the third argument anchored at its top-left cell over the range's shape"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes (CRITERIA_BASE_META and its eight instances)"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        },
+        {
+          "items": [
+            "compare_excel_numbers (excel_numeric_compare.rs): numbers compared after truncation to 15 significant digits, so 0.1+0.2 equals 0.3 under COUNTIF"
+          ],
+          "reason": "calc_func has one comparison rule, the comparison operators' (crates/calc-func/src/catalogue/comparison.rs, numbers), which refuses two different numbers within a relative 1e-13; the criteria matcher calls it, so such a cell's verdict is unknown and a call it decides is refused. Excel's rule for nearly equal numbers comes from cdoc-jpha's capture.",
+          "beads": [
+            "cdoc-jpha"
+          ],
+          "basis": "nearly equal, near-equal (descriptions: cdoc-jpha; dc-r4ci owns the near-zero adjustment of + and -, not comparison; notes: cdoc-jpha, cfunc-m3.22, which routes the Exact refusal)"
+        },
+        {
+          "items": [
+            "text equality, ordering and wildcard matching under Unicode to_lowercase (compare_texts in criteria_family.rs, wildcard_match in xmatch.rs)"
+          ],
+          "reason": "Criteria text compares by the comparison operators' text rule (identical code units, or ASCII ignoring ASCII case; ordering on ASCII letters and digits only) and patterns match ASCII text ignoring ASCII case; anything beyond needs Excel's collation, so that cell's verdict is unknown and a call it decides is refused.",
+          "beads": [
+            "cdoc-jpha"
+          ],
+          "basis": "collation (descriptions: cdoc-jpha; notes: cfml-m1.3 and cfunc-m3.5 cite it)"
+        },
+        {
+          "items": [
+            "parse_excel_number: a criterion operand or a range cell read as a number by Rust f64 parsing of its trimmed text"
+          ],
+          "reason": "Criterion operands, and range text under = a number, are read by worksheet number coercion (crates/calc-func/src/coerce.rs): the plain decimal form with at most 15 significant digits. Other text holding a digit is refused, because Excel may read it as a number: a label such as Q1 or 2016-17 Winter waits on the certain not-a-number verdict (dc-e00t), and a date, a fraction, a currency amount, grouped digits or a percentage on Excel's locale number-text rules (cfml-m2.6). A criterion built \"op\"&cell over a number also needs & to give the number's text (dc-q9rb).",
+          "beads": [
+            "dc-e00t",
+            "dc-q9rb",
+            "cfml-m2.6"
+          ],
+          "basis": "NumberTextService and value-parsing (descriptions: cfml-m2.6), number-text and digit-bearing (descriptions: dc-e00t), number's text (descriptions: dc-q9rb)."
+        },
+        {
+          "items": [
+            "ReferenceSystemProvider, enumerate_reference_values, materialize_resolved_reference_values and resolve_eval_value (resolver.rs), and the A1-text anchoring of try_anchor_reference_to_shape through a1_refs.rs"
+          ],
+          "reason": "A kernel reads a reference only through calc_func::CellReader, which visits the held cells of each area; resolving names, tables and other reference forms to grid areas is calc-fml's before the call. The top-left shaping is computed on calc-value's GridArea, inside the reference the formula gives; a shaped range past it is refused until dc-1mc8.",
+          "beads": [
+            "cfml-m3.1",
+            "cfml-m3.2",
+            "cfml-m3.3",
+            "cfml-m3.5"
+          ],
+          "basis": "ReferenceSystemProvider (descriptions: cfml-m1.2 (closed), cfml-m3.1, cfml-m3.2, cfml-m3.3, cfml-m3.5, cfml-m4.1, cfml-m4.2; the cfml-m4 hits transform references and resolve none)"
+        },
+        {
+          "items": [
+            "an array given as a range (flattened by flatten_arg; MAXIFS and MINIFS returned an array of #VALUE! of its shape, extrema_ifs_direct_array_value_error), and an array or a reference of several cells given as a criterion, over which Excel lifts the function"
+          ],
+          "reason": "A range is a reference: an array there ends in ReferenceRequired (at admission for a declared reference parameter, by the kernel for a criteria range past the declared ones); an array criterion and a criterion reference of several cells are refused as not modelled. Lifting a function over an array is array evaluation.",
+          "beads": [
+            "cfml-m3.4"
+          ],
+          "basis": "array lifting (notes: dc-ibp2 cites cfml-m3.4 for it); lift has no other hit that does the work (dc-8abf is the deferred scope epic, dc-ime9 is provenance, dc-1mc8 lifts a refusal of this bead); cfml-m3.4 (Preserve array evaluation and legacy array contexts) is the bead cfunc-m3.2 and cfunc-m3.4 name for array lifting"
+        },
+        {
+          "items": [
+            "a range of several areas (a union reference) given to any of the eight functions"
+          ],
+          "reason": "Refused with NotImplemented naming the argument: Excel's result is not modelled.",
+          "beads": [
+            "dc-gdii"
+          ],
+          "basis": "multi-area (descriptions: dc-gdii; cdoc-m5.2 models conditional-format anchors and dnacalc-m6.2 selects ranges in the UI; notes: cfunc-m0.1, closed, defines the reference value), several areas (descriptions: dc-gdii, and dc-4eid, which computes SUMPRODUCT and COUNTBLANK only; notes: cfunc-m3.4) and union reference (dc-4eid)."
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::countif_matches_numeric_and_text_comparisons"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_5__criteria_semantics rows COUNTIF(A1:A16,\">=5\") = 2 (number text does not meet an ordering) and COUNTIF(A1:A16,\"apple\") = 2 (case ignored)",
+          "reason": "The test sheet's cells replace the legacy arrays, and the legacy expectation that number text meets an ordering (text \"3\" counted under >=2, giving 3) is changed: Excel 16.0's ad-hoc COM reads on this machine count number text under = only."
+        },
+        {
+          "tests": [
+            "tests::countif_uses_excel_near_equal_numeric_comparisons",
+            "tests::criteria_boundary_pair_uses_excel_truncation_style_matching_across_ifs_family"
+          ],
+          "disposition": "dropped",
+          "carried_by": "cfunc_m3_5__criteria_semantics row COUNTIF(A24,0.3), refused (NotImplemented naming the range)",
+          "reason": "The 15-digit truncation rule is not ported; nearly equal numbers are cdoc-jpha."
+        },
+        {
+          "tests": [
+            "tests::countif_supports_wildcards_and_blank_criteria"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_5__criteria_semantics rows COUNTIF(A1:A16,\"app*\") = 3 and COUNTIF(A1:A16,\"\") = 2 (A8 blank, A9 empty text)",
+          "reason": "The test sheet's cells replace the legacy arrays."
+        },
+        {
+          "tests": [
+            "tests::countifs_intersects_multiple_criteria_and_checks_shape"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_5__criteria_semantics row COUNTIFS(A1:A16,\"a*\",C1:C16,\">10\") = 4 and cfunc_m3_5__mismatched_shapes row COUNTIFS(B3:B6,\"a\",C2:C6,\"x\") = #VALUE!",
+          "reason": "References replace the legacy arrays; the shape check returns #VALUE! as before."
+        },
+        {
+          "tests": [
+            "tests::sumifs_filters_sum_range_by_multiple_criteria"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_5__criteria_semantics row SUMIFS(B1:B16,A1:A16,\"a*\",C1:C16,\">10\") = 46080"
+        },
+        {
+          "tests": [
+            "tests::sumif_uses_omitted_sum_range_and_anchors_reference_sum_range"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_5__criteria_semantics row SUMIF(C1:C16,\">8\") = 100 and cfunc_m3_5__mismatched_shapes row SUMIF(B3:B6,\"a\",A2:C9) = 12; the anchored SUMIF(C1:C16,\">8\",B1) is refused (dc-1mc8)",
+          "reason": "Shaping is computed on GridArea, not by re-resolving A1 text; a shaped range that extends past the reference the formula gives is refused until the engine takes the cells past it as prerequisites (dc-1mc8), so the legacy expectation for the anchor B1 is not kept."
+        },
+        {
+          "tests": [
+            "tests::averageif_uses_omitted_average_range_and_returns_div0_on_no_numeric_matches"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_5__criteria_semantics rows AVERAGEIF(C1:C16,\">12\") = 14.5 and AVERAGEIF(A1:A16,\"zzz\",B1:B16) = #DIV/0!"
+        },
+        {
+          "tests": [
+            "tests::averageif_top_left_anchors_reference_average_range_to_criteria_shape"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_5__mismatched_shapes rows AVERAGEIF(B3:B6,\"a\",A2:B5) = 4 (shaped inside the given reference) and AVERAGEIF(B3:B6,\"a\",A2), refused (dc-1mc8)",
+          "reason": "A shaped average_range that extends past the reference the formula gives is refused until dc-1mc8 makes its cells the formula's prerequisites; the legacy expectation of 4 for the anchor A2 is not kept."
+        },
+        {
+          "tests": [
+            "tests::averageifs_ignores_non_numeric_average_cells"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_5__criteria_semantics row AVERAGEIFS(B18:B20,A18:A20,\"k\") = 3"
+        },
+        {
+          "tests": [
+            "tests::averageifs_requires_exact_shape_and_does_not_anchor_average_range"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_5__mismatched_shapes row AVERAGEIFS(A2:A5,B3:B6,\"a\",C2:C3,\"x\") = #VALUE!"
+        },
+        {
+          "tests": [
+            "tests::ftc_0692_and_ftc_0693_direct_array_ranges_return_shaped_value_errors"
+          ],
+          "disposition": "dropped",
+          "carried_by": "cfunc_m3_5__criteria_semantics, through the call interface: an array range ends in ReferenceRequired naming it",
+          "reason": "An array range is refused; lifting is cfml-m3.4."
+        },
+        {
+          "tests": [
+            "tests::maxifs_and_minifs_return_extrema_or_zero_when_no_numeric_match_survives"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_5__criteria_semantics rows MAXIFS(B1:B16,A1:A16,\"a*\") = 32768, MINIFS(B1:B16,A1:A16,\"a*\") = 1 and MAXIFS(B1:B16,A1:A16,\"zzz\") = 0"
+        },
+        {
+          "tests": [
+            "tests::sumifs_and_extrema_family_require_exact_reference_shape"
+          ],
+          "disposition": "kept",
+          "carried_by": "cfunc_m3_5__mismatched_shapes rows SUMIFS(A2:A5,B3:B5,\"a\"), MAXIFS(A2:A5,B2:C6,\"a\") and MINIFS(A2:A5,B3:C4,\"a\"), each #VALUE!"
+        },
+        {
+          "tests": [
+            "tests::criteria_meta_shapes_match_family"
+          ],
+          "disposition": "changed",
+          "carried_by": "cfunc_m3_5__criteria_semantics's catalogue checks: family 7 holds the eight IDs, with their arity, parameter classes and signature help",
+          "reason": "Catalogue metadata replaces FunctionMeta."
+        }
+      ],
+      "semantic_changes": [
+        {
+          "change": "Numbers compare by calc_func's comparison rule, not by truncation to 15 significant digits: equal numbers are equal, two different numbers within a relative 1e-13 give an unknown verdict, and a call that verdict decides is refused (NotImplemented naming the range).",
+          "reason": "One comparison rule (honesty rule 5); Excel near-equality is owned by cdoc-jpha (the bead notes)."
+        },
+        {
+          "change": "Text compares by calc_func's text rule and patterns match ASCII text ignoring ASCII case; a pattern of * alone matches every text; beyond ASCII the verdict is unknown.",
+          "reason": "The bead notes: follow what calc_func's comparison does today and refuse where it refuses, rather than inventing a second collation (cdoc-jpha)."
+        },
+        {
+          "change": "A ~ resolves at parse: ~*, ~? and ~~ are the characters themselves, so a~*b matches the text a*b; a ~ before any other character, or at the end, is itself. The legacy kept the tilde in a criterion without an unescaped wildcard, so a~*b matched nothing.",
+          "reason": "The COUNTIF, SUMIF and COUNTIFS pages: a ~ before * or ? finds that character; the rest is unmeasured, and Excel 16.0's ad-hoc COM read of probe cells on this machine (round 3) agrees: a~b meets the text a~b and not ab, a~ meets a~ and not a."
+        },
+        {
+          "change": "A criterion operand is read by worksheet number coercion (plain decimal, at most 15 significant digits), and so is text in a range under = a number; text never meets <, <=, > or >= a number and always meets <> a number. Other text holding a digit is refused as a criterion and gives an unknown verdict as a range cell under = a number. The legacy read number text in the range under every operator.",
+          "reason": "Excel 16.0's ad-hoc COM reads of a scratch copy of the oracle workbook on this machine (refuter 1 of round 1, and this round): number text meets a number criterion under = only, never under an ordering, and always under <>. Labels such as 2016-17 Winter are dc-e00t's; Excel's locale number-text rules are cfml-m2.6's."
+        },
+        {
+          "change": "An empty cell given as the criterion is the number 0; the legacy matched blank cells.",
+          "reason": "The COUNTIFS, AVERAGEIF and MAXIFS pages: an empty criteria cell is treated as 0; the COUNTIF and SUMIF pages are silent, so their rows are unmeasured choices."
+        },
+        {
+          "change": "\"\" matches blank cells and empty text, \"=\" blank cells only, \"<>\" every cell but a blank one; the legacy matched blank cells and empty text for both \"\" and \"=\".",
+          "reason": "Unmeasured choice; the oracle workbook holds the rows for a capture."
+        },
+        {
+          "change": "<> with an operand holds wherever = does not: blank cells, and cells of another kind than the operand, meet it. The legacy failed every cell of another kind.",
+          "reason": "Unmeasured choice; the oracle workbook holds the rows for a capture."
+        },
+        {
+          "change": "Text naming an error literal (#NULL!, #DIV/0!, #VALUE!, #REF!, #NAME?, #NUM!, #N/A) asks for cells holding that error under = and <>, and under <, <=, > and >= compares errors only, ordered as ERROR.TYPE numbers them; an error value given as the criterion asks for cells holding that error; the newer literals are refused. The legacy read the text as text and returned an error criterion as the result.",
+          "reason": "Unmeasured choice; Excel 16.0's ad-hoc COM reads on this machine (round 3) agree: COUNTIF over a #VALUE! cell with \"#VALUE!\" or #VALUE! is 1, COUNTIF(A1:A16,#N/A) and SUMIF(A1:A16,#N/A,B1:B16) count A12, and #DIV/0! meets <#N/A and <=#DIV/0! but not >=#N/A, <#DIV/0! or >#DIV/0!. The SUMIF page says only that matching the string #VALUE! gives incorrect results."
+        },
+        {
+          "change": "A text cell spelling TRUE or FALSE under a logical criterion has an unknown verdict, and an ordering against a logical compares logicals, FALSE below TRUE; the legacy read such text as a logical and ordered logicals.",
+          "reason": "Unmeasured; no page settles it. Excel 16.0's ad-hoc COM reads (round 3) agree on the ordering: FALSE meets <TRUE, TRUE meets <=TRUE and >FALSE, and no cell of A1:A16 meets <TRUE or <FALSE."
+        },
+        {
+          "change": "An omitted criterion is 0, as an empty cell given as the criterion is; the legacy returned #VALUE!.",
+          "reason": "Unmeasured choice; Excel 16.0's ad-hoc COM reads (round 3) agree: SUMIF(A1:A16,,B1:B16) = 16384, the row of the 0, and COUNTIF(A1:A16,) = COUNTIFS(A1:A16,) = 1."
+        },
+        {
+          "change": "A range that is not a reference ends in ReferenceRequired; the legacy flattened arrays, and MAXIFS and MINIFS returned an array of #VALUE!.",
+          "reason": "Excel takes references there; lifting is cfml-m3.4."
+        },
+        {
+          "change": "An argument count that does not form pairs is FunctionFault::ArityMismatch; the legacy returned #VALUE!.",
+          "reason": "Admission belongs to the call interface (cfunc-m1.1); the catalogue arity has no pair form, so the kernel reports it with the same fault."
+        },
+        {
+          "change": "SUMIF's and AVERAGEIF's third argument is always taken from its top-left cell over the range's size, computed on GridArea, when that shaped range lies inside the reference the formula gives; one that extends past it, past the sheet's edge included, is refused. The legacy kept a third range of the same shape, otherwise re-resolved its A1 text, and returned #REF! past the edge.",
+          "reason": "The SUMIF and AVERAGEIF pages (top-left cell). The refusal keeps a stale value from being published as calculated on the engine route until dc-1mc8 makes the cells past the given reference the formula's prerequisites."
+        },
+        {
+          "change": "The *IFS shapes are compared before any criterion or cell is read; the legacy read every range first.",
+          "reason": "Unmeasured order; it also keeps a mismatched call from reading cells."
+        },
+        {
+          "change": "Ranges are read sparsely through CellReader, one verdict per visited cell, and the blank rows of all ranges are counted at once; the legacy materialized every cell of every range.",
+          "reason": "The bead notes: a whole-column criteria range costs what the reader visits, as cfunc-m3.4 does."
+        },
+        {
+          "change": "Sums and averages fold through Site::add and Site::divide, each an arithmetic site under the call's NumericMode (ExactUnavailable under Exact); an overflowing total is #NUM!, a zero is +0 and a subnormal result is refused. The legacy added f64 directly.",
+          "reason": "NumericMode reaches every arithmetic site (plan 5); the number rule of cfunc-m1.2."
+        },
+        {
+          "change": "A criterion longer than 255 characters, operator and escapes included, is #VALUE!; a text cell longer than 255 characters has an unknown verdict under a text criterion or a pattern.",
+          "reason": "The COUNTIF and SUMIF pages say matching strings longer than 255 characters gives incorrect results; Excel 16.0's ad-hoc COM reads (round 3) give #VALUE! for REPT(\"a\",256), for \"<>\" joined to 254 or 255 characters, \"=\" or \"<\" joined to 255 and \">=\" joined to 254, for REPT(\"a\",255)&\"*\", for REPT(\"~*\",128) and for a criterion cell holding 256 characters, and compute \"<>\" joined to 253 characters and REPT(\"a\",255)."
+        },
+        {
+          "change": "A reference of several areas given as a range is refused.",
+          "reason": "Excel's result is not modelled; owned by dc-gdii (refuter 1's ad-hoc read of round 1: SUMIF((B3:B4,B6),\"a\") = #VALUE!)."
+        },
+        {
+          "change": "<, <=, > or >= with no operand meets no cell, as the legacy's blank operand did under an ordering; it is no longer refused.",
+          "reason": "Unmeasured choice; Excel 16.0's ad-hoc COM reads (round 3) give 0 for each of the four over A1:A16, which holds empty text and a blank cell."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/xmatch.rs",
+      "blob": "16ff04d92c19cf0e1b635fc1b827fb22d958545c",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/xmatch.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-functions-xmatch-rs.log (exit in lookup-functions-xmatch-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) for wildcard_match only, which calls neither listed module; the rest of the file is XMATCH's and is not read for behaviour. Ported against clean replacements of coercion.rs and adapters.rs as for criteria_family.rs.",
+      "ported": [
+        "wildcard_match: the matcher that returns to the last * on a mismatch, as wildcard in crates/calc-func/src/catalogue/conditional.rs, over pattern tokens whose escapes are resolved when the criterion is read, ASCII case ignored"
+      ],
+      "not_ported": [
+        {
+          "items": [
+            "text equality, ordering and wildcard matching under Unicode to_lowercase (compare_texts in criteria_family.rs, wildcard_match in xmatch.rs)"
+          ],
+          "reason": "Criteria text compares by the comparison operators' text rule (identical code units, or ASCII ignoring ASCII case; ordering on ASCII letters and digits only) and patterns match ASCII text ignoring ASCII case; anything beyond needs Excel's collation, so that cell's verdict is unknown and a call it decides is refused.",
+          "beads": [
+            "cdoc-jpha"
+          ],
+          "basis": "collation (descriptions: cdoc-jpha; notes: cfml-m1.3 and cfunc-m3.5 cite it)"
+        },
+        {
+          "items": [
+            "XMATCH's comparables, search modes and match modes, and the file's tests (eval_xmatch_adapter_prepared_*), which test XMATCH"
+          ],
+          "reason": "Another family: this bead ports the conditional aggregates only.",
+          "beads": [],
+          "basis": "No search: the Do names the family and forbids copying other families."
+        }
+      ],
+      "semantic_witnesses": [],
+      "semantic_changes": [
+        {
+          "change": "A ~ is resolved into a literal unit when the criterion is read, instead of being matched as a pattern character; a pattern beyond ASCII is unknown, not matched under Unicode to_lowercase.",
+          "reason": "The pages' escape rule; cdoc-jpha owns collation."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/excel_numeric_compare.rs",
+      "blob": "ba06812145c9c0e1d19e5cb79bbc71d70e9aa249",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/excel_numeric_compare.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-functions-excel_numeric_compare-rs.log (exit in lookup-functions-excel_numeric_compare-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0). Nothing of it is ported: calc_func compares numbers by one rule, the comparison operators', and nearly equal numbers are cdoc-jpha's.",
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "compare_excel_numbers (excel_numeric_compare.rs): numbers compared after truncation to 15 significant digits, so 0.1+0.2 equals 0.3 under COUNTIF"
+          ],
+          "reason": "calc_func has one comparison rule, the comparison operators' (crates/calc-func/src/catalogue/comparison.rs, numbers), which refuses two different numbers within a relative 1e-13; the criteria matcher calls it, so such a cell's verdict is unknown and a call it decides is refused. Excel's rule for nearly equal numbers comes from cdoc-jpha's capture.",
+          "beads": [
+            "cdoc-jpha"
+          ],
+          "basis": "nearly equal, near-equal (descriptions: cdoc-jpha; dc-r4ci owns the near-zero adjustment of + and -, not comparison; notes: cdoc-jpha, cfunc-m3.22, which routes the Exact refusal)"
+        }
+      ],
+      "semantic_witnesses": [
+        {
+          "tests": [
+            "tests::excel_numeric_compare_matches_observed_near_equal_lanes",
+            "tests::excel_numeric_compare_preserves_order_when_values_are_not_near_equal",
+            "tests::excel_numeric_compare_matches_arithmetic_generated_boundary_pairs"
+          ],
+          "disposition": "dropped",
+          "carried_by": "none: the rule is not ported (cdoc-jpha)",
+          "reason": "The truncation rule is not ported."
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/a1_refs.rs",
+      "blob": "7b0efabe855e34ce57fac4e9fd71aed726726cc8",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/a1_refs.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-functions-a1_refs-rs.log (exit in lookup-functions-a1_refs-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 0, but nothing of it is needed): criteria_family.rs uses it to re-resolve a reference's A1 text when anchoring, and calc-func shapes the third argument on calc-value's GridArea.",
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "ReferenceSystemProvider, enumerate_reference_values, materialize_resolved_reference_values and resolve_eval_value (resolver.rs), and the A1-text anchoring of try_anchor_reference_to_shape through a1_refs.rs"
+          ],
+          "reason": "A kernel reads a reference only through calc_func::CellReader, which visits the held cells of each area; resolving names, tables and other reference forms to grid areas is calc-fml's before the call. The top-left shaping is computed on calc-value's GridArea, inside the reference the formula gives; a shaped range past it is refused until dc-1mc8.",
+          "beads": [
+            "cfml-m3.1",
+            "cfml-m3.2",
+            "cfml-m3.3",
+            "cfml-m3.5"
+          ],
+          "basis": "ReferenceSystemProvider (descriptions: cfml-m1.2 (closed), cfml-m3.1, cfml-m3.2, cfml-m3.3, cfml-m3.5, cfml-m4.1, cfml-m4.2; the cfml-m4 hits transform references and resolve none)"
+        }
+      ],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function.rs",
+      "blob": "9acb95927fe737f54d8dfbb17047b8c4ad9195ff",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-function-rs.log (exit in lookup-function-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 0, but nothing of it is needed): FunctionMeta is not ported (cfunc-m3.22, cfunc-m3.25).",
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes (CRITERIA_BASE_META and its eight instances)"
+          ],
+          "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+          "beads": [
+            "cfunc-m3.22",
+            "cfunc-m3.25"
+          ],
+          "basis": "FunctionMeta (descriptions: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta; the hits cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2 and onecalc-m6.1 cite it for lazy forms, the first catalogue, coercions, tolerances and fixture persistence)"
+        }
+      ],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/resolver.rs",
+      "blob": "d2655033b69a1cb01d419ea91c9343e12ec024b1",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/resolver.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-resolver-rs.log (exit in lookup-resolver-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 0, but nothing of it is needed): kernels read references through calc_func::CellReader.",
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "ReferenceSystemProvider, enumerate_reference_values, materialize_resolved_reference_values and resolve_eval_value (resolver.rs), and the A1-text anchoring of try_anchor_reference_to_shape through a1_refs.rs"
+          ],
+          "reason": "A kernel reads a reference only through calc_func::CellReader, which visits the held cells of each area; resolving names, tables and other reference forms to grid areas is calc-fml's before the call. The top-left shaping is computed on calc-value's GridArea, inside the reference the formula gives; a shaped range past it is refused until dc-1mc8.",
+          "beads": [
+            "cfml-m3.1",
+            "cfml-m3.2",
+            "cfml-m3.3",
+            "cfml-m3.5"
+          ],
+          "basis": "ReferenceSystemProvider (descriptions: cfml-m1.2 (closed), cfml-m3.1, cfml-m3.2, cfml-m3.3, cfml-m3.5, cfml-m4.1, cfml-m4.2; the cfml-m4 hits transform references and resolve none)"
+        }
+      ],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/value.rs",
+      "blob": "0a906bde8fb869b3dbd2148ac8af6dc998f546ce",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/value.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-value-rs.log (exit in lookup-value-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (admitted)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 0, but nothing of it is needed): calc-value is the value model (cfunc-m0.1).",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/coercion.rs",
+      "blob": "3b3d42dc3aa83ddfbca7945ef9abd76234e4ead2",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/coercion.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-coercion-rs.log (exit in lookup-coercion-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion_decimal.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5). Replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh).",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/adapters.rs",
+      "blob": "09ce48dfbcea33cc597226ec02ce4aecbee7ab50",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/adapters.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-functions-adapters-rs.log (exit in lookup-functions-adapters-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/numeric_text.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5). Replaced by criterion and read_range in crates/calc-func/src/catalogue/conditional.rs (the criterion read through CellReader), written fresh.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/conditional_common.rs",
+      "blob": "83cdc0c7ac55f6dbdb4273b041b72780776ad3ce",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/conditional_common.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-functions-conditional_common-rs.log (exit in lookup-functions-conditional_common-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/w111_conditional_live_replay.rs",
+      "blob": "d01f9e85760be50894a06b4bc984e9004333d8fc",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/w111_conditional_live_replay.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-tests-w111_conditional_live_replay-rs.log (exit in lookup-tests-w111_conditional_live_replay-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit, include-of-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5). Nothing of it is ported; its included captures were looked up as well (exit 5 each, below) and not read, so no value of them reaches a row.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "docs/function-lane/evidence/w111-broad-20260929/conditional/discovery-excel.jsonl",
+      "blob": "96833faeb04b4252bb38191acbef0bd0340902a5",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/docs/function-lane/evidence/w111-broad-20260929/conditional/discovery-excel.jsonl",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-evidence-conditional-discovery-excel-jsonl.log (exit in lookup-evidence-conditional-discovery-excel-jsonl.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (w111-broad-evidence, tainted-commit)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 5). No row takes a value from it.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "docs/function-lane/evidence/w111-broad-20260929/conditional/heldout-excel.jsonl",
+      "blob": "844f9dd5f862b93c5156e352594a29828ebf1a3f",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/docs/function-lane/evidence/w111-broad-20260929/conditional/heldout-excel.jsonl",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-evidence-conditional-heldout-excel-jsonl.log (exit in lookup-evidence-conditional-heldout-excel-jsonl.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (w111-broad-evidence, tainted-commit)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 5). No row takes a value from it.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "docs/function-lane/evidence/w111-broad-20260929/conditional/heldout2-excel.jsonl",
+      "blob": "8ba3fead57123d236a9af3d07386408a333521ff",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/docs/function-lane/evidence/w111-broad-20260929/conditional/heldout2-excel.jsonl",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-evidence-conditional-heldout2-excel-jsonl.log (exit in lookup-evidence-conditional-heldout2-excel-jsonl.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (w111-broad-evidence, tainted-commit)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 5). No row takes a value from it.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "docs/function-lane/evidence/w111-broad-20260929/conditional/shape-excel.jsonl",
+      "blob": "4941bd3112f48e346e3f03a37ba96f2fd14aa015",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/docs/function-lane/evidence/w111-broad-20260929/conditional/shape-excel.jsonl",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.5/lookups/lookup-evidence-conditional-shape-excel-jsonl.log (exit in lookup-evidence-conditional-shape-excel-jsonl.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (w111-broad-evidence, tainted-commit)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 5). No row takes a value from it.",
+      "ported": [],
+      "not_ported": [],
+      "semantic_witnesses": []
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "a range of several areas (a union reference) given to any of the eight functions"
+      ],
+      "reason": "Refused with NotImplemented naming the argument: Excel's result is not modelled.",
+      "beads": [
+        "dc-gdii"
+      ],
+      "basis": "multi-area (descriptions: dc-gdii; cdoc-m5.2 models conditional-format anchors and dnacalc-m6.2 selects ranges in the UI; notes: cfunc-m0.1, closed, defines the reference value), several areas (descriptions: dc-gdii, and dc-4eid, which computes SUMPRODUCT and COUNTBLANK only; notes: cfunc-m3.4) and union reference (dc-4eid)."
+    },
+    {
+      "items": [
+        "SUMIF's and AVERAGEIF's third argument shaped from its top-left cell to the range's size where the shaped range extends past the reference the formula gives (SUMIF(B3:B6,\"a\",A2), SUMIF(B:B,\"a\",A1), and every shaped range that would pass the sheet's last row or column)"
+      ],
+      "reason": "Refused with NotImplemented naming argument 2: the cells past the given reference are not among the formula's references, so calc_engine, which takes a formula's prerequisites from the references it places, would not recalculate the formula when they change and would republish a stale value as calculated. A shaped range inside the given reference computes. Excel's ad-hoc read of round 3 gives 7 for SUMIF(B3:B6,\"a\",A1048575) and for SUMIF(B3:B6,\"a\",A1048575:A1048576), as if the shaped range were cut at the last row.",
+      "beads": [
+        "dc-1mc8"
+      ],
+      "basis": "shaped and sum range (descriptions: dc-1mc8; notes: cfunc-m3.5, and infra-m1.2, whose hit is about its own capture records); prerequisite hits most of the tracker and names no other bead for this shaping."
+    },
+    {
+      "items": [
+        "the _xlfn. prefix that a file writes before MAXIFS and MINIFS"
+      ],
+      "reason": "The catalogue carries no file-prefix metadata; the oracle workbook generator and the acceptance check write the prefix for these two functions themselves (crates/calc-func/tests/fixtures/make-fixtures.ps1, Get-Stored; crates/calc-func/tests/acceptance.rs, stored_formula). Adding it on save and stripping it on load from catalogue metadata is dc-552j.",
+      "beads": [
+        "dc-552j"
+      ],
+      "basis": "_xlfn (descriptions and notes: dc-552j)"
+    },
+    {
+      "items": [
+        "an array given as a range (flattened by flatten_arg; MAXIFS and MINIFS returned an array of #VALUE! of its shape, extrema_ifs_direct_array_value_error), and an array or a reference of several cells given as a criterion, over which Excel lifts the function"
+      ],
+      "reason": "A range is a reference: an array there ends in ReferenceRequired (at admission for a declared reference parameter, by the kernel for a criteria range past the declared ones); an array criterion and a criterion reference of several cells are refused as not modelled. Lifting a function over an array is array evaluation.",
+      "beads": [
+        "cfml-m3.4"
+      ],
+      "basis": "array lifting (notes: dc-ibp2 cites cfml-m3.4 for it); lift has no other hit that does the work (dc-8abf is the deferred scope epic, dc-ime9 is provenance, dc-1mc8 lifts a refusal of this bead); cfml-m3.4 (Preserve array evaluation and legacy array contexts) is the bead cfunc-m3.2 and cfunc-m3.4 name for array lifting"
+    },
+    {
+      "items": [
+        "parse_excel_number: a criterion operand or a range cell read as a number by Rust f64 parsing of its trimmed text"
+      ],
+      "reason": "Criterion operands, and range text under = a number, are read by worksheet number coercion (crates/calc-func/src/coerce.rs): the plain decimal form with at most 15 significant digits. Other text holding a digit is refused, because Excel may read it as a number: a label such as Q1 or 2016-17 Winter waits on the certain not-a-number verdict (dc-e00t), and a date, a fraction, a currency amount, grouped digits or a percentage on Excel's locale number-text rules (cfml-m2.6). A criterion built \"op\"&cell over a number also needs & to give the number's text (dc-q9rb).",
+      "beads": [
+        "dc-e00t",
+        "dc-q9rb",
+        "cfml-m2.6"
+      ],
+      "basis": "NumberTextService and value-parsing (descriptions: cfml-m2.6), number-text and digit-bearing (descriptions: dc-e00t), number's text (descriptions: dc-q9rb)."
+    },
+    {
+      "items": [
+        "compare_excel_numbers (excel_numeric_compare.rs): numbers compared after truncation to 15 significant digits, so 0.1+0.2 equals 0.3 under COUNTIF"
+      ],
+      "reason": "calc_func has one comparison rule, the comparison operators' (crates/calc-func/src/catalogue/comparison.rs, numbers), which refuses two different numbers within a relative 1e-13; the criteria matcher calls it, so such a cell's verdict is unknown and a call it decides is refused. Excel's rule for nearly equal numbers comes from cdoc-jpha's capture.",
+      "beads": [
+        "cdoc-jpha"
+      ],
+      "basis": "nearly equal, near-equal (descriptions: cdoc-jpha; dc-r4ci owns the near-zero adjustment of + and -, not comparison; notes: cdoc-jpha, cfunc-m3.22, which routes the Exact refusal)"
+    },
+    {
+      "items": [
+        "text equality, ordering and wildcard matching under Unicode to_lowercase (compare_texts in criteria_family.rs, wildcard_match in xmatch.rs)"
+      ],
+      "reason": "Criteria text compares by the comparison operators' text rule (identical code units, or ASCII ignoring ASCII case; ordering on ASCII letters and digits only) and patterns match ASCII text ignoring ASCII case; anything beyond needs Excel's collation, so that cell's verdict is unknown and a call it decides is refused.",
+      "beads": [
+        "cdoc-jpha"
+      ],
+      "basis": "collation (descriptions: cdoc-jpha; notes: cfml-m1.3 and cfunc-m3.5 cite it)"
+    }
+  ],
+  "functions_evidence": "Per-ID manifest of the 8 IDs: what each implements, where its rule departs from Microsoft's page for it (divergent), and what it refuses (unsupported). '(documented)' marks a rule the page states and '(unmeasured)' one no page settles. No entry has been compared with Excel through calc_verdict: cfunc_m3_5__excel_comparison judges every row of the two cfunc_m3_5 cases in crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx once `cargo xtask capture` writes crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json, and is not_run with MissingCapture until then, so no parity is claimed. Excel 16.0 (build 20430) on this machine was read ad hoc by COM on a scratch copy of that workbook on 2026-10-21 (not a capture): every computed row of both cases agrees with that read (round 3: 117 computed rows, 0 differing), and the rows that cite it, or the probe cells read with it, say so. The documented rules are those of Microsoft's support pages, read on 2026-10-21: COUNTIF (e0de10c6-f885-4e71-abb4-1f464816df34), COUNTIFS (dda3dc6e-f74e-4aee-88bc-aa8c2a866842), SUMIF (169b8c99-c05c-4483-a712-1697a653039b), SUMIFS (c9e748f5-7ea7-455d-9406-611cebce642b), AVERAGEIF (faec8e2e-0dec-4308-af69-f5576d8ac642), AVERAGEIFS (48910c45-1fc0-4389-a028-f7c5c3001690), MAXIFS (dfd611e6-da2c-488a-919b-9b6376b28883) and MINIFS (6ca1ddaa-079b-4e74-80cc-72eef32e6599), each at https://support.microsoft.com/en-us/office/<name>-function-<id>.",
+  "functions": [
+    {"id": "7.1", "spelling": "COUNTIF",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (unmeasured choice: the COUNTIFS, AVERAGEIF, MAXIFS and MINIFS pages state it for those functions, this function's page is silent), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "the count of the range's cells that meet the criterion; counting computes under NumericMode::Exact unless it compares two different numbers or reads number text"],
+     "divergent": [],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)"]},
+    {"id": "7.2", "spelling": "COUNTIFS",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (documented), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "every range of the *IFS call has the first range's size and shape; positions align by row-major offset, not by row (documented: the COUNTIFS, SUMIFS, AVERAGEIFS, MAXIFS and MINIFS pages); otherwise #VALUE! (documented for MAXIFS and MINIFS, unmeasured for the others), decided before any criterion or cell is read (unmeasured)", "the count of positions where every range's cell meets its criterion (documented)"],
+     "divergent": ["signature help renders the repeating pair as two optional parameters, [criteria_range2], [criteria2], ..., and the catalogue repeats only the last parameter's class, so a criteria range past the declared ones is a value-or-reference parameter checked by the kernel; Excel shows [criteria_range2, criteria2], ... (metadata form only; a repeating-pair arity is dc-6607's)"],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)", "an argument count that does not form pairs, which the declared arity admits: ArityMismatch from the kernel (Excel admits no such formula; owned by dc-6607)"]},
+    {"id": "7.3", "spelling": "SUMIF",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (unmeasured choice: the COUNTIFS, AVERAGEIF, MAXIFS and MINIFS pages state it for those functions, this function's page is silent), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "the third argument used from its top-left cell over the range's size when that shaped range lies inside the reference given, the range itself when omitted (documented)", "numbers in the matched rows of the target; text, logicals and blank cells skipped (unmeasured); the first error in a matched row, row-major, is the result (unmeasured)", "sequential left fold from 0 in row-major order, each addition an arithmetic site; an overflowing total is #NUM!"],
+     "divergent": [],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)", "a third argument whose shaped range extends past the reference the formula gives, past the sheet's last row or column included: refused until the engine takes the cells past it as the formula's prerequisites (owned by dc-1mc8)", "a third argument that is a reference of several areas (owned by dc-gdii)", "under NumericMode::Exact, a call that adds (ExactUnavailable)"]},
+    {"id": "7.4", "spelling": "SUMIFS",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (unmeasured choice: the COUNTIFS, AVERAGEIF, MAXIFS and MINIFS pages state it for those functions, this function's page is silent), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "every range of the *IFS call has the first range's size and shape; positions align by row-major offset, not by row (documented: the COUNTIFS, SUMIFS, AVERAGEIFS, MAXIFS and MINIFS pages); otherwise #VALUE! (documented for MAXIFS and MINIFS, unmeasured for the others), decided before any criterion or cell is read (unmeasured)", "numbers in the matched rows of the target; text, logicals and blank cells skipped (unmeasured); the first error in a matched row, row-major, is the result (unmeasured)", "sequential left fold from 0 in row-major order, each addition an arithmetic site; an overflowing total is #NUM!"],
+     "divergent": ["TRUE and FALSE in sum_range are skipped; the SUMIFS page says TRUE evaluates to 1 and FALSE to 0 (unmeasured; row SUMIFS(B18:B20,A18:A20,\"k\") = 3 of cfunc_m3_5__criteria_semantics, where the page gives 4)", "signature help renders the repeating pair as two optional parameters, [criteria_range2], [criteria2], ..., and the catalogue repeats only the last parameter's class, so a criteria range past the declared ones is a value-or-reference parameter checked by the kernel; Excel shows [criteria_range2, criteria2], ... (metadata form only; a repeating-pair arity is dc-6607's)"],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)", "an argument count that does not form pairs, which the declared arity admits: ArityMismatch from the kernel (Excel admits no such formula; owned by dc-6607)", "under NumericMode::Exact, a call that adds (ExactUnavailable)"]},
+    {"id": "7.5", "spelling": "AVERAGEIF",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (documented), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "the third argument used from its top-left cell over the range's size when that shaped range lies inside the reference given, the range itself when omitted (documented)", "numbers in the matched rows of the target; text, logicals and blank cells skipped (unmeasured); the first error in a matched row, row-major, is the result (unmeasured)", "the matched numbers added from 0 and divided once by their count; #DIV/0! when none (documented)"],
+     "divergent": ["a logical cell of the range meets a logical criterion and any <> criterion, as it does in COUNTIF and SUMIF; the AVERAGEIF page says cells in range that contain TRUE or FALSE are ignored (unmeasured choice; rows AVERAGEIF(A1:A16,TRUE,B1:B16) = 64 and AVERAGEIF(A1:A16,\"<>apple\",B1:B16) = 32766/14 of cfunc_m3_5__criteria_semantics, where the page gives #DIV/0! and 32702/13; Excel 16.0's ad-hoc COM read of a scratch copy gave 64 and 2340.4285714285716)"],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)", "a third argument whose shaped range extends past the reference the formula gives, past the sheet's last row or column included: refused until the engine takes the cells past it as the formula's prerequisites (owned by dc-1mc8)", "a third argument that is a reference of several areas (owned by dc-gdii)", "under NumericMode::Exact, a call that adds or divides (ExactUnavailable)"]},
+    {"id": "7.6", "spelling": "AVERAGEIFS",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (unmeasured choice: the COUNTIFS, AVERAGEIF, MAXIFS and MINIFS pages state it for those functions, this function's page is silent), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "every range of the *IFS call has the first range's size and shape; positions align by row-major offset, not by row (documented: the COUNTIFS, SUMIFS, AVERAGEIFS, MAXIFS and MINIFS pages); otherwise #VALUE! (documented for MAXIFS and MINIFS, unmeasured for the others), decided before any criterion or cell is read (unmeasured)", "numbers in the matched rows of the target; text, logicals and blank cells skipped (unmeasured); the first error in a matched row, row-major, is the result (unmeasured)", "the matched numbers added from 0 and divided once by their count; #DIV/0! when none (documented)"],
+     "divergent": ["TRUE and FALSE in average_range are skipped; the AVERAGEIFS page says TRUE evaluates as 1 and FALSE as 0 (unmeasured; row AVERAGEIFS(B18:B20,A18:A20,\"k\") = 3, where the page gives 2)", "a blank cell of a criteria range meets only blank criteria and <> criteria; the AVERAGEIFS page says an empty criteria-range cell is treated as 0 (unmeasured; row AVERAGEIFS(C1:C16,A1:A16,\"<1\") = 15, where the page gives 11.5)", "signature help renders the repeating pair as two optional parameters, [criteria_range2], [criteria2], ..., and the catalogue repeats only the last parameter's class, so a criteria range past the declared ones is a value-or-reference parameter checked by the kernel; Excel shows [criteria_range2, criteria2], ... (metadata form only; a repeating-pair arity is dc-6607's)"],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)", "an argument count that does not form pairs, which the declared arity admits: ArityMismatch from the kernel (Excel admits no such formula; owned by dc-6607)", "under NumericMode::Exact, a call that adds or divides (ExactUnavailable)"]},
+    {"id": "7.7", "spelling": "MAXIFS",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (documented), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "every range of the *IFS call has the first range's size and shape; positions align by row-major offset, not by row (documented: the COUNTIFS, SUMIFS, AVERAGEIFS, MAXIFS and MINIFS pages); otherwise #VALUE! (documented for MAXIFS and MINIFS, unmeasured for the others), decided before any criterion or cell is read (unmeasured)", "numbers in the matched rows of the target; text, logicals and blank cells skipped (unmeasured); the first error in a matched row, row-major, is the result (unmeasured)", "the largest matched number, 0 when none (documented); choosing needs no rounding"],
+     "divergent": ["signature help renders the repeating pair as two optional parameters, [criteria_range2], [criteria2], ..., and the catalogue repeats only the last parameter's class, so a criteria range past the declared ones is a value-or-reference parameter checked by the kernel; Excel shows [criteria_range2, criteria2], ... (metadata form only; a repeating-pair arity is dc-6607's)", "the catalogue admits 3 to 255 arguments, the target range and up to 127 range/criteria pairs; the MAXIFS page says up to 126 pairs, 253 arguments (unmeasured: a capture of a call with 127 pairs settles it)"],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)", "an argument count that does not form pairs, which the declared arity admits: ArityMismatch from the kernel (Excel admits no such formula; owned by dc-6607)", "the _xlfn. file prefix is not catalogue metadata yet (dc-552j)"]},
+    {"id": "7.8", "spelling": "MINIFS",
+     "implemented": ["the criteria language of crates/calc-func/src/catalogue/conditional.rs: operators =, <>, <, >, <=, >= (documented), * and ? patterns and the ~ escape (documented), a ~ before any other character or at the end is itself (unmeasured; Excel 16.0's ad-hoc COM reads on this machine agree), case ignored (documented), an empty cell given as the criterion is 0 (documented), an omitted criterion is 0 (unmeasured; the ad-hoc reads agree), number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number (unmeasured; the ad-hoc reads agree), \"\" for blank cells and empty text, = for blank cells, <> for every non-blank cell, and <, <=, > or >= alone for no cell (unmeasured; the ad-hoc reads agree for the last), error literals #NULL! to #N/A and an error value given as the criterion asking for that error, with errors ordered as ERROR.TYPE numbers them under <, <=, > and >= (unmeasured; the ad-hoc reads agree for #DIV/0! below #N/A and for #VALUE!), an ordering against a logical comparing logicals, FALSE below TRUE (unmeasured; the ad-hoc reads agree), a criterion longer than 255 characters, operator included, is #VALUE! (unmeasured: the COUNTIF and SUMIF pages say only that it gives incorrect results; the ad-hoc reads agree), <> holding wherever = does not (unmeasured)", "ranges read through CellReader, one verdict per visited cell; blank rows take the criterion's verdict on a blank, so a whole column costs what the reader visits", "every range of the *IFS call has the first range's size and shape; positions align by row-major offset, not by row (documented: the COUNTIFS, SUMIFS, AVERAGEIFS, MAXIFS and MINIFS pages); otherwise #VALUE! (documented for MAXIFS and MINIFS, unmeasured for the others), decided before any criterion or cell is read (unmeasured)", "numbers in the matched rows of the target; text, logicals and blank cells skipped (unmeasured); the first error in a matched row, row-major, is the result (unmeasured)", "the smallest matched number, 0 when none (documented); choosing needs no rounding"],
+     "divergent": ["signature help renders the repeating pair as two optional parameters, [criteria_range2], [criteria2], ..., and the catalogue repeats only the last parameter's class, so a criteria range past the declared ones is a value-or-reference parameter checked by the kernel; Excel shows [criteria_range2, criteria2], ... (metadata form only; a repeating-pair arity is dc-6607's)", "the catalogue admits 3 to 255 arguments, the target range and up to 127 range/criteria pairs; the MINIFS page says up to 126 pairs, 253 arguments (unmeasured: a capture of a call with 127 pairs settles it)"],
+     "unsupported": ["a range that is not a reference: ReferenceRequired naming it (at admission for a declared reference parameter, by the kernel past them)", "a reference of several areas given as a range (owned by dc-gdii)", "an array criterion, or a criterion reference of several cells, over which Excel lifts the function; owned by cfml-m3.4", "a NaN criterion, which no formula writes (orchestrator ruling 2026-10-21: refused defensively with no owning bead, since no value Excel or calc_func produces is NaN)", "an error literal Excel added after #N/A (#SPILL!, #CALC!, #FIELD! and the others) written in a criterion, and a cell holding such an error under an ordering against an error literal, whose order is unmeasured (owned by dc-nd1b)", "a criterion operand holding a digit outside the plain decimal form: a label such as Q1 or 2016-17 Winter, which is how a criterion built \"=\"&cell over such a label arrives (owned by dc-e00t), or a date, a fraction or another form Excel's number-text rules may read (owned by cfml-m2.6); a criterion built \"op\"&cell over a number never reaches the call, because calc_func's & refuses a number's text (owned by dc-q9rb)", "a call decided by an unknown verdict: two different numbers within a relative 1e-13, text compared beyond the comparison operators' modelled rule, a pattern on text beyond ASCII, a text cell longer than 255 characters under a text criterion, a text cell holding a digit outside the plain decimal form under = a number (such as the label 2016-17 Winter under =2016), a text cell spelling TRUE or FALSE under a logical criterion; owned by cdoc-jpha, dc-e00t and cfml-m2.6; and a text cell spelling the criterion's error literal, or any error literal under an ordering against one (owned by dc-nd1b)", "a NaN, infinite or subnormal number in a range (subnormal and non-finite numbers are owned by cfunc-m3.23; NaN by the orchestrator ruling above)", "an argument count that does not form pairs, which the declared arity admits: ArityMismatch from the kernel (Excel admits no such formula; owned by dc-6607)", "the _xlfn. file prefix is not catalogue metadata yet (dc-552j)"]}
+  ]
+}
