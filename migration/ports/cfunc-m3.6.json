@@ -1,0 +1,1382 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "cfunc-m3.6",
+  "written": "2026-10-21",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), both case-insensitive substrings, on 2026-10-21 over .beads/issues.jsonl of master commit d07a10100a91a5cd89462b77cfdde7cba349d00f: caller, regex, xlfn, lift, implicit, spill, publication, blank, shaped, collation, number-text, NumberTextService, INDIRECT, OFFSET, XLOOKUP, VLOOKUP, INDEX, FunctionMeta (transcript target/accept/cfunc-m3.6/owner-search.log; target/ is not committed). Each beads list below is the hits of the terms named in its basis. Round 2 (2026-10-21): the orchestrator created or widened the owners of three round-1 gaps (dc-ebla for the calling cell, dc-1mc8 widened to LOOKUP's read past its result reference, dc-l10u for the rows that stand in for calc_fml); 'br search BUSY -a --limit 0' over .beads/issues.jsonl of master 9adaa09 found dc-tt73 (producing #BLOCKED!, #CONNECT! and #BUSY! in Excel offline) and dc-nd1b (criteria over newer errors, conditional aggregates only). Round 3 (2026-10-21): 'br search structured -a --limit 0 --no-db' over .beads/issues.jsonl of master 0652250 found cfml-m3.2 (binding structured tables), the owner of the structured references in structured_table_reference_guardrails.rs.",
+  "semantic_witnesses": [
+    {
+      "witness": "Excel 16.0 build 20430 on the owner's Windows machine, driven ad hoc through COM on 2026-10-21 (a new Excel instance per run, closed after it; formulas entered as legacy formulas with Range.Formula, cells as constants)",
+      "what": "733 targeted formulas in six runs over the lookup family (documented examples, boundaries, argument errors and their order, kinds, wildcards, blank and omitted arguments, index truncation and overflow), and a sweep of 900 random lines of 1 to 24 cells of mixed kinds (numbers, text in two cases, logicals, #N/A, blank cells) with random lookup values, each against MATCH 1, -1 and 0, VLOOKUP TRUE, LOOKUP and 10 combinations of the match and search modes of XMATCH (13,500 results; a sixteenth formula of the second run, HLOOKUP over TRANSPOSE, gave #VALUE! in a legacy formula and is not used)",
+      "use": "the rules of crates/calc-func/src/catalogue/lookup.rs's module documentation (the bisection, the descending walk, XMATCH's order of every value and its linear and binary modes) and its kernels were written from these results: each function's documented and edge rows, and the 900 random lines against every approximate mode. No case rests on these results: the per-ID manifest cites, for each rule, the rows of the committed capture (the second witness) that show it. An ad hoc probe, which no case rests on either, ran the 900 sweep lines through calc_func::invoke: at lookup.rs blob b942f252344b40df3ea1d61f6eb26ec14191b492 in round 3 and at blob 84df57efa1beddb8fcc142351b48549d42b11a1e (git hash-object of the file round 4 leaves) in round 4, reproducing all 13,500 results, 900 for each of the 15 modes, each time (a program in the session's scratchpad over trials.txt; transcripts target/accept/cfunc-m3.6/round3/sweep-check.log and target/accept/cfunc-m3.6/round4/sweep-check.log, exit 0; neither the program nor the transcripts are committed or re-runnable from the repository). The round-1 read of the previous oracle workbook (sha256 5358f6bd7926a32ea51892994e5fd686830154d2c4a5d72082ed9f306f037c31) is superseded by the committed capture (the second witness).",
+      "retained": "not committed and not re-runnable from the repository: the probe generators, the COM scripts, Excel's values and the sweep lines are under target/accept/cfunc-m3.6/excel-ad-hoc/ (trials.txt, sha256 e1bfcbf63a22f79113f3cd5ff18896f36bce5b29202a9e7cb1f0f18661a29df6, holds the sweep lines with Excel's results). The committed evidence for the rules is the oracle workbook's rows and their capture (the second witness)."
+    },
+    {
+      "witness": "Excel 16.0.20430.20182 (Current channel) on the owner's Windows machine, through `cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx --case cfunc_m3_6__excel_comparison --out crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json` on 2026-10-21 in round 4 (exit 0; target/accept/cfunc-m3.6/round4/capture-1.log; 0 capture failures; one COM add-in, VS15ExcelAdaptor, connected during the capture, which the verdict counts and certifies no comparison against; dc-quhd owns capturing with none)",
+      "what": "the 596 formula cells of the two oracle sheets of crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx (sha256 caa237a0a87d04fd4036dee6e0ca1b84bdd285aa237ccc93d362503494ce0e8b; 64 rows on reference_result; 472 rows and 60 source formulas on lookup_edges), written by the committed generator crates/calc-func/tests/fixtures/make-fixtures.ps1",
+      "use": "cfunc_m3_6__excel_comparison judges the rows against it through calc_verdict::judge: the 385 rows calc_func::invoke calculates all match; 67 rows that stand in for calc_fml (a reference to one cell dereferenced by the test, or a nested call) are not modeled under dc-l10u; the 60 source formulas (FILTER, SEQUENCE and FIELDVALUE, which calc_func's catalogue does not have) are not modeled under cfunc-m3.16, cfml-m3.4 and cfunc-m3.19, and so are the 54 rows that read them, whose values are conditional on the errors the test sheet's reader holds for the sources; 30 rows are not modeled under other owners. For every row that states what Excel shows in its cell (a measured row, a conditional row, a row whose result Excel shows otherwise, a refused row with a statement), the case checks the statement against the capture, and for every source cell that the capture holds it as a dynamic-array formula whose raw value is the error the reader holds. Round 3 added the rows of the legacy tests' cases, the 56 ordered pairs of the eight errors a cell constant holds, the CHOOSE-of-a-value rows, the legacy-formula ROW and COLUMN rows and the rows behind the shape statements. Round 4 added the source formulas of P1:Q54 and the 54 rows over them (lookup_edges D377 to D430), so that the order of #SPILL!, #FIELD! and #CALC! is judged by this capture; three rows of the kind-first linear search (D431 to D433); and 51 rows behind the per-ID rules earlier rounds read ad hoc only (reference_result D53 to D64, lookup_edges D434 to D472).",
+      "retained": "crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json (committed)"
+    },
+    {
+      "witness": "Excel 16.0 build 20430 on the owner's Windows machine, driven ad hoc through COM on 2026-10-21 for round 2 (a new Excel instance per run, found by its window handle; only that process was stopped)",
+      "what": "the order after #N/A of #GETTING_DATA (a constant), #SPILL! (a blocked SEQUENCE), #FIELD! (FIELDVALUE of a number) and #CALC! (an empty FILTER): all 110 ordered pairs of 11 errors by XMATCH(TRUE,pair,1); XLOOKUP with a lookup array of one cell over return arrays of one row, one column and more; a blank cell as match_mode and search_mode; blank or omitted first arguments and lookup arrays of the 13 functions, with later argument errors; ROW and COLUMN of several rows, columns and areas, and of values that are not references through CHOOSE, in legacy and dynamic-array formulas; ISBLANK, ISREF, TYPE, ROWS and SUM of the results the shape rows assert; CHOOSE and IF over a final sum near zero; the cases of the legacy MATCH tests",
+      "use": "the round-2 kernel rules (the error order, XLOOKUP's one-cell lookup array, the blank and omitted arrays, #VALUE! for ROW, COLUMN and AREAS of a value) and the bases of the shape rows; round 3 turned them into oracle rows judged by the capture (the second witness), and round 4 the order of #SPILL!, #FIELD! and #CALC! (lookup_edges D377 to D430); no case rests on this witness",
+      "retained": "not committed; superseded by the capture"
+    },
+    {
+      "witness": "Excel 16.0 build 20430 on the owner's Windows machine, driven ad hoc through COM on 2026-10-21 for round 3 (a new Excel instance per run; only the process owning that instance's main window, found from Application.Hwnd, was stopped)",
+      "what": "(a) whether a workbook can hold each error as a cell constant: Excel opens a file whose cells hold #NULL!, #DIV/0!, #VALUE!, #REF!, #NAME?, #NUM!, #N/A or #GETTING_DATA as constants (ERROR.TYPE 1 to 8) and refuses to open one holding #SPILL!, #FIELD! or #CALC!, and refuses =#SPILL!, =#CALC! and =#FIELD! as formulas, while =#GETTING_DATA enters; (b) XMATCH(TRUE,pair,1) over all 110 ordered pairs of the eleven errors, each pair two cells referring to cells that hold them (a dynamic-array SEQUENCE(1,2) blocked by a filled cell for #SPILL!, FIELDVALUE(1,\"x\") for #FIELD!, an empty FILTER for #CALC!): every result is the position of the smaller error in the order #NULL!, #DIV/0!, #VALUE!, #REF!, #NAME?, #NUM!, #N/A, #GETTING_DATA, #SPILL!, #FIELD!, #CALC!; (c) TYPE of INDEX with a 0 index: in dynamic-array formulas TYPE(INDEX({5},0)), TYPE(INDEX({5},0,0)) and TYPE(INDEX({1,2;3,4},0,2)) are 64 and TYPE(INDEX(5,0)), TYPE(INDEX(5,0,0)) and TYPE(INDEX({1,2;3,4},1,1)) 1; in legacy formulas each is 1",
+      "use": "(a) decided which errors the oracle workbook holds as constants (the eight file-loadable ones, F1:G56 and P1:Q54) and which it gives through source formulas (#SPILL!, #FIELD! and #CALC!, in P1:Q54); (b) chose those source formulas; the capture (the second witness) now judges the order over all 110 pairs (lookup_edges D321 to D430), and no case rests on (b); (c) the INDEX entry's divergent rule, which no case asserts",
+      "retained": "not committed: the spec and output files are in the session's scratchpad (r3/order.json, order.out.json, idx.out.json, idx2.out.json, errs.out.json, enter1.out.json) and are not re-runnable from the repository"
+    }
+  ],
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+      "blob": "76520e4100ce8eaccecd0b4c180ef33a9754cb07",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-surface_dispatch-rs.log (exit in lookup-functions-surface_dispatch-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/acos.rs",
+          "crates/oxfunc_core/src/functions/acot.rs",
+          "crates/oxfunc_core/src/functions/acoth.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/array_text_split_family.rs",
+          "crates/oxfunc_core/src/functions/asin.rs",
+          "crates/oxfunc_core/src/functions/atan.rs",
+          "crates/oxfunc_core/src/functions/atanh.rs",
+          "crates/oxfunc_core/src/functions/base_fn.rs",
+          "crates/oxfunc_core/src/functions/bessel_convert_family.rs",
+          "crates/oxfunc_core/src/functions/beta_gamma_stats_family.rs",
+          "crates/oxfunc_core/src/functions/bitand_fn.rs",
+          "crates/oxfunc_core/src/functions/bitlshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitor_fn.rs",
+          "crates/oxfunc_core/src/functions/bitrshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitxor_fn.rs",
+          "crates/oxfunc_core/src/functions/bond_core_family.rs",
+          "crates/oxfunc_core/src/functions/cashflow_rate_family.rs",
+          "crates/oxfunc_core/src/functions/chi_f_t_family.rs",
+          "crates/oxfunc_core/src/functions/combin.rs",
+          "crates/oxfunc_core/src/functions/combina.rs",
+          "crates/oxfunc_core/src/functions/complex_family.rs",
+          "crates/oxfunc_core/src/functions/cos.rs",
+          "crates/oxfunc_core/src/functions/cosh.rs",
+          "crates/oxfunc_core/src/functions/cot.rs",
+          "crates/oxfunc_core/src/functions/coth.rs",
+          "crates/oxfunc_core/src/functions/count.rs",
+          "crates/oxfunc_core/src/functions/counta.rs",
+          "crates/oxfunc_core/src/functions/countblank_fn.rs",
+          "crates/oxfunc_core/src/functions/csc.rs",
+          "crates/oxfunc_core/src/functions/csch.rs",
+          "crates/oxfunc_core/src/functions/cumulative_finance_family.rs",
+          "crates/oxfunc_core/src/functions/date_fn.rs",
+          "crates/oxfunc_core/src/functions/date_parts_family.rs",
+          "crates/oxfunc_core/src/functions/date_week_family.rs",
+          "crates/oxfunc_core/src/functions/depreciation_family.rs",
+          "crates/oxfunc_core/src/functions/devsq_fn.rs",
+          "crates/oxfunc_core/src/functions/discrete_dist_family.rs",
+          "crates/oxfunc_core/src/functions/engineering_radix_family.rs",
+          "crates/oxfunc_core/src/functions/exact_fn.rs",
+          "crates/oxfunc_core/src/functions/exp_fn.rs",
+          "crates/oxfunc_core/src/functions/fact.rs",
+          "crates/oxfunc_core/src/functions/financial_time_value_family.rs",
+          "crates/oxfunc_core/src/functions/fisher_fn.rs",
+          "crates/oxfunc_core/src/functions/gcd_fn.rs",
+          "crates/oxfunc_core/src/functions/harmean_fn.rs",
+          "crates/oxfunc_core/src/functions/if_fn.rs",
+          "crates/oxfunc_core/src/functions/iferror.rs",
+          "crates/oxfunc_core/src/functions/ifna_fn.rs",
+          "crates/oxfunc_core/src/functions/int_fn.rs",
+          "crates/oxfunc_core/src/functions/is_predicates_family.rs",
+          "crates/oxfunc_core/src/functions/iseven_fn.rs",
+          "crates/oxfunc_core/src/functions/lcm_fn.rs",
+          "crates/oxfunc_core/src/functions/ln_fn.rs",
+          "crates/oxfunc_core/src/functions/log10_fn.rs",
+          "crates/oxfunc_core/src/functions/log_fn.rs",
+          "crates/oxfunc_core/src/functions/matrix_family.rs",
+          "crates/oxfunc_core/src/functions/median_fn.rs",
+          "crates/oxfunc_core/src/functions/misc_conversion_family.rs",
+          "crates/oxfunc_core/src/functions/mod_fn.rs",
+          "crates/oxfunc_core/src/functions/mround.rs",
+          "crates/oxfunc_core/src/functions/normal_log_family.rs",
+          "crates/oxfunc_core/src/functions/not_fn.rs",
+          "crates/oxfunc_core/src/functions/odd_bond_family.rs",
+          "crates/oxfunc_core/src/functions/permut_fn.rs",
+          "crates/oxfunc_core/src/functions/permutationa_fn.rs",
+          "crates/oxfunc_core/src/functions/phi_fn.rs",
+          "crates/oxfunc_core/src/functions/power_fn.rs",
+          "crates/oxfunc_core/src/functions/quotient_fn.rs",
+          "crates/oxfunc_core/src/functions/radians.rs",
+          "crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+          "crates/oxfunc_core/src/functions/regression_forecast_family.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs",
+          "crates/oxfunc_core/src/functions/rounddown_fn.rs",
+          "crates/oxfunc_core/src/functions/roundup_fn.rs",
+          "crates/oxfunc_core/src/functions/sec.rs",
+          "crates/oxfunc_core/src/functions/sech.rs",
+          "crates/oxfunc_core/src/functions/sin.rs",
+          "crates/oxfunc_core/src/functions/sinh.rs",
+          "crates/oxfunc_core/src/functions/special_dist_family.rs",
+          "crates/oxfunc_core/src/functions/sqrt_fn.rs",
+          "crates/oxfunc_core/src/functions/standardize_fn.rs",
+          "crates/oxfunc_core/src/functions/statistical_tests_family.rs",
+          "crates/oxfunc_core/src/functions/tan.rs",
+          "crates/oxfunc_core/src/functions/tanh.rs",
+          "crates/oxfunc_core/src/functions/text_b_compat_family.rs",
+          "crates/oxfunc_core/src/functions/text_slice_family.rs",
+          "crates/oxfunc_core/src/functions/trunc_fn.rs",
+          "crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+          "crates/oxfunc_core/src/functions/web_text_xml_family.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. The catalogue entries of the 13 IDs are written fresh in crates/calc-func/src/catalogue/lookup.rs (family code 9).",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/function_call.rs",
+      "blob": "426cf6877cc60ce74caddc55a66bb287510baaec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/function_call.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-function_call-rs.log (exit in lookup-function_call-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 6: admitted only against clean replacements of surface_dispatch.rs, itself exit 5 and not read). Nothing of it is ported: FunctionCallTarget has been calc_func's own since cfunc-m1.1; this bead adds catalogue entries and kernels and no call-interface symbol.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/index.rs",
+      "blob": "200431441d528aa40d71a2afa703753d57fda6f0",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/index.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-index-rs.log (exit in lookup-functions-index-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6), against a clean replacement of the one module its calls_quarantined list names (coercion.rs, replaced by calc-func's coerce.rs, written fresh by cfunc-m1.2), which was not read. Nothing of it is copied: the kernel is written fresh in crates/calc-func/src/catalogue/lookup.rs from Excel 16.0 build 20430 measured ad hoc (semantic_witnesses) and Microsoft's page for the function.",
+      "ported": [],
+      "semantic_changes": [
+        {
+          "change": "a fractional index is truncated (2.7 is 2), not #VALUE!",
+          "reason": "captured: reference_result D2 INDEX(A1:C3,2.7,1.2) shows 4 and reference_result D62 INDEX(A1:C3,1.9999,1) shows 1"
+        },
+        {
+          "change": "column_num omitted on a reference of more rows and columns is #REF!, not the whole row",
+          "reason": "captured: reference_result D16 INDEX(A1:C3,2) and reference_result D64 SUM(INDEX(A1:C3,2)) are #REF!, while reference_result D63 SUM(INDEX(A1:C3,2,)) is 15, the row selected"
+        }
+      ],
+      "legacy_tests": [
+        {
+          "test": "eval_index_reference_projection_projects_actual_a1_target",
+          "expectation": "kept: INDEX of a reference gives a reference to the cell selected (cfunc_m3_6__reference_result, INDEX(A1:C3,2,3))"
+        },
+        {
+          "test": "eval_index_reference_value_context_materializes_when_transform_unsupported",
+          "expectation": "dropped: no value fallback; INDEX of a reference always gives the reference, which the consuming context dereferences"
+        },
+        {
+          "test": "eval_index_array_position_returns_payload_value",
+          "expectation": "kept (INDEX({1,2;3,4},2,1) = 3)"
+        },
+        {
+          "test": "eval_index_row_vector_single_position_uses_vector_semantics",
+          "expectation": "kept: column_num omitted on a one-row array indexes its columns"
+        },
+        {
+          "test": "eval_index_column_vector_single_position_uses_vector_semantics",
+          "expectation": "kept"
+        },
+        {
+          "test": "eval_index_scalar_source_treated_as_single_cell_array",
+          "expectation": "kept (INDEX(5,1) = 5)"
+        },
+        {
+          "test": "ftc_1032_index_scalar_source_with_explicit_zero_column_returns_scalar",
+          "expectation": "kept: a single value gives itself for every selection the bounds admit"
+        },
+        {
+          "test": "ftc_0930_index_error_source_propagates_value_error",
+          "expectation": "kept: an error first argument is the result"
+        },
+        {
+          "test": "ftc_0833_index_row_vector_selector_array_direct_call_returns_first_three_values",
+          "expectation": "changed: an array row_num is refused as not modelled (Excel lifts INDEX over it; cfml-m3.4)"
+        },
+        {
+          "test": "ftc_0910_index_row_vector_omitted_row_vector_column_selector_returns_first_five_values",
+          "expectation": "changed: refused, as above"
+        },
+        {
+          "test": "ftc_0910_index_row_vector_omitted_row_vector_column_selector_returns_last_five_values",
+          "expectation": "changed: refused, as above"
+        },
+        {
+          "test": "eval_index_array_bounds_checked",
+          "expectation": "kept: beyond the array is #REF!"
+        },
+        {
+          "test": "eval_index_array_zero_row_returns_column_array",
+          "expectation": "kept (INDEX({1,2;3,4},0,2) gives the array {2;4})"
+        },
+        {
+          "test": "eval_index_invalid_area_num_rejected",
+          "expectation": "kept: area_num beyond the areas is #REF!"
+        },
+        {
+          "test": "eval_index_missing_row_and_col_follow_excel_defaults",
+          "expectation": "kept: an empty row_num or column_num is 0, which selects every row or column"
+        },
+        {
+          "test": "eval_index_multi_area_reference_selects_area_num",
+          "expectation": "kept (INDEX((A1:A3,C1:C3),2,1,2) gives C2)"
+        },
+        {
+          "test": "eval_index_multi_area_transform_failure_is_reported_from_provider",
+          "expectation": "dropped: a reference of areas on two sheets is not representable in calc-value"
+        },
+        {
+          "test": "eval_index_rejects_legacy_parenthesized_area_carrier",
+          "expectation": "dropped: no text reference carriers"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/match_fn.rs",
+      "blob": "7beea0f0b4ce3696005c591c562a74828f0c13b9",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/match_fn.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-match_fn-rs.log (exit in lookup-functions-match_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6: all 710 lines, the kernel and its 15 tests), against clean replacements of coercion.rs and adapters.rs (calc-func's coerce.rs and the Line reader of lookup.rs), neither of which was read. Nothing of it is copied: the kernel is written fresh in crates/calc-func/src/catalogue/lookup.rs from Excel 16.0 build 20430 measured ad hoc (semantic_witnesses) and Microsoft's page for the function. Its approximate search (a binary search over the cells of the lookup value's kind) does not give Excel's results on unsorted lines; the measured bisection replaces it.",
+      "ported": [],
+      "semantic_changes": [
+        {
+          "change": "match_type 1 follows Excel's bisection over every position, and match_type -1 is a walk from the start",
+          "reason": "captured: lookup_edges D202 and lookup_edges D203, and the rows the per-ID manifest names for match_type 1 and -1; the 900 random lines of the first witness are an ad hoc read no case rests on"
+        },
+        {
+          "change": "an error among the numbers of an approximate MATCH is passed over by the bisection, not #N/A",
+          "reason": "captured: lookup_edges D208 MATCH(2.5,{1,#DIV/0!,2,3},1) and lookup_edges D209 MATCH(2.5,{1,#N/A,2,3},1) are 3"
+        },
+        {
+          "change": "a match_type given empty (MATCH(2,{1,2,2,2,3},)) is 0, an exact match",
+          "reason": "captured: lookup_edges D200 MATCH(2,{1,2,2,2,3},) is 2 and lookup_edges D199 MATCH(2,{1,2,2,2,3}) is 4; lookup_edges row MATCH(2,A1:A6,) is 2"
+        }
+      ],
+      "legacy_tests": [
+        {
+          "test": "match_exact_mode_keeps_near_equal_numbers_distinct",
+          "expectation": "kept: numbers match by their exact binary64 value: lookup_edges D214 MATCH(C17,C16,0) is #N/A (0.30000000000000004 beside 0.3) and lookup_edges D215 MATCH(K1,K2,0) #N/A (the test's two numbers that differ in their 16th digit)"
+        },
+        {
+          "test": "eval_match_exact_returns_first_index",
+          "expectation": "kept: lookup_edges D196 MATCH(3,{1,3},0) is 2"
+        },
+        {
+          "test": "eval_match_surface_spills_array_lookup_value_results",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D216 states Excel's #N/A in a legacy cell"
+        },
+        {
+          "test": "eval_match_default_match_type_uses_approximate_next_smaller",
+          "expectation": "kept: lookup_edges D197 MATCH(2.5,{1,2,3}) is 2"
+        },
+        {
+          "test": "eval_match_default_and_type_one_follow_excel_duplicate_selection",
+          "expectation": "kept for match_type 1 and for a match_type left out (lookup_edges D198 and lookup_edges D199 are 4, the last of the equal run); changed for a match_type given empty, which is 0 (lookup_edges D200 MATCH(2,{1,2,2,2,3},) is 2; see semantic_changes)"
+        },
+        {
+          "test": "eval_match_type_negative_one_prefers_first_descending_duplicate",
+          "expectation": "kept: lookup_edges D201 MATCH(2,{3,2,2,2,1},-1) is 2"
+        },
+        {
+          "test": "eval_match_approximate_unsorted_empirical_lanes_match_excel",
+          "expectation": "kept: lookup_edges D202 MATCH(2.5,{1,3,2,4},1) and lookup_edges D203 MATCH(2.5,{3,1,4,2},-1) are 1"
+        },
+        {
+          "test": "eval_match_blank_lookup_value_returns_not_available",
+          "expectation": "kept: a blank lookup value is the number 0, which no blank cell matches: lookup_edges D204 MATCH(C9,I5:J5,0) over a blank cell and 1 is #N/A"
+        },
+        {
+          "test": "eval_match_approximate_ascending_skips_trailing_blank_for_last_value_idiom",
+          "expectation": "kept: the bisection passes over blank cells: lookup_edges D205 MATCH(9.99E+307,H1:H4,1) over 1, 2, a blank cell and 3 is 4"
+        },
+        {
+          "test": "eval_match_approximate_ascending_skips_interior_blank",
+          "expectation": "kept: lookup_edges D206 MATCH(2.5,H6:H9,1) over 1, a blank cell, 2 and 3 is 3"
+        },
+        {
+          "test": "eval_match_approximate_descending_skips_blank",
+          "expectation": "kept: lookup_edges D207 MATCH(2.5,H11:H14,-1) over 3, a blank cell, 2 and 1 is 1"
+        },
+        {
+          "test": "eval_match_approximate_blank_skipping_does_not_skip_error_cells",
+          "expectation": "changed: 3, not #N/A: lookup_edges D208 MATCH(2.5,{1,#DIV/0!,2,3},1) and lookup_edges D209 MATCH(2.5,{1,#N/A,2,3},1) are 3 in the capture (see semantic_changes)"
+        },
+        {
+          "test": "eval_match_exact_wildcard_mode_handles_escaped_patterns",
+          "expectation": "kept: lookup_edges D210 MATCH(\"a~*\",{\"abc\",\"a*\"},0) is 2"
+        },
+        {
+          "test": "eval_match_case_insensitive_text_comparison",
+          "expectation": "kept: lookup_edges D211 MATCH(\"Abc\",{\"abc\",\"def\"},0) is 1"
+        },
+        {
+          "test": "eval_match_flattens_lookup_vectors_and_rejects_two_dimensional_arrays",
+          "expectation": "kept for a one-row array (lookup_edges D212 MATCH(2,{1,2},0) is 2); changed for a two-dimensional one: #N/A, not a coercion error (lookup_edges D213 MATCH(2,{1,2;3,4},0) is #N/A in the capture)"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/xmatch.rs",
+      "blob": "16ff04d92c19cf0e1b635fc1b827fb22d958545c",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/xmatch.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-functions-xmatch-rs.log (exit in round3-lookup-functions-xmatch-rs.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its test module (lines 629 to 1119, 31 #[test] functions), against clean replacements of coercion.rs and adapters.rs (calc-func's coerce.rs, written fresh by cfunc-m1.2, and the Line reader of crates/calc-func/src/catalogue/lookup.rs), neither of which was read. Nothing of it is copied: XMATCH is written fresh in crates/calc-func/src/catalogue/lookup.rs from Excel measured ad hoc and Microsoft's page. Each test's case is an oracle row of cfunc_m3_6__lookup_edges; the committed capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json holds Excel's value of each row named below, and cfunc_m3_6__excel_comparison judges it.",
+      "ported": [],
+      "semantic_changes": [
+        {
+          "change": "the binary searches order a blank cell after every value and an error after numbers, text and logicals; they pass over neither",
+          "reason": "captured: lookup_edges D241, lookup_edges D242, lookup_edges D243 and lookup_edges D245 (the legacy tests expected the blank cells and the error passed over)"
+        }
+      ],
+      "legacy_tests": [
+        {
+          "test": "xmatch_meta_matches_w6_seed_shape",
+          "expectation": "kept: the arity, 2 to 4 (cfunc_m3_6__lookup_edges checks the catalogue entry); dropped: the determinism, volatility, host-interaction, thread-safety, argument-preparation, coercion-lift, kernel-signature and FEC-dependency classes, which the catalogue entry does not carry (not_ported: cfunc-m3.22, cfunc-m3.25)"
+        },
+        {
+          "test": "validate_xmatch_surface_arity_enforces_two_to_four",
+          "expectation": "kept: the arity is 2 to 4 (cfunc_m3_6__lookup_edges), and the call interface refuses one argument too few and too many with ArityMismatch (cfunc_m1_1__catalogue_consistency runs every entry so)"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_defaults_to_exact_forward",
+          "expectation": "kept: lookup_edges D217 XMATCH(2,{1,2,3}) is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_reverse_mode_returns_last_match",
+          "expectation": "kept: lookup_edges D218 XMATCH(2,{2,1,2},0,-1) is 3"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_not_found_returns_na_lane",
+          "expectation": "kept: lookup_edges D219 XMATCH(9,{1,2}) is #N/A"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_exact_mode_keeps_near_equal_numbers_distinct",
+          "expectation": "kept: lookup_edges D220 XMATCH(C17,C16,0) is #N/A (C17 holds 0.30000000000000004, the value of 0.1+0.2, and C16 0.3) and lookup_edges D221 XMATCH(K1,K2,0) is #N/A (K1 and K2 hold the test's two numbers, 1.234567890123455E-10 and 1.234567890123454E-10)"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_text_match_is_case_insensitive",
+          "expectation": "kept: lookup_edges D222 XMATCH(\"Abc\",{\"abc\",\"zzz\"}) is 1"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_handles_unicode_casefold_baseline",
+          "expectation": "changed: refused as not modelled: calc_func's comparison does not decide case for non-ASCII text (cdoc-jpha); lookup_edges D223 XMATCH(\"Äbc\",{\"äBC\",\"zzz\"}) states Excel's 1, which the capture holds"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_mixed_type_comparison_has_no_match",
+          "expectation": "kept: lookup_edges D224 XMATCH(1,{\"1\"}) is #N/A"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_rejects_invalid_modes",
+          "expectation": "kept: an unknown match_mode or search_mode is #VALUE! (lookup_edges D225 XMATCH(1,{1},9) and lookup_edges D226 XMATCH(1,{1},,9))"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_supports_wildcard_mode",
+          "expectation": "kept: lookup_edges D227 XMATCH(\"a*\",{\"zzz\",\"abc\"},2) is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_honors_wildcard_escaping",
+          "expectation": "kept: lookup_edges D228 is 2, lookup_edges D229 is 2 and lookup_edges D230 is 1 (the patterns a~*, a~? and a~~b)"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_reverse_wildcard_returns_last_match",
+          "expectation": "kept: lookup_edges D231 XMATCH(\"a*\",{\"abc\",\"def\",\"ade\"},2,-1) is 3"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_supports_binary_modes",
+          "expectation": "kept: lookup_edges D232 XMATCH(3,{1,2,3},,2) is 3 and lookup_edges D233 XMATCH(3,{4,3,2},,-2) is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_binary_modes_follow_excel_duplicate_selection",
+          "expectation": "kept: lookup_edges D234 is 2, lookup_edges D235 is 4, lookup_edges D236 is 4 and lookup_edges D237 is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_binary_modes_follow_empirical_unsorted_lanes",
+          "expectation": "kept: lookup_edges D238 XMATCH(2,{3,1,4,2},0,2) is #N/A, lookup_edges D239 is 3 and lookup_edges D240 is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_binary_ascending_skips_trailing_blank",
+          "expectation": "changed: 2, not 4: lookup_edges D241 XMATCH(9.99E+307,H1:H4,-1,2) over 1, 2, a blank cell and 3 is 2 in the capture; the binary search orders a blank cell after every value, it does not pass over it"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_binary_ascending_skips_interior_blank",
+          "expectation": "changed: over 1, a blank cell, 2 and 3, lookup_edges D242 XMATCH(2.5,H6:H9,1,2) is 2, not 4, and lookup_edges D243 XMATCH(2,H6:H9,,2) is #N/A, not 3, in the capture"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_binary_descending_skips_blank",
+          "expectation": "kept: lookup_edges D244 XMATCH(2.5,H11:H14,-1,-2) over 3, a blank cell, 2 and 1 is 3"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_binary_modes_do_not_skip_error_cells",
+          "expectation": "changed: 2, not #N/A: lookup_edges D245 XMATCH(2.5,{1,#DIV/0!,2,3},1,2) is 2 in the capture; the binary search orders the error after the numbers"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_supports_approximate_modes",
+          "expectation": "kept: lookup_edges D246 is 3 and lookup_edges D247 is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_approximate_modes_prefer_exact_match",
+          "expectation": "kept: lookup_edges D248 and lookup_edges D249 are 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_binary_modes_accept_text_and_logical_ordering",
+          "expectation": "kept: lookup_edges D250 XMATCH(\"Beta\",{\"alpha\",\"beta\",\"gamma\"},,2) and lookup_edges D251 XMATCH(TRUE,{FALSE,TRUE},,2) are 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_treats_missing_optional_modes_as_defaults",
+          "expectation": "kept: lookup_edges D252 XMATCH(2,{1,2,3},,) is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_blank_lookup_matches_true_blank_cells",
+          "expectation": "kept: lookup_edges D253 XMATCH(C9,I1:I3,0) and lookup_edges D254 XMATCH(,I1:I3,0) are 1 (I1:I3 holds a blank cell, empty text and 1)"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_empty_string_does_not_match_true_blank_cells",
+          "expectation": "kept: lookup_edges D255 XMATCH(\"\",I1:I3,0) is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_rejects_wildcard_binary_search",
+          "expectation": "kept: wildcards with a binary search are #VALUE! in the cell (lookup_edges D65 XMATCH(\"b*\",B1:B6,2,2))"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_propagates_lookup_value_error_lane",
+          "expectation": "kept: lookup_edges D256 XMATCH(#VALUE!,{1}) is #VALUE!"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_skips_lookup_array_errors_when_match_exists",
+          "expectation": "kept: lookup_edges D257 XMATCH(2,{#VALUE!}) is #N/A and lookup_edges D258 XMATCH(2,{#DIV/0!,2}) is 2"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_skips_lookup_array_errors_when_no_match",
+          "expectation": "kept: lookup_edges D259 XMATCH(9,{1,#DIV/0!,2}) is #N/A"
+        },
+        {
+          "test": "eval_xmatch_adapter_prepared_value_wraps_index_as_eval_number",
+          "expectation": "kept: lookup_edges D260 XMATCH(3,{3,4}) is the number 1"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/xlookup.rs",
+      "blob": "eb32e3292c0c63f1dc2eff4fdce048370b804b6d",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/xlookup.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-functions-xlookup-rs.log (exit in round3-lookup-functions-xlookup-rs.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its test module (lines 745 to 1278, 15 #[test] functions), against clean replacements of coercion.rs and adapters.rs (calc-func's coerce.rs, written fresh by cfunc-m1.2, and the Line reader of crates/calc-func/src/catalogue/lookup.rs), neither of which was read. Nothing of it is copied: XLOOKUP is written fresh in crates/calc-func/src/catalogue/lookup.rs from Excel measured ad hoc and Microsoft's page. Each test's case is an oracle row of cfunc_m3_6__lookup_edges; the committed capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json holds Excel's value of each row named below, and cfunc_m3_6__excel_comparison judges it.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "eval_xlookup_exact_forward_returns_value",
+          "expectation": "kept: lookup_edges D261 XLOOKUP(2,{1,2},{\"one\",\"two\"}) is \"two\""
+        },
+        {
+          "test": "eval_xlookup_supports_wildcard_and_reverse_search",
+          "expectation": "kept: lookup_edges D262 is \"last\""
+        },
+        {
+          "test": "eval_xlookup_returns_if_not_found_fallback",
+          "expectation": "kept: lookup_edges D263 is \"nf\""
+        },
+        {
+          "test": "eval_xlookup_treats_missing_optional_modes_as_omitted",
+          "expectation": "kept: lookup_edges D264 XLOOKUP(2,{1,2,3},{10,20,30},,0,) is 20"
+        },
+        {
+          "test": "eval_xlookup_omitted_or_blank_lookup_matches_true_blank_cells",
+          "expectation": "kept: lookup_edges D265 XLOOKUP(,I5:J5,{10,20}) and lookup_edges D266 XLOOKUP(C9,I5:J5,{10,20}) are 10 (I5:J5 holds a blank cell and 1)"
+        },
+        {
+          "test": "eval_xlookup_empty_string_matches_formula_empty_not_true_blank",
+          "expectation": "kept: lookup_edges D267 XLOOKUP(\"\",I7:J7,{10,20}) is 10 (I7:J7 holds empty text and a blank cell)"
+        },
+        {
+          "test": "eval_xlookup_returns_zero_for_true_blank_return_cells",
+          "expectation": "kept: for the cell's value: lookup_edges D268 XLOOKUP(1,{1,2},I9:J9) gives a reference to the blank cell I9, which shows 0 (the dereference is calc_fml's; the row is published under dc-l10u)"
+        },
+        {
+          "test": "eval_xlookup_binary_unsorted_exact_matches_empirical_lane",
+          "expectation": "kept: lookup_edges D269 is #N/A"
+        },
+        {
+          "test": "eval_xlookup_supports_reference_return_from_single_area_argument",
+          "expectation": "kept: lookup_edges D270 XLOOKUP(2,{1,2,3},B1:D1) gives a reference to C1, which shows 10"
+        },
+        {
+          "test": "eval_xlookup_rejects_orientation_mismatch",
+          "expectation": "kept: lookup_edges D271 XLOOKUP(2,{1;2;3},{10,20,30}) is #VALUE!"
+        },
+        {
+          "test": "eval_xlookup_vertical_lookup_returns_matching_row_from_matrix",
+          "expectation": "kept: the row {20,21} (lookup_edges D272; a legacy cell shows 20, as the row states; the array's publication is cfml-m3.4's)"
+        },
+        {
+          "test": "eval_xlookup_horizontal_lookup_returns_matching_reference_column",
+          "expectation": "kept: a reference to C2:C4 (lookup_edges D273; a legacy cell shows #VALUE!, as the row states; implicit intersection is cfml-m3.3's)"
+        },
+        {
+          "test": "eval_xlookup_spills_array_lookup_value_results",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D274 states Excel's #N/A in a legacy cell"
+        },
+        {
+          "test": "eval_xlookup_array_lookup_value_preserves_shape_and_uses_fallback_top_left",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D275 states Excel's \"NF\" in a legacy cell"
+        },
+        {
+          "test": "eval_xlookup_array_lookup_value_from_matrix_return_selects_first_cell",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D276 and lookup_edges D277 state Excel's 20 in a legacy cell"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/vhlookup_family.rs",
+      "blob": "bf9e5c36cc18015329012985ef6a94e4b58dbdf1",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/vhlookup_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-functions-vhlookup_family-rs.log (exit in round3-lookup-functions-vhlookup_family-rs.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its test module (lines 291 to 761, 13 #[test] functions), against clean replacements of coercion.rs and adapters.rs (calc-func's coerce.rs, written fresh by cfunc-m1.2, and the Line reader of crates/calc-func/src/catalogue/lookup.rs), neither of which was read. Nothing of it is copied: VLOOKUP and HLOOKUP are written fresh in crates/calc-func/src/catalogue/lookup.rs from Excel measured ad hoc and Microsoft's pages. Each test's case is an oracle row of cfunc_m3_6__lookup_edges over the tables {1,10;2,20;3,30} and {1,2,3;10,20,30}; the committed capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json holds Excel's value of each row named below, and cfunc_m3_6__excel_comparison judges it.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "vlookup_exact_and_approximate_match_excel_seed_rows",
+          "expectation": "kept: lookup_edges D278 and lookup_edges D279 are 20"
+        },
+        {
+          "test": "hlookup_exact_and_approximate_match_excel_seed_rows",
+          "expectation": "kept: lookup_edges D280 and lookup_edges D281 are 20"
+        },
+        {
+          "test": "vlookup_approximate_skips_blank_keys_in_first_column",
+          "expectation": "kept: lookup_edges D282 VLOOKUP(2.9,L1:M4,2) is 20 and lookup_edges D283 VLOOKUP(9.99E+307,L1:M4,2) 30 (L1:L4 holds 1, 2, a blank cell and 3)"
+        },
+        {
+          "test": "hlookup_approximate_skips_blank_keys_in_first_row",
+          "expectation": "kept: lookup_edges D284 is 20 and lookup_edges D285 30 over L6:O7, the same table across"
+        },
+        {
+          "test": "approximate_lookup_below_first_key_returns_not_available",
+          "expectation": "kept: lookup_edges D286 and lookup_edges D287 are #N/A"
+        },
+        {
+          "test": "exact_lookup_no_match_returns_not_available",
+          "expectation": "kept: lookup_edges D288 and lookup_edges D289 are #N/A"
+        },
+        {
+          "test": "lookup_indices_truncate_and_validate_bounds",
+          "expectation": "kept: lookup_edges D290 and lookup_edges D291 (index 1.9) are 2; lookup_edges D292 and lookup_edges D293 (index 3) are #REF!"
+        },
+        {
+          "test": "lookup_indices_below_one_return_value_error",
+          "expectation": "kept: lookup_edges D294 to lookup_edges D297 (index 0 and -1) are #VALUE!"
+        },
+        {
+          "test": "lookup_exact_supports_wildcards",
+          "expectation": "kept: lookup_edges D298 and lookup_edges D299 are 20"
+        },
+        {
+          "test": "vlookup_exact_matches_logicals",
+          "expectation": "kept: lookup_edges D300 VLOOKUP(TRUE,{TRUE,1;FALSE,2},2,FALSE) is 1"
+        },
+        {
+          "test": "vlookup_spills_array_lookup_value_results",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D301 states Excel's #N/A in a legacy cell"
+        },
+        {
+          "test": "hlookup_spills_array_lookup_value_results",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D302 states Excel's #N/A in a legacy cell"
+        },
+        {
+          "test": "vhlookup_meta_matches_batch_shape",
+          "expectation": "kept: the arity, 3 to 4, and HLOOKUP's table_array read as a reference (ParameterClass::ValueOrReference), both checked by cfunc_m3_6__lookup_edges; dropped: the function_id strings (the catalogue's IDs are FunctionId 9.5 and 9.6)"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/lookup_prob_frequency_family.rs",
+      "blob": "183760e95db532fad56346e7b606a7d8dbb309ec",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/lookup_prob_frequency_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-functions-lookup_prob_frequency_family-rs.log (exit in round3-lookup-functions-lookup_prob_frequency_family-rs.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its test module (lines 539 to 841, 12 #[test] functions), against a clean replacement of coercion.rs (calc-func's coerce.rs), which was not read. Nothing of it is copied: LOOKUP is written fresh in crates/calc-func/src/catalogue/lookup.rs from Excel measured ad hoc and Microsoft's page. Each LOOKUP case of its tests is an oracle row of cfunc_m3_6__lookup_edges; the committed capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json holds Excel's value of each row named below, and cfunc_m3_6__excel_comparison judges it. FREQUENCY, PROB and MODE.MULT are not this family.",
+      "ported": [],
+      "semantic_changes": [
+        {
+          "change": "LOOKUP bisects an unsorted line as MATCH does, rather than giving #N/A",
+          "reason": "captured: lookup_edges D306 LOOKUP(2,{2,1,3},{20,10,30}) is 10"
+        }
+      ],
+      "legacy_tests": [
+        {
+          "test": "metadata_matches_batch_shape",
+          "expectation": "kept: for LOOKUP: the catalogue entry is spelled LOOKUP (FunctionId 9.7, cfunc_m3_6__lookup_edges); its FREQUENCY, PROB and MODE.MULT assertions are not this family"
+        },
+        {
+          "test": "lookup_vector_form_uses_approximate_last_less_or_equal",
+          "expectation": "kept: lookup_edges D303 LOOKUP(2.9,{1,2,3},{10,20,30}) is 20"
+        },
+        {
+          "test": "lookup_array_form_uses_first_column_and_last_column_when_tall",
+          "expectation": "kept: lookup_edges D304 LOOKUP(2.9,{1,10;2,20;3,30}) is 20"
+        },
+        {
+          "test": "lookup_can_return_text_from_result_vector",
+          "expectation": "kept: lookup_edges D305 is \"b\""
+        },
+        {
+          "test": "frequency_returns_vertical_counts",
+          "expectation": "not this family (FREQUENCY)"
+        },
+        {
+          "test": "prob_supports_point_and_interval_queries",
+          "expectation": "not this family (PROB)"
+        },
+        {
+          "test": "prob_rejects_probability_vectors_that_do_not_sum_to_one",
+          "expectation": "not this family (PROB)"
+        },
+        {
+          "test": "mode_mult_returns_all_modes_sorted_ascending",
+          "expectation": "not this family (MODE.MULT)"
+        },
+        {
+          "test": "mode_mult_returns_na_when_no_mode_survives",
+          "expectation": "not this family (MODE.MULT)"
+        },
+        {
+          "test": "reference_resolution_is_admitted_for_prob",
+          "expectation": "not this family (PROB)"
+        },
+        {
+          "test": "unsorted_lookup_and_bins_are_out_of_slice",
+          "expectation": "changed: for LOOKUP: lookup_edges D306 LOOKUP(2,{2,1,3},{20,10,30}) is 10, not #N/A, in the capture (the bisection meets 1 at the middle and moves after it); its FREQUENCY half is not this family"
+        },
+        {
+          "test": "matrix_lookup_vector_with_matching_result_vector_uses_bounded_heuristic",
+          "expectation": "kept: lookup_edges D307 LOOKUP(2,{1,2;3,4;5,6},{10,20,30}) is 10"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/choose_ifs_family.rs",
+      "blob": "28c6edf0608194ecd368f83e88a68dfc73e4fc54",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/choose_ifs_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-functions-choose_ifs_family-rs.log (exit in round3-lookup-functions-choose_ifs_family-rs.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): its test module (lines 274 to 562, 9 #[test] functions), against clean replacements of coercion.rs and adapters.rs (calc-func's coerce.rs, written fresh by cfunc-m1.2, and the Line reader of crates/calc-func/src/catalogue/lookup.rs), neither of which was read. Nothing of it is copied: CHOOSE is written fresh in crates/calc-func/src/catalogue/lookup.rs from Excel measured ad hoc and Microsoft's page. Each CHOOSE case of its tests is an oracle row of cfunc_m3_6__lookup_edges; the committed capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json holds Excel's value of each row named below, and cfunc_m3_6__excel_comparison judges it. IFS is not this family.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "choose_truncates_index_and_does_not_touch_unselected_poison",
+          "expectation": "kept: lookup_edges D308 CHOOSE(2.9,A1,\"picked\",#DIV/0!) is \"picked\", and the row checks that only index_num and the chosen value are asked for"
+        },
+        {
+          "test": "choose_rejects_zero_and_out_of_range_indices",
+          "expectation": "kept: lookup_edges D309 CHOOSE(0.9,10,20) and lookup_edges D310 CHOOSE(4,10,20,30) are #VALUE!"
+        },
+        {
+          "test": "choose_materializes_selected_blank_reference_as_zero",
+          "expectation": "kept: for the cell's value: lookup_edges D311 CHOOSE(1,C9,7) gives the reference to the blank cell C9, which shows 0 (the dereference is calc_fml's; the row is published under dc-l10u)"
+        },
+        {
+          "test": "choose_array_index_materializes_scalar_choices_as_row_vector",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D312 states Excel's \"Alpha\" in a legacy cell"
+        },
+        {
+          "test": "choose_array_index_concatenates_column_arrays_by_selected_position",
+          "expectation": "changed: refused as not modelled (Excel lifts the function over an array lookup value or index; cfml-m3.4); lookup_edges D313 states Excel's 1 in a legacy cell"
+        },
+        {
+          "test": "ifs_scans_pairs_left_to_right_and_short_circuits",
+          "expectation": "not this family (IFS)"
+        },
+        {
+          "test": "ifs_returns_na_when_no_condition_matches",
+          "expectation": "not this family (IFS)"
+        },
+        {
+          "test": "ifs_rejects_odd_pair_structure_and_propagates_condition_errors",
+          "expectation": "not this family (IFS)"
+        },
+        {
+          "test": "ifs_empty_text_condition_returns_value_error",
+          "expectation": "not this family (IFS)"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/oxfml_seam_integration.rs",
+      "blob": "3b5ad2779fd0ddfe532fe4a6bd81c8fc1414d443",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/oxfml_seam_integration.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-tests-oxfml_seam_integration-rs.log (exit in round3-lookup-tests-oxfml_seam_integration-rs.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "OxFunc run-time loads"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved; changed by tainted commit a4e94d1e). None of its expectations is kept or compared; the family's cases come from the files read above and Excel.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/structured_table_reference_guardrails.rs",
+      "blob": "b50197dc4aef66788142a148f7e817260ba2048b",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/structured_table_reference_guardrails.rs",
+        "exit": 6,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-tests-structured_table_reference_guardrails-rs.log (exit in round3-lookup-tests-structured_table_reference_guardrails-rs.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "none (calls-quarantined)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/count.rs",
+          "crates/oxfunc_core/src/functions/counta.rs",
+          "crates/oxfunc_core/src/functions/countblank_fn.rs",
+          "crates/oxfunc_core/src/functions/reference_metadata_family.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6): all 679 lines, 8 #[test] functions, against clean replacements of the five modules its calls_quarantined list names (calc-func's coerce.rs; cfunc-m3.4's COUNT, COUNTA and COUNTBLANK kernels; ROWS, COLUMNS and AREAS of crates/calc-func/src/catalogue/lookup.rs), none of which was read. Nothing of it is copied. Its lookup cases run over structured table references, which are cfml-m3.2's; their expectations are kept over an array or an area of the sheet, as oracle rows of cfunc_m3_6__lookup_edges; the committed capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json holds Excel's value of each row named below, and cfunc_m3_6__excel_comparison judges it.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "aggregate_group_consumes_structured_table_sparse_readers_as_opaque_references",
+          "expectation": "not this family (aggregates)"
+        },
+        {
+          "test": "structured_reference_capability_denial_is_generic_and_precedes_provider_calls",
+          "expectation": "not this family (SUM and the reference capabilities)"
+        },
+        {
+          "test": "direct_scalar_and_array_paths_are_unchanged_by_structured_reference_guardrail",
+          "expectation": "not this family (SUM, COUNT, COUNTA, COUNTBLANK)"
+        },
+        {
+          "test": "aggregate_statistical_logical_and_text_representatives_use_sparse_structured_refs",
+          "expectation": "not this family"
+        },
+        {
+          "test": "lookup_match_and_criteria_representatives_use_sparse_structured_refs",
+          "expectation": "kept: over an array in place of the table column: lookup_edges D314 MATCH(\"South\",{\"North\",\"South\",\"North\"},0) is 2 and lookup_edges D315 XLOOKUP(\"South\",...,{100,200,300}) 200; the lookups read a reference through CellReader, visiting only held cells (cfunc_m3_6__lookup_edges' reader checks); COUNTIF and SUMIFS are not this family"
+        },
+        {
+          "test": "rows_columns_and_index_use_sparse_extent_without_selector_parsing",
+          "expectation": "kept: over the area A1:C7 in place of a 7-by-3 table: lookup_edges D316 ROWS is 7, lookup_edges D317 COLUMNS 3, lookup_edges D318 INDEX(A1:C7,2,3) a reference to C2 (which shows 20) and lookup_edges D319 INDEX(A1:C7,8,1) #REF!, the cell's value of the test's OutOfBounds error"
+        },
+        {
+          "test": "subtotal_and_aggregate_use_sparse_values_plus_host_context",
+          "expectation": "not this family (SUBTOTAL, AGGREGATE)"
+        },
+        {
+          "test": "metadata_lanes_pass_structured_references_to_host_or_count_opaque_areas",
+          "expectation": "kept: for AREAS over an area: lookup_edges D320 AREAS(A1:C7) is 1; FORMULATEXT and CELL are not this family"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/fixtures/oxfunc_adapter_function_corpus.json",
+      "blob": "d7b5d3d471326691fa3510009b240c4f8d70ce6e",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/fixtures/oxfunc_adapter_function_corpus.json",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.6/lookups/round3-lookup-tests-fixtures-oxfunc_adapter_function_corpus-json.log (exit in round3-lookup-tests-fixtures-oxfunc_adapter_function_corpus-json.exit; round 3, 2026-10-21; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved; changed by tainted commits a4e94d1e and ffcb9a77). None of its expectations is kept or compared.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+      "blob": "8643c3b5794dbb99882c000bdc3eb406f4091491",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-reference_metadata_family-rs.log (exit in lookup-functions-reference_metadata_family-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/address_name_classes.rs",
+          "crates/oxfunc_core/src/functions/numeric_text.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). Nothing of it is ported. AREAS is written fresh from Microsoft's AREAS page and Excel measured ad hoc.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/oxfml_minimal_reference_functions.rs",
+      "blob": "82961a5866a49e338c90c9bc84ac19ceab22b791",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/oxfml_minimal_reference_functions.rs",
+        "exit": 5,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-tests-oxfml_minimal_reference_functions-rs.log (exit in lookup-tests-oxfml_minimal_reference_functions-rs.exit; target/ is not committed)",
+        "numeric_provenance": "unresolved (tainted-commit)",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved). None of its expectations is kept.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/row_fn.rs",
+      "blob": "c3074ca8edaa9927803c96c8480a6f35da330159",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/row_fn.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-row_fn-rs.log (exit in lookup-functions-row_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0). Nothing of its code is copied: ROW is written fresh in crates/calc-func/src/catalogue/lookup.rs; its tests' expectations are compared below.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "eval_row_omitted_uses_caller_row",
+          "expectation": "changed: ROW() is refused as not modelled; the formula's own cell is not among calc_func's services (owned by dc-ebla)"
+        },
+        {
+          "test": "eval_row_single_cell_reference_returns_scalar",
+          "expectation": "kept"
+        },
+        {
+          "test": "eval_row_area_reference_spills_vertically",
+          "expectation": "changed: ROW of several rows is refused as not modelled (NotImplemented naming argument 0; cfml-m3.4): its result depends on the formula's array context, a legacy formula giving the first row's number (lookup_edges D150 =ROW(B3:B5) shows 3, lookup_edges D177 SUM(ROW(B3:B5)) is 3 and lookup_edges D178 MATCH(4,ROW(B3:B5),0) #N/A, captured) and a dynamic-array formula the array of every row's number (measured ad hoc: SUM is 12; no case asserts it, the call being refused)"
+        },
+        {
+          "test": "eval_row_whole_column_reference_builds_full_height_vector",
+          "expectation": "changed: refused, as above (cfunc_m3_6__lookup_edges: ROW(A:A) is NotImplemented); no array of 1,048,576 numbers is built"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/column_fn.rs",
+      "blob": "5412899391199e8f22e74834e7b45b11a4130b12",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/column_fn.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-column_fn-rs.log (exit in lookup-functions-column_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0). Nothing of its code is copied: COLUMN is written fresh in crates/calc-func/src/catalogue/lookup.rs; its tests' expectations are compared below.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "eval_column_omitted_uses_caller_column",
+          "expectation": "changed: COLUMN() is refused, as ROW() (owned by dc-ebla)"
+        },
+        {
+          "test": "eval_column_single_cell_reference_returns_scalar",
+          "expectation": "kept"
+        },
+        {
+          "test": "eval_column_area_reference_spills_horizontally",
+          "expectation": "changed: COLUMN of several columns is refused as not modelled (cfml-m3.4), as ROW (lookup_edges D156 =COLUMN(B3:D3) shows 2 and lookup_edges D179 SUM(COLUMN(B3:D3)) is 2, captured)"
+        },
+        {
+          "test": "eval_column_whole_row_reference_builds_full_width_vector",
+          "expectation": "changed: refused, as above (cfunc_m3_6__lookup_edges: COLUMN(A1:XFD1) is NotImplemented)"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/rows_fn.rs",
+      "blob": "ee8c320035099a8f117c2fe5ab42ce76ca1f2fc9",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/rows_fn.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-rows_fn-rs.log (exit in lookup-functions-rows_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0). Nothing of its code is copied: ROWS is written fresh in crates/calc-func/src/catalogue/lookup.rs; its tests' expectations are compared below.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "rows_rejects_zero_args and rows_rejects_two_args",
+          "expectation": "kept: the arity is exactly 1 (the call interface refuses another count with ArityMismatch)"
+        },
+        {
+          "test": "rows_single_cell_returns_one, rows_area_reference_returns_row_count, rows_single_row_area_returns_one, rows_whole_column_returns_max_rows, rows_whole_row_returns_one, rows_multi_whole_row_returns_count",
+          "expectation": "kept"
+        },
+        {
+          "test": "rows_cross_sheet_reference",
+          "expectation": "kept: a reference to another sheet counts its rows the same way"
+        },
+        {
+          "test": "the metadata tests (determinism, volatility, refs visible, FEC)",
+          "expectation": "dropped: the catalogue entry declares what calc-func routes on; the other metadata axes have no reader yet"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/columns_fn.rs",
+      "blob": "2afbe1639e62af0abc470d9c2df6712d04a74ef5",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/columns_fn.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-columns_fn-rs.log (exit in lookup-functions-columns_fn-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none",
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0). Nothing of its code is copied: COLUMNS is written fresh in crates/calc-func/src/catalogue/lookup.rs; its tests' expectations are compared below.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": [
+        {
+          "test": "columns_rejects_zero_args and columns_rejects_two_args",
+          "expectation": "kept"
+        },
+        {
+          "test": "columns_single_cell_returns_one, columns_area_reference_returns_col_count, columns_single_column_area_returns_one, columns_whole_row_returns_max_cols, columns_whole_column_returns_one, columns_multi_whole_column_returns_count",
+          "expectation": "kept"
+        },
+        {
+          "test": "the metadata tests",
+          "expectation": "dropped, as for ROWS"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/operator_reference_family.rs",
+      "blob": "d50629c1bc7a3ee7bd1a973603af687df1134a7f",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/operator_reference_family.rs",
+        "exit": 0,
+        "transcript": "target/accept/cfunc-m3.6/lookups/lookup-functions-operator_reference_family-rs.log (exit in lookup-functions-operator_reference_family-rs.exit; target/ is not committed)",
+        "numeric_provenance": "none",
+        "calls_quarantined": []
+      },
+      "read": "Not read (lookup exit 0); it holds the reference operators, which are calc-fml's (cfml-m3.3), not this family.",
+      "ported": [],
+      "semantic_changes": [],
+      "legacy_tests": []
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "ROW() and COLUMN() without an argument: the formula's own cell"
+      ],
+      "reason": "calc_func's EvalServices carry no caller information (plan section 2.2 lists it among FunctionServices); the kernels refuse the call with NotImplemented.",
+      "beads": [
+        "dc-ebla"
+      ],
+      "basis": "caller: the round-1 search found no bead that supplies the calling cell to a kernel; the orchestrator created dc-ebla for it (2026-10-21, with cfunc-m3.6 blocking it)."
+    },
+    {
+      "items": [
+        "LOOKUP with a result reference shorter than the found position (Excel reads the cells past the reference)"
+      ],
+      "reason": "The engine builds prerequisites from the references a formula places, so a read past them would go unrecorded; the kernel refuses the call with NotImplemented naming argument 2.",
+      "beads": [
+        "dc-1mc8"
+      ],
+      "basis": "shaped: dc-1mc8 owned the same gap for SUMIF and AVERAGEIF; the orchestrator widened it to LOOKUP's read past its result reference (comment of 2026-10-21)."
+    },
+    {
+      "items": [
+        "XMATCH and XLOOKUP match_mode 3 (regular expressions)"
+      ],
+      "reason": "Refused with NotImplemented naming match_mode.",
+      "beads": [
+        "cfunc-m3.20"
+      ],
+      "basis": "regex: cfunc-m3.20 ports the regex entries; cfml-m4.1 mentions regex only to forbid it."
+    },
+    {
+      "items": [
+        "an array lookup value, index or mode (Excel lifts the function over it)",
+        "an array result, and a reference to several cells, published in a cell",
+        "ROW and COLUMN of several rows or columns, whose result depends on the formula's array context (a legacy formula gives the first number)"
+      ],
+      "reason": "Refused (a lifted call, ROW or COLUMN of several rows or columns), or computed and left to the cell publication that cfml-m3.3 and cfml-m3.4 own.",
+      "beads": [
+        "cfml-m3.4",
+        "cfml-m3.3"
+      ],
+      "basis": "lift, spill, implicit: cfml-m3.4 (array evaluation and legacy array contexts; its 2026-10-21 comment names ROW's and COLUMN's refusal), cfml-m3.3 (implicit intersection)."
+    },
+    {
+      "items": [
+        "a blank result (VLOOKUP, HLOOKUP or LOOKUP of a blank cell, CHOOSE of an omitted value) published in a cell: Excel shows 0, calc_fml::evaluate returns it as Empty"
+      ],
+      "reason": "calc-func returns Empty, which & reads as empty text as Excel does; the root publication is calc-fml's.",
+      "beads": [
+        "cfml-m3.4"
+      ],
+      "basis": "publication: cfml-m3.4's Do keeps cell publication separate from raw formula values; reported by cfunc-m3.6 for the orchestrator to confirm the owner."
+    },
+    {
+      "items": [
+        "text ordering and equality that calc_func's comparison cannot decide, where a result needs it (a linear next-smaller or next-larger search orders texts only when text holds the result), and patterns over non-ASCII text"
+      ],
+      "reason": "Refused with NotImplemented, as calc_func's comparison refuses.",
+      "beads": [
+        "cdoc-jpha"
+      ],
+      "basis": "collation: cdoc-jpha."
+    },
+    {
+      "items": [
+        "range_lookup given as number text (\"1\")"
+      ],
+      "reason": "calc_func's logical coercion refuses digit-bearing text; Excel gives #VALUE!.",
+      "beads": [
+        "cfml-m2.6",
+        "dc-e00t"
+      ],
+      "basis": "NumberTextService, number-text."
+    },
+    {
+      "items": [
+        "XLOOKUP and XMATCH as files spell them (_xlfn.XLOOKUP, _xlfn.XMATCH)"
+      ],
+      "reason": "The catalogue spells them as a user writes them; a loaded formula keeps the prefix, which resolves to no catalogue entry.",
+      "beads": [
+        "dc-552j"
+      ],
+      "basis": "xlfn: dc-552j adds the prefixes on save and strips them on load."
+    },
+    {
+      "items": [
+        "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature, FEC-dependency and error-collapse classes"
+      ],
+      "reason": "The catalogue entry declares what calc-func routes on (ID, spelling, notation, arity, parameter classes, argument demand, kernel); the other metadata axes have no reader yet.",
+      "beads": [
+        "cfunc-m3.22",
+        "cfunc-m3.25"
+      ],
+      "basis": "FunctionMeta: cfunc-m3.22 and cfunc-m3.25 port FunctionMeta, as cfunc-m3.4 recorded."
+    },
+    {
+      "items": [
+        "rows whose result is a reference to one cell (the test shows its value) or that pass a nested call's result to an outer call, judged through calc_fml::evaluate (67 rows in round 4: 41 on reference_result, 26 on lookup_edges)"
+      ],
+      "reason": "Through calc_func::invoke alone the test would stand in for calc_fml's root dereference and nesting; those rows are published to the comparison as not modeled.",
+      "beads": [
+        "dc-l10u"
+      ],
+      "basis": "created by the orchestrator from the round-1 judge's finding (2026-10-21)."
+    },
+    {
+      "items": [
+        "an order between #BUSY!, #BLOCKED! or #CONNECT! and another error in XMATCH's and XLOOKUP's order"
+      ],
+      "reason": "No formula on this machine gives these three errors offline, so their place is unmeasured; refused with NotImplemented.",
+      "beads": [
+        "dc-tt73"
+      ],
+      "basis": "BUSY: dc-tt73 owns finding a route that produces these errors in Excel; its Outcome, Do and Out of scope name XMATCH's and XLOOKUP's order of them against the other errors (widened by the orchestrator on 2026-10-21)."
+    },
+    {
+      "items": [
+        "the source formulas of lookup_edges P1:Q54, which give Excel's #CALC!, #SPILL! and #FIELD!: FILTER(A1:A6,A1:A6>100), SEQUENCE(1,2) with its spill blocked, and FIELDVALUE(A1,\"x\") of a number"
+      ],
+      "reason": "calc_func's catalogue has no FILTER, SEQUENCE or FIELDVALUE (cfunc_m3_6__lookup_edges asserts that resolve_surface refuses each); the 60 source cells are published as not modeled, the test sheet's reader holds for each the error Excel gives it (checked against the capture), and the 54 rows that read them are published as not modeled, conditional on those errors.",
+      "beads": [
+        "cfunc-m3.16",
+        "cfml-m3.4",
+        "cfunc-m3.19"
+      ],
+      "basis": "Round 4 (2026-10-21): 'br search <term> -a --limit 0 --no-db' and 'br list --notes-contains <term> -a --limit 0 --no-db' for FILTER, SEQUENCE, FIELDVALUE and 'data type' over .beads/issues.jsonl of master 0652250 (transcript target/accept/cfunc-m3.6/round4/owner-search.log): FILTER and SEQUENCE found cfunc-m3.16 (dynamic array transformation functions, both in its Do); a blocked spill is cfml-m3.4's publication of an array result; FIELDVALUE found no bead, and cfunc-m3.19, whose Do names the external, link and data adapters, is the nearest owner, reported for the orchestrator to confirm."
+    }
+  ],
+  "functions_evidence": "Per-ID manifest of the 13 IDs: what each implements, where its rule departs from Excel or rests on a choice (divergent), and what it refuses (unsupported). '(captured)' marks a rule that the committed capture of the oracle workbook judges through cfunc_m3_6__excel_comparison, with the rows that show it: Dn is row n of the sheet lookup_edges unless the citation says 'reference_result Dn' or 'on reference_result', which name rows of the sheet reference_result. '(measured ad hoc)' marks a part that Excel 16.0 build 20430 showed through COM only (semantic_witnesses); no case assertion rests on such a part. No blanket parity is claimed: the capture judges the oracle rows only.",
+  "functions": [
+    {"id": "9.1", "spelling": "INDEX",
+      "implemented": [
+        "a reference gives a reference to the cell, row (column_num 0 or empty), column (row_num 0 or empty) or whole area selected; INDEX reads no cell (captured: AREAS(INDEX(A1:C3,0,2)) is 1)",
+        "area_num picks an area of a reference of several areas; 1 when omitted; below 1 (an empty area_num included) #VALUE!; beyond the areas, or above 1 for an array or a single value, #REF! (captured on reference_result: D10 area 2, D11 area_num omitted, D53 0 and D54 empty #VALUE!, D15 beyond the areas, D55 an array and D56 a single value #REF!)",
+        "an index is read by worksheet number coercion (number text, logicals) and truncated; a negative index (-0.5 included) #VALUE!; beyond the area or array (1E+300 included) #REF! (captured on reference_result: D13 number text, D57 TRUE, D2 and D62 truncated, D17 -1 and D58 -0.5 #VALUE!, D14 beyond the area and D59 1E+300 #REF!; and lookup_edges D319)",
+        "column_num omitted: row_num indexes the columns of a one-row area or array and the rows of a one-column one; a reference of more rows and columns #REF!, an array of them its whole row (captured on reference_result: D4 and D3 a one-row and a one-column area, D60 and D61 a one-row and a one-column array, D16 and D64 a grid reference #REF!, D45 SUM(INDEX({1,2;3,4},2)) is 7)",
+        "argument errors first, in argument order (captured: reference_result D18 INDEX(A1:C3,#N/A,#DIV/0!) is #N/A); then the #VALUE! rules, then the #REF! rules (unmeasured choice where both apply to different arguments)",
+        "an array gives the element, or the array of the rows and columns selected (captured: ROWS and SUM of INDEX({1,2;3,4},0,2) are 2 and 6)",
+        "a blank or omitted first argument is #VALUE! before the other arguments are read (captured: INDEX(,1), INDEX(,1,#DIV/0!) and INDEX(CHOOSE(2,1,),1), D165, D166 and D187)"
+      ],
+      "divergent": [
+        "a single value selected with a 0 index gives the value itself (INDEX(5,0)) and a 1-by-1 array gives a 1-by-1 array (INDEX({5},0)): the kinds differ as Excel's dynamic-array results do (measured ad hoc in round 3: TYPE(INDEX(5,0)) is 1 and TYPE(INDEX({5},0)) 64); in a legacy formula both are 1, the context reducing the array, which is cfml-m3.4's; no case asserts the 1-by-1 array"
+      ],
+      "unsupported": [
+        "an array index (Excel lifts INDEX over it), refused by number coercion; owned by cfml-m3.4",
+        "under NumericMode::Exact, number text read as an index (ExactUnavailable)"
+      ]
+    },
+    {"id": "9.2", "spelling": "MATCH",
+      "implemented": [
+        "match_type read as a number, only its sign counting (2 and 0.5 are 1, -0.5 is -1); omitted 1; given empty or blank 0 (captured: D30 2 and D434 0.5, D31 -0.5, D3 omitted, D33 given empty and D435 a blank cell, D32 the text \"0\")",
+        "0: the first cell of the lookup value's kind equal to it: numbers by exact binary64 value, logicals by value, text ignoring case through calc_func's comparison; a text lookup value holding *, ? or ~ is a pattern matching text cells only (captured: D1 the first of equal cells, D37 to D39, D214 and D215 exact binary64 values, D25 a logical, D13 and D211 text ignoring case, D15, D16, D19 to D21 and D210 patterns, D26 a pattern passing over a number, D22 and D23 the text \"1\" and the number 1)",
+        "1: Excel's bisection on sorted, unsorted and mixed lines, passing over blank cells (captured: D2 to D6, D11, D14, D17, D18, D28 to D30, D44 to D46, D48, D197 to D199, D202, D205, D206, D208, D209 and D434; the 900 random lines of the first witness are an ad hoc read no case rests on)",
+        "-1: the walk from the start over the lookup value's kind, stopping at the first smaller cell (captured: D7 to D10, D12, D31, D47, D201, D203 and D207; the 900 random lines of the first witness are an ad hoc read no case rests on)",
+        "a blank or omitted lookup value is the number 0; number text never matches a number (captured: D43 omitted, D44 and D204 a blank cell, D24 the text \"2\" over numbers, D23 the number 1 over the text \"1\")",
+        "a lookup array of more than one row and column, a reference of several areas, a single value given directly and an omitted lookup array are #N/A; a one-cell reference or a 1-by-1 array is searched (captured: D34 and D213 more rows and columns, D436 several areas, D35 a single value, D437 omitted, D439 a one-cell reference, D438 a 1-by-1 array)",
+        "a text lookup value of more than 255 UTF-16 code units is #VALUE!; argument errors first, in argument order (captured: D40; D41 and D42)",
+        "the lookup array is read through CellReader; an exact search stops at the first match, so a whole column costs the held cells before it",
+        "an error among the cells of an approximate search is passed over (captured: MATCH(2.5,{1,#DIV/0!,2,3},1) and MATCH(2.5,{1,#N/A,2,3},1) are 3); a blank or omitted lookup array is #N/A after every argument's error (captured: MATCH(1,,#DIV/0!) is #DIV/0!)"
+      ],
+      "divergent": [],
+      "unsupported": [
+        "an array lookup value (Excel lifts the function over it); owned by cfml-m3.4",
+        "a text order or text equality calc_func's comparison cannot decide, and patterns over non-ASCII text; owned by cdoc-jpha",
+        "under NumericMode::Exact, number text read as match_type (ExactUnavailable)"
+      ]
+    },
+    {"id": "9.3", "spelling": "XMATCH",
+      "implemented": [
+        "match_mode and search_mode read as numbers and rounded down (-0.5 is -1, 1.5 is 1, -1.5 is -2); match_mode 0, -1, 1 or 2 and search_mode 1, -1, 2 or -2, another value #VALUE!; wildcards with a binary search #VALUE!; omitted or empty match_mode 0 and search_mode 1; a blank cell as match_mode 0 and as search_mode #VALUE! (captured: D64 -0.5, D440 1.5 and D63 -1.5 as match_mode, D441 -1.5 as search_mode, D62, D225 and D226 other values, D65 wildcards with a binary search, D49 omitted, D252 empty, D164 and D163 a blank cell)",
+        "exact: the first (or last) cell of the lookup value's kind equal to it, without patterns; a blank or omitted lookup value matches a blank cell, not empty text (captured: D253 to D255)",
+        "linear next smaller or larger: an equal cell when there is one, else the nearest value in Excel's order of every value (numbers, text, logicals, errors #NULL! < #DIV/0! < #VALUE! < #REF! < #NAME? < #NUM! < #N/A < #GETTING_DATA < #SPILL! < #FIELD! < #CALC!, blank cells), the first candidate met of equal ones; the kind nearest the lookup value decides before any order within a kind, so texts calc_func's comparison cannot order are passed over when a nearer kind holds the result; -0 orders as +0 (captured: D51 to D55, D64, D71 to D75, D77 to D80, D246 to D249, the error pairs D321 to D430, and D431 to D433, whose texts \"a b\" and \"c d\" the comparison cannot order; the 900 random lines of the first witness are an ad hoc read no case rests on; that -0 orders as +0 is the kernel's own consistency with its equality, which cfunc_m3_6__lookup_edges checks over a reader holding -0, since no worksheet cell holds -0)",
+        "binary searches over every cell in that order (a blank cell and an error are not passed over; captured: D241 to D245), ascending to the first and descending to the last equal cell (captured: D56 to D58, D76, D232 to D240, D250 and D251; the 900 random lines of the first witness are an ad hoc read no case rests on)",
+        "blank cells, which the reader does not visit, are the next larger value when no other value is larger (captured: D77 XMATCH(99,A40:A45,1) is 4 and D78 with search_mode -1 is 6)",
+        "a lookup array of more than one row and column #VALUE!, a reference of several areas #N/A, a single value a line of one cell; no 255-unit limit (captured: D66, D442, D67 and D443)",
+        "a blank or omitted lookup array is #VALUE! in its argument's turn, before the modes are read (captured: D167 XMATCH(1,), D444 XMATCH(1,,#DIV/0!) is #VALUE!, D445 XMATCH(#N/A,) is #N/A)",
+        "the order of the errors (captured: XMATCH(TRUE,pair,1) over the 56 ordered pairs of the eight errors a cell constant can hold, D321 to D376, and over the 54 ordered pairs with #SPILL!, #FIELD! or #CALC! among them, D377 to D430, whose cells of those three errors in P1:Q54 hold source formulas, FILTER with no match, SEQUENCE(1,2) with its spill blocked and FIELDVALUE of a number; those 54 rows are conditional on the errors the reader holds for the 60 source cells, are published as not modeled, and the comparison checks each row's value and each source cell's error against the capture)"
+      ],
+      "divergent": [],
+      "unsupported": [
+        "an array lookup value (Excel lifts the function over it); owned by cfml-m3.4",
+        "a text order or text equality calc_func's comparison cannot decide, where the result needs it, and patterns over non-ASCII text; owned by cdoc-jpha",
+        "match_mode 3 (regular expressions); owned by cfunc-m3.20",
+        "an order between #BUSY!, #BLOCKED! or #CONNECT! and another error, where the result needs it, which no formula on this machine gives offline; owned by dc-tt73"
+      ]
+    },
+    {"id": "9.4", "spelling": "XLOOKUP",
+      "implemented": [
+        "XMATCH's search; the result is the row (a vertical lookup array) or column (a horizontal one) of return_array at the match: a reference into return_array, else the array's row, column or element (captured: D81, D82, D86, D87 and D93 references into a column, D90 into a row, D261, D262, D264 and D433 an array's element, D272 an array's row, D270 a reference into a row)",
+        "a return_array of another length along the lookup array, or of the other orientation, #VALUE!; a lookup array of more than one row and column #VALUE!; a lookup or return reference of several areas #N/A (captured: D88 another length, D91 and D271 the other orientation, D446 a lookup array of more rows and columns, D447 and D448 several areas)",
+        "no match: if_not_found as it is (a reference stays a reference), #N/A when it is omitted or given empty (captured: D84 and D263 text, D92 an error, reference_result D35 a reference, D83 omitted, D85 given empty)",
+        "the lookup value's error comes before the shape check (captured: D89)",
+        "a lookup array of one cell returns the whole return array of one row, else of one column; a return array of more rows and columns is #VALUE!, after the modes and before the search (captured: ROWS, COLUMNS and SUM of XLOOKUP(1,A1,A13:C13) and XLOOKUP(1,A1,C1:C3), D188 to D193; XLOOKUP(1,A1,B1:C2), XLOOKUP(9,A1,B1:C2,\"nf\") and XLOOKUP(1,A1,B1:C2,,#DIV/0!))",
+        "a blank or omitted lookup or return array is #VALUE! in its argument's turn, before the modes are read (captured: XLOOKUP(1,,C1:C3), XLOOKUP(1,A1:A3,) and XLOOKUP(1,A1:A3,,,#DIV/0!), D168 to D170)"
+      ],
+      "divergent": [],
+      "unsupported": [
+        "an array lookup value (Excel lifts the function over it); owned by cfml-m3.4",
+        "a text order or text equality calc_func's comparison cannot decide, where the result needs it, and patterns over non-ASCII text; owned by cdoc-jpha",
+        "match_mode 3 (regular expressions); owned by cfunc-m3.20",
+        "an order between #BUSY!, #BLOCKED! or #CONNECT! and another error, where the result needs it; owned by dc-tt73"
+      ]
+    },
+    {"id": "9.5", "spelling": "VLOOKUP",
+      "implemented": [
+        "exact (range_lookup FALSE, 0, blank or given empty): the first matching cell of the first column, with patterns, as MATCH 0 (captured: D94 and D451 FALSE, D451 the first of equal keys, D449 0, D450 a blank cell, D99 given empty, D106 a pattern, D110 a blank lookup value)",
+        "approximate (omitted, TRUE, nonzero, text TRUE): MATCH's bisection over the first column (captured: D95 omitted, D96 and D97 TRUE, D452 a nonzero number, D109 the text TRUE, D112, D279, D282, D283 and D286; the 900 random lines of the first witness are an ad hoc read no case rests on)",
+        "col_index_num read as a number and truncated, checked only after a match: below 1 #VALUE! from -2147483647 upward, at or below -2147483648 or beyond the table #REF!; no match #N/A whatever the index (captured: D100 to D105, D290, D292, D294 and D296)",
+        "a blank result cell gives Empty, which a cell shows as 0 and & joins as empty text (captured: VLOOKUP(3,A9:C10,3,FALSE) shows 0 and VLOOKUP(3,A9:C10,3,FALSE)&\"\" is empty text, D194)",
+        "argument errors before the search, in argument order; a table of several areas or a single value given directly #N/A; a text lookup value of more than 255 UTF-16 code units #VALUE! (captured: D453 and D172 argument errors, D454 several areas, D455 a single value, D456 text of 256 units)",
+        "reads the first column through CellReader and the one result cell, both inside the table",
+        "a blank or omitted table is #N/A after every argument's error (captured: VLOOKUP(1,,1) and VLOOKUP(1,,1,#DIV/0!), D171 and D172)"
+      ],
+      "divergent": [
+        "range_lookup text holding a digit (\"1\"): Excel gives #VALUE!, calc_func's logical coercion refuses it"
+      ],
+      "unsupported": [
+        "an array lookup value (Excel lifts the function over it); owned by cfml-m3.4",
+        "a text order or text equality calc_func's comparison cannot decide, and patterns over non-ASCII text; owned by cdoc-jpha",
+        "range_lookup read from number text; owned by cfml-m2.6 (dc-e00t takes the certain negative verdicts)"
+      ]
+    },
+    {"id": "9.6", "spelling": "HLOOKUP",
+      "implemented": [
+        "VLOOKUP with rows and columns exchanged: the first row searched, row_index_num chosen (captured: D113 to D116, D280, D281, D284, D285, D287, D289, D291, D293, D295, D297 and D299)",
+        "a blank or omitted table is #N/A, as VLOOKUP (captured: HLOOKUP(1,,1), D457)"
+      ],
+      "divergent": [
+        "range_lookup text holding a digit, as VLOOKUP"
+      ],
+      "unsupported": [
+        "an array lookup value (Excel lifts the function over it); owned by cfml-m3.4",
+        "a text order or text equality calc_func's comparison cannot decide, and patterns over non-ASCII text; owned by cdoc-jpha",
+        "range_lookup read from number text; owned by cfml-m2.6"
+      ]
+    },
+    {"id": "9.7", "spelling": "LOOKUP",
+      "implemented": [
+        "MATCH's bisection over the lookup line (captured: D117 to D120, D125, D128, D303, D305 and D306, LOOKUP(2,{2,1,3},{20,10,30}) is 10; the 900 random lines of the first witness are an ad hoc read no case rests on)",
+        "two arguments: a grid wider than tall searched in its first row and answered from its last row, any other in its first column and answered from its last column (captured: D458 a grid wider than tall, D123 and D304 taller, D124 square)",
+        "result_vector one row or column (a single cell runs along its row); of more rows and columns #N/A; an array or single value shorter than the found position #N/A (captured: D121 and D122 a row, D459 a single cell, D460 more rows and columns, D127 an array and D461 a single value shorter)",
+        "a lookup or result reference of several areas #N/A; a blank or omitted lookup value 0; a blank result cell Empty; text over 255 UTF-16 code units #VALUE! (captured: D462 and D463 several areas, D126 a blank lookup value, D465 a blank result cell, which the cell shows as 0, D464 text of 256 units)",
+        "a blank or omitted lookup or result vector is #VALUE! in its argument's turn (captured: LOOKUP(1,), LOOKUP(1,A1:A6,) and LOOKUP(1,#DIV/0!,), D173 to D175, and LOOKUP(0,A1:A6,), #VALUE! though nothing matches, D466)"
+      ],
+      "divergent": [],
+      "unsupported": [
+        "an array lookup value (Excel lifts the function over it); owned by cfml-m3.4",
+        "a text order or text equality calc_func's comparison cannot decide, and patterns over non-ASCII text; owned by cdoc-jpha",
+        "a result reference shorter than the found position: Excel reads the cells past the reference given, a read the engine cannot see; owned by dc-1mc8"
+      ]
+    },
+    {"id": "9.8", "spelling": "CHOOSE",
+      "implemented": [
+        "lazy (ArgumentDemand::BranchOnCondition): index_num asked for first, then only the chosen value (documented: CHOOSE's page says every value is evaluated when index_num is an array)",
+        "index_num read as a number (number text, TRUE 1, FALSE and blank 0) and truncated; below 1 or beyond the values #VALUE!; its error the result (captured: D133 number text, D134 TRUE, D467 FALSE and D468 a blank cell, D130 and D308 truncated, D131, D132, D309 and D310 out of range, D135 an error)",
+        "the chosen value as it is (a reference stays a reference); an omitted chosen value Empty, which a cell shows as 0 and & joins as empty text (captured: CHOOSE(2,\"a\",) shows 0 and CHOOSE(2,\"a\",)&\"\" is empty text, D195)"
+      ],
+      "divergent": [],
+      "unsupported": [
+        "an array index_num (Excel evaluates every value and lifts CHOOSE over it); owned by cfml-m3.4",
+        "under NumericMode::Exact, number text read as index_num (ExactUnavailable)"
+      ]
+    },
+    {"id": "9.9", "spelling": "ROW",
+      "implemented": [
+        "the row number of a reference of one area and one row (captured: ROW(B3), ROW(B3:C3))",
+        "a reference of several areas #REF! (captured: ROW((A1,B2))); a value that is not a reference, blank included, #VALUE! (captured through CHOOSE: ROW(CHOOSE(1,5)) and ROW(CHOOSE(2,1,)), D180 and D183; Excel refuses ROW(5) at entry); an error argument is the result (captured: ROW(#REF!))"
+      ],
+      "divergent": [],
+      "unsupported": [
+        "an area of several rows, refused with NotImplemented naming argument 0: the result depends on the formula's array context, a legacy formula giving the first row's number (captured: the cell =ROW(B3:B5) shows 3, SUM(ROW(B3:B5)) is 3 and MATCH(4,ROW(B3:B5),0) #N/A, D150, D177 and D178) and a dynamic-array formula the array of every row's number (measured ad hoc: SUM(ROW(B3:B5)) is 12; no case asserts it, the call being refused); owned by cfml-m3.4",
+        "no argument: the formula's own cell, which calc_func's services do not supply; owned by dc-ebla"
+      ]
+    },
+    {"id": "9.10", "spelling": "COLUMN",
+      "implemented": [
+        "the column number of a reference of one area and one column (captured: COLUMN(C5))",
+        "a reference of several areas #REF! (captured: COLUMN((A1,B2))); a value that is not a reference #VALUE! (captured: COLUMN(CHOOSE(1,\"a\")), D181); an error argument is the result"
+      ],
+      "divergent": [],
+      "unsupported": [
+        "an area of several columns, refused as ROW's (captured: the cell =COLUMN(B3:D3) shows 2 and SUM(COLUMN(B3:D3)) is 2, D156 and D179); owned by cfml-m3.4",
+        "no argument: the formula's own cell, as ROW; owned by dc-ebla"
+      ]
+    },
+    {"id": "9.11", "spelling": "ROWS",
+      "implemented": [
+        "the rows of a reference's single area or of an array; a single value 1; an error the result; a reference of several areas #REF! (captured: D142 and D316 a reference, D143 an array, D144 and D145 single values, D146 an error, D147 several areas)",
+        "a blank or omitted argument #VALUE! (captured: ROWS(CHOOSE(2,1,)), D185)"
+      ],
+      "divergent": [],
+      "unsupported": []
+    },
+    {"id": "9.12", "spelling": "COLUMNS",
+      "implemented": [
+        "the columns of a reference's single area or of an array; a single value 1; an error the result; a reference of several areas #REF! (captured: D148 and D317 a reference, D469 an array, D470 a single value, D471 an error, D472 several areas)",
+        "a blank or omitted argument #VALUE! (captured: COLUMNS(CHOOSE(2,1,)), D186)"
+      ],
+      "divergent": [],
+      "unsupported": []
+    },
+    {"id": "9.13", "spelling": "AREAS",
+      "implemented": [
+        "the number of areas of a reference (captured: D149, D320 and reference_result D47); an error the result (measured ad hoc; no case asserts it)",
+        "a value that is not a reference, blank included, #VALUE! (captured through CHOOSE: AREAS(CHOOSE(1,5)) and AREAS(CHOOSE(2,1,)), D182 and D184; Excel refuses AREAS(5) at entry)"
+      ],
+      "divergent": [],
+      "unsupported": []
+    }
+  ]
+}

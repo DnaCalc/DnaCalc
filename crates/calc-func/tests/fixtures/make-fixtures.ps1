@@ -3,23 +3,26 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
 # writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx,
-# <directory>/cfunc_m3_4/oracle.xlsx, <directory>/cfunc_m3_5/oracle.xlsx and
-# <directory>/dc_q9rb/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
-# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
-# cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes, cfunc_m3_5__criteria_semantics and
-# dc_q9rb__number_text_for_concatenation run it into a fresh directory on Windows and compare its
-# output with the committed workbooks byte for byte.
+# <directory>/cfunc_m3_4/oracle.xlsx, <directory>/cfunc_m3_5/oracle.xlsx,
+# <directory>/dc_q9rb/oracle.xlsx and <directory>/cfunc_m3_6/oracle.xlsx. Run with this directory
+# as -OutDir it rewrites the committed fixtures; the acceptance cases cfunc_m1_2__mixed_operands,
+# cfunc_m3_2__rounding_boundaries, cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes,
+# cfunc_m3_5__criteria_semantics, dc_q9rb__number_text_for_concatenation,
+# cfunc_m3_6__reference_result and cfunc_m3_6__lookup_edges run it into a fresh directory on
+# Windows and compare its output with the committed workbooks byte for byte.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
 # (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`),
 # cfunc_m3_2/oracle.xlsx the one an Excel capture of cfunc-m3.2's rounding and integer rows reads,
 # cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads,
-# cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads, and
-# dc_q9rb/oracle.xlsx the one an Excel capture of dc-q9rb's number-text rows reads. Each has one
+# cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads,
+# dc_q9rb/oracle.xlsx the one an Excel capture of dc-q9rb's number-text rows reads, and
+# cfunc_m3_6/oracle.xlsx the one an Excel capture of cfunc-m3.6's lookup rows reads. Each has one
 # sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
 # holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
-# its rows. Each case checks that its sheet holds exactly those formulas and cells. No formula cell
-# carries a cache: Excel calculates them.
+# its rows. Each case checks that its sheet holds exactly those formulas and cells; the sheet
+# lookup_edges of cfunc_m3_6/oracle.xlsx also holds source formulas, each a dynamic-array formula
+# over its one cell. No formula cell carries a cache: Excel calculates them.
 #
 # The package is a minimal SpreadsheetML package written as text: every part is UTF-8 XML, stored
 # (ZIP method 0, no compression) with the timestamp 1980-01-01 00:00 and no extra fields, by the
@@ -121,16 +124,26 @@ function Split-Ref([string]$Ref) {
     return @([int]($Ref.Substring($letters.Length)), $letters)
 }
 
-# A worksheet part: the constant cells $Inputs (each @(reference, XML), in columns A to C) and the
-# formulas $Formulas, one per row of column D from row 1. Rows are written in order, each row's
-# cells in column order.
-function New-OracleSheet($Inputs, $Formulas) {
+# A worksheet part: the constant cells $Inputs (each @(reference, XML), in any column but D), the
+# formulas $Formulas, one per row of column D from row 1, and the source formulas $Sources (each
+# @(reference, formula as the file stores it), in any column but D), each written as a
+# dynamic-array formula over its one cell (cm="1", the metadata part's one cell metadata block, so
+# the workbook must be written with -DynamicArrays). Rows are written in order, each row's cells in
+# column order.
+function New-OracleSheet($Inputs, $Formulas, $Sources = @()) {
     $rows = @{}
     foreach ($cell in $Inputs) {
         $place = Split-Ref $cell[0]
-        if ('ABC'.IndexOf($place[1]) -lt 0 -or $place[1].Length -ne 1) { throw "input cell $($cell[0]) is outside columns A to C" }
+        if ($place[1] -eq 'D') { throw "input cell $($cell[0]) is in the formula column D" }
         if (-not $rows.ContainsKey($place[0])) { $rows[$place[0]] = @{} }
         $rows[$place[0]][$place[1]] = $cell[1]
+    }
+    foreach ($source in $Sources) {
+        $place = Split-Ref $source[0]
+        if ($place[1] -eq 'D') { throw "source cell $($source[0]) is in the formula column D" }
+        if (-not $rows.ContainsKey($place[0])) { $rows[$place[0]] = @{} }
+        if ($rows[$place[0]].ContainsKey($place[1])) { throw "cell $($source[0]) is written twice" }
+        $rows[$place[0]][$place[1]] = '<c r="' + $source[0] + '" cm="1"><f t="array" ref="' + $source[0] + '">' + (Get-Escaped $source[1]) + '</f></c>'
     }
     $number = 0
     foreach ($formula in $Formulas) {
@@ -141,8 +154,8 @@ function New-OracleSheet($Inputs, $Formulas) {
     $text = $Decl + '<worksheet xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><sheetData>'
     foreach ($row in ($rows.Keys | Sort-Object)) {
         $text += '<row r="' + $row + '">'
-        foreach ($column in @('A', 'B', 'C', 'D')) {
-            if ($rows[$row].ContainsKey($column)) { $text += $rows[$row][$column] }
+        foreach ($column in ($rows[$row].Keys | Sort-Object { $_.Length }, { $_ })) {
+            $text += $rows[$row][$column]
         }
         $text += '</row>'
     }
@@ -166,13 +179,26 @@ $Styles = $Decl + '<styleSheet xmlns="' + $Main + '">' +
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
     '</styleSheet>'
 
-# Writes a workbook of the worksheets $Sheets (each @(name, worksheet XML)), in order.
-function Write-Workbook([string]$Path, $Sheets) {
+# The metadata part: one cell metadata block (a cell's cm="1") whose record names the metadata type
+# XLDAPR and its one future-metadata block, whose dynamicArrayProperties sets fDynamic, as Excel
+# with dynamic arrays writes it for a dynamic-array formula.
+$Metadata = $Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">' +
+    '<metadataTypes count="1"><metadataType name="XLDAPR" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/></metadataTypes>' +
+    '<futureMetadata name="XLDAPR" count="1"><bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk></futureMetadata>' +
+    '<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata>' +
+    '</metadata>'
+
+# Writes a workbook of the worksheets $Sheets (each @(name, worksheet XML)), in order; with
+# -DynamicArrays also the metadata part, which the source formulas of New-OracleSheet name.
+function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
     $types = $Decl + '<Types xmlns="' + $ContentTypes + '">' +
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
         '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
         '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+    if ($DynamicArrays) {
+        $types += '<Override PartName="/xl/metadata.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml"/>'
+    }
     $rels = New-Object System.Collections.ArrayList
     $parts = New-Object System.Collections.ArrayList
     $entries = ''
@@ -185,6 +211,9 @@ function Write-Workbook([string]$Path, $Sheets) {
         [void]$parts.Add(@("xl/worksheets/sheet$index.xml", $sheet[1]))
     }
     [void]$rels.Add(@(('rId' + ($index + 1)), "$Rel/styles", 'styles.xml'))
+    if ($DynamicArrays) {
+        [void]$rels.Add(@(('rId' + ($index + 2)), "$Rel/sheetMetadata", 'metadata.xml'))
+    }
     $types += '</Types>'
     $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><bookViews><workbookView/></bookViews>' +
         '<sheets>' + $entries + '</sheets><calcPr fullCalcOnLoad="1"/></workbook>'
@@ -194,6 +223,7 @@ function Write-Workbook([string]$Path, $Sheets) {
     [void]$all.Add(@('xl/workbook.xml', $workbook))
     [void]$all.Add(@('xl/_rels/workbook.xml.rels', (New-Relationships $rels)))
     [void]$all.Add(@('xl/styles.xml', $Styles))
+    if ($DynamicArrays) { [void]$all.Add(@('xl/metadata.xml', $Metadata)) }
     foreach ($part in $parts) { [void]$all.Add($part) }
     Write-Package $Path $all
 }
@@ -718,3 +748,677 @@ $numberTextFormulas = @(
 Write-Workbook (Join-Path $OutDir 'dc_q9rb/oracle.xlsx') @(
     , @('number_text_for_concatenation', (New-OracleSheet $numberTextInputs $numberTextFormulas))
 )
+
+# --- cfunc_m3_6/oracle.xlsx ---------------------------------------------------------------------
+
+# Sheet reference_result: the cells of cfunc_m3_6__reference_result's test sheet (A1:C3 hold 1 to 9,
+# A4 text, B4 is blank, C4 TRUE; A10:A14 the keys k1 to k5 with numbers and text beside them, B13
+# blank; A1000 the key kz and C1000 77), and its oracle rows' formulas in its order. XLOOKUP and
+# XMATCH carry the _xlfn. prefix the file format gives functions newer than it.
+$referenceInputs = @(
+    (New-Number 'A1' '1'),
+    (New-Number 'B1' '2'),
+    (New-Number 'C1' '3'),
+    (New-Number 'A2' '4'),
+    (New-Number 'B2' '5'),
+    (New-Number 'C2' '6'),
+    (New-Number 'A3' '7'),
+    (New-Number 'B3' '8'),
+    (New-Number 'C3' '9'),
+    (New-Text 'A4' 't'),
+    (New-Logical 'C4' $true),
+    (New-Text 'A10' 'k1'),
+    (New-Number 'B10' '10'),
+    (New-Text 'C10' 'x10'),
+    (New-Text 'A11' 'k2'),
+    (New-Number 'B11' '20'),
+    (New-Text 'C11' 'x20'),
+    (New-Text 'A12' 'k3'),
+    (New-Number 'B12' '30'),
+    (New-Text 'C12' 'x30'),
+    (New-Text 'A13' 'k4'),
+    (New-Text 'C13' 'x40'),
+    (New-Text 'A14' 'k5'),
+    (New-Number 'B14' '50'),
+    (New-Text 'C14' 'x50'),
+    (New-Text 'A1000' 'kz'),
+    (New-Number 'C1000' '77')
+)
+$referenceFormulas = @(
+    'INDEX(A1:C3,2,3)',
+    'INDEX(A1:C3,2.7,1.2)',
+    'INDEX(A1:A4,4)',
+    'INDEX(A1:C1,3)',
+    'INDEX(A1:C1,,2)',
+    'INDEX(B1:B4,4)',
+    'INDEX(A1:C3,0,2)',
+    'INDEX(A1:C3,2,0)',
+    'INDEX(A1:C3,0,0)',
+    'INDEX((A1:A3,C1:C3),2,1,2)',
+    'INDEX((A1:A3,C1:C3),3)',
+    'INDEX(A:A,1000)',
+    'INDEX(A1:C3,"2","3")',
+    'INDEX(A1:C3,4,1)',
+    'INDEX(A1:C3,1,1,2)',
+    'INDEX(A1:C3,2)',
+    'INDEX(A1:C3,-1,1)',
+    'INDEX(A1:C3,#N/A,#DIV/0!)',
+    'SUM(INDEX(A1:C3,0,2))',
+    'SUM(INDEX(A1:C3,2,0))',
+    'SUM(INDEX(A1:C3,0,0))',
+    'ROWS(INDEX(A1:C3,0,2))',
+    'COLUMNS(INDEX(A1:C3,2,0))',
+    'AREAS(INDEX((A1:A3,C1:C3),1,1,2))',
+    'ROW(INDEX(A1:C3,2,3))',
+    'COLUMN(INDEX(A1:C3,2,3))',
+    'COUNTBLANK(INDEX(A1:C4,4,0))',
+    'INDEX(B:B,MATCH("k3",A:A,0))',
+    'INDEX(B:B,MATCH("K5",A:A,0))',
+    'INDEX(C:C,MATCH("kz",A:A,0))',
+    'INDEX(B:B,MATCH("k4",A:A,0))',
+    'INDEX(B:B,MATCH("k9",A:A,0))',
+    '_xlfn.XLOOKUP("k3",A10:A14,B10:B14)',
+    '_xlfn.XLOOKUP("k4",A10:A14,B10:B14)',
+    '_xlfn.XLOOKUP("k9",A10:A14,B10:B14,C4)',
+    'SUM(_xlfn.XLOOKUP("k2",A10:A14,B10:C14))',
+    'CHOOSE(2,A1,B1)',
+    'SUM(CHOOSE(2,A1:A3,B1:B3))',
+    'ROWS(CHOOSE(1,A1:A3,B1:B2))',
+    'CHOOSE(2,"a",B4)',
+    'VLOOKUP("k3",A10:C14,3,FALSE)',
+    'VLOOKUP("k4",A10:B14,2,FALSE)',
+    'INDEX({1,2;3,4},2,1)',
+    'INDEX({1,2;3,4},0,2)',
+    'SUM(INDEX({1,2;3,4},2))',
+    'INDEX(5,1)',
+    'AREAS((A1:B2,C3,A4))',
+    'ROWS(A:A)',
+    'AREAS(INDEX(A1:C3,0,2))',
+    'ROWS(INDEX({1,2;3,4},0,2))',
+    'SUM(INDEX({1,2;3,4},0,2))',
+    'VLOOKUP("k4",A10:B14,2,FALSE)&""',
+    # INDEX's area_num, a logical, fractional, negative or huge index, column_num omitted on a line
+    # of an array, and column_num given empty or omitted on a grid.
+    'INDEX((A1:A3,C1:C3),1,1,0)',
+    'INDEX((A1:A3,C1:C3),1,1,)',
+    'INDEX({1,2;3,4},1,1,2)',
+    'INDEX(5,1,1,2)',
+    'INDEX(A1:C3,TRUE,1)',
+    'INDEX(A1:C3,-0.5,1)',
+    'INDEX(A1:C3,1E+300,1)',
+    'INDEX({1,2,3},2)',
+    'INDEX({1;2;3},2)',
+    'INDEX(A1:C3,1.9999,1)',
+    'SUM(INDEX(A1:C3,2,))',
+    'SUM(INDEX(A1:C3,2))'
+)
+
+# Sheet lookup_edges: the cells of cfunc_m3_6__lookup_edges' test sheet (ascending, descending,
+# text, wildcard, mixed-kind, table, unsorted, nearly equal and sweep lines; C9 is blank; the error
+# pairs of F:G and P:Q), the source formulas of P:Q, and its oracle rows' formulas in its order. The
+# workbook carries the metadata part the source formulas name.
+$edgesInputs = @(
+    (New-Number 'A1' '1'),
+    (New-Text 'B1' 'apple'),
+    (New-Number 'C1' '10'),
+    (New-Number 'A2' '2'),
+    (New-Text 'B2' 'Banana'),
+    (New-Number 'C2' '20'),
+    (New-Number 'A3' '2'),
+    (New-Text 'B3' 'banana'),
+    (New-Number 'C3' '30'),
+    (New-Number 'A4' '2'),
+    (New-Text 'B4' 'cherry'),
+    (New-Number 'C4' '40'),
+    (New-Number 'A5' '3'),
+    (New-Text 'B5' 'date'),
+    (New-Number 'C5' '50'),
+    (New-Number 'A6' '5'),
+    (New-Text 'B6' 'fig'),
+    (New-Number 'C6' '60'),
+    (New-Number 'A7' '5'),
+    (New-Text 'B7' 'a*b'),
+    (New-Number 'C7' '3'),
+    (New-Number 'A8' '4'),
+    (New-Text 'B8' 'a?c'),
+    (New-Text 'C8' 'a'),
+    (New-Number 'A9' '3'),
+    (New-Text 'B9' '~'),
+    (New-Number 'A10' '3'),
+    (New-Text 'B10' 'x~y'),
+    (New-Logical 'C10' $true),
+    (New-Number 'A11' '2'),
+    (New-Text 'B11' '1'),
+    (New-Error 'C11' '#N/A'),
+    (New-Number 'A12' '1'),
+    (New-Number 'B12' '1'),
+    (New-Number 'C12' '3'),
+    (New-Number 'A13' '1'),
+    (New-Number 'B13' '2'),
+    (New-Number 'C13' '3'),
+    (New-Text 'A14' 'p'),
+    (New-Text 'B14' 'q'),
+    (New-Text 'C14' 'r'),
+    (New-Number 'A15' '10'),
+    (New-Number 'B15' '20'),
+    (New-Number 'C15' '30'),
+    (New-Number 'A16' '3'),
+    (New-Text 'B16' ''),
+    (New-Number 'C16' '0.3'),
+    (New-Number 'A17' '1'),
+    (New-Text 'B17' 'ab'),
+    (New-Number 'C17' '0.30000000000000004'),
+    (New-Number 'A18' '4'),
+    (New-Text 'B18' 'a'),
+    (New-Number 'C18' '1'),
+    (New-Number 'A19' '1'),
+    (New-Text 'B19' 'a*c'),
+    (New-Number 'C19' '1.0000000000000002'),
+    (New-Number 'A20' '5'),
+    (New-Text 'B20' 'abc'),
+    (New-Number 'C20' '0.1'),
+    (New-Text 'B21' 'c'),
+    (New-Number 'C21' '4'),
+    (New-Number 'A22' '1'),
+    (New-Text 'B22' 'a'),
+    (New-Number 'C22' '1'),
+    (New-Text 'A23' 'd'),
+    (New-Number 'B23' '5'),
+    (New-Text 'C23' 'd'),
+    (New-Text 'A24' 'a'),
+    (New-Number 'B24' '2'),
+    (New-Number 'C24' '1'),
+    (New-Text 'A25' 'a'),
+    (New-Number 'B25' '3'),
+    (New-Number 'C25' '5'),
+    (New-Number 'B26' '3'),
+    (New-Logical 'C26' $true),
+    (New-Number 'A27' '1'),
+    (New-Number 'B27' '5'),
+    (New-Number 'A28' '5'),
+    (New-Number 'B28' '1'),
+    (New-Number 'A29' '4'),
+    (New-Number 'B29' '1'),
+    (New-Logical 'A30' $false),
+    (New-Error 'B30' '#N/A'),
+    (New-Error 'C30' '#DIV/0!'),
+    (New-Number 'A31' '2'),
+    (New-Number 'B31' '1'),
+    (New-Error 'C31' '#N/A'),
+    (New-Number 'A32' '5'),
+    (New-Number 'B32' '3'),
+    (New-Error 'C32' '#NUM!'),
+    (New-Number 'A33' '2'),
+    (New-Logical 'C33' $true),
+    (New-Text 'A34' 'd'),
+    (New-Number 'C34' '7'),
+    (New-Number 'A35' '5'),
+    (New-Text 'A36' 'c'),
+    (New-Number 'A37' '3'),
+    (New-Number 'A40' '-1'),
+    (New-Number 'A41' '0'),
+    (New-Number 'A42' '1'),
+    # H1:H4 is 1, 2, blank, 3; H6:H9 1, blank, 2, 3; H11:H14 3, blank, 2, 1.
+    (New-Number 'H1' '1'),
+    (New-Number 'H2' '2'),
+    (New-Number 'H4' '3'),
+    (New-Number 'H6' '1'),
+    (New-Number 'H8' '2'),
+    (New-Number 'H9' '3'),
+    (New-Number 'H11' '3'),
+    (New-Number 'H13' '2'),
+    (New-Number 'H14' '1'),
+    # I1:I3 is blank, empty text and 1; I5:J5 blank and 1; I7:J7 empty text and blank; I9:J9
+    # blank and 20.
+    (New-Text 'I2' ''),
+    (New-Number 'I3' '1'),
+    (New-Number 'J5' '1'),
+    (New-Text 'I7' ''),
+    (New-Number 'J9' '20'),
+    # K1 and K2: two numbers that differ in their 16th significant digit.
+    (New-Number 'K1' '1.234567890123455e-10'),
+    (New-Number 'K2' '1.234567890123454e-10'),
+    # L1:M4: a table whose first column holds 1, 2, a blank cell and 3, beside 10, 20, 99 and 30;
+    # L6:O7 the same table across.
+    (New-Number 'L1' '1'),
+    (New-Number 'M1' '10'),
+    (New-Number 'L2' '2'),
+    (New-Number 'M2' '20'),
+    (New-Number 'M3' '99'),
+    (New-Number 'L4' '3'),
+    (New-Number 'M4' '30'),
+    (New-Number 'L6' '1'),
+    (New-Number 'M6' '2'),
+    (New-Number 'O6' '3'),
+    (New-Number 'L7' '10'),
+    (New-Number 'M7' '20'),
+    (New-Number 'N7' '99'),
+    (New-Number 'O7' '30')
+)
+# F1:G56: every ordered pair of two different errors of the eight a cell constant can hold, by
+# first error and then second, in XMATCH's order of them.
+$errorLiterals = @('#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA')
+$errorPairs = @()
+foreach ($first in $errorLiterals) {
+    foreach ($second in $errorLiterals) {
+        if ($first -ne $second) { $errorPairs += , @($first, $second) }
+    }
+}
+for ($k = 1; $k -le $errorPairs.Count; $k++) {
+    $edgesInputs += , (New-Error ('F' + $k) $errorPairs[$k - 1][0])
+    $edgesInputs += , (New-Error ('G' + $k) $errorPairs[$k - 1][1])
+}
+# P1:Q54: every ordered pair of two different errors of the eleven XMATCH orders with #SPILL!,
+# #FIELD! or #CALC! among them, by first error and then second. No cell constant or formula literal
+# holds those three (Excel refuses a workbook that holds them as constants), so a cell of one of
+# them holds its source formula, a dynamic-array formula over its one cell: FILTER with no match
+# (#CALC!), SEQUENCE(1,2), whose spill the filled cell to its right blocks (#SPILL!; R holds the
+# text that blocks one in Q, Q blocks one in P), and FIELDVALUE of a number (#FIELD!). The other
+# cells hold the error as a constant.
+$orderedErrors = @('#NULL!', '#DIV/0!', '#VALUE!', '#REF!', '#NAME?', '#NUM!', '#N/A', '#GETTING_DATA', '#SPILL!', '#FIELD!', '#CALC!')
+$sourceFormulas = @{
+    '#SPILL!' = '_xlfn.SEQUENCE(1,2)';
+    '#FIELD!' = '_xlfn.FIELDVALUE(A1,"x")';
+    '#CALC!' = '_xlfn._xlws.FILTER(A1:A6,A1:A6>100)'
+}
+$sourcePairs = @()
+foreach ($first in $orderedErrors) {
+    foreach ($second in $orderedErrors) {
+        if ($first -ne $second -and ($sourceFormulas.ContainsKey($first) -or $sourceFormulas.ContainsKey($second))) {
+            $sourcePairs += , @($first, $second)
+        }
+    }
+}
+$edgesSources = @()
+for ($k = 1; $k -le $sourcePairs.Count; $k++) {
+    foreach ($place in @(@('P', 0), @('Q', 1))) {
+        $literal = $sourcePairs[$k - 1][$place[1]]
+        $ref = $place[0] + $k
+        if ($sourceFormulas.ContainsKey($literal)) {
+            $edgesSources += , @($ref, $sourceFormulas[$literal])
+        } else {
+            $edgesInputs += , (New-Error $ref $literal)
+        }
+    }
+    if ($sourcePairs[$k - 1][1] -eq '#SPILL!') { $edgesInputs += , (New-Text ('R' + $k) 'block') }
+}
+$edgesFormulas = @(
+    'MATCH(2,A1:A6,0)',
+    'MATCH(2,A1:A6,1)',
+    'MATCH(2,A1:A6)',
+    'MATCH(2.5,A1:A6,1)',
+    'MATCH(0,A1:A6,1)',
+    'MATCH(9,A1:A6,1)',
+    'MATCH(3,A7:A12,-1)',
+    'MATCH(3.5,A7:A12,-1)',
+    'MATCH(6,A7:A12,-1)',
+    'MATCH(0,A7:A12,-1)',
+    'MATCH(3,A7:A12,1)',
+    'MATCH(2,A1:A6,-1)',
+    'MATCH("BANANA",B1:B6,0)',
+    'MATCH("BANANA",B1:B6,1)',
+    'MATCH("b*",B1:B6,0)',
+    'MATCH("?pple",B1:B6,0)',
+    'MATCH("c",B1:B6,1)',
+    'MATCH("a",B1:B6,1)',
+    'MATCH("a~*b",B7:B12,0)',
+    'MATCH("x~y",B7:B12,0)',
+    'MATCH("~~",B7:B12,0)',
+    'MATCH("1",B7:B12,0)',
+    'MATCH(1,B7:B12,0)',
+    'MATCH("2",A1:A6,0)',
+    'MATCH(TRUE,C7:C12,0)',
+    'MATCH("*",C7:C12,0)',
+    'MATCH(0,C7:C12,0)',
+    'MATCH(4,C7:C12,1)',
+    'MATCH("b",C7:C12,1)',
+    'MATCH(2,A1:A6,2)',
+    'MATCH(2,A1:A6,-0.5)',
+    'MATCH(2,A1:A6,"0")',
+    'MATCH(2,A1:A6,)',
+    'MATCH(2,A1:B6,0)',
+    'MATCH(2,2,0)',
+    'MATCH(2,{1,2,3},0)',
+    'MATCH(C17,C16:C20,0)',
+    'MATCH(0.3,C17:C20,0)',
+    'MATCH(C19,C18:C19,0)',
+    ('MATCH("' + ('a' * 256) + '",B1:B6,0)'),
+    'MATCH(#N/A,A1:A6,"x")',
+    'MATCH(2,#REF!,#N/A)',
+    'MATCH(,A40:A42,0)',
+    'MATCH(C9,A40:A42,1)',
+    'MATCH("c",A21:A37,1)',
+    'MATCH("bb",B21:B32,1)',
+    'MATCH(2.5,C21:C26,-1)',
+    'MATCH(2.5,C21:C26,1)',
+    '_xlfn.XMATCH(2,A1:A6)',
+    '_xlfn.XMATCH(2,A1:A6,0,-1)',
+    '_xlfn.XMATCH(2.5,A1:A6,-1)',
+    '_xlfn.XMATCH(2.5,A1:A6,-1,-1)',
+    '_xlfn.XMATCH(2.5,A1:A6,1)',
+    '_xlfn.XMATCH(0,A1:A6,-1)',
+    '_xlfn.XMATCH(9,A1:A6,1)',
+    '_xlfn.XMATCH(2,A1:A6,0,2)',
+    '_xlfn.XMATCH(3,A7:A12,0,-2)',
+    '_xlfn.XMATCH(2.5,A1:A6,-1,2)',
+    '_xlfn.XMATCH("b*",B1:B6,2)',
+    '_xlfn.XMATCH("b*",B1:B6,0)',
+    '_xlfn.XMATCH("banana",B1:B6,0,-1)',
+    '_xlfn.XMATCH(2,A1:A6,0,0)',
+    '_xlfn.XMATCH(2,A1:A6,-1.5)',
+    '_xlfn.XMATCH(2.5,A1:A6,-0.5)',
+    '_xlfn.XMATCH("b*",B1:B6,2,2)',
+    '_xlfn.XMATCH(2,A1:B6)',
+    '_xlfn.XMATCH(2,2)',
+    '_xlfn.XMATCH("2",A1:A6)',
+    '_xlfn.XMATCH(C9,C7:C12)',
+    '_xlfn.XMATCH("",C7:C12)',
+    '_xlfn.XMATCH(C9,A40:A42,-1)',
+    '_xlfn.XMATCH(C9,A40:A42,1)',
+    '_xlfn.XMATCH(6,C30:C34,1)',
+    '_xlfn.XMATCH(8,C30:C34,1)',
+    '_xlfn.XMATCH(8,C30:C32,1)',
+    '_xlfn.XMATCH(2.5,C21:C26,1,-2)',
+    '_xlfn.XMATCH(99,A40:A45,1)',
+    '_xlfn.XMATCH(99,A40:A45,1,-1)',
+    '_xlfn.XMATCH(2.5,C21:C26,-1)',
+    '_xlfn.XMATCH(2.5,C21:C26,-1,-1)',
+    '_xlfn.XLOOKUP(2,A1:A6,C1:C6)',
+    '_xlfn.XLOOKUP(2,A1:A6,C1:C6,,0,-1)',
+    '_xlfn.XLOOKUP(7,A1:A6,C1:C6)',
+    '_xlfn.XLOOKUP(7,A1:A6,C1:C6,"none")',
+    '_xlfn.XLOOKUP(7,A1:A6,C1:C6,)',
+    '_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,-1)',
+    '_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,1)',
+    '_xlfn.XLOOKUP(3,A1:A6,C1:C5)',
+    '_xlfn.XLOOKUP(#N/A,A1:A6,C1:C5)',
+    '_xlfn.XLOOKUP(2,A13:C13,A15:C15)',
+    '_xlfn.XLOOKUP(2,A13:C13,A1:A3)',
+    '_xlfn.XLOOKUP(7,A1:A6,C1:C6,#DIV/0!)',
+    '_xlfn.XLOOKUP("BANANA",B1:B6,C1:C6,,0,-1)',
+    'VLOOKUP(3,A1:C6,2,FALSE)',
+    'VLOOKUP(2,A1:C6,3)',
+    'VLOOKUP(2.5,A1:C6,3,TRUE)',
+    'VLOOKUP(0,A1:C6,2,TRUE)',
+    'VLOOKUP(2.5,A1:C6,2,FALSE)',
+    'VLOOKUP(2.5,A1:C6,2,)',
+    'VLOOKUP(3,A1:C6,4,FALSE)',
+    'VLOOKUP(3,A1:C6,0,FALSE)',
+    'VLOOKUP(99,A1:C6,0,FALSE)',
+    'VLOOKUP(3,A1:C6,2.9,FALSE)',
+    'VLOOKUP(3,A1:C6,-2147483647,FALSE)',
+    'VLOOKUP(3,A1:C6,-2147483648,FALSE)',
+    'VLOOKUP("b*",B1:C6,2,FALSE)',
+    'VLOOKUP("3",A1:C6,2,FALSE)',
+    'VLOOKUP(3,A1:C6,2,"x")',
+    'VLOOKUP(3,A1:C6,2,"TRUE")',
+    'VLOOKUP(C9,A40:A42,1,FALSE)',
+    'VLOOKUP(3,A9:C10,3,FALSE)',
+    'VLOOKUP(2.5,C21:C26,1,TRUE)',
+    'HLOOKUP(2,A13:C15,3,FALSE)',
+    'HLOOKUP(2.5,A13:C15,2)',
+    'HLOOKUP(3,A13:C15,4,FALSE)',
+    'HLOOKUP("q",A14:C15,2,FALSE)',
+    'LOOKUP(3,A1:A6,C1:C6)',
+    'LOOKUP(2,A1:A6,C1:C6)',
+    'LOOKUP(0,A1:A6,C1:C6)',
+    'LOOKUP(9,A1:A6,C1:C6)',
+    'LOOKUP(2,A13:C13,A15:C15)',
+    'LOOKUP(2,A1:A3,A15:C15)',
+    'LOOKUP(3,A1:C6)',
+    'LOOKUP(2,A13:C15)',
+    'LOOKUP("C",B1:B6,C1:C6)',
+    'LOOKUP(C9,A40:A42)',
+    'LOOKUP(3,{1,2,3},{"a","b"})',
+    'LOOKUP(2,{1,#DIV/0!,1,#DIV/0!})',
+    'CHOOSE(2,"a","b","c")',
+    'CHOOSE(2.9,"a","b","c")',
+    'CHOOSE(0,"a","b")',
+    'CHOOSE(4,"a","b","c")',
+    'CHOOSE("2","a","b")',
+    'CHOOSE(TRUE,"a","b")',
+    'CHOOSE(#N/A,"a","b")',
+    'CHOOSE(2,"a",)',
+    'CHOOSE(2,#DIV/0!,2)',
+    'ROW(B3)',
+    'ROW(B3:C3)',
+    'COLUMN(C5)',
+    'ROW(#REF!)',
+    'ROWS(A1:C5)',
+    'ROWS({1,2;3,4})',
+    'ROWS(5)',
+    'ROWS("a")',
+    'ROWS(#N/A)',
+    'ROWS((A1:A3,B1:B2))',
+    'COLUMNS(A1:C5)',
+    'AREAS(A1)',
+    'ROW(B3:B5)',
+    'MATCH("a-b",B1:B2,1)',
+    'MATCH({1,2},A1:A6,0)',
+    'VLOOKUP(3,A1:C6,2,"1")',
+    'ROW((A1,B2))',
+    'COLUMN((A1,B2))',
+    'COLUMN(B3:D3)',
+    '_xlfn.XLOOKUP(1,A1,B1:C2)',
+    '_xlfn.XLOOKUP(9,A1,B1:C2,"nf")',
+    '_xlfn.XLOOKUP(9,A1,A13:C13)',
+    '_xlfn.XLOOKUP(1,A1,A13:C13)',
+    '_xlfn.XLOOKUP(1,A1,C1:C3)',
+    '_xlfn.XLOOKUP(1,A1,B1:C2,,#DIV/0!)',
+    '_xlfn.XMATCH(2,A1:A6,0,C9)',
+    '_xlfn.XMATCH(2,A1:A6,C9)',
+    'INDEX(,1)',
+    'INDEX(,1,#DIV/0!)',
+    '_xlfn.XMATCH(1,)',
+    '_xlfn.XLOOKUP(1,,C1:C3)',
+    '_xlfn.XLOOKUP(1,A1:A3,)',
+    '_xlfn.XLOOKUP(1,A1:A3,,,#DIV/0!)',
+    'VLOOKUP(1,,1)',
+    'VLOOKUP(1,,1,#DIV/0!)',
+    'LOOKUP(1,)',
+    'LOOKUP(1,A1:A6,)',
+    'LOOKUP(1,#DIV/0!,)',
+    'MATCH(1,,#DIV/0!)',
+    'SUM(ROW(B3:B5))',
+    'MATCH(4,ROW(B3:B5),0)',
+    'SUM(COLUMN(B3:D3))',
+    'ROW(CHOOSE(1,5))',
+    'COLUMN(CHOOSE(1,"a"))',
+    'AREAS(CHOOSE(1,5))',
+    'ROW(CHOOSE(2,1,))',
+    'AREAS(CHOOSE(2,1,))',
+    'ROWS(CHOOSE(2,1,))',
+    'COLUMNS(CHOOSE(2,1,))',
+    'INDEX(CHOOSE(2,1,),1)',
+    'ROWS(_xlfn.XLOOKUP(1,A1,A13:C13))',
+    'COLUMNS(_xlfn.XLOOKUP(1,A1,A13:C13))',
+    'SUM(_xlfn.XLOOKUP(1,A1,A13:C13))',
+    'ROWS(_xlfn.XLOOKUP(1,A1,C1:C3))',
+    'COLUMNS(_xlfn.XLOOKUP(1,A1,C1:C3))',
+    'SUM(_xlfn.XLOOKUP(1,A1,C1:C3))',
+    'VLOOKUP(3,A9:C10,3,FALSE)&""',
+    'CHOOSE(2,"a",)&""',
+    'MATCH(3,{1,3},0)',
+    'MATCH(2.5,{1,2,3})',
+    'MATCH(2,{1,2,2,2,3},1)',
+    'MATCH(2,{1,2,2,2,3})',
+    'MATCH(2,{1,2,2,2,3},)',
+    'MATCH(2,{3,2,2,2,1},-1)',
+    'MATCH(2.5,{1,3,2,4},1)',
+    'MATCH(2.5,{3,1,4,2},-1)',
+    'MATCH(C9,I5:J5,0)',
+    'MATCH(9.99E+307,H1:H4,1)',
+    'MATCH(2.5,H6:H9,1)',
+    'MATCH(2.5,H11:H14,-1)',
+    'MATCH(2.5,{1,#DIV/0!,2,3},1)',
+    'MATCH(2.5,{1,#N/A,2,3},1)',
+    'MATCH("a~*",{"abc","a*"},0)',
+    'MATCH("Abc",{"abc","def"},0)',
+    'MATCH(2,{1,2},0)',
+    'MATCH(2,{1,2;3,4},0)',
+    'MATCH(C17,C16,0)',
+    'MATCH(K1,K2,0)',
+    'MATCH({1,2,3},{2,4,6,8},0)',
+    '_xlfn.XMATCH(2,{1,2,3})',
+    '_xlfn.XMATCH(2,{2,1,2},0,-1)',
+    '_xlfn.XMATCH(9,{1,2})',
+    '_xlfn.XMATCH(C17,C16,0)',
+    '_xlfn.XMATCH(K1,K2,0)',
+    '_xlfn.XMATCH("Abc",{"abc","zzz"})',
+    ('_xlfn.XMATCH("' + [char]0xC4 + 'bc",{"' + [char]0xE4 + 'BC","zzz"})'),
+    '_xlfn.XMATCH(1,{"1"})',
+    '_xlfn.XMATCH(1,{1},9)',
+    '_xlfn.XMATCH(1,{1},,9)',
+    '_xlfn.XMATCH("a*",{"zzz","abc"},2)',
+    '_xlfn.XMATCH("a~*",{"abc","a*"},2)',
+    '_xlfn.XMATCH("a~?",{"a1","a?"},2)',
+    '_xlfn.XMATCH("a~~b",{"a~b","ab"},2)',
+    '_xlfn.XMATCH("a*",{"abc","def","ade"},2,-1)',
+    '_xlfn.XMATCH(3,{1,2,3},,2)',
+    '_xlfn.XMATCH(3,{4,3,2},,-2)',
+    '_xlfn.XMATCH(2,{1,2,2,2,3},,2)',
+    '_xlfn.XMATCH(2.9,{1,2,2,2,3},-1,2)',
+    '_xlfn.XMATCH(2,{3,2,2,2,1},,-2)',
+    '_xlfn.XMATCH(2.5,{3,2,2,2,1},-1,-2)',
+    '_xlfn.XMATCH(2,{3,1,4,2},0,2)',
+    '_xlfn.XMATCH(2.5,{3,1,4,2},1,2)',
+    '_xlfn.XMATCH(2.5,{3,1,4,2},-1,2)',
+    '_xlfn.XMATCH(9.99E+307,H1:H4,-1,2)',
+    '_xlfn.XMATCH(2.5,H6:H9,1,2)',
+    '_xlfn.XMATCH(2,H6:H9,,2)',
+    '_xlfn.XMATCH(2.5,H11:H14,-1,-2)',
+    '_xlfn.XMATCH(2.5,{1,#DIV/0!,2,3},1,2)',
+    '_xlfn.XMATCH(2.5,{1,2,3},1)',
+    '_xlfn.XMATCH(2.5,{1,2,3},-1)',
+    '_xlfn.XMATCH(2,{1,2,3},1)',
+    '_xlfn.XMATCH(2,{1,2,3},-1)',
+    '_xlfn.XMATCH("Beta",{"alpha","beta","gamma"},,2)',
+    '_xlfn.XMATCH(TRUE,{FALSE,TRUE},,2)',
+    '_xlfn.XMATCH(2,{1,2,3},,)',
+    '_xlfn.XMATCH(C9,I1:I3,0)',
+    '_xlfn.XMATCH(,I1:I3,0)',
+    '_xlfn.XMATCH("",I1:I3,0)',
+    '_xlfn.XMATCH(#VALUE!,{1})',
+    '_xlfn.XMATCH(2,{#VALUE!})',
+    '_xlfn.XMATCH(2,{#DIV/0!,2})',
+    '_xlfn.XMATCH(9,{1,#DIV/0!,2})',
+    '_xlfn.XMATCH(3,{3,4})',
+    '_xlfn.XLOOKUP(2,{1,2},{"one","two"})',
+    '_xlfn.XLOOKUP("a*",{"abc","ade"},{"first","last"},,2,-1)',
+    '_xlfn.XLOOKUP(9,{1,2,3},{10,20,30},"nf")',
+    '_xlfn.XLOOKUP(2,{1,2,3},{10,20,30},,0,)',
+    '_xlfn.XLOOKUP(,I5:J5,{10,20})',
+    '_xlfn.XLOOKUP(C9,I5:J5,{10,20})',
+    '_xlfn.XLOOKUP("",I7:J7,{10,20})',
+    '_xlfn.XLOOKUP(1,{1,2},I9:J9)',
+    '_xlfn.XLOOKUP(2,{3,1,4,2},{30,10,40,20},,0,2)',
+    '_xlfn.XLOOKUP(2,{1,2,3},B1:D1)',
+    '_xlfn.XLOOKUP(2,{1;2;3},{10,20,30})',
+    '_xlfn.XLOOKUP(2,{1;2;3},{10,11;20,21;30,31})',
+    '_xlfn.XLOOKUP(2,{1,2,3},B2:D4)',
+    '_xlfn.XLOOKUP({1,2,3},{2,4,6,8},{20,40,60,80})',
+    '_xlfn.XLOOKUP({1,2;3,4},{2,4,6,8},{20,40,60,80},{"NF","ignored"})',
+    '_xlfn.XLOOKUP({2,4},{2;4;6},{20,21;40,41;60,61})',
+    '_xlfn.XLOOKUP({2,4},{2,4,6},{20,40,60;21,41,61})',
+    'VLOOKUP(2,{1,10;2,20;3,30},2,FALSE)',
+    'VLOOKUP(2.9,{1,10;2,20;3,30},2)',
+    'HLOOKUP(2,{1,2,3;10,20,30},2,FALSE)',
+    'HLOOKUP(2.9,{1,2,3;10,20,30},2)',
+    'VLOOKUP(2.9,L1:M4,2)',
+    'VLOOKUP(9.99E+307,L1:M4,2)',
+    'HLOOKUP(2.9,L6:O7,2)',
+    'HLOOKUP(9.99E+307,L6:O7,2)',
+    'VLOOKUP(0.5,{1,10;2,20;3,30},2)',
+    'HLOOKUP(0.5,{1,2,3;10,20,30},2)',
+    'VLOOKUP(4,{1,10;2,20;3,30},2,FALSE)',
+    'HLOOKUP(4,{1,2,3;10,20,30},2,FALSE)',
+    'VLOOKUP(2,{1,10;2,20;3,30},1.9,FALSE)',
+    'HLOOKUP(2,{1,2,3;10,20,30},1.9,FALSE)',
+    'VLOOKUP(2,{1,10;2,20;3,30},3,FALSE)',
+    'HLOOKUP(2,{1,2,3;10,20,30},3,FALSE)',
+    'VLOOKUP(2,{1,10;2,20;3,30},0,FALSE)',
+    'HLOOKUP(2,{1,2,3;10,20,30},0,FALSE)',
+    'VLOOKUP(2,{1,10;2,20;3,30},-1,FALSE)',
+    'HLOOKUP(2,{1,2,3;10,20,30},-1,FALSE)',
+    'VLOOKUP("b*",{"abc",10;"bcd",20},2,FALSE)',
+    'HLOOKUP("b*",{"abc","bcd";10,20},2,FALSE)',
+    'VLOOKUP(TRUE,{TRUE,1;FALSE,2},2,FALSE)',
+    'VLOOKUP({1,2,3},{2,20;4,40;6,60;8,80},2,FALSE)',
+    'HLOOKUP({1,2,3},{2,4,6,8;20,40,60,80},2,FALSE)',
+    'LOOKUP(2.9,{1,2,3},{10,20,30})',
+    'LOOKUP(2.9,{1,10;2,20;3,30})',
+    'LOOKUP(2.2,{1,2,3},{"a","b","c"})',
+    'LOOKUP(2,{2,1,3},{20,10,30})',
+    'LOOKUP(2,{1,2;3,4;5,6},{10,20,30})',
+    'CHOOSE(2.9,A1,"picked",#DIV/0!)',
+    'CHOOSE(0.9,10,20)',
+    'CHOOSE(4,10,20,30)',
+    'CHOOSE(1,C9,7)',
+    'CHOOSE({1,2,3,4},"Alpha","Bravo","Charlie","Delta")',
+    'CHOOSE({1,2,3},{1;2;3},{10;20;30},{100;200;300})',
+    'MATCH("South",{"North","South","North"},0)',
+    '_xlfn.XLOOKUP("South",{"North","South","North"},{100,200,300})',
+    'ROWS(A1:C7)',
+    'COLUMNS(A1:C7)',
+    'INDEX(A1:C7,2,3)',
+    'INDEX(A1:C7,8,1)',
+    'AREAS(A1:C7)'
+)
+# XMATCH(TRUE,pair,1) over each error pair of F1:G56, then of P1:Q54.
+for ($k = 1; $k -le $errorPairs.Count; $k++) {
+    $edgesFormulas += , ('_xlfn.XMATCH(TRUE,F' + $k + ':G' + $k + ',1)')
+}
+for ($k = 1; $k -le $sourcePairs.Count; $k++) {
+    $edgesFormulas += , ('_xlfn.XMATCH(TRUE,P' + $k + ':Q' + $k + ',1)')
+}
+$edgesFormulas += @(
+    # A linear next-smaller or next-larger search decides by kind before it orders texts.
+    '_xlfn.XMATCH(5,{"a b","c d",6},1)',
+    '_xlfn.XMATCH(TRUE,{"a b","c d",FALSE},-1)',
+    '_xlfn.XLOOKUP(5,{"a b","c d",6},{10,20,30},,1)',
+    # The rules of the per-ID manifest that earlier rounds read from Excel ad hoc only.
+    'MATCH(2,A1:A6,0.5)',
+    'MATCH(2,A1:A6,C9)',
+    'MATCH(2,(A1:A3,A4:A6),0)',
+    'MATCH(1,,0)',
+    'MATCH(2,{2},0)',
+    'MATCH(1,A1,0)',
+    '_xlfn.XMATCH(2.5,A1:A6,1.5)',
+    '_xlfn.XMATCH(3,A7:A12,0,-1.5)',
+    '_xlfn.XMATCH(2,(A1:A3,A4:A6))',
+    ('_xlfn.XMATCH("' + ('a' * 256) + '",B1:B6)'),
+    '_xlfn.XMATCH(1,,#DIV/0!)',
+    '_xlfn.XMATCH(#N/A,)',
+    '_xlfn.XLOOKUP(2,A1:B6,C1:C6)',
+    '_xlfn.XLOOKUP(2,(A1:A3,A4:A6),C1:C6)',
+    '_xlfn.XLOOKUP(2,A1:A6,(C1:C3,C4:C6))',
+    'VLOOKUP(2.5,A1:C6,2,0)',
+    'VLOOKUP(2.5,A1:C6,2,C9)',
+    'VLOOKUP(2,A1:C6,3,FALSE)',
+    'VLOOKUP(2.5,A1:C6,3,5)',
+    'VLOOKUP(#N/A,A1:C6,#DIV/0!)',
+    'VLOOKUP(2,(A1:B3,A4:B6),2,FALSE)',
+    'VLOOKUP(2,2,1)',
+    ('VLOOKUP("' + ('a' * 256) + '",B1:C6,2,FALSE)'),
+    'HLOOKUP(1,,1)',
+    'LOOKUP(2,A13:C14)',
+    'LOOKUP(1,A1:A6,C1)',
+    'LOOKUP(2,A1:A3,A13:C15)',
+    'LOOKUP(3,{1,2,3},5)',
+    'LOOKUP(2,(A1:A3,A4:A6),C1:C6)',
+    'LOOKUP(2,A1:A6,(C1:C3,C4:C6))',
+    ('LOOKUP("' + ('a' * 256) + '",B1:B6)'),
+    'LOOKUP(1,{1,2},I9:J9)',
+    'LOOKUP(0,A1:A6,)',
+    'CHOOSE(FALSE,"a","b")',
+    'CHOOSE(C9,"a","b")',
+    'COLUMNS({1,2,3})',
+    'COLUMNS(5)',
+    'COLUMNS(#N/A)',
+    'COLUMNS((A1:A3,B1:B2))'
+)
+
+Write-Workbook (Join-Path $OutDir 'cfunc_m3_6/oracle.xlsx') @(
+    @('reference_result', (New-OracleSheet $referenceInputs $referenceFormulas)),
+    @('lookup_edges', (New-OracleSheet $edgesInputs $edgesFormulas $edgesSources))
+) -DynamicArrays

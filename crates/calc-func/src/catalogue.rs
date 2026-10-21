@@ -21,12 +21,13 @@ mod comparison;
 mod conditional;
 mod error_fallback;
 mod logical;
+mod lookup;
 mod rounding;
 mod text;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 8] = [
+const FAMILIES: [&Family; 9] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -35,6 +36,7 @@ const FAMILIES: [&Family; 8] = [
     &rounding::FAMILY,
     &conditional::FAMILY,
     &error_fallback::FAMILY,
+    &lookup::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);
@@ -116,7 +118,8 @@ pub enum ParameterClass {
 pub enum ArgumentDemand {
     /// Every argument is evaluated before the call.
     Eager,
-    /// IF's shape: argument 0 decides, and then at most one of the other arguments is evaluated.
+    /// IF's and CHOOSE's shape: argument 0 decides, and then at most one of the other arguments is
+    /// evaluated.
     BranchOnCondition,
     /// IFERROR's and IFNA's shape: argument 0 is always evaluated, and argument 1 only when
     /// argument 0 is an error the entry catches; which errors it catches is the entry's own rule.

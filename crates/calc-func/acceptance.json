@@ -135,6 +135,26 @@
         "dc_q9rb__number_text_for_concatenation": ["windows", "linux", "wasm"],
         "dc_q9rb__excel_comparison": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cfunc-m3.6",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m3_6", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.6", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.6", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.6", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfunc_m3_6__reference_result",
+        "cfunc_m3_6__lookup_edges",
+        "cfunc_m3_6__excel_comparison"
+      ],
+      "platforms": {
+        "cfunc_m3_6__reference_result": ["windows", "linux", "wasm"],
+        "cfunc_m3_6__lookup_edges": ["windows", "linux", "wasm"],
+        "cfunc_m3_6__excel_comparison": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

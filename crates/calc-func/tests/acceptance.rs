@@ -1037,9 +1037,11 @@ fn cfunc_m1_1__catalogue_consistency() {
             }
             Notation::Call => assert!(arity.min <= arity.max),
         }
+        // ROW and COLUMN take an optional reference (their pages: ROW([reference]),
+        // COLUMN([reference])); every other admitted entry takes an argument.
         assert!(
-            arity.min >= 1,
-            "{target:?}: every admitted entry takes an argument"
+            arity.min >= 1 || ["ROW", "COLUMN"].contains(&target.spelling()),
+            "{target:?}: every admitted entry but ROW and COLUMN takes an argument"
         );
         assert!(
             target.parameter_class(arity.max - 1).is_some(),
@@ -1100,15 +1102,18 @@ fn cfunc_m1_1__catalogue_consistency() {
                 supplied: arity.max + 1
             })
         );
-        let mut too_few = Recorded::numbers(arity.min - 1);
-        assert_eq!(
-            run(target, &mut too_few, &fast),
-            Err(FunctionFault::ArityMismatch {
-                id: target.id(),
-                supplied: arity.min - 1
-            })
-        );
-        assert!(too_many.asked.is_empty() && too_few.asked.is_empty());
+        assert!(too_many.asked.is_empty());
+        if let Some(fewer) = arity.min.checked_sub(1) {
+            let mut too_few = Recorded::numbers(fewer);
+            assert_eq!(
+                run(target, &mut too_few, &fast),
+                Err(FunctionFault::ArityMismatch {
+                    id: target.id(),
+                    supplied: fewer
+                })
+            );
+            assert!(too_few.asked.is_empty());
+        }
         arity_ids.insert(target.id());
     }
     assert_eq!(named_ids, dispatch_ids, "name table against dispatch table");
@@ -1129,10 +1134,13 @@ fn cfunc_m1_1__catalogue_consistency() {
         surface(Notation::Call, "IFERROR").id(),
         surface(Notation::Call, "IFNA").id(),
     ];
+    // CHOOSE evaluates every value only when index_num is an array (its page), so it holds its
+    // values back as IF holds its branches.
+    let choose = surface(Notation::Call, "CHOOSE");
     assert_eq!(
         lazy,
-        [iff.id(), fallbacks[0], fallbacks[1]],
-        "only IF, IFERROR and IFNA are lazy"
+        [iff.id(), fallbacks[0], fallbacks[1], choose.id()],
+        "only IF, IFERROR, IFNA and CHOOSE are lazy"
     );
     note!(
         "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}",
@@ -1522,11 +1530,12 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 5] = [
+const GENERATED_WORKBOOKS: [&str; 6] = [
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
     "cfunc_m3_4/oracle.xlsx",
     "cfunc_m3_5/oracle.xlsx",
+    "cfunc_m3_6/oracle.xlsx",
     "dc_q9rb/oracle.xlsx",
 ];
 
@@ -1721,7 +1730,7 @@ fn text_value(text: &str) -> CalcValue {
 }
 
 /// The error literals the fixtures write.
-const ERROR_LITERALS: [(WorksheetErrorCode, &str); 7] = [
+const ERROR_LITERALS: [(WorksheetErrorCode, &str); 8] = [
     (WorksheetErrorCode::Null, "#NULL!"),
     (WorksheetErrorCode::Div0, "#DIV/0!"),
     (WorksheetErrorCode::Value, "#VALUE!"),
@@ -1729,6 +1738,7 @@ const ERROR_LITERALS: [(WorksheetErrorCode, &str); 7] = [
     (WorksheetErrorCode::Name, "#NAME?"),
     (WorksheetErrorCode::Num, "#NUM!"),
     (WorksheetErrorCode::NA, "#N/A"),
+    (WorksheetErrorCode::GettingData, "#GETTING_DATA"),
 ];
 
 fn spelled(code: WorksheetErrorCode) -> &'static str {
@@ -2209,10 +2219,12 @@ fn unescape(text: &str) -> String {
         .replace("&amp;", "&")
 }
 
-/// A cell of an oracle sheet: a formula (its text, without `=`) or a constant.
+/// A cell of an oracle sheet: a formula (its text, without `=`), a dynamic-array formula over its
+/// one cell (a source formula), or a constant.
 #[derive(Debug)]
 enum FixtureCell {
     Formula(String),
+    DynamicArray(String),
     Constant(CalcValue),
 }
 
@@ -2238,7 +2250,18 @@ fn worksheet_cells(xml: &str) -> BTreeMap<(u32, u32), FixtureCell> {
         let reference = attribute(tag, "r").expect("a cell names its reference");
         let value =
             |name: &str| inner(name).unwrap_or_else(|| panic!("{reference} has no <{name}>"));
-        let cell = match (inner("f"), attribute(tag, "t")) {
+        // A cell with cell metadata holds a dynamic-array formula over its one cell.
+        let dynamic = attribute(tag, "cm").map(|metadata| {
+            assert_eq!(metadata, "1", "{reference}: cell metadata {metadata}");
+            let formula = body
+                .strip_prefix(&format!("<f t=\"array\" ref=\"{reference}\">"))
+                .and_then(|rest| rest.strip_suffix("</f>"))
+                .unwrap_or_else(|| {
+                    panic!("{reference}: no dynamic-array formula over its one cell: {body}")
+                });
+            FixtureCell::DynamicArray(unescape(formula))
+        });
+        let cell = dynamic.unwrap_or_else(|| match (inner("f"), attribute(tag, "t")) {
             (Some(formula), None) => FixtureCell::Formula(formula),
             (Some(_), Some(t)) => panic!("{reference}: a formula cell of type {t}"),
             (None, None | Some("n")) => {
@@ -2256,7 +2279,7 @@ fn worksheet_cells(xml: &str) -> BTreeMap<(u32, u32), FixtureCell> {
             }
             (None, Some("inlineStr")) => FixtureCell::Constant(text_value(&value("t"))),
             (None, Some(other)) => panic!("{reference}: a cell of type {other}"),
-        };
+        });
         assert!(
             cells.insert(decode_a1(reference), cell).is_none(),
             "{reference} repeats"
@@ -2282,6 +2305,19 @@ fn assert_oracle_sheet(rows: &Rows, sheet: &TestSheet) {
 
 /// [`assert_oracle_sheet`] for the committed workbook `package`, at `path`.
 fn assert_workbook_sheet(package: &[u8], path: &str, rows: &Rows, sheet: &TestSheet) {
+    assert_workbook_sheet_with_sources(package, path, rows, sheet, &BTreeMap::new());
+}
+
+/// [`assert_workbook_sheet`] for a sheet that also holds source formulas: `sources` gives each
+/// one's place and its formula as the file stores it, held there as a dynamic-array formula over
+/// its one cell, where the test sheet holds the value its reader gives for that cell.
+fn assert_workbook_sheet_with_sources(
+    package: &[u8],
+    path: &str,
+    rows: &Rows,
+    sheet: &TestSheet,
+    sources: &BTreeMap<(u32, u32), String>,
+) {
     let parts = stored_parts(package);
     let workbook = part_text(&parts, "xl/workbook.xml");
     let relationships = part_text(&parts, "xl/_rels/workbook.xml.rels");
@@ -2298,11 +2334,15 @@ fn assert_workbook_sheet(package: &[u8], path: &str, rows: &Rows, sheet: &TestSh
     let cells = worksheet_cells(part_text(&parts, &format!("xl/{target}")));
 
     let mut formulas = BTreeMap::new();
+    let mut dynamic = BTreeMap::new();
     let mut constants = BTreeMap::new();
     for (place, cell) in cells {
         match cell {
             FixtureCell::Formula(formula) => {
                 formulas.insert(place, formula);
+            }
+            FixtureCell::DynamicArray(formula) => {
+                dynamic.insert(place, formula);
             }
             FixtureCell::Constant(value) => {
                 constants.insert(place, value);
@@ -2331,8 +2371,14 @@ fn assert_workbook_sheet(package: &[u8], path: &str, rows: &Rows, sheet: &TestSh
     {
         differences.push(format!("{}: a formula that no oracle row has", at(*place)));
     }
+    if dynamic != *sources {
+        differences.push(format!(
+            "the sheet's dynamic-array formulas are {dynamic:?}, the source formulas {sources:?}"
+        ));
+    }
     for (place, value) in &sheet.cells {
         match constants.get(place) {
+            _ if sources.contains_key(place) => {}
             Some(found) if identical(found, value) => {}
             found => differences.push(format!(
                 "{}: the test sheet holds {value:?}, the workbook {found:?}",
@@ -2355,7 +2401,7 @@ fn assert_workbook_sheet(package: &[u8], path: &str, rows: &Rows, sheet: &TestSh
         rows.sheet,
         differences.join("\n")
     );
-    if !rows.quiet {
+    if !rows.quiet && sources.is_empty() {
         note!(
             "ACCEPT-NOTE: {}: {path} (sha256 {}): sheet {} holds exactly the {} oracle rows' formulas in column D, in row order, and the {} cells the rows read",
             rows.case,
@@ -2363,6 +2409,16 @@ fn assert_workbook_sheet(package: &[u8], path: &str, rows: &Rows, sheet: &TestSh
             rows.sheet,
             expected.len(),
             sheet.cells.len()
+        );
+    } else if !rows.quiet {
+        note!(
+            "ACCEPT-NOTE: {}: {path} (sha256 {}): sheet {} holds exactly the {} oracle rows' formulas in column D, in row order, the {} constant cells the rows read and the {} source formulas, each as a dynamic-array formula over its one cell (cell metadata naming XLDAPR)",
+            rows.case,
+            sha256_hex(package),
+            rows.sheet,
+            expected.len(),
+            sheet.cells.len() - sources.len(),
+            sources.len()
         );
     }
 }
@@ -2613,11 +2669,21 @@ fn owned_by_own_bead(owner: Owner, case: &Rows) -> bool {
 /// `matched`, a row of another bead whose verdict is not `not_modeled` with its owner, and a row
 /// whose cell the inventory lacks.
 fn verdict_problems(report: &VerdictReport, case: &Rows) -> Vec<String> {
+    verdict_problems_beside(report, case, &[])
+}
+
+/// [`verdict_problems`] for a sheet that also holds the formula cells `beside` (row, column), which
+/// no row has and whose verdicts the caller checks.
+fn verdict_problems_beside(
+    report: &VerdictReport,
+    case: &Rows,
+    beside: &[(u32, u32)],
+) -> Vec<String> {
     let rows: BTreeMap<u32, &OracleRow> = case.oracle.iter().map(|row| (row.row, row)).collect();
     let mut problems = Vec::new();
     for cell in &report.cells {
         let address = &cell.formula.cell;
-        if address.sheet() != case.sheet {
+        if address.sheet() != case.sheet || beside.contains(&(address.row(), address.column())) {
             continue;
         }
         let at = format!("{}!{}", address.sheet(), address.a1());
@@ -12005,4 +12071,4469 @@ fn dc_q9rb__excel_comparison() {
         sheet_verdicts(&comparison.report, &rows),
         comparison.report.summary()
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc-m3.6: the lookup and reference functions (INDEX, MATCH, XMATCH, XLOOKUP, VLOOKUP,
+// HLOOKUP, LOOKUP, CHOOSE, ROW, COLUMN, ROWS, COLUMNS and AREAS) through calc_func::invoke on
+// catalogue targets.
+//
+// Each oracle row runs one formula's calls through calc_func::invoke, with the test sheet as the
+// cell reader, and asserts a result. A measured row asserts the value Excel 16.0 build 20430
+// shows in the cell for the same formula over the same cells, which the committed capture of the
+// oracle workbook holds and cfunc_m3_6__excel_comparison judges. A row whose result is a reference
+// to several cells, an array or a blank result asserts calc-func's own result, a documented rule
+// or an unmeasured choice that its label names, and states what Excel shows in that cell instead
+// (the cell publication of such a result is another bead's); the comparison checks that statement
+// against the capture. A row labelled `refused` is a call calc-func refuses, with the bead that
+// owns Excel's behaviour, and is counted as unsupported in the per-ID manifest of
+// `migration/ports/cfunc-m3.6.json`; where it states what Excel shows, the comparison checks that
+// too.
+//
+// A row's result is what calc_func returns: a reference stays a reference. Two kinds of row
+// stand in for calc-fml here: a row whose result is a reference to one cell asserts the value the
+// cell shows as the test's own dereference, and a nested formula (SUM(INDEX(...)),
+// INDEX(B:B,MATCH(...))) runs its inner call first and gives its result to the outer call. Both
+// are published to the comparison as not modeled, owned by dc-l10u, which judges them through
+// calc_fml::evaluate against the same capture.
+//
+// `tests/fixtures/cfunc_m3_6/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of a sheet named after
+// its case, beside the cells the rows read (XLOOKUP and XMATCH spelled `_xlfn.` as a file stores
+// them). The comparison case judges the rows of both sheets against the committed capture of that
+// workbook through calc_verdict::judge (`LOOKUP_CAPTURE_COMMAND` writes it).
+
+/// The lookup oracle workbook, as committed (its bytes are kept across checkouts by
+/// `.gitattributes`).
+const LOOKUP_WORKBOOK: &[u8] = include_bytes!("fixtures/cfunc_m3_6/oracle.xlsx");
+const LOOKUP_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx";
+/// Excel's capture of the lookup oracle workbook (a version-2 live capture; an absent-capture
+/// marker here would make the comparison case print ACCEPT-NOT-RUN with MissingCapture).
+const LOOKUP_CAPTURE: &[u8] = include_bytes!("captures/cfunc_m3_6/oracle.capture.json");
+/// The case the capture is recorded under.
+const LOOKUP_CAPTURE_CASE: &str = "cfunc_m3_6__excel_comparison";
+/// The command that writes the capture.
+const LOOKUP_CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx --case cfunc_m3_6__excel_comparison --out crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json";
+/// The bead's migration record, whose per-ID manifest the edge case checks against the catalogue.
+const LOOKUP_RECORD: &str = include_str!("../../../migration/ports/cfunc-m3.6.json");
+
+/// The family's entries: each spelling and the member number of its FunctionId in family 9.
+const LOOKUPS: [(&str, u32); 13] = [
+    ("INDEX", 1),
+    ("MATCH", 2),
+    ("XMATCH", 3),
+    ("XLOOKUP", 4),
+    ("VLOOKUP", 5),
+    ("HLOOKUP", 6),
+    ("LOOKUP", 7),
+    ("CHOOSE", 8),
+    ("ROW", 9),
+    ("COLUMN", 10),
+    ("ROWS", 11),
+    ("COLUMNS", 12),
+    ("AREAS", 13),
+];
+
+/// Where a measured row's expectation comes from.
+const MEASURED: &str = "measured: Excel 16.0 build 20430 shows this value in the cell (the committed capture of the oracle workbook, which cfunc_m3_6__excel_comparison judges)";
+
+/// What a lookup row's call gives.
+#[derive(Clone, Debug)]
+enum Gives {
+    /// A value or a refusal, as [`Expect`] states it.
+    Is(Expect),
+    /// A reference to this one cell of the test sheet, which shows the expected value (a blank
+    /// cell 0).
+    Cell(&'static str, Expect),
+    /// A reference to this area of several cells of the test sheet.
+    Area(&'static str),
+    /// Empty: a blank cell's value, or an omitted value chosen.
+    Blank,
+    /// This array.
+    Array(Vec<Vec<f64>>),
+}
+
+/// Why a lookup row expects its result.
+#[derive(Clone, Debug)]
+enum Seen {
+    /// Excel showed this result in the cell for the same formula over the same cells
+    /// ([`MEASURED`]).
+    Measured,
+    /// calc-func's result is a reference to several cells, an array or blank, which Excel shows
+    /// in the cell as `shows`; `basis` says why calc-func gives the result it gives.
+    Shape { basis: &'static str, shows: Expect },
+    /// calc-func refuses the call; Excel's behaviour belongs to this owner, and, when stated, Excel
+    /// shows this value in the cell, which the comparison checks against the capture.
+    Refused(Owner, Option<Expect>),
+}
+
+const SPILL_OWNER: Owner = Owner {
+    bead: "cfml-m3.4",
+    behaviour: "an array result published in a cell",
+};
+const AREA_OWNER: Owner = Owner {
+    bead: "cfml-m3.3",
+    behaviour: "a reference to several cells as a cell's value (implicit intersection)",
+};
+const BLANK_OWNER: Owner = Owner {
+    bead: "cfml-m3.4",
+    behaviour: "a blank function result published in a cell as 0",
+};
+const LIFT_OWNER: Owner = Owner {
+    bead: "cfml-m3.4",
+    behaviour: "a function lifted over an array argument",
+};
+/// The rows that stand in for calc-fml: a reference result dereferenced at the formula's root, or
+/// a nested call's result given to the outer call.
+const ENGINE_ROUTE: Owner = Owner {
+    bead: "dc-l10u",
+    behaviour: "a reference result or a nested call evaluated through calc_fml::evaluate",
+};
+/// The calling cell, which ROW() and COLUMN() without an argument need.
+const CALLER_OWNER: Owner = Owner {
+    bead: "dc-ebla",
+    behaviour: "the calling cell supplied to a kernel",
+};
+/// A read past the reference a formula gives, which the engine does not see as a prerequisite.
+const READ_PAST_OWNER: Owner = Owner {
+    bead: "dc-1mc8",
+    behaviour: "cells read past the reference given, as prerequisites of the formula",
+};
+
+/// Why an INDEX of a reference with a 0 index gives a reference to several cells.
+const INDEX_AREA: &str = "a reference to the cells selected, documented (Microsoft's INDEX page: row_num or column_num 0 returns the reference of the whole column or row); captured: AREAS(INDEX(A1:C3,0,2)) is 1, and AREAS of a value that is not a reference is #VALUE!";
+/// Why an INDEX of an array with a 0 index gives an array.
+const INDEX_ARRAY: &str = "the array of the column selected, documented (Microsoft's INDEX page: column_num of an array with row_num 0 returns the whole column); captured: ROWS and SUM of it are 2 and 6";
+/// Why a lookup of a blank cell gives Empty.
+const BLANK_RESULT: &str = "Empty, an unmeasured choice of value consistent with the capture: & joins VLOOKUP of a blank cell and CHOOSE of an omitted value as empty text, where a 0 would join as \"0\"";
+/// Why XLOOKUP with a lookup array of one cell gives the whole return array of one row or column.
+const XLOOKUP_ONE_CELL: &str = "the whole return array of one row or column; captured: ROWS, COLUMNS and SUM of XLOOKUP(1,A1,A13:C13) are 1, 3 and 6, and of XLOOKUP(1,A1,C1:C3) 3, 1 and 60";
+/// Why XLOOKUP gives the row or column of a return array of several rows and columns.
+const XLOOKUP_PART: &str = "the row (a vertical lookup array) or column (a horizontal one) of the return array at the match, documented (Microsoft's XLOOKUP page: a return array of several columns or rows returns them all), a reference into a return reference";
+/// ROW and COLUMN of several rows or columns, whose result depends on the formula's array
+/// context: a legacy formula (an xlsx cell without dynamic-array metadata, as the oracle workbook
+/// stores its formulas) gives the first number, a dynamic-array formula the array of every number.
+const LEGACY_ARRAY: Owner = Owner {
+    bead: "cfml-m3.4",
+    behaviour: "ROW or COLUMN of several rows or columns in the formula's array context",
+};
+
+/// The errors XMATCH orders, in its order: the eight a cell constant can hold, then #SPILL!,
+/// #FIELD! and #CALC!, which only a formula gives (Excel refuses to open a workbook holding them
+/// as cell constants and refuses them as formula literals).
+const ORDERED_ERRORS: [(WorksheetErrorCode, &str); 11] = [
+    (WorksheetErrorCode::Null, "#NULL!"),
+    (WorksheetErrorCode::Div0, "#DIV/0!"),
+    (WorksheetErrorCode::Value, "#VALUE!"),
+    (WorksheetErrorCode::Ref, "#REF!"),
+    (WorksheetErrorCode::Name, "#NAME?"),
+    (WorksheetErrorCode::Num, "#NUM!"),
+    (WorksheetErrorCode::NA, "#N/A"),
+    (WorksheetErrorCode::GettingData, "#GETTING_DATA"),
+    (WorksheetErrorCode::Spill, "#SPILL!"),
+    (WorksheetErrorCode::Field, "#FIELD!"),
+    (WorksheetErrorCode::Calc, "#CALC!"),
+];
+
+fn error_name(code: WorksheetErrorCode) -> &'static str {
+    ORDERED_ERRORS
+        .iter()
+        .find(|(known, _)| *known == code)
+        .map(|(_, name)| *name)
+        .unwrap_or_else(|| panic!("{code:?} is not one of the errors XMATCH orders here"))
+}
+
+/// The functions of the source formulas, which calc_func's catalogue does not have, and the error
+/// Excel gives each source formula of the lookup oracle workbook.
+const SOURCE_CALC: Owner = Owner {
+    bead: "cfunc-m3.16",
+    behaviour: "FILTER, here with no cell of A1:A6 above 100, which Excel gives #CALC!",
+};
+const SOURCE_SPILL: Owner = Owner {
+    bead: "cfunc-m3.16, cfml-m3.4",
+    behaviour: "SEQUENCE(1,2), whose spill the filled cell to its right blocks, which Excel gives #SPILL!",
+};
+const SOURCE_FIELD: Owner = Owner {
+    bead: "cfunc-m3.19",
+    behaviour: "FIELDVALUE of a number, which holds no data type, which Excel gives #FIELD!",
+};
+/// A row that reads a source cell: its value rests on the error the reader holds for the source.
+const SOURCE_READ: Owner = Owner {
+    bead: "cfunc-m3.16, cfml-m3.4, cfunc-m3.19",
+    behaviour: "a value conditional on the errors Excel gives the source formulas it reads (FILTER, SEQUENCE and FIELDVALUE), which the reader holds",
+};
+
+/// The source formula of the lookup oracle workbook that gives each error no cell constant holds:
+/// as entered, as the file stores it, and the beads that own it.
+fn error_source(code: WorksheetErrorCode) -> Option<(&'static str, &'static str, Owner)> {
+    match code {
+        WorksheetErrorCode::Spill => Some(("SEQUENCE(1,2)", "_xlfn.SEQUENCE(1,2)", SOURCE_SPILL)),
+        WorksheetErrorCode::Field => Some((
+            "FIELDVALUE(A1,\"x\")",
+            "_xlfn.FIELDVALUE(A1,\"x\")",
+            SOURCE_FIELD,
+        )),
+        WorksheetErrorCode::Calc => Some((
+            "FILTER(A1:A6,A1:A6>100)",
+            "_xlfn._xlws.FILTER(A1:A6,A1:A6>100)",
+            SOURCE_CALC,
+        )),
+        _ => None,
+    }
+}
+
+/// A source formula of the sheet lookup_edges: a call to a function calc_func's catalogue does not
+/// have, which the workbook holds as a dynamic-array formula over its one cell. The test sheet's
+/// reader holds for it the error Excel gives it, so a row that reads it is conditional on that
+/// error: such a row is published as not modeled, and the comparison checks both the source
+/// cell's error and the row's value against the capture's raw values.
+struct SourceCell {
+    a1: String,
+    entered: &'static str,
+    stored: &'static str,
+    error: WorksheetErrorCode,
+    owner: Owner,
+}
+
+/// Every ordered pair of two different errors of [`ORDERED_ERRORS`] with #SPILL!, #FIELD! or
+/// #CALC! among them, by first error and then second: pair k is P{k}:Q{k} of the sheet
+/// lookup_edges.
+fn source_error_pairs() -> Vec<(WorksheetErrorCode, WorksheetErrorCode)> {
+    let mut pairs = Vec::new();
+    for (first, _) in ORDERED_ERRORS {
+        for (second, _) in ORDERED_ERRORS {
+            if first != second && (error_source(first).is_some() || error_source(second).is_some())
+            {
+                pairs.push((first, second));
+            }
+        }
+    }
+    pairs
+}
+
+/// The source cells of the oracle sheet `sheet`: on lookup_edges, each cell of the pairs P:Q that
+/// holds #SPILL!, #FIELD! or #CALC!; reference_result has none.
+fn lookup_sources(sheet: &str) -> Vec<SourceCell> {
+    let mut sources = Vec::new();
+    if sheet != "lookup_edges" {
+        return sources;
+    }
+    for (row, (first, second)) in source_error_pairs().into_iter().enumerate() {
+        for (column, code) in [("P", first), ("Q", second)] {
+            if let Some((entered, stored, owner)) = error_source(code) {
+                sources.push(SourceCell {
+                    a1: format!("{column}{}", row + 1),
+                    entered,
+                    stored,
+                    error: code,
+                    owner,
+                });
+            }
+        }
+    }
+    sources
+}
+
+impl Gives {
+    /// Whether `result` is this, for the entry `id`.
+    fn holds(
+        &self,
+        s: &TestSheet,
+        id: FunctionId,
+        result: &Result<CalcValue, FunctionFault>,
+    ) -> bool {
+        match (self, result) {
+            (Gives::Is(expect), result) => expect.holds(id, result),
+            (Gives::Cell(a1, shows), Ok(value)) => {
+                value.as_reference() == Some(&ReferenceLike::cell(s.key(a1)))
+                    && shows.holds(id, &Ok(shown_at_root(s, value)))
+            }
+            (Gives::Area(text), Ok(value)) => {
+                value.as_reference() == Some(&ReferenceLike::area(s.area(text)))
+            }
+            (Gives::Blank, Ok(value)) => value.is_empty(),
+            (Gives::Array(rows), Ok(value)) => {
+                let expected = CalcArray::from_rows(
+                    rows.iter()
+                        .map(|row| row.iter().map(|n| CalcValue::number(*n)).collect())
+                        .collect(),
+                )
+                .expect("a rectangular array");
+                value.as_array() == Some(&expected)
+            }
+            _ => false,
+        }
+    }
+
+    fn shown(&self) -> String {
+        match self {
+            Gives::Is(expect) => expect.shown(),
+            Gives::Cell(a1, shows) => format!("a reference to {a1}, which shows {}", shows.shown()),
+            Gives::Area(text) => format!("a reference to {text}"),
+            Gives::Blank => "Empty".to_owned(),
+            Gives::Array(rows) => format!("the array {rows:?}"),
+        }
+    }
+
+    /// The bead that owns the cell publication of this result, when the comparison does not score
+    /// calc_func's result as the cell's value: a reference to one cell is dereferenced by
+    /// calc_fml (dc-l10u judges it there), and a reference to several cells, an array and a blank
+    /// result are published in a cell by calc_fml's contexts.
+    fn publication_owner(&self) -> Option<Owner> {
+        match self {
+            Gives::Area(_) => Some(AREA_OWNER),
+            Gives::Blank => Some(BLANK_OWNER),
+            Gives::Array(_) => Some(SPILL_OWNER),
+            Gives::Cell(..) => Some(ENGINE_ROUTE),
+            Gives::Is(_) => None,
+        }
+    }
+
+    /// Whether the cell shows something other than calc_func's result itself.
+    fn is_shape(&self) -> bool {
+        matches!(self, Gives::Area(_) | Gives::Array(_) | Gives::Blank)
+    }
+}
+
+/// What each row that computes a value states Excel shows in its cell, by sheet and row, and
+/// whether the row is one of [`Seen::Shape`].
+type Stated = BTreeMap<(&'static str, u32), (Expect, bool)>;
+
+thread_local! {
+    /// The formulas of the nested calls made on this thread ([`nested`]): an argument with one of
+    /// these texts is a nested call's result.
+    static NESTED: std::cell::RefCell<BTreeSet<String>> = const { std::cell::RefCell::new(BTreeSet::new()) };
+    /// The rows' statements of what Excel shows ([`Stated`]).
+    static SHOWN: std::cell::RefCell<Stated> = const { std::cell::RefCell::new(BTreeMap::new()) };
+}
+
+/// The value the test shows for a reference to one cell of the test sheet (a blank cell 0), the
+/// test's own stand-in for calc_fml's dereference: rows that use it are published as not modeled
+/// under dc-l10u.
+fn shown_at_root(s: &TestSheet, value: &CalcValue) -> CalcValue {
+    match value.as_reference().map(ReferenceLike::areas) {
+        Some([area]) if area.cell_count() == 1 => {
+            let key = area.first();
+            match s.cells.get(&(key.row(), key.column())) {
+                Some(held) => held.clone(),
+                None => CalcValue::number(0.0),
+            }
+        }
+        _ => value.clone(),
+    }
+}
+
+/// A nested call as an argument of the outer call: the inner call runs now through
+/// calc_func::invoke over the test sheet, and its result (which must not be a fault) is what the
+/// outer call receives, as calc-fml gives an eager call the value of an argument expression.
+fn nested(s: &mut TestSheet, (notation, spelling): (Notation, &str), args: &[Arg]) -> Arg {
+    let target = surface(notation, spelling);
+    let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+    let formula = target
+        .oracle_formula(&texts)
+        .unwrap_or_else(|| panic!("{spelling} does not admit {texts:?}"));
+    let mut recorded = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+    let value = invoke(
+        target,
+        &mut recorded,
+        &mut EvalServices::with_cells(&NumericMode::Fast, s),
+        &mut FunctionCallScratch::new(),
+    )
+    .unwrap_or_else(|fault| panic!("{formula}: the inner call ends in {fault:?}"));
+    let excel = formula[1..].to_owned();
+    NESTED.with(|nested| nested.borrow_mut().insert(excel.clone()));
+    Arg {
+        excel,
+        value,
+        reads: args.iter().flat_map(|a| a.reads.clone()).collect(),
+    }
+}
+
+/// Whether `arg` is a nested call's result ([`nested`]).
+fn is_nested(arg: &Arg) -> bool {
+    NESTED.with(|nested| nested.borrow().contains(&arg.excel))
+}
+
+/// A nested call as an argument: `nest!(sheet, "SPELLING", [args])` (see [`nested`]).
+macro_rules! nest {
+    ($sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?]) => {{
+        let args = [$($arg),*];
+        nested($sheet, named($spelling), &args)
+    }};
+}
+
+/// The areas of the reference arguments of a call.
+fn reference_areas(args: &[Arg]) -> Vec<GridArea> {
+    args.iter()
+        .filter_map(|a| a.value.as_reference())
+        .flat_map(|reference| reference.areas().to_vec())
+        .collect()
+}
+
+/// Runs the call `surface` on `args` through calc_func::invoke under Fast with the test sheet as
+/// the cell reader and asserts `gives`, the arguments the call interface asked for (each once in
+/// order for an eager entry; index_num and then at most the chosen value for CHOOSE), and that
+/// every area the reader was asked for lies inside a reference argument. Then records the row,
+/// with the next cell of column D, and prints it with its basis.
+fn lookup_row(
+    rows: &mut Rows,
+    s: &mut TestSheet,
+    surface_of: (Notation, &str),
+    args: &[Arg],
+    gives: Gives,
+    seen: Seen,
+) {
+    let target = surface(surface_of.0, surface_of.1);
+    let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+    let formula = target
+        .oracle_formula(&texts)
+        .unwrap_or_else(|| panic!("{surface_of:?} does not admit {texts:?}"));
+    let mut recorded = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+    let reads_before = s.reads.len();
+    let tick = next_tick();
+    let result = invoke(
+        target,
+        &mut recorded,
+        &mut EvalServices::with_cells(&NumericMode::Fast, s),
+        &mut FunctionCallScratch::new(),
+    );
+    assert!(
+        gives.holds(s, target.id(), &result),
+        "{formula}: expected {}, got {result:?}",
+        gives.shown()
+    );
+    if target.argument_demand().is_lazy() {
+        assert_eq!(
+            recorded.asked.first(),
+            Some(&0),
+            "{formula}: asked {:?}",
+            recorded.asked
+        );
+        assert!(
+            recorded.asked.len() <= 2,
+            "{formula}: asked {:?}",
+            recorded.asked
+        );
+    } else {
+        let in_order: Vec<usize> = (0..args.len()).collect();
+        assert_eq!(
+            recorded.asked, in_order,
+            "{formula}: the arguments asked for"
+        );
+    }
+    let given = reference_areas(args);
+    for read in &s.reads[reads_before..] {
+        assert!(
+            given
+                .iter()
+                .any(|area| { area.contains(read.first()) && area.contains(read.last()) }),
+            "{formula}: the reader was asked for {read:?}, outside the references given"
+        );
+    }
+    let through_nesting = args.iter().any(is_nested);
+    let sources = lookup_sources(rows.sheet);
+    let reads_source = s.reads[reads_before..].iter().any(|area| {
+        sources
+            .iter()
+            .any(|source| area.contains(s.key(&source.a1)))
+    });
+    let owner = match &seen {
+        Seen::Measured | Seen::Shape { .. } => {
+            assert!(result.is_ok(), "{formula}: the row computes a value");
+            assert_eq!(
+                matches!(seen, Seen::Shape { .. }),
+                gives.is_shape(),
+                "{formula}: a row whose result Excel does not show as it is states what Excel shows"
+            );
+            if through_nesting {
+                Some(ENGINE_ROUTE)
+            } else if reads_source {
+                Some(SOURCE_READ)
+            } else {
+                gives.publication_owner()
+            }
+        }
+        Seen::Refused(owner, _) => {
+            assert!(
+                result.is_err(),
+                "{formula}: a refused row computed {result:?}"
+            );
+            Some(*owner)
+        }
+    };
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    let in_cell = match (&seen, &gives) {
+        (Seen::Shape { shows, .. }, _) => Some((shows.clone(), true)),
+        (Seen::Measured, Gives::Is(expect)) => Some((expect.clone(), false)),
+        (Seen::Measured, Gives::Cell(_, shows)) => Some((shows.clone(), false)),
+        (Seen::Refused(_, Some(shows)), _) => Some((shows.clone(), false)),
+        _ => None,
+    };
+    SHOWN.with(|shown| match in_cell {
+        Some(stated) => shown.borrow_mut().insert((rows.sheet, row), stated),
+        None => shown.borrow_mut().remove(&(rows.sheet, row)),
+    });
+    if !rows.quiet {
+        let reads: Vec<&str> = args
+            .iter()
+            .flat_map(|a| a.reads.iter().map(String::as_str))
+            .collect();
+        let cells = if reads.is_empty() {
+            String::new()
+        } else {
+            format!(" with {}", reads.join(", "))
+        };
+        let at = format!("{}!{}", rows.sheet, encode_a1(row, FORMULA_COLUMN));
+        let label = match (&seen, &result) {
+            (Seen::Measured, _) => MEASURED.to_owned(),
+            (Seen::Shape { basis, shows }, _) => format!(
+                "calc-func's result is {basis}; Excel shows {} in this cell",
+                shows.shown()
+            ),
+            (Seen::Refused(owner, shows), Err(fault)) => format!(
+                "refused with {fault:?}; Excel's behaviour is owned by {}: {}{}",
+                owner.bead,
+                owner.behaviour,
+                shows
+                    .as_ref()
+                    .map(|shows| format!("; Excel shows {} in this cell", shows.shown()))
+                    .unwrap_or_default()
+            ),
+            (Seen::Refused(..), Ok(_)) => unreachable!("checked above"),
+        };
+        let published = match owner {
+            Some(owner) if result.is_ok() => format!(
+                "; published to the comparison as not modeled, owned by {}: {}",
+                owner.bead, owner.behaviour
+            ),
+            _ => String::new(),
+        };
+        note!(
+            "ACCEPT-NOTE: {}: oracle {at} {formula}{cells} -> {} ({label}{published})",
+            rows.case,
+            gives.shown()
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice: None,
+        owner,
+        tick,
+    });
+}
+
+/// Records a row whose formula stops at a nested call that calc_func refuses: the inner call
+/// `inner` on `inner_args` runs through calc_func::invoke over the test sheet and must end in
+/// NotImplemented, so the outer call `outer` (on `before`, the inner call, and `after`) is never
+/// made. The row's outcome is that refusal, owned by `owner`, and the row states what Excel shows
+/// in its cell, which the comparison checks against the capture.
+#[allow(clippy::too_many_arguments)]
+fn inner_refused_row(
+    rows: &mut Rows,
+    s: &mut TestSheet,
+    outer: &str,
+    before: &[Arg],
+    (inner, inner_args): (&str, &[Arg]),
+    after: &[Arg],
+    owner: Owner,
+    shows: Expect,
+) {
+    let inner_target = surface(Notation::Call, inner);
+    let inner_texts: Vec<&str> = inner_args.iter().map(|a| a.excel.as_str()).collect();
+    let inner_formula = inner_target
+        .oracle_formula(&inner_texts)
+        .unwrap_or_else(|| panic!("{inner} does not admit {inner_texts:?}"));
+    let mut recorded = Recorded::new(inner_args.iter().map(|a| a.value.clone()).collect());
+    let tick = next_tick();
+    let result = invoke(
+        inner_target,
+        &mut recorded,
+        &mut EvalServices::with_cells(&NumericMode::Fast, s),
+        &mut FunctionCallScratch::new(),
+    );
+    let fault = match result {
+        Err(fault @ FunctionFault::NotImplemented { id, .. }) if id == inner_target.id() => fault,
+        other => panic!("{inner_formula}: expected a refusal, got {other:?}"),
+    };
+    let outer_target = surface(Notation::Call, outer);
+    let texts: Vec<&str> = before
+        .iter()
+        .map(|a| a.excel.as_str())
+        .chain([&inner_formula[1..]])
+        .chain(after.iter().map(|a| a.excel.as_str()))
+        .collect();
+    let formula = outer_target
+        .oracle_formula(&texts)
+        .unwrap_or_else(|| panic!("{outer} does not admit {texts:?}"));
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    SHOWN.with(|shown| {
+        shown
+            .borrow_mut()
+            .insert((rows.sheet, row), (shows.clone(), false))
+    });
+    if !rows.quiet {
+        note!(
+            "ACCEPT-NOTE: {}: oracle {}!{} {formula} -> the inner call {} is refused with {fault:?}, so the formula stops there (Excel's behaviour is owned by {}: {}; Excel shows {} in this cell)",
+            rows.case,
+            rows.sheet,
+            encode_a1(row, FORMULA_COLUMN),
+            &inner_formula[1..],
+            owner.bead,
+            owner.behaviour,
+            shows.shown()
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: Err(fault),
+        choice: None,
+        owner: Some(owner),
+        tick,
+    });
+}
+
+/// An array constant as a formula writes it, as the caller supplies it: numbers, "text", TRUE,
+/// FALSE and the error literals of these fixtures, `,` between columns and `;` between rows (no
+/// text holding either).
+fn arr(excel: &str) -> Arg {
+    let inner = excel
+        .strip_prefix('{')
+        .and_then(|rest| rest.strip_suffix('}'))
+        .unwrap_or_else(|| panic!("{excel} is no array constant"));
+    let element = |item: &str| -> CalcValue {
+        if let Some(text) = item
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+        {
+            return text_value(&text.replace("\"\"", "\""));
+        }
+        match item {
+            "TRUE" => CalcValue::logical(true),
+            "FALSE" => CalcValue::logical(false),
+            _ => match ERROR_LITERALS.iter().find(|(_, literal)| *literal == item) {
+                Some((code, _)) => CalcValue::error(*code),
+                None => CalcValue::number(
+                    item.parse()
+                        .unwrap_or_else(|_| panic!("{item} is no array element")),
+                ),
+            },
+        }
+    };
+    array_arg(
+        excel,
+        inner
+            .split(';')
+            .map(|row| row.split(',').map(element).collect())
+            .collect(),
+    )
+}
+
+/// Runs a measured row: `lk!(rows, sheet, "SPELLING", [args], gives)`.
+macro_rules! lk {
+    ($rows:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], $gives:expr) => {{
+        let args = [$($arg),*];
+        lookup_row($rows, $sheet, named($spelling), &args, $gives, Seen::Measured)
+    }};
+}
+
+/// Runs a row whose result Excel does not show as it is:
+/// `lk_shape!(rows, sheet, "SPELLING", [args], gives, basis, shows)`.
+macro_rules! lk_shape {
+    ($rows:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], $gives:expr, $basis:expr, $shows:expr) => {{
+        let args = [$($arg),*];
+        lookup_row(
+            $rows,
+            $sheet,
+            named($spelling),
+            &args,
+            $gives,
+            Seen::Shape {
+                basis: $basis,
+                shows: $shows,
+            },
+        )
+    }};
+}
+
+/// Runs a refused row: `lk_refused!(rows, sheet, owner, "SPELLING", [args], gives)`.
+macro_rules! lk_refused {
+    ($rows:expr, $sheet:expr, $owner:expr, $spelling:expr, [$($arg:expr),* $(,)?], $gives:expr) => {{
+        let args = [$($arg),*];
+        lookup_row($rows, $sheet, named($spelling), &args, $gives, Seen::Refused($owner, None))
+    }};
+}
+
+/// Runs a refused row that states what Excel shows in its cell:
+/// `lk_refused_shows!(rows, sheet, owner, "SPELLING", [args], gives, shows)`.
+macro_rules! lk_refused_shows {
+    ($rows:expr, $sheet:expr, $owner:expr, $spelling:expr, [$($arg:expr),* $(,)?], $gives:expr, $shows:expr) => {{
+        let args = [$($arg),*];
+        lookup_row(
+            $rows,
+            $sheet,
+            named($spelling),
+            &args,
+            $gives,
+            Seen::Refused($owner, Some($shows)),
+        )
+    }};
+}
+
+/// An expected number.
+fn n(value: f64) -> Gives {
+    Gives::Is(N(value))
+}
+
+/// An expected text.
+fn tx(text: &str) -> Gives {
+    Gives::Is(t(text))
+}
+
+/// An expected error.
+fn er(code: WorksheetErrorCode) -> Gives {
+    Gives::Is(E(code))
+}
+
+/// An expected refusal naming argument `argument`.
+fn refused(argument: Option<usize>) -> Gives {
+    Gives::Is(Refused(argument))
+}
+
+/// A reference to one cell that shows a number.
+fn at_n(a1: &'static str, value: f64) -> Gives {
+    Gives::Cell(a1, N(value))
+}
+
+/// Prints how many rows a case ran and on what basis.
+fn lookup_rows_note(rows: &Rows) {
+    let refused = rows.refused();
+    let shapes = SHOWN.with(|shown| {
+        shown
+            .borrow()
+            .iter()
+            .filter(|((sheet, _), (_, shape))| *sheet == rows.sheet && *shape)
+            .count()
+    });
+    let engine = rows
+        .oracle
+        .iter()
+        .filter(|row| row.owner == Some(ENGINE_ROUTE))
+        .count();
+    let conditional = rows
+        .oracle
+        .iter()
+        .filter(|row| row.owner == Some(SOURCE_READ))
+        .count();
+    let elsewhere = rows
+        .oracle
+        .iter()
+        .filter(|row| row.outcome.is_ok() && row.owner.is_some())
+        .count()
+        - engine
+        - conditional;
+    note!(
+        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each with its formula on sheet {} of {LOOKUP_WORKBOOK_PATH}: {} asserting the value Excel shows in the cell, measured; {} asserting calc-func's result where Excel shows another (a reference to several cells, an array or a blank result), each stating what Excel shows; {} refused with the bead that owns Excel's behaviour. Published to the comparison as not modeled: {} rows that stand in for calc_fml (a reference to one cell dereferenced by the test, or a nested call), owned by dc-l10u; {} rows conditional on the errors the reader holds for the source formulas they read (owned by {}: {}); and {} other computed rows whose cell publication another bead owns",
+        rows.case,
+        rows.oracle.len(),
+        rows.sheet,
+        rows.oracle.len() - refused - shapes,
+        shapes,
+        refused,
+        engine,
+        conditional,
+        SOURCE_READ.bead,
+        SOURCE_READ.behaviour,
+        elsewhere
+    );
+}
+
+/// `rows` with each formula as the workbook stores it: XLOOKUP and XMATCH carry the `_xlfn.`
+/// prefix of functions newer than the file format.
+fn stored_formulas(rows: &Rows) -> Rows {
+    let mut stored = Rows::new(rows.case, rows.sheet, rows.quiet);
+    for row in &rows.oracle {
+        stored.oracle.push(OracleRow {
+            row: row.row,
+            formula: row
+                .formula
+                .replace("XLOOKUP(", "_xlfn.XLOOKUP(")
+                .replace("XMATCH(", "_xlfn.XMATCH("),
+            outcome: row.outcome.clone(),
+            choice: row.choice,
+            owner: row.owner,
+            tick: row.tick,
+        });
+    }
+    stored
+}
+
+/// Checks the lookup oracle workbook's sheet for `rows` and, on the route where the generator
+/// runs, that the committed workbook is its output.
+fn assert_lookup_workbook(rows: &Rows, s: &TestSheet) {
+    let sources: BTreeMap<(u32, u32), String> = lookup_sources(rows.sheet)
+        .into_iter()
+        .map(|source| (decode_a1(&source.a1), source.stored.to_owned()))
+        .collect();
+    assert_workbook_sheet_with_sources(
+        LOOKUP_WORKBOOK,
+        LOOKUP_WORKBOOK_PATH,
+        &stored_formulas(rows),
+        s,
+        &sources,
+    );
+    let case = rows.case;
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["cfunc_m3_6/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == LOOKUP_WORKBOOK,
+            "the committed lookup oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(LOOKUP_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {case}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed lookup oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {case}: the generator runs under Windows PowerShell, so the check that the committed lookup oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_6__reference_result
+
+/// The cells the reference rows read: A1:C3 hold 1 to 9, A4 text, B4 is blank, C4 TRUE; A10:A14
+/// hold keys k1 to k5, B10:B14 numbers with B13 blank, C10:C14 text; far down column A, A1000
+/// holds the key kz and C1000 the number 77. Every other cell is blank.
+fn reference_result_sheet() -> TestSheet {
+    let num = |v: f64| CalcValue::number(v);
+    TestSheet::new(&[
+        ("A1", "1", num(1.0)),
+        ("B1", "2", num(2.0)),
+        ("C1", "3", num(3.0)),
+        ("A2", "4", num(4.0)),
+        ("B2", "5", num(5.0)),
+        ("C2", "6", num(6.0)),
+        ("A3", "7", num(7.0)),
+        ("B3", "8", num(8.0)),
+        ("C3", "9", num(9.0)),
+        ("A4", "text \"t\"", text_value("t")),
+        ("C4", "TRUE", CalcValue::logical(true)),
+        ("A10", "text \"k1\"", text_value("k1")),
+        ("A11", "text \"k2\"", text_value("k2")),
+        ("A12", "text \"k3\"", text_value("k3")),
+        ("A13", "text \"k4\"", text_value("k4")),
+        ("A14", "text \"k5\"", text_value("k5")),
+        ("B10", "10", num(10.0)),
+        ("B11", "20", num(20.0)),
+        ("B12", "30", num(30.0)),
+        ("B14", "50", num(50.0)),
+        ("C10", "text \"x10\"", text_value("x10")),
+        ("C11", "text \"x20\"", text_value("x20")),
+        ("C12", "text \"x30\"", text_value("x30")),
+        ("C13", "text \"x40\"", text_value("x40")),
+        ("C14", "text \"x50\"", text_value("x50")),
+        ("A1000", "text \"kz\"", text_value("kz")),
+        ("C1000", "77", num(77.0)),
+    ])
+}
+
+/// The rows of cfunc_m3_6__reference_result, in the order the lookup oracle workbook's sheet
+/// `reference_result` holds their formulas.
+fn reference_result_rows(s: &mut TestSheet, quiet: bool) -> Rows {
+    const CASE: &str = "cfunc_m3_6__reference_result";
+    let mut rows = Rows::new(CASE, "reference_result", quiet);
+    let r = &mut rows;
+    use WorksheetErrorCode::{NA, Ref, Value};
+    let grid = |s: &TestSheet| reference(s, &["A1:C3"]);
+    let two_areas = |s: &TestSheet| reference(s, &["A1:A3", "C1:C3"]);
+
+    // INDEX of a reference gives a reference: to a cell, which shows its value (a blank cell 0),
+    // or to a row, a column or the whole area.
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), num("2"), num("3")],
+        at_n("C2", 6.0)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), num("2.7"), num("1.2")],
+        at_n("A2", 4.0)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["A1:A4"]), num("4")],
+        Gives::Cell("A4", t("t"))
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["A1:C1"]), num("3")],
+        at_n("C1", 3.0)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["A1:C1"]), omitted(), num("2")],
+        at_n("B1", 2.0)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["B1:B4"]), num("4")],
+        at_n("B4", 0.0)
+    );
+    lk_shape!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), num("0"), num("2")],
+        Gives::Area("B1:B3"),
+        INDEX_AREA,
+        E(Value)
+    );
+    lk_shape!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), num("2"), num("0")],
+        Gives::Area("A2:C2"),
+        INDEX_AREA,
+        E(Value)
+    );
+    lk_shape!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), num("0"), num("0")],
+        Gives::Area("A1:C3"),
+        INDEX_AREA,
+        E(Value)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [two_areas(s), num("2"), num("1"), num("2")],
+        at_n("C2", 6.0)
+    );
+    lk!(r, s, "INDEX", [two_areas(s), num("3")], at_n("A3", 7.0));
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["A:A"]), num("1000")],
+        Gives::Cell("A1000", t("kz"))
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), txt("2"), txt("3")],
+        at_n("C2", 6.0)
+    );
+    lk!(r, s, "INDEX", [grid(s), num("4"), num("1")], er(Ref));
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), num("1"), num("1"), num("2")],
+        er(Ref)
+    );
+    lk!(r, s, "INDEX", [grid(s), num("2")], er(Ref));
+    lk!(r, s, "INDEX", [grid(s), num("-1"), num("1")], er(Value));
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), err(NA), err(WorksheetErrorCode::Div0)],
+        er(NA)
+    );
+
+    // The reference reaches a reference parameter as a reference: SUM, ROWS, COLUMNS, AREAS,
+    // ROW, COLUMN and COUNTBLANK (reference-only) read or measure the area INDEX selected.
+    let column_two = nest!(s, "INDEX", [grid(s), num("0"), num("2")]);
+    lk!(r, s, "SUM", [column_two.clone()], n(15.0));
+    let row_two = nest!(s, "INDEX", [grid(s), num("2"), num("0")]);
+    lk!(r, s, "SUM", [row_two.clone()], n(15.0));
+    let whole = nest!(s, "INDEX", [grid(s), num("0"), num("0")]);
+    lk!(r, s, "SUM", [whole], n(45.0));
+    lk!(r, s, "ROWS", [column_two], n(3.0));
+    lk!(r, s, "COLUMNS", [row_two], n(3.0));
+    let picked = nest!(s, "INDEX", [two_areas(s), num("1"), num("1"), num("2")]);
+    lk!(r, s, "AREAS", [picked], n(1.0));
+    let cell_c2 = nest!(s, "INDEX", [grid(s), num("2"), num("3")]);
+    lk!(r, s, "ROW", [cell_c2.clone()], n(2.0));
+    lk!(r, s, "COLUMN", [cell_c2], n(3.0));
+    let row_four = nest!(s, "INDEX", [reference(s, &["A1:C4"]), num("4"), num("0")]);
+    lk!(r, s, "COUNTBLANK", [row_four], n(1.0));
+
+    // The whole-column shape INDEX(range, MATCH(key, column, 0)).
+    let at_k3 = nest!(s, "MATCH", [txt("k3"), reference(s, &["A:A"]), num("0")]);
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["B:B"]), at_k3],
+        at_n("B12", 30.0)
+    );
+    let at_k5 = nest!(s, "MATCH", [txt("K5"), reference(s, &["A:A"]), num("0")]);
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["B:B"]), at_k5],
+        at_n("B14", 50.0)
+    );
+    let at_kz = nest!(s, "MATCH", [txt("kz"), reference(s, &["A:A"]), num("0")]);
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["C:C"]), at_kz],
+        at_n("C1000", 77.0)
+    );
+    let at_k4 = nest!(s, "MATCH", [txt("k4"), reference(s, &["A:A"]), num("0")]);
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [reference(s, &["B:B"]), at_k4],
+        at_n("B13", 0.0)
+    );
+    let at_k9 = nest!(s, "MATCH", [txt("k9"), reference(s, &["A:A"]), num("0")]);
+    lk!(r, s, "INDEX", [reference(s, &["B:B"]), at_k9], er(NA));
+
+    // XLOOKUP and CHOOSE return what they select as it is: a reference stays a reference.
+    let keys = |s: &TestSheet| reference(s, &["A10:A14"]);
+    let values = |s: &TestSheet| reference(s, &["B10:B14"]);
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [txt("k3"), keys(s), values(s)],
+        at_n("B12", 30.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [txt("k4"), keys(s), values(s)],
+        at_n("B13", 0.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [txt("k9"), keys(s), values(s), reference(s, &["C4"])],
+        Gives::Cell("C4", L(true))
+    );
+    let row_k2 = nest!(
+        s,
+        "XLOOKUP",
+        [txt("k2"), keys(s), reference(s, &["B10:C14"])]
+    );
+    lk!(r, s, "SUM", [row_k2], n(20.0));
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [num("2"), reference(s, &["A1"]), reference(s, &["B1"])],
+        at_n("B1", 2.0)
+    );
+    let chosen = nest!(
+        s,
+        "CHOOSE",
+        [num("2"), reference(s, &["A1:A3"]), reference(s, &["B1:B3"])]
+    );
+    lk!(r, s, "SUM", [chosen], n(15.0));
+    let first = nest!(
+        s,
+        "CHOOSE",
+        [num("1"), reference(s, &["A1:A3"]), reference(s, &["B1:B2"])]
+    );
+    lk!(r, s, "ROWS", [first], n(3.0));
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [num("2"), txt("a"), reference(s, &["B4"])],
+        at_n("B4", 0.0)
+    );
+
+    // VLOOKUP and INDEX of an array give values, not references.
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [
+            txt("k3"),
+            reference(s, &["A10:C14"]),
+            num("3"),
+            logical(false)
+        ],
+        tx("x30")
+    );
+    lk_shape!(
+        r,
+        s,
+        "VLOOKUP",
+        [
+            txt("k4"),
+            reference(s, &["A10:B14"]),
+            num("2"),
+            logical(false)
+        ],
+        Gives::Blank,
+        BLANK_RESULT,
+        N(0.0)
+    );
+    let square = || {
+        array_arg(
+            "{1,2;3,4}",
+            vec![
+                vec![CalcValue::number(1.0), CalcValue::number(2.0)],
+                vec![CalcValue::number(3.0), CalcValue::number(4.0)],
+            ],
+        )
+    };
+    lk!(r, s, "INDEX", [square(), num("2"), num("1")], n(3.0));
+    lk_shape!(
+        r,
+        s,
+        "INDEX",
+        [square(), num("0"), num("2")],
+        Gives::Array(vec![vec![2.0], vec![4.0]]),
+        INDEX_ARRAY,
+        N(2.0)
+    );
+    let second_row = nest!(s, "INDEX", [square(), num("2")]);
+    lk!(r, s, "SUM", [second_row], n(7.0));
+    lk!(r, s, "INDEX", [num("5"), num("1")], n(5.0));
+    lk!(
+        r,
+        s,
+        "AREAS",
+        [reference(s, &["A1:B2", "C3", "A4"])],
+        n(3.0)
+    );
+    lk!(r, s, "ROWS", [reference(s, &["A:A"])], n(1_048_576.0));
+
+    // What a cell shows of the results above that it does not show as they are: INDEX of a
+    // reference with a 0 index is a reference (AREAS of a value that is not one is #VALUE!), INDEX
+    // of an array with a 0 index the array of the column (its ROWS and SUM), and a blank result
+    // joins & as empty text.
+    let column_two = nest!(s, "INDEX", [grid(s), num("0"), num("2")]);
+    lk!(r, s, "AREAS", [column_two], n(1.0));
+    let array_column = nest!(s, "INDEX", [square(), num("0"), num("2")]);
+    lk!(r, s, "ROWS", [array_column.clone()], n(2.0));
+    lk!(r, s, "SUM", [array_column], n(6.0));
+    let blank_cell = nest!(
+        s,
+        "VLOOKUP",
+        [
+            txt("k4"),
+            reference(s, &["A10:B14"]),
+            num("2"),
+            logical(false)
+        ]
+    );
+    lookup_row(
+        r,
+        s,
+        AMPERSAND,
+        &[blank_cell, txt("")],
+        tx(""),
+        Seen::Measured,
+    );
+
+    // INDEX's rules that earlier rounds read from Excel ad hoc only: area_num 0 or given empty
+    // #VALUE!, above 1 for an array or a single value #REF!; a logical index, a fractional one
+    // truncated, a negative one #VALUE! and a huge one #REF!; column_num omitted on a one-row and
+    // a one-column array; column_num given empty selects the row, omitted on a grid #REF!.
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [two_areas(s), num("1"), num("1"), num("0")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [two_areas(s), num("1"), num("1"), omitted()],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [square(), num("1"), num("1"), num("2")],
+        er(Ref)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [num("5"), num("1"), num("1"), num("2")],
+        er(Ref)
+    );
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), logical(true), num("1")],
+        at_n("A1", 1.0)
+    );
+    lk!(r, s, "INDEX", [grid(s), num("-0.5"), num("1")], er(Value));
+    lk!(r, s, "INDEX", [grid(s), num("1E+300"), num("1")], er(Ref));
+    let line = |excel: &str, along_row: bool| {
+        let cells = [1.0, 2.0, 3.0].map(CalcValue::number).to_vec();
+        let rows = if along_row {
+            vec![cells]
+        } else {
+            cells.into_iter().map(|cell| vec![cell]).collect()
+        };
+        array_arg(excel, rows)
+    };
+    lk!(r, s, "INDEX", [line("{1,2,3}", true), num("2")], n(2.0));
+    lk!(r, s, "INDEX", [line("{1;2;3}", false), num("2")], n(2.0));
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [grid(s), num("1.9999"), num("1")],
+        at_n("A1", 1.0)
+    );
+    let row_given_empty = nest!(s, "INDEX", [grid(s), num("2"), omitted()]);
+    lk!(r, s, "SUM", [row_given_empty], n(15.0));
+    let row_omitted = nest!(s, "INDEX", [grid(s), num("2")]);
+    lk!(r, s, "SUM", [row_omitted], er(Ref));
+    rows
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_6__reference_result() {
+    const CASE: &str = "cfunc_m3_6__reference_result";
+    let fast = NumericMode::Fast;
+    let mut sheet = reference_result_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; every other cell is blank",
+        sheet.described()
+    );
+    let rows = reference_result_rows(&mut sheet, false);
+    let s = &mut sheet;
+
+    // INDEX's result is a CoreValue::Reference to the cell it selects, and a value parameter
+    // refuses it at admission: the caller dereferences a reference before a value parameter, as
+    // calc-fml does (dc-l10u judges that route against the capture).
+    let index = surface(Notation::Call, "INDEX");
+    let selected = invoke(
+        index,
+        &mut Recorded::new(vec![
+            reference(s, &["A1:C3"]).value,
+            CalcValue::number(2.0),
+            CalcValue::number(2.0),
+        ]),
+        &mut EvalServices::with_cells(&fast, s),
+        &mut FunctionCallScratch::new(),
+    )
+    .expect("INDEX(A1:C3,2,2) computes");
+    assert!(
+        matches!(selected.core(), CoreValue::Reference(reference) if *reference == ReferenceLike::cell(s.key("B2"))),
+        "INDEX(A1:C3,2,2) gives {selected:?}"
+    );
+    let plus = surface(Notation::Infix, "+");
+    assert_eq!(
+        run(
+            plus,
+            &mut Recorded::new(vec![selected.clone(), CalcValue::number(0.0)]),
+            &fast
+        ),
+        Err(FunctionFault::ReferenceArgument {
+            id: plus.id(),
+            index: 0
+        })
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: INDEX(A1:C3,2,2) through calc_func::invoke gives a CoreValue::Reference to B2; the + operator refuses it at its value parameter with ReferenceArgument, so a consumer must dereference it first (calc_fml's route, judged under dc-l10u)"
+    );
+
+    // INDEX reads no cell: it computes a reference from its argument's areas alone. MATCH over a
+    // whole column asks the reader for that column once and stops at the first match, so its work
+    // follows the held cells it passes, not the column's 1,048,576 cells.
+    s.reads.clear();
+    s.visited = 0;
+    let whole_b = reference(s, &["B:B"]).value;
+    let whole_a = reference(s, &["A:A"]).value;
+    let (found, bytes) = bytes_allocated_during(|| {
+        let at = invoke(
+            surface(Notation::Call, "MATCH"),
+            &mut Recorded::new(vec![
+                text_value("k3"),
+                whole_a.clone(),
+                CalcValue::number(0.0),
+            ]),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        )
+        .expect("MATCH computes");
+        black_box(invoke(
+            index,
+            &mut Recorded::new(vec![whole_b.clone(), at]),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        ))
+    });
+    assert_eq!(
+        found.as_ref().ok().and_then(CalcValue::as_reference),
+        Some(&ReferenceLike::cell(s.key("B12")))
+    );
+    let column_a = s.area("A:A");
+    assert_eq!(s.reads, [column_a], "the reader is asked for column A once");
+    // A1:A4 and A10:A12 lie before the match; the walk stops at A12.
+    assert_eq!(s.visited, 7, "the cells the reader visited");
+    assert!(
+        bytes < SPARSE_BYTES,
+        "INDEX(B:B,MATCH(\"k3\",A:A,0)) allocated {bytes} bytes"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: INDEX(B:B,MATCH(\"k3\",A:A,0)) through calc_func::invoke gives a reference to B12; the instrumented reader was asked for A1:A1048576 once and visited {} cells of its {} before the match stopped the walk; INDEX read no cell; {bytes} bytes allocated",
+        s.visited,
+        column_a.cell_count()
+    );
+
+    // XLOOKUP's and CHOOSE's results are the references they select, by identity.
+    let chosen = invoke(
+        surface(Notation::Call, "CHOOSE"),
+        &mut Recorded::new(vec![
+            CalcValue::number(2.0),
+            reference(s, &["A1:A3"]).value,
+            reference(s, &["B1:B3"]).value,
+        ]),
+        &mut EvalServices::with_cells(&fast, s),
+        &mut FunctionCallScratch::new(),
+    );
+    assert_eq!(chosen, Ok(reference(s, &["B1:B3"]).value));
+    let found_row = invoke(
+        surface(Notation::Call, "XLOOKUP"),
+        &mut Recorded::new(vec![
+            text_value("k2"),
+            reference(s, &["A10:A14"]).value,
+            reference(s, &["B10:C14"]).value,
+        ]),
+        &mut EvalServices::with_cells(&fast, s),
+        &mut FunctionCallScratch::new(),
+    );
+    assert_eq!(found_row, Ok(reference(s, &["B11:C11"]).value));
+    note!(
+        "ACCEPT-NOTE: {CASE}: CHOOSE(2,A1:A3,B1:B3) gives the reference B1:B3 and XLOOKUP(\"k2\",A10:A14,B10:C14) the reference B11:C11"
+    );
+
+    assert_lookup_workbook(&rows, s);
+    lookup_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_6__lookup_edges
+
+/// Every ordered pair of two different errors of the eight that a cell constant can hold (the
+/// fixtures' error literals, in XMATCH's order of them), by first error and then second.
+fn error_pairs() -> Vec<(WorksheetErrorCode, WorksheetErrorCode)> {
+    let written: Vec<WorksheetErrorCode> = ERROR_LITERALS.iter().map(|(code, _)| *code).collect();
+    let mut pairs = Vec::new();
+    for first in &written {
+        for second in &written {
+            if first != second {
+                pairs.push((*first, *second));
+            }
+        }
+    }
+    pairs
+}
+
+/// The cells the edge rows read. A1:A6 hold 1, 2, 2, 2, 3, 5 (ascending, a run of equal values);
+/// B1:B6 fruit names, two equal ignoring case; C1:C6 10 to 60. A7:A12 hold 5, 4, 3, 3, 2, 1
+/// (descending); B7:B12 texts with wildcard characters and the text "1", then the number 1;
+/// C7:C12 one value of each kind (C9 is blank). A13:C15 is a table laid out by columns. A16:A20
+/// hold unsorted numbers, B16:B20 texts (B16 empty text), C16:C20 nearly equal numbers. A21:A37,
+/// B21:B32 and C21:C26 hold three lines of mixed kinds from the measured sweep. A40:A42 hold -1,
+/// 0 and 1, and C30:C34 three errors, TRUE and 7. Columns F to R hold the cells of the rows
+/// written from the legacy tests and the error pairs, with the source formulas in P and Q, as the
+/// code below describes.
+fn lookup_edges_sheet() -> TestSheet {
+    use WorksheetErrorCode::{Div0, NA, Num};
+    let num = |v: f64| CalcValue::number(v);
+    let text = text_value;
+    let b = CalcValue::logical;
+    let e = CalcValue::error;
+    let mut cells: Vec<(String, String, CalcValue)> = Vec::new();
+    let mut put = |a1: &str, entry: &str, value: CalcValue| {
+        cells.push((a1.to_owned(), entry.to_owned(), value));
+    };
+    for (row, v) in [1.0, 2.0, 2.0, 2.0, 3.0, 5.0].into_iter().enumerate() {
+        put(&format!("A{}", row + 1), &format!("{v}"), num(v));
+    }
+    for (row, word) in ["apple", "Banana", "banana", "cherry", "date", "fig"]
+        .into_iter()
+        .enumerate()
+    {
+        put(
+            &format!("B{}", row + 1),
+            &format!("text {word:?}"),
+            text(word),
+        );
+    }
+    for row in 0..6 {
+        let v = 10.0 * (row + 1) as f64;
+        put(&format!("C{}", row + 1), &format!("{v}"), num(v));
+    }
+    for (row, v) in [5.0, 4.0, 3.0, 3.0, 2.0, 1.0].into_iter().enumerate() {
+        put(&format!("A{}", row + 7), &format!("{v}"), num(v));
+    }
+    for (row, word) in ["a*b", "a?c", "~", "x~y", "1"].into_iter().enumerate() {
+        put(
+            &format!("B{}", row + 7),
+            &format!("text {word:?}"),
+            text(word),
+        );
+    }
+    put("B12", "1", num(1.0));
+    put("C7", "3", num(3.0));
+    put("C8", "text \"a\"", text("a"));
+    put("C10", "TRUE", b(true));
+    put("C11", "#N/A", e(NA));
+    put("C12", "3", num(3.0));
+    for (column, (key, word, v)) in [(1.0, "p", 10.0), (2.0, "q", 20.0), (3.0, "r", 30.0)]
+        .into_iter()
+        .enumerate()
+    {
+        let letter = ["A", "B", "C"][column];
+        put(&format!("{letter}13"), &format!("{key}"), num(key));
+        put(
+            &format!("{letter}14"),
+            &format!("text {word:?}"),
+            text(word),
+        );
+        put(&format!("{letter}15"), &format!("{v}"), num(v));
+    }
+    for (row, v) in [3.0, 1.0, 4.0, 1.0, 5.0].into_iter().enumerate() {
+        put(&format!("A{}", row + 16), &format!("{v}"), num(v));
+    }
+    for (row, word) in ["", "ab", "a", "a*c", "abc"].into_iter().enumerate() {
+        put(
+            &format!("B{}", row + 16),
+            &format!("text {word:?}"),
+            text(word),
+        );
+    }
+    for (row, v) in [
+        0.3,
+        0.300_000_000_000_000_04,
+        1.0,
+        1.000_000_000_000_000_2,
+        0.1,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        put(&format!("C{}", row + 16), &format!("{v:?}"), num(v));
+    }
+    // Three lines of the measured sweep, in A21:A37, B21:B32 and C21:C26 (None is blank).
+    #[derive(Clone, Copy)]
+    enum K {
+        N(f64),
+        T(&'static str),
+        B(bool),
+        E,
+        Z,
+    }
+    let lines: [(&str, u32, &[K]); 3] = [
+        (
+            "A",
+            21,
+            &[
+                K::Z,
+                K::N(1.0),
+                K::T("d"),
+                K::T("a"),
+                K::T("a"),
+                K::Z,
+                K::N(1.0),
+                K::N(5.0),
+                K::N(4.0),
+                K::B(false),
+                K::N(2.0),
+                K::N(5.0),
+                K::N(2.0),
+                K::T("d"),
+                K::N(5.0),
+                K::T("c"),
+                K::N(3.0),
+            ],
+        ),
+        (
+            "B",
+            21,
+            &[
+                K::T("c"),
+                K::T("a"),
+                K::N(5.0),
+                K::N(2.0),
+                K::N(3.0),
+                K::N(3.0),
+                K::N(5.0),
+                K::N(1.0),
+                K::N(1.0),
+                K::E,
+                K::N(1.0),
+                K::N(3.0),
+            ],
+        ),
+        (
+            "C",
+            21,
+            &[
+                K::N(4.0),
+                K::N(1.0),
+                K::T("d"),
+                K::N(1.0),
+                K::N(5.0),
+                K::B(true),
+            ],
+        ),
+    ];
+    for (letter, start, line) in lines {
+        for (offset, k) in line.iter().enumerate() {
+            let a1 = format!("{letter}{}", start + offset as u32);
+            match *k {
+                K::N(v) => put(&a1, &format!("{v}"), num(v)),
+                K::T(word) => put(&a1, &format!("text {word:?}"), text(word)),
+                K::B(v) => put(&a1, if v { "TRUE" } else { "FALSE" }, b(v)),
+                K::E => put(&a1, "#N/A", e(NA)),
+                K::Z => {}
+            }
+        }
+    }
+    put("C30", "#DIV/0!", e(Div0));
+    put("C31", "#N/A", e(NA));
+    put("C32", "#NUM!", e(Num));
+    put("C33", "TRUE", b(true));
+    put("C34", "7", num(7.0));
+    put("A40", "-1", num(-1.0));
+    put("A41", "0", num(0.0));
+    put("A42", "1", num(1.0));
+    // F1:G56: every ordered pair of two different errors of the eight a cell constant can hold.
+    for (row, (first, second)) in error_pairs().into_iter().enumerate() {
+        put(&format!("F{}", row + 1), spelled(first), e(first));
+        put(&format!("G{}", row + 1), spelled(second), e(second));
+    }
+    // Lines with a blank cell: H1:H4 is 1, 2, blank, 3; H6:H9 1, blank, 2, 3; H11:H14 3, blank,
+    // 2, 1.
+    for (a1, v) in [
+        ("H1", 1.0),
+        ("H2", 2.0),
+        ("H4", 3.0),
+        ("H6", 1.0),
+        ("H8", 2.0),
+        ("H9", 3.0),
+        ("H11", 3.0),
+        ("H13", 2.0),
+        ("H14", 1.0),
+    ] {
+        put(a1, &format!("{v}"), num(v));
+    }
+    // I1:I3 is blank, empty text and 1; I5:J5 blank and 1; I7:J7 empty text and blank; I9:J9
+    // blank and 20.
+    put("I2", "text \"\"", text(""));
+    put("I3", "1", num(1.0));
+    put("J5", "1", num(1.0));
+    put("I7", "text \"\"", text(""));
+    put("J9", "20", num(20.0));
+    // K1 and K2: two numbers that differ in their 16th significant digit.
+    for (a1, v) in [
+        ("K1", 1_234_567_890_123_455.0 / 1.0e25),
+        ("K2", 1_234_567_890_123_454.0 / 1.0e25),
+    ] {
+        put(a1, &format!("{v:?}"), num(v));
+    }
+    // L1:M4: a table whose first column holds 1, 2, a blank cell and 3, beside 10, 20, 99 and 30;
+    // L6:O7 the same table across.
+    for (row, (key, v)) in [
+        (Some(1.0), 10.0),
+        (Some(2.0), 20.0),
+        (None, 99.0),
+        (Some(3.0), 30.0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let column = ["L", "M", "N", "O"][row];
+        if let Some(key) = key {
+            put(&format!("L{}", row + 1), &format!("{key}"), num(key));
+            put(&format!("{column}6"), &format!("{key}"), num(key));
+        }
+        put(&format!("M{}", row + 1), &format!("{v}"), num(v));
+        put(&format!("{column}7"), &format!("{v}"), num(v));
+    }
+    // P1:Q54: every ordered pair of two different errors of the eleven XMATCH orders with
+    // #SPILL!, #FIELD! or #CALC! among them. A cell of one of those three holds its source formula
+    // (lookup_sources), for which the reader holds the error Excel gives it; the others hold a
+    // constant. R holds the text that blocks the spill of a SEQUENCE in Q (Q blocks one in P).
+    let sources = lookup_sources("lookup_edges");
+    for (row, (first, second)) in source_error_pairs().into_iter().enumerate() {
+        for (column, code) in [("P", first), ("Q", second)] {
+            let a1 = format!("{column}{}", row + 1);
+            match sources.iter().find(|source| source.a1 == a1) {
+                Some(source) => put(
+                    &a1,
+                    &format!(
+                        "formula ={} (a dynamic-array formula), for which the reader holds {}",
+                        source.entered,
+                        error_name(code)
+                    ),
+                    e(code),
+                ),
+                None => put(&a1, spelled(code), e(code)),
+            }
+        }
+        if second == WorksheetErrorCode::Spill {
+            put(&format!("R{}", row + 1), "text \"block\"", text("block"));
+        }
+    }
+    let borrowed: Vec<(&str, &str, CalcValue)> = cells
+        .iter()
+        .map(|(a1, entry, value)| (a1.as_str(), entry.as_str(), value.clone()))
+        .collect();
+    TestSheet::new(&borrowed)
+}
+
+/// The rows of cfunc_m3_6__lookup_edges, in the order the lookup oracle workbook's sheet
+/// `lookup_edges` holds their formulas.
+fn lookup_edges_rows(s: &mut TestSheet, quiet: bool) -> Rows {
+    const CASE: &str = "cfunc_m3_6__lookup_edges";
+    let mut rows = Rows::new(CASE, "lookup_edges", quiet);
+    let r = &mut rows;
+    use WorksheetErrorCode::{Div0, NA, Ref, Value};
+    let rf = |s: &TestSheet, a: &str| reference(s, &[a]);
+    let asc = |s: &TestSheet| reference(s, &["A1:A6"]);
+    let fruit = |s: &TestSheet| reference(s, &["B1:B6"]);
+    let desc = |s: &TestSheet| reference(s, &["A7:A12"]);
+    let marks = |s: &TestSheet| reference(s, &["B7:B12"]);
+    let mixed = |s: &TestSheet| reference(s, &["C7:C12"]);
+    let tens = |s: &TestSheet| reference(s, &["C1:C6"]);
+    let table = |s: &TestSheet| reference(s, &["A1:C6"]);
+    let wide = |s: &TestSheet| reference(s, &["A13:C15"]);
+    let signs = |s: &TestSheet| reference(s, &["A40:A42"]);
+
+    // MATCH: an exact match is the first equal cell; the bisection ends at the last of a run of
+    // equal cells, below the first cell is #N/A and above the last the last; match_type -1 walks
+    // a descending line and stops at the first smaller cell.
+    lk!(r, s, "MATCH", [num("2"), asc(s), num("0")], n(2.0));
+    lk!(r, s, "MATCH", [num("2"), asc(s), num("1")], n(4.0));
+    lk!(r, s, "MATCH", [num("2"), asc(s)], n(4.0));
+    lk!(r, s, "MATCH", [num("2.5"), asc(s), num("1")], n(4.0));
+    lk!(r, s, "MATCH", [num("0"), asc(s), num("1")], er(NA));
+    lk!(r, s, "MATCH", [num("9"), asc(s), num("1")], n(6.0));
+    lk!(r, s, "MATCH", [num("3"), desc(s), num("-1")], n(3.0));
+    lk!(r, s, "MATCH", [num("3.5"), desc(s), num("-1")], n(2.0));
+    lk!(r, s, "MATCH", [num("6"), desc(s), num("-1")], er(NA));
+    lk!(r, s, "MATCH", [num("0"), desc(s), num("-1")], n(6.0));
+    lk!(r, s, "MATCH", [num("3"), desc(s), num("1")], n(4.0));
+    lk!(r, s, "MATCH", [num("2"), asc(s), num("-1")], er(NA));
+    // Text: ignoring case, with wildcards in an exact match only.
+    lk!(r, s, "MATCH", [txt("BANANA"), fruit(s), num("0")], n(2.0));
+    lk!(r, s, "MATCH", [txt("BANANA"), fruit(s), num("1")], n(3.0));
+    lk!(r, s, "MATCH", [txt("b*"), fruit(s), num("0")], n(2.0));
+    lk!(r, s, "MATCH", [txt("?pple"), fruit(s), num("0")], n(1.0));
+    lk!(r, s, "MATCH", [txt("c"), fruit(s), num("1")], n(3.0));
+    lk!(r, s, "MATCH", [txt("a"), fruit(s), num("1")], er(NA));
+    lk!(r, s, "MATCH", [txt("a~*b"), marks(s), num("0")], n(1.0));
+    lk!(r, s, "MATCH", [txt("x~y"), marks(s), num("0")], er(NA));
+    lk!(r, s, "MATCH", [txt("~~"), marks(s), num("0")], n(3.0));
+    // Kinds never mix: number text is text, and a blank cell is no value.
+    lk!(r, s, "MATCH", [txt("1"), marks(s), num("0")], n(5.0));
+    lk!(r, s, "MATCH", [num("1"), marks(s), num("0")], n(6.0));
+    lk!(r, s, "MATCH", [txt("2"), asc(s), num("0")], er(NA));
+    lk!(r, s, "MATCH", [logical(true), mixed(s), num("0")], n(4.0));
+    lk!(r, s, "MATCH", [txt("*"), mixed(s), num("0")], n(2.0));
+    lk!(r, s, "MATCH", [num("0"), mixed(s), num("0")], er(NA));
+    lk!(r, s, "MATCH", [num("4"), mixed(s), num("1")], n(6.0));
+    lk!(r, s, "MATCH", [txt("b"), mixed(s), num("1")], n(2.0));
+    // match_type: only its sign counts; omitted is 1, given empty 0.
+    lk!(r, s, "MATCH", [num("2"), asc(s), num("2")], n(4.0));
+    lk!(r, s, "MATCH", [num("2"), asc(s), num("-0.5")], er(NA));
+    lk!(r, s, "MATCH", [num("2"), asc(s), txt("0")], n(2.0));
+    lk!(r, s, "MATCH", [num("2"), asc(s), omitted()], n(2.0));
+    // The lookup array: one row or column of a reference or an array.
+    lk!(r, s, "MATCH", [num("2"), rf(s, "A1:B6"), num("0")], er(NA));
+    lk!(r, s, "MATCH", [num("2"), num("2"), num("0")], er(NA));
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [
+            num("2"),
+            array_arg(
+                "{1,2,3}",
+                vec![vec![
+                    CalcValue::number(1.0),
+                    CalcValue::number(2.0),
+                    CalcValue::number(3.0)
+                ]]
+            ),
+            num("0")
+        ],
+        n(2.0)
+    );
+    // Numbers match by their exact binary64 value.
+    let near = |s: &TestSheet| reference(s, &["C16:C20"]);
+    lk!(r, s, "MATCH", [cell(s, "C17"), near(s), num("0")], n(2.0));
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("0.3"), rf(s, "C17:C20"), num("0")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [cell(s, "C19"), rf(s, "C18:C19"), num("0")],
+        n(2.0)
+    );
+    // A text lookup value of more than 255 code units, and argument errors in order.
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [txt(&"a".repeat(256)), fruit(s), num("0")],
+        er(Value)
+    );
+    lk!(r, s, "MATCH", [err(NA), asc(s), txt("x")], er(NA));
+    lk!(r, s, "MATCH", [num("2"), err(Ref), err(NA)], er(Ref));
+    // A blank or omitted lookup value is the number 0.
+    lk!(r, s, "MATCH", [omitted(), signs(s), num("0")], n(2.0));
+    lk!(r, s, "MATCH", [cell(s, "C9"), signs(s), num("1")], n(2.0));
+    // Unsorted lines of mixed kinds, from the measured sweep.
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [txt("c"), rf(s, "A21:A37"), num("1")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [txt("bb"), rf(s, "B21:B32"), num("1")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), rf(s, "C21:C26"), num("-1")],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), rf(s, "C21:C26"), num("1")],
+        n(4.0)
+    );
+
+    // XMATCH: linear searches from either end, binary searches, and the order of every kind.
+    lk!(r, s, "XMATCH", [num("2"), asc(s)], n(2.0));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), asc(s), num("0"), num("-1")],
+        n(4.0)
+    );
+    lk!(r, s, "XMATCH", [num("2.5"), asc(s), num("-1")], n(2.0));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), asc(s), num("-1"), num("-1")],
+        n(4.0)
+    );
+    lk!(r, s, "XMATCH", [num("2.5"), asc(s), num("1")], n(5.0));
+    lk!(r, s, "XMATCH", [num("0"), asc(s), num("-1")], er(NA));
+    lk!(r, s, "XMATCH", [num("9"), asc(s), num("1")], er(NA));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), asc(s), num("0"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("3"), desc(s), num("0"), num("-2")],
+        n(4.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), asc(s), num("-1"), num("2")],
+        n(4.0)
+    );
+    lk!(r, s, "XMATCH", [txt("b*"), fruit(s), num("2")], n(2.0));
+    lk!(r, s, "XMATCH", [txt("b*"), fruit(s), num("0")], er(NA));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [txt("banana"), fruit(s), num("0"), num("-1")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), asc(s), num("0"), num("0")],
+        er(Value)
+    );
+    lk!(r, s, "XMATCH", [num("2"), asc(s), num("-1.5")], er(Value));
+    lk!(r, s, "XMATCH", [num("2.5"), asc(s), num("-0.5")], n(2.0));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [txt("b*"), fruit(s), num("2"), num("2")],
+        er(Value)
+    );
+    lk!(r, s, "XMATCH", [num("2"), rf(s, "A1:B6")], er(Value));
+    lk!(r, s, "XMATCH", [num("2"), num("2")], n(1.0));
+    lk!(r, s, "XMATCH", [txt("2"), asc(s)], er(NA));
+    lk!(r, s, "XMATCH", [cell(s, "C9"), mixed(s)], n(3.0));
+    lk!(r, s, "XMATCH", [txt(""), mixed(s)], er(NA));
+    lk!(r, s, "XMATCH", [cell(s, "C9"), signs(s), num("-1")], n(3.0));
+    lk!(r, s, "XMATCH", [cell(s, "C9"), signs(s), num("1")], er(NA));
+    let errors = |s: &TestSheet| reference(s, &["C30:C34"]);
+    lk!(r, s, "XMATCH", [num("6"), errors(s), num("1")], n(5.0));
+    lk!(r, s, "XMATCH", [num("8"), errors(s), num("1")], n(4.0));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("8"), rf(s, "C30:C32"), num("1")],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), rf(s, "C21:C26"), num("1"), num("-2")],
+        n(6.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("99"), rf(s, "A40:A45"), num("1")],
+        n(4.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("99"), rf(s, "A40:A45"), num("1"), num("-1")],
+        n(6.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), rf(s, "C21:C26"), num("-1")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), rf(s, "C21:C26"), num("-1"), num("-1")],
+        n(4.0)
+    );
+
+    // XLOOKUP: the row of the return array at the match, if_not_found, and shapes.
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), asc(s), tens(s)],
+        at_n("C2", 20.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), asc(s), tens(s), omitted(), num("0"), num("-1")],
+        at_n("C4", 40.0)
+    );
+    lk!(r, s, "XLOOKUP", [num("7"), asc(s), tens(s)], er(NA));
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("7"), asc(s), tens(s), txt("none")],
+        tx("none")
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("7"), asc(s), tens(s), omitted()],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2.5"), asc(s), tens(s), omitted(), num("-1")],
+        at_n("C2", 20.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2.5"), asc(s), tens(s), omitted(), num("1")],
+        at_n("C5", 50.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("3"), asc(s), rf(s, "C1:C5")],
+        er(Value)
+    );
+    lk!(r, s, "XLOOKUP", [err(NA), asc(s), rf(s, "C1:C5")], er(NA));
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), rf(s, "A13:C13"), rf(s, "A15:C15")],
+        at_n("B15", 20.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), rf(s, "A13:C13"), rf(s, "A1:A3")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("7"), asc(s), tens(s), err(Div0)],
+        er(Div0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [
+            txt("BANANA"),
+            fruit(s),
+            tens(s),
+            omitted(),
+            num("0"),
+            num("-1")
+        ],
+        at_n("C3", 30.0)
+    );
+
+    // VLOOKUP and HLOOKUP: exact and approximate, the index checked after the match.
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("2"), logical(false)],
+        tx("date")
+    );
+    lk!(r, s, "VLOOKUP", [num("2"), table(s), num("3")], n(40.0));
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.5"), table(s), num("3"), logical(true)],
+        n(40.0)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("0"), table(s), num("2"), logical(true)],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.5"), table(s), num("2"), logical(false)],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.5"), table(s), num("2"), omitted()],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("4"), logical(false)],
+        er(Ref)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("0"), logical(false)],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("99"), table(s), num("0"), logical(false)],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("2.9"), logical(false)],
+        tx("date")
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("-2147483647"), logical(false)],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("-2147483648"), logical(false)],
+        er(Ref)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [txt("b*"), rf(s, "B1:C6"), num("2"), logical(false)],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [txt("3"), table(s), num("2"), logical(false)],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("2"), txt("x")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), table(s), num("2"), txt("TRUE")],
+        tx("date")
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [cell(s, "C9"), signs(s), num("1"), logical(false)],
+        n(0.0)
+    );
+    lk_shape!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("3"), rf(s, "A9:C10"), num("3"), logical(false)],
+        Gives::Blank,
+        BLANK_RESULT,
+        N(0.0)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.5"), rf(s, "C21:C26"), num("1"), logical(true)],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("2"), wide(s), num("3"), logical(false)],
+        n(20.0)
+    );
+    lk!(r, s, "HLOOKUP", [num("2.5"), wide(s), num("2")], tx("q"));
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("3"), wide(s), num("4"), logical(false)],
+        er(Ref)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [txt("q"), rf(s, "A14:C15"), num("2"), logical(false)],
+        n(20.0)
+    );
+
+    // LOOKUP: the bisection, its vector and array forms, and its result line.
+    lk!(r, s, "LOOKUP", [num("3"), asc(s), tens(s)], n(50.0));
+    lk!(r, s, "LOOKUP", [num("2"), asc(s), tens(s)], n(40.0));
+    lk!(r, s, "LOOKUP", [num("0"), asc(s), tens(s)], er(NA));
+    lk!(r, s, "LOOKUP", [num("9"), asc(s), tens(s)], n(60.0));
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2"), rf(s, "A13:C13"), rf(s, "A15:C15")],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2"), rf(s, "A1:A3"), rf(s, "A15:C15")],
+        n(30.0)
+    );
+    lk!(r, s, "LOOKUP", [num("3"), table(s)], n(50.0));
+    lk!(r, s, "LOOKUP", [num("2"), wide(s)], n(3.0));
+    lk!(r, s, "LOOKUP", [txt("C"), fruit(s), tens(s)], n(30.0));
+    lk!(r, s, "LOOKUP", [cell(s, "C9"), signs(s)], n(0.0));
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [
+            num("3"),
+            array_arg(
+                "{1,2,3}",
+                vec![vec![
+                    CalcValue::number(1.0),
+                    CalcValue::number(2.0),
+                    CalcValue::number(3.0)
+                ]]
+            ),
+            array_arg(
+                "{\"a\",\"b\"}",
+                vec![vec![text_value("a"), text_value("b")]]
+            )
+        ],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [
+            num("2"),
+            array_arg(
+                "{1,#DIV/0!,1,#DIV/0!}",
+                vec![vec![
+                    CalcValue::number(1.0),
+                    CalcValue::error(Div0),
+                    CalcValue::number(1.0),
+                    CalcValue::error(Div0)
+                ]]
+            )
+        ],
+        n(1.0)
+    );
+
+    // CHOOSE: index_num truncated, its range, and only the chosen value asked for.
+    let abc = || [txt("a"), txt("b"), txt("c")];
+    let [a, b, c] = abc();
+    lk!(r, s, "CHOOSE", [num("2"), a, b, c], tx("b"));
+    let [a, b, c] = abc();
+    lk!(r, s, "CHOOSE", [num("2.9"), a, b, c], tx("b"));
+    lk!(r, s, "CHOOSE", [num("0"), txt("a"), txt("b")], er(Value));
+    let [a, b, c] = abc();
+    lk!(r, s, "CHOOSE", [num("4"), a, b, c], er(Value));
+    lk!(r, s, "CHOOSE", [txt("2"), txt("a"), txt("b")], tx("b"));
+    lk!(r, s, "CHOOSE", [logical(true), txt("a"), txt("b")], tx("a"));
+    lk!(r, s, "CHOOSE", [err(NA), txt("a"), txt("b")], er(NA));
+    lk_shape!(
+        r,
+        s,
+        "CHOOSE",
+        [num("2"), txt("a"), omitted()],
+        Gives::Blank,
+        BLANK_RESULT,
+        N(0.0)
+    );
+    lk!(r, s, "CHOOSE", [num("2"), err(Div0), num("2")], n(2.0));
+
+    // ROW, COLUMN, ROWS, COLUMNS and AREAS.
+    lk!(r, s, "ROW", [rf(s, "B3")], n(3.0));
+    lk!(r, s, "ROW", [rf(s, "B3:C3")], n(3.0));
+    lk!(r, s, "COLUMN", [rf(s, "C5")], n(3.0));
+    lk!(r, s, "ROW", [err(Ref)], er(Ref));
+    lk!(r, s, "ROWS", [rf(s, "A1:C5")], n(5.0));
+    lk!(
+        r,
+        s,
+        "ROWS",
+        [array_arg(
+            "{1,2;3,4}",
+            vec![
+                vec![CalcValue::number(1.0), CalcValue::number(2.0)],
+                vec![CalcValue::number(3.0), CalcValue::number(4.0)]
+            ]
+        )],
+        n(2.0)
+    );
+    lk!(r, s, "ROWS", [num("5")], n(1.0));
+    lk!(r, s, "ROWS", [txt("a")], n(1.0));
+    lk!(r, s, "ROWS", [err(NA)], er(NA));
+    lk!(r, s, "ROWS", [reference(s, &["A1:A3", "B1:B2"])], er(Ref));
+    lk!(r, s, "COLUMNS", [rf(s, "A1:C5")], n(3.0));
+    lk!(r, s, "AREAS", [rf(s, "A1")], n(1.0));
+
+    lk_refused_shows!(
+        r,
+        s,
+        LEGACY_ARRAY,
+        "ROW",
+        [rf(s, "B3:B5")],
+        refused(Some(0)),
+        N(3.0)
+    );
+    // Refused: Excel's results here belong to other beads.
+    lk_refused!(
+        r,
+        s,
+        COLLATION,
+        "MATCH",
+        [txt("a-b"), rf(s, "B1:B2"), num("1")],
+        refused(None)
+    );
+    lk_refused!(
+        r,
+        s,
+        LIFT_OWNER,
+        "MATCH",
+        [
+            array_arg(
+                "{1,2}",
+                vec![vec![CalcValue::number(1.0), CalcValue::number(2.0)]]
+            ),
+            asc(s),
+            num("0")
+        ],
+        refused(Some(0))
+    );
+    lk_refused!(
+        r,
+        s,
+        NUMBER_TEXT,
+        "VLOOKUP",
+        [num("3"), table(s), num("2"), txt("1")],
+        refused(Some(3))
+    );
+
+    // ROW and COLUMN of several areas, and of several columns.
+    lk!(r, s, "ROW", [reference(s, &["A1", "B2"])], er(Ref));
+    lk!(r, s, "COLUMN", [reference(s, &["A1", "B2"])], er(Ref));
+    lk_refused_shows!(
+        r,
+        s,
+        LEGACY_ARRAY,
+        "COLUMN",
+        [rf(s, "B3:D3")],
+        refused(Some(0)),
+        N(2.0)
+    );
+    // XLOOKUP over a lookup array of one cell: a return array of one row or column is returned
+    // whole; one of more rows and columns is #VALUE!, before the search and after the modes.
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), rf(s, "A1"), rf(s, "B1:C2")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("9"), rf(s, "A1"), rf(s, "B1:C2"), txt("nf")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("9"), rf(s, "A1"), rf(s, "A13:C13")],
+        er(NA)
+    );
+    lk_shape!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), rf(s, "A1"), rf(s, "A13:C13")],
+        Gives::Area("A13:C13"),
+        XLOOKUP_ONE_CELL,
+        E(Value)
+    );
+    lk_shape!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), rf(s, "A1"), rf(s, "C1:C3")],
+        Gives::Area("C1:C3"),
+        XLOOKUP_ONE_CELL,
+        E(Value)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), rf(s, "A1"), rf(s, "B1:C2"), omitted(), err(Div0)],
+        er(Div0)
+    );
+    // A blank cell as XMATCH's search_mode is #VALUE!, as its match_mode exact.
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), asc(s), num("0"), cell(s, "C9")],
+        er(Value)
+    );
+    lk!(r, s, "XMATCH", [num("2"), asc(s), cell(s, "C9")], n(2.0));
+    // Blank or omitted arrays: #VALUE! in their argument's turn for INDEX, XMATCH, XLOOKUP and
+    // LOOKUP; #N/A after every argument for MATCH, VLOOKUP and HLOOKUP.
+    lk!(r, s, "INDEX", [omitted(), num("1")], er(Value));
+    lk!(r, s, "INDEX", [omitted(), num("1"), err(Div0)], er(Value));
+    lk!(r, s, "XMATCH", [num("1"), omitted()], er(Value));
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), omitted(), rf(s, "C1:C3")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), rf(s, "A1:A3"), omitted()],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), rf(s, "A1:A3"), omitted(), omitted(), err(Div0)],
+        er(Value)
+    );
+    lk!(r, s, "VLOOKUP", [num("1"), omitted(), num("1")], er(NA));
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("1"), omitted(), num("1"), err(Div0)],
+        er(Div0)
+    );
+    lk!(r, s, "LOOKUP", [num("1"), omitted()], er(Value));
+    lk!(r, s, "LOOKUP", [num("1"), asc(s), omitted()], er(Value));
+    lk!(r, s, "LOOKUP", [num("1"), err(Div0), omitted()], er(Div0));
+    lk!(r, s, "MATCH", [num("1"), omitted(), err(Div0)], er(Div0));
+
+    // ROW and COLUMN of several rows or columns inside a legacy formula: Excel gives the enclosing
+    // call the first number. calc-func refuses the inner call, so the formula stops there.
+    let b3_b5 = rf(s, "B3:B5");
+    let b3_d3 = rf(s, "B3:D3");
+    inner_refused_row(
+        r,
+        s,
+        "SUM",
+        &[],
+        ("ROW", std::slice::from_ref(&b3_b5)),
+        &[],
+        LEGACY_ARRAY,
+        N(3.0),
+    );
+    inner_refused_row(
+        r,
+        s,
+        "MATCH",
+        &[num("4")],
+        ("ROW", &[b3_b5]),
+        &[num("0")],
+        LEGACY_ARRAY,
+        E(NA),
+    );
+    inner_refused_row(
+        r,
+        s,
+        "SUM",
+        &[],
+        ("COLUMN", &[b3_d3]),
+        &[],
+        LEGACY_ARRAY,
+        N(2.0),
+    );
+
+    // Values that are not references, which only a nested call gives (Excel refuses ROW(5) at
+    // entry): ROW, COLUMN and AREAS of them, and INDEX, ROWS and COLUMNS of a blank one, are
+    // #VALUE!.
+    lk!(
+        r,
+        s,
+        "ROW",
+        [nest!(s, "CHOOSE", [num("1"), num("5")])],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "COLUMN",
+        [nest!(s, "CHOOSE", [num("1"), txt("a")])],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "AREAS",
+        [nest!(s, "CHOOSE", [num("1"), num("5")])],
+        er(Value)
+    );
+    for spelling in ["ROW", "AREAS", "ROWS", "COLUMNS"] {
+        lk!(
+            r,
+            s,
+            spelling,
+            [nest!(s, "CHOOSE", [num("2"), num("1"), omitted()])],
+            er(Value)
+        );
+    }
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [
+            nest!(s, "CHOOSE", [num("2"), num("1"), omitted()]),
+            num("1")
+        ],
+        er(Value)
+    );
+
+    // What a cell shows of the results above that it does not show as they are: XLOOKUP over a
+    // lookup array of one cell gives the whole return array (its ROWS, COLUMNS and SUM), and a
+    // blank result joins & as empty text.
+    for (area, (height, width, sum)) in [("A13:C13", (1.0, 3.0, 6.0)), ("C1:C3", (3.0, 1.0, 60.0))]
+    {
+        let whole = nest!(s, "XLOOKUP", [num("1"), rf(s, "A1"), rf(s, area)]);
+        lk!(r, s, "ROWS", [whole.clone()], n(height));
+        lk!(r, s, "COLUMNS", [whole.clone()], n(width));
+        lk!(r, s, "SUM", [whole], n(sum));
+    }
+    let blank_cell = nest!(
+        s,
+        "VLOOKUP",
+        [num("3"), rf(s, "A9:C10"), num("3"), logical(false)]
+    );
+    lookup_row(
+        r,
+        s,
+        AMPERSAND,
+        &[blank_cell, txt("")],
+        tx(""),
+        Seen::Measured,
+    );
+    let omitted_value = nest!(s, "CHOOSE", [num("2"), txt("a"), omitted()]);
+    lookup_row(
+        r,
+        s,
+        AMPERSAND,
+        &[omitted_value, txt("")],
+        tx(""),
+        Seen::Measured,
+    );
+
+    // The cases of the legacy tests (migration/ports/cfunc-m3.6.json names, for each test, the
+    // rows that keep or change its expectation). MATCH:
+    lk!(r, s, "MATCH", [num("3"), arr("{1,3}"), num("0")], n(2.0));
+    lk!(r, s, "MATCH", [num("2.5"), arr("{1,2,3}")], n(2.0));
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2"), arr("{1,2,2,2,3}"), num("1")],
+        n(4.0)
+    );
+    lk!(r, s, "MATCH", [num("2"), arr("{1,2,2,2,3}")], n(4.0));
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2"), arr("{1,2,2,2,3}"), omitted()],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2"), arr("{3,2,2,2,1}"), num("-1")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), arr("{1,3,2,4}"), num("1")],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), arr("{3,1,4,2}"), num("-1")],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [cell(s, "C9"), rf(s, "I5:J5"), num("0")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("9.99E+307"), rf(s, "H1:H4"), num("1")],
+        n(4.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), rf(s, "H6:H9"), num("1")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), rf(s, "H11:H14"), num("-1")],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), arr("{1,#DIV/0!,2,3}"), num("1")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2.5"), arr("{1,#N/A,2,3}"), num("1")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [txt("a~*"), arr("{\"abc\",\"a*\"}"), num("0")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [txt("Abc"), arr("{\"abc\",\"def\"}"), num("0")],
+        n(1.0)
+    );
+    lk!(r, s, "MATCH", [num("2"), arr("{1,2}"), num("0")], n(2.0));
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [num("2"), arr("{1,2;3,4}"), num("0")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [cell(s, "C17"), rf(s, "C16"), num("0")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [cell(s, "K1"), rf(s, "K2"), num("0")],
+        er(NA)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "MATCH",
+        [arr("{1,2,3}"), arr("{2,4,6,8}"), num("0")],
+        refused(Some(0)),
+        E(NA)
+    );
+    // XMATCH:
+    lk!(r, s, "XMATCH", [num("2"), arr("{1,2,3}")], n(2.0));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), arr("{2,1,2}"), num("0"), num("-1")],
+        n(3.0)
+    );
+    lk!(r, s, "XMATCH", [num("9"), arr("{1,2}")], er(NA));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [cell(s, "C17"), rf(s, "C16"), num("0")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [cell(s, "K1"), rf(s, "K2"), num("0")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [txt("Abc"), arr("{\"abc\",\"zzz\"}")],
+        n(1.0)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        COLLATION,
+        "XMATCH",
+        [txt("\u{c4}bc"), arr("{\"\u{e4}BC\",\"zzz\"}")],
+        refused(None),
+        N(1.0)
+    );
+    lk!(r, s, "XMATCH", [num("1"), arr("{\"1\"}")], er(NA));
+    lk!(r, s, "XMATCH", [num("1"), arr("{1}"), num("9")], er(Value));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("1"), arr("{1}"), omitted(), num("9")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [txt("a*"), arr("{\"zzz\",\"abc\"}"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [txt("a~*"), arr("{\"abc\",\"a*\"}"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [txt("a~?"), arr("{\"a1\",\"a?\"}"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [txt("a~~b"), arr("{\"a~b\",\"ab\"}"), num("2")],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [
+            txt("a*"),
+            arr("{\"abc\",\"def\",\"ade\"}"),
+            num("2"),
+            num("-1")
+        ],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("3"), arr("{1,2,3}"), omitted(), num("2")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("3"), arr("{4,3,2}"), omitted(), num("-2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), arr("{1,2,2,2,3}"), omitted(), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.9"), arr("{1,2,2,2,3}"), num("-1"), num("2")],
+        n(4.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), arr("{3,2,2,2,1}"), omitted(), num("-2")],
+        n(4.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), arr("{3,2,2,2,1}"), num("-1"), num("-2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), arr("{3,1,4,2}"), num("0"), num("2")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), arr("{3,1,4,2}"), num("1"), num("2")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), arr("{3,1,4,2}"), num("-1"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("9.99E+307"), rf(s, "H1:H4"), num("-1"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), rf(s, "H6:H9"), num("1"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), rf(s, "H6:H9"), omitted(), num("2")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), rf(s, "H11:H14"), num("-1"), num("-2")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), arr("{1,#DIV/0!,2,3}"), num("1"), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), arr("{1,2,3}"), num("1")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2.5"), arr("{1,2,3}"), num("-1")],
+        n(2.0)
+    );
+    lk!(r, s, "XMATCH", [num("2"), arr("{1,2,3}"), num("1")], n(2.0));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), arr("{1,2,3}"), num("-1")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [
+            txt("Beta"),
+            arr("{\"alpha\",\"beta\",\"gamma\"}"),
+            omitted(),
+            num("2")
+        ],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [logical(true), arr("{FALSE,TRUE}"), omitted(), num("2")],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("2"), arr("{1,2,3}"), omitted(), omitted()],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [cell(s, "C9"), rf(s, "I1:I3"), num("0")],
+        n(1.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [omitted(), rf(s, "I1:I3"), num("0")],
+        n(1.0)
+    );
+    lk!(r, s, "XMATCH", [txt(""), rf(s, "I1:I3"), num("0")], n(2.0));
+    lk!(r, s, "XMATCH", [err(Value), arr("{1}")], er(Value));
+    lk!(r, s, "XMATCH", [num("2"), arr("{#VALUE!}")], er(NA));
+    lk!(r, s, "XMATCH", [num("2"), arr("{#DIV/0!,2}")], n(2.0));
+    lk!(r, s, "XMATCH", [num("9"), arr("{1,#DIV/0!,2}")], er(NA));
+    lk!(r, s, "XMATCH", [num("3"), arr("{3,4}")], n(1.0));
+    // XLOOKUP:
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), arr("{1,2}"), arr("{\"one\",\"two\"}")],
+        tx("two")
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [
+            txt("a*"),
+            arr("{\"abc\",\"ade\"}"),
+            arr("{\"first\",\"last\"}"),
+            omitted(),
+            num("2"),
+            num("-1")
+        ],
+        tx("last")
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("9"), arr("{1,2,3}"), arr("{10,20,30}"), txt("nf")],
+        tx("nf")
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [
+            num("2"),
+            arr("{1,2,3}"),
+            arr("{10,20,30}"),
+            omitted(),
+            num("0"),
+            omitted()
+        ],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [omitted(), rf(s, "I5:J5"), arr("{10,20}")],
+        n(10.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [cell(s, "C9"), rf(s, "I5:J5"), arr("{10,20}")],
+        n(10.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [txt(""), rf(s, "I7:J7"), arr("{10,20}")],
+        n(10.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("1"), arr("{1,2}"), rf(s, "I9:J9")],
+        at_n("I9", 0.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [
+            num("2"),
+            arr("{3,1,4,2}"),
+            arr("{30,10,40,20}"),
+            omitted(),
+            num("0"),
+            num("2")
+        ],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), arr("{1,2,3}"), rf(s, "B1:D1")],
+        at_n("C1", 10.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), arr("{1;2;3}"), arr("{10,20,30}")],
+        er(Value)
+    );
+    lk_shape!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), arr("{1;2;3}"), arr("{10,11;20,21;30,31}")],
+        Gives::Array(vec![vec![20.0, 21.0]]),
+        XLOOKUP_PART,
+        N(20.0)
+    );
+    lk_shape!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), arr("{1,2,3}"), rf(s, "B2:D4")],
+        Gives::Area("C2:C4"),
+        XLOOKUP_PART,
+        E(Value)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "XLOOKUP",
+        [arr("{1,2,3}"), arr("{2,4,6,8}"), arr("{20,40,60,80}")],
+        refused(Some(0)),
+        E(NA)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "XLOOKUP",
+        [
+            arr("{1,2;3,4}"),
+            arr("{2,4,6,8}"),
+            arr("{20,40,60,80}"),
+            arr("{\"NF\",\"ignored\"}")
+        ],
+        refused(Some(0)),
+        t("NF")
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "XLOOKUP",
+        [arr("{2,4}"), arr("{2;4;6}"), arr("{20,21;40,41;60,61}")],
+        refused(Some(0)),
+        N(20.0)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "XLOOKUP",
+        [arr("{2,4}"), arr("{2,4,6}"), arr("{20,40,60;21,41,61}")],
+        refused(Some(0)),
+        N(20.0)
+    );
+    // VLOOKUP and HLOOKUP over the tables {1,10;2,20;3,30} and {1,2,3;10,20,30}:
+    let tall = || arr("{1,10;2,20;3,30}");
+    let flat = || arr("{1,2,3;10,20,30}");
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2"), tall(), num("2"), logical(false)],
+        n(20.0)
+    );
+    lk!(r, s, "VLOOKUP", [num("2.9"), tall(), num("2")], n(20.0));
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("2"), flat(), num("2"), logical(false)],
+        n(20.0)
+    );
+    lk!(r, s, "HLOOKUP", [num("2.9"), flat(), num("2")], n(20.0));
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.9"), rf(s, "L1:M4"), num("2")],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("9.99E+307"), rf(s, "L1:M4"), num("2")],
+        n(30.0)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("2.9"), rf(s, "L6:O7"), num("2")],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("9.99E+307"), rf(s, "L6:O7"), num("2")],
+        n(30.0)
+    );
+    lk!(r, s, "VLOOKUP", [num("0.5"), tall(), num("2")], er(NA));
+    lk!(r, s, "HLOOKUP", [num("0.5"), flat(), num("2")], er(NA));
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("4"), tall(), num("2"), logical(false)],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("4"), flat(), num("2"), logical(false)],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2"), tall(), num("1.9"), logical(false)],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("2"), flat(), num("1.9"), logical(false)],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2"), tall(), num("3"), logical(false)],
+        er(Ref)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [num("2"), flat(), num("3"), logical(false)],
+        er(Ref)
+    );
+    for index in ["0", "-1"] {
+        lk!(
+            r,
+            s,
+            "VLOOKUP",
+            [num("2"), tall(), num(index), logical(false)],
+            er(Value)
+        );
+        lk!(
+            r,
+            s,
+            "HLOOKUP",
+            [num("2"), flat(), num(index), logical(false)],
+            er(Value)
+        );
+    }
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [
+            txt("b*"),
+            arr("{\"abc\",10;\"bcd\",20}"),
+            num("2"),
+            logical(false)
+        ],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "HLOOKUP",
+        [
+            txt("b*"),
+            arr("{\"abc\",\"bcd\";10,20}"),
+            num("2"),
+            logical(false)
+        ],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [
+            logical(true),
+            arr("{TRUE,1;FALSE,2}"),
+            num("2"),
+            logical(false)
+        ],
+        n(1.0)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "VLOOKUP",
+        [
+            arr("{1,2,3}"),
+            arr("{2,20;4,40;6,60;8,80}"),
+            num("2"),
+            logical(false)
+        ],
+        refused(Some(0)),
+        E(NA)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "HLOOKUP",
+        [
+            arr("{1,2,3}"),
+            arr("{2,4,6,8;20,40,60,80}"),
+            num("2"),
+            logical(false)
+        ],
+        refused(Some(0)),
+        E(NA)
+    );
+    // LOOKUP:
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2.9"), arr("{1,2,3}"), arr("{10,20,30}")],
+        n(20.0)
+    );
+    lk!(r, s, "LOOKUP", [num("2.9"), tall()], n(20.0));
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2.2"), arr("{1,2,3}"), arr("{\"a\",\"b\",\"c\"}")],
+        tx("b")
+    );
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2"), arr("{2,1,3}"), arr("{20,10,30}")],
+        n(10.0)
+    );
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2"), arr("{1,2;3,4;5,6}"), arr("{10,20,30}")],
+        n(10.0)
+    );
+    // CHOOSE:
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [num("2.9"), rf(s, "A1"), txt("picked"), err(Div0)],
+        tx("picked")
+    );
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [num("0.9"), num("10"), num("20")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [num("4"), num("10"), num("20"), num("30")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [num("1"), rf(s, "C9"), num("7")],
+        at_n("C9", 0.0)
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "CHOOSE",
+        [
+            arr("{1,2,3,4}"),
+            txt("Alpha"),
+            txt("Bravo"),
+            txt("Charlie"),
+            txt("Delta")
+        ],
+        refused(Some(0)),
+        t("Alpha")
+    );
+    lk_refused_shows!(
+        r,
+        s,
+        LIFT_OWNER,
+        "CHOOSE",
+        [
+            arr("{1,2,3}"),
+            arr("{1;2;3}"),
+            arr("{10;20;30}"),
+            arr("{100;200;300}")
+        ],
+        refused(Some(0)),
+        N(1.0)
+    );
+    // The structured-reference tests' cases, over an array and an area of the sheet:
+    lk!(
+        r,
+        s,
+        "MATCH",
+        [
+            txt("South"),
+            arr("{\"North\",\"South\",\"North\"}"),
+            num("0")
+        ],
+        n(2.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [
+            txt("South"),
+            arr("{\"North\",\"South\",\"North\"}"),
+            arr("{100,200,300}")
+        ],
+        n(200.0)
+    );
+    lk!(r, s, "ROWS", [rf(s, "A1:C7")], n(7.0));
+    lk!(r, s, "COLUMNS", [rf(s, "A1:C7")], n(3.0));
+    lk!(
+        r,
+        s,
+        "INDEX",
+        [rf(s, "A1:C7"), num("2"), num("3")],
+        at_n("C2", 20.0)
+    );
+    lk!(r, s, "INDEX", [rf(s, "A1:C7"), num("8"), num("1")], er(Ref));
+    lk!(r, s, "AREAS", [rf(s, "A1:C7")], n(1.0));
+
+    // XMATCH's order of the errors a cell constant can hold: XMATCH(TRUE,pair,1), the next larger
+    // value than TRUE, is the position of the smaller error of the pair.
+    let place = |code: WorksheetErrorCode| {
+        ERROR_LITERALS
+            .iter()
+            .position(|(known, _)| *known == code)
+            .expect("an error the fixtures write")
+    };
+    for (row, (first, second)) in error_pairs().into_iter().enumerate() {
+        let pair = rf(s, &format!("F{0}:G{0}", row + 1));
+        let smaller = if place(first) < place(second) {
+            1.0
+        } else {
+            2.0
+        };
+        lk!(r, s, "XMATCH", [logical(true), pair, num("1")], n(smaller));
+    }
+    // The same over the pairs with #SPILL!, #FIELD! or #CALC! among them, whose source formulas
+    // the reader holds as the errors Excel gives them: each row is conditional on those errors.
+    let ordered = |code: WorksheetErrorCode| {
+        ORDERED_ERRORS
+            .iter()
+            .position(|(known, _)| *known == code)
+            .expect("an error XMATCH orders")
+    };
+    for (row, (first, second)) in source_error_pairs().into_iter().enumerate() {
+        let pair = rf(s, &format!("P{0}:Q{0}", row + 1));
+        let smaller = if ordered(first) < ordered(second) {
+            1.0
+        } else {
+            2.0
+        };
+        lk!(r, s, "XMATCH", [logical(true), pair, num("1")], n(smaller));
+    }
+
+    // A linear next-smaller or next-larger search decides by kind before it orders within one:
+    // texts calc_func's comparison cannot order are passed over when a nearer kind holds the
+    // result.
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("5"), arr("{\"a b\",\"c d\",6}"), num("1")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [logical(true), arr("{\"a b\",\"c d\",FALSE}"), num("-1")],
+        n(3.0)
+    );
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [
+            num("5"),
+            arr("{\"a b\",\"c d\",6}"),
+            arr("{10,20,30}"),
+            omitted(),
+            num("1")
+        ],
+        n(30.0)
+    );
+
+    // The rules of the per-ID manifest that earlier rounds read from Excel ad hoc only.
+    let halves = |s: &TestSheet| reference(s, &["A1:A3", "A4:A6"]);
+    let long = || txt(&"a".repeat(256));
+    // MATCH: match_type 0.5 is 1 and a blank cell 0; several areas, an omitted lookup array and
+    // a single value given directly are #N/A; a 1-by-1 array and a one-cell reference are
+    // searched.
+    lk!(r, s, "MATCH", [num("2"), asc(s), num("0.5")], n(4.0));
+    lk!(r, s, "MATCH", [num("2"), asc(s), cell(s, "C9")], n(2.0));
+    lk!(r, s, "MATCH", [num("2"), halves(s), num("0")], er(NA));
+    lk!(r, s, "MATCH", [num("1"), omitted(), num("0")], er(NA));
+    lk!(r, s, "MATCH", [num("2"), arr("{2}"), num("0")], n(1.0));
+    lk!(r, s, "MATCH", [num("1"), rf(s, "A1"), num("0")], n(1.0));
+    // XMATCH: modes rounded down; several areas #N/A; no limit on the text; a blank lookup array
+    // #VALUE! before the modes, after the lookup value's error.
+    lk!(r, s, "XMATCH", [num("2.5"), asc(s), num("1.5")], n(5.0));
+    lk!(
+        r,
+        s,
+        "XMATCH",
+        [num("3"), desc(s), num("0"), num("-1.5")],
+        n(4.0)
+    );
+    lk!(r, s, "XMATCH", [num("2"), halves(s)], er(NA));
+    lk!(r, s, "XMATCH", [long(), fruit(s)], er(NA));
+    lk!(r, s, "XMATCH", [num("1"), omitted(), err(Div0)], er(Value));
+    lk!(r, s, "XMATCH", [err(NA), omitted()], er(NA));
+    // XLOOKUP: a lookup array of more rows and columns #VALUE!; a lookup or return reference of
+    // several areas #N/A.
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), rf(s, "A1:B6"), tens(s)],
+        er(Value)
+    );
+    lk!(r, s, "XLOOKUP", [num("2"), halves(s), tens(s)], er(NA));
+    lk!(
+        r,
+        s,
+        "XLOOKUP",
+        [num("2"), asc(s), reference(s, &["C1:C3", "C4:C6"])],
+        er(NA)
+    );
+    // VLOOKUP and HLOOKUP: range_lookup 0 and a blank cell exact, a nonzero number approximate;
+    // the first matching row; argument errors in order; several areas, a single value and a blank
+    // table #N/A; text over 255 code units #VALUE!.
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.5"), table(s), num("2"), num("0")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.5"), table(s), num("2"), cell(s, "C9")],
+        er(NA)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2"), table(s), num("3"), logical(false)],
+        n(20.0)
+    );
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [num("2.5"), table(s), num("3"), num("5")],
+        n(40.0)
+    );
+    lk!(r, s, "VLOOKUP", [err(NA), table(s), err(Div0)], er(NA));
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [
+            num("2"),
+            reference(s, &["A1:B3", "A4:B6"]),
+            num("2"),
+            logical(false)
+        ],
+        er(NA)
+    );
+    lk!(r, s, "VLOOKUP", [num("2"), num("2"), num("1")], er(NA));
+    lk!(
+        r,
+        s,
+        "VLOOKUP",
+        [long(), rf(s, "B1:C6"), num("2"), logical(false)],
+        er(Value)
+    );
+    lk!(r, s, "HLOOKUP", [num("1"), omitted(), num("1")], er(NA));
+    // LOOKUP: a grid wider than tall searched in its first row and answered from its last; a
+    // single result cell; a result of more rows and columns, or shorter than the position, #N/A;
+    // several areas #N/A; text over 255 code units #VALUE!; a blank result cell; a blank result
+    // vector #VALUE! though nothing matches.
+    lk!(r, s, "LOOKUP", [num("2"), rf(s, "A13:C14")], tx("q"));
+    lk!(r, s, "LOOKUP", [num("1"), asc(s), rf(s, "C1")], n(10.0));
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2"), rf(s, "A1:A3"), rf(s, "A13:C15")],
+        er(NA)
+    );
+    lk!(r, s, "LOOKUP", [num("3"), arr("{1,2,3}"), num("5")], er(NA));
+    lk!(r, s, "LOOKUP", [num("2"), halves(s), tens(s)], er(NA));
+    lk!(
+        r,
+        s,
+        "LOOKUP",
+        [num("2"), asc(s), reference(s, &["C1:C3", "C4:C6"])],
+        er(NA)
+    );
+    lk!(r, s, "LOOKUP", [long(), fruit(s)], er(Value));
+    lk_shape!(
+        r,
+        s,
+        "LOOKUP",
+        [num("1"), arr("{1,2}"), rf(s, "I9:J9")],
+        Gives::Blank,
+        BLANK_RESULT,
+        N(0.0)
+    );
+    lk!(r, s, "LOOKUP", [num("0"), asc(s), omitted()], er(Value));
+    // CHOOSE: FALSE and a blank cell as index_num are 0.
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [logical(false), txt("a"), txt("b")],
+        er(Value)
+    );
+    lk!(
+        r,
+        s,
+        "CHOOSE",
+        [cell(s, "C9"), txt("a"), txt("b")],
+        er(Value)
+    );
+    // COLUMNS: an array, a single value, an error and several areas.
+    lk!(r, s, "COLUMNS", [arr("{1,2,3}")], n(3.0));
+    lk!(r, s, "COLUMNS", [num("5")], n(1.0));
+    lk!(r, s, "COLUMNS", [err(NA)], er(NA));
+    lk!(
+        r,
+        s,
+        "COLUMNS",
+        [reference(s, &["A1:A3", "B1:B2"])],
+        er(Ref)
+    );
+    rows
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_6__lookup_edges() {
+    const CASE: &str = "cfunc_m3_6__lookup_edges";
+    let fast = NumericMode::Fast;
+    let mut sheet = lookup_edges_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; every other cell is blank",
+        sheet.described()
+    );
+    let rows = lookup_edges_rows(&mut sheet, false);
+    let s = &mut sheet;
+
+    // Metadata and dispatch come from the one generated catalogue: family 9 holds exactly these
+    // entries; CHOOSE alone is lazy; ROW and COLUMN take an optional reference.
+    let family: BTreeSet<(u32, String)> = catalogue()
+        .targets()
+        .filter(|target| target.id().raw() >> 16 == 9)
+        .map(|target| (target.id().raw(), target.spelling().to_owned()))
+        .collect();
+    let expected: BTreeSet<(u32, String)> = LOOKUPS
+        .iter()
+        .map(|(spelling, member)| ((9 << 16) | member, (*spelling).to_owned()))
+        .collect();
+    assert_eq!(family, expected, "the lookup family in the catalogue");
+    let shapes: [(&str, (usize, usize)); 13] = [
+        ("INDEX", (2, 4)),
+        ("MATCH", (2, 3)),
+        ("XMATCH", (2, 4)),
+        ("XLOOKUP", (3, 6)),
+        ("VLOOKUP", (3, 4)),
+        ("HLOOKUP", (3, 4)),
+        ("LOOKUP", (2, 3)),
+        ("CHOOSE", (2, 255)),
+        ("ROW", (0, 1)),
+        ("COLUMN", (0, 1)),
+        ("ROWS", (1, 1)),
+        ("COLUMNS", (1, 1)),
+        ("AREAS", (1, 1)),
+    ];
+    for (spelling, (min, max)) in shapes {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            (target.arity().min, target.arity().max),
+            (min, max),
+            "{spelling}"
+        );
+        let demand = if spelling == "CHOOSE" {
+            ArgumentDemand::BranchOnCondition
+        } else {
+            ArgumentDemand::Eager
+        };
+        assert_eq!(target.argument_demand(), demand, "{spelling}");
+    }
+    let classes: [(&str, usize, ParameterClass); 10] = [
+        ("INDEX", 0, ParameterClass::ValueOrReference),
+        ("INDEX", 1, ParameterClass::Value),
+        ("MATCH", 0, ParameterClass::Value),
+        ("MATCH", 1, ParameterClass::ValueOrReference),
+        ("VLOOKUP", 1, ParameterClass::ValueOrReference),
+        ("HLOOKUP", 1, ParameterClass::ValueOrReference),
+        ("XLOOKUP", 2, ParameterClass::ValueOrReference),
+        ("XLOOKUP", 3, ParameterClass::ValueOrReference),
+        ("CHOOSE", 254, ParameterClass::ValueOrReference),
+        ("AREAS", 0, ParameterClass::ValueOrReference),
+    ];
+    for (spelling, index, class) in classes {
+        assert_eq!(
+            surface(Notation::Call, spelling).parameter_class(index),
+            Some(class),
+            "{spelling} argument {index}"
+        );
+    }
+    let helps = [
+        ("INDEX", "INDEX(array, row_num, [column_num], [area_num])"),
+        ("MATCH", "MATCH(lookup_value, lookup_array, [match_type])"),
+        (
+            "XLOOKUP",
+            "XLOOKUP(lookup_value, lookup_array, return_array, [if_not_found], [match_mode], [search_mode])",
+        ),
+        (
+            "VLOOKUP",
+            "VLOOKUP(lookup_value, table_array, col_index_num, [range_lookup])",
+        ),
+        ("CHOOSE", "CHOOSE(index_num, value1, [value2], ...)"),
+        ("ROW", "ROW([reference])"),
+    ];
+    for (spelling, display) in helps {
+        assert_eq!(
+            surface(Notation::Call, spelling).signature_help().display,
+            display
+        );
+    }
+    let manifest = manifest_ids(LOOKUP_RECORD);
+    let listed: BTreeSet<(String, String)> = LOOKUPS
+        .iter()
+        .map(|(spelling, member)| (format!("9.{member}"), (*spelling).to_owned()))
+        .collect();
+    assert_eq!(
+        manifest, listed,
+        "the per-ID manifest of migration/ports/cfunc-m3.6.json against the catalogue"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the catalogue's family 9 holds exactly the {} entries {:?}; CHOOSE alone is lazy (BranchOnCondition) and ROW and COLUMN take 0 or 1 argument; the per-ID manifest of migration/ports/cfunc-m3.6.json lists the same IDs and spellings",
+        family.len(),
+        LOOKUPS.map(|(spelling, _)| spelling)
+    );
+
+    // CHOOSE asks for index_num and then the chosen value only: the values it does not choose,
+    // an error among them, are never evaluated.
+    let choose = surface(Notation::Call, "CHOOSE");
+    let mut held_back = Recorded::new(vec![
+        CalcValue::number(3.0),
+        CalcValue::error(WorksheetErrorCode::Div0),
+        CalcValue::error(WorksheetErrorCode::NA),
+        text_value("c"),
+    ]);
+    assert_eq!(run(choose, &mut held_back, &fast), Ok(text_value("c")));
+    assert_eq!(held_back.asked, [0, 3]);
+    let mut out_of_range = Recorded::new(vec![CalcValue::number(5.0), text_value("a")]);
+    assert_eq!(
+        run(choose, &mut out_of_range, &fast),
+        Ok(CalcValue::error(WorksheetErrorCode::Value))
+    );
+    assert_eq!(out_of_range.asked, [0]);
+    note!(
+        "ACCEPT-NOTE: {CASE}: CHOOSE(3,#DIV/0!,#N/A,\"c\") asked for arguments {:?} and gave \"c\"; CHOOSE(5,\"a\") asked for {:?}",
+        held_back.asked,
+        out_of_range.asked
+    );
+
+    // Through the call interface alone (no row of the workbook): the formula's own cell, which
+    // ROW() and COLUMN() need, is not among the services (dc-ebla); regex matching (match_mode 3,
+    // cfunc-m3.20), an array index_num (cfml-m3.4) and a read past LOOKUP's result reference
+    // (dc-1mc8) are refused; so is a text order calc_func's comparison cannot decide (cdoc-jpha),
+    // and an order between #BUSY!, #BLOCKED! or #CONNECT! and another error, which no formula on
+    // this machine gives offline (dc-tt73).
+    let refusals: [(&str, Vec<CalcValue>, Option<usize>); 7] = [
+        ("ROW", vec![], None),
+        ("COLUMN", vec![], None),
+        (
+            "XMATCH",
+            vec![
+                CalcValue::number(2.0),
+                reference(s, &["A1:A6"]).value,
+                CalcValue::number(3.0),
+            ],
+            Some(2),
+        ),
+        (
+            "CHOOSE",
+            vec![
+                CalcValue::array(CalcArray::from_scalar(CalcValue::number(1.0))),
+                text_value("a"),
+            ],
+            Some(0),
+        ),
+        (
+            "LOOKUP",
+            vec![
+                CalcValue::number(3.0),
+                reference(s, &["A1:A6"]).value,
+                reference(s, &["B1"]).value,
+            ],
+            Some(2),
+        ),
+        (
+            "XMATCH",
+            vec![
+                text_value("b c"),
+                reference(s, &["B1:B6"]).value,
+                CalcValue::number(-1.0),
+            ],
+            None,
+        ),
+        (
+            "XMATCH",
+            vec![
+                CalcValue::logical(true),
+                CalcValue::array(
+                    CalcArray::from_rows(vec![vec![
+                        CalcValue::error(WorksheetErrorCode::Busy),
+                        CalcValue::error(WorksheetErrorCode::NA),
+                    ]])
+                    .expect("a row"),
+                ),
+                CalcValue::number(1.0),
+            ],
+            None,
+        ),
+    ];
+    for (spelling, values, argument) in refusals {
+        let target = surface(Notation::Call, spelling);
+        let result = invoke(
+            target,
+            &mut Recorded::new(values),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        );
+        assert_eq!(
+            result,
+            Err(FunctionFault::NotImplemented {
+                id: target.id(),
+                argument
+            }),
+            "{spelling}"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; cfunc-m3.20), CHOOSE({{1}},\"a\") (lifted; cfml-m3.4), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"b c\",B1:B6,-1) (a text order calc_func's comparison cannot decide; cdoc-jpha), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-tt73)",
+        CALLER_OWNER.bead,
+        CALLER_OWNER.behaviour,
+        READ_PAST_OWNER.bead,
+        READ_PAST_OWNER.behaviour
+    );
+
+    // The errors that neither a cell constant nor a formula literal can hold (Excel refuses to
+    // open a workbook with #SPILL!, #FIELD! or #CALC! as a cell constant, and refuses each as a
+    // formula literal) come from source formulas in P and Q: FILTER, SEQUENCE and FIELDVALUE,
+    // which calc_func's catalogue does not have. The reader holds for each the error Excel gives
+    // it, so XMATCH(TRUE,P{k}:Q{k},1) over the 54 ordered pairs with one of them among the two
+    // errors is a row conditional on those errors, which the comparison checks against the
+    // capture, with each source cell's error.
+    for spelling in ["FILTER", "SEQUENCE", "FIELDVALUE"] {
+        assert!(
+            catalogue()
+                .resolve_surface(Notation::Call, spelling)
+                .is_err(),
+            "calc_func's catalogue has {spelling}"
+        );
+    }
+    let sources = lookup_sources("lookup_edges");
+    let conditional: Vec<u32> = rows
+        .oracle
+        .iter()
+        .filter(|row| row.owner == Some(SOURCE_READ))
+        .map(|row| row.row)
+        .collect();
+    assert_eq!(
+        conditional.len(),
+        source_error_pairs().len(),
+        "one conditional row per pair"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: calc_func's catalogue has no FILTER, SEQUENCE or FIELDVALUE; the {} source cells of P1:Q{} hold =FILTER(A1:A6,A1:A6>100) (#CALC!), =SEQUENCE(1,2) blocked by the cell to its right (#SPILL!) and =FIELDVALUE(A1,\"x\") (#FIELD!) as dynamic-array formulas, for which the reader holds those errors; XMATCH(TRUE,P{{k}}:Q{{k}},1) over the {} ordered pairs of two errors with #SPILL!, #FIELD! or #CALC! among them, rows D{} to D{}, picks the smaller error in the order #NULL!, #DIV/0!, #VALUE!, #REF!, #NAME?, #NUM!, #N/A, #GETTING_DATA, #SPILL!, #FIELD!, #CALC!; each is conditional on its source cells' errors, which the comparison checks against the capture",
+        sources.len(),
+        source_error_pairs().len(),
+        conditional.len(),
+        conditional.first().expect("a conditional row"),
+        conditional.last().expect("a conditional row")
+    );
+
+    // -0 orders as +0, as matching compares it: MATCH's descending walk meets -0 as equal to a 0
+    // lookup value, and XMATCH's next smaller value keeps the first of -0 and 0 as tied. A
+    // worksheet cell holds no -0, so this is the kernel's own consistency, not a row Excel shows.
+    let mut signed = TestSheet::new(&[
+        (
+            "A1",
+            "-0 (no worksheet cell holds it)",
+            CalcValue::number(-0.0),
+        ),
+        ("A2", "0", CalcValue::number(0.0)),
+    ]);
+    for (spelling, values, position) in [
+        (
+            "MATCH",
+            vec![
+                CalcValue::number(0.0),
+                reference(&signed, &["A1"]).value,
+                CalcValue::number(-1.0),
+            ],
+            1.0,
+        ),
+        (
+            "XMATCH",
+            vec![
+                CalcValue::number(1.0),
+                reference(&signed, &["A1:A2"]).value,
+                CalcValue::number(-1.0),
+            ],
+            1.0,
+        ),
+    ] {
+        let found = invoke(
+            surface(Notation::Call, spelling),
+            &mut Recorded::new(values),
+            &mut EvalServices::with_cells(&fast, &mut signed),
+            &mut FunctionCallScratch::new(),
+        );
+        assert_eq!(found, Ok(CalcValue::number(position)), "{spelling} over -0");
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: over a reader holding -0 in A1 and 0 in A2, MATCH(0,A1,-1) is 1 and XMATCH(1,A1:A2,-1) is 1: -0 orders as +0, as matching compares it"
+    );
+
+    // ROW and COLUMN of an area of several rows or columns: refused, since the result depends on
+    // the formula's array context, which the call does not see (cfml-m3.4); whole columns and rows
+    // included, so no array of their numbers is built.
+    for (spelling, area) in [
+        ("ROW", "B2:C3"),
+        ("COLUMN", "B2:C3"),
+        ("ROW", "A:A"),
+        ("COLUMN", "A1:XFD1"),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            run(
+                target,
+                &mut Recorded::new(vec![reference(s, &[area]).value]),
+                &fast
+            ),
+            Err(FunctionFault::NotImplemented {
+                id: target.id(),
+                argument: Some(0)
+            }),
+            "{spelling}({area})"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: ROW(B2:C3), COLUMN(B2:C3), ROW(A:A) and COLUMN(A1:XFD1) are refused with NotImplemented naming argument 0 (owned by {}: {}); the oracle rows ROW(B3:B5), COLUMN(B3:D3), SUM(ROW(B3:B5)), MATCH(4,ROW(B3:B5),0) and SUM(COLUMN(B3:D3)) state what Excel shows in a legacy formula, which the capture judges",
+        LEGACY_ARRAY.bead,
+        LEGACY_ARRAY.behaviour
+    );
+
+    // A reference with no cell reader, or one the reader refuses or breaks the contract on,
+    // ends the call in ReferenceUnreadable naming the argument.
+    let lookups: [(&str, Vec<CalcValue>, usize); 5] = [
+        // The exact searches stop at a match, so their lookup values match nothing and the walk
+        // meets every cell the reader visits; the approximate ones read the whole line.
+        (
+            "MATCH",
+            vec![
+                CalcValue::number(99.0),
+                reference(s, &["A1:A6"]).value,
+                CalcValue::number(0.0),
+            ],
+            1,
+        ),
+        (
+            "XMATCH",
+            vec![CalcValue::number(99.0), reference(s, &["A1:A6"]).value],
+            1,
+        ),
+        (
+            "VLOOKUP",
+            vec![
+                CalcValue::number(2.0),
+                reference(s, &["A1:C6"]).value,
+                CalcValue::number(3.0),
+            ],
+            1,
+        ),
+        (
+            "LOOKUP",
+            vec![
+                CalcValue::number(2.0),
+                reference(s, &["A1:A6"]).value,
+                reference(s, &["C1:C6"]).value,
+            ],
+            1,
+        ),
+        (
+            "XLOOKUP",
+            vec![
+                CalcValue::number(99.0),
+                reference(s, &["A1:A6"]).value,
+                reference(s, &["C1:C6"]).value,
+            ],
+            1,
+        ),
+    ];
+    let mut unreadable = 0;
+    for (spelling, values, index) in &lookups {
+        let target = surface(Notation::Call, spelling);
+        let fault = Err(FunctionFault::ReferenceUnreadable {
+            id: target.id(),
+            index: *index,
+        });
+        assert_eq!(
+            run(target, &mut Recorded::new(values.clone()), &fast),
+            fault,
+            "{spelling} without a reader"
+        );
+        s.refuse = true;
+        let refused_read = invoke(
+            target,
+            &mut Recorded::new(values.clone()),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        );
+        s.refuse = false;
+        assert_eq!(refused_read, fault, "{spelling} over a refusing reader");
+        for breach in [Breach::Outside("C40"), Breach::Reversed] {
+            let mut breaching = BreachingReader { sheet: s, breach };
+            let broken = invoke(
+                target,
+                &mut Recorded::new(values.clone()),
+                &mut EvalServices::with_cells(&fast, &mut breaching),
+                &mut FunctionCallScratch::new(),
+            );
+            assert_eq!(
+                broken, fault,
+                "{spelling} over a reader that breaks the contract by {breach:?}"
+            );
+        }
+        unreadable += 4;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {unreadable} calls of MATCH, XMATCH, VLOOKUP, LOOKUP and XLOOKUP over a reference without a reader, with a refusing one, or with one that visits a cell outside the area or visits cells out of order ended in ReferenceUnreadable naming the argument"
+    );
+
+    // A reader may also visit blank cells, as Empty: every row's result over the test sheet is
+    // the same over such a reader.
+    let mut dense_rows = 0;
+    for (spelling, values) in [
+        (
+            "MATCH",
+            vec![
+                CalcValue::number(4.0),
+                reference(s, &["C7:C12"]).value,
+                CalcValue::number(1.0),
+            ],
+        ),
+        (
+            "MATCH",
+            vec![
+                text_value("c"),
+                reference(s, &["A21:A37"]).value,
+                CalcValue::number(1.0),
+            ],
+        ),
+        (
+            "XMATCH",
+            vec![CalcValue::empty(), reference(s, &["C7:C12"]).value],
+        ),
+        (
+            "XMATCH",
+            vec![
+                CalcValue::number(99.0),
+                reference(s, &["A1:A10"]).value,
+                CalcValue::number(1.0),
+                CalcValue::number(-1.0),
+            ],
+        ),
+        (
+            "XMATCH",
+            vec![
+                CalcValue::number(2.5),
+                reference(s, &["C21:C26"]).value,
+                CalcValue::number(1.0),
+                CalcValue::number(-2.0),
+            ],
+        ),
+        (
+            "VLOOKUP",
+            vec![
+                CalcValue::number(3.0),
+                reference(s, &["A9:C10"]).value,
+                CalcValue::number(3.0),
+                CalcValue::logical(false),
+            ],
+        ),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let sparse = invoke(
+            target,
+            &mut Recorded::new(values.clone()),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        );
+        let mut dense = DenseReader(s);
+        let with_blanks = invoke(
+            target,
+            &mut Recorded::new(values),
+            &mut EvalServices::with_cells(&fast, &mut dense),
+            &mut FunctionCallScratch::new(),
+        );
+        assert!(sparse.is_ok(), "{spelling}: {sparse:?}");
+        assert_eq!(
+            sparse, with_blanks,
+            "{spelling} over a reader that visits blank cells"
+        );
+        dense_rows += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {dense_rows} calls gave the same results over a reader that also visits every blank cell as Empty"
+    );
+
+    // Blank cells sort after every value: XMATCH's next larger value of 99 in A40:A45 is its
+    // first (searching from the first) or last (from the last) blank cell, cells the reader
+    // never visits.
+    let xmatch = surface(Notation::Call, "XMATCH");
+    for (search, position) in [(1.0, 4.0), (-1.0, 6.0)] {
+        s.visited = 0;
+        let result = invoke(
+            xmatch,
+            &mut Recorded::new(vec![
+                CalcValue::number(99.0),
+                reference(s, &["A40:A45"]).value,
+                CalcValue::number(1.0),
+                CalcValue::number(search),
+            ]),
+            &mut EvalServices::with_cells(&fast, s),
+            &mut FunctionCallScratch::new(),
+        );
+        assert_eq!(
+            result,
+            Ok(CalcValue::number(position)),
+            "search_mode {search}"
+        );
+        assert_eq!(
+            s.visited, 3,
+            "the reader visits the 3 held cells of A40:A45"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: XMATCH(99,A40:A45,1) = 4 and XMATCH(99,A40:A45,1,-1) = 6, the first and last blank cells, with the reader visiting only the 3 held cells"
+    );
+
+    // NumericMode reaches the lookups only through text read as a number: under Exact a search
+    // computes the value of its Fast row, and a text index is refused with ExactUnavailable.
+    let exact = exact_mode();
+    let under_exact = invoke(
+        surface(Notation::Call, "MATCH"),
+        &mut Recorded::new(vec![
+            CalcValue::number(2.0),
+            reference(s, &["A1:A6"]).value,
+            CalcValue::number(1.0),
+        ]),
+        &mut EvalServices::with_cells(&exact, s),
+        &mut FunctionCallScratch::new(),
+    );
+    assert_eq!(under_exact, Ok(CalcValue::number(4.0)));
+    let index = surface(Notation::Call, "INDEX");
+    let text_index = invoke(
+        index,
+        &mut Recorded::new(vec![
+            reference(s, &["A1:C6"]).value,
+            text_value("2"),
+            CalcValue::number(1.0),
+        ]),
+        &mut EvalServices::with_cells(&exact, s),
+        &mut FunctionCallScratch::new(),
+    );
+    assert_eq!(
+        text_index,
+        Err(FunctionFault::ExactUnavailable { id: index.id() })
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: under NumericMode::Exact MATCH(2,A1:A6,1) computes 4, its Fast value, and INDEX(A1:C6,\"2\",1) is refused with ExactUnavailable (reading text as a number rounds)"
+    );
+
+    assert_lookup_workbook(&rows, s);
+    lookup_rows_note(&rows);
+}
+
+// ---------------------------------------------------------------------------------------------
+// cfunc_m3_6__excel_comparison
+
+/// What the rows of both lookup sheets publish: each row a result for its cell (calculated at its
+/// tick with calc_func's value, or not modeled with its owner), and the evaluation record of the
+/// rows' calls. No calculated row's value is a reference: a row whose result is one is owned
+/// elsewhere ([`Gives::publication_owner`]).
+fn lookup_published(run: &[&Rows]) -> (ResultSet, EvaluationRecord) {
+    let source = format!("sha256:{}", sha256_hex(LOOKUP_WORKBOOK));
+    let context = package_context(LOOKUP_WORKBOOK).fingerprint();
+    let mut results = Vec::new();
+    let mut evaluations = Vec::new();
+    for rows in run {
+        for row in &rows.oracle {
+            let (provenance, value) = match (row.owner, &row.outcome) {
+                (None, Ok(value)) => {
+                    assert!(
+                        value.as_reference().is_none() && value.as_array().is_none(),
+                        "{}: a calculated row publishes calc_func's value as it is, never a reference or an array",
+                        row.formula
+                    );
+                    (
+                        Provenance::Calculated {
+                            tick: row.tick,
+                            revision: AUTHORED_REVISION,
+                            context: context.clone(),
+                        },
+                        Some(value.clone()),
+                    )
+                }
+                (None, Err(fault)) => (
+                    Provenance::Failed {
+                        fault: format!("{fault:?}"),
+                    },
+                    None,
+                ),
+                (Some(owner), outcome) => (
+                    Provenance::NotModeled {
+                        feature: owner.feature(),
+                        diagnostic: match outcome {
+                            Ok(value) => format!("calc_func::invoke gives {}", shown_value(value)),
+                            Err(fault) => format!("calc_func::invoke refuses: {fault:?}"),
+                        },
+                    },
+                    None,
+                ),
+            };
+            results.push(CellResult {
+                cell: oracle_cell(rows.sheet, row.row),
+                provenance,
+                value,
+            });
+        }
+        for call in &rows.calls {
+            evaluations.push(Evaluation {
+                cell: oracle_cell(rows.sheet, call.row),
+                tick: call.tick,
+                revision: AUTHORED_REVISION,
+                context: context.clone(),
+            });
+        }
+        for source in lookup_sources(rows.sheet) {
+            let (row, column) = decode_a1(&source.a1);
+            results.push(CellResult {
+                cell: CellAddress::new(rows.sheet, row, column).expect("a cell of the grid"),
+                provenance: Provenance::NotModeled {
+                    feature: source.owner.feature(),
+                    diagnostic: format!(
+                        "calc_func's catalogue has no function of ={}; the test sheet's reader holds {} for this cell",
+                        source.entered,
+                        error_name(source.error)
+                    ),
+                },
+                value: None,
+            });
+        }
+    }
+    (
+        ResultSet {
+            case: LOOKUP_CAPTURE_CASE.to_owned(),
+            source: source.clone(),
+            run: RunIdentity {
+                revision: AUTHORED_REVISION,
+                context,
+            },
+            results,
+        },
+        EvaluationRecord {
+            case: LOOKUP_CAPTURE_CASE.to_owned(),
+            source,
+            evaluations,
+        },
+    )
+}
+
+/// Checks, for every row that computes a value, that the capture observed in the row's cell what
+/// the row states Excel shows there: the value a measured row asserts (for a row published as not
+/// modeled too, which the verdict does not compare), and what a row of [`Seen::Shape`] states
+/// instead of its result; returns how many it checked.
+fn assert_shown_as_stated(capture: &CaptureRecord, rows: &Rows) -> usize {
+    let stated: Vec<(u32, Expect)> = SHOWN.with(|shown| {
+        shown
+            .borrow()
+            .iter()
+            .filter(|((sheet, _), _)| *sheet == rows.sheet)
+            .map(|((_, row), (shows, _))| (*row, shows.clone()))
+            .collect()
+    });
+    for (row, shows) in &stated {
+        let cell = oracle_cell(rows.sheet, *row);
+        let observed = capture
+            .observations
+            .iter()
+            .find(|observation| observation.cell == cell)
+            .unwrap_or_else(|| panic!("the capture has no observation of {}", cell.a1()));
+        let Observation::ExcelRaw(value) = &observed.observation else {
+            panic!(
+                "{}: the capture's observation is not Excel's raw value",
+                cell.a1()
+            );
+        };
+        assert!(
+            shows.holds(surface(Notation::Call, "INDEX").id(), &Ok(value.clone())),
+            "{}!{}: the row states that Excel shows {}, the capture observed {}",
+            rows.sheet,
+            cell.a1(),
+            shows.shown(),
+            shown_value(value)
+        );
+    }
+    stated.len()
+}
+
+/// [`judged`] for a lookup sheet: every cell as [`verdict_problems`] checks it, except the sheet's
+/// source cells, whose verdicts must be not_modeled with their owners.
+fn lookup_judged(
+    capture: &CaptureRecord,
+    results: &ResultSet,
+    evaluations: &EvaluationRecord,
+    rows: &Rows,
+) -> Result<Comparison, JudgeError> {
+    let policy = VerdictPolicy {
+        numeric_mode: NumericMode::Fast,
+        evidence: None,
+    };
+    let report = judge(capture, results, evaluations, &policy)?;
+    let sources = lookup_sources(rows.sheet);
+    let places: Vec<(u32, u32)> = sources.iter().map(|source| decode_a1(&source.a1)).collect();
+    let mut problems = verdict_problems_beside(&report, rows, &places);
+    for (source, (row, column)) in sources.iter().zip(&places) {
+        let verdict = report
+            .cells
+            .iter()
+            .find(|cell| {
+                let at = &cell.formula.cell;
+                at.sheet() == rows.sheet && at.row() == *row && at.column() == *column
+            })
+            .map(|cell| &cell.verdict);
+        match verdict {
+            Some(Verdict::NotModeled { feature, .. }) if *feature == source.owner.feature() => {}
+            other => problems.push(format!(
+                "{}!{} ={}: a source cell's verdict is {other:?}, not not_modeled with its owner",
+                rows.sheet, source.a1, source.entered
+            )),
+        }
+    }
+    Ok(Comparison { report, problems })
+}
+
+/// Checks that the capture holds each source cell of the rows' sheet as a dynamic-array formula
+/// with its formula, and observed in it the error the test sheet's reader holds for it; returns
+/// how many it checked.
+fn assert_sources_as_held(capture: &CaptureRecord, rows: &Rows) -> usize {
+    let sources = lookup_sources(rows.sheet);
+    for source in &sources {
+        let (row, column) = decode_a1(&source.a1);
+        let cell = CellAddress::new(rows.sheet, row, column).expect("a cell of the grid");
+        let formula = capture
+            .formulas
+            .iter()
+            .find(|formula| formula.cell == cell)
+            .unwrap_or_else(|| panic!("the capture has no formula cell {}", source.a1));
+        assert!(
+            formula.dynamic_array
+                && formula.formula.as_deref() == Some(format!("={}", source.entered).as_str()),
+            "{}!{}: the capture holds {formula:?}, not the dynamic-array formula ={}",
+            rows.sheet,
+            source.a1,
+            source.entered
+        );
+        let observed = capture
+            .observations
+            .iter()
+            .find(|observation| observation.cell == cell)
+            .unwrap_or_else(|| panic!("the capture has no observation of {}", source.a1));
+        let Observation::ExcelRaw(value) = &observed.observation else {
+            panic!(
+                "{}: the capture's observation is not Excel's raw value",
+                source.a1
+            );
+        };
+        assert!(
+            identical(value, &CalcValue::error(source.error)),
+            "{}!{} ={}: the reader holds {}, the capture observed {}",
+            rows.sheet,
+            source.a1,
+            source.entered,
+            error_name(source.error),
+            shown_value(value)
+        );
+    }
+    sources.len()
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cfunc_m3_6__excel_comparison() {
+    const CASE: &str = "cfunc_m3_6__excel_comparison";
+    let mut reference_sheet = reference_result_sheet();
+    let reference_rows = reference_result_rows(&mut reference_sheet, true);
+    let mut edges_sheet = lookup_edges_sheet();
+    let edges_rows = lookup_edges_rows(&mut edges_sheet, true);
+    let (results, evaluations) = lookup_published(&[&reference_rows, &edges_rows]);
+    let count = |keep: &dyn Fn(&Provenance) -> bool| {
+        results
+            .results
+            .iter()
+            .filter(|result| keep(&result.provenance))
+            .count()
+    };
+    let calculated = count(&|p| matches!(p, Provenance::Calculated { .. }));
+    let engine_route = count(
+        &|p| matches!(p, Provenance::NotModeled { feature, .. } if *feature == ENGINE_ROUTE.feature()),
+    );
+    let not_modeled = count(&|p| matches!(p, Provenance::NotModeled { .. }));
+    note!(
+        "ACCEPT-NOTE: {CASE}: the rows of both sheets publish {} results for {LOOKUP_WORKBOOK_PATH}: {calculated} calculated by calc_func::invoke; {engine_route} not modeled under dc-l10u (a reference result dereferenced or a nested call passed on, which only calc_fml::evaluate runs on the application's route); {} not modeled with another owner",
+        results.results.len(),
+        not_modeled - engine_route
+    );
+    if let Some(missing) = MissingCapture::recognize(LOOKUP_CAPTURE) {
+        assert_eq!(
+            (
+                missing.case.as_str(),
+                missing.fixture.as_str(),
+                missing.command.as_str()
+            ),
+            (
+                LOOKUP_CAPTURE_CASE,
+                LOOKUP_WORKBOOK_PATH,
+                LOOKUP_CAPTURE_COMMAND
+            ),
+            "the absent-capture marker names this capture"
+        );
+        note!("ACCEPT-NOT-RUN: {CASE}: {missing}");
+        return;
+    }
+    let capture = CaptureRecord::decode(LOOKUP_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, LOOKUP_CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(LOOKUP_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the lookup oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the lookup oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    for rows in [&reference_rows, &edges_rows] {
+        let comparison = lookup_judged(&capture, &results, &evaluations, rows)
+            .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+        assert!(
+            comparison.problems.is_empty(),
+            "{} problems on sheet {} of the verdict on Excel {}'s capture ({}):\n{}",
+            comparison.problems.len(),
+            rows.sheet,
+            environment.target.excel_build(),
+            comparison.report.summary(),
+            comparison.problems.join("\n")
+        );
+        let stated = assert_shown_as_stated(&capture, rows);
+        let held = assert_sources_as_held(&capture, rows);
+        let conditional = rows
+            .oracle
+            .iter()
+            .filter(|row| row.owner == Some(SOURCE_READ))
+            .count();
+        note!(
+            "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of the lookup oracle workbook: sheet {}: {}; for each of the sheet's {stated} rows that compute a value, published as calculated or not, the capture observed in the row's cell the value the row states Excel shows there ({conditional} of them conditional on source formulas); each of the sheet's {held} source cells is not modeled, a dynamic-array formula in the capture, and holds there the error the reader holds for it; {}",
+            environment.target.excel_build(),
+            rows.sheet,
+            sheet_verdicts(&comparison.report, rows),
+            comparison.report.summary()
+        );
+    }
 }
