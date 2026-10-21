@@ -338,7 +338,7 @@ impl Lowering {
             [SyntaxChild::Token(name), SyntaxChild::Node(list)] => (name, list),
             _ => return Err(CompileError::Syntax { span }),
         };
-        let target = target(Notation::Call, name)?;
+        let target = call_target(name)?;
         let arguments: Vec<&SyntaxNode> = list.child_nodes().collect();
         let argc = arguments.len();
         if !target.0.arity().accepts(argc) {
@@ -420,6 +420,44 @@ fn target(notation: Notation, token: &Token) -> Result<Target, CompileError> {
             span: token.span(),
             spelling: token.text().to_owned(),
         })
+}
+
+/// The catalogue entry a named call written `name` calls: the entry of its spelling after the
+/// prefixes a file stores before a function's name ([`file_unprefixed`]). A refusal keeps the
+/// spelling as written.
+fn call_target(name: &Token) -> Result<Target, CompileError> {
+    catalogue()
+        .resolve_surface(Notation::Call, file_unprefixed(name.text()))
+        .map(Target)
+        .map_err(|_| CompileError::UnknownFunction {
+            span: name.span(),
+            spelling: name.text().to_owned(),
+        })
+}
+
+/// `spelling` without a leading `_xlfn.`, and without a `_xlws.` right after that, each matched
+/// in any ASCII case; any other spelling unchanged. Excel reads a function it knows after
+/// `_xlfn.` or `_xlfn._xlws.`, in any case, as that function, also one it stores without a prefix
+/// (`_xlfn.SUM`), and reads `_xlws.` alone as an unknown name (#NAME?); in a file it loads, so are
+/// `_xlfn._xlfn.` and `_xlws._xlfn.`. A file that spells a function Excel stores with a prefix
+/// without it (`MAXIFS`, `IFNA`) loads in Excel as an unknown name, while a formula set through
+/// Range.Formula or Range.Formula2 spells it so; compile is not told which kind of text it is
+/// given and reads that spelling as the function, so it differs from Excel on such a file. Bead
+/// dc-xrxb owns that difference: the file prefix of each catalogued function and a load-origin
+/// input to compile.
+fn file_unprefixed(spelling: &str) -> &str {
+    match without_prefix(spelling, "_xlfn.") {
+        Some(rest) => without_prefix(rest, "_xlws.").unwrap_or(rest),
+        None => spelling,
+    }
+}
+
+/// The rest of `text` when its first bytes are the ASCII `prefix` in any ASCII case. Bytes equal
+/// to ASCII bytes are ASCII themselves, so the rest starts on a character boundary.
+fn without_prefix<'t>(text: &'t str, prefix: &str) -> Option<&'t str> {
+    let n = prefix.len();
+    let starts = text.len() >= n && text.as_bytes()[..n].eq_ignore_ascii_case(prefix.as_bytes());
+    starts.then(|| &text[n..])
 }
 
 /// Appends the check of the formula's final `+` or `-`, written `operator`, after the call that
@@ -610,6 +648,40 @@ mod tests {
                 "{literal}"
             );
         }
+    }
+
+    /// A leading `_xlfn.`, and a `_xlws.` right after it, come off a spelling in any ASCII case;
+    /// no other text does, and a spelling cut inside a character is left whole.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn file_prefixes() {
+        for (spelling, name) in [
+            ("_xlfn.MAXIFS", "MAXIFS"),
+            ("_XlFn.MAXIFS", "MAXIFS"),
+            ("_xlfn._xlws.FILTER", "FILTER"),
+            ("_xLfN._xLwS.FILTER", "FILTER"),
+            ("_xlfn.STDEV.P", "STDEV.P"),
+            ("_xlfn.", ""),
+            ("_xlfn._xlws.", ""),
+            ("_xlfn._xlfn.MAXIFS", "_xlfn.MAXIFS"),
+            ("_xlfn._xlws._xlws.FILTER", "_xlws.FILTER"),
+            ("_xlws.FILTER", "_xlws.FILTER"),
+            ("_xlws._xlfn.MAXIFS", "_xlws._xlfn.MAXIFS"),
+            ("MAXIFS", "MAXIFS"),
+            ("_xlfnMAXIFS", "_xlfnMAXIFS"),
+            ("_xlf", "_xlf"),
+            ("_xlf\u{20AC}.SUM", "_xlf\u{20AC}.SUM"),
+            ("_xlfn._xl\u{20AC}.SUM", "_xl\u{20AC}.SUM"),
+        ] {
+            assert_eq!(file_unprefixed(spelling), name, "{spelling}");
+        }
+        assert_eq!(
+            refusal("=_xlfn.NOSUCH(1)"),
+            CompileError::UnknownFunction {
+                span: TextSpan::new(1, 12),
+                spelling: "_xlfn.NOSUCH".to_owned()
+            }
+        );
     }
 
     /// Number literals of at most 15 significant digits read as their nearest binary64; leading

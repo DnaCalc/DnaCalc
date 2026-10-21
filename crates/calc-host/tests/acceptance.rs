@@ -8,16 +8,26 @@
 //! the test support module with no calc-doc code, with deliberately wrong formula caches. Every
 //! expected input, value, provenance, revision, tick, dirty set, read and cycle below is derived by
 //! hand from the fixture's literals and formula texts; none is read back from the host, a capture
-//! or Excel.
+//! or Excel. One choice is asked of the code under test: the dc-besk rows that spell IFNA expect
+//! their hand-derived value when calc_fml's compile resolves IFNA (once bead dc-ibp2 catalogues
+//! it) and their UnknownFunction refusal otherwise.
+//!
+//! The dc-besk case also saves its package through calc-doc's public save route
+//! (`calc_doc::prepare_edit`, `calc_doc::prepare_save`, `calc_doc::write`), since the host has no
+//! save, and reads the saved worksheet part back through `calc_doc::open` before reopening the
+//! saved package through the host.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
 mod chost_m1_1_support;
+mod dc_besk_support;
 mod dc_hqcv_support;
 
+use calc_fml::CompileError;
 use calc_host::value::{
-    CalcValue, CellKey, CoreValue, ExcelText, GridArea, NumericMode, NumericTargetId, SheetId,
+    CalcValue, CellKey, CoreValue, ExcelText, GridArea, IdAllocator, NumericMode, NumericTargetId,
+    SheetId,
 };
 use calc_host::{
     AuthoredRevision, CachedValue, CellEdit, CellError, CellInput, CellRun, CellText, CommandError,
@@ -1502,5 +1512,311 @@ fn dc_hqcv__applied_context_reported() {
         host.declared_date1904(),
         context_text(&context),
         run_fingerprint(&context)
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc_besk__loaded_package_calculates
+
+/// What the host gives a Calc row of the dc-besk fixture after a recalculation.
+#[derive(Clone, Debug, PartialEq)]
+enum Host {
+    /// Calculated, with the value as [`shown`] prints it.
+    Calculated(String),
+    /// Refused by compile as an unknown function written this way.
+    UnknownFunction(&'static str),
+}
+
+/// Whether the catalogue holds IFNA (bead dc-ibp2 adds it), asked of calc_fml's compile, which
+/// resolves a call's name through the catalogue.
+fn ifna_catalogued() -> bool {
+    struct NoSheets;
+    impl calc_fml::ReferenceCatalog for NoSheets {
+        fn sheet_named(&self, _: &str) -> Option<SheetId> {
+            None
+        }
+    }
+    let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+    let anchor = calc_fml::reference::FormulaAnchor::new(
+        CellKey::new(sheets.issue().expect("a sheet id"), 1, 1).expect("A1"),
+    );
+    match calc_fml::compile(
+        &calc_fml::parse_formula("=IFNA(1,2)"),
+        calc_fml::reference::ReferenceNotation::A1,
+        anchor,
+        &NoSheets,
+        &mut calc_fml::PlanCache::new(),
+    ) {
+        Ok(_) => true,
+        Err(CompileError::UnknownFunction { .. }) => false,
+        Err(other) => panic!("=IFNA(1,2): {other:?}"),
+    }
+}
+
+/// What each Calc row of the dc-besk fixture gives, in row order (`dc_besk_support::CALC_ROWS`),
+/// from the values derived by hand for its MAXIFS, MINIFS, arithmetic and SUM rows, with each name
+/// read as compile reads it: the prefixes `_xlfn.` and `_xlfn._xlws.` taken off in any ASCII case.
+/// Row 15 spells MAXIFS without its prefix and calculates (bead dc-xrxb owns that row's reading
+/// on load); rows 4 and 16 spell IFNA, refused until bead dc-ibp2 catalogues it.
+fn dc_besk_expected(
+    maxifs: &str,
+    minifs: &str,
+    arithmetic: &str,
+    sum: &str,
+    ifna: bool,
+) -> Vec<Host> {
+    let calculated = |value: &str| Host::Calculated(value.to_owned());
+    vec![
+        calculated(maxifs),
+        calculated(minifs),
+        calculated(arithmetic),
+        if ifna {
+            calculated("7")
+        } else {
+            Host::UnknownFunction("_xlfn.IFNA")
+        },
+        Host::UnknownFunction("_xlfn.NOSUCHFUNCTION"),
+        calculated(maxifs),
+        calculated(maxifs),
+        calculated(maxifs),
+        calculated(maxifs),
+        calculated(sum),
+        calculated("\"big\""),
+        Host::UnknownFunction("_xlws.MAXIFS"),
+        Host::UnknownFunction("_xlfn._xlfn.MAXIFS"),
+        Host::UnknownFunction("_xlws._xlfn.MAXIFS"),
+        calculated(maxifs),
+        if ifna {
+            calculated("7")
+        } else {
+            Host::UnknownFunction("IFNA")
+        },
+        calculated(maxifs),
+        calculated(maxifs),
+        calculated(maxifs),
+        calculated(maxifs),
+    ]
+}
+
+/// The host of the package `bytes`, opened through `HostState::open`, and the request for the
+/// Calc sheet's rows of column A.
+fn dc_besk_open(bytes: Vec<u8>) -> (HostState, ProjectionRequest) {
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+    let host = HostState::open(source, &OpenPolicy::default(), HostOptions::default())
+        .expect("the package opens");
+    let calc = host
+        .sheets()
+        .iter()
+        .find(|sheet| sheet.name().text().to_string_lossy() == "Calc")
+        .expect("the workbook holds the sheet Calc")
+        .id();
+    let request = ProjectionRequest {
+        cells: (1..=dc_besk_support::CALC_ROWS.len() as u32)
+            .map(|row| CellKey::new(calc, row, 1).expect("a cell of column A"))
+            .collect(),
+    };
+    (host, request)
+}
+
+/// Opens `bytes` through `HostState::open`, checks that every Calc row holds its file text, runs
+/// the first recalculation through `calc_host::step` and checks each row against `expected`.
+/// Returns the rows calculated and the rows refused, each as its formula and what it gave.
+fn dc_besk_calculated(bytes: Vec<u8>, expected: &[Host]) -> (Vec<String>, Vec<String>) {
+    let (mut host, request) = dc_besk_open(bytes);
+    assert_eq!(expected.len(), request.cells.len());
+    let opened = project(&host, &request).expect("the Calc sheet exists");
+    for (cell, (text, _)) in opened.cells().iter().zip(dc_besk_support::CALC_ROWS) {
+        assert_eq!(cell.input(), Some(&formula(text)), "{text}: as opened");
+    }
+
+    let published = step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved);
+    let (revision, tick, mut changes) = delta_cells(&published);
+    assert_eq!((revision, tick), (0, 1));
+    changes.sort();
+    assert_eq!(
+        changes,
+        request
+            .cells
+            .iter()
+            .map(|at| (*at, true))
+            .collect::<Vec<_>>(),
+        "the first recalculation publishes a result for every row"
+    );
+
+    let mode = mode(&host.options().numeric);
+    let page = project(&host, &request).expect("the Calc sheet exists");
+    assert_eq!(page.authored_revision(), page.engine_revision());
+    let mut calculated = Vec::new();
+    let mut refused = Vec::new();
+    for ((cell, (text, _)), expected) in page
+        .cells()
+        .iter()
+        .zip(dc_besk_support::CALC_ROWS)
+        .zip(expected)
+    {
+        assert_eq!(
+            cell.input(),
+            Some(&formula(text)),
+            "{text}: the document keeps the file's text"
+        );
+        match expected {
+            Host::Calculated(value) => {
+                assert_eq!(
+                    describe(cell.value()),
+                    format!("calculated {value} r0 t1 {mode}"),
+                    "{text}"
+                );
+                calculated.push(format!("={text} gives {value}"));
+            }
+            Host::UnknownFunction(spelling) => match cell.value() {
+                ProjectedValue::NotModeled {
+                    refusal:
+                        NotModeled::Compile(CompileError::UnknownFunction {
+                            spelling: refused_spelling,
+                            ..
+                        }),
+                    calculation,
+                } => {
+                    assert_eq!(refused_spelling, spelling, "{text}");
+                    assert_eq!(
+                        (calculation.revision().get(), calculation.tick().get()),
+                        (0, 1),
+                        "{text}"
+                    );
+                    refused.push(format!("={text} refused as UnknownFunction {spelling}"));
+                }
+                other => panic!("{text}: {}", describe(other)),
+            },
+        }
+    }
+    (calculated, refused)
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_besk__loaded_package_calculates() {
+    const CASE: &str = "dc_besk__loaded_package_calculates";
+    let bytes = dc_besk_support::package();
+    let ifna = ifna_catalogued();
+
+    // As opened, each row holds the formula text its <f> element holds, prefix and all, and its
+    // file cache projects as a file cache.
+    let (host, request) = dc_besk_open(bytes.clone());
+    let calc_part = dc_besk_support::calc_sheet();
+    let opened = project(&host, &request).expect("the Calc sheet exists");
+    assert_eq!(opened.cells().len(), dc_besk_support::CALC_ROWS.len());
+    for (cell, (text, cache)) in opened.cells().iter().zip(dc_besk_support::CALC_ROWS) {
+        assert_eq!(cell.input(), Some(&formula(text)), "{text}");
+        assert_eq!(
+            describe(cell.value()),
+            format!(
+                "file-cached {cache} from {} crc {:08x} size {}",
+                dc_besk_support::CALC_PART,
+                crc32(calc_part.as_bytes()),
+                calc_part.len()
+            ),
+            "{text}"
+        );
+    }
+    drop(host);
+
+    // Derived by hand over Data's A1:A3 = 1, 5, 3, B1:B3 = "x", "y", "x" and C1 = #N/A: MAXIFS of
+    // the "x" rows is max(1, 3) = 3, MINIFS min(1, 3) = 1, the arithmetic row 3*10+1 = 31, SUM
+    // 1+5+3 = 9, IF of A2 = 5 "big", IFNA of #N/A 7.
+    let (calculated, refused) =
+        dc_besk_calculated(bytes.clone(), &dc_besk_expected("3", "1", "31", "9", ifna));
+    note!(
+        "ACCEPT-NOTE: {CASE}: a generated package (CRC-32 {:08x}, {} bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; IFNA catalogued: {ifna}; every expected value derived by hand",
+        crc32(&bytes),
+        bytes.len()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows calculated: {}",
+        calculated.len(),
+        calculated.join("; ")
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows refused: {}",
+        refused.len(),
+        refused.join("; ")
+    );
+    let mut divergent = vec![dc_besk_support::CALC_ROWS[14].0];
+    if ifna {
+        divergent.push(dc_besk_support::CALC_ROWS[15].0);
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: counted divergence, owned by bead dc-xrxb: ={} calculated from the file's text without a prefix, which Excel 16.0 loads as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input",
+        divergent.join(" and =")
+    );
+
+    // The save half. Data!A3 is set to 4 through calc_doc::prepare_edit; a changed cell makes the
+    // save rewrite the Calc part too, since it holds the formulas' cached results. The revision is
+    // saved through calc_doc::prepare_save and calc_doc::write; the saved Calc part holds each
+    // row's <f> as the fixture wrote it, prefixes included, and the saved package reopens through
+    // the host and calculates on the edited data.
+    let document = calc_doc::open(
+        Arc::new(MemorySource::new(bytes.clone())),
+        &OpenPolicy::default(),
+    )
+    .expect("the fixture package opens in calc_doc");
+    let mut sheet_ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded = calc_doc::load(&document, &mut sheet_ids).expect("the fixture package loads");
+    let data = loaded
+        .model()
+        .sheets()
+        .iter()
+        .find(|sheet| sheet.name().text().to_string_lossy() == "Data")
+        .expect("the workbook holds the sheet Data")
+        .id();
+    let batch = calc_doc::model::OpBatch {
+        base: loaded.model().revision(),
+        operations: vec![calc_doc::model::WorkbookOp::SetCell {
+            at: CellKey::new(data, 3, 1).expect("Data!A3"),
+            input: number(4.0),
+        }],
+    };
+    let edited = calc_doc::prepare_edit(loaded.model(), &batch)
+        .expect("the edit is prepared")
+        .into_model();
+    let plan = calc_doc::prepare_save(&loaded.snapshot(&edited), &calc_doc::SavePolicy::default())
+        .expect("the edited revision saves");
+    let mut saved: Vec<u8> = Vec::new();
+    let receipt = calc_doc::write(plan, &mut saved).expect("a write to memory");
+    assert_eq!(receipt.bytes_written, saved.len() as u64);
+    let saved_calc = calc_doc::open(
+        Arc::new(MemorySource::new(saved.clone())),
+        &OpenPolicy::default(),
+    )
+    .expect("the saved package opens in calc_doc")
+    .package()
+    .read_part(dc_besk_support::CALC_PART)
+    .expect("the saved package holds the Calc part");
+    let saved_calc = String::from_utf8(saved_calc).expect("the Calc part is UTF-8");
+    assert_ne!(saved_calc, calc_part, "the save rewrote the Calc part");
+    for (text, _) in dc_besk_support::CALC_ROWS {
+        assert_eq!(
+            saved_calc.matches(&format!("<f>{text}</f>")).count(),
+            1,
+            "{text}: the saved Calc part holds the <f> as loaded"
+        );
+    }
+    let prefixed = dc_besk_support::CALC_ROWS
+        .iter()
+        .filter(|(text, _)| text.to_ascii_lowercase().starts_with("_xlfn."))
+        .count();
+
+    // Derived by hand over Data's A1:A3 = 1, 5, 4 after the edit: MAXIFS of the "x" rows is
+    // max(1, 4) = 4, MINIFS min(1, 4) = 1, the arithmetic row 4*10+1 = 41, SUM 1+5+4 = 10.
+    let (reopened, reopened_refused) =
+        dc_besk_calculated(saved.clone(), &dc_besk_expected("4", "1", "41", "10", ifna));
+    assert_eq!(
+        (reopened.len(), reopened_refused.len()),
+        (calculated.len(), refused.len())
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write ({} bytes); the rewritten Calc part holds all {} <f> texts as loaded ({prefixed} of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: {}",
+        saved.len(),
+        dc_besk_support::CALC_ROWS.len(),
+        reopened.join("; ")
     );
 }

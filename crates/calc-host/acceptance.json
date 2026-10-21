@@ -33,6 +33,22 @@
       "platforms": {
         "dc_hqcv__applied_context_reported": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-besk",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-fml", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_besk__loaded_package_calculates"
+      ],
+      "platforms": {
+        "dc_besk__loaded_package_calculates": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }
