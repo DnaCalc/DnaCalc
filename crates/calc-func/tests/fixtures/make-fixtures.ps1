@@ -2,16 +2,18 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
-# writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx and
-# <directory>/cfunc_m3_4/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
-# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
-# cfunc_m3_2__large_integers and cfunc_m3_4__argument_classes run it into a fresh directory on
+# writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx,
+# <directory>/cfunc_m3_4/oracle.xlsx and <directory>/cfunc_m3_5/oracle.xlsx. Run with this
+# directory as -OutDir it rewrites the committed fixtures; the acceptance cases
+# cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries, cfunc_m3_2__large_integers,
+# cfunc_m3_4__argument_classes and cfunc_m3_5__criteria_semantics run it into a fresh directory on
 # Windows and compare its output with the committed workbooks byte for byte.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
 # (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`),
 # cfunc_m3_2/oracle.xlsx the one an Excel capture of cfunc-m3.2's rounding and integer rows reads,
-# and cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads. Each has one
+# cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads, and
+# cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads. Each has one
 # sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
 # holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
 # its rows. Each case checks that its sheet holds exactly those formulas and cells. No formula cell
@@ -446,4 +448,137 @@ $largeFormulas = @(
 Write-Workbook (Join-Path $OutDir 'cfunc_m3_2/oracle.xlsx') @(
     @('rounding_boundaries', (New-OracleSheet $boundaryInputs $boundaryFormulas)),
     @('large_integers', (New-OracleSheet $largeInputs $largeFormulas))
+)
+
+# --- cfunc_m3_5/oracle.xlsx ---------------------------------------------------------------------
+
+# MAXIFS and MINIFS came after the file format's first version, so a file writes them with the
+# _xlfn. prefix, without which Excel does not recognize them.
+function Get-Stored([string]$Formula) {
+    return $Formula.Replace('MAXIFS(', '_xlfn.MAXIFS(').Replace('MINIFS(', '_xlfn.MINIFS(')
+}
+
+# Sheet criteria_semantics: the cells of cfunc_m3_5__criteria_semantics' test sheet (A1:A16 one
+# value of each kind the criteria language tells apart, A8 blank and A9 empty text held as a
+# constant; B1:B16 the powers of two 1 to 32768; C1:C16 the row numbers; A18:A22 and B18:B22 a
+# target with number text, a logical and an error; A23 text beyond ASCII; A24 a number within a
+# relative 1e-13 of 0.3; A25 a label holding digits; A26 text holding a ~, A27 FALSE and A28
+# #VALUE!), and its oracle rows' formulas in its order.
+$criteriaInputs = New-Object System.Collections.ArrayList
+foreach ($cell in @(
+    (New-Text 'A1' 'apple'),
+    (New-Text 'A2' 'Apple Pie'),
+    (New-Text 'A3' 'banana'),
+    (New-Number 'A4' '5'),
+    (New-Text 'A5' '5'),
+    (New-Number 'A6' '10'),
+    (New-Logical 'A7' $true),
+    (New-Text 'A9' ''),
+    (New-Text 'A10' 'a*b'),
+    (New-Text 'A11' 'axb'),
+    (New-Error 'A12' '#N/A'),
+    (New-Text 'A13' 'abc'),
+    (New-Text 'A14' 'a?c'),
+    (New-Number 'A15' '0'),
+    (New-Text 'A16' 'APPLE')
+)) { [void]$criteriaInputs.Add($cell) }
+for ($row = 1; $row -le 16; $row++) {
+    [void]$criteriaInputs.Add((New-Number ('B' + $row) ([string][math]::Pow(2, $row - 1))))
+    [void]$criteriaInputs.Add((New-Number ('C' + $row) ([string]$row)))
+}
+foreach ($cell in @(
+    (New-Text 'A18' 'k'),
+    (New-Text 'A19' 'k'),
+    (New-Text 'A20' 'k'),
+    (New-Text 'A21' 'k'),
+    (New-Text 'A22' 'j'),
+    (New-Text 'A23' ('caf' + $eSmall)),
+    (New-Number 'A24' '0.30000000000000004'),
+    (New-Text 'A25' '2016-17 Winter'),
+    (New-Text 'A26' 'a~b'),
+    (New-Logical 'A27' $false),
+    (New-Error 'A28' '#VALUE!'),
+    (New-Number 'B18' '3'),
+    (New-Text 'B19' '4'),
+    (New-Logical 'B20' $true),
+    (New-Error 'B21' '#DIV/0!'),
+    (New-Number 'B22' '100')
+)) { [void]$criteriaInputs.Add($cell) }
+$criteriaFormulas = @(
+    'COUNTIF(A1:A16,"apple")', 'COUNTIF(A1:A16,"=apple")', 'COUNTIF(A1:A16,"<>apple")',
+    'COUNTIF(A1:A16,"app*")', 'COUNTIF(A1:A16,"*")', 'COUNTIF(A1:A16,"?????")',
+    'COUNTIF(A1:A16,"a*b")', 'COUNTIF(A1:A16,"a~*b")', 'COUNTIF(A1:A16,"a?c")',
+    'COUNTIF(A1:A16,"a~?c")', 'COUNTIF(A1:A16,5)', 'COUNTIF(A1:A16,"5")', 'COUNTIF(A1:A16,">=5")',
+    'COUNTIF(A1:A16,"<5")', 'COUNTIF(A1:A16,"<>5")', 'COUNTIF(A1:A16,"="&A16)', 'COUNTIF(A1:A16,"")', 'COUNTIF(A1:A16,"=")',
+    'COUNTIF(A1:A16,"<>")', 'COUNTIF(A1:A16,TRUE)', 'COUNTIF(A1:A16,"TRUE")',
+    'COUNTIF(A1:A16,"#N/A")', 'COUNTIF(A1:A16,"<>#N/A")', 'COUNTIF(A1:A16,A8)',
+    'COUNTIF(A1:A16,A1)', 'COUNTIF(A3:A6,"<b")', 'COUNTIF(A1:A16,"*5*")', 'COUNTIF(A1:A16,"<>*")',
+    'COUNTIF(A1:A16,"<b")', 'COUNTIF(A1:A16,"Q1")', 'COUNTIF(A1:A16,"1/2")',
+    'COUNTIF(A1:A16,"#VALUE!")', 'COUNTIF(A1:A16,"a~b")', 'COUNTIF(A1:A16,#N/A)', 'COUNTIF(A1:A16,)',
+    'COUNTIF(A1:A16,"<TRUE")', ('COUNTIF(A1:A16,"' + ('a' * 256) + '")'),
+    ('COUNTIF(A23,"caf' + $eSmall + '")'), ('COUNTIF(A23,"CAF' + $eCapital + '")'),
+    'COUNTIF(A22:A23,"*")', 'COUNTIF(A22:A23,"caf*")', 'COUNTIF(A24,0.3)', 'COUNTIF(A18:A22,"K")',
+    'COUNTIF(B18:B22,">0")',
+    'SUMIF(A1:A16,"apple",B1:B16)', 'SUMIF(A1:A16,"a*",B1:B16)', 'SUMIF(A1:A16,"",B1:B16)',
+    'SUMIF(A1:A16,"<>",B1:B16)', 'SUMIF(A1:A16,5,B1:B16)', 'SUMIF(A1:A16,"<>5",B1:B16)', 'SUMIF(A1:A16,">=5")',
+    'SUMIF(A1:A16,"<>#N/A",B1:B16)', 'SUMIF(A1:A16,TRUE,B1:B16)', 'SUMIF(A1:A16,A8,B1:B16)',
+    'SUMIF(C1:C16,">8")', 'SUMIF(C1:C16,">8",B1)', 'SUMIF(C1:C16,"<3",B5:B6)',
+    'SUMIF(A18:A20,"k",B18:B20)', 'SUMIF(A18:A22,"k",B18:B22)', 'SUMIF(A18:A22,"j",B18:B22)',
+    'SUMIFS(B1:B16,A1:A16,"a*",C1:C16,">10")', 'SUMIFS(B1:B16,A1:A16,"<>apple",C1:C16,"<=4")',
+    'SUMIFS(B1:B16,A1:A16,"a?c")', 'SUMIFS(B18:B20,A18:A20,"k")',
+    'COUNTIFS(A1:A16,"a*",C1:C16,">10")', 'COUNTIFS(A1:A16,"<>apple",C1:C16,"<=4")',
+    'COUNTIFS(C1:C16,">3",C1:C16,"<6")', 'COUNTIFS(A1:A16,"=",C1:C16,">0")',
+    'AVERAGEIF(C1:C16,">12")', 'AVERAGEIF(A1:A16,"a*",C1:C16)', 'AVERAGEIF(A1:A16,"zzz",B1:B16)',
+    'AVERAGEIF(A1:A16,">=5")', 'AVERAGEIF(A18:A20,"k",B18:B20)',
+    'AVERAGEIFS(C1:C16,A1:A16,"a*",C1:C16,">10")', 'AVERAGEIFS(B1:B16,A1:A16,"zzz")',
+    'AVERAGEIFS(B18:B20,A18:A20,"k")', 'AVERAGEIFS(C1:C16,A1:A16,"<1")',
+    'MAXIFS(B1:B16,A1:A16,"a*")', 'MINIFS(B1:B16,A1:A16,"a*")', 'MAXIFS(B1:B16,A1:A16,"zzz")',
+    'MINIFS(C1:C16,A1:A16,">=5")', 'MAXIFS(C1:C16,A1:A16,A8)', 'MAXIFS(B18:B22,A18:A22,"k")',
+    'MINIFS(B18:B22,A18:A22,"j")', 'AVERAGEIF(A1:A16,TRUE,B1:B16)', 'AVERAGEIF(A1:A16,"<>apple",B1:B16)',
+    'SUMIFS(B1:B16,A1:A16,"="&A25)', 'COUNTIF(A23:A25,">0")', 'COUNTIF(A25,"<>2016")', 'COUNTIF(A25,2016)',
+    'COUNTIF(C1:C16,"="&C4)', 'SUMIF(A1:A16,,B1:B16)', 'COUNTIF(A26,"a~b")', 'COUNTIF(A27,"<TRUE")',
+    'COUNTIF(A1:A16,">=")', 'COUNTIF(B18:B22,"<#N/A")', 'COUNTIF(A28,"#VALUE!")'
+)
+
+# Sheet mismatched_shapes: the cells of cfunc_m3_5__mismatched_shapes' test sheet (A2:A5 and
+# B3:B6 the MAXIFS page's example of ranges of one size at different rows, C2:C5 a second
+# criterion aligned with A2:A5, and a cell of each column in the last row), and its oracle rows'
+# formulas, small ranges first, then whole columns, then two shaped third arguments inside the
+# reference given, in its order.
+$shapeInputs = @(
+    (New-Number 'A2' '10'),
+    (New-Number 'A3' '1'),
+    (New-Number 'A4' '100'),
+    (New-Number 'A5' '1'),
+    (New-Number 'A1048576' '7'),
+    (New-Text 'B3' 'a'),
+    (New-Text 'B4' 'a'),
+    (New-Text 'B5' 'b'),
+    (New-Text 'B6' 'a'),
+    (New-Text 'B1048576' 'a'),
+    (New-Text 'C2' 'x'),
+    (New-Text 'C3' 'y'),
+    (New-Text 'C4' 'x'),
+    (New-Text 'C5' 'x'),
+    (New-Text 'C1048576' 'x')
+)
+$shapeFormulas = @(
+    'MAXIFS(A2:A5,B3:B6,"a")', 'MINIFS(A2:A5,B3:B6,"a")', 'MAXIFS(A2:A5,B2:C6,"a")',
+    'MINIFS(A2:A5,B3:C4,"a")', 'SUMIFS(A2:A5,B3:B6,"a")', 'SUMIFS(A2:A5,B3:B5,"a")',
+    'SUMIFS(A2:A5,B3:B6,"a",C2:C5,"x")', 'SUMIFS(A2:A5,B3:B6,"a",C2:C4,"x")',
+    'SUMIFS(A2:A5,B3:B5,"Q1")', 'COUNTIFS(B3:B6,"a",C2:C5,"x")', 'COUNTIFS(B3:B6,"a",C2:C6,"x")',
+    'AVERAGEIFS(A2:A5,B3:B6,"a")', 'AVERAGEIFS(A2:A5,B3:B6,"a",C2:C3,"x")',
+    'SUMIF(B3:B6,"a",A2)', 'SUMIF(B3:B6,"a",A2:A3)', 'SUMIF(B3:B6,"a",A2:C9)',
+    'AVERAGEIF(B3:B6,"a",A2)', 'AVERAGEIF(B3:B6,"b",A2:B2)', 'SUMIF(B3:C4,"a",A2)',
+    'COUNTIFS(B3:C4,"a",A2:B3,">5")', 'SUMIF(B3:B6,"a",A1048575)', 'SUMIF((B3:B4,B6),"a")',
+    'COUNTIF(A:A,">5")', 'COUNTIF(B:B,"a")', 'COUNTIF(B:B,"<>a")', 'COUNTIF(A:A,"")', 'COUNTIF(A:A,"<>1")',
+    'SUMIF(B:B,"a",A:A)', 'SUMIF(B:B,"a",A1)', 'SUMIFS(A:A,B:B,"a",C:C,"x")',
+    'COUNTIFS(A:A,">0",C:C,"<>y")', 'COUNTIFS(B:B,"<>a",C:C,"<>y")', 'AVERAGEIFS(A:A,B:B,"a")',
+    'MAXIFS(A:A,B:B,"a")', 'MINIFS(A:A,C:C,"x")', 'SUMIFS(A:A,B1:B1048575,"a")',
+    'COUNTIFS(A:A,">0",B:C,"a")', 'SUMIF(B3:C4,"a",A2:C9)', 'AVERAGEIF(B3:B6,"a",A2:B5)'
+)
+
+Write-Workbook (Join-Path $OutDir 'cfunc_m3_5/oracle.xlsx') @(
+    @('criteria_semantics', (New-OracleSheet $criteriaInputs @($criteriaFormulas | ForEach-Object { Get-Stored $_ }))),
+    @('mismatched_shapes', (New-OracleSheet $shapeInputs @($shapeFormulas | ForEach-Object { Get-Stored $_ })))
 )

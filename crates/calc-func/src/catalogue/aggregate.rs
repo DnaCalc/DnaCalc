@@ -584,7 +584,7 @@ fn each_value(
 }
 
 /// The services' cell reader, which a kernel needs to read the reference at argument `index`.
-fn reader<'a, 's>(
+pub(super) fn reader<'a, 's>(
     site: &Site<'_>,
     services: &'a mut EvalServices<'s>,
     index: usize,
@@ -600,7 +600,7 @@ fn reader<'a, 's>(
 /// Reads the held cells of every area of `reference`, the argument at `index`, in its order:
 /// `visit` receives each cell's area, key and value. A reader that refuses an area, or visits a
 /// cell outside it, cannot supply the area, and the call ends in ReferenceUnreadable.
-fn read_reference(
+pub(super) fn read_reference(
     site: &Site<'_>,
     cells: &mut dyn CellReader,
     reference: &ReferenceLike,

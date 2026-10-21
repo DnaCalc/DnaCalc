@@ -96,6 +96,26 @@
         "cfunc_m3_4__sparse_blanks": ["windows", "linux", "wasm"],
         "cfunc_m3_4__argument_classes": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cfunc-m3.5",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cfunc_m3_5", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.5", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.5", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m3.5", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cfunc_m3_5__criteria_semantics",
+        "cfunc_m3_5__mismatched_shapes",
+        "cfunc_m3_5__excel_comparison"
+      ],
+      "platforms": {
+        "cfunc_m3_5__criteria_semantics": ["windows", "linux", "wasm"],
+        "cfunc_m3_5__mismatched_shapes": ["windows", "linux", "wasm"],
+        "cfunc_m3_5__excel_comparison": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }
