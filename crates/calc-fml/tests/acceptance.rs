@@ -63,6 +63,22 @@
 //! source formulas calc-fml does not compile (FILTER, SEQUENCE, FIELDVALUE), whose errors
 //! (#CALC!, #SPILL!, #FIELD!) some rows read: the case's reader holds the error each is assumed to
 //! give, and the comparison checks that assumption against Excel's capture of the source cell.
+//!
+//! The dc-l10u cases compile the formula an oracle workbook stores in each row's cell through
+//! `calc_fml::compile`, evaluate it there through `calc_fml::evaluate` over a reader that holds the
+//! workbook's constant cells, and judge the values against Excel's capture of the workbook through
+//! calc_verdict::judge. They hold no expected value of their own: Excel's raw value in the capture
+//! is the expectation. dc_l10u__reference_results_through_calc_fml reads calc-func's committed
+//! lookup oracle workbook (`crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx`) and Excel's
+//! capture of it, and changes neither; it takes the 67 rows that cfunc-m3.6 publishes as not
+//! modelled under dc-l10u (INDEX's reference result dereferenced by the context that consumes it,
+//! and lookup calls nested in other calls, such as INDEX(B:B,MATCH("k3",A:A,0)) and
+//! SUM(INDEX(A1:C3,0,2))); a row whose formula holds a construct compile refuses is listed with
+//! that refusal and the bead that owns it. dc_l10u__reference_results_as_values reads this bead's
+//! own oracle workbook (`tests/fixtures/dc_l10u/oracle.xlsx`, written by the same generator) and
+//! Excel's capture of it (`tests/captures/dc_l10u/oracle.capture.json`), whose rows pass a reference
+//! result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function,
+//! over cells holding numbers, a blank, errors, text, numeric text, a logical and empty text.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -3672,8 +3688,9 @@ fn unescape(text: &str) -> String {
         .replace("&amp;", "&")
 }
 
-/// The error literals of the constant cells the generator writes.
-const CELL_ERRORS: [(&str, WorksheetErrorCode); 7] = [
+/// The error literals of the constant cells the generators write: calc-fml's, and calc-func's,
+/// whose lookup oracle workbook (read by the dc-l10u cases) also holds #GETTING_DATA.
+const CELL_ERRORS: [(&str, WorksheetErrorCode); 8] = [
     ("#NULL!", WorksheetErrorCode::Null),
     ("#DIV/0!", WorksheetErrorCode::Div0),
     ("#VALUE!", WorksheetErrorCode::Value),
@@ -3681,6 +3698,7 @@ const CELL_ERRORS: [(&str, WorksheetErrorCode); 7] = [
     ("#NAME?", WorksheetErrorCode::Name),
     ("#NUM!", WorksheetErrorCode::Num),
     ("#N/A", WorksheetErrorCode::NA),
+    ("#GETTING_DATA", WorksheetErrorCode::GettingData),
 ];
 
 /// A cell of the oracle sheet: a formula, in its file form, a dynamic-array formula over its one
@@ -3720,7 +3738,13 @@ fn workbook_cells(package: &[u8]) -> BTreeMap<String, SheetCell> {
             && metadata.contains("<cellMetadata count=\"1\"><bk><rc t=\"1\" v=\"0\"/></bk></cellMetadata>"),
         "the metadata part marks cm=\"1\" as a dynamic-array formula: {metadata}"
     );
-    let xml = part_text(&parts, "xl/worksheets/sheet1.xml");
+    sheet_cells(part_text(&parts, "xl/worksheets/sheet1.xml"))
+}
+
+/// The cells of a worksheet part as the generators write them, `<c r="..." [t="..."]>` holding an
+/// `<f>`, a `<v>` or an inline string, or `<c r="..." cm="1">` holding `<f t="array" ref="...">`
+/// over the cell itself, by address.
+fn sheet_cells(xml: &str) -> BTreeMap<String, SheetCell> {
     let mut cells = BTreeMap::new();
     let mut rest = xml;
     while let Some(at) = rest.find("<c ") {
@@ -3777,11 +3801,17 @@ fn workbook_cells(package: &[u8]) -> BTreeMap<String, SheetCell> {
     cells
 }
 
-/// Runs the committed generator under Windows PowerShell into a new directory under the target
-/// directory's temporary directory and returns the bytes of the workbook it wrote. The directory
-/// is removed when the function returns or panics.
+/// The workbooks the committed generator writes, by their path under its output directory.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-fn generated_workbook() -> Vec<u8> {
+const GENERATED_WORKBOOKS: [&str; 2] = ["dc_ibp2/oracle.xlsx", "dc_l10u/oracle.xlsx"];
+
+/// Runs the committed generator under Windows PowerShell into a new directory under the target
+/// directory's temporary directory, named for `case` so that cases running at the same time in one
+/// test process each have their own, and returns the bytes of the workbooks it wrote, by their
+/// path under that directory, which must be exactly [`GENERATED_WORKBOOKS`]. The directory is
+/// removed when the function returns or panics.
+#[cfg(all(windows, not(target_arch = "wasm32")))]
+fn generated_workbooks(case: &str) -> BTreeMap<String, Vec<u8>> {
     use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
     struct Removed(PathBuf);
@@ -3795,7 +3825,7 @@ fn generated_workbook() -> Vec<u8> {
         .join("fixtures")
         .join("make-fixtures.ps1");
     let out = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("calc-fml-fixtures-{}", std::process::id()));
+        .join(format!("calc-fml-fixtures-{case}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
     let _removed = Removed(out.clone());
     let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
@@ -3826,9 +3856,7 @@ fn generated_workbook() -> Vec<u8> {
         String::from_utf8_lossy(&ran.stdout),
         String::from_utf8_lossy(&ran.stderr)
     );
-    let written =
-        std::fs::read(out.join("dc_ibp2").join("oracle.xlsx")).expect("the generated workbook");
-    let mut files = 0;
+    let mut written = BTreeMap::new();
     let mut pending = vec![out.clone()];
     while let Some(directory) = pending.pop() {
         for entry in std::fs::read_dir(&directory).expect("the generator's directory") {
@@ -3836,11 +3864,22 @@ fn generated_workbook() -> Vec<u8> {
             if path.is_dir() {
                 pending.push(path);
             } else {
-                files += 1;
+                let relative: Vec<String> = path
+                    .strip_prefix(&out)
+                    .expect("a file under the generator's directory")
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                    .collect();
+                let bytes = std::fs::read(&path).expect("a generated file");
+                written.insert(relative.join("/"), bytes);
             }
         }
     }
-    assert_eq!(files, 1, "the generator writes one workbook");
+    assert_eq!(
+        written.keys().map(String::as_str).collect::<Vec<_>>(),
+        GENERATED_WORKBOOKS,
+        "the workbooks the generator writes"
+    );
     written
 }
 
@@ -4181,11 +4220,11 @@ fn dc_ibp2__error_fallback() {
     );
     #[cfg(all(windows, not(target_arch = "wasm32")))]
     {
-        let generated = generated_workbook();
+        let generated = &generated_workbooks(CASE)["dc_ibp2/oracle.xlsx"];
         assert!(
-            generated == FALLBACK_WORKBOOK,
+            generated.as_slice() == FALLBACK_WORKBOOK,
             "the committed generator writes a workbook (sha256 {}) that differs from the committed one (sha256 {})",
-            sha256_hex(&generated),
+            sha256_hex(generated),
             sha256_hex(FALLBACK_WORKBOOK)
         );
         note!(
@@ -4959,4 +4998,1123 @@ fn dc_ibp2__excel_comparison() {
             Err(why) => note!("ACCEPT-NOT-RUN: {CASE}: the excel route's live capture: {why}"),
         }
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-l10u: the reference results of INDEX, XLOOKUP and CHOOSE, and lookup calls nested in other
+// calls, evaluated through calc_fml::evaluate over the cells of an oracle workbook and judged
+// against Excel's capture of that workbook through calc_verdict::judge: the rows cfunc-m3.6
+// publishes as not modelled under dc-l10u, over cfunc-m3.6's lookup oracle workbook, and the rows
+// of this bead's own oracle workbook, which pass a reference result to an operator or to a value
+// parameter of another function.
+
+/// An oracle workbook a dc-l10u case evaluates rows of, and Excel's capture of it, as committed.
+struct Oracle {
+    workbook: &'static [u8],
+    workbook_path: &'static str,
+    capture: &'static [u8],
+    capture_path: &'static str,
+    /// The case the capture is recorded under (`cargo xtask capture --case`).
+    capture_case: &'static str,
+    /// The workbook's sheets, in its order, each with its worksheet part.
+    sheets: &'static [(&'static str, &'static str)],
+}
+
+/// cfunc-m3.6's lookup oracle workbook and Excel's capture of it, as calc-func commits them: the
+/// dc-l10u cases read both and write neither. The capture is recorded under cfunc-m3.6's
+/// comparison case, which judges the workbook's other rows through calc_func::invoke.
+const LOOKUP: Oracle = Oracle {
+    workbook: include_bytes!("../../calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx"),
+    workbook_path: "crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx",
+    capture: include_bytes!("../../calc-func/tests/captures/cfunc_m3_6/oracle.capture.json"),
+    capture_path: "crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json",
+    capture_case: "cfunc_m3_6__excel_comparison",
+    sheets: &[
+        ("reference_result", "xl/worksheets/sheet1.xml"),
+        ("lookup_edges", "xl/worksheets/sheet2.xml"),
+    ],
+};
+
+/// This bead's oracle workbook, written by the committed generator `tests/fixtures/make-fixtures.ps1`,
+/// and Excel's capture of it, recorded under the case that judges it.
+const OPERANDS: Oracle = Oracle {
+    workbook: include_bytes!("fixtures/dc_l10u/oracle.xlsx"),
+    workbook_path: "crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx",
+    capture: include_bytes!("captures/dc_l10u/oracle.capture.json"),
+    capture_path: "crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json",
+    capture_case: "dc_l10u__reference_results_as_values",
+    sheets: &[("reference_values", "xl/worksheets/sheet1.xml")],
+};
+
+/// The command that writes [`OPERANDS`]'s capture.
+const OPERANDS_CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx --case dc_l10u__reference_results_as_values --out crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json";
+
+/// The column (D) that holds the oracle rows' formulas, one per row from row 1, in both workbooks.
+const ORACLE_COLUMN: u32 = 4;
+/// The authored revision the rows calculate: the workbook as committed.
+const ORACLE_REVISION: u64 = 0;
+
+/// A construct calc_fml::compile refuses, as its `CompileError::Unsupported` names it, with the
+/// bead that owns it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Refused {
+    construct: &'static str,
+    owner: &'static str,
+}
+
+/// An array constant (`{1,2;3,4}`): compile refuses it whole, and array evaluation is cfml-m3.4's.
+const ARRAY_CONSTANT: Refused = Refused {
+    construct: "an array constant",
+    owner: "cfml-m3.4",
+};
+/// The union operator (`(A1:A3,C1:C3)`): reference algebra is cfml-m3.3's.
+const UNION: Refused = Refused {
+    construct: "the union operator",
+    owner: "cfml-m3.3",
+};
+
+/// An oracle row: its sheet, its row of column D, its formula as entered (the workbooks store
+/// XLOOKUP as `_xlfn.XLOOKUP`, the form the cases compile), and, for a row whose formula holds a
+/// construct compile refuses at this revision, that refusal; every other row must evaluate and
+/// match Excel's capture.
+struct EngineRow {
+    sheet: &'static str,
+    row: u32,
+    formula: &'static str,
+    refused: Option<Refused>,
+}
+
+/// The rows cfunc-m3.6 publishes as not modelled under dc-l10u: a reference result its consuming
+/// context dereferences, or a call nested in another call, which only calc_fml runs on the
+/// application's route (cfunc-m3.6's windows receipt at its build commit 0c216e6 lists them: 41 on
+/// reference_result, 26 on lookup_edges), in sheet and row order.
+fn engine_rows() -> Vec<EngineRow> {
+    let reference = |row, formula| EngineRow {
+        sheet: "reference_result",
+        row,
+        formula,
+        refused: None,
+    };
+    let edge = |row, formula| EngineRow {
+        sheet: "lookup_edges",
+        row,
+        formula,
+        refused: None,
+    };
+    let refused = |row: EngineRow, refusal| EngineRow {
+        refused: Some(refusal),
+        ..row
+    };
+    vec![
+        // INDEX's reference to one cell, dereferenced at the formula's root.
+        reference(1, "=INDEX(A1:C3,2,3)"),
+        reference(2, "=INDEX(A1:C3,2.7,1.2)"),
+        reference(3, "=INDEX(A1:A4,4)"),
+        reference(4, "=INDEX(A1:C1,3)"),
+        reference(5, "=INDEX(A1:C1,,2)"),
+        reference(6, "=INDEX(B1:B4,4)"),
+        refused(reference(10, "=INDEX((A1:A3,C1:C3),2,1,2)"), UNION),
+        refused(reference(11, "=INDEX((A1:A3,C1:C3),3)"), UNION),
+        reference(12, "=INDEX(A:A,1000)"),
+        reference(13, "=INDEX(A1:C3,\"2\",\"3\")"),
+        // INDEX's reference to several cells, consumed by the call around it.
+        reference(19, "=SUM(INDEX(A1:C3,0,2))"),
+        reference(20, "=SUM(INDEX(A1:C3,2,0))"),
+        reference(21, "=SUM(INDEX(A1:C3,0,0))"),
+        reference(22, "=ROWS(INDEX(A1:C3,0,2))"),
+        reference(23, "=COLUMNS(INDEX(A1:C3,2,0))"),
+        refused(reference(24, "=AREAS(INDEX((A1:A3,C1:C3),1,1,2))"), UNION),
+        reference(25, "=ROW(INDEX(A1:C3,2,3))"),
+        reference(26, "=COLUMN(INDEX(A1:C3,2,3))"),
+        reference(27, "=COUNTBLANK(INDEX(A1:C4,4,0))"),
+        // INDEX(range, MATCH(key, column, 0)), the Ofgem workbooks' lookup.
+        reference(28, "=INDEX(B:B,MATCH(\"k3\",A:A,0))"),
+        reference(29, "=INDEX(B:B,MATCH(\"K5\",A:A,0))"),
+        reference(30, "=INDEX(C:C,MATCH(\"kz\",A:A,0))"),
+        reference(31, "=INDEX(B:B,MATCH(\"k4\",A:A,0))"),
+        reference(32, "=INDEX(B:B,MATCH(\"k9\",A:A,0))"),
+        // XLOOKUP's and CHOOSE's reference results.
+        reference(33, "=XLOOKUP(\"k3\",A10:A14,B10:B14)"),
+        reference(34, "=XLOOKUP(\"k4\",A10:A14,B10:B14)"),
+        reference(35, "=XLOOKUP(\"k9\",A10:A14,B10:B14,C4)"),
+        reference(36, "=SUM(XLOOKUP(\"k2\",A10:A14,B10:C14))"),
+        reference(37, "=CHOOSE(2,A1,B1)"),
+        reference(38, "=SUM(CHOOSE(2,A1:A3,B1:B3))"),
+        reference(39, "=ROWS(CHOOSE(1,A1:A3,B1:B2))"),
+        reference(40, "=CHOOSE(2,\"a\",B4)"),
+        refused(reference(45, "=SUM(INDEX({1,2;3,4},2))"), ARRAY_CONSTANT),
+        reference(49, "=AREAS(INDEX(A1:C3,0,2))"),
+        refused(reference(50, "=ROWS(INDEX({1,2;3,4},0,2))"), ARRAY_CONSTANT),
+        refused(reference(51, "=SUM(INDEX({1,2;3,4},0,2))"), ARRAY_CONSTANT),
+        reference(52, "=VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\""),
+        reference(57, "=INDEX(A1:C3,TRUE,1)"),
+        reference(62, "=INDEX(A1:C3,1.9999,1)"),
+        reference(63, "=SUM(INDEX(A1:C3,2,))"),
+        reference(64, "=SUM(INDEX(A1:C3,2))"),
+        edge(81, "=XLOOKUP(2,A1:A6,C1:C6)"),
+        edge(82, "=XLOOKUP(2,A1:A6,C1:C6,,0,-1)"),
+        edge(86, "=XLOOKUP(2.5,A1:A6,C1:C6,,-1)"),
+        edge(87, "=XLOOKUP(2.5,A1:A6,C1:C6,,1)"),
+        edge(90, "=XLOOKUP(2,A13:C13,A15:C15)"),
+        edge(93, "=XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1)"),
+        edge(180, "=ROW(CHOOSE(1,5))"),
+        edge(181, "=COLUMN(CHOOSE(1,\"a\"))"),
+        edge(182, "=AREAS(CHOOSE(1,5))"),
+        edge(183, "=ROW(CHOOSE(2,1,))"),
+        edge(184, "=AREAS(CHOOSE(2,1,))"),
+        edge(185, "=ROWS(CHOOSE(2,1,))"),
+        edge(186, "=COLUMNS(CHOOSE(2,1,))"),
+        edge(187, "=INDEX(CHOOSE(2,1,),1)"),
+        edge(188, "=ROWS(XLOOKUP(1,A1,A13:C13))"),
+        edge(189, "=COLUMNS(XLOOKUP(1,A1,A13:C13))"),
+        edge(190, "=SUM(XLOOKUP(1,A1,A13:C13))"),
+        edge(191, "=ROWS(XLOOKUP(1,A1,C1:C3))"),
+        edge(192, "=COLUMNS(XLOOKUP(1,A1,C1:C3))"),
+        edge(193, "=SUM(XLOOKUP(1,A1,C1:C3))"),
+        edge(194, "=VLOOKUP(3,A9:C10,3,FALSE)&\"\""),
+        edge(195, "=CHOOSE(2,\"a\",)&\"\""),
+        refused(edge(268, "=XLOOKUP(1,{1,2},I9:J9)"), ARRAY_CONSTANT),
+        refused(edge(270, "=XLOOKUP(2,{1,2,3},B1:D1)"), ARRAY_CONSTANT),
+        edge(311, "=CHOOSE(1,C9,7)"),
+        edge(318, "=INDEX(A1:C7,2,3)"),
+    ]
+}
+
+/// The groups of this bead's own oracle rows, each with its formulas as entered, in the order the
+/// generator writes them to column D of the sheet reference_values from row 1: a function's
+/// reference result passed to an operator or to a value parameter of another function, where the
+/// consuming context, not the formula's root, dereferences it (Run::admit in calc-fml's
+/// evaluator), over a cell holding a number, a blank cell, an error, text, numeric text, a logical
+/// and empty text.
+const OPERAND_GROUPS: [(&str, &[&str]); 7] = [
+    (
+        "INDEX's reference result as an operand",
+        &[
+            "=INDEX(A1:C3,2,2)+1",
+            "=1+INDEX(A1:C3,2,2)",
+            "=-INDEX(A1:C3,2,2)",
+            "=INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1)",
+            "=INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3)",
+            "=INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2)",
+            "=INDEX(A1:C3,1,2)^2",
+            "=INDEX(A1:C3,2,2)%",
+            "=INDEX(A1:C3,2,2)&\"x\"",
+            "=INDEX(A1:C3,2,2)=5",
+            "=INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1)",
+            "=INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1)",
+        ],
+    ),
+    (
+        "INDEX(range,MATCH(key,column,0)) as an operand",
+        &[
+            "=INDEX(B:B,MATCH(\"k3\",A:A,0))*2",
+            "=INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0))",
+            "=INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0))",
+        ],
+    ),
+    (
+        "INDEX's reference result inside another function's argument, at that function's value parameter or, where the row says so, at an operator within the argument",
+        &[
+            "=ABS(INDEX(A1:C4,4,3))",
+            "=ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2)",
+            "=INT(INDEX(A1:C4,4,3))",
+            "=MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2))",
+            "=SIGN(-INDEX(A1:C3,1,1))",
+            "=IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\")",
+            "=IF(INDEX(A1:C3,1,1),\"t\",\"f\")",
+            "=CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\")",
+            "=INDEX(A1:C3,INDEX(A1:C3,1,2),1)",
+            "=MATCH(INDEX(A6:A10,3),A:A,0)",
+            "=ROUND(INDEX(A1:C4,4,3),0)",
+        ],
+    ),
+    (
+        "XLOOKUP's and CHOOSE's reference results as operands and at value parameters",
+        &[
+            "=XLOOKUP(\"k3\",A6:A10,B6:B10)+1",
+            "=-XLOOKUP(\"k2\",A6:A10,B6:B10)",
+            "=XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\"",
+            "=CHOOSE(2,A1,B1)+1",
+            "=CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2)",
+            "=ABS(CHOOSE(1,C4,C3))",
+        ],
+    ),
+    (
+        "a reference result that points at a blank cell (A4, B9)",
+        &[
+            "=INDEX(A1:C4,4,1)+1",
+            "=-INDEX(A1:C4,4,1)",
+            "=INDEX(A1:C4,4,1)&\"x\"",
+            "=INDEX(A1:C4,4,1)=0",
+            "=INDEX(A1:C4,4,1)=\"\"",
+            "=ABS(INDEX(A1:C4,4,1))",
+            "=IF(INDEX(A1:C4,4,1),\"t\",\"f\")",
+            "=INDEX(B:B,MATCH(\"k4\",A:A,0))+1",
+            "=XLOOKUP(\"k4\",A6:A10,B6:B10)+1",
+            "=CHOOSE(2,A1,A4)+1",
+            "=XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\"",
+        ],
+    ),
+    (
+        "a reference result that points at an error cell (B4 #DIV/0!, B10 #N/A), and a lookup that finds no key",
+        &[
+            "=INDEX(A1:C4,4,2)+1",
+            "=INDEX(A1:C4,4,2)&\"x\"",
+            "=ABS(INDEX(A1:C4,4,2))",
+            "=IF(INDEX(A1:C4,4,2),\"t\",\"f\")",
+            "=IFERROR(INDEX(A1:C4,4,2),\"caught\")",
+            "=INDEX(B:B,MATCH(\"k5\",A:A,0))*2",
+            "=XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\"",
+            "=CHOOSE(2,A1,B4)*1",
+            "=INDEX(B:B,MATCH(\"k9\",A:A,0))+1",
+        ],
+    ),
+    (
+        "a reference result that points at text, numeric text, a logical or empty text (C6:C10)",
+        &[
+            "=INDEX(C6:C10,1)+1",
+            "=INDEX(C6:C10,3)+1",
+            "=INDEX(C6:C10,4)+1",
+            "=INDEX(C6:C10,5)&\"|\"",
+            "=INDEX(C6:C10,5)+1",
+        ],
+    ),
+];
+
+/// The rows of OPERAND_GROUPS whose INDEX reference result reaches an operator inside another
+/// function's argument rather than that function's parameter, each with the note the case prints
+/// beside the row. Each formula occurs exactly once in OPERAND_GROUPS.
+const OPERATOR_INSIDE_ARGUMENT: [(&str, &str); 3] = [
+    (
+        "=ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2)",
+        "the reference reaches the infix operator / inside ROUND's first argument, not ROUND's parameter",
+    ),
+    (
+        "=SIGN(-INDEX(A1:C3,1,1))",
+        "the reference reaches the prefix operator - inside SIGN's argument, not SIGN's parameter",
+    ),
+    (
+        "=IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\")",
+        "the reference reaches the infix operator > inside IF's first argument, not IF's parameter",
+    ),
+];
+
+/// This bead's own oracle rows, on the sheet reference_values from row 1, in group order.
+fn operand_rows() -> Vec<EngineRow> {
+    OPERAND_GROUPS
+        .iter()
+        .flat_map(|(_, formulas)| formulas.iter())
+        .zip(1u32..)
+        .map(|(formula, row)| EngineRow {
+            sheet: OPERANDS.sheets[0].0,
+            row,
+            formula,
+            refused: None,
+        })
+        .collect()
+}
+
+/// An oracle workbook's cells, as a case reads them from the committed package, and the state its
+/// rows compile and evaluate in. The reader holds every constant cell of the workbook's sheets.
+/// Every formula cell is unresolved, since the cases calculate none but their rows: a row that read
+/// one would stop with MissingInput rather than read a blank.
+struct OracleBook {
+    catalog: LoggingCatalog,
+    reader: RunReader,
+    cells: BTreeMap<(&'static str, String), SheetCell>,
+    cache: PlanCache,
+    scratch: EvalScratch,
+}
+
+impl OracleBook {
+    fn new(oracle: &Oracle) -> Self {
+        let parts = stored_parts(oracle.workbook);
+        let workbook = part_text(&parts, "xl/workbook.xml");
+        let entries: String = oracle
+            .sheets
+            .iter()
+            .zip(1..)
+            .map(|((name, _), index)| {
+                format!("<sheet name=\"{name}\" sheetId=\"{index}\" r:id=\"rId{index}\"/>")
+            })
+            .collect();
+        assert!(
+            workbook.contains(&format!("<sheets>{entries}</sheets>"))
+                && workbook.contains("<calcPr fullCalcOnLoad=\"1\"/>")
+                && !workbook.contains("<workbookPr"),
+            "{}: the workbook part: {workbook}",
+            oracle.workbook_path
+        );
+        let relationships = part_text(&parts, "xl/_rels/workbook.xml.rels");
+        for ((_, part), index) in oracle.sheets.iter().zip(1..) {
+            let target = part.strip_prefix("xl/").expect("a part under xl/");
+            assert!(
+                relationships.contains(&format!(
+                    "Id=\"rId{index}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"{target}\""
+                )),
+                "{}: the relationships: {relationships}",
+                oracle.workbook_path
+            );
+        }
+        let names: Vec<&'static str> = oracle.sheets.iter().map(|(name, _)| *name).collect();
+        let catalog = LoggingCatalog::new(&names);
+        let mut reader = RunReader::default();
+        let mut cells = BTreeMap::new();
+        for (name, part) in oracle.sheets {
+            let sheet = catalog.id(name);
+            for (address, cell) in sheet_cells(part_text(&parts, part)) {
+                match &cell {
+                    SheetCell::Constant(value) => reader.store(sheet, &address, value.clone()),
+                    SheetCell::Formula(_) | SheetCell::DynamicArray(_) => {
+                        reader.leave_unresolved(sheet, &address)
+                    }
+                }
+                cells.insert((*name, address), cell);
+            }
+        }
+        OracleBook {
+            catalog,
+            reader,
+            cells,
+            cache: PlanCache::new(),
+            scratch: EvalScratch::new(),
+        }
+    }
+
+    /// `formula` compiled at `anchor` through calc_fml::compile and, when it compiles, evaluated
+    /// once under Fast through calc_fml::evaluate, observed, with the reader's logs cleared first.
+    fn run(&mut self, formula: &str, anchor: FormulaAnchor) -> Result<Shown, CompileError> {
+        let plan = compile(
+            &parse_formula(formula),
+            ReferenceNotation::A1,
+            anchor,
+            &self.catalog,
+            &mut self.cache,
+        )?;
+        let instance = instantiate(&plan, anchor);
+        self.reader.requests.clear();
+        self.reader.value_runs.clear();
+        let mode = NumericMode::Fast;
+        let mut log = CallLog::default();
+        let outcome = evaluate(
+            EvalFrame::new(&instance, &mut self.scratch),
+            &mut EvaluationServices::new(&mode, &mut self.reader).observed_by(&mut log),
+        );
+        Ok(Shown {
+            outcome,
+            reads: std::mem::take(&mut self.reader.requests),
+            log,
+        })
+    }
+}
+
+/// An oracle row as a case ran it: the formula the workbook stores in its cell, the cell's key in
+/// the case's catalogue (the anchor), compile's refusal or the evaluation, and the tick it ran at.
+struct EngineRun {
+    row: EngineRow,
+    stored: String,
+    key: CellKey,
+    outcome: Result<Shown, CompileError>,
+    tick: u64,
+}
+
+impl EngineRun {
+    fn address(&self) -> CellAddress {
+        CellAddress::new(self.row.sheet, self.row.row, ORACLE_COLUMN).expect("a cell of the grid")
+    }
+
+    fn at(&self) -> String {
+        format!("{}!D{}", self.row.sheet, self.row.row)
+    }
+
+    /// What compile or the evaluation gave, for a note or a problem.
+    fn outcome_shown(&self) -> String {
+        match &self.outcome {
+            Err(refusal) => format!("calc_fml::compile refuses it: {refusal:?}"),
+            Ok(Shown {
+                outcome: Ok(value), ..
+            }) => format!("calc_fml::evaluate gives {}", value_shown(value)),
+            Ok(Shown {
+                outcome: Err(fault),
+                ..
+            }) => format!("calc_fml::evaluate faults: {fault:?}"),
+        }
+    }
+}
+
+/// Every row, compiled from the formula the workbook stores in its cell (which must be the row's
+/// formula in its file form) at that cell, and evaluated there, one tick each from tick 1.
+fn engine_run(book: &mut OracleBook, rows: Vec<EngineRow>) -> Vec<EngineRun> {
+    rows.into_iter()
+        .zip(1u64..)
+        .map(|(row, tick)| {
+            let stored = match book.cells.get(&(row.sheet, format!("D{}", row.row))) {
+                Some(SheetCell::Formula(stored)) => stored.clone(),
+                other => panic!(
+                    "{}!D{}: the workbook holds {other:?}, not the formula {}",
+                    row.sheet, row.row, row.formula
+                ),
+            };
+            assert_eq!(
+                format!("={}", stored.replace("_xlfn.", "")),
+                row.formula,
+                "{}!D{}: the workbook's formula, without its file prefixes",
+                row.sheet,
+                row.row
+            );
+            let key = CellKey::new(book.catalog.id(row.sheet), row.row, ORACLE_COLUMN)
+                .expect("a cell of the grid");
+            let outcome = book.run(&format!("={stored}"), FormulaAnchor::new(key));
+            EngineRun {
+                row,
+                stored,
+                key,
+                outcome,
+                tick,
+            }
+        })
+        .collect()
+}
+
+/// What `case` publishes of its run, judged by calc_verdict: for each row's cell, the value
+/// calc_fml::evaluate gave, calculated at the row's tick (or failed with its fault), or, for a row
+/// compile refuses, not modelled under the refusal's owner; for every other formula cell of the
+/// capture's inventory, no result, with `others` as the reason; and the evaluation record made
+/// from what the observer was shown, each evaluation with the outcome the evaluator reported for
+/// the row's own cell.
+fn engine_documents(
+    oracle: &Oracle,
+    case: &str,
+    others: &str,
+    capture: &CaptureRecord,
+    run: &[EngineRun],
+) -> (ResultSet, InstrumentRecord) {
+    let source = format!("sha256:{}", sha256_hex(oracle.workbook));
+    let context = fallback_context().fingerprint();
+    let mut results = Vec::new();
+    let mut evaluations = Vec::new();
+    for row in run {
+        let cell = row.address();
+        let (provenance, value) = match &row.outcome {
+            Err(refusal) => (
+                Provenance::NotModeled {
+                    feature: match refusal {
+                        CompileError::Unsupported {
+                            construct, owner, ..
+                        } => format!("{owner}: {construct}"),
+                        other => format!("a formula calc_fml::compile refuses ({other:?})"),
+                    },
+                    diagnostic: format!("calc_fml::compile refuses ={}: {refusal:?}", row.stored),
+                },
+                None,
+            ),
+            Ok(shown) => {
+                for (key, returned) in &shown.log.reported {
+                    // The whole key: the sheet, as the case's catalogue names the row's sheet, as
+                    // well as the row and the column, since both workbooks' rows are in column D.
+                    assert_eq!(
+                        *key,
+                        row.key,
+                        "{}: the evaluator reported another cell",
+                        row.at()
+                    );
+                    evaluations.push(InstrumentedEvaluation::new(
+                        VerdictEvaluation {
+                            cell: cell.clone(),
+                            tick: row.tick,
+                            revision: ORACLE_REVISION,
+                            context: context.clone(),
+                        },
+                        returned.clone().map_err(|fault| format!("{fault:?}")),
+                    ));
+                }
+                match &shown.outcome {
+                    Ok(value) => (
+                        Provenance::Calculated {
+                            tick: row.tick,
+                            revision: ORACLE_REVISION,
+                            context: context.clone(),
+                        },
+                        Some(value.clone()),
+                    ),
+                    Err(fault) => (
+                        Provenance::Failed {
+                            fault: format!("{fault:?}"),
+                        },
+                        None,
+                    ),
+                }
+            }
+        };
+        results.push(CellResult {
+            cell,
+            provenance,
+            value,
+        });
+    }
+    let ours: BTreeSet<CellAddress> = run.iter().map(EngineRun::address).collect();
+    for formula in &capture.formulas {
+        if !ours.contains(&formula.cell) {
+            results.push(CellResult {
+                cell: formula.cell.clone(),
+                provenance: Provenance::Missing {
+                    reason: format!("not one of the rows {case} evaluates; {others}"),
+                },
+                value: None,
+            });
+        }
+    }
+    // The producer of both documents is `case`, whose evaluations they hold. They carry the case
+    // the capture is recorded under because calc_verdict::judge refuses a result set or an
+    // evaluation record whose case is not the capture record's. For this bead's own workbook that
+    // is `case` itself; for cfunc-m3.6's lookup workbook it is cfunc_m3_6__excel_comparison,
+    // although dc_l10u__reference_results_through_calc_fml made the documents. They are judged in
+    // memory and never written.
+    (
+        ResultSet {
+            case: oracle.capture_case.to_owned(),
+            source: source.clone(),
+            run: RunIdentity {
+                revision: ORACLE_REVISION,
+                context,
+            },
+            results,
+        },
+        InstrumentRecord {
+            case: oracle.capture_case.to_owned(),
+            source,
+            evaluations,
+        },
+    )
+}
+
+/// The verdict on `capture` of what `case` publishes of `run`, and what on it disagrees with the
+/// rows: a row listed without a refusal whose verdict is not matched, a row listed with a refusal
+/// that compile did not refuse with that construct and owner or whose verdict is not not_modeled,
+/// a formula cell outside the rows whose verdict is not missing, and a result outside the
+/// inventory.
+fn engine_comparison(
+    oracle: &Oracle,
+    case: &str,
+    others: &str,
+    capture: &CaptureRecord,
+    run: &[EngineRun],
+) -> (VerdictReport, Vec<String>) {
+    let (results, evaluations) = engine_documents(oracle, case, others, capture, run);
+    let policy = VerdictPolicy {
+        numeric_mode: NumericMode::Fast,
+        evidence: None,
+    };
+    let report = judge(capture, &results, &evaluations, &policy)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    let rows: BTreeMap<CellAddress, &EngineRun> =
+        run.iter().map(|row| (row.address(), row)).collect();
+    let mut problems = Vec::new();
+    for cell in &report.cells {
+        let address = &cell.formula.cell;
+        let Some(row) = rows.get(address) else {
+            if !matches!(cell.verdict, Verdict::Missing { .. }) {
+                problems.push(format!(
+                    "{}!{}: a formula cell outside the rows is {}",
+                    address.sheet(),
+                    address.a1(),
+                    cell.verdict.name()
+                ));
+            }
+            continue;
+        };
+        match (&row.row.refused, &row.outcome, &cell.verdict) {
+            (None, Ok(_), Verdict::Matched { .. }) => {}
+            (
+                Some(listed),
+                Err(CompileError::Unsupported {
+                    construct, owner, ..
+                }),
+                Verdict::NotModeled { .. },
+            ) if *construct == listed.construct && *owner == listed.owner => {}
+            (None, Ok(_), Verdict::Mismatched { expected, .. }) => problems.push(format!(
+                "{} {}: {}, Excel's raw value is {}",
+                row.at(),
+                row.row.formula,
+                row.outcome_shown(),
+                value_shown(expected)
+            )),
+            (listed, _, verdict) => problems.push(format!(
+                "{} {}: {} ({}; listed refusal {listed:?})",
+                row.at(),
+                row.row.formula,
+                verdict.name(),
+                row.outcome_shown()
+            )),
+        }
+    }
+    for outside in &report.outside_inventory {
+        problems.push(format!(
+            "{}!{}: the capture's inventory lacks this row's cell",
+            outside.cell.sheet(),
+            outside.cell.a1()
+        ));
+    }
+    (report, problems)
+}
+
+/// Excel's capture of an oracle workbook, as `case` judged its rows against it.
+struct Judged {
+    capture: CaptureRecord,
+    report: VerdictReport,
+    excel: String,
+    /// The rows whose formula Excel reports with the implicit-intersection operator `@`.
+    with_at: Vec<String>,
+}
+
+impl Judged {
+    /// Excel's raw value of `row`'s cell, as the notes show it.
+    fn raw(&self, row: &EngineRun) -> String {
+        self.report
+            .cells
+            .iter()
+            .find(|cell| cell.formula.cell == row.address())
+            .and_then(|cell| match &cell.observation {
+                Some(Observation::ExcelRaw(value)) => Some(value_shown(value)),
+                _ => None,
+            })
+            .unwrap_or_else(|| "none".to_owned())
+    }
+}
+
+/// Judges `oracle`'s committed capture against `run`, or, when the capture path holds the
+/// absent-capture marker, prints `ACCEPT-NOT-RUN` and gives `None`. The capture must be a live
+/// capture of the workbook as committed, by the committed worker, recorded under the oracle's
+/// capture case, with Excel's environment and no failure that leaves its raw values unobserved or
+/// untrusted; each row's cell must hold the row's formula as an ordinary formula, as Excel
+/// reports it (with the implicit-intersection operator `@` before a function name that Excel shows
+/// on a legacy formula whose result could be a reference or an array); every row listed without a
+/// refusal must be calculated and matched, every row listed with one not modelled under that
+/// refusal, and every other formula cell of the inventory missing. Prints a note per row.
+fn judge_oracle(case: &str, oracle: &Oracle, others: &str, run: &[EngineRun]) -> Option<Judged> {
+    if let Some(missing) = MissingCapture::recognize(oracle.capture) {
+        note!("ACCEPT-NOT-RUN: {case}: {}: {missing}", oracle.capture_path);
+        return None;
+    }
+    let capture = CaptureRecord::decode(oracle.capture)
+        .unwrap_or_else(|refusal| panic!("{} does not decode: {refusal}", oracle.capture_path));
+    assert_eq!(capture.case, oracle.capture_case, "{}", oracle.capture_path);
+    assert_eq!(
+        capture.acquisition,
+        Acquisition::LiveCapture,
+        "{}",
+        oracle.capture_path
+    );
+    let workbook = format!("sha256:{}", sha256_hex(oracle.workbook));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture is not of {} as committed",
+        oracle.workbook_path
+    );
+    let session = capture.session.as_ref().expect("a version 2 record");
+    assert_eq!(session.input_package, workbook);
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    // A failure that leaves the raw values unobserved or untrusted fails the case (the stage names
+    // of calc-oracle-excel's conversion, as dc_ibp2__excel_comparison lists them).
+    let raw_stages = [
+        STAGE_ISOLATION,
+        STAGE_ENVIRONMENT,
+        STAGE_INVENTORY,
+        "value",
+        "spill",
+    ];
+    let unobserved: Vec<_> = session
+        .failures
+        .iter()
+        .filter(|failure| raw_stages.contains(&failure.stage.as_str()))
+        .collect();
+    assert!(
+        unobserved.is_empty(),
+        "the capture records failures of its raw values: {unobserved:?}"
+    );
+    let excel = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment")
+        .target
+        .excel_build()
+        .to_string();
+
+    let mut with_at = Vec::new();
+    for row in run {
+        let address = row.address();
+        let held = capture
+            .formulas
+            .iter()
+            .find(|formula| formula.cell == address)
+            .unwrap_or_else(|| panic!("the capture has no formula cell {}", row.at()));
+        let reported = held.formula.as_deref().unwrap_or_default();
+        let without_at: String = reported.chars().filter(|c| *c != '@').collect();
+        let at_before_names = reported
+            .match_indices('@')
+            .all(|(at, _)| reported[at + 1..].starts_with(|c: char| c.is_ascii_uppercase()));
+        assert!(
+            !held.dynamic_array
+                && matches!(held.kind, FormulaKind::Ordinary)
+                && !row.row.formula.contains('@')
+                && without_at == row.row.formula
+                && at_before_names,
+            "{}: the capture holds {held:?} for {}",
+            row.at(),
+            row.row.formula
+        );
+        if reported != row.row.formula {
+            with_at.push(format!("{} {reported}", row.at()));
+        }
+    }
+
+    let (report, problems) = engine_comparison(oracle, case, others, &capture, run);
+    let judged = Judged {
+        capture,
+        report,
+        excel,
+        with_at,
+    };
+    let verdict = |row: &EngineRun| {
+        judged
+            .report
+            .cells
+            .iter()
+            .find(|cell| cell.formula.cell == row.address())
+            .map(|cell| cell.verdict.name())
+            .unwrap_or("outside the inventory")
+    };
+    for row in run {
+        let calls = match &row.outcome {
+            Ok(shown) => format!(" (calls: {})", shown.log.calls.join(", ")),
+            Err(_) => String::new(),
+        };
+        let owner = match &row.outcome {
+            Err(CompileError::Unsupported {
+                construct, owner, ..
+            }) => format!(", owned by {owner}: {construct}"),
+            _ => String::new(),
+        };
+        note!(
+            "ACCEPT-NOTE: {case}: oracle {} {} (stored ={}) -> {}{calls}; Excel's raw value {}: {}{owner}",
+            row.at(),
+            row.row.formula,
+            row.stored,
+            row.outcome_shown(),
+            judged.raw(row),
+            verdict(row)
+        );
+    }
+    assert!(
+        problems.is_empty(),
+        "{} problems in the verdict on Excel {}'s capture {} ({}):\n{}",
+        problems.len(),
+        judged.excel,
+        oracle.capture_path,
+        judged.report.summary(),
+        problems.join("\n")
+    );
+    let refused = run.iter().filter(|row| row.row.refused.is_some()).count() as u64;
+    let evaluated = run.len() as u64 - refused;
+    let counts = &judged.report.counts;
+    assert_eq!(judged.report.evaluation_record_version, 2);
+    assert_eq!(
+        (
+            counts.calculated,
+            counts.matched,
+            counts.mismatched,
+            counts.not_modeled,
+            counts.failed,
+            counts.unproven,
+            counts.stale,
+            counts.missing,
+            counts.outside_inventory,
+        ),
+        (
+            evaluated,
+            evaluated,
+            0,
+            refused,
+            0,
+            0,
+            0,
+            counts.denominator - run.len() as u64,
+            0,
+        ),
+        "{}",
+        judged.report.summary()
+    );
+    Some(judged)
+}
+
+/// `capture` with the raw value of `row`'s cell replaced by `value` (made by the case, so evidence
+/// about the comparison, not about Excel).
+fn capture_changed_at(capture: &CaptureRecord, row: &EngineRun, value: CalcValue) -> CaptureRecord {
+    let mut changed = capture.clone();
+    let observed = changed
+        .observations
+        .iter_mut()
+        .find(|observed| observed.cell == row.address())
+        .unwrap_or_else(|| panic!("the capture observes {}", row.at()));
+    observed.observation = Observation::ExcelRaw(value);
+    changed
+}
+
+/// Why a formula cell of cfunc-m3.6's lookup workbook outside the rows gets no result.
+const LOOKUP_OTHERS: &str = "cfunc_m3_6__excel_comparison judges the others (the rows cfunc-m3.6 does not publish as not modelled under dc-l10u)";
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_l10u__reference_results_through_calc_fml() {
+    const CASE: &str = "dc_l10u__reference_results_through_calc_fml";
+    let mut book = OracleBook::new(&LOOKUP);
+    let run = engine_run(&mut book, engine_rows());
+    // cfunc-m3.6's comparison counts 67 rows not modelled under dc-l10u: 41 on reference_result
+    // and 26 on lookup_edges.
+    let on = |sheet: &str| run.iter().filter(|row| row.row.sheet == sheet).count();
+    assert_eq!(
+        (run.len(), on("reference_result"), on("lookup_edges")),
+        (67, 41, 26)
+    );
+    let Some(judged) = judge_oracle(CASE, &LOOKUP, LOOKUP_OTHERS, &run) else {
+        return;
+    };
+    let counts = &judged.report.counts;
+    let refused: Vec<&EngineRun> = run.iter().filter(|row| row.row.refused.is_some()).collect();
+    let index_match: Vec<String> = run
+        .iter()
+        .filter(|row| row.row.formula.contains(",MATCH("))
+        .map(|row| format!("{} {} = {}", row.at(), row.row.formula, judged.raw(row)))
+        .collect();
+    assert_eq!(index_match.len(), 5);
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture {} of {}: of the {} rows cfunc-m3.6 publishes as not modelled under dc-l10u, {} compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated {}, matched {}, mismatched {}); {} refused by calc_fml::compile under named beads: {}; the other {} formula cells of the inventory are not evaluated by this case (missing, with the reason); {}",
+        judged.excel,
+        LOOKUP.capture_path,
+        LOOKUP.workbook_path,
+        run.len(),
+        run.len() - refused.len(),
+        counts.calculated,
+        counts.matched,
+        counts.mismatched,
+        refused.len(),
+        refused
+            .iter()
+            .map(|row| format!(
+                "{} {} ({})",
+                row.at(),
+                row.row.formula,
+                row.row
+                    .refused
+                    .map(|listed| format!("{}: {}", listed.owner, listed.construct))
+                    .unwrap_or_default()
+            ))
+            .collect::<Vec<_>>()
+            .join(", "),
+        counts.missing,
+        judged.report.summary()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the five INDEX(range,MATCH(key,column,0)) rows, matched through calc_fml::evaluate: {}",
+        index_match.join("; ")
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel reports {} of the rows' formulas with the implicit-intersection operator @ (legacy formulas in the workbook, compiled here as the file stores them, without @): {}",
+        judged.with_at.len(),
+        judged.with_at.join(", ")
+    );
+
+    // The comparison is not vacuous: with the raw value of reference_result!D28 changed from 30 to
+    // 31 in a copy of the capture, that row alone is reported.
+    let d28 = run
+        .iter()
+        .find(|row| row.row.sheet == "reference_result" && row.row.row == 28)
+        .expect("the row reference_result!D28");
+    assert!(
+        matches!(judged.raw(d28).as_str(), "30.0"),
+        "Excel's raw value of reference_result!D28: {}",
+        judged.raw(d28)
+    );
+    let changed = capture_changed_at(&judged.capture, d28, CalcValue::number(31.0));
+    let (_, changed_problems) = engine_comparison(&LOOKUP, CASE, LOOKUP_OTHERS, &changed, &run);
+    assert_eq!(changed_problems.len(), 1, "{changed_problems:?}");
+    assert!(
+        changed_problems[0].starts_with(
+            "reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)): calc_fml::evaluate gives 30.0, Excel's raw value is 31.0"
+        ),
+        "{changed_problems:?}"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: against a copy of the capture with reference_result!D28 observed as 31 (made by the case, not Excel's), the comparison reports D28 alone: {}",
+        changed_problems[0]
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_l10u__reference_results_as_values() {
+    const CASE: &str = "dc_l10u__reference_results_as_values";
+    let mut book = OracleBook::new(&OPERANDS);
+    let rows = operand_rows();
+    let sheet = OPERANDS.sheets[0].0;
+
+    // The workbook's sheet holds exactly the rows' formulas, in column D in row order (checked
+    // row by row by engine_run), and no other formula; the cells the blank and error rows point
+    // at are blank (A4, B9) and hold #DIV/0! (B4) and #N/A (B10).
+    let formulas: Vec<&str> = book
+        .cells
+        .iter()
+        .filter(|(_, cell)| !matches!(cell, SheetCell::Constant(_)))
+        .map(|((_, address), _)| address.as_str())
+        .collect();
+    let expected: BTreeSet<String> = rows.iter().map(|row| format!("D{}", row.row)).collect();
+    assert_eq!(
+        formulas
+            .iter()
+            .map(|a| a.to_string())
+            .collect::<BTreeSet<_>>(),
+        expected,
+        "the formula cells of {}",
+        OPERANDS.workbook_path
+    );
+    let constant = |address: &str| match book.cells.get(&(sheet, address.to_owned())) {
+        Some(SheetCell::Constant(value)) => Some(value.clone()),
+        None => None,
+        Some(other) => panic!("{address} holds {other:?}"),
+    };
+    assert_eq!(
+        (
+            constant("A4"),
+            constant("B9"),
+            constant("B4"),
+            constant("B10")
+        ),
+        (
+            None,
+            None,
+            Some(CalcValue::error(WorksheetErrorCode::Div0)),
+            Some(CalcValue::error(WorksheetErrorCode::NA))
+        )
+    );
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_workbooks(CASE);
+        let written = &generated["dc_l10u/oracle.xlsx"];
+        assert!(
+            written.as_slice() == OPERANDS.workbook,
+            "the committed generator writes a workbook (sha256 {}) that differs from the committed one (sha256 {})",
+            sha256_hex(written),
+            sha256_hex(OPERANDS.workbook)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: the committed generator tests/fixtures/make-fixtures.ps1, run into a new directory under the target directory's temporary directory (removed when the generator's run returns or panics), wrote {} byte for byte",
+            OPERANDS.workbook_path
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the check that the committed generator tests/fixtures/make-fixtures.ps1 writes {} byte for byte did not run on this target: the generator is a Windows PowerShell script, which the case runs only in its native Windows build",
+            OPERANDS.workbook_path
+        );
+    }
+
+    let run = engine_run(&mut book, rows);
+    if let Some(missing) = MissingCapture::recognize(OPERANDS.capture) {
+        assert_eq!(
+            (
+                missing.case.as_str(),
+                missing.fixture.as_str(),
+                missing.command.as_str()
+            ),
+            (
+                OPERANDS.capture_case,
+                OPERANDS.workbook_path,
+                OPERANDS_CAPTURE_COMMAND
+            ),
+            "the absent-capture marker names this capture"
+        );
+    }
+    let others = "every formula cell of the workbook is a row";
+    let Some(judged) = judge_oracle(CASE, &OPERANDS, others, &run) else {
+        return;
+    };
+    let counts = &judged.report.counts;
+    assert_eq!(
+        (counts.denominator, counts.matched, counts.missing),
+        (run.len() as u64, run.len() as u64, 0),
+        "{}",
+        judged.report.summary()
+    );
+    for (formula, _) in OPERATOR_INSIDE_ARGUMENT {
+        assert_eq!(
+            run.iter().filter(|row| row.row.formula == formula).count(),
+            1,
+            "{formula} occurs exactly once among the rows"
+        );
+    }
+    let mut first = 0;
+    for (group, formulas) in OPERAND_GROUPS {
+        let shown: Vec<String> = run[first..first + formulas.len()]
+            .iter()
+            .map(|row| {
+                let shown = format!("{} = {}", row.row.formula, judged.raw(row));
+                match OPERATOR_INSIDE_ARGUMENT
+                    .iter()
+                    .find(|(formula, _)| *formula == row.row.formula)
+                {
+                    Some((_, note)) => format!("{shown} ({note})"),
+                    None => shown,
+                }
+            })
+            .collect();
+        note!(
+            "ACCEPT-NOTE: {CASE}: {group}: {} rows matched through calc_fml::evaluate: {}",
+            formulas.len(),
+            shown.join("; ")
+        );
+        first += formulas.len();
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture {} of {}: each of the {} rows, which pass a reference result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function, compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated {}, matched {}, mismatched {}); {}",
+        judged.excel,
+        OPERANDS.capture_path,
+        OPERANDS.workbook_path,
+        run.len(),
+        counts.calculated,
+        counts.matched,
+        counts.mismatched,
+        judged.report.summary()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel reports {} of the rows' formulas with the implicit-intersection operator @ (compiled here as the file stores them, without @): {}",
+        judged.with_at.len(),
+        judged.with_at.join(", ")
+    );
+
+    // The comparison is not vacuous: with the raw value of D1 =INDEX(A1:C3,2,2)+1 changed from 6
+    // to 7 in a copy of the capture, that row alone is reported.
+    let d1 = &run[0];
+    assert_eq!(
+        (d1.row.formula, judged.raw(d1).as_str()),
+        ("=INDEX(A1:C3,2,2)+1", "6.0")
+    );
+    let changed = capture_changed_at(&judged.capture, d1, CalcValue::number(7.0));
+    let (_, changed_problems) = engine_comparison(&OPERANDS, CASE, others, &changed, &run);
+    assert_eq!(changed_problems.len(), 1, "{changed_problems:?}");
+    assert!(
+        changed_problems[0].starts_with(
+            "reference_values!D1 =INDEX(A1:C3,2,2)+1: calc_fml::evaluate gives 6.0, Excel's raw value is 7.0"
+        ),
+        "{changed_problems:?}"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: against a copy of the capture with reference_values!D1 observed as 7 (made by the case, not Excel's), the comparison reports D1 alone: {}",
+        changed_problems[0]
+    );
 }

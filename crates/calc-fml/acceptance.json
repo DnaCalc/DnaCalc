@@ -109,6 +109,24 @@
         "dc_ibp2__error_fallback": ["windows", "linux", "wasm"],
         "dc_ibp2__excel_comparison": ["windows", "linux", "wasm", "excel"]
       }
+    },
+    {
+      "id": "dc-l10u",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-fml", "--test", "acceptance", "dc_l10u", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "dc-l10u", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-l10u", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-l10u", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_l10u__reference_results_through_calc_fml",
+        "dc_l10u__reference_results_as_values"
+      ],
+      "platforms": {
+        "dc_l10u__reference_results_through_calc_fml": ["windows", "linux", "wasm"],
+        "dc_l10u__reference_results_as_values": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

@@ -1,0 +1,1916 @@
+{
+  "architecture": [
+    {
+      "check": "dependencies",
+      "details": {
+        "by_target": {
+          "wasm32-unknown-unknown": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-pc-windows-msvc": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-unknown-linux-gnu": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          }
+        },
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "7 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
+    },
+    {
+      "check": "os-imports",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": {
+          "calc-doc": 26,
+          "calc-doc-model": 13,
+          "calc-engine": 7,
+          "calc-fml": 15,
+          "calc-func": 17,
+          "calc-host": 5,
+          "calc-value": 5,
+          "calc-verdict": 11,
+          "dna-calc": 1,
+          "dna-onecalc": 5
+        },
+        "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "105 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+    },
+    {
+      "check": "wasm-refusal",
+      "details": {
+        "calc-oracle-excel": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/dc-l10u/wasm/arch/wasm-refusal-calc-oracle-excel.log",
+          "refusal": "calc-oracle-excel is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "calc-platform-desktop": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/dc-l10u/wasm/arch/wasm-refusal-calc-platform-desktop.log",
+          "refusal": "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "xtask": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/dc-l10u/wasm/arch/wasm-refusal-xtask.log",
+          "refusal": "xtask is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "3 native-only packages (calc-platform-desktop, calc-oracle-excel, xtask) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!"
+    },
+    {
+      "check": "tree-reference-tokens",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": 105,
+        "phrases": [
+          "tree reference",
+          "tree ref",
+          "reference profile",
+          "profile id",
+          "reference system provider",
+          "host reference"
+        ],
+        "scope": "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "105 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+    },
+    {
+      "check": "seams",
+      "details": {
+        "packages": {
+          "calc-doc": {
+            "entries": 99,
+            "entries_reach_unproven": 99,
+            "pub_enum_variants": 97,
+            "pub_traits": 2
+          },
+          "calc-doc-model": {
+            "entries": 90,
+            "entries_reach_unproven": 90,
+            "pub_enum_variants": 90,
+            "pub_traits": 0
+          },
+          "calc-engine": {
+            "entries": 36,
+            "entries_reach_unproven": 36,
+            "pub_enum_variants": 35,
+            "pub_traits": 1
+          },
+          "calc-fml": {
+            "entries": 101,
+            "entries_reach_unproven": 101,
+            "pub_enum_variants": 98,
+            "pub_traits": 3
+          },
+          "calc-func": {
+            "entries": 21,
+            "entries_reach_unproven": 21,
+            "pub_enum_variants": 19,
+            "pub_traits": 2
+          },
+          "calc-host": {
+            "entries": 25,
+            "entries_reach_unproven": 25,
+            "pub_enum_variants": 25,
+            "pub_traits": 0
+          },
+          "calc-value": {
+            "entries": 32,
+            "entries_reach_unproven": 32,
+            "pub_enum_variants": 31,
+            "pub_traits": 1
+          },
+          "calc-verdict": {
+            "entries": 55,
+            "entries_reach_unproven": 55,
+            "pub_enum_variants": 55,
+            "pub_traits": 0
+          },
+          "dna-calc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "dna-onecalc": {
+            "entries": 13,
+            "entries_reach_unproven": 13,
+            "pub_enum_variants": 13,
+            "pub_traits": 0
+          }
+        },
+        "reach": {
+          "entries_reach_unproven": 472,
+          "owner": "dc-pz3u",
+          "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "10 portable packages declare 463 pub enum variants and 9 pub traits; their seams.json files list 472 entries, 472 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+    },
+    {
+      "check": "word-scan",
+      "details": {
+        "baseline_owner": "dc-0nvp",
+        "baseline_recorded": "2026-10-14",
+        "commits": {
+          "e24e1e355d92950513eee0bd91722729ef6bbb12": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "excluded_identifiers": [
+          {
+            "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
+            "masked": {
+              "commit_messages": 1,
+              "files": 5,
+              "tracker_records": 9
+            },
+            "reason": "acceptance case name of infra-m0.5, a fixed identity"
+          },
+          {
+            "identifier_hex": "696e6672615f6d375f315f5f6c6963656e73655f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 1
+            },
+            "reason": "acceptance case name of infra-m7.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "6f6e6563616c635f6d315f315f5f646570656e64656e63795f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 2
+            },
+            "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "646e6163616c632d617263682d6761746573",
+            "masked": {
+              "commit_messages": 0,
+              "files": 2,
+              "tracker_records": 0
+            },
+            "reason": "directory name of a crate in the read-only legacy repository DnaTreeCalc, cited as a path"
+          }
+        ],
+        "files": {
+          "docs/plan/BEAD_DETAILS.md": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/BEAD_GRAPH.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md": {
+            "baseline": 7,
+            "count": 7
+          },
+          "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md": {
+            "baseline": 2,
+            "count": 2
+          },
+          "docs/plan/beads.br.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/beads.plan.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/build_plan.py": {
+            "baseline": 13,
+            "count": 13
+          },
+          "docs/plan/coverage.json": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/topological-order.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/validate_plan.py": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "forms": 5,
+        "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
+        "scanned": {
+          "commit_messages": 231,
+          "files": 20,
+          "tracker_records": 371
+        },
+        "tracker": {
+          "ceng-m7.1": {
+            "baseline": 1,
+            "count": 1
+          },
+          "cfunc-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m0.3": {
+            "baseline": 3,
+            "count": 3
+          },
+          "infra-m3.20": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.21": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.22": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.23": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m3.24": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m7.5": {
+            "baseline": 1,
+            "count": 1
+          },
+          "infra-m8.2": {
+            "baseline": 2,
+            "count": 2
+          },
+          "onecalc-m2.1": {
+            "baseline": 1,
+            "count": 1
+          }
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 371 tracker records, 1 in 1 of 231 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+    },
+    {
+      "check": "numeric-provenance",
+      "details": {
+        "admitted_by_recomputation": 478,
+        "admitted_with_calls_quarantined": 165,
+        "allowlist": "migration/release-source-allowlist.json",
+        "allowlist_entries": 478,
+        "cross_repository_crate_edges": 61,
+        "dispositions": "migration/numeric-provenance.json",
+        "edges_into_files_not_pinned": {
+          "OxFunc": 2,
+          "elsewhere": 197
+        },
+        "edges_owner": "dc-4uy4",
+        "gaps": [
+          {
+            "owner": "dc-4uy4",
+            "what": "cross-repository edges (recorded at crate level, for example OxFunc crate oxfunc_core in OxFml's eval/mod.rs), run-time loads (recorded by repository) and the edges into files that are not pinned inputs (2 in OxFunc and 197 elsewhere when the ruling was made; the manifest summary counts them as edges_into_files_not_pinned) are not resolved to files"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the inputs the content rule leaves unresolved by class (citation sweep matches, changes by a listed tainted commit, includes of tainted or unresolved files), among them the test files the record leaves out, and the x87 ground-truth table entry, are not cleared file by file"
+          },
+          {
+            "owner": "dc-0huc",
+            "what": "the witness selections under migration/witnesses/ were made by a one-off script (target/accept/infra-m0.5/round2/select_witnesses.py), not by a repository command"
+          },
+          {
+            "owner": "dc-1c6a",
+            "what": "the include macros the pin cannot read (5 inputs: the four OxFunc tests w111_distribution_numeric_live_replay.rs, w111_integer_live_replay.rs, w111_numeric_publication_live_replay.rs and w111_radix_live_replay.rs, and tools/xll-addin/oxfunc_xll/src/lib.rs) are not resolved; summary.resolution_skipped counts the 5"
+          },
+          {
+            "owner": "dc-ime9",
+            "what": "a cleared entry does not lift the pin's quarantine of an excel_numeric path, and the infra-m0.5 acceptance case asserts today's outcome for the seven excel_numeric files, the research-x87 packages and the production replays (tools/xtask/tests/acceptance/infra_m0_5.rs)"
+          },
+          {
+            "owner": "dc-x3oi",
+            "what": "catalogue tests are not classified by where their expected values came from: the content rule catches a test only when a listed tainted commit changed it, it includes a tainted or unresolved file, or its text matches the citation sweep"
+          },
+          {
+            "owner": "dc-4546",
+            "what": "the licenses of the glibc-2.29 port (mod.rs exp_portable, log_portable and the kernels built on them; tables.rs; gen_tables.py), of the fdlibm and SPECFUN constants gammaln.rs cites, and OxDoc's missing license file are not reviewed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the w111-broad-20260929 evidence files are unresolved as one class (w111-broad-evidence), and the production replays are tainted as one class, not file by file"
+          },
+          {
+            "owner": "dc-43vt",
+            "what": "the files of the research-x87 tool packages are tainted as one class (x87-research-packages), not file by file"
+          },
+          {
+            "owner": "dc-jtlu",
+            "what": "cargo xtask pin-sources --lookup exit codes 5 (left out of the release source allowlist for its numeric provenance) and 6 (admitted only with its calls_quarantined list) are not yet part of a reviewed exit-code scheme"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the retention extended-numeric/numeric-outcomes.json has no write time, so the order of the retention and the freeze steps is not established (the commits review's retention_ordering, established false); witness independence rests on hash continuity instead"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "no raw-capture hash exists between the last extended capture (2026-09-29T12:57:54Z) and the snapshot-1735 report (17:34:45Z)"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "retain_numeric_campaign.py imports subprocess and what it runs was not checked (its code was not reviewed under the reading rule), so the record's earlier statement that it builds and runs nothing is not confirmed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "that CellRefBatch.psm1 blob 55085b4d is the one that ran rests on the extended run's source_status alone; no last-write time is recorded for it"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the 24 commits the commits review gives unresolved need file-by-file review of the files they changed"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "status.review.dispositions_hash was recorded by the dc-m33w implementer, not by a reviewer"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the hash-continuity check of cargo xtask accept trusts the hash_continuity record a witness declares; only the infra-m0.5 acceptance case reads the hashes from the pinned blobs"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "a witness_chain entry cleared on its file's own acquisition for a file that holds expected bits (since dc-m33w's round 3 only such entries, for the five answer captures and the retention, change a provenance) takes precedence over every class (tag in tools/xtask/src/provenance.rs), wider than the precedence change of dc-m33w; it must be narrowed before dc-1c6a pins w111-broad answer or retention files"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the numeric-provenance check of cargo xtask accept reads the tainted-commit rule's sets from the manifest without running git, so only the infra-m0.5 acceptance case, which recomputes them from git, catches a coordinated edit of the record, the manifest's sets and the hash"
+          }
+        ],
+        "inputs_by_entry": {
+          "calls-quarantined": 176,
+          "citation-sweep": 51,
+          "crt-citing-callers": 13,
+          "excel-numeric-gammaln": 1,
+          "excel-numeric-gen-tables": 1,
+          "excel-numeric-ground-truth": 1,
+          "excel-numeric-mod": 1,
+          "excel-numeric-research": 1,
+          "excel-numeric-tables": 1,
+          "include-of-quarantined": 34,
+          "odd-bond-family": 1,
+          "production-replay": 5,
+          "tainted-commit": 929,
+          "unread-include": 5,
+          "w111-broad-evidence": 234,
+          "w111-distribution-judgements": 8,
+          "x87": 1,
+          "x87-research-packages": 911
+        },
+        "inputs_with_cross_repository_crate_edges": 44,
+        "inputs_with_run_time_loads": 25,
+        "manifest": "migration/source-manifest.json",
+        "owned_entries": [
+          {
+            "disposition": "rule",
+            "entry": "calls-quarantined",
+            "inputs": 176,
+            "owner": "dc-4uy4",
+            "replacement": "every crate-level entry ('<Repo> crate <name>') and every '<Repo> run-time loads' entry resolved to the pinned files it reaches, and the edges into files that are not pinned inputs followed"
+          },
+          {
+            "disposition": "rule",
+            "entry": "citation-sweep",
+            "inputs": 51,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each matched file: tainted where the line cites the tainted chains, cleared only on positive evidence that it does not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "include-of-quarantined",
+            "inputs": 34,
+            "owner": "dc-2203",
+            "replacement": "nothing while the included file stays tainted or unresolved; a clearance of the included file lifts it"
+          },
+          {
+            "disposition": "rule",
+            "entry": "tainted-commit",
+            "inputs": 929,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each changed file: tainted where the change carried tainted material, cleared only on positive evidence that it did not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "unread-include",
+            "inputs": 5,
+            "owner": "dc-1c6a",
+            "replacement": "the included paths resolved and pinned, after which the include rule applies to them"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 tables the owner accepts; the probe file itself is not pinned, so a fresh implementation takes the tables from glibc-2.29's published source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-gen-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 origin the owner accepts; the generator is never a port source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-ground-truth",
+            "inputs": 1,
+            "owner": "dc-2203",
+            "replacement": "a reviewed disposition of the table with its acquisition established, or its exclusion confirmed; it is never a witness without fresh acquisition records"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "x87-research-packages",
+            "inputs": 911,
+            "owner": "dc-43vt",
+            "replacement": "a disposition per file: tainted where it calls or embeds a quarantined chain or its outputs, cleared only on positive evidence that it does neither, unresolved otherwise"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "production-replay",
+            "inputs": 5,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record (each pinned replay confirmed tainted or shown otherwise); the actual values are never witnesses"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "w111-broad-evidence",
+            "inputs": 234,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record: cleared for a black-box Excel capture with recorded settings, tainted for values computed through a quarantined chain, unresolved otherwise"
+          }
+        ],
+        "retained_witnesses": 5,
+        "tainted_commit_rule": {
+          "identification": 64,
+          "listed": 72,
+          "message-sweep": 18,
+          "review": 63,
+          "rule_found_recorded": 70
+        },
+        "test_files_tainted_or_unresolved": 51,
+        "trusted_facts": "the manifest's code_refs and content_facts (citation sweep matches and touched-by-commit lists) are trusted as recorded, and the calls_quarantined lists and the include rule rest on code_refs; the infra-m0.5 acceptance case recomputes the citation sweep and the touched-by-commit lists from git",
+        "witness_bytes": 55933,
+        "witness_chain_entries": [
+          {
+            "blob": "cc10a9ec20dc660db03e711570f55fd00500dcfe",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-exp",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json"
+          },
+          {
+            "blob": "5356055d00edbc8b92ba6daf87248216c3636d6f",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-ln",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json"
+          },
+          {
+            "blob": "6cb89b0cf250aecdee667fdd0d5932f9b1dfa218",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-log10",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json"
+          },
+          {
+            "blob": "d9e8978e54d425957c14bf1b002275f83fedc22e",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-power",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json"
+          },
+          {
+            "blob": "cea92ab3d0c956941b6d702d7d05977a256cdc5d",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-atan",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json"
+          },
+          {
+            "blob": "3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30",
+            "cleared_as": "acquisition",
+            "id": "chain-retention",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json"
+          },
+          {
+            "blob": "91b96b93671c2b575fafb4a1c0d1ba5d6a1c8dc8",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-retention-writer",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/retain_numeric_campaign.py"
+          },
+          {
+            "blob": "9fc3d4aec25b59e38f6d0635ac6bf87ccd95dde7",
+            "cleared_as": "acquisition",
+            "id": "chain-runner",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/Run-W109BulkBatch.ps1"
+          },
+          {
+            "blob": "55085b4d0381076dcfae90087ec35e75703c08e4",
+            "cleared_as": "acquisition",
+            "id": "chain-cellrefbatch",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/CellRefBatch.psm1"
+          },
+          {
+            "blob": "a08fb1161821d0c05afc69c9a776ef436b4f0ea5",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-oracle-cache",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/OracleCache.psm1"
+          },
+          {
+            "blob": "0e727499af37570fb48d8f1f88b0fed6278017c4",
+            "cleared_as": "acquisition",
+            "id": "chain-driver",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/run_numeric_campaign.py"
+          },
+          {
+            "blob": "54fda4264d59d415e82f300069c77fbc5620ff9a",
+            "cleared_as": "acquisition",
+            "id": "chain-input-generator",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py"
+          },
+          {
+            "blob": "331556e5ef0dd6b1e7e2056497684f3d93fcc6f1",
+            "cleared_as": "acquisition",
+            "id": "chain-corpus-helpers",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_w111_broad_20260929.py"
+          },
+          {
+            "blob": "4ebb3188a3f3192bf14e2e4f20491570d22d344a",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-snapshot",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/snapshot_numeric_20260929.py"
+          },
+          {
+            "blob": "5274a745d0b68b28f8163a5291b6946c60f6f588",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-freeze",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py"
+          }
+        ],
+        "witnesses": "migration/witnesses"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "tainted-commit list follows its stated rule (72 listed: 64 by the identification grep, 18 by the citation sweep of the message, 63 tied to the pass by a review; the manifest records 70 commits the rule finds at the pin); 15 reviewed witness_chain entries; release source allowlist 478 entries (478 admitted by the provenance recomputed from migration/numeric-provenance.json and the manifest's code_refs and content_facts, 165 of them only with a calls_quarantined list, 0 missing); 0 manifest inputs with stale numeric provenance; review record present, matching its review file and covering every cleared entry; 5 retained witness selections (55933 bytes), 0 witness findings; entries and rules with their owners: calls-quarantined (rule) on 176 inputs, owner dc-4uy4; citation-sweep (rule) on 51 inputs, owner dc-2203; include-of-quarantined (rule) on 34 inputs, owner dc-2203; tainted-commit (rule) on 929 inputs, owner dc-2203; unread-include (rule) on 5 inputs, owner dc-1c6a; excel-numeric-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-gen-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-ground-truth (unresolved) on 1 inputs, owner dc-2203; x87-research-packages (tainted) on 911 inputs, owner dc-43vt; production-replay (tainted) on 5 inputs, owner dc-z5ay; w111-broad-evidence (unresolved) on 234 inputs, owner dc-z5ay; edges counted for the calls_quarantined owner dc-4uy4: 61 cross-repository crate edges in 44 inputs, 25 inputs with run-time loads, and 199 edges into files that are not pinned inputs (2 in OxFunc, 197 elsewhere); 51 files under a tests directory are tainted or unresolved; gaps owned by dc-4uy4, dc-2203, dc-0huc, dc-1c6a, dc-ime9, dc-x3oi, dc-4546, dc-z5ay, dc-43vt, dc-jtlu, dc-z5ay, dc-z5ay, dc-z5ay, dc-z5ay, dc-2203, dc-qfqa, dc-qfqa, dc-qfqa, dc-qfqa"
+    }
+  ],
+  "bead": "dc-l10u",
+  "cargo_target_dir": "target/xtask-accept",
+  "cases": [
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--",
+        "--exact",
+        "dc_l10u__reference_results_through_calc_fml",
+        "--nocapture"
+      ],
+      "browsers": [
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-fml",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "dc_l10u__reference_results_through_calc_fml",
+            "--nocapture"
+          ],
+          "browser": "chromium",
+          "case": "dc_l10u__reference_results_through_calc_fml@chromium",
+          "duration_s": 4.705,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Chrome",
+          "exit_code": 0,
+          "log": "target/accept/dc-l10u/wasm/dc_l10u__reference_results_through_calc_fml@chromium.log",
+          "notes": [
+            "oracle reference_result!D1 =INDEX(A1:C3,2,3) (stored =INDEX(A1:C3,2,3)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+            "oracle reference_result!D2 =INDEX(A1:C3,2.7,1.2) (stored =INDEX(A1:C3,2.7,1.2)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX); Excel's raw value 4.0: matched",
+            "oracle reference_result!D3 =INDEX(A1:A4,4) (stored =INDEX(A1:A4,4)) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX); Excel's raw value \"t\": matched",
+            "oracle reference_result!D4 =INDEX(A1:C1,3) (stored =INDEX(A1:C1,3)) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX); Excel's raw value 3.0: matched",
+            "oracle reference_result!D5 =INDEX(A1:C1,,2) (stored =INDEX(A1:C1,,2)) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX); Excel's raw value 2.0: matched",
+            "oracle reference_result!D6 =INDEX(B1:B4,4) (stored =INDEX(B1:B4,4)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX); Excel's raw value 0.0: matched",
+            "oracle reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (stored =INDEX((A1:A3,C1:C3),2,1,2)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.3: the union operator",
+            "oracle reference_result!D11 =INDEX((A1:A3,C1:C3),3) (stored =INDEX((A1:A3,C1:C3),3)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.3: the union operator",
+            "oracle reference_result!D12 =INDEX(A:A,1000) (stored =INDEX(A:A,1000)) -> calc_fml::evaluate gives \"kz\" (calls: Call INDEX); Excel's raw value \"kz\": matched",
+            "oracle reference_result!D13 =INDEX(A1:C3,\"2\",\"3\") (stored =INDEX(A1:C3,\"2\",\"3\")) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+            "oracle reference_result!D19 =SUM(INDEX(A1:C3,0,2)) (stored =SUM(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D20 =SUM(INDEX(A1:C3,2,0)) (stored =SUM(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D21 =SUM(INDEX(A1:C3,0,0)) (stored =SUM(INDEX(A1:C3,0,0))) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call SUM); Excel's raw value 45.0: matched",
+            "oracle reference_result!D22 =ROWS(INDEX(A1:C3,0,2)) (stored =ROWS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call ROWS); Excel's raw value 3.0: matched",
+            "oracle reference_result!D23 =COLUMNS(INDEX(A1:C3,2,0)) (stored =COLUMNS(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMNS); Excel's raw value 3.0: matched",
+            "oracle reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (stored =AREAS(INDEX((A1:A3,C1:C3),1,1,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 14, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 1.0: not_modeled, owned by cfml-m3.3: the union operator",
+            "oracle reference_result!D25 =ROW(INDEX(A1:C3,2,3)) (stored =ROW(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Call ROW); Excel's raw value 2.0: matched",
+            "oracle reference_result!D26 =COLUMN(INDEX(A1:C3,2,3)) (stored =COLUMN(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMN); Excel's raw value 3.0: matched",
+            "oracle reference_result!D27 =COUNTBLANK(INDEX(A1:C4,4,0)) (stored =COUNTBLANK(INDEX(A1:C4,4,0))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call COUNTBLANK); Excel's raw value 1.0: matched",
+            "oracle reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))) -> calc_fml::evaluate gives 30.0 (calls: Call MATCH, Call INDEX); Excel's raw value 30.0: matched",
+            "oracle reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) (stored =INDEX(B:B,MATCH(\"K5\",A:A,0))) -> calc_fml::evaluate gives 50.0 (calls: Call MATCH, Call INDEX); Excel's raw value 50.0: matched",
+            "oracle reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) (stored =INDEX(C:C,MATCH(\"kz\",A:A,0))) -> calc_fml::evaluate gives 77.0 (calls: Call MATCH, Call INDEX); Excel's raw value 77.0: matched",
+            "oracle reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))) -> calc_fml::evaluate gives 0.0 (calls: Call MATCH, Call INDEX); Excel's raw value 0.0: matched",
+            "oracle reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX); Excel's raw value #NA: matched",
+            "oracle reference_result!D33 =XLOOKUP(\"k3\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k3\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 30.0 (calls: Call XLOOKUP); Excel's raw value 30.0: matched",
+            "oracle reference_result!D34 =XLOOKUP(\"k4\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k4\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 0.0 (calls: Call XLOOKUP); Excel's raw value 0.0: matched",
+            "oracle reference_result!D35 =XLOOKUP(\"k9\",A10:A14,B10:B14,C4) (stored =_xlfn.XLOOKUP(\"k9\",A10:A14,B10:B14,C4)) -> calc_fml::evaluate gives TRUE (calls: Call XLOOKUP); Excel's raw value TRUE: matched",
+            "oracle reference_result!D36 =SUM(XLOOKUP(\"k2\",A10:A14,B10:C14)) (stored =SUM(_xlfn.XLOOKUP(\"k2\",A10:A14,B10:C14))) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 20.0: matched",
+            "oracle reference_result!D37 =CHOOSE(2,A1,B1) (stored =CHOOSE(2,A1,B1)) -> calc_fml::evaluate gives 2.0 (calls: Call CHOOSE); Excel's raw value 2.0: matched",
+            "oracle reference_result!D38 =SUM(CHOOSE(2,A1:A3,B1:B3)) (stored =SUM(CHOOSE(2,A1:A3,B1:B3))) -> calc_fml::evaluate gives 15.0 (calls: Call CHOOSE, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D39 =ROWS(CHOOSE(1,A1:A3,B1:B2)) (stored =ROWS(CHOOSE(1,A1:A3,B1:B2))) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Call ROWS); Excel's raw value 3.0: matched",
+            "oracle reference_result!D40 =CHOOSE(2,\"a\",B4) (stored =CHOOSE(2,\"a\",B4)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+            "oracle reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (stored =SUM(INDEX({1,2;3,4},2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle reference_result!D49 =AREAS(INDEX(A1:C3,0,2)) (stored =AREAS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call AREAS); Excel's raw value 1.0: matched",
+            "oracle reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (stored =ROWS(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 12, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 2.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (stored =SUM(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle reference_result!D52 =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\" (stored =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+            "oracle reference_result!D57 =INDEX(A1:C3,TRUE,1) (stored =INDEX(A1:C3,TRUE,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+            "oracle reference_result!D62 =INDEX(A1:C3,1.9999,1) (stored =INDEX(A1:C3,1.9999,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+            "oracle reference_result!D63 =SUM(INDEX(A1:C3,2,)) (stored =SUM(INDEX(A1:C3,2,))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D64 =SUM(INDEX(A1:C3,2)) (stored =SUM(INDEX(A1:C3,2))) -> calc_fml::evaluate gives #Ref (calls: Call INDEX, Call SUM); Excel's raw value #Ref: matched",
+            "oracle lookup_edges!D81 =XLOOKUP(2,A1:A6,C1:C6) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+            "oracle lookup_edges!D82 =XLOOKUP(2,A1:A6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 40.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 40.0: matched",
+            "oracle lookup_edges!D86 =XLOOKUP(2.5,A1:A6,C1:C6,,-1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,-1)) -> calc_fml::evaluate gives 20.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 20.0: matched",
+            "oracle lookup_edges!D87 =XLOOKUP(2.5,A1:A6,C1:C6,,1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,1)) -> calc_fml::evaluate gives 50.0 (calls: Call XLOOKUP); Excel's raw value 50.0: matched",
+            "oracle lookup_edges!D90 =XLOOKUP(2,A13:C13,A15:C15) (stored =_xlfn.XLOOKUP(2,A13:C13,A15:C15)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+            "oracle lookup_edges!D93 =XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 30.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 30.0: matched",
+            "oracle lookup_edges!D180 =ROW(CHOOSE(1,5)) (stored =ROW(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D181 =COLUMN(CHOOSE(1,\"a\")) (stored =COLUMN(CHOOSE(1,\"a\"))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMN); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D182 =AREAS(CHOOSE(1,5)) (stored =AREAS(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D183 =ROW(CHOOSE(2,1,)) (stored =ROW(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D184 =AREAS(CHOOSE(2,1,)) (stored =AREAS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D185 =ROWS(CHOOSE(2,1,)) (stored =ROWS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROWS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D186 =COLUMNS(CHOOSE(2,1,)) (stored =COLUMNS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMNS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D187 =INDEX(CHOOSE(2,1,),1) (stored =INDEX(CHOOSE(2,1,),1)) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call INDEX); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D188 =ROWS(XLOOKUP(1,A1,A13:C13)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 1.0: matched",
+            "oracle lookup_edges!D189 =COLUMNS(XLOOKUP(1,A1,A13:C13)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 3.0: matched",
+            "oracle lookup_edges!D190 =SUM(XLOOKUP(1,A1,A13:C13)) (stored =SUM(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 6.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 6.0: matched",
+            "oracle lookup_edges!D191 =ROWS(XLOOKUP(1,A1,C1:C3)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 3.0: matched",
+            "oracle lookup_edges!D192 =COLUMNS(XLOOKUP(1,A1,C1:C3)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 1.0: matched",
+            "oracle lookup_edges!D193 =SUM(XLOOKUP(1,A1,C1:C3)) (stored =SUM(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 60.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 60.0: matched",
+            "oracle lookup_edges!D194 =VLOOKUP(3,A9:C10,3,FALSE)&\"\" (stored =VLOOKUP(3,A9:C10,3,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+            "oracle lookup_edges!D195 =CHOOSE(2,\"a\",)&\"\" (stored =CHOOSE(2,\"a\",)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call CHOOSE, Infix &); Excel's raw value \"\": matched",
+            "oracle lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (stored =_xlfn.XLOOKUP(1,{1,2},I9:J9)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 5 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 0.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (stored =_xlfn.XLOOKUP(2,{1,2,3},B1:D1)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 7 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 10.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle lookup_edges!D311 =CHOOSE(1,C9,7) (stored =CHOOSE(1,C9,7)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+            "oracle lookup_edges!D318 =INDEX(A1:C7,2,3) (stored =INDEX(A1:C7,2,3)) -> calc_fml::evaluate gives 20.0 (calls: Call INDEX); Excel's raw value 20.0: matched",
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json of crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx: of the 67 rows cfunc-m3.6 publishes as not modelled under dc-l10u, 59 compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 59, matched 59, mismatched 0); 8 refused by calc_fml::compile under named beads: reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (cfml-m3.3: the union operator), reference_result!D11 =INDEX((A1:A3,C1:C3),3) (cfml-m3.3: the union operator), reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (cfml-m3.3: the union operator), reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (cfml-m3.4: an array constant), reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (cfml-m3.4: an array constant), lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (cfml-m3.4: an array constant); the other 529 formula cells of the inventory are not evaluated by this case (missing, with the reason); cfunc_m3_6__excel_comparison: calculated 59 of 596 formula cells; matched 59 of 59 calculated, mismatched 0, not run 0; of the 59 compared, strict-bit certified 0, uncertified 59 (no_exact_target 59); not calculated: unproven 0, stale 0, file-cached 0, not modeled 8, failed 0, missing 529; 0 not-calculated values equal their expectation; 0 results outside the inventory; 59 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+            "the five INDEX(range,MATCH(key,column,0)) rows, matched through calc_fml::evaluate: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) = 30.0; reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) = 50.0; reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) = 77.0; reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) = 0.0; reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) = #NA",
+            "Excel reports 7 of the rows' formulas with the implicit-intersection operator @ (legacy formulas in the workbook, compiled here as the file stores them, without @): reference_result!D2 =@INDEX(A1:C3,2.7,1.2), reference_result!D5 =@INDEX(A1:C1,,2), reference_result!D13 =@INDEX(A1:C3,\"2\",\"3\"), reference_result!D57 =@INDEX(A1:C3,TRUE,1), reference_result!D62 =@INDEX(A1:C3,1.9999,1), lookup_edges!D268 =@XLOOKUP(1,{1,2},I9:J9), lookup_edges!D270 =@XLOOKUP(2,{1,2,3},B1:D1)",
+            "against a copy of the capture with reference_result!D28 observed as 31 (made by the case, not Excel's), the comparison reports D28 alone: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)): calc_fml::evaluate gives 30.0, Excel's raw value is 31.0"
+          ],
+          "outcome": "passed",
+          "package": "calc-fml",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 11 filtered out; finished in 0.22s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:54871/`"
+        },
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-fml",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "dc_l10u__reference_results_through_calc_fml",
+            "--nocapture"
+          ],
+          "browser": "firefox",
+          "case": "dc_l10u__reference_results_through_calc_fml@firefox",
+          "duration_s": 7.831,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Firefox",
+          "exit_code": 0,
+          "log": "target/accept/dc-l10u/wasm/dc_l10u__reference_results_through_calc_fml@firefox.log",
+          "notes": [
+            "oracle reference_result!D1 =INDEX(A1:C3,2,3) (stored =INDEX(A1:C3,2,3)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+            "oracle reference_result!D2 =INDEX(A1:C3,2.7,1.2) (stored =INDEX(A1:C3,2.7,1.2)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX); Excel's raw value 4.0: matched",
+            "oracle reference_result!D3 =INDEX(A1:A4,4) (stored =INDEX(A1:A4,4)) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX); Excel's raw value \"t\": matched",
+            "oracle reference_result!D4 =INDEX(A1:C1,3) (stored =INDEX(A1:C1,3)) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX); Excel's raw value 3.0: matched",
+            "oracle reference_result!D5 =INDEX(A1:C1,,2) (stored =INDEX(A1:C1,,2)) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX); Excel's raw value 2.0: matched",
+            "oracle reference_result!D6 =INDEX(B1:B4,4) (stored =INDEX(B1:B4,4)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX); Excel's raw value 0.0: matched",
+            "oracle reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (stored =INDEX((A1:A3,C1:C3),2,1,2)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.3: the union operator",
+            "oracle reference_result!D11 =INDEX((A1:A3,C1:C3),3) (stored =INDEX((A1:A3,C1:C3),3)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.3: the union operator",
+            "oracle reference_result!D12 =INDEX(A:A,1000) (stored =INDEX(A:A,1000)) -> calc_fml::evaluate gives \"kz\" (calls: Call INDEX); Excel's raw value \"kz\": matched",
+            "oracle reference_result!D13 =INDEX(A1:C3,\"2\",\"3\") (stored =INDEX(A1:C3,\"2\",\"3\")) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+            "oracle reference_result!D19 =SUM(INDEX(A1:C3,0,2)) (stored =SUM(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D20 =SUM(INDEX(A1:C3,2,0)) (stored =SUM(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D21 =SUM(INDEX(A1:C3,0,0)) (stored =SUM(INDEX(A1:C3,0,0))) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call SUM); Excel's raw value 45.0: matched",
+            "oracle reference_result!D22 =ROWS(INDEX(A1:C3,0,2)) (stored =ROWS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call ROWS); Excel's raw value 3.0: matched",
+            "oracle reference_result!D23 =COLUMNS(INDEX(A1:C3,2,0)) (stored =COLUMNS(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMNS); Excel's raw value 3.0: matched",
+            "oracle reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (stored =AREAS(INDEX((A1:A3,C1:C3),1,1,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 14, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 1.0: not_modeled, owned by cfml-m3.3: the union operator",
+            "oracle reference_result!D25 =ROW(INDEX(A1:C3,2,3)) (stored =ROW(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Call ROW); Excel's raw value 2.0: matched",
+            "oracle reference_result!D26 =COLUMN(INDEX(A1:C3,2,3)) (stored =COLUMN(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMN); Excel's raw value 3.0: matched",
+            "oracle reference_result!D27 =COUNTBLANK(INDEX(A1:C4,4,0)) (stored =COUNTBLANK(INDEX(A1:C4,4,0))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call COUNTBLANK); Excel's raw value 1.0: matched",
+            "oracle reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))) -> calc_fml::evaluate gives 30.0 (calls: Call MATCH, Call INDEX); Excel's raw value 30.0: matched",
+            "oracle reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) (stored =INDEX(B:B,MATCH(\"K5\",A:A,0))) -> calc_fml::evaluate gives 50.0 (calls: Call MATCH, Call INDEX); Excel's raw value 50.0: matched",
+            "oracle reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) (stored =INDEX(C:C,MATCH(\"kz\",A:A,0))) -> calc_fml::evaluate gives 77.0 (calls: Call MATCH, Call INDEX); Excel's raw value 77.0: matched",
+            "oracle reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))) -> calc_fml::evaluate gives 0.0 (calls: Call MATCH, Call INDEX); Excel's raw value 0.0: matched",
+            "oracle reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX); Excel's raw value #NA: matched",
+            "oracle reference_result!D33 =XLOOKUP(\"k3\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k3\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 30.0 (calls: Call XLOOKUP); Excel's raw value 30.0: matched",
+            "oracle reference_result!D34 =XLOOKUP(\"k4\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k4\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 0.0 (calls: Call XLOOKUP); Excel's raw value 0.0: matched",
+            "oracle reference_result!D35 =XLOOKUP(\"k9\",A10:A14,B10:B14,C4) (stored =_xlfn.XLOOKUP(\"k9\",A10:A14,B10:B14,C4)) -> calc_fml::evaluate gives TRUE (calls: Call XLOOKUP); Excel's raw value TRUE: matched",
+            "oracle reference_result!D36 =SUM(XLOOKUP(\"k2\",A10:A14,B10:C14)) (stored =SUM(_xlfn.XLOOKUP(\"k2\",A10:A14,B10:C14))) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 20.0: matched",
+            "oracle reference_result!D37 =CHOOSE(2,A1,B1) (stored =CHOOSE(2,A1,B1)) -> calc_fml::evaluate gives 2.0 (calls: Call CHOOSE); Excel's raw value 2.0: matched",
+            "oracle reference_result!D38 =SUM(CHOOSE(2,A1:A3,B1:B3)) (stored =SUM(CHOOSE(2,A1:A3,B1:B3))) -> calc_fml::evaluate gives 15.0 (calls: Call CHOOSE, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D39 =ROWS(CHOOSE(1,A1:A3,B1:B2)) (stored =ROWS(CHOOSE(1,A1:A3,B1:B2))) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Call ROWS); Excel's raw value 3.0: matched",
+            "oracle reference_result!D40 =CHOOSE(2,\"a\",B4) (stored =CHOOSE(2,\"a\",B4)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+            "oracle reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (stored =SUM(INDEX({1,2;3,4},2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle reference_result!D49 =AREAS(INDEX(A1:C3,0,2)) (stored =AREAS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call AREAS); Excel's raw value 1.0: matched",
+            "oracle reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (stored =ROWS(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 12, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 2.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (stored =SUM(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle reference_result!D52 =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\" (stored =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+            "oracle reference_result!D57 =INDEX(A1:C3,TRUE,1) (stored =INDEX(A1:C3,TRUE,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+            "oracle reference_result!D62 =INDEX(A1:C3,1.9999,1) (stored =INDEX(A1:C3,1.9999,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+            "oracle reference_result!D63 =SUM(INDEX(A1:C3,2,)) (stored =SUM(INDEX(A1:C3,2,))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+            "oracle reference_result!D64 =SUM(INDEX(A1:C3,2)) (stored =SUM(INDEX(A1:C3,2))) -> calc_fml::evaluate gives #Ref (calls: Call INDEX, Call SUM); Excel's raw value #Ref: matched",
+            "oracle lookup_edges!D81 =XLOOKUP(2,A1:A6,C1:C6) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+            "oracle lookup_edges!D82 =XLOOKUP(2,A1:A6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 40.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 40.0: matched",
+            "oracle lookup_edges!D86 =XLOOKUP(2.5,A1:A6,C1:C6,,-1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,-1)) -> calc_fml::evaluate gives 20.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 20.0: matched",
+            "oracle lookup_edges!D87 =XLOOKUP(2.5,A1:A6,C1:C6,,1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,1)) -> calc_fml::evaluate gives 50.0 (calls: Call XLOOKUP); Excel's raw value 50.0: matched",
+            "oracle lookup_edges!D90 =XLOOKUP(2,A13:C13,A15:C15) (stored =_xlfn.XLOOKUP(2,A13:C13,A15:C15)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+            "oracle lookup_edges!D93 =XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 30.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 30.0: matched",
+            "oracle lookup_edges!D180 =ROW(CHOOSE(1,5)) (stored =ROW(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D181 =COLUMN(CHOOSE(1,\"a\")) (stored =COLUMN(CHOOSE(1,\"a\"))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMN); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D182 =AREAS(CHOOSE(1,5)) (stored =AREAS(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D183 =ROW(CHOOSE(2,1,)) (stored =ROW(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D184 =AREAS(CHOOSE(2,1,)) (stored =AREAS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D185 =ROWS(CHOOSE(2,1,)) (stored =ROWS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROWS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D186 =COLUMNS(CHOOSE(2,1,)) (stored =COLUMNS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMNS); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D187 =INDEX(CHOOSE(2,1,),1) (stored =INDEX(CHOOSE(2,1,),1)) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call INDEX); Excel's raw value #Value: matched",
+            "oracle lookup_edges!D188 =ROWS(XLOOKUP(1,A1,A13:C13)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 1.0: matched",
+            "oracle lookup_edges!D189 =COLUMNS(XLOOKUP(1,A1,A13:C13)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 3.0: matched",
+            "oracle lookup_edges!D190 =SUM(XLOOKUP(1,A1,A13:C13)) (stored =SUM(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 6.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 6.0: matched",
+            "oracle lookup_edges!D191 =ROWS(XLOOKUP(1,A1,C1:C3)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 3.0: matched",
+            "oracle lookup_edges!D192 =COLUMNS(XLOOKUP(1,A1,C1:C3)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 1.0: matched",
+            "oracle lookup_edges!D193 =SUM(XLOOKUP(1,A1,C1:C3)) (stored =SUM(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 60.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 60.0: matched",
+            "oracle lookup_edges!D194 =VLOOKUP(3,A9:C10,3,FALSE)&\"\" (stored =VLOOKUP(3,A9:C10,3,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+            "oracle lookup_edges!D195 =CHOOSE(2,\"a\",)&\"\" (stored =CHOOSE(2,\"a\",)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call CHOOSE, Infix &); Excel's raw value \"\": matched",
+            "oracle lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (stored =_xlfn.XLOOKUP(1,{1,2},I9:J9)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 5 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 0.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (stored =_xlfn.XLOOKUP(2,{1,2,3},B1:D1)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 7 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 10.0: not_modeled, owned by cfml-m3.4: an array constant",
+            "oracle lookup_edges!D311 =CHOOSE(1,C9,7) (stored =CHOOSE(1,C9,7)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+            "oracle lookup_edges!D318 =INDEX(A1:C7,2,3) (stored =INDEX(A1:C7,2,3)) -> calc_fml::evaluate gives 20.0 (calls: Call INDEX); Excel's raw value 20.0: matched",
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json of crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx: of the 67 rows cfunc-m3.6 publishes as not modelled under dc-l10u, 59 compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 59, matched 59, mismatched 0); 8 refused by calc_fml::compile under named beads: reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (cfml-m3.3: the union operator), reference_result!D11 =INDEX((A1:A3,C1:C3),3) (cfml-m3.3: the union operator), reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (cfml-m3.3: the union operator), reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (cfml-m3.4: an array constant), reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (cfml-m3.4: an array constant), lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (cfml-m3.4: an array constant); the other 529 formula cells of the inventory are not evaluated by this case (missing, with the reason); cfunc_m3_6__excel_comparison: calculated 59 of 596 formula cells; matched 59 of 59 calculated, mismatched 0, not run 0; of the 59 compared, strict-bit certified 0, uncertified 59 (no_exact_target 59); not calculated: unproven 0, stale 0, file-cached 0, not modeled 8, failed 0, missing 529; 0 not-calculated values equal their expectation; 0 results outside the inventory; 59 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+            "the five INDEX(range,MATCH(key,column,0)) rows, matched through calc_fml::evaluate: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) = 30.0; reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) = 50.0; reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) = 77.0; reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) = 0.0; reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) = #NA",
+            "Excel reports 7 of the rows' formulas with the implicit-intersection operator @ (legacy formulas in the workbook, compiled here as the file stores them, without @): reference_result!D2 =@INDEX(A1:C3,2.7,1.2), reference_result!D5 =@INDEX(A1:C1,,2), reference_result!D13 =@INDEX(A1:C3,\"2\",\"3\"), reference_result!D57 =@INDEX(A1:C3,TRUE,1), reference_result!D62 =@INDEX(A1:C3,1.9999,1), lookup_edges!D268 =@XLOOKUP(1,{1,2},I9:J9), lookup_edges!D270 =@XLOOKUP(2,{1,2,3},B1:D1)",
+            "against a copy of the capture with reference_result!D28 observed as 31 (made by the case, not Excel's), the comparison reports D28 alone: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)): calc_fml::evaluate gives 30.0, Excel's raw value is 31.0"
+          ],
+          "outcome": "passed",
+          "package": "calc-fml",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 11 filtered out; finished in 0.21s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59206/`"
+        }
+      ],
+      "case": "dc_l10u__reference_results_through_calc_fml",
+      "duration_s": 12.536,
+      "exit_code": 0,
+      "log": null,
+      "notes": [
+        "oracle reference_result!D1 =INDEX(A1:C3,2,3) (stored =INDEX(A1:C3,2,3)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+        "oracle reference_result!D2 =INDEX(A1:C3,2.7,1.2) (stored =INDEX(A1:C3,2.7,1.2)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX); Excel's raw value 4.0: matched",
+        "oracle reference_result!D3 =INDEX(A1:A4,4) (stored =INDEX(A1:A4,4)) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX); Excel's raw value \"t\": matched",
+        "oracle reference_result!D4 =INDEX(A1:C1,3) (stored =INDEX(A1:C1,3)) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX); Excel's raw value 3.0: matched",
+        "oracle reference_result!D5 =INDEX(A1:C1,,2) (stored =INDEX(A1:C1,,2)) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX); Excel's raw value 2.0: matched",
+        "oracle reference_result!D6 =INDEX(B1:B4,4) (stored =INDEX(B1:B4,4)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX); Excel's raw value 0.0: matched",
+        "oracle reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (stored =INDEX((A1:A3,C1:C3),2,1,2)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.3: the union operator",
+        "oracle reference_result!D11 =INDEX((A1:A3,C1:C3),3) (stored =INDEX((A1:A3,C1:C3),3)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.3: the union operator",
+        "oracle reference_result!D12 =INDEX(A:A,1000) (stored =INDEX(A:A,1000)) -> calc_fml::evaluate gives \"kz\" (calls: Call INDEX); Excel's raw value \"kz\": matched",
+        "oracle reference_result!D13 =INDEX(A1:C3,\"2\",\"3\") (stored =INDEX(A1:C3,\"2\",\"3\")) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+        "oracle reference_result!D19 =SUM(INDEX(A1:C3,0,2)) (stored =SUM(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D20 =SUM(INDEX(A1:C3,2,0)) (stored =SUM(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D21 =SUM(INDEX(A1:C3,0,0)) (stored =SUM(INDEX(A1:C3,0,0))) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call SUM); Excel's raw value 45.0: matched",
+        "oracle reference_result!D22 =ROWS(INDEX(A1:C3,0,2)) (stored =ROWS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call ROWS); Excel's raw value 3.0: matched",
+        "oracle reference_result!D23 =COLUMNS(INDEX(A1:C3,2,0)) (stored =COLUMNS(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMNS); Excel's raw value 3.0: matched",
+        "oracle reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (stored =AREAS(INDEX((A1:A3,C1:C3),1,1,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 14, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 1.0: not_modeled, owned by cfml-m3.3: the union operator",
+        "oracle reference_result!D25 =ROW(INDEX(A1:C3,2,3)) (stored =ROW(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Call ROW); Excel's raw value 2.0: matched",
+        "oracle reference_result!D26 =COLUMN(INDEX(A1:C3,2,3)) (stored =COLUMN(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMN); Excel's raw value 3.0: matched",
+        "oracle reference_result!D27 =COUNTBLANK(INDEX(A1:C4,4,0)) (stored =COUNTBLANK(INDEX(A1:C4,4,0))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call COUNTBLANK); Excel's raw value 1.0: matched",
+        "oracle reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))) -> calc_fml::evaluate gives 30.0 (calls: Call MATCH, Call INDEX); Excel's raw value 30.0: matched",
+        "oracle reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) (stored =INDEX(B:B,MATCH(\"K5\",A:A,0))) -> calc_fml::evaluate gives 50.0 (calls: Call MATCH, Call INDEX); Excel's raw value 50.0: matched",
+        "oracle reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) (stored =INDEX(C:C,MATCH(\"kz\",A:A,0))) -> calc_fml::evaluate gives 77.0 (calls: Call MATCH, Call INDEX); Excel's raw value 77.0: matched",
+        "oracle reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))) -> calc_fml::evaluate gives 0.0 (calls: Call MATCH, Call INDEX); Excel's raw value 0.0: matched",
+        "oracle reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX); Excel's raw value #NA: matched",
+        "oracle reference_result!D33 =XLOOKUP(\"k3\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k3\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 30.0 (calls: Call XLOOKUP); Excel's raw value 30.0: matched",
+        "oracle reference_result!D34 =XLOOKUP(\"k4\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k4\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 0.0 (calls: Call XLOOKUP); Excel's raw value 0.0: matched",
+        "oracle reference_result!D35 =XLOOKUP(\"k9\",A10:A14,B10:B14,C4) (stored =_xlfn.XLOOKUP(\"k9\",A10:A14,B10:B14,C4)) -> calc_fml::evaluate gives TRUE (calls: Call XLOOKUP); Excel's raw value TRUE: matched",
+        "oracle reference_result!D36 =SUM(XLOOKUP(\"k2\",A10:A14,B10:C14)) (stored =SUM(_xlfn.XLOOKUP(\"k2\",A10:A14,B10:C14))) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 20.0: matched",
+        "oracle reference_result!D37 =CHOOSE(2,A1,B1) (stored =CHOOSE(2,A1,B1)) -> calc_fml::evaluate gives 2.0 (calls: Call CHOOSE); Excel's raw value 2.0: matched",
+        "oracle reference_result!D38 =SUM(CHOOSE(2,A1:A3,B1:B3)) (stored =SUM(CHOOSE(2,A1:A3,B1:B3))) -> calc_fml::evaluate gives 15.0 (calls: Call CHOOSE, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D39 =ROWS(CHOOSE(1,A1:A3,B1:B2)) (stored =ROWS(CHOOSE(1,A1:A3,B1:B2))) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Call ROWS); Excel's raw value 3.0: matched",
+        "oracle reference_result!D40 =CHOOSE(2,\"a\",B4) (stored =CHOOSE(2,\"a\",B4)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+        "oracle reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (stored =SUM(INDEX({1,2;3,4},2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle reference_result!D49 =AREAS(INDEX(A1:C3,0,2)) (stored =AREAS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call AREAS); Excel's raw value 1.0: matched",
+        "oracle reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (stored =ROWS(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 12, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 2.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (stored =SUM(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle reference_result!D52 =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\" (stored =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+        "oracle reference_result!D57 =INDEX(A1:C3,TRUE,1) (stored =INDEX(A1:C3,TRUE,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+        "oracle reference_result!D62 =INDEX(A1:C3,1.9999,1) (stored =INDEX(A1:C3,1.9999,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+        "oracle reference_result!D63 =SUM(INDEX(A1:C3,2,)) (stored =SUM(INDEX(A1:C3,2,))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D64 =SUM(INDEX(A1:C3,2)) (stored =SUM(INDEX(A1:C3,2))) -> calc_fml::evaluate gives #Ref (calls: Call INDEX, Call SUM); Excel's raw value #Ref: matched",
+        "oracle lookup_edges!D81 =XLOOKUP(2,A1:A6,C1:C6) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+        "oracle lookup_edges!D82 =XLOOKUP(2,A1:A6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 40.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 40.0: matched",
+        "oracle lookup_edges!D86 =XLOOKUP(2.5,A1:A6,C1:C6,,-1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,-1)) -> calc_fml::evaluate gives 20.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 20.0: matched",
+        "oracle lookup_edges!D87 =XLOOKUP(2.5,A1:A6,C1:C6,,1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,1)) -> calc_fml::evaluate gives 50.0 (calls: Call XLOOKUP); Excel's raw value 50.0: matched",
+        "oracle lookup_edges!D90 =XLOOKUP(2,A13:C13,A15:C15) (stored =_xlfn.XLOOKUP(2,A13:C13,A15:C15)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+        "oracle lookup_edges!D93 =XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 30.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 30.0: matched",
+        "oracle lookup_edges!D180 =ROW(CHOOSE(1,5)) (stored =ROW(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D181 =COLUMN(CHOOSE(1,\"a\")) (stored =COLUMN(CHOOSE(1,\"a\"))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMN); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D182 =AREAS(CHOOSE(1,5)) (stored =AREAS(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D183 =ROW(CHOOSE(2,1,)) (stored =ROW(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D184 =AREAS(CHOOSE(2,1,)) (stored =AREAS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D185 =ROWS(CHOOSE(2,1,)) (stored =ROWS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROWS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D186 =COLUMNS(CHOOSE(2,1,)) (stored =COLUMNS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMNS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D187 =INDEX(CHOOSE(2,1,),1) (stored =INDEX(CHOOSE(2,1,),1)) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call INDEX); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D188 =ROWS(XLOOKUP(1,A1,A13:C13)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 1.0: matched",
+        "oracle lookup_edges!D189 =COLUMNS(XLOOKUP(1,A1,A13:C13)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 3.0: matched",
+        "oracle lookup_edges!D190 =SUM(XLOOKUP(1,A1,A13:C13)) (stored =SUM(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 6.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 6.0: matched",
+        "oracle lookup_edges!D191 =ROWS(XLOOKUP(1,A1,C1:C3)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 3.0: matched",
+        "oracle lookup_edges!D192 =COLUMNS(XLOOKUP(1,A1,C1:C3)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 1.0: matched",
+        "oracle lookup_edges!D193 =SUM(XLOOKUP(1,A1,C1:C3)) (stored =SUM(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 60.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 60.0: matched",
+        "oracle lookup_edges!D194 =VLOOKUP(3,A9:C10,3,FALSE)&\"\" (stored =VLOOKUP(3,A9:C10,3,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+        "oracle lookup_edges!D195 =CHOOSE(2,\"a\",)&\"\" (stored =CHOOSE(2,\"a\",)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call CHOOSE, Infix &); Excel's raw value \"\": matched",
+        "oracle lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (stored =_xlfn.XLOOKUP(1,{1,2},I9:J9)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 5 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 0.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (stored =_xlfn.XLOOKUP(2,{1,2,3},B1:D1)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 7 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 10.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle lookup_edges!D311 =CHOOSE(1,C9,7) (stored =CHOOSE(1,C9,7)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+        "oracle lookup_edges!D318 =INDEX(A1:C7,2,3) (stored =INDEX(A1:C7,2,3)) -> calc_fml::evaluate gives 20.0 (calls: Call INDEX); Excel's raw value 20.0: matched",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json of crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx: of the 67 rows cfunc-m3.6 publishes as not modelled under dc-l10u, 59 compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 59, matched 59, mismatched 0); 8 refused by calc_fml::compile under named beads: reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (cfml-m3.3: the union operator), reference_result!D11 =INDEX((A1:A3,C1:C3),3) (cfml-m3.3: the union operator), reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (cfml-m3.3: the union operator), reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (cfml-m3.4: an array constant), reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (cfml-m3.4: an array constant), lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (cfml-m3.4: an array constant); the other 529 formula cells of the inventory are not evaluated by this case (missing, with the reason); cfunc_m3_6__excel_comparison: calculated 59 of 596 formula cells; matched 59 of 59 calculated, mismatched 0, not run 0; of the 59 compared, strict-bit certified 0, uncertified 59 (no_exact_target 59); not calculated: unproven 0, stale 0, file-cached 0, not modeled 8, failed 0, missing 529; 0 not-calculated values equal their expectation; 0 results outside the inventory; 59 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+        "the five INDEX(range,MATCH(key,column,0)) rows, matched through calc_fml::evaluate: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) = 30.0; reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) = 50.0; reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) = 77.0; reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) = 0.0; reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) = #NA",
+        "Excel reports 7 of the rows' formulas with the implicit-intersection operator @ (legacy formulas in the workbook, compiled here as the file stores them, without @): reference_result!D2 =@INDEX(A1:C3,2.7,1.2), reference_result!D5 =@INDEX(A1:C1,,2), reference_result!D13 =@INDEX(A1:C3,\"2\",\"3\"), reference_result!D57 =@INDEX(A1:C3,TRUE,1), reference_result!D62 =@INDEX(A1:C3,1.9999,1), lookup_edges!D268 =@XLOOKUP(1,{1,2},I9:J9), lookup_edges!D270 =@XLOOKUP(2,{1,2,3},B1:D1)",
+        "against a copy of the capture with reference_result!D28 observed as 31 (made by the case, not Excel's), the comparison reports D28 alone: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)): calc_fml::evaluate gives 30.0, Excel's raw value is 31.0",
+        "oracle reference_result!D1 =INDEX(A1:C3,2,3) (stored =INDEX(A1:C3,2,3)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+        "oracle reference_result!D2 =INDEX(A1:C3,2.7,1.2) (stored =INDEX(A1:C3,2.7,1.2)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX); Excel's raw value 4.0: matched",
+        "oracle reference_result!D3 =INDEX(A1:A4,4) (stored =INDEX(A1:A4,4)) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX); Excel's raw value \"t\": matched",
+        "oracle reference_result!D4 =INDEX(A1:C1,3) (stored =INDEX(A1:C1,3)) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX); Excel's raw value 3.0: matched",
+        "oracle reference_result!D5 =INDEX(A1:C1,,2) (stored =INDEX(A1:C1,,2)) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX); Excel's raw value 2.0: matched",
+        "oracle reference_result!D6 =INDEX(B1:B4,4) (stored =INDEX(B1:B4,4)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX); Excel's raw value 0.0: matched",
+        "oracle reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (stored =INDEX((A1:A3,C1:C3),2,1,2)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.3: the union operator",
+        "oracle reference_result!D11 =INDEX((A1:A3,C1:C3),3) (stored =INDEX((A1:A3,C1:C3),3)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 8, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.3: the union operator",
+        "oracle reference_result!D12 =INDEX(A:A,1000) (stored =INDEX(A:A,1000)) -> calc_fml::evaluate gives \"kz\" (calls: Call INDEX); Excel's raw value \"kz\": matched",
+        "oracle reference_result!D13 =INDEX(A1:C3,\"2\",\"3\") (stored =INDEX(A1:C3,\"2\",\"3\")) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX); Excel's raw value 6.0: matched",
+        "oracle reference_result!D19 =SUM(INDEX(A1:C3,0,2)) (stored =SUM(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D20 =SUM(INDEX(A1:C3,2,0)) (stored =SUM(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D21 =SUM(INDEX(A1:C3,0,0)) (stored =SUM(INDEX(A1:C3,0,0))) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call SUM); Excel's raw value 45.0: matched",
+        "oracle reference_result!D22 =ROWS(INDEX(A1:C3,0,2)) (stored =ROWS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call ROWS); Excel's raw value 3.0: matched",
+        "oracle reference_result!D23 =COLUMNS(INDEX(A1:C3,2,0)) (stored =COLUMNS(INDEX(A1:C3,2,0))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMNS); Excel's raw value 3.0: matched",
+        "oracle reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (stored =AREAS(INDEX((A1:A3,C1:C3),1,1,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 14, len: 11 }, construct: \"the union operator\", owner: \"cfml-m3.3\" }; Excel's raw value 1.0: not_modeled, owned by cfml-m3.3: the union operator",
+        "oracle reference_result!D25 =ROW(INDEX(A1:C3,2,3)) (stored =ROW(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Call ROW); Excel's raw value 2.0: matched",
+        "oracle reference_result!D26 =COLUMN(INDEX(A1:C3,2,3)) (stored =COLUMN(INDEX(A1:C3,2,3))) -> calc_fml::evaluate gives 3.0 (calls: Call INDEX, Call COLUMN); Excel's raw value 3.0: matched",
+        "oracle reference_result!D27 =COUNTBLANK(INDEX(A1:C4,4,0)) (stored =COUNTBLANK(INDEX(A1:C4,4,0))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call COUNTBLANK); Excel's raw value 1.0: matched",
+        "oracle reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))) -> calc_fml::evaluate gives 30.0 (calls: Call MATCH, Call INDEX); Excel's raw value 30.0: matched",
+        "oracle reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) (stored =INDEX(B:B,MATCH(\"K5\",A:A,0))) -> calc_fml::evaluate gives 50.0 (calls: Call MATCH, Call INDEX); Excel's raw value 50.0: matched",
+        "oracle reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) (stored =INDEX(C:C,MATCH(\"kz\",A:A,0))) -> calc_fml::evaluate gives 77.0 (calls: Call MATCH, Call INDEX); Excel's raw value 77.0: matched",
+        "oracle reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))) -> calc_fml::evaluate gives 0.0 (calls: Call MATCH, Call INDEX); Excel's raw value 0.0: matched",
+        "oracle reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX); Excel's raw value #NA: matched",
+        "oracle reference_result!D33 =XLOOKUP(\"k3\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k3\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 30.0 (calls: Call XLOOKUP); Excel's raw value 30.0: matched",
+        "oracle reference_result!D34 =XLOOKUP(\"k4\",A10:A14,B10:B14) (stored =_xlfn.XLOOKUP(\"k4\",A10:A14,B10:B14)) -> calc_fml::evaluate gives 0.0 (calls: Call XLOOKUP); Excel's raw value 0.0: matched",
+        "oracle reference_result!D35 =XLOOKUP(\"k9\",A10:A14,B10:B14,C4) (stored =_xlfn.XLOOKUP(\"k9\",A10:A14,B10:B14,C4)) -> calc_fml::evaluate gives TRUE (calls: Call XLOOKUP); Excel's raw value TRUE: matched",
+        "oracle reference_result!D36 =SUM(XLOOKUP(\"k2\",A10:A14,B10:C14)) (stored =SUM(_xlfn.XLOOKUP(\"k2\",A10:A14,B10:C14))) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 20.0: matched",
+        "oracle reference_result!D37 =CHOOSE(2,A1,B1) (stored =CHOOSE(2,A1,B1)) -> calc_fml::evaluate gives 2.0 (calls: Call CHOOSE); Excel's raw value 2.0: matched",
+        "oracle reference_result!D38 =SUM(CHOOSE(2,A1:A3,B1:B3)) (stored =SUM(CHOOSE(2,A1:A3,B1:B3))) -> calc_fml::evaluate gives 15.0 (calls: Call CHOOSE, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D39 =ROWS(CHOOSE(1,A1:A3,B1:B2)) (stored =ROWS(CHOOSE(1,A1:A3,B1:B2))) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Call ROWS); Excel's raw value 3.0: matched",
+        "oracle reference_result!D40 =CHOOSE(2,\"a\",B4) (stored =CHOOSE(2,\"a\",B4)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+        "oracle reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (stored =SUM(INDEX({1,2;3,4},2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 7.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle reference_result!D49 =AREAS(INDEX(A1:C3,0,2)) (stored =AREAS(INDEX(A1:C3,0,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call AREAS); Excel's raw value 1.0: matched",
+        "oracle reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (stored =ROWS(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 12, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 2.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (stored =SUM(INDEX({1,2;3,4},0,2))) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 11, len: 9 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 6.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle reference_result!D52 =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\" (stored =VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+        "oracle reference_result!D57 =INDEX(A1:C3,TRUE,1) (stored =INDEX(A1:C3,TRUE,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+        "oracle reference_result!D62 =INDEX(A1:C3,1.9999,1) (stored =INDEX(A1:C3,1.9999,1)) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX); Excel's raw value 1.0: matched",
+        "oracle reference_result!D63 =SUM(INDEX(A1:C3,2,)) (stored =SUM(INDEX(A1:C3,2,))) -> calc_fml::evaluate gives 15.0 (calls: Call INDEX, Call SUM); Excel's raw value 15.0: matched",
+        "oracle reference_result!D64 =SUM(INDEX(A1:C3,2)) (stored =SUM(INDEX(A1:C3,2))) -> calc_fml::evaluate gives #Ref (calls: Call INDEX, Call SUM); Excel's raw value #Ref: matched",
+        "oracle lookup_edges!D81 =XLOOKUP(2,A1:A6,C1:C6) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+        "oracle lookup_edges!D82 =XLOOKUP(2,A1:A6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(2,A1:A6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 40.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 40.0: matched",
+        "oracle lookup_edges!D86 =XLOOKUP(2.5,A1:A6,C1:C6,,-1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,-1)) -> calc_fml::evaluate gives 20.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 20.0: matched",
+        "oracle lookup_edges!D87 =XLOOKUP(2.5,A1:A6,C1:C6,,1) (stored =_xlfn.XLOOKUP(2.5,A1:A6,C1:C6,,1)) -> calc_fml::evaluate gives 50.0 (calls: Call XLOOKUP); Excel's raw value 50.0: matched",
+        "oracle lookup_edges!D90 =XLOOKUP(2,A13:C13,A15:C15) (stored =_xlfn.XLOOKUP(2,A13:C13,A15:C15)) -> calc_fml::evaluate gives 20.0 (calls: Call XLOOKUP); Excel's raw value 20.0: matched",
+        "oracle lookup_edges!D93 =XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1) (stored =_xlfn.XLOOKUP(\"BANANA\",B1:B6,C1:C6,,0,-1)) -> calc_fml::evaluate gives 30.0 (calls: Prefix -, Call XLOOKUP); Excel's raw value 30.0: matched",
+        "oracle lookup_edges!D180 =ROW(CHOOSE(1,5)) (stored =ROW(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D181 =COLUMN(CHOOSE(1,\"a\")) (stored =COLUMN(CHOOSE(1,\"a\"))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMN); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D182 =AREAS(CHOOSE(1,5)) (stored =AREAS(CHOOSE(1,5))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D183 =ROW(CHOOSE(2,1,)) (stored =ROW(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROW); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D184 =AREAS(CHOOSE(2,1,)) (stored =AREAS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call AREAS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D185 =ROWS(CHOOSE(2,1,)) (stored =ROWS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call ROWS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D186 =COLUMNS(CHOOSE(2,1,)) (stored =COLUMNS(CHOOSE(2,1,))) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call COLUMNS); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D187 =INDEX(CHOOSE(2,1,),1) (stored =INDEX(CHOOSE(2,1,),1)) -> calc_fml::evaluate gives #Value (calls: Call CHOOSE, Call INDEX); Excel's raw value #Value: matched",
+        "oracle lookup_edges!D188 =ROWS(XLOOKUP(1,A1,A13:C13)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 1.0: matched",
+        "oracle lookup_edges!D189 =COLUMNS(XLOOKUP(1,A1,A13:C13)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 3.0: matched",
+        "oracle lookup_edges!D190 =SUM(XLOOKUP(1,A1,A13:C13)) (stored =SUM(_xlfn.XLOOKUP(1,A1,A13:C13))) -> calc_fml::evaluate gives 6.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 6.0: matched",
+        "oracle lookup_edges!D191 =ROWS(XLOOKUP(1,A1,C1:C3)) (stored =ROWS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 3.0 (calls: Call XLOOKUP, Call ROWS); Excel's raw value 3.0: matched",
+        "oracle lookup_edges!D192 =COLUMNS(XLOOKUP(1,A1,C1:C3)) (stored =COLUMNS(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Call COLUMNS); Excel's raw value 1.0: matched",
+        "oracle lookup_edges!D193 =SUM(XLOOKUP(1,A1,C1:C3)) (stored =SUM(_xlfn.XLOOKUP(1,A1,C1:C3))) -> calc_fml::evaluate gives 60.0 (calls: Call XLOOKUP, Call SUM); Excel's raw value 60.0: matched",
+        "oracle lookup_edges!D194 =VLOOKUP(3,A9:C10,3,FALSE)&\"\" (stored =VLOOKUP(3,A9:C10,3,FALSE)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call VLOOKUP, Infix &); Excel's raw value \"\": matched",
+        "oracle lookup_edges!D195 =CHOOSE(2,\"a\",)&\"\" (stored =CHOOSE(2,\"a\",)&\"\") -> calc_fml::evaluate gives \"\" (calls: Call CHOOSE, Infix &); Excel's raw value \"\": matched",
+        "oracle lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (stored =_xlfn.XLOOKUP(1,{1,2},I9:J9)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 5 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 0.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (stored =_xlfn.XLOOKUP(2,{1,2,3},B1:D1)) -> calc_fml::compile refuses it: Unsupported { span: TextSpan { start: 17, len: 7 }, construct: \"an array constant\", owner: \"cfml-m3.4\" }; Excel's raw value 10.0: not_modeled, owned by cfml-m3.4: an array constant",
+        "oracle lookup_edges!D311 =CHOOSE(1,C9,7) (stored =CHOOSE(1,C9,7)) -> calc_fml::evaluate gives 0.0 (calls: Call CHOOSE); Excel's raw value 0.0: matched",
+        "oracle lookup_edges!D318 =INDEX(A1:C7,2,3) (stored =INDEX(A1:C7,2,3)) -> calc_fml::evaluate gives 20.0 (calls: Call INDEX); Excel's raw value 20.0: matched",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-func/tests/captures/cfunc_m3_6/oracle.capture.json of crates/calc-func/tests/fixtures/cfunc_m3_6/oracle.xlsx: of the 67 rows cfunc-m3.6 publishes as not modelled under dc-l10u, 59 compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 59, matched 59, mismatched 0); 8 refused by calc_fml::compile under named beads: reference_result!D10 =INDEX((A1:A3,C1:C3),2,1,2) (cfml-m3.3: the union operator), reference_result!D11 =INDEX((A1:A3,C1:C3),3) (cfml-m3.3: the union operator), reference_result!D24 =AREAS(INDEX((A1:A3,C1:C3),1,1,2)) (cfml-m3.3: the union operator), reference_result!D45 =SUM(INDEX({1,2;3,4},2)) (cfml-m3.4: an array constant), reference_result!D50 =ROWS(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), reference_result!D51 =SUM(INDEX({1,2;3,4},0,2)) (cfml-m3.4: an array constant), lookup_edges!D268 =XLOOKUP(1,{1,2},I9:J9) (cfml-m3.4: an array constant), lookup_edges!D270 =XLOOKUP(2,{1,2,3},B1:D1) (cfml-m3.4: an array constant); the other 529 formula cells of the inventory are not evaluated by this case (missing, with the reason); cfunc_m3_6__excel_comparison: calculated 59 of 596 formula cells; matched 59 of 59 calculated, mismatched 0, not run 0; of the 59 compared, strict-bit certified 0, uncertified 59 (no_exact_target 59); not calculated: unproven 0, stale 0, file-cached 0, not modeled 8, failed 0, missing 529; 0 not-calculated values equal their expectation; 0 results outside the inventory; 59 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+        "the five INDEX(range,MATCH(key,column,0)) rows, matched through calc_fml::evaluate: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)) = 30.0; reference_result!D29 =INDEX(B:B,MATCH(\"K5\",A:A,0)) = 50.0; reference_result!D30 =INDEX(C:C,MATCH(\"kz\",A:A,0)) = 77.0; reference_result!D31 =INDEX(B:B,MATCH(\"k4\",A:A,0)) = 0.0; reference_result!D32 =INDEX(B:B,MATCH(\"k9\",A:A,0)) = #NA",
+        "Excel reports 7 of the rows' formulas with the implicit-intersection operator @ (legacy formulas in the workbook, compiled here as the file stores them, without @): reference_result!D2 =@INDEX(A1:C3,2.7,1.2), reference_result!D5 =@INDEX(A1:C1,,2), reference_result!D13 =@INDEX(A1:C3,\"2\",\"3\"), reference_result!D57 =@INDEX(A1:C3,TRUE,1), reference_result!D62 =@INDEX(A1:C3,1.9999,1), lookup_edges!D268 =@XLOOKUP(1,{1,2},I9:J9), lookup_edges!D270 =@XLOOKUP(2,{1,2,3},B1:D1)",
+        "against a copy of the capture with reference_result!D28 observed as 31 (made by the case, not Excel's), the comparison reports D28 alone: reference_result!D28 =INDEX(B:B,MATCH(\"k3\",A:A,0)): calc_fml::evaluate gives 30.0, Excel's raw value is 31.0"
+      ],
+      "outcome": "passed",
+      "package": "calc-fml",
+      "reason": null,
+      "result_line": null
+    },
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--",
+        "--exact",
+        "dc_l10u__reference_results_as_values",
+        "--nocapture"
+      ],
+      "browsers": [
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-fml",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "dc_l10u__reference_results_as_values",
+            "--nocapture"
+          ],
+          "browser": "chromium",
+          "case": "dc_l10u__reference_results_as_values@chromium",
+          "duration_s": 4.808,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Chrome",
+          "exit_code": 0,
+          "log": "target/accept/dc-l10u/wasm/dc_l10u__reference_results_as_values@chromium.log",
+          "notes": [
+            "the check that the committed generator tests/fixtures/make-fixtures.ps1 writes crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx byte for byte did not run on this target: the generator is a Windows PowerShell script, which the case runs only in its native Windows build",
+            "oracle reference_values!D1 =INDEX(A1:C3,2,2)+1 (stored =INDEX(A1:C3,2,2)+1) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+            "oracle reference_values!D2 =1+INDEX(A1:C3,2,2) (stored =1+INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+            "oracle reference_values!D3 =-INDEX(A1:C3,2,2) (stored =-INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives -5.0 (calls: Call INDEX, Prefix -); Excel's raw value -5.0: matched",
+            "oracle reference_values!D4 =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX, Infix -, Prefix - *, Prefix - *); Excel's raw value 4.0: matched",
+            "oracle reference_values!D5 =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) (stored =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3)) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call INDEX, Infix *); Excel's raw value 45.0: matched",
+            "oracle reference_values!D6 =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) (stored =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2)) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call INDEX, Infix /); Excel's raw value 2.5: matched",
+            "oracle reference_values!D7 =INDEX(A1:C3,1,2)^2 (stored =INDEX(A1:C3,1,2)^2) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Infix ^); Excel's raw value 4.0: matched",
+            "oracle reference_values!D8 =INDEX(A1:C3,2,2)% (stored =INDEX(A1:C3,2,2)%) -> calc_fml::evaluate gives 0.05 (calls: Call INDEX, Postfix %); Excel's raw value 0.05: matched",
+            "oracle reference_values!D9 =INDEX(A1:C3,2,2)&\"x\" (stored =INDEX(A1:C3,2,2)&\"x\") -> calc_fml::evaluate gives \"5x\" (calls: Call INDEX, Infix &); Excel's raw value \"5x\": matched",
+            "oracle reference_values!D10 =INDEX(A1:C3,2,2)=5 (stored =INDEX(A1:C3,2,2)=5) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+            "oracle reference_values!D11 =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) (stored =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1)) -> calc_fml::evaluate gives FALSE (calls: Call INDEX, Call INDEX, Infix >); Excel's raw value FALSE: matched",
+            "oracle reference_values!D12 =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Call INDEX, Infix <>); Excel's raw value TRUE: matched",
+            "oracle reference_values!D13 =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))*2) -> calc_fml::evaluate gives 60.0 (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value 60.0: matched",
+            "oracle reference_values!D14 =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0))) -> calc_fml::evaluate gives 40.0 (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 40.0: matched",
+            "oracle reference_values!D15 =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) (stored =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0))) -> calc_fml::evaluate gives \"ab\" (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix &); Excel's raw value \"ab\": matched",
+            "oracle reference_values!D16 =ABS(INDEX(A1:C4,4,3)) (stored =ABS(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call ABS); Excel's raw value 2.5: matched",
+            "oracle reference_values!D17 =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) (stored =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2)) -> calc_fml::evaluate gives 4.29 (calls: Call MATCH, Call INDEX, Infix /, Call ROUND); Excel's raw value 4.29: matched",
+            "oracle reference_values!D18 =INT(INDEX(A1:C4,4,3)) (stored =INT(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call INT); Excel's raw value -3.0: matched",
+            "oracle reference_values!D19 =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) (stored =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call INDEX, Call MOD); Excel's raw value 1.0: matched",
+            "oracle reference_values!D20 =SIGN(-INDEX(A1:C3,1,1)) (stored =SIGN(-INDEX(A1:C3,1,1))) -> calc_fml::evaluate gives -1.0 (calls: Call INDEX, Prefix -, Call SIGN); Excel's raw value -1.0: matched",
+            "oracle reference_values!D21 =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") (stored =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\")) -> calc_fml::evaluate gives \"big\" (calls: Call INDEX, Infix >, Call IF); Excel's raw value \"big\": matched",
+            "oracle reference_values!D22 =IF(INDEX(A1:C3,1,1),\"t\",\"f\") (stored =IF(INDEX(A1:C3,1,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX, Call IF); Excel's raw value \"t\": matched",
+            "oracle reference_values!D23 =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") (stored =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\")) -> calc_fml::evaluate gives \"b\" (calls: Call INDEX, Call CHOOSE); Excel's raw value \"b\": matched",
+            "oracle reference_values!D24 =INDEX(A1:C3,INDEX(A1:C3,1,2),1) (stored =INDEX(A1:C3,INDEX(A1:C3,1,2),1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX); Excel's raw value 4.0: matched",
+            "oracle reference_values!D25 =MATCH(INDEX(A6:A10,3),A:A,0) (stored =MATCH(INDEX(A6:A10,3),A:A,0)) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Call MATCH); Excel's raw value 8.0: matched",
+            "oracle reference_values!D26 =ROUND(INDEX(A1:C4,4,3),0) (stored =ROUND(INDEX(A1:C4,4,3),0)) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call ROUND); Excel's raw value -3.0: matched",
+            "oracle reference_values!D27 =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k3\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 31.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 31.0: matched",
+            "oracle reference_values!D28 =-XLOOKUP(\"k2\",A6:A10,B6:B10) (stored =-_xlfn.XLOOKUP(\"k2\",A6:A10,B6:B10)) -> calc_fml::evaluate gives -20.0 (calls: Call XLOOKUP, Prefix -); Excel's raw value -20.0: matched",
+            "oracle reference_values!D29 =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" (stored =_xlfn.XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\") -> calc_fml::evaluate gives \"b!\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"b!\": matched",
+            "oracle reference_values!D30 =CHOOSE(2,A1,B1)+1 (stored =CHOOSE(2,A1,B1)+1) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 3.0: matched",
+            "oracle reference_values!D31 =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) (stored =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2)) -> calc_fml::evaluate gives 8.0 (calls: Call CHOOSE, Call CHOOSE, Infix *); Excel's raw value 8.0: matched",
+            "oracle reference_values!D32 =ABS(CHOOSE(1,C4,C3)) (stored =ABS(CHOOSE(1,C4,C3))) -> calc_fml::evaluate gives 2.5 (calls: Call CHOOSE, Call ABS); Excel's raw value 2.5: matched",
+            "oracle reference_values!D33 =INDEX(A1:C4,4,1)+1 (stored =INDEX(A1:C4,4,1)+1) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D34 =-INDEX(A1:C4,4,1) (stored =-INDEX(A1:C4,4,1)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Prefix -); Excel's raw value 0.0: matched",
+            "oracle reference_values!D35 =INDEX(A1:C4,4,1)&\"x\" (stored =INDEX(A1:C4,4,1)&\"x\") -> calc_fml::evaluate gives \"x\" (calls: Call INDEX, Infix &); Excel's raw value \"x\": matched",
+            "oracle reference_values!D36 =INDEX(A1:C4,4,1)=0 (stored =INDEX(A1:C4,4,1)=0) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+            "oracle reference_values!D37 =INDEX(A1:C4,4,1)=\"\" (stored =INDEX(A1:C4,4,1)=\"\") -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+            "oracle reference_values!D38 =ABS(INDEX(A1:C4,4,1)) (stored =ABS(INDEX(A1:C4,4,1))) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Call ABS); Excel's raw value 0.0: matched",
+            "oracle reference_values!D39 =IF(INDEX(A1:C4,4,1),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"f\" (calls: Call INDEX, Call IF); Excel's raw value \"f\": matched",
+            "oracle reference_values!D40 =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))+1) -> calc_fml::evaluate gives 1.0 (calls: Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D41 =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D42 =CHOOSE(2,A1,A4)+1 (stored =CHOOSE(2,A1,A4)+1) -> calc_fml::evaluate gives 1.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D43 =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"|\": matched",
+            "oracle reference_values!D44 =INDEX(A1:C4,4,2)+1 (stored =INDEX(A1:C4,4,2)+1) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix +); Excel's raw value #Div0: matched",
+            "oracle reference_values!D45 =INDEX(A1:C4,4,2)&\"x\" (stored =INDEX(A1:C4,4,2)&\"x\") -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix &); Excel's raw value #Div0: matched",
+            "oracle reference_values!D46 =ABS(INDEX(A1:C4,4,2)) (stored =ABS(INDEX(A1:C4,4,2))) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call ABS); Excel's raw value #Div0: matched",
+            "oracle reference_values!D47 =IF(INDEX(A1:C4,4,2),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,2),\"t\",\"f\")) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call IF); Excel's raw value #Div0: matched",
+            "oracle reference_values!D48 =IFERROR(INDEX(A1:C4,4,2),\"caught\") (stored =IFERROR(INDEX(A1:C4,4,2),\"caught\")) -> calc_fml::evaluate gives \"caught\" (calls: Call INDEX, Call IFERROR); Excel's raw value \"caught\": matched",
+            "oracle reference_values!D49 =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k5\",A:A,0))*2) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value #NA: matched",
+            "oracle reference_values!D50 =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" (stored =_xlfn.XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\") -> calc_fml::evaluate gives #NA (calls: Call XLOOKUP, Infix &); Excel's raw value #NA: matched",
+            "oracle reference_values!D51 =CHOOSE(2,A1,B4)*1 (stored =CHOOSE(2,A1,B4)*1) -> calc_fml::evaluate gives #Div0 (calls: Call CHOOSE, Infix *); Excel's raw value #Div0: matched",
+            "oracle reference_values!D52 =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))+1) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix +); Excel's raw value #NA: matched",
+            "oracle reference_values!D53 =INDEX(C6:C10,1)+1 (stored =INDEX(C6:C10,1)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+            "oracle reference_values!D54 =INDEX(C6:C10,3)+1 (stored =INDEX(C6:C10,3)+1) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 8.0: matched",
+            "oracle reference_values!D55 =INDEX(C6:C10,4)+1 (stored =INDEX(C6:C10,4)+1) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 2.0: matched",
+            "oracle reference_values!D56 =INDEX(C6:C10,5)&\"|\" (stored =INDEX(C6:C10,5)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call INDEX, Infix &); Excel's raw value \"|\": matched",
+            "oracle reference_values!D57 =INDEX(C6:C10,5)+1 (stored =INDEX(C6:C10,5)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+            "INDEX's reference result as an operand: 12 rows matched through calc_fml::evaluate: =INDEX(A1:C3,2,2)+1 = 6.0; =1+INDEX(A1:C3,2,2) = 6.0; =-INDEX(A1:C3,2,2) = -5.0; =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) = 4.0; =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) = 45.0; =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) = 2.5; =INDEX(A1:C3,1,2)^2 = 4.0; =INDEX(A1:C3,2,2)% = 0.05; =INDEX(A1:C3,2,2)&\"x\" = \"5x\"; =INDEX(A1:C3,2,2)=5 = TRUE; =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) = FALSE; =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) = TRUE",
+            "INDEX(range,MATCH(key,column,0)) as an operand: 3 rows matched through calc_fml::evaluate: =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 = 60.0; =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) = 40.0; =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) = \"ab\"",
+            "INDEX's reference result inside another function's argument, at that function's value parameter or, where the row says so, at an operator within the argument: 11 rows matched through calc_fml::evaluate: =ABS(INDEX(A1:C4,4,3)) = 2.5; =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) = 4.29 (the reference reaches the infix operator / inside ROUND's first argument, not ROUND's parameter); =INT(INDEX(A1:C4,4,3)) = -3.0; =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) = 1.0; =SIGN(-INDEX(A1:C3,1,1)) = -1.0 (the reference reaches the prefix operator - inside SIGN's argument, not SIGN's parameter); =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") = \"big\" (the reference reaches the infix operator > inside IF's first argument, not IF's parameter); =IF(INDEX(A1:C3,1,1),\"t\",\"f\") = \"t\"; =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") = \"b\"; =INDEX(A1:C3,INDEX(A1:C3,1,2),1) = 4.0; =MATCH(INDEX(A6:A10,3),A:A,0) = 8.0; =ROUND(INDEX(A1:C4,4,3),0) = -3.0",
+            "XLOOKUP's and CHOOSE's reference results as operands and at value parameters: 6 rows matched through calc_fml::evaluate: =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 = 31.0; =-XLOOKUP(\"k2\",A6:A10,B6:B10) = -20.0; =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" = \"b!\"; =CHOOSE(2,A1,B1)+1 = 3.0; =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) = 8.0; =ABS(CHOOSE(1,C4,C3)) = 2.5",
+            "a reference result that points at a blank cell (A4, B9): 11 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,1)+1 = 1.0; =-INDEX(A1:C4,4,1) = 0.0; =INDEX(A1:C4,4,1)&\"x\" = \"x\"; =INDEX(A1:C4,4,1)=0 = TRUE; =INDEX(A1:C4,4,1)=\"\" = TRUE; =ABS(INDEX(A1:C4,4,1)) = 0.0; =IF(INDEX(A1:C4,4,1),\"t\",\"f\") = \"f\"; =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 = 1.0; =CHOOSE(2,A1,A4)+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" = \"|\"",
+            "a reference result that points at an error cell (B4 #DIV/0!, B10 #N/A), and a lookup that finds no key: 9 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,2)+1 = #Div0; =INDEX(A1:C4,4,2)&\"x\" = #Div0; =ABS(INDEX(A1:C4,4,2)) = #Div0; =IF(INDEX(A1:C4,4,2),\"t\",\"f\") = #Div0; =IFERROR(INDEX(A1:C4,4,2),\"caught\") = \"caught\"; =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 = #NA; =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" = #NA; =CHOOSE(2,A1,B4)*1 = #Div0; =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 = #NA",
+            "a reference result that points at text, numeric text, a logical or empty text (C6:C10): 5 rows matched through calc_fml::evaluate: =INDEX(C6:C10,1)+1 = #Value; =INDEX(C6:C10,3)+1 = 8.0; =INDEX(C6:C10,4)+1 = 2.0; =INDEX(C6:C10,5)&\"|\" = \"|\"; =INDEX(C6:C10,5)+1 = #Value",
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json of crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx: each of the 57 rows, which pass a reference result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function, compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 57, matched 57, mismatched 0); dc_l10u__reference_results_as_values: calculated 57 of 57 formula cells; matched 57 of 57 calculated, mismatched 0, not run 0; of the 57 compared, strict-bit certified 0, uncertified 57 (no_exact_target 57); not calculated: unproven 0, stale 0, file-cached 0, not modeled 0, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 57 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+            "Excel reports 1 of the rows' formulas with the implicit-intersection operator @ (compiled here as the file stores them, without @): reference_values!D24 =@INDEX(A1:C3,INDEX(A1:C3,1,2),1)",
+            "against a copy of the capture with reference_values!D1 observed as 7 (made by the case, not Excel's), the comparison reports D1 alone: reference_values!D1 =INDEX(A1:C3,2,2)+1: calc_fml::evaluate gives 6.0, Excel's raw value is 7.0"
+          ],
+          "outcome": "passed",
+          "package": "calc-fml",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 11 filtered out; finished in 0.11s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:56030/`"
+        },
+        {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "test",
+            "-p",
+            "calc-fml",
+            "--test",
+            "acceptance",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "--exact",
+            "dc_l10u__reference_results_as_values",
+            "--nocapture"
+          ],
+          "browser": "firefox",
+          "case": "dc_l10u__reference_results_as_values@firefox",
+          "duration_s": 7.761,
+          "environment": {
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
+            "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
+            "WASM_BINDGEN_USE_BROWSER": "1"
+          },
+          "environment_removed": [
+            "CHROMEDRIVER",
+            "GECKODRIVER",
+            "SAFARIDRIVER",
+            "WASM_BINDGEN_USE_DENO",
+            "WASM_BINDGEN_USE_NODE_EXPERIMENTAL",
+            "WASM_BINDGEN_USE_DEDICATED_WORKER",
+            "WASM_BINDGEN_USE_SHARED_WORKER",
+            "WASM_BINDGEN_USE_SERVICE_WORKER",
+            "WASM_BINDGEN_USE_EMSCRIPTEN",
+            "NO_HEADLESS",
+            "WASM_BINDGEN_TEST_ONLY_NODE",
+            "WASM_BINDGEN_TEST_ONLY_WEB"
+          ],
+          "executed_in": "Firefox",
+          "exit_code": 0,
+          "log": "target/accept/dc-l10u/wasm/dc_l10u__reference_results_as_values@firefox.log",
+          "notes": [
+            "the check that the committed generator tests/fixtures/make-fixtures.ps1 writes crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx byte for byte did not run on this target: the generator is a Windows PowerShell script, which the case runs only in its native Windows build",
+            "oracle reference_values!D1 =INDEX(A1:C3,2,2)+1 (stored =INDEX(A1:C3,2,2)+1) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+            "oracle reference_values!D2 =1+INDEX(A1:C3,2,2) (stored =1+INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+            "oracle reference_values!D3 =-INDEX(A1:C3,2,2) (stored =-INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives -5.0 (calls: Call INDEX, Prefix -); Excel's raw value -5.0: matched",
+            "oracle reference_values!D4 =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX, Infix -, Prefix - *, Prefix - *); Excel's raw value 4.0: matched",
+            "oracle reference_values!D5 =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) (stored =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3)) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call INDEX, Infix *); Excel's raw value 45.0: matched",
+            "oracle reference_values!D6 =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) (stored =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2)) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call INDEX, Infix /); Excel's raw value 2.5: matched",
+            "oracle reference_values!D7 =INDEX(A1:C3,1,2)^2 (stored =INDEX(A1:C3,1,2)^2) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Infix ^); Excel's raw value 4.0: matched",
+            "oracle reference_values!D8 =INDEX(A1:C3,2,2)% (stored =INDEX(A1:C3,2,2)%) -> calc_fml::evaluate gives 0.05 (calls: Call INDEX, Postfix %); Excel's raw value 0.05: matched",
+            "oracle reference_values!D9 =INDEX(A1:C3,2,2)&\"x\" (stored =INDEX(A1:C3,2,2)&\"x\") -> calc_fml::evaluate gives \"5x\" (calls: Call INDEX, Infix &); Excel's raw value \"5x\": matched",
+            "oracle reference_values!D10 =INDEX(A1:C3,2,2)=5 (stored =INDEX(A1:C3,2,2)=5) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+            "oracle reference_values!D11 =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) (stored =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1)) -> calc_fml::evaluate gives FALSE (calls: Call INDEX, Call INDEX, Infix >); Excel's raw value FALSE: matched",
+            "oracle reference_values!D12 =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Call INDEX, Infix <>); Excel's raw value TRUE: matched",
+            "oracle reference_values!D13 =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))*2) -> calc_fml::evaluate gives 60.0 (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value 60.0: matched",
+            "oracle reference_values!D14 =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0))) -> calc_fml::evaluate gives 40.0 (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 40.0: matched",
+            "oracle reference_values!D15 =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) (stored =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0))) -> calc_fml::evaluate gives \"ab\" (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix &); Excel's raw value \"ab\": matched",
+            "oracle reference_values!D16 =ABS(INDEX(A1:C4,4,3)) (stored =ABS(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call ABS); Excel's raw value 2.5: matched",
+            "oracle reference_values!D17 =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) (stored =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2)) -> calc_fml::evaluate gives 4.29 (calls: Call MATCH, Call INDEX, Infix /, Call ROUND); Excel's raw value 4.29: matched",
+            "oracle reference_values!D18 =INT(INDEX(A1:C4,4,3)) (stored =INT(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call INT); Excel's raw value -3.0: matched",
+            "oracle reference_values!D19 =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) (stored =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call INDEX, Call MOD); Excel's raw value 1.0: matched",
+            "oracle reference_values!D20 =SIGN(-INDEX(A1:C3,1,1)) (stored =SIGN(-INDEX(A1:C3,1,1))) -> calc_fml::evaluate gives -1.0 (calls: Call INDEX, Prefix -, Call SIGN); Excel's raw value -1.0: matched",
+            "oracle reference_values!D21 =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") (stored =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\")) -> calc_fml::evaluate gives \"big\" (calls: Call INDEX, Infix >, Call IF); Excel's raw value \"big\": matched",
+            "oracle reference_values!D22 =IF(INDEX(A1:C3,1,1),\"t\",\"f\") (stored =IF(INDEX(A1:C3,1,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX, Call IF); Excel's raw value \"t\": matched",
+            "oracle reference_values!D23 =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") (stored =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\")) -> calc_fml::evaluate gives \"b\" (calls: Call INDEX, Call CHOOSE); Excel's raw value \"b\": matched",
+            "oracle reference_values!D24 =INDEX(A1:C3,INDEX(A1:C3,1,2),1) (stored =INDEX(A1:C3,INDEX(A1:C3,1,2),1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX); Excel's raw value 4.0: matched",
+            "oracle reference_values!D25 =MATCH(INDEX(A6:A10,3),A:A,0) (stored =MATCH(INDEX(A6:A10,3),A:A,0)) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Call MATCH); Excel's raw value 8.0: matched",
+            "oracle reference_values!D26 =ROUND(INDEX(A1:C4,4,3),0) (stored =ROUND(INDEX(A1:C4,4,3),0)) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call ROUND); Excel's raw value -3.0: matched",
+            "oracle reference_values!D27 =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k3\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 31.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 31.0: matched",
+            "oracle reference_values!D28 =-XLOOKUP(\"k2\",A6:A10,B6:B10) (stored =-_xlfn.XLOOKUP(\"k2\",A6:A10,B6:B10)) -> calc_fml::evaluate gives -20.0 (calls: Call XLOOKUP, Prefix -); Excel's raw value -20.0: matched",
+            "oracle reference_values!D29 =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" (stored =_xlfn.XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\") -> calc_fml::evaluate gives \"b!\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"b!\": matched",
+            "oracle reference_values!D30 =CHOOSE(2,A1,B1)+1 (stored =CHOOSE(2,A1,B1)+1) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 3.0: matched",
+            "oracle reference_values!D31 =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) (stored =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2)) -> calc_fml::evaluate gives 8.0 (calls: Call CHOOSE, Call CHOOSE, Infix *); Excel's raw value 8.0: matched",
+            "oracle reference_values!D32 =ABS(CHOOSE(1,C4,C3)) (stored =ABS(CHOOSE(1,C4,C3))) -> calc_fml::evaluate gives 2.5 (calls: Call CHOOSE, Call ABS); Excel's raw value 2.5: matched",
+            "oracle reference_values!D33 =INDEX(A1:C4,4,1)+1 (stored =INDEX(A1:C4,4,1)+1) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D34 =-INDEX(A1:C4,4,1) (stored =-INDEX(A1:C4,4,1)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Prefix -); Excel's raw value 0.0: matched",
+            "oracle reference_values!D35 =INDEX(A1:C4,4,1)&\"x\" (stored =INDEX(A1:C4,4,1)&\"x\") -> calc_fml::evaluate gives \"x\" (calls: Call INDEX, Infix &); Excel's raw value \"x\": matched",
+            "oracle reference_values!D36 =INDEX(A1:C4,4,1)=0 (stored =INDEX(A1:C4,4,1)=0) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+            "oracle reference_values!D37 =INDEX(A1:C4,4,1)=\"\" (stored =INDEX(A1:C4,4,1)=\"\") -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+            "oracle reference_values!D38 =ABS(INDEX(A1:C4,4,1)) (stored =ABS(INDEX(A1:C4,4,1))) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Call ABS); Excel's raw value 0.0: matched",
+            "oracle reference_values!D39 =IF(INDEX(A1:C4,4,1),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"f\" (calls: Call INDEX, Call IF); Excel's raw value \"f\": matched",
+            "oracle reference_values!D40 =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))+1) -> calc_fml::evaluate gives 1.0 (calls: Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D41 =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D42 =CHOOSE(2,A1,A4)+1 (stored =CHOOSE(2,A1,A4)+1) -> calc_fml::evaluate gives 1.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+            "oracle reference_values!D43 =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"|\": matched",
+            "oracle reference_values!D44 =INDEX(A1:C4,4,2)+1 (stored =INDEX(A1:C4,4,2)+1) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix +); Excel's raw value #Div0: matched",
+            "oracle reference_values!D45 =INDEX(A1:C4,4,2)&\"x\" (stored =INDEX(A1:C4,4,2)&\"x\") -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix &); Excel's raw value #Div0: matched",
+            "oracle reference_values!D46 =ABS(INDEX(A1:C4,4,2)) (stored =ABS(INDEX(A1:C4,4,2))) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call ABS); Excel's raw value #Div0: matched",
+            "oracle reference_values!D47 =IF(INDEX(A1:C4,4,2),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,2),\"t\",\"f\")) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call IF); Excel's raw value #Div0: matched",
+            "oracle reference_values!D48 =IFERROR(INDEX(A1:C4,4,2),\"caught\") (stored =IFERROR(INDEX(A1:C4,4,2),\"caught\")) -> calc_fml::evaluate gives \"caught\" (calls: Call INDEX, Call IFERROR); Excel's raw value \"caught\": matched",
+            "oracle reference_values!D49 =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k5\",A:A,0))*2) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value #NA: matched",
+            "oracle reference_values!D50 =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" (stored =_xlfn.XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\") -> calc_fml::evaluate gives #NA (calls: Call XLOOKUP, Infix &); Excel's raw value #NA: matched",
+            "oracle reference_values!D51 =CHOOSE(2,A1,B4)*1 (stored =CHOOSE(2,A1,B4)*1) -> calc_fml::evaluate gives #Div0 (calls: Call CHOOSE, Infix *); Excel's raw value #Div0: matched",
+            "oracle reference_values!D52 =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))+1) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix +); Excel's raw value #NA: matched",
+            "oracle reference_values!D53 =INDEX(C6:C10,1)+1 (stored =INDEX(C6:C10,1)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+            "oracle reference_values!D54 =INDEX(C6:C10,3)+1 (stored =INDEX(C6:C10,3)+1) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 8.0: matched",
+            "oracle reference_values!D55 =INDEX(C6:C10,4)+1 (stored =INDEX(C6:C10,4)+1) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 2.0: matched",
+            "oracle reference_values!D56 =INDEX(C6:C10,5)&\"|\" (stored =INDEX(C6:C10,5)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call INDEX, Infix &); Excel's raw value \"|\": matched",
+            "oracle reference_values!D57 =INDEX(C6:C10,5)+1 (stored =INDEX(C6:C10,5)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+            "INDEX's reference result as an operand: 12 rows matched through calc_fml::evaluate: =INDEX(A1:C3,2,2)+1 = 6.0; =1+INDEX(A1:C3,2,2) = 6.0; =-INDEX(A1:C3,2,2) = -5.0; =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) = 4.0; =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) = 45.0; =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) = 2.5; =INDEX(A1:C3,1,2)^2 = 4.0; =INDEX(A1:C3,2,2)% = 0.05; =INDEX(A1:C3,2,2)&\"x\" = \"5x\"; =INDEX(A1:C3,2,2)=5 = TRUE; =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) = FALSE; =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) = TRUE",
+            "INDEX(range,MATCH(key,column,0)) as an operand: 3 rows matched through calc_fml::evaluate: =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 = 60.0; =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) = 40.0; =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) = \"ab\"",
+            "INDEX's reference result inside another function's argument, at that function's value parameter or, where the row says so, at an operator within the argument: 11 rows matched through calc_fml::evaluate: =ABS(INDEX(A1:C4,4,3)) = 2.5; =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) = 4.29 (the reference reaches the infix operator / inside ROUND's first argument, not ROUND's parameter); =INT(INDEX(A1:C4,4,3)) = -3.0; =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) = 1.0; =SIGN(-INDEX(A1:C3,1,1)) = -1.0 (the reference reaches the prefix operator - inside SIGN's argument, not SIGN's parameter); =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") = \"big\" (the reference reaches the infix operator > inside IF's first argument, not IF's parameter); =IF(INDEX(A1:C3,1,1),\"t\",\"f\") = \"t\"; =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") = \"b\"; =INDEX(A1:C3,INDEX(A1:C3,1,2),1) = 4.0; =MATCH(INDEX(A6:A10,3),A:A,0) = 8.0; =ROUND(INDEX(A1:C4,4,3),0) = -3.0",
+            "XLOOKUP's and CHOOSE's reference results as operands and at value parameters: 6 rows matched through calc_fml::evaluate: =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 = 31.0; =-XLOOKUP(\"k2\",A6:A10,B6:B10) = -20.0; =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" = \"b!\"; =CHOOSE(2,A1,B1)+1 = 3.0; =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) = 8.0; =ABS(CHOOSE(1,C4,C3)) = 2.5",
+            "a reference result that points at a blank cell (A4, B9): 11 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,1)+1 = 1.0; =-INDEX(A1:C4,4,1) = 0.0; =INDEX(A1:C4,4,1)&\"x\" = \"x\"; =INDEX(A1:C4,4,1)=0 = TRUE; =INDEX(A1:C4,4,1)=\"\" = TRUE; =ABS(INDEX(A1:C4,4,1)) = 0.0; =IF(INDEX(A1:C4,4,1),\"t\",\"f\") = \"f\"; =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 = 1.0; =CHOOSE(2,A1,A4)+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" = \"|\"",
+            "a reference result that points at an error cell (B4 #DIV/0!, B10 #N/A), and a lookup that finds no key: 9 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,2)+1 = #Div0; =INDEX(A1:C4,4,2)&\"x\" = #Div0; =ABS(INDEX(A1:C4,4,2)) = #Div0; =IF(INDEX(A1:C4,4,2),\"t\",\"f\") = #Div0; =IFERROR(INDEX(A1:C4,4,2),\"caught\") = \"caught\"; =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 = #NA; =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" = #NA; =CHOOSE(2,A1,B4)*1 = #Div0; =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 = #NA",
+            "a reference result that points at text, numeric text, a logical or empty text (C6:C10): 5 rows matched through calc_fml::evaluate: =INDEX(C6:C10,1)+1 = #Value; =INDEX(C6:C10,3)+1 = 8.0; =INDEX(C6:C10,4)+1 = 2.0; =INDEX(C6:C10,5)&\"|\" = \"|\"; =INDEX(C6:C10,5)+1 = #Value",
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json of crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx: each of the 57 rows, which pass a reference result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function, compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 57, matched 57, mismatched 0); dc_l10u__reference_results_as_values: calculated 57 of 57 formula cells; matched 57 of 57 calculated, mismatched 0, not run 0; of the 57 compared, strict-bit certified 0, uncertified 57 (no_exact_target 57); not calculated: unproven 0, stale 0, file-cached 0, not modeled 0, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 57 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+            "Excel reports 1 of the rows' formulas with the implicit-intersection operator @ (compiled here as the file stores them, without @): reference_values!D24 =@INDEX(A1:C3,INDEX(A1:C3,1,2),1)",
+            "against a copy of the capture with reference_values!D1 observed as 7 (made by the case, not Excel's), the comparison reports D1 alone: reference_values!D1 =INDEX(A1:C3,2,2)+1: calc_fml::evaluate gives 6.0, Excel's raw value is 7.0"
+          ],
+          "outcome": "passed",
+          "package": "calc-fml",
+          "reason": null,
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 11 filtered out; finished in 0.08s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:59225/`"
+        }
+      ],
+      "case": "dc_l10u__reference_results_as_values",
+      "duration_s": 12.569,
+      "exit_code": 0,
+      "log": null,
+      "notes": [
+        "the check that the committed generator tests/fixtures/make-fixtures.ps1 writes crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx byte for byte did not run on this target: the generator is a Windows PowerShell script, which the case runs only in its native Windows build",
+        "oracle reference_values!D1 =INDEX(A1:C3,2,2)+1 (stored =INDEX(A1:C3,2,2)+1) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+        "oracle reference_values!D2 =1+INDEX(A1:C3,2,2) (stored =1+INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+        "oracle reference_values!D3 =-INDEX(A1:C3,2,2) (stored =-INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives -5.0 (calls: Call INDEX, Prefix -); Excel's raw value -5.0: matched",
+        "oracle reference_values!D4 =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX, Infix -, Prefix - *, Prefix - *); Excel's raw value 4.0: matched",
+        "oracle reference_values!D5 =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) (stored =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3)) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call INDEX, Infix *); Excel's raw value 45.0: matched",
+        "oracle reference_values!D6 =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) (stored =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2)) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call INDEX, Infix /); Excel's raw value 2.5: matched",
+        "oracle reference_values!D7 =INDEX(A1:C3,1,2)^2 (stored =INDEX(A1:C3,1,2)^2) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Infix ^); Excel's raw value 4.0: matched",
+        "oracle reference_values!D8 =INDEX(A1:C3,2,2)% (stored =INDEX(A1:C3,2,2)%) -> calc_fml::evaluate gives 0.05 (calls: Call INDEX, Postfix %); Excel's raw value 0.05: matched",
+        "oracle reference_values!D9 =INDEX(A1:C3,2,2)&\"x\" (stored =INDEX(A1:C3,2,2)&\"x\") -> calc_fml::evaluate gives \"5x\" (calls: Call INDEX, Infix &); Excel's raw value \"5x\": matched",
+        "oracle reference_values!D10 =INDEX(A1:C3,2,2)=5 (stored =INDEX(A1:C3,2,2)=5) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+        "oracle reference_values!D11 =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) (stored =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1)) -> calc_fml::evaluate gives FALSE (calls: Call INDEX, Call INDEX, Infix >); Excel's raw value FALSE: matched",
+        "oracle reference_values!D12 =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Call INDEX, Infix <>); Excel's raw value TRUE: matched",
+        "oracle reference_values!D13 =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))*2) -> calc_fml::evaluate gives 60.0 (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value 60.0: matched",
+        "oracle reference_values!D14 =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0))) -> calc_fml::evaluate gives 40.0 (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 40.0: matched",
+        "oracle reference_values!D15 =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) (stored =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0))) -> calc_fml::evaluate gives \"ab\" (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix &); Excel's raw value \"ab\": matched",
+        "oracle reference_values!D16 =ABS(INDEX(A1:C4,4,3)) (stored =ABS(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call ABS); Excel's raw value 2.5: matched",
+        "oracle reference_values!D17 =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) (stored =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2)) -> calc_fml::evaluate gives 4.29 (calls: Call MATCH, Call INDEX, Infix /, Call ROUND); Excel's raw value 4.29: matched",
+        "oracle reference_values!D18 =INT(INDEX(A1:C4,4,3)) (stored =INT(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call INT); Excel's raw value -3.0: matched",
+        "oracle reference_values!D19 =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) (stored =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call INDEX, Call MOD); Excel's raw value 1.0: matched",
+        "oracle reference_values!D20 =SIGN(-INDEX(A1:C3,1,1)) (stored =SIGN(-INDEX(A1:C3,1,1))) -> calc_fml::evaluate gives -1.0 (calls: Call INDEX, Prefix -, Call SIGN); Excel's raw value -1.0: matched",
+        "oracle reference_values!D21 =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") (stored =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\")) -> calc_fml::evaluate gives \"big\" (calls: Call INDEX, Infix >, Call IF); Excel's raw value \"big\": matched",
+        "oracle reference_values!D22 =IF(INDEX(A1:C3,1,1),\"t\",\"f\") (stored =IF(INDEX(A1:C3,1,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX, Call IF); Excel's raw value \"t\": matched",
+        "oracle reference_values!D23 =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") (stored =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\")) -> calc_fml::evaluate gives \"b\" (calls: Call INDEX, Call CHOOSE); Excel's raw value \"b\": matched",
+        "oracle reference_values!D24 =INDEX(A1:C3,INDEX(A1:C3,1,2),1) (stored =INDEX(A1:C3,INDEX(A1:C3,1,2),1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX); Excel's raw value 4.0: matched",
+        "oracle reference_values!D25 =MATCH(INDEX(A6:A10,3),A:A,0) (stored =MATCH(INDEX(A6:A10,3),A:A,0)) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Call MATCH); Excel's raw value 8.0: matched",
+        "oracle reference_values!D26 =ROUND(INDEX(A1:C4,4,3),0) (stored =ROUND(INDEX(A1:C4,4,3),0)) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call ROUND); Excel's raw value -3.0: matched",
+        "oracle reference_values!D27 =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k3\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 31.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 31.0: matched",
+        "oracle reference_values!D28 =-XLOOKUP(\"k2\",A6:A10,B6:B10) (stored =-_xlfn.XLOOKUP(\"k2\",A6:A10,B6:B10)) -> calc_fml::evaluate gives -20.0 (calls: Call XLOOKUP, Prefix -); Excel's raw value -20.0: matched",
+        "oracle reference_values!D29 =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" (stored =_xlfn.XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\") -> calc_fml::evaluate gives \"b!\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"b!\": matched",
+        "oracle reference_values!D30 =CHOOSE(2,A1,B1)+1 (stored =CHOOSE(2,A1,B1)+1) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 3.0: matched",
+        "oracle reference_values!D31 =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) (stored =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2)) -> calc_fml::evaluate gives 8.0 (calls: Call CHOOSE, Call CHOOSE, Infix *); Excel's raw value 8.0: matched",
+        "oracle reference_values!D32 =ABS(CHOOSE(1,C4,C3)) (stored =ABS(CHOOSE(1,C4,C3))) -> calc_fml::evaluate gives 2.5 (calls: Call CHOOSE, Call ABS); Excel's raw value 2.5: matched",
+        "oracle reference_values!D33 =INDEX(A1:C4,4,1)+1 (stored =INDEX(A1:C4,4,1)+1) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D34 =-INDEX(A1:C4,4,1) (stored =-INDEX(A1:C4,4,1)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Prefix -); Excel's raw value 0.0: matched",
+        "oracle reference_values!D35 =INDEX(A1:C4,4,1)&\"x\" (stored =INDEX(A1:C4,4,1)&\"x\") -> calc_fml::evaluate gives \"x\" (calls: Call INDEX, Infix &); Excel's raw value \"x\": matched",
+        "oracle reference_values!D36 =INDEX(A1:C4,4,1)=0 (stored =INDEX(A1:C4,4,1)=0) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+        "oracle reference_values!D37 =INDEX(A1:C4,4,1)=\"\" (stored =INDEX(A1:C4,4,1)=\"\") -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+        "oracle reference_values!D38 =ABS(INDEX(A1:C4,4,1)) (stored =ABS(INDEX(A1:C4,4,1))) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Call ABS); Excel's raw value 0.0: matched",
+        "oracle reference_values!D39 =IF(INDEX(A1:C4,4,1),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"f\" (calls: Call INDEX, Call IF); Excel's raw value \"f\": matched",
+        "oracle reference_values!D40 =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))+1) -> calc_fml::evaluate gives 1.0 (calls: Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D41 =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D42 =CHOOSE(2,A1,A4)+1 (stored =CHOOSE(2,A1,A4)+1) -> calc_fml::evaluate gives 1.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D43 =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"|\": matched",
+        "oracle reference_values!D44 =INDEX(A1:C4,4,2)+1 (stored =INDEX(A1:C4,4,2)+1) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix +); Excel's raw value #Div0: matched",
+        "oracle reference_values!D45 =INDEX(A1:C4,4,2)&\"x\" (stored =INDEX(A1:C4,4,2)&\"x\") -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix &); Excel's raw value #Div0: matched",
+        "oracle reference_values!D46 =ABS(INDEX(A1:C4,4,2)) (stored =ABS(INDEX(A1:C4,4,2))) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call ABS); Excel's raw value #Div0: matched",
+        "oracle reference_values!D47 =IF(INDEX(A1:C4,4,2),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,2),\"t\",\"f\")) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call IF); Excel's raw value #Div0: matched",
+        "oracle reference_values!D48 =IFERROR(INDEX(A1:C4,4,2),\"caught\") (stored =IFERROR(INDEX(A1:C4,4,2),\"caught\")) -> calc_fml::evaluate gives \"caught\" (calls: Call INDEX, Call IFERROR); Excel's raw value \"caught\": matched",
+        "oracle reference_values!D49 =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k5\",A:A,0))*2) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value #NA: matched",
+        "oracle reference_values!D50 =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" (stored =_xlfn.XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\") -> calc_fml::evaluate gives #NA (calls: Call XLOOKUP, Infix &); Excel's raw value #NA: matched",
+        "oracle reference_values!D51 =CHOOSE(2,A1,B4)*1 (stored =CHOOSE(2,A1,B4)*1) -> calc_fml::evaluate gives #Div0 (calls: Call CHOOSE, Infix *); Excel's raw value #Div0: matched",
+        "oracle reference_values!D52 =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))+1) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix +); Excel's raw value #NA: matched",
+        "oracle reference_values!D53 =INDEX(C6:C10,1)+1 (stored =INDEX(C6:C10,1)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+        "oracle reference_values!D54 =INDEX(C6:C10,3)+1 (stored =INDEX(C6:C10,3)+1) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 8.0: matched",
+        "oracle reference_values!D55 =INDEX(C6:C10,4)+1 (stored =INDEX(C6:C10,4)+1) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 2.0: matched",
+        "oracle reference_values!D56 =INDEX(C6:C10,5)&\"|\" (stored =INDEX(C6:C10,5)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call INDEX, Infix &); Excel's raw value \"|\": matched",
+        "oracle reference_values!D57 =INDEX(C6:C10,5)+1 (stored =INDEX(C6:C10,5)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+        "INDEX's reference result as an operand: 12 rows matched through calc_fml::evaluate: =INDEX(A1:C3,2,2)+1 = 6.0; =1+INDEX(A1:C3,2,2) = 6.0; =-INDEX(A1:C3,2,2) = -5.0; =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) = 4.0; =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) = 45.0; =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) = 2.5; =INDEX(A1:C3,1,2)^2 = 4.0; =INDEX(A1:C3,2,2)% = 0.05; =INDEX(A1:C3,2,2)&\"x\" = \"5x\"; =INDEX(A1:C3,2,2)=5 = TRUE; =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) = FALSE; =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) = TRUE",
+        "INDEX(range,MATCH(key,column,0)) as an operand: 3 rows matched through calc_fml::evaluate: =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 = 60.0; =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) = 40.0; =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) = \"ab\"",
+        "INDEX's reference result inside another function's argument, at that function's value parameter or, where the row says so, at an operator within the argument: 11 rows matched through calc_fml::evaluate: =ABS(INDEX(A1:C4,4,3)) = 2.5; =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) = 4.29 (the reference reaches the infix operator / inside ROUND's first argument, not ROUND's parameter); =INT(INDEX(A1:C4,4,3)) = -3.0; =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) = 1.0; =SIGN(-INDEX(A1:C3,1,1)) = -1.0 (the reference reaches the prefix operator - inside SIGN's argument, not SIGN's parameter); =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") = \"big\" (the reference reaches the infix operator > inside IF's first argument, not IF's parameter); =IF(INDEX(A1:C3,1,1),\"t\",\"f\") = \"t\"; =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") = \"b\"; =INDEX(A1:C3,INDEX(A1:C3,1,2),1) = 4.0; =MATCH(INDEX(A6:A10,3),A:A,0) = 8.0; =ROUND(INDEX(A1:C4,4,3),0) = -3.0",
+        "XLOOKUP's and CHOOSE's reference results as operands and at value parameters: 6 rows matched through calc_fml::evaluate: =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 = 31.0; =-XLOOKUP(\"k2\",A6:A10,B6:B10) = -20.0; =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" = \"b!\"; =CHOOSE(2,A1,B1)+1 = 3.0; =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) = 8.0; =ABS(CHOOSE(1,C4,C3)) = 2.5",
+        "a reference result that points at a blank cell (A4, B9): 11 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,1)+1 = 1.0; =-INDEX(A1:C4,4,1) = 0.0; =INDEX(A1:C4,4,1)&\"x\" = \"x\"; =INDEX(A1:C4,4,1)=0 = TRUE; =INDEX(A1:C4,4,1)=\"\" = TRUE; =ABS(INDEX(A1:C4,4,1)) = 0.0; =IF(INDEX(A1:C4,4,1),\"t\",\"f\") = \"f\"; =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 = 1.0; =CHOOSE(2,A1,A4)+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" = \"|\"",
+        "a reference result that points at an error cell (B4 #DIV/0!, B10 #N/A), and a lookup that finds no key: 9 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,2)+1 = #Div0; =INDEX(A1:C4,4,2)&\"x\" = #Div0; =ABS(INDEX(A1:C4,4,2)) = #Div0; =IF(INDEX(A1:C4,4,2),\"t\",\"f\") = #Div0; =IFERROR(INDEX(A1:C4,4,2),\"caught\") = \"caught\"; =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 = #NA; =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" = #NA; =CHOOSE(2,A1,B4)*1 = #Div0; =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 = #NA",
+        "a reference result that points at text, numeric text, a logical or empty text (C6:C10): 5 rows matched through calc_fml::evaluate: =INDEX(C6:C10,1)+1 = #Value; =INDEX(C6:C10,3)+1 = 8.0; =INDEX(C6:C10,4)+1 = 2.0; =INDEX(C6:C10,5)&\"|\" = \"|\"; =INDEX(C6:C10,5)+1 = #Value",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json of crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx: each of the 57 rows, which pass a reference result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function, compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 57, matched 57, mismatched 0); dc_l10u__reference_results_as_values: calculated 57 of 57 formula cells; matched 57 of 57 calculated, mismatched 0, not run 0; of the 57 compared, strict-bit certified 0, uncertified 57 (no_exact_target 57); not calculated: unproven 0, stale 0, file-cached 0, not modeled 0, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 57 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+        "Excel reports 1 of the rows' formulas with the implicit-intersection operator @ (compiled here as the file stores them, without @): reference_values!D24 =@INDEX(A1:C3,INDEX(A1:C3,1,2),1)",
+        "against a copy of the capture with reference_values!D1 observed as 7 (made by the case, not Excel's), the comparison reports D1 alone: reference_values!D1 =INDEX(A1:C3,2,2)+1: calc_fml::evaluate gives 6.0, Excel's raw value is 7.0",
+        "the check that the committed generator tests/fixtures/make-fixtures.ps1 writes crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx byte for byte did not run on this target: the generator is a Windows PowerShell script, which the case runs only in its native Windows build",
+        "oracle reference_values!D1 =INDEX(A1:C3,2,2)+1 (stored =INDEX(A1:C3,2,2)+1) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+        "oracle reference_values!D2 =1+INDEX(A1:C3,2,2) (stored =1+INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives 6.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 6.0: matched",
+        "oracle reference_values!D3 =-INDEX(A1:C3,2,2) (stored =-INDEX(A1:C3,2,2)) -> calc_fml::evaluate gives -5.0 (calls: Call INDEX, Prefix -); Excel's raw value -5.0: matched",
+        "oracle reference_values!D4 =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX, Infix -, Prefix - *, Prefix - *); Excel's raw value 4.0: matched",
+        "oracle reference_values!D5 =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) (stored =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3)) -> calc_fml::evaluate gives 45.0 (calls: Call INDEX, Call INDEX, Infix *); Excel's raw value 45.0: matched",
+        "oracle reference_values!D6 =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) (stored =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2)) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call INDEX, Infix /); Excel's raw value 2.5: matched",
+        "oracle reference_values!D7 =INDEX(A1:C3,1,2)^2 (stored =INDEX(A1:C3,1,2)^2) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Infix ^); Excel's raw value 4.0: matched",
+        "oracle reference_values!D8 =INDEX(A1:C3,2,2)% (stored =INDEX(A1:C3,2,2)%) -> calc_fml::evaluate gives 0.05 (calls: Call INDEX, Postfix %); Excel's raw value 0.05: matched",
+        "oracle reference_values!D9 =INDEX(A1:C3,2,2)&\"x\" (stored =INDEX(A1:C3,2,2)&\"x\") -> calc_fml::evaluate gives \"5x\" (calls: Call INDEX, Infix &); Excel's raw value \"5x\": matched",
+        "oracle reference_values!D10 =INDEX(A1:C3,2,2)=5 (stored =INDEX(A1:C3,2,2)=5) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+        "oracle reference_values!D11 =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) (stored =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1)) -> calc_fml::evaluate gives FALSE (calls: Call INDEX, Call INDEX, Infix >); Excel's raw value FALSE: matched",
+        "oracle reference_values!D12 =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) (stored =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1)) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Call INDEX, Infix <>); Excel's raw value TRUE: matched",
+        "oracle reference_values!D13 =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))*2) -> calc_fml::evaluate gives 60.0 (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value 60.0: matched",
+        "oracle reference_values!D14 =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) (stored =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0))) -> calc_fml::evaluate gives 40.0 (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 40.0: matched",
+        "oracle reference_values!D15 =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) (stored =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0))) -> calc_fml::evaluate gives \"ab\" (calls: Call MATCH, Call INDEX, Call MATCH, Call INDEX, Infix &); Excel's raw value \"ab\": matched",
+        "oracle reference_values!D16 =ABS(INDEX(A1:C4,4,3)) (stored =ABS(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives 2.5 (calls: Call INDEX, Call ABS); Excel's raw value 2.5: matched",
+        "oracle reference_values!D17 =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) (stored =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2)) -> calc_fml::evaluate gives 4.29 (calls: Call MATCH, Call INDEX, Infix /, Call ROUND); Excel's raw value 4.29: matched",
+        "oracle reference_values!D18 =INT(INDEX(A1:C4,4,3)) (stored =INT(INDEX(A1:C4,4,3))) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call INT); Excel's raw value -3.0: matched",
+        "oracle reference_values!D19 =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) (stored =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2))) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Call INDEX, Call MOD); Excel's raw value 1.0: matched",
+        "oracle reference_values!D20 =SIGN(-INDEX(A1:C3,1,1)) (stored =SIGN(-INDEX(A1:C3,1,1))) -> calc_fml::evaluate gives -1.0 (calls: Call INDEX, Prefix -, Call SIGN); Excel's raw value -1.0: matched",
+        "oracle reference_values!D21 =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") (stored =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\")) -> calc_fml::evaluate gives \"big\" (calls: Call INDEX, Infix >, Call IF); Excel's raw value \"big\": matched",
+        "oracle reference_values!D22 =IF(INDEX(A1:C3,1,1),\"t\",\"f\") (stored =IF(INDEX(A1:C3,1,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"t\" (calls: Call INDEX, Call IF); Excel's raw value \"t\": matched",
+        "oracle reference_values!D23 =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") (stored =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\")) -> calc_fml::evaluate gives \"b\" (calls: Call INDEX, Call CHOOSE); Excel's raw value \"b\": matched",
+        "oracle reference_values!D24 =INDEX(A1:C3,INDEX(A1:C3,1,2),1) (stored =INDEX(A1:C3,INDEX(A1:C3,1,2),1)) -> calc_fml::evaluate gives 4.0 (calls: Call INDEX, Call INDEX); Excel's raw value 4.0: matched",
+        "oracle reference_values!D25 =MATCH(INDEX(A6:A10,3),A:A,0) (stored =MATCH(INDEX(A6:A10,3),A:A,0)) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Call MATCH); Excel's raw value 8.0: matched",
+        "oracle reference_values!D26 =ROUND(INDEX(A1:C4,4,3),0) (stored =ROUND(INDEX(A1:C4,4,3),0)) -> calc_fml::evaluate gives -3.0 (calls: Call INDEX, Call ROUND); Excel's raw value -3.0: matched",
+        "oracle reference_values!D27 =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k3\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 31.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 31.0: matched",
+        "oracle reference_values!D28 =-XLOOKUP(\"k2\",A6:A10,B6:B10) (stored =-_xlfn.XLOOKUP(\"k2\",A6:A10,B6:B10)) -> calc_fml::evaluate gives -20.0 (calls: Call XLOOKUP, Prefix -); Excel's raw value -20.0: matched",
+        "oracle reference_values!D29 =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" (stored =_xlfn.XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\") -> calc_fml::evaluate gives \"b!\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"b!\": matched",
+        "oracle reference_values!D30 =CHOOSE(2,A1,B1)+1 (stored =CHOOSE(2,A1,B1)+1) -> calc_fml::evaluate gives 3.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 3.0: matched",
+        "oracle reference_values!D31 =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) (stored =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2)) -> calc_fml::evaluate gives 8.0 (calls: Call CHOOSE, Call CHOOSE, Infix *); Excel's raw value 8.0: matched",
+        "oracle reference_values!D32 =ABS(CHOOSE(1,C4,C3)) (stored =ABS(CHOOSE(1,C4,C3))) -> calc_fml::evaluate gives 2.5 (calls: Call CHOOSE, Call ABS); Excel's raw value 2.5: matched",
+        "oracle reference_values!D33 =INDEX(A1:C4,4,1)+1 (stored =INDEX(A1:C4,4,1)+1) -> calc_fml::evaluate gives 1.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D34 =-INDEX(A1:C4,4,1) (stored =-INDEX(A1:C4,4,1)) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Prefix -); Excel's raw value 0.0: matched",
+        "oracle reference_values!D35 =INDEX(A1:C4,4,1)&\"x\" (stored =INDEX(A1:C4,4,1)&\"x\") -> calc_fml::evaluate gives \"x\" (calls: Call INDEX, Infix &); Excel's raw value \"x\": matched",
+        "oracle reference_values!D36 =INDEX(A1:C4,4,1)=0 (stored =INDEX(A1:C4,4,1)=0) -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+        "oracle reference_values!D37 =INDEX(A1:C4,4,1)=\"\" (stored =INDEX(A1:C4,4,1)=\"\") -> calc_fml::evaluate gives TRUE (calls: Call INDEX, Infix =); Excel's raw value TRUE: matched",
+        "oracle reference_values!D38 =ABS(INDEX(A1:C4,4,1)) (stored =ABS(INDEX(A1:C4,4,1))) -> calc_fml::evaluate gives 0.0 (calls: Call INDEX, Call ABS); Excel's raw value 0.0: matched",
+        "oracle reference_values!D39 =IF(INDEX(A1:C4,4,1),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,1),\"t\",\"f\")) -> calc_fml::evaluate gives \"f\" (calls: Call INDEX, Call IF); Excel's raw value \"f\": matched",
+        "oracle reference_values!D40 =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k4\",A:A,0))+1) -> calc_fml::evaluate gives 1.0 (calls: Call MATCH, Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D41 =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)+1) -> calc_fml::evaluate gives 1.0 (calls: Call XLOOKUP, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D42 =CHOOSE(2,A1,A4)+1 (stored =CHOOSE(2,A1,A4)+1) -> calc_fml::evaluate gives 1.0 (calls: Call CHOOSE, Infix +, Prefix - *, Prefix - *); Excel's raw value 1.0: matched",
+        "oracle reference_values!D43 =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" (stored =_xlfn.XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call XLOOKUP, Infix &); Excel's raw value \"|\": matched",
+        "oracle reference_values!D44 =INDEX(A1:C4,4,2)+1 (stored =INDEX(A1:C4,4,2)+1) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix +); Excel's raw value #Div0: matched",
+        "oracle reference_values!D45 =INDEX(A1:C4,4,2)&\"x\" (stored =INDEX(A1:C4,4,2)&\"x\") -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Infix &); Excel's raw value #Div0: matched",
+        "oracle reference_values!D46 =ABS(INDEX(A1:C4,4,2)) (stored =ABS(INDEX(A1:C4,4,2))) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call ABS); Excel's raw value #Div0: matched",
+        "oracle reference_values!D47 =IF(INDEX(A1:C4,4,2),\"t\",\"f\") (stored =IF(INDEX(A1:C4,4,2),\"t\",\"f\")) -> calc_fml::evaluate gives #Div0 (calls: Call INDEX, Call IF); Excel's raw value #Div0: matched",
+        "oracle reference_values!D48 =IFERROR(INDEX(A1:C4,4,2),\"caught\") (stored =IFERROR(INDEX(A1:C4,4,2),\"caught\")) -> calc_fml::evaluate gives \"caught\" (calls: Call INDEX, Call IFERROR); Excel's raw value \"caught\": matched",
+        "oracle reference_values!D49 =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 (stored =INDEX(B:B,MATCH(\"k5\",A:A,0))*2) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix *); Excel's raw value #NA: matched",
+        "oracle reference_values!D50 =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" (stored =_xlfn.XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\") -> calc_fml::evaluate gives #NA (calls: Call XLOOKUP, Infix &); Excel's raw value #NA: matched",
+        "oracle reference_values!D51 =CHOOSE(2,A1,B4)*1 (stored =CHOOSE(2,A1,B4)*1) -> calc_fml::evaluate gives #Div0 (calls: Call CHOOSE, Infix *); Excel's raw value #Div0: matched",
+        "oracle reference_values!D52 =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 (stored =INDEX(B:B,MATCH(\"k9\",A:A,0))+1) -> calc_fml::evaluate gives #NA (calls: Call MATCH, Call INDEX, Infix +); Excel's raw value #NA: matched",
+        "oracle reference_values!D53 =INDEX(C6:C10,1)+1 (stored =INDEX(C6:C10,1)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+        "oracle reference_values!D54 =INDEX(C6:C10,3)+1 (stored =INDEX(C6:C10,3)+1) -> calc_fml::evaluate gives 8.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 8.0: matched",
+        "oracle reference_values!D55 =INDEX(C6:C10,4)+1 (stored =INDEX(C6:C10,4)+1) -> calc_fml::evaluate gives 2.0 (calls: Call INDEX, Infix +, Prefix - *, Prefix - *); Excel's raw value 2.0: matched",
+        "oracle reference_values!D56 =INDEX(C6:C10,5)&\"|\" (stored =INDEX(C6:C10,5)&\"|\") -> calc_fml::evaluate gives \"|\" (calls: Call INDEX, Infix &); Excel's raw value \"|\": matched",
+        "oracle reference_values!D57 =INDEX(C6:C10,5)+1 (stored =INDEX(C6:C10,5)+1) -> calc_fml::evaluate gives #Value (calls: Call INDEX, Infix +); Excel's raw value #Value: matched",
+        "INDEX's reference result as an operand: 12 rows matched through calc_fml::evaluate: =INDEX(A1:C3,2,2)+1 = 6.0; =1+INDEX(A1:C3,2,2) = 6.0; =-INDEX(A1:C3,2,2) = -5.0; =INDEX(A1:C3,2,2)-INDEX(A1:C3,1,1) = 4.0; =INDEX(A1:C3,2,2)*INDEX(A1:C3,3,3) = 45.0; =INDEX(A1:C3,2,2)/INDEX(A1:C3,1,2) = 2.5; =INDEX(A1:C3,1,2)^2 = 4.0; =INDEX(A1:C3,2,2)% = 0.05; =INDEX(A1:C3,2,2)&\"x\" = \"5x\"; =INDEX(A1:C3,2,2)=5 = TRUE; =INDEX(A1:C3,2,2)>INDEX(A1:C3,3,1) = FALSE; =INDEX(A1:C3,2,2)<>INDEX(A1:C3,1,1) = TRUE",
+        "INDEX(range,MATCH(key,column,0)) as an operand: 3 rows matched through calc_fml::evaluate: =INDEX(B:B,MATCH(\"k3\",A:A,0))*2 = 60.0; =INDEX(B:B,MATCH(\"k3\",A:A,0))+INDEX(B:B,MATCH(\"k1\",A:A,0)) = 40.0; =INDEX(C:C,MATCH(\"k1\",A:A,0))&INDEX(C:C,MATCH(\"k2\",A:A,0)) = \"ab\"",
+        "INDEX's reference result inside another function's argument, at that function's value parameter or, where the row says so, at an operator within the argument: 11 rows matched through calc_fml::evaluate: =ABS(INDEX(A1:C4,4,3)) = 2.5; =ROUND(INDEX(B:B,MATCH(\"k3\",A:A,0))/7,2) = 4.29 (the reference reaches the infix operator / inside ROUND's first argument, not ROUND's parameter); =INT(INDEX(A1:C4,4,3)) = -3.0; =MOD(INDEX(A1:C3,3,3),INDEX(A1:C3,1,2)) = 1.0; =SIGN(-INDEX(A1:C3,1,1)) = -1.0 (the reference reaches the prefix operator - inside SIGN's argument, not SIGN's parameter); =IF(INDEX(A1:C3,2,2)>1,\"big\",\"small\") = \"big\" (the reference reaches the infix operator > inside IF's first argument, not IF's parameter); =IF(INDEX(A1:C3,1,1),\"t\",\"f\") = \"t\"; =CHOOSE(INDEX(A1:C3,1,2),\"a\",\"b\",\"c\") = \"b\"; =INDEX(A1:C3,INDEX(A1:C3,1,2),1) = 4.0; =MATCH(INDEX(A6:A10,3),A:A,0) = 8.0; =ROUND(INDEX(A1:C4,4,3),0) = -3.0",
+        "XLOOKUP's and CHOOSE's reference results as operands and at value parameters: 6 rows matched through calc_fml::evaluate: =XLOOKUP(\"k3\",A6:A10,B6:B10)+1 = 31.0; =-XLOOKUP(\"k2\",A6:A10,B6:B10) = -20.0; =XLOOKUP(\"k2\",A6:A10,C6:C10)&\"!\" = \"b!\"; =CHOOSE(2,A1,B1)+1 = 3.0; =CHOOSE(2,A1,B1)*CHOOSE(1,A2,B2) = 8.0; =ABS(CHOOSE(1,C4,C3)) = 2.5",
+        "a reference result that points at a blank cell (A4, B9): 11 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,1)+1 = 1.0; =-INDEX(A1:C4,4,1) = 0.0; =INDEX(A1:C4,4,1)&\"x\" = \"x\"; =INDEX(A1:C4,4,1)=0 = TRUE; =INDEX(A1:C4,4,1)=\"\" = TRUE; =ABS(INDEX(A1:C4,4,1)) = 0.0; =IF(INDEX(A1:C4,4,1),\"t\",\"f\") = \"f\"; =INDEX(B:B,MATCH(\"k4\",A:A,0))+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)+1 = 1.0; =CHOOSE(2,A1,A4)+1 = 1.0; =XLOOKUP(\"k4\",A6:A10,B6:B10)&\"|\" = \"|\"",
+        "a reference result that points at an error cell (B4 #DIV/0!, B10 #N/A), and a lookup that finds no key: 9 rows matched through calc_fml::evaluate: =INDEX(A1:C4,4,2)+1 = #Div0; =INDEX(A1:C4,4,2)&\"x\" = #Div0; =ABS(INDEX(A1:C4,4,2)) = #Div0; =IF(INDEX(A1:C4,4,2),\"t\",\"f\") = #Div0; =IFERROR(INDEX(A1:C4,4,2),\"caught\") = \"caught\"; =INDEX(B:B,MATCH(\"k5\",A:A,0))*2 = #NA; =XLOOKUP(\"k5\",A6:A10,B6:B10)&\"\" = #NA; =CHOOSE(2,A1,B4)*1 = #Div0; =INDEX(B:B,MATCH(\"k9\",A:A,0))+1 = #NA",
+        "a reference result that points at text, numeric text, a logical or empty text (C6:C10): 5 rows matched through calc_fml::evaluate: =INDEX(C6:C10,1)+1 = #Value; =INDEX(C6:C10,3)+1 = 8.0; =INDEX(C6:C10,4)+1 = 2.0; =INDEX(C6:C10,5)&\"|\" = \"|\"; =INDEX(C6:C10,5)+1 = #Value",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json of crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx: each of the 57 rows, which pass a reference result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function, compiled from the formula the workbook stores, evaluated through calc_fml::evaluate over the workbook's cells and matched Excel's raw value (calculated 57, matched 57, mismatched 0); dc_l10u__reference_results_as_values: calculated 57 of 57 formula cells; matched 57 of 57 calculated, mismatched 0, not run 0; of the 57 compared, strict-bit certified 0, uncertified 57 (no_exact_target 57); not calculated: unproven 0, stale 0, file-cached 0, not modeled 0, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 57 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+        "Excel reports 1 of the rows' formulas with the implicit-intersection operator @ (compiled here as the file stores them, without @): reference_values!D24 =@INDEX(A1:C3,INDEX(A1:C3,1,2),1)",
+        "against a copy of the capture with reference_values!D1 observed as 7 (made by the case, not Excel's), the comparison reports D1 alone: reference_values!D1 =INDEX(A1:C3,2,2)+1: calc_fml::evaluate gives 6.0, Excel's raw value is 7.0"
+      ],
+      "outcome": "passed",
+      "package": "calc-fml",
+      "reason": null,
+      "result_line": null
+    }
+  ],
+  "command": [
+    "cargo",
+    "xtask",
+    "accept",
+    "--id",
+    "dc-l10u",
+    "--platform",
+    "wasm",
+    "--require-all"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "dc_l10u",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 7.682,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.91s"
+      ],
+      "log": "target/accept/dc-l10u/wasm/command-1.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "dc_l10u",
+        "--",
+        "--nocapture"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "dc-l10u",
+        "--platform",
+        "windows",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "dc-l10u",
+        "--platform",
+        "linux",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "dc-l10u",
+        "--platform",
+        "wasm",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    }
+  ],
+  "committed_copy": "accept-receipts/dc-l10u/wasm.json",
+  "counts": {
+    "architecture_checks": 7,
+    "architecture_checks_passed": 7,
+    "commands_failed": 0,
+    "commands_not_run": 0,
+    "commands_registered": 4,
+    "commands_run": 1,
+    "commands_skipped": 3,
+    "failed": 0,
+    "ignored": 0,
+    "missing": 0,
+    "not_run": 0,
+    "passed": 2,
+    "selected": 2
+  },
+  "duration_s": 57.585,
+  "exit_code": 0,
+  "format": "dnacalc-accept-receipt/4",
+  "host": {
+    "arch": "x86_64",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "git": {
+      "branch": "master",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "96527e617ece6a31d676c855894035d6c2996f01",
+          "path": "crates/calc-fml/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "2b33ccffc59f1ae3f69c341c292f302d248a2adf",
+          "path": "crates/calc-fml/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "eb36b9f86035993b5f317fa574ffe8cb613cb6da",
+          "path": "crates/calc-fml/tests/fixtures/make-fixtures.ps1",
+          "status": "M"
+        },
+        {
+          "blob": "a186083644ea07a6c7fdd6453159c4db357959d5",
+          "path": "accept-receipts/dc-l10u/windows.json",
+          "status": "??"
+        },
+        {
+          "blob": "bd8550232180bae4c0c7db8d3a276fdd0e8408b6",
+          "path": "crates/calc-fml/tests/captures/dc_l10u/oracle.capture.json",
+          "status": "??"
+        },
+        {
+          "blob": "ed54b65a375e251c46da6e3adf3e6048c790b869",
+          "path": "crates/calc-fml/tests/fixtures/dc_l10u/oracle.xlsx",
+          "status": "??"
+        }
+      ],
+      "head": "c577a443e0818754fdf99276fc141ccd4e91a1d8",
+      "receipt_paths_left_out": [
+        "accept-receipts/dc-l10u/wasm.json"
+      ]
+    },
+    "legacy_root": {
+      "exists": true,
+      "from": "default: the workspace root's parent directory",
+      "path": ".."
+    },
+    "os": "windows",
+    "platform_matches_host": true,
+    "platform_mismatch": null,
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "rustc_host": "x86_64-pc-windows-msvc"
+  },
+  "manifests": {
+    "errors": [],
+    "files": [
+      "crates/calc-value/acceptance.json",
+      "crates/calc-func/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
+      "crates/calc-fml/acceptance.json",
+      "crates/calc-doc-model/acceptance.json",
+      "crates/calc-doc/acceptance.json",
+      "crates/calc-engine/acceptance.json",
+      "crates/calc-host/acceptance.json",
+      "apps/dna-onecalc/acceptance.json",
+      "apps/dna-calc/acceptance.json",
+      "platform/calc-platform-desktop/acceptance.json",
+      "platform/calc-oracle-excel/acceptance.json",
+      "tools/xtask/acceptance.json"
+    ]
+  },
+  "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it, and host.legacy_root.path is .. for the workspace root's parent or <legacy-root> for a directory elsewhere",
+  "platform": "wasm",
+  "problems": [],
+  "receipt": "target/accept/dc-l10u/wasm/receipt.json",
+  "require_all": true,
+  "result": "passed",
+  "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
+  "started_utc": "2026-10-21T17:41:35Z"
+}
