@@ -281,13 +281,14 @@
   "not_ported": [
     {
       "items": [
-        "& with a number operand: the number's text in the General format"
+        "& with a number operand: the number's text"
       ],
-      "reason": "& is partial: it joins text, logicals and blanks, and refuses a number operand with NotImplemented naming it (coerce::text, catalogue/text.rs). A number's text comes from NumberTextService, which cfml-m2.6 defines.",
+      "reason": "Not ported from the legacy source. & joins text, logicals, blanks and numbers: since dc-q9rb, a number operand's text is that bead's conversion (crates/calc-func/src/number_text.rs through coerce::text, Excel's text with '.' as the decimal separator and no column width, written from measurement; migration/ports/dc-q9rb.json), except that a number within a relative 2^-59 of a tie at its 16th significant digit, whose side of the tie decides its text, is refused under dc-rkzm. Number formats other than this conversion, cell display and other locales come from NumberTextService, which cfml-m2.6 defines.",
       "beads": [
+        "dc-q9rb",
         "cfml-m2.6"
       ],
-      "basis": "NumberTextService, value-parsing (cfml-m2.6); General format hits only dc-78xm, which applies a function result's format hint to its cell and writes no number's text"
+      "basis": "NumberTextService, value-parsing (cfml-m2.6); General format hits only dc-78xm, which applies a function result's format hint to its cell and writes no number's text; dc-q9rb (Give a number's text as Excel gives it when & or a function reads the number as text)"
     },
     {
       "items": [

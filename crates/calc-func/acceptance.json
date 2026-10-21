@@ -116,6 +116,25 @@
         "cfunc_m3_5__mismatched_shapes": ["windows", "linux", "wasm"],
         "cfunc_m3_5__excel_comparison": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-q9rb",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_q9rb", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-q9rb", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-q9rb", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-q9rb", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_q9rb__number_text_for_concatenation",
+        "dc_q9rb__excel_comparison"
+      ],
+      "platforms": {
+        "dc_q9rb__number_text_for_concatenation": ["windows", "linux", "wasm"],
+        "dc_q9rb__excel_comparison": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

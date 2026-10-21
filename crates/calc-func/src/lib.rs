@@ -19,6 +19,7 @@ mod catalogue;
 mod coerce;
 mod decimal;
 mod kernel;
+mod number_text;
 
 pub use call::{
     CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, Unreadable,

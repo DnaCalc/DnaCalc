@@ -1471,8 +1471,8 @@ fn cfunc_m1_1__unknown_function() {
 // Each row names the bead that owns the Excel behaviour it shows. A row of cfunc-m1.2 computes a
 // value, and the Excel comparison must find it equal to Excel's. A row whose behaviour another
 // bead owns (text collation and nearly equal numbers, the near-zero adjustment of a formula's
-// final + or -, ^ beyond the powers computed here, number text read by locale rules, a number's
-// General text, array lifting, subnormal results) is run and asserted the same way, whether
+// final + or -, ^ beyond the powers computed here, number text read by locale rules, array
+// lifting, subnormal results) is run and asserted the same way, whether
 // calc-func computes it or refuses it, and is published to the comparison as not modeled, with
 // its owner: it is counted as not modeled and never as matched.
 //
@@ -1510,11 +1510,12 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 4] = [
+const GENERATED_WORKBOOKS: [&str; 5] = [
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
     "cfunc_m3_4/oracle.xlsx",
     "cfunc_m3_5/oracle.xlsx",
+    "dc_q9rb/oracle.xlsx",
 ];
 
 /// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
@@ -1846,10 +1847,6 @@ const POWER_ALGORITHM: Owner = Owner {
 const NUMBER_TEXT: Owner = Owner {
     bead: "cfml-m2.6",
     behaviour: "text read as a number or a logical by Excel's number-text rules",
-};
-const GENERAL_TEXT: Owner = Owner {
-    bead: "cfml-m2.6",
-    behaviour: "a number's text in the General format",
 };
 const ARRAY_LIFT: Owner = Owner {
     bead: "cfml-m3.4",
@@ -3113,29 +3110,17 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         Refused(None)
     );
 
-    // Concatenation: logicals as TRUE and FALSE, a blank as empty text; a number's text needs
-    // the General format, which is refused.
+    // Concatenation: logicals as TRUE and FALSE, a blank as empty text, a number as its text
+    // (dc-q9rb's dc_q9rb__number_text_for_concatenation measures that text).
     row!(r, s, AMPERSAND, [txt("a"), txt("b")], t("ab"));
     row!(r, s, AMPERSAND, [txt("a"), logical(true)], t("aTRUE"));
     row!(r, s, AMPERSAND, [txt("a"), logical(false)], t("aFALSE"));
     row!(r, s, AMPERSAND, [cell(s, "A5"), txt("x")], t("x"));
     row!(r, s, AMPERSAND, [cell(s, "A2"), cell(s, "A4")], t("TRUEa"));
-    owned_by!(
-        r,
-        s,
-        GENERAL_TEXT,
-        AMPERSAND,
-        [txt("a"), num("1")],
-        Refused(Some(1))
-    );
-    owned_by!(
-        r,
-        s,
-        GENERAL_TEXT,
-        AMPERSAND,
-        [num("1"), txt("a")],
-        Refused(Some(0))
-    );
+    // dc_q9rb__number_text_for_concatenation measures these two formulas in Excel (its oracle
+    // rows number_text_for_concatenation!D62 and D63).
+    row!(r, s, AMPERSAND, [txt("a"), num("1")], t("a1"));
+    row!(r, s, AMPERSAND, [num("1"), txt("a")], t("1a"));
     // A joined text of 32767 characters is a cell's longest; one more is #VALUE!.
     let shorter = "a".repeat(32_766);
     row!(
@@ -8423,10 +8408,6 @@ const SHAPED_PAST: Owner = Owner {
     bead: "dc-1mc8",
     behaviour: "a SUMIF or AVERAGEIF sum range shaped past the reference the formula gives, as a recalculation prerequisite",
 };
-const NUMBER_JOINED: Owner = Owner {
-    bead: "dc-q9rb",
-    behaviour: "a number's text when & reads the number",
-};
 
 /// Prints how many rows a case ran and on what basis each expects its value.
 fn conditional_rows_note(rows: &Rows) {
@@ -8507,62 +8488,6 @@ fn joined(sheet: &TestSheet, op: &str, a1: &str) -> Arg {
         reads: sheet.entries(&[a1]),
         ..arg(&format!("\"{op}\"&{a1}"), value)
     }
-}
-
-/// A row of cfunc-m3.5 whose last argument is the criterion `"op"&A1` over a cell the & entry
-/// refuses to read as text, so the formula's evaluation ends in that refusal before the call of
-/// `spelling`: asserts the refusal, then records the & call and the row, refused and owned by
-/// `owner`, with the next cell of column D, and prints it with `reason`.
-#[allow(clippy::too_many_arguments)]
-fn refused_join_row(
-    rows: &mut Rows,
-    sheet: &TestSheet,
-    spelling: &str,
-    before: &[Arg],
-    op: &str,
-    a1: &str,
-    owner: Owner,
-    reason: &str,
-) {
-    let concatenate = surface(Notation::Infix, "&");
-    let tick = next_tick();
-    let outcome = join(sheet, op, a1);
-    let criterion = format!("\"{op}\"&{a1}");
-    let mut texts: Vec<&str> = before.iter().map(|a| a.excel.as_str()).collect();
-    texts.push(&criterion);
-    let formula = surface(Notation::Call, spelling)
-        .oracle_formula(&texts)
-        .unwrap_or_else(|| panic!("{spelling} does not admit {texts:?}"));
-    assert_eq!(
-        outcome,
-        Err(FunctionFault::NotImplemented {
-            id: concatenate.id(),
-            argument: Some(1)
-        }),
-        "{formula}: the & entry over {a1}"
-    );
-    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
-    if !rows.quiet {
-        let mut reads: Vec<String> = before.iter().flat_map(|a| a.reads.clone()).collect();
-        reads.extend(sheet.entries(&[a1]));
-        note!(
-            "ACCEPT-NOTE: {}: oracle {}!{} {formula} with {} -> & refuses: {:?} (refused as not modelled: {reason}; not compared with Excel)",
-            rows.case,
-            rows.sheet,
-            encode_a1(row, FORMULA_COLUMN),
-            reads.join(", "),
-            outcome
-        );
-    }
-    rows.calls.push(Call { row, tick });
-    rows.oracle.push(OracleRow {
-        row,
-        formula,
-        outcome,
-        choice: None,
-        owner: Some(owner),
-        tick,
-    });
 }
 
 // Rules the rows apply, as the functions' pages state them.
@@ -8829,7 +8754,7 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [a(s), joined(s, "=", "A16")],
         N(2.0),
         Documented(
-            "a criterion may join an operator to a cell's value with &, as the page's example COUNTIF(B2:B5,\"<>\"&B4) does; calc_func's & entry joins =APPLE here, while a join over a number stays refused until dc-q9rb (row D91)"
+            "a criterion may join an operator to a cell's value with &, as the page's example COUNTIF(B2:B5,\"<>\"&B4) does; calc_func's & entry joins =APPLE here, and =4 over a number in row D91"
         )
     );
     cnd!(
@@ -9537,16 +9462,16 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     );
     owned(r, DIGIT_LABEL);
 
-    // A criterion joined over a number: & refuses the number's text, so the formula ends there.
-    refused_join_row(
+    // A criterion joined over a number: & reads the number 4 as the text 4 (dc-q9rb).
+    cnd!(
         r,
         s,
         "COUNTIF",
-        &[c(s)],
-        "=",
-        "C4",
-        NUMBER_JOINED,
-        "& reads the number 4 as text, which calc_func refuses until dc-q9rb gives a number's text as Excel does",
+        [c(s), joined(s, "=", "C4")],
+        N(1.0),
+        Documented(
+            "a criterion may join an operator to a cell's number with &, as the page's example COUNTIF(B2:B5,\"<>\"&B4) does over the number 75; & gives the number 4 as the text 4 (dc-q9rb's measurement, compared with its Excel capture), so the criterion is =4 and only C4 meets it"
+        )
     );
 
     // Rows that tell the choices of the rows above apart where those rows' values do not.
@@ -10950,4 +10875,812 @@ fn cfunc_m3_5__excel_comparison() {
             comparison.report.summary()
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-q9rb: a number's text when the & operator reads the number as text, through
+// calc_func::invoke of & on its catalogue target.
+//
+// Each row runs one & call with a number among its operands. A row that computes asserts the text
+// it gives against an expected text; a row that calc_func refuses asserts the refusal and prints
+// the text Excel gives. Every expected text and every text Excel gives here is Excel's raw value
+// for the row's cell in the committed capture of the oracle workbook ([`CAPTURED`]), and
+// dc_q9rb__excel_comparison asserts each against the observation calc_verdict::judge's report
+// carries for that cell. The same call under NumericMode::Exact has the same outcome: the
+// conversion rounds decimal digits, exactly, and computes no binary64 result.
+//
+// What calc_func refuses, as not modelled: a number within a relative 2^-59 of a tie at its 16th
+// significant digit, an exact tie included, when the side of the tie decides its text. Near such a
+// tie Excel's own rounding departs from the exact one in both directions with no rule found: it
+// rounds the exact ties of rows D5, D11, D12, D61, D72 and D73 toward zero and those of rows D77 to
+// D80 away from zero, and the near ties of rows D81 and D82 against their exact value (the capture
+// records formula cells only, so it cannot tell that apart from Excel reading the A-cell text as
+// another binary64; both rows are refused). The rows that show it name dc-rkzm as the owner of that
+// behaviour, and the Excel comparison publishes them as not modelled with that owner. Every other
+// number gives its text (row D84 lies that near a tie, but its 14-digit text is the same on either
+// side of it).
+//
+// Excel holds no -0 and no subnormal number: a cell written as one reads back as +0, and Excel
+// stores the literal -0 in a formula as 0. A row whose operand is one of them gives calc_func an
+// operand that Excel's own formula did not have, and its note says so.
+//
+// `tests/fixtures/dc_q9rb/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of its sheet, in the
+// order the case runs its rows, beside the cells the rows read. `cargo xtask capture --fixture
+// crates/calc-func/tests/fixtures/dc_q9rb/oracle.xlsx --case dc_q9rb__excel_comparison --out
+// crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json` wrote Excel's capture of that
+// workbook, and the comparison case dc_q9rb__excel_comparison publishes the rows' results and
+// their recorded invoke calls to calc_verdict::judge against it.
+
+/// The oracle workbook of dc-q9rb, as committed.
+const NUMBER_TEXT_WORKBOOK: &[u8] = include_bytes!("fixtures/dc_q9rb/oracle.xlsx");
+const NUMBER_TEXT_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/dc_q9rb/oracle.xlsx";
+/// Excel's capture of that workbook.
+const NUMBER_TEXT_CAPTURE: &[u8] = include_bytes!("captures/dc_q9rb/oracle.capture.json");
+/// The case the capture is recorded under.
+const NUMBER_TEXT_CAPTURE_CASE: &str = "dc_q9rb__excel_comparison";
+
+/// How every expected text and every text Excel gives in the dc-q9rb rows was obtained. The
+/// comparison case asserts the capture's build, locale, separators and connected COM add-in as
+/// this states them.
+const CAPTURED: &str = "Excel's raw value for this cell in the committed capture crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json, which dc_q9rb__excel_comparison asserts through calc_verdict::judge's report (Excel 16.0.20430.20182 on the owner's Windows machine under Windows locale en-ZA, with '.' as decimal separator and a space as thousands separator, and COM add-in VS15ExcelAdaptor connected; en-US itself was not measured)";
+/// The capture's settings that [`CAPTURED`] states.
+const CAPTURED_SETTINGS: [(&str, &str); 3] = [
+    ("user_culture", "en-ZA"),
+    ("decimal_separator", "."),
+    ("thousands_separator", " "),
+];
+/// The Excel build that [`CAPTURED`] states.
+const CAPTURED_BUILD: &str = "16.0.20430.20182";
+/// The COM add-in connected during the capture, which [`CAPTURED`] states.
+const CAPTURED_COM_ADD_IN: &str = "VS15ExcelAdaptor";
+/// The content hash of the package Excel saved during the capture, as the capture's session
+/// records it. That package holds the cells the subnormal and -0 rows read as 0; it was read when
+/// the capture was taken and is not retained.
+const CAPTURED_OUTPUT_PACKAGE: &str =
+    "sha256:744760a32d95daf8ad4b9363e5e1d573834d841422fc5bec8d45867163aa1039";
+
+/// The behaviour the refused dc-q9rb rows show.
+const NEAR_TIE: Owner = Owner {
+    bead: "dc-rkzm",
+    behaviour: "a number's text within a relative 2^-59 of a tie at its 16th significant digit",
+};
+
+/// The numbers the rows read from cells, each in column A of its row's own line, as the generator
+/// writes them: the shortest decimal that reads back as the number.
+const NUMBER_TEXT_CELLS: [(&str, &str); 58] = [
+    ("A1", "1"),
+    ("A2", "123456789012345"),
+    ("A3", "999999999999999"),
+    ("A4", "999999999999999.4"),
+    ("A5", "999999999999999.5"),
+    ("A6", "999999999999999.9"),
+    ("A8", "1000000000000001"),
+    ("A9", "1000000000000000.5"),
+    ("A10", "1234567890123456"),
+    ("A11", "1234567890123455"),
+    ("A12", "1234567890123465"),
+    ("A13", "9007199254740992"),
+    ("A15", "1E+19"),
+    ("A16", "99999999999999900000"),
+    ("A17", "9.999999999999999E+19"),
+    ("A19", "1.2345678901234568E+20"),
+    ("A21", "9.999999999999999E+20"),
+    ("A22", "1.2345678901234568E+21"),
+    ("A31", "0.000123456789012345"),
+    ("A32", "1.23456789012345E-05"),
+    ("A33", "1.2345678901234E-06"),
+    ("A38", "0.30000000000000004"),
+    ("A42", "0.9999999999999999"),
+    ("A44", "-0.5"),
+    ("A45", "-1000000000000000"),
+    ("A46", "-1.23456789012345E-05"),
+    ("A47", "-1.7976931348623157E+308"),
+    ("A49", "-0"),
+    ("A50", "1.7976931348623157E+308"),
+    ("A51", "2.2250738585072014E-308"),
+    ("A52", "2.225073858507201E-308"),
+    ("A53", "5E-324"),
+    ("A54", "-5E-324"),
+    ("A55", "1.23456789012345E+98"),
+    ("A56", "1.23456789012345E+99"),
+    ("A57", "1.23456789012345E+100"),
+    ("A58", "1.23456789012345E-99"),
+    ("A60", "1.8055722654199485E-306"),
+    ("A61", "7200547821627.375"),
+    ("A67", "-1E+19"),
+    ("A68", "-99999999999999900000"),
+    ("A69", "-9.999999999999999E+19"),
+    ("A70", "-0.000123456789012345"),
+    ("A72", "-1234567890123455"),
+    ("A73", "-7200547821627.375"),
+    ("A74", "-1.8055722654199485E-306"),
+    ("A75", "9.99999999999995E-99"),
+    ("A76", "-9.99999999999995E-99"),
+    ("A77", "521310271410497.5"),
+    ("A78", "5758361573115.375"),
+    ("A79", "-6278515587045.875"),
+    ("A80", "543212677140.0625"),
+    ("A81", "4037429.935952025"),
+    ("A82", "5.248519552626765E-06"),
+    ("A83", "-0.9198894815859745"),
+    ("A84", "-7.302438853328905E+163"),
+    ("A85", "23.61461297829835"),
+    ("A86", "80216.89735826345"),
+];
+
+/// The test sheet of the dc-q9rb rows: [`NUMBER_TEXT_CELLS`], each read as Rust reads the decimal,
+/// which is the binary64 nearest it.
+fn number_text_sheet() -> TestSheet {
+    let cells: Vec<(&str, &str, CalcValue)> = NUMBER_TEXT_CELLS
+        .iter()
+        .map(|&(address, written)| {
+            let value: f64 = written.parse().expect("a decimal");
+            (address, written, CalcValue::number(value))
+        })
+        .collect();
+    TestSheet::new(&cells)
+}
+
+/// What a dc-q9rb row expects of calc_func::invoke.
+#[derive(Clone, Copy)]
+enum TextOutcome {
+    /// This text, which is the text Excel gives.
+    Gives(&'static str),
+    /// A refusal as not modelled, naming the number's operand, owned by [`NEAR_TIE`]; Excel gives
+    /// this text.
+    NearTie(&'static str),
+}
+
+/// The dc-q9rb rows, with the text Excel gives for each, in row order.
+struct TextRows {
+    rows: Rows,
+    excel: Vec<&'static str>,
+}
+
+/// Runs one dc-q9rb row: & on `args` through calc_func::invoke under Fast, asserted to have
+/// `outcome`, and the same call under Exact, asserted to have the same outcome. Records the call
+/// and the row, with the next cell of column D (a refused row owned by [`NEAR_TIE`]), and the text
+/// Excel gives, and prints the row with how its texts were obtained and the row's `note`, if any.
+fn number_text_check(
+    text_rows: &mut TextRows,
+    sheet: &mut TestSheet,
+    args: &[Arg],
+    outcome: TextOutcome,
+    note: Option<&'static str>,
+) {
+    let rows = &mut text_rows.rows;
+    let number = args
+        .iter()
+        .position(|a| a.value.as_number().is_some())
+        .expect("a row of dc-q9rb reads a number as text");
+    let (expect, owner) = match outcome {
+        TextOutcome::Gives(text) => (t(text), None),
+        TextOutcome::NearTie(_) => (Refused(Some(number)), Some(NEAR_TIE)),
+    };
+    let (formula, _, result, tick) =
+        call_and_assert(sheet, &NumericMode::Fast, AMPERSAND, args, &expect);
+    let exact = exact_mode();
+    let mut given = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+    let under_exact = invoke(
+        surface(AMPERSAND.0, AMPERSAND.1),
+        &mut given,
+        &mut EvalServices::with_cells(&exact, sheet),
+        &mut FunctionCallScratch::new(),
+    );
+    assert!(
+        match (&under_exact, &result) {
+            (Ok(e), Ok(f)) => identical(e, f),
+            (Err(e), Err(f)) => e == f,
+            _ => false,
+        },
+        "{formula} under Exact gives {under_exact:?}, under Fast {result:?}"
+    );
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    if !rows.quiet {
+        let reads: Vec<&str> = args
+            .iter()
+            .flat_map(|a| a.reads.iter().map(String::as_str))
+            .collect();
+        let cells = if reads.is_empty() {
+            String::new()
+        } else {
+            format!(" with {}", reads.join(", "))
+        };
+        let note = note.map(|note| format!("; {note}")).unwrap_or_default();
+        let shown = match outcome {
+            TextOutcome::Gives(text) => {
+                format!("text {text:?}, the same under Exact (expected text as captured)")
+            }
+            TextOutcome::NearTie(excel) => format!(
+                "refused as not modelled, the same under Exact: {result:?} (owned by {}); Excel gives {excel:?} (as captured)",
+                NEAR_TIE.feature()
+            ),
+        };
+        note!(
+            "ACCEPT-NOTE: {}: oracle {}!{} {formula}{cells} -> {shown}{note}",
+            rows.case,
+            rows.sheet,
+            encode_a1(row, FORMULA_COLUMN)
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice: None,
+        owner,
+        tick,
+    });
+    text_rows.excel.push(match outcome {
+        TextOutcome::Gives(text) | TextOutcome::NearTie(text) => text,
+    });
+}
+
+/// Runs a dc-q9rb row that computes: `nt!(rows, sheet, [args], text)`, its expected text the
+/// captured one, or with a fifth argument, a note the row prints.
+macro_rules! nt {
+    ($rows:expr, $sheet:expr, [$($arg:expr),* $(,)?], $text:expr $(, $note:expr)?) => {{
+        let args = [$($arg),*];
+        let note: Option<&'static str> = None $(.or(Some($note)))?;
+        number_text_check($rows, $sheet, &args, TextOutcome::Gives($text), note)
+    }};
+}
+
+/// Runs a dc-q9rb row that calc_func refuses, a number near a 16th-digit tie:
+/// `near_tie!(rows, sheet, [args], excel)`, `excel` the text Excel gives, as captured, or with a
+/// fifth argument, a note the row prints.
+macro_rules! near_tie {
+    ($rows:expr, $sheet:expr, [$($arg:expr),* $(,)?], $excel:expr $(, $note:expr)?) => {{
+        let args = [$($arg),*];
+        let note: Option<&'static str> = None $(.or(Some($note)))?;
+        number_text_check($rows, $sheet, &args, TextOutcome::NearTie($excel), note)
+    }};
+}
+
+/// The note of a row whose operand is a cell written as -0 or as a subnormal number.
+const READS_BACK_AS_ZERO: &str = "Excel's operand was +0: the package Excel saved during the capture (sha256:744760a3..., the output package the capture's session records) holds this cell as 0, while calc_func is given the number as written";
+/// The note of the row of the literal -0.
+const STORED_AS_ZERO: &str = "Excel's operand was +0: Excel stores the literal -0 as 0, and the capture records this formula as =0&\"\", while calc_func is given -0; that -0's text is 0 rests on Excel holding no -0, not on a measured -0 operand";
+/// The note of a row whose number operand the formula computes.
+const COMPUTED_OPERAND: &str = "its number operand computed through calc_func::invoke of the formula's arithmetic operator under Fast, the binary64 the same expression gives in Rust; the comparison records the & call";
+/// The note of a row that is an exact tie at the 16th digit which Excel rounds toward zero.
+const TIE_TOWARD_ZERO: &str =
+    "an exact tie at the 16th significant digit, which Excel rounds toward zero";
+/// The note of a row that is an exact tie at the 16th digit which Excel rounds away from zero.
+const TIE_AWAY: &str =
+    "an exact tie at the 16th significant digit, which Excel rounds away from zero";
+
+/// An operand of a dc-q9rb row that a formula computes, `excel` as the formula writes it: `op` on
+/// the numbers `a` and `b` through calc_func::invoke under Fast, asserted to be `expected`.
+fn computed(op: (Notation, &str), excel: &str, a: f64, b: f64, expected: f64) -> Arg {
+    let mut given = Recorded::new(vec![CalcValue::number(a), CalcValue::number(b)]);
+    let value = run(surface(op.0, op.1), &mut given, &NumericMode::Fast)
+        .unwrap_or_else(|fault| panic!("{excel} through calc_func::invoke: {fault:?}"));
+    assert_eq!(
+        value.as_number().map(f64::to_bits),
+        Some(expected.to_bits()),
+        "{excel} through calc_func::invoke gives {value:?}"
+    );
+    arg(excel, value)
+}
+
+/// The rows of dc_q9rb__number_text_for_concatenation, run through calc_func::invoke on `s`, in
+/// the order the oracle workbook's sheet holds their formulas.
+fn number_text_rows(s: &mut TestSheet, quiet: bool) -> TextRows {
+    const CASE: &str = "dc_q9rb__number_text_for_concatenation";
+    let mut rows = TextRows {
+        rows: Rows::new(CASE, "number_text_for_concatenation", quiet),
+        excel: Vec::new(),
+    };
+    let r = &mut rows;
+    let empty = || txt("");
+
+    // Integers up to and past 15 significant digits, and the boundaries around 1E+15. The 16th
+    // digit rounds the 15th; an exact tie there (999999999999999.5, 1234567890123455,
+    // 1234567890123465) is refused.
+    nt!(r, s, [cell(s, "A1"), empty()], "1");
+    nt!(r, s, [cell(s, "A2"), empty()], "123456789012345");
+    nt!(r, s, [cell(s, "A3"), empty()], "999999999999999");
+    nt!(r, s, [cell(s, "A4"), empty()], "999999999999999");
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A5"), empty()],
+        "999999999999999",
+        TIE_TOWARD_ZERO
+    );
+    nt!(r, s, [cell(s, "A6"), empty()], "1000000000000000");
+    nt!(r, s, [num("1E+15"), empty()], "1000000000000000");
+    nt!(r, s, [cell(s, "A8"), empty()], "1000000000000000");
+    nt!(r, s, [cell(s, "A9"), empty()], "1000000000000000");
+    nt!(r, s, [cell(s, "A10"), empty()], "1234567890123460");
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A11"), empty()],
+        "1234567890123450",
+        TIE_TOWARD_ZERO
+    );
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A12"), empty()],
+        "1234567890123460",
+        TIE_TOWARD_ZERO
+    );
+    nt!(r, s, [cell(s, "A13"), empty()], "9007199254740990");
+    nt!(r, s, [txt("x"), num("1E+16")], "x10000000000000000");
+
+    // Where the text switches to E notation: past 20 characters, so between 99999999999999900000
+    // and 1E+20; and 1E+21 and beyond.
+    nt!(r, s, [cell(s, "A15"), empty()], "10000000000000000000");
+    nt!(r, s, [cell(s, "A16"), empty()], "99999999999999900000");
+    nt!(r, s, [cell(s, "A17"), empty()], "1E+20");
+    nt!(r, s, [num("1E+20"), empty()], "1E+20");
+    nt!(r, s, [cell(s, "A19"), empty()], "1.23456789012346E+20");
+    nt!(r, s, [num("1E+21"), empty()], "1E+21");
+    nt!(r, s, [cell(s, "A21"), empty()], "1E+21");
+    nt!(r, s, [cell(s, "A22"), empty()], "1.23456789012346E+21");
+    nt!(r, s, [num("1E+22"), empty()], "1E+22");
+
+    // Small numbers from 1E-4 to 1E-10 have no exponent; past 20 characters they do.
+    nt!(r, s, [num("0.0001"), empty()], "0.0001");
+    nt!(r, s, [num("0.00001"), empty()], "0.00001");
+    nt!(r, s, [num("0.000001"), empty()], "0.000001");
+    nt!(r, s, [num("1E-7"), empty()], "0.0000001");
+    nt!(r, s, [num("1E-8"), empty()], "0.00000001");
+    nt!(r, s, [num("1E-9"), empty()], "0.000000001");
+    nt!(r, s, [num("1E-10"), empty()], "0.0000000001");
+    nt!(r, s, [cell(s, "A31"), empty()], "0.000123456789012345");
+    nt!(r, s, [cell(s, "A32"), empty()], "1.23456789012345E-05");
+    nt!(r, s, [cell(s, "A33"), empty()], "1.2345678901234E-06");
+    nt!(r, s, [num("1E-18"), empty()], "0.000000000000000001");
+    nt!(r, s, [num("1.5E-18"), empty()], "1.5E-18");
+    nt!(r, s, [num("1E-19"), empty()], "1E-19");
+
+    // Sums whose 16th and 17th digits differ from their 15-digit text, each computed through
+    // calc_func's own + / or - entry before & reads it (the comparison records the & call).
+    nt!(
+        r,
+        s,
+        [computed(PLUS, "0.1+0.2", 0.1, 0.2, 0.1 + 0.2), empty()],
+        "0.3",
+        COMPUTED_OPERAND
+    );
+    nt!(r, s, [cell(s, "A38"), empty()], "0.3");
+    nt!(
+        r,
+        s,
+        [computed(DIVIDE, "1/3", 1.0, 3.0, 1.0 / 3.0), empty()],
+        "0.333333333333333",
+        COMPUTED_OPERAND
+    );
+    nt!(
+        r,
+        s,
+        [computed(DIVIDE, "2/3", 2.0, 3.0, 2.0 / 3.0), empty()],
+        "0.666666666666667",
+        COMPUTED_OPERAND
+    );
+    nt!(
+        r,
+        s,
+        [computed(MINUS, "1-1E-16", 1.0, 1e-16, 1.0 - 1e-16), empty()],
+        "1",
+        COMPUTED_OPERAND
+    );
+    nt!(r, s, [cell(s, "A42"), empty()], "1");
+
+    // Negative numbers, and negative zero, whose text is 0.
+    nt!(r, s, [num("-1"), empty()], "-1");
+    nt!(r, s, [cell(s, "A44"), empty()], "-0.5");
+    nt!(r, s, [cell(s, "A45"), empty()], "-1000000000000000");
+    nt!(r, s, [cell(s, "A46"), empty()], "-1.23456789012345E-05");
+    nt!(r, s, [cell(s, "A47"), empty()], "-1.7976931348623E+308");
+    nt!(r, s, [num("-0"), empty()], "0", STORED_AS_ZERO);
+    nt!(r, s, [cell(s, "A49"), empty()], "0", READS_BACK_AS_ZERO);
+
+    // The largest and smallest normal binary64, and the largest and smallest subnormal (of both
+    // signs), which Excel holds as 0.
+    nt!(r, s, [cell(s, "A50"), empty()], "1.7976931348623E+308");
+    nt!(r, s, [cell(s, "A51"), empty()], "2.2250738585072E-308");
+    nt!(r, s, [cell(s, "A52"), empty()], "0", READS_BACK_AS_ZERO);
+    nt!(r, s, [cell(s, "A53"), empty()], "0", READS_BACK_AS_ZERO);
+    nt!(r, s, [cell(s, "A54"), empty()], "0", READS_BACK_AS_ZERO);
+
+    // Three-digit exponents leave 14 digits, and so does an exponent of 99 or -99; the 15 digits
+    // are rounded again, a tie away from zero (1.80557226541995E-306 gives 1.80557226542E-306).
+    // An exact tie at the 16th digit (7200547821627.375) is refused.
+    nt!(r, s, [cell(s, "A55"), empty()], "1.23456789012345E+98");
+    nt!(r, s, [cell(s, "A56"), empty()], "1.2345678901235E+99");
+    nt!(r, s, [cell(s, "A57"), empty()], "1.2345678901235E+100");
+    nt!(r, s, [cell(s, "A58"), empty()], "1.2345678901235E-99");
+    nt!(r, s, [num("1E+100"), empty()], "1E+100");
+    nt!(r, s, [cell(s, "A60"), empty()], "1.80557226542E-306");
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A61"), empty()],
+        "7200547821627.37",
+        TIE_TOWARD_ZERO
+    );
+
+    // A number on either side, two numbers, and the "op"&cell form of a criterion.
+    nt!(r, s, [txt("a"), num("1")], "a1");
+    nt!(r, s, [num("1"), txt("a")], "1a");
+    nt!(r, s, [txt("="), cell(s, "A2")], "=123456789012345");
+    nt!(r, s, [cell(s, "A1"), txt("-")], "1-");
+    nt!(
+        r,
+        s,
+        [cell(s, "A2"), cell(s, "A3")],
+        "123456789012345999999999999999"
+    );
+
+    // The sign does not count toward the 20 characters: a negative number whose magnitude's text
+    // takes 20 has no exponent. A negative exact tie at the 16th digit is refused as a positive
+    // one is, and a negative tie at the second rounding goes away from zero as a positive one
+    // does; a second rounding that carries moves the exponent (9.99999999999995E-99, 14 digits
+    // kept).
+    nt!(r, s, [cell(s, "A67"), empty()], "-10000000000000000000");
+    nt!(r, s, [cell(s, "A68"), empty()], "-99999999999999900000");
+    nt!(r, s, [cell(s, "A69"), empty()], "-1E+20");
+    nt!(r, s, [cell(s, "A70"), empty()], "-0.000123456789012345");
+    nt!(r, s, [num("-1E-18"), empty()], "-0.000000000000000001");
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A72"), empty()],
+        "-1234567890123450",
+        TIE_TOWARD_ZERO
+    );
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A73"), empty()],
+        "-7200547821627.37",
+        TIE_TOWARD_ZERO
+    );
+    nt!(r, s, [cell(s, "A74"), empty()], "-1.80557226542E-306");
+    nt!(r, s, [cell(s, "A75"), empty()], "1E-98");
+    nt!(r, s, [cell(s, "A76"), empty()], "-1E-98");
+
+    // Exact ties at the 16th digit that Excel rounds away from zero, beside the rows above that
+    // it rounds toward zero: refused.
+    near_tie!(r, s, [cell(s, "A77"), empty()], "521310271410498", TIE_AWAY);
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A78"), empty()],
+        "5758361573115.38",
+        TIE_AWAY
+    );
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A79"), empty()],
+        "-6278515587045.88",
+        TIE_AWAY
+    );
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A80"), empty()],
+        "543212677140.063",
+        TIE_AWAY
+    );
+
+    // Numbers within a relative 2^-59 of a 16th-digit tie: Excel rounds the first two against
+    // their exact value and the third with it; all three are refused. The fourth is that near a
+    // tie too, but its 14-digit text is the same on either side. The last two lie just beyond a
+    // relative 2^-59 and give their text.
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A81"), empty()],
+        "4037429.93595202",
+        "5.96e-7 of a unit of the 15th digit above the tie (a relative 2^-69.2); the exact value rounds to 4037429.93595203"
+    );
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A82"), empty()],
+        "5.24851955262677E-06",
+        "4.76e-7 of a unit of the 15th digit below the tie (a relative 2^-69.9); the exact value rounds to 5.24851955262676E-06"
+    );
+    near_tie!(
+        r,
+        s,
+        [cell(s, "A83"), empty()],
+        "-0.919889481585974",
+        "2.64e-7 of a unit of the 15th digit below the tie (a relative 2^-71.6); the exact value rounds to the text Excel gives"
+    );
+    nt!(
+        r,
+        s,
+        [cell(s, "A84"), empty()],
+        "-7.3024388533289E+163",
+        "1.99e-7 of a unit of the 15th digit above the tie (a relative 2^-71.6), whose 14-digit text is the same on either side"
+    );
+    nt!(
+        r,
+        s,
+        [cell(s, "A85"), empty()],
+        "23.6146129782984",
+        "4.34e-4 of a unit of the 15th digit above the tie (a relative 2^-58.9)"
+    );
+    nt!(
+        r,
+        s,
+        [cell(s, "A86"), empty()],
+        "80216.8973582634",
+        "1.40e-3 of a unit of the 15th digit below the tie (a relative 2^-58.99)"
+    );
+    rows
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_q9rb__number_text_for_concatenation() {
+    const CASE: &str = "dc_q9rb__number_text_for_concatenation";
+    let mut sheet = number_text_sheet();
+    // The cells hold what the rows name them for.
+    for (address, bits) in [
+        ("A47", (-f64::MAX).to_bits()),
+        ("A49", (-0.0f64).to_bits()),
+        ("A50", f64::MAX.to_bits()),
+        ("A51", f64::MIN_POSITIVE.to_bits()),
+        ("A52", 0x000f_ffff_ffff_ffff),
+        ("A53", 0x0000_0000_0000_0001),
+        ("A54", 0x8000_0000_0000_0001),
+    ] {
+        assert_eq!(
+            sheet.value(address).as_number().map(f64::to_bits),
+            Some(bits),
+            "{address}"
+        );
+    }
+    note!("ACCEPT-NOTE: {CASE}: the sheet holds {}", sheet.described());
+    let TextRows { rows, .. } = number_text_rows(&mut sheet, false);
+    assert!(
+        rows.oracle
+            .iter()
+            .all(|row| row.owner.is_some() == row.outcome.is_err()),
+        "a refused row names its owner, a computed row none"
+    );
+    // cfunc_m1_2__mixed_operands cites these two rows for its rows of the same formulas.
+    assert_eq!(
+        (
+            rows.oracle[61].formula.as_str(),
+            rows.oracle[62].formula.as_str()
+        ),
+        ("=\"a\"&1", "=1&\"a\""),
+        "the rows D62 and D63"
+    );
+
+    // A number that is no worksheet value is refused, naming its operand.
+    let ampersand = surface(AMPERSAND.0, AMPERSAND.1);
+    for (operands, argument) in [
+        (vec![CalcValue::number(f64::NAN), text_value("")], 0),
+        (vec![text_value(""), CalcValue::number(f64::INFINITY)], 1),
+        (
+            vec![CalcValue::number(f64::NEG_INFINITY), text_value("")],
+            0,
+        ),
+    ] {
+        let mut given = Recorded::new(operands);
+        assert_eq!(
+            run(ampersand, &mut given, &NumericMode::Fast),
+            Err(FunctionFault::NotImplemented {
+                id: ampersand.id(),
+                argument: Some(argument)
+            })
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: & on NaN, +inf or -inf (no worksheet value) is refused naming that operand"
+    );
+
+    // The oracle workbook: its sheet holds exactly the rows' formulas and cells, and the committed
+    // workbook is its generator's output.
+    assert_workbook_sheet(
+        NUMBER_TEXT_WORKBOOK,
+        NUMBER_TEXT_WORKBOOK_PATH,
+        &rows,
+        &sheet,
+    );
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["dc_q9rb/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == NUMBER_TEXT_WORKBOOK,
+            "the committed dc-q9rb oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(NUMBER_TEXT_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed dc-q9rb oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke of &: {} give the text expected for them, the text Excel gives, and {} are refused as not modelled ({}), each beside the text Excel gives; every text is {CAPTURED}",
+        rows.oracle.len(),
+        rows.oracle.len() - rows.refused(),
+        rows.refused(),
+        NEAR_TIE.feature()
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_q9rb__excel_comparison() {
+    const CASE: &str = "dc_q9rb__excel_comparison";
+    let TextRows { rows, excel } = number_text_rows(&mut number_text_sheet(), true);
+    let (results, evaluations) =
+        published_in(NUMBER_TEXT_WORKBOOK, NUMBER_TEXT_CAPTURE_CASE, &[&rows]);
+    assert_eq!(
+        (results.results.len(), evaluations.evaluations.len()),
+        (rows.oracle.len(), rows.oracle.len()),
+        "a result and an evaluation for each row"
+    );
+    let not_modelled = results
+        .results
+        .iter()
+        .filter(|result| matches!(result.provenance, Provenance::NotModeled { .. }))
+        .count();
+    assert_eq!(
+        not_modelled,
+        rows.refused(),
+        "every refused row is published as not modelled, and only those"
+    );
+    let capture =
+        CaptureRecord::decode(NUMBER_TEXT_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, NUMBER_TEXT_CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(NUMBER_TEXT_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    let comparison = judged(&capture, &results, &evaluations, &rows)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    assert!(
+        comparison.problems.is_empty(),
+        "{} problems on the verdict on Excel {}'s capture ({}):\n{}",
+        comparison.problems.len(),
+        environment.target.excel_build(),
+        comparison.report.summary(),
+        comparison.problems.join("\n")
+    );
+
+    // The text Excel gives, as each row states it (the expected text of a computed row, the text
+    // beside a refused one), is the observation the report carries for the row's cell.
+    let observed: BTreeMap<u32, &Observation> = comparison
+        .report
+        .cells
+        .iter()
+        .filter(|cell| {
+            cell.formula.cell.sheet() == rows.sheet && cell.formula.cell.column() == FORMULA_COLUMN
+        })
+        .filter_map(|cell| Some((cell.formula.cell.row(), cell.observation.as_ref()?)))
+        .collect();
+    assert_eq!(observed.len(), rows.oracle.len(), "an observation per row");
+    for (row, text) in rows.oracle.iter().zip(&excel) {
+        let at = format!("{}!{}", rows.sheet, encode_a1(row.row, FORMULA_COLUMN));
+        match observed.get(&row.row) {
+            Some(Observation::ExcelRaw(value)) => assert!(
+                identical(value, &text_value(text)),
+                "{at} {}: the row says Excel gives {text:?}, the capture holds {}",
+                row.formula,
+                shown_value(value)
+            ),
+            other => panic!("{at}: the report carries no raw value of Excel's: {other:?}"),
+        }
+    }
+    let refused_texts: Vec<String> = rows
+        .oracle
+        .iter()
+        .zip(&excel)
+        .filter(|(row, _)| row.owner.is_some())
+        .map(|(row, text)| format!("{} {text:?}", encode_a1(row.row, FORMULA_COLUMN)))
+        .collect();
+    note!(
+        "ACCEPT-NOTE: {CASE}: every row's text is Excel's raw value for its cell on the report, the {} refused rows' included: {}",
+        refused_texts.len(),
+        refused_texts.join(", ")
+    );
+
+    // What the label of the rows' texts and the notes of the -0 and subnormal rows state of the
+    // capture.
+    let setting = |name: &str| {
+        environment
+            .settings
+            .iter()
+            .find(|(setting, _)| setting == name)
+            .map(|(_, value)| value.as_str())
+    };
+    assert_eq!(environment.target.excel_build(), CAPTURED_BUILD);
+    for (name, value) in CAPTURED_SETTINGS {
+        assert_eq!(setting(name), Some(value), "the capture's setting {name}");
+    }
+    assert_eq!(comparison.report.com_add_ins_connected, Some(1));
+    assert!(
+        setting(calc_verdict::SETTING_COM_ADD_INS_CONNECTED)
+            .is_some_and(|value| value.starts_with(&format!("{CAPTURED_COM_ADD_IN}|"))),
+        "the COM add-in connected during the capture"
+    );
+    assert_eq!(
+        session.output_package.as_deref(),
+        Some(CAPTURED_OUTPUT_PACKAGE),
+        "the package Excel saved during the capture"
+    );
+    let negative_zero = rows
+        .oracle
+        .iter()
+        .find(|row| row.formula == "=-0&\"\"")
+        .expect("the row of the literal -0");
+    let read_back = capture
+        .formulas
+        .iter()
+        .find(|formula| {
+            formula.cell.sheet() == rows.sheet
+                && (formula.cell.row(), formula.cell.column())
+                    == (negative_zero.row, FORMULA_COLUMN)
+        })
+        .and_then(|formula| formula.formula.as_deref());
+    assert_eq!(read_back, Some("=0&\"\""), "Excel's formula of the -0 row");
+    note!(
+        "ACCEPT-NOTE: {CASE}: the capture was taken by Excel {} under {}; the formula of row {} (=-0&\"\") reads back from Excel as =0&\"\"",
+        environment.target.excel_build(),
+        CAPTURED_SETTINGS
+            .iter()
+            .map(|(name, value)| format!("{name} {value:?}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        encode_a1(negative_zero.row, FORMULA_COLUMN)
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of the oracle workbook: {} (every computed row matched, every refused row not modeled with its owner); the whole workbook: {}",
+        environment.target.excel_build(),
+        sheet_verdicts(&comparison.report, &rows),
+        comparison.report.summary()
+    );
 }

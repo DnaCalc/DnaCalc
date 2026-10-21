@@ -1,0 +1,213 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "dc-q9rb",
+  "written": "2026-10-21",
+  "fresh": [
+    {
+      "items": ["number_text::text", "coerce::text (a number operand)"],
+      "file": "crates/calc-func/src/number_text.rs",
+      "what": "Written from measurement in Excel on this machine, not from a legacy file (no source below was read); its rows' texts are Excel's raw values in crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json."
+    }
+  ],
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import) over .beads/issues.jsonl of master commit fd445e7 on 2026-10-21: 'br search <term> -a --limit 0' for VALUETOTEXT, TEXT function, number format, NumberTextService, General format, cell display, locale, text functions, valuetotext, TEXT(, number-format, numeric text, Unicode, and 'br list --notes-contains <term> -a --limit 0' for text functions, valuetotext, TEXT(, number-format, numeric text (transcript target/accept/dc-q9rb/owner-search.log; target/ is not committed). Each beads list below is the hits its basis names.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/locale_format.rs",
+      "blob": "a304057c50f518fec0690493a9483425fcea7d82",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/locale_format.rs",
+        "exit": 6,
+        "transcript": "target/accept/dc-q9rb/lookup-locale_format.log (target/ is not committed)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/round_fn.rs"
+        ]
+      },
+      "read": false,
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "LocaleFormatContext"
+          ],
+          "reason": "Locales and number formats are cfml-m2.6's service; this bead's conversion takes neither: it gives the text with '.' as the decimal separator, as captured under the Windows locale en-ZA (en-US itself was not measured).",
+          "beads": [
+            "cfml-m2.6",
+            "cfml-m6.1"
+          ],
+          "basis": "NumberTextService (cfml-m2.6, whose Port from names LocaleFormatContext); number-format (cfml-m6.1: number-format sections and locales)"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/coercion.rs",
+      "blob": "3b3d42dc3aa83ddfbca7945ef9abd76234e4ead2",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/coercion.rs",
+        "exit": 5,
+        "transcript": "target/accept/dc-q9rb/lookup-coercion.log (target/ is not committed)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion_decimal.rs"
+        ]
+      },
+      "read": false,
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "the coercion of a number to text"
+          ],
+          "reason": "Numeric provenance unresolved (exit 5): not read.",
+          "beads": [],
+          "basis": "none needed: dc-q9rb implements the number's text from measurement"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/numeric_text.rs",
+      "blob": "7a7c1334f4470a33237b66e05b1ae32a7ac5d03e",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/numeric_text.rs",
+        "exit": 5,
+        "transcript": "target/accept/dc-q9rb/lookup-numeric_text.log (target/ is not committed)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/round_fn.rs"
+        ]
+      },
+      "read": false,
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "numeric text helpers"
+          ],
+          "reason": "Numeric provenance unresolved (exit 5): not read.",
+          "beads": [],
+          "basis": "none needed: dc-q9rb implements the number's text from measurement"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/operator_compare_concat_family.rs",
+      "blob": "99732e5fe06798323879dc80e66e8264b939773e",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/operator_compare_concat_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/dc-q9rb/lookup-operator_compare_concat_family.log (target/ is not committed)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": false,
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "the & operator"
+          ],
+          "reason": "Not read: not needed. & is cfunc-m1.2's kernel, and a number operand's text is written from measurement.",
+          "beads": [],
+          "basis": "none needed: & is cfunc-m1.2's kernel (crates/calc-func/src/catalogue/text.rs), and a number operand's text is this bead's"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/concat_family.rs",
+      "blob": "4490a011602f669ad3d13f2191040be1525afff4",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/concat_family.rs",
+        "exit": 6,
+        "transcript": "target/accept/dc-q9rb/lookup-concat_family.log (target/ is not committed)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": false,
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "CONCAT",
+            "CONCATENATE"
+          ],
+          "reason": "Other text functions are cfunc-m3.1's. Today only & reads a number as text through coerce::text; a text function ported later that reads a number through it gets this bead's conversion.",
+          "beads": [
+            "cfunc-m3.1"
+          ],
+          "basis": "Unicode (cfunc-m3.1, Port text and Unicode functions, whose Do names CONCAT and CONCATENATE)"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/text_fn.rs",
+      "blob": "7e3774e67f8964c6e1b07fbb4bb587b08d19b3e6",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/text_fn.rs",
+        "exit": 6,
+        "transcript": "target/accept/dc-q9rb/lookup-text_fn.log (target/ is not committed)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": false,
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "TEXT"
+          ],
+          "reason": "TEXT and number formats are out of this bead's scope.",
+          "beads": [
+            "cfml-m2.6"
+          ],
+          "basis": "NumberTextService (cfml-m2.6, whose Do has CalcFunc TEXT delegate to it and whose case cfml_m2_6__text_consistency covers TEXT)"
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+      "blob": "eacabe3b25138e7abad6f85d8d46be4e9b30a708",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+        "exit": 5,
+        "transcript": "target/accept/dc-q9rb/lookup-valuetotext_fn.log (target/ is not committed)",
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": false,
+      "ported": [],
+      "not_ported": [
+        {
+          "items": [
+            "VALUETOTEXT"
+          ],
+          "reason": "Numeric provenance unresolved (exit 5): not read. VALUETOTEXT is a function of its own, not this conversion.",
+          "beads": [
+            "cfunc-m3.1"
+          ],
+          "basis": "VALUETOTEXT and valuetotext had no hit in titles, descriptions or notes in the search stated above; the orchestrator's tracker comment on cfunc-m3.1 of 2026-10-21 (from dc-q9rb), added after that search, places VALUETOTEXT with the text functions there"
+        }
+      ]
+    }
+  ],
+  "semantic_changes": [],
+  "legacy_tests": []
+}

@@ -33,9 +33,9 @@ fn concatenate(
     Site::finish(joined(&site, arguments))
 }
 
-/// The operands' text joined. An operand's error is the result, the left operand's first, before
-/// any operand is read as text: no operand's text can be an error. A result longer than a cell
-/// holds is #VALUE!.
+/// The operands' text joined, a number's text as coercion gives it. An operand's error is the
+/// result, the left operand's first, before any operand is read as text: no operand's text can be
+/// an error. A result longer than a cell holds is #VALUE!.
 fn joined(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     site.scalar_operands(arguments)?;
     if let Some(code) = arguments.iter().find_map(|argument| match argument.core() {
@@ -50,7 +50,7 @@ fn joined(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
         return Err(Exit::Error(WorksheetErrorCode::Value));
     }
     let mut units = Vec::with_capacity(left.len() + right.len());
-    units.extend_from_slice(left);
-    units.extend_from_slice(right);
+    units.extend_from_slice(&left);
+    units.extend_from_slice(&right);
     Ok(CalcValue::text(ExcelText::from_utf16_code_units(units)))
 }

@@ -15,8 +15,17 @@
 //! which are the English TRUE and FALSE. Coercion only reads the decimal ([`Numeric::Decimal`]):
 //! finding its nearest binary64 rounds, so the kernel does that at an arithmetic site, under the
 //! call's numeric mode.
+//!
+//! A number read as text takes its text from [`number_text`]. A subnormal number reads as text as
+//! 0, since Excel holds none and reads a cell written as one back as +0; read as a number
+//! ([`operand`]) a subnormal is refused as not modelled, since Excel's arithmetic on one is not
+//! (cfunc-m3.23 owns subnormal numbers and makes the two readings agree). A number near a tie at
+//! its 16th significant digit, whose side of the tie decides its text, is refused as not modelled
+//! (dc-rkzm).
 
+use crate::number_text;
 use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
+use std::borrow::Cow;
 
 /// Why a coercion produced no value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,13 +71,13 @@ impl Decimal {
 }
 
 /// The value as a number: a number as it is, TRUE as 1 and FALSE as 0, Empty and Missing as 0,
-/// text through [`number_text`], an error as itself. An array (whose operator lifts over its
+/// text through [`text_as_decimal`], an error as itself. An array (whose operator lifts over its
 /// elements) and a reference are not read here.
 pub(crate) fn number(value: &CalcValue) -> Result<Numeric, Stop> {
     match value.core() {
         CoreValue::Number(n) => operand(*n).map(Numeric::Number),
         CoreValue::Logical(b) => Ok(Numeric::Number(if *b { 1.0 } else { 0.0 })),
-        CoreValue::Text(text) => number_text(text).map(Numeric::Decimal),
+        CoreValue::Text(text) => text_as_decimal(text).map(Numeric::Decimal),
         CoreValue::Empty | CoreValue::Missing => Ok(Numeric::Number(0.0)),
         CoreValue::Error(code) => Err(Stop::Error(*code)),
         CoreValue::Array(_) | CoreValue::Reference(_) => Err(Stop::NotModelled),
@@ -110,16 +119,20 @@ pub(crate) fn logical(value: &CalcValue) -> Result<bool, Stop> {
     }
 }
 
-/// The value as text to concatenate, in UTF-16 code units: text as it is, TRUE and FALSE as
-/// those words, Empty and Missing as empty text, an error as itself. A number's text is the
-/// General number format's, which no service supplies yet, so a number is refused as not
-/// modelled.
-pub(crate) fn text(value: &CalcValue) -> Result<&[u16], Stop> {
+/// The value as text to concatenate, in UTF-16 code units: text as it is, a number as its text
+/// ([`number_text`], Excel's text with `.` as the decimal separator and no column width), TRUE
+/// and FALSE as those words, Empty and Missing as empty text, an error as itself. A number that
+/// is not finite is no worksheet value, and a number near a 16th-digit tie whose side decides its
+/// text has no text here; both are refused as not modelled.
+pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
     match value.core() {
-        CoreValue::Text(text) => Ok(text.utf16_code_units()),
-        CoreValue::Logical(true) => Ok(&TRUE_TEXT),
-        CoreValue::Logical(false) => Ok(&FALSE_TEXT),
-        CoreValue::Empty | CoreValue::Missing => Ok(&[]),
+        CoreValue::Text(text) => Ok(Cow::Borrowed(text.utf16_code_units())),
+        CoreValue::Number(n) if n.is_finite() => number_text::text(*n)
+            .map(|text| Cow::Owned(text.encode_utf16().collect()))
+            .ok_or(Stop::NotModelled),
+        CoreValue::Logical(true) => Ok(Cow::Borrowed(&TRUE_TEXT)),
+        CoreValue::Logical(false) => Ok(Cow::Borrowed(&FALSE_TEXT)),
+        CoreValue::Empty | CoreValue::Missing => Ok(Cow::Borrowed(&[])),
         CoreValue::Error(code) => Err(Stop::Error(*code)),
         CoreValue::Number(_) | CoreValue::Array(_) | CoreValue::Reference(_) => {
             Err(Stop::NotModelled)
@@ -129,7 +142,7 @@ pub(crate) fn text(value: &CalcValue) -> Result<&[u16], Stop> {
 
 /// Text that reads as a number, as the decimal it holds; see the module documentation for the
 /// form read.
-fn number_text(text: &ExcelText) -> Result<Decimal, Stop> {
+fn text_as_decimal(text: &ExcelText) -> Result<Decimal, Stop> {
     if !holds_digit(text) {
         return Err(Stop::Error(WorksheetErrorCode::Value));
     }
