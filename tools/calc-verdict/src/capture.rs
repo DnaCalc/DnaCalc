@@ -229,11 +229,36 @@ impl Acquisition {
 pub struct ExcelEnvironment {
     pub target: NumericTargetId,
     /// Each setting the capture recorded (locale, date system, calculation mode and so on), by
-    /// name, in the record's order. They are carried, not interpreted.
+    /// name, in the record's order. They are carried, not interpreted, except the one
+    /// [`SETTING_COM_ADD_INS_CONNECTED`] names, which the verdict counts.
+    ///
+    /// A setting that lists several things (add-ins, links, connections) separates its items with
+    /// `;` and an item's fields with `|`; within a field, `%`, `;` and `|` are written `%25`,
+    /// `%3B` and `%7C`, so a name holding either separator stays one field of one item.
     pub settings: Vec<(String, String)>,
 }
 
+/// The setting that lists the COM add-ins connected in the Excel instance that took the capture,
+/// one item per add-in (`<ProgId>|<Description>`, escaped as [`ExcelEnvironment::settings`]
+/// says), empty when none was. Capturing with a COM add-in connected deviates from an isolated
+/// capture: what the add-in did during the capture is not observed. The verdict counts the
+/// add-ins this setting lists, and no comparison against such a record is strict-bit certified.
+pub const SETTING_COM_ADD_INS_CONNECTED: &str = "com_add_ins_connected";
+
 impl ExcelEnvironment {
+    /// The number of COM add-ins [`SETTING_COM_ADD_INS_CONNECTED`] lists: its `;`-separated items
+    /// (0 for an empty value), or `None` when the environment carries no such setting.
+    pub(crate) fn com_add_ins_connected(&self) -> Option<u64> {
+        let (_, value) = self
+            .settings
+            .iter()
+            .find(|(name, _)| name == SETTING_COM_ADD_INS_CONNECTED)?;
+        if value.is_empty() {
+            return Some(0);
+        }
+        Some(value.split(';').count() as u64)
+    }
+
     fn decode(node: &Node, path: &str) -> Result<Option<ExcelEnvironment>, DecodeError> {
         if let Node::Null = node {
             return Ok(None);

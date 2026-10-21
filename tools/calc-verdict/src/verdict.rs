@@ -52,6 +52,13 @@
 //! comparison against the record uncertified, with the reason `capture_failure`, whatever the
 //! observation and the policy. A failure to establish the formula inventory makes the denominator
 //! unknown, so such a record is refused ([`JudgeError::Inconsistent`]), as an empty one is.
+//!
+//! A record whose environment lists COM add-ins connected during the capture (the setting
+//! [`crate::SETTING_COM_ADD_INS_CONNECTED`]) was taken in an Excel instance that was not isolated
+//! from them, and what they did is not observed. The report counts them
+//! (`com_add_ins_connected`), and a raw observation of such a record certifies no target: its
+//! comparisons are uncertified with the reason `com_add_in_connected` where they would otherwise
+//! be strict-bit certified. Bead `dc-quhd` owns capturing without a connected COM add-in.
 
 use crate::JudgeError;
 use crate::capture::{
@@ -74,8 +81,10 @@ pub const REPORT_FORMAT: &str = "dnacalc-verdict-report";
 /// calculated cells whose evaluation the record lists without what it returned (every calculated
 /// cell against a version 1 record, none against a version 2 record); and an unproven cell's
 /// `returned` member, present when a version 2 record's evaluation of it returned no value or
-/// another value than the result's.
-pub const REPORT_VERSION: u64 = 3;
+/// another value than the result's. Version 4 adds the `com_add_ins_connected` member, the COM
+/// add-ins a capture's environment lists as connected while it was taken, and the uncertified
+/// reason `com_add_in_connected`.
+pub const REPORT_VERSION: u64 = 4;
 
 /// What a verdict run is judged against: the numeric mode whose Exact target strict-bit certainty
 /// needs, and the legacy evidence labels a record converted from legacy evidence needs.
@@ -110,6 +119,10 @@ pub enum UncertifiedReason {
     /// The capture record's session records a failure of the capture's isolation or of reading
     /// its environment, so none of its observations certifies any target.
     CaptureFailure,
+    /// The record's environment lists a COM add-in connected in the Excel instance that took the
+    /// capture ([`crate::SETTING_COM_ADD_INS_CONNECTED`]), so its raw observations certify no
+    /// target: what the add-in did during the capture is not observed.
+    ComAddInConnected,
 }
 
 impl UncertifiedReason {
@@ -124,6 +137,7 @@ impl UncertifiedReason {
             UncertifiedReason::EvidenceEntryUnknown => "evidence_entry_unknown",
             UncertifiedReason::EvidenceLabelNotTarget => "evidence_label_not_target",
             UncertifiedReason::CaptureFailure => "capture_failure",
+            UncertifiedReason::ComAddInConnected => "com_add_in_connected",
         }
     }
 }
@@ -323,6 +337,10 @@ pub struct VerdictReport {
     /// The failures a version 2 capture record's session records, counted; `None` for a version 1
     /// record, which records none.
     pub capture_failures: Option<CaptureFailureCounts>,
+    /// The COM add-ins the capture record's environment lists as connected while the capture was
+    /// taken ([`crate::SETTING_COM_ADD_INS_CONNECTED`]); `None` when the record carries no
+    /// environment or its environment no such setting.
+    pub com_add_ins_connected: Option<u64>,
     /// The version of the evaluation record judged against: 2 when each evaluation carries what it
     /// returned, 1 when it does not ([`Counts::calculated_without_value_check`]).
     pub evaluation_record_version: u64,
@@ -353,6 +371,12 @@ fn raw_certainty(capture: &CaptureRecord, policy: &VerdictPolicy<'_>) -> Certain
             Some(false) => return uncertified(UncertifiedReason::EvidenceLabelNotTarget),
             Some(true) => {}
         }
+    }
+    if environment
+        .com_add_ins_connected()
+        .is_some_and(|connected| connected > 0)
+    {
+        return uncertified(UncertifiedReason::ComAddInConnected);
     }
     Certainty::StrictBits
 }
@@ -867,6 +891,10 @@ pub fn judge<'e>(
             }
             counts
         }),
+        com_add_ins_connected: capture
+            .environment
+            .as_ref()
+            .and_then(|environment| environment.com_add_ins_connected()),
         evaluation_record_version: evaluations.version(),
         counts,
         strata,
@@ -1031,14 +1059,16 @@ impl VerdictReport {
         by_reason
     }
 
-    /// The report as a JSON document (`dnacalc-verdict-report`, version 3): the headline
+    /// The report as a JSON document (`dnacalc-verdict-report`, version 4): the headline
     /// (calculated of the denominator, then matched of the calculated), every count, the uncertified
     /// comparisons by reason, the strata, one line per inventory cell in inventory order, and the
     /// results outside the inventory. For a version 2 capture record a `captured` member after
     /// `run` names the revision and context the capture observed, and a `capture_failures` member
     /// after it counts the capture's failures (`{"total": n, "by_stage": {"<stage>": n, ...}}`); a
-    /// report on a version 1 record has neither member. Then `evaluation_record_version` names the
-    /// version of the evaluation record judged against, before the headline.
+    /// report on a version 1 record has neither member. A record whose environment carries the
+    /// setting `com_add_ins_connected` gives a `com_add_ins_connected` member next, the number of
+    /// COM add-ins it lists as connected during the capture. Then `evaluation_record_version`
+    /// names the version of the evaluation record judged against, before the headline.
     pub fn encode(&self) -> String {
         let c = &self.counts;
         let run = |identity: &RunIdentity| {
@@ -1088,6 +1118,9 @@ impl VerdictReport {
                     ),
                 ]),
             ));
+        }
+        if let Some(connected) = self.com_add_ins_connected {
+            members.push(("com_add_ins_connected", Out::Unsigned(connected)));
         }
         members.extend([
             (
@@ -1187,7 +1220,8 @@ impl VerdictReport {
 
     /// The report's counts on one line, headline first, with the uncertified comparisons by reason,
     /// the evaluation record's version with the calculated cells it proves without a value check
-    /// and, for a version 2 capture record, the capture's failures by stage.
+    /// and, for a version 2 capture record, the capture's failures by stage, then the COM add-ins
+    /// connected during the capture when the record lists them.
     pub fn summary(&self) -> String {
         let c = &self.counts;
         let reasons: Vec<String> = self
@@ -1220,8 +1254,12 @@ impl VerdictReport {
                 }
             })
             .unwrap_or_default();
+        let com_add_ins = self
+            .com_add_ins_connected
+            .map(|connected| format!("; {connected} COM add-ins connected during the capture"))
+            .unwrap_or_default();
         format!(
-            "{}: calculated {} of {} formula cells; matched {} of {} calculated, mismatched {}, not run {}; of the {} compared, strict-bit certified {}, uncertified {}{}; not calculated: unproven {}, stale {}, file-cached {}, not modeled {}, failed {}, missing {}; {} not-calculated values equal their expectation; {} results outside the inventory; {} evaluator calls (evaluation record version {}, {} calculated without a value check){}",
+            "{}: calculated {} of {} formula cells; matched {} of {} calculated, mismatched {}, not run {}; of the {} compared, strict-bit certified {}, uncertified {}{}; not calculated: unproven {}, stale {}, file-cached {}, not modeled {}, failed {}, missing {}; {} not-calculated values equal their expectation; {} results outside the inventory; {} evaluator calls (evaluation record version {}, {} calculated without a value check){}{}",
             self.case,
             c.calculated,
             c.denominator,
@@ -1244,7 +1282,8 @@ impl VerdictReport {
             c.evaluator_calls,
             self.evaluation_record_version,
             c.calculated_without_value_check,
-            capture_failures
+            capture_failures,
+            com_add_ins
         )
     }
 }
@@ -1494,6 +1533,99 @@ mod tests {
             ),
             "{:?}",
             report.cells[0].verdict
+        );
+    }
+
+    /// A capture taken with a COM add-in connected is counted and certifies no target: the report
+    /// counts the add-ins the environment's `com_add_ins_connected` lists (an escaped `;` or `|`
+    /// within a name splits nothing), encodes the count after `run` and before
+    /// `evaluation_record_version`, and a raw comparison that would be strict-bit certified is
+    /// uncertified with the reason `com_add_in_connected`. An empty list counts 0 and certifies; a
+    /// record without the setting carries no count. The reasons that come first (no Exact target)
+    /// and a saved cache keep their own reason, with the count still reported.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_connected_com_add_in_is_counted_and_certifies_no_target() {
+        let environment = |connected: &str| {
+            format!(
+                r#"{{"excel_build": "20430", "channel": "current", "compatibility": "2", "numeric_environment": "x86-64", "settings": {{"date_system": "1900", "com_add_ins_connected": "{connected}"}}}}"#
+            )
+        };
+        let calculated = results(CALCULATED);
+        let proof = evaluated();
+        let one = capture(
+            LIVE,
+            &environment(
+                "VS15ExcelAdaptor|Visual Studio Tools for Office Design-Time Adaptor for Excel",
+            ),
+            RAW_TWO,
+        );
+        let report = judge(&one, &calculated, &proof, &exact("20430")).unwrap();
+        assert_eq!(report.com_add_ins_connected, Some(1));
+        assert_eq!(
+            report.cells[0].verdict,
+            uncertified(UncertifiedReason::ComAddInConnected)
+        );
+        let text = report.encode();
+        let encoded: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(encoded["com_add_ins_connected"], 1);
+        assert_eq!(
+            encoded["uncertified_by_reason"],
+            serde_json::json!({"com_add_in_connected": 1})
+        );
+        assert_eq!(encoded["counts"]["strict_certified"], 0);
+        let at = |member: &str| text.find(&format!("\"{member}\"")).unwrap();
+        assert!(at("run") < at("com_add_ins_connected"), "{text}");
+        assert!(
+            at("com_add_ins_connected") < at("evaluation_record_version"),
+            "{text}"
+        );
+        assert!(
+            report
+                .summary()
+                .ends_with("; 1 COM add-ins connected during the capture"),
+            "{}",
+            report.summary()
+        );
+
+        let two = capture(
+            LIVE,
+            &environment("Contoso.A|a%3Bb%7Cc;Contoso.B|d"),
+            RAW_TWO,
+        );
+        let report = judge(&two, &calculated, &proof, &exact("20430")).unwrap();
+        assert_eq!(report.com_add_ins_connected, Some(2));
+
+        let none = capture(LIVE, &environment(""), RAW_TWO);
+        let report = judge(&none, &calculated, &proof, &exact("20430")).unwrap();
+        assert_eq!(report.com_add_ins_connected, Some(0));
+        assert_eq!(report.cells[0].verdict, matched(Certainty::StrictBits));
+        let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
+        assert_eq!(encoded["com_add_ins_connected"], 0);
+
+        let unlisted = capture(LIVE, ENVIRONMENT, RAW_TWO);
+        let report = judge(&unlisted, &calculated, &proof, &exact("20430")).unwrap();
+        assert_eq!(report.com_add_ins_connected, None);
+        assert_eq!(report.cells[0].verdict, matched(Certainty::StrictBits));
+        let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
+        assert!(encoded.get("com_add_ins_connected").is_none(), "{encoded}");
+
+        let fast = judge(&one, &calculated, &proof, &VerdictPolicy::default()).unwrap();
+        assert_eq!(fast.com_add_ins_connected, Some(1));
+        assert_eq!(
+            fast.cells[0].verdict,
+            uncertified(UncertifiedReason::NoExactTarget)
+        );
+        let saved = capture(
+            LIVE,
+            &environment("VS15ExcelAdaptor|d"),
+            r#""excel_saved_cache": {"t": "n", "v": "2"}"#,
+        );
+        let report = judge(&saved, &calculated, &proof, &exact("20430")).unwrap();
+        assert_eq!(report.com_add_ins_connected, Some(1));
+        assert_eq!(
+            report.cells[0].verdict,
+            uncertified(UncertifiedReason::SavedCache)
         );
     }
 
@@ -2292,7 +2424,7 @@ mod tests {
         let report = judge(&live, &calculated, &evaluated(), &exact("20430")).unwrap();
         let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
         assert_eq!(encoded["format"], REPORT_FORMAT);
-        assert_eq!(encoded["version"], 3);
+        assert_eq!(encoded["version"], 4);
         assert_eq!(encoded["evaluation_record_version"], 1);
         assert_eq!(encoded["counts"]["calculated_without_value_check"], 1);
         assert_eq!(

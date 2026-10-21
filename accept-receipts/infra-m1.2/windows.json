@@ -8,17 +8,34 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
-              "calc-host": [],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "calc-oracle-excel": [
                 "calc-value",
                 "calc-verdict"
@@ -29,7 +46,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-value",
                 "calc-verdict"
@@ -40,17 +61,34 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
-              "calc-host": [],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "calc-oracle-excel": [
                 "calc-value",
                 "calc-verdict"
@@ -61,7 +99,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-oracle-excel",
                 "calc-value",
@@ -73,17 +115,34 @@
             "workspace_closures": {
               "calc-doc": [
                 "calc-doc-model",
+                "calc-fml",
+                "calc-func",
                 "calc-value"
               ],
               "calc-doc-model": [
                 "calc-value"
               ],
-              "calc-engine": [],
-              "calc-fml": [],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
               "calc-func": [
                 "calc-value"
               ],
-              "calc-host": [],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "calc-oracle-excel": [
                 "calc-value",
                 "calc-verdict"
@@ -94,7 +153,11 @@
                 "calc-value"
               ],
               "dna-calc": [],
-              "dna-onecalc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "xtask": [
                 "calc-oracle-excel",
                 "calc-value",
@@ -118,16 +181,16 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 1,
-          "calc-doc-model": 11,
-          "calc-engine": 1,
-          "calc-fml": 1,
-          "calc-func": 8,
-          "calc-host": 1,
+          "calc-doc": 26,
+          "calc-doc-model": 13,
+          "calc-engine": 7,
+          "calc-fml": 15,
+          "calc-func": 13,
+          "calc-host": 5,
           "calc-value": 5,
           "calc-verdict": 11,
           "dna-calc": 1,
-          "dna-onecalc": 1
+          "dna-onecalc": 5
         },
         "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
         "targets": [
@@ -138,7 +201,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "41 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "101 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -236,7 +299,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 41,
+        "files_scanned": 101,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -249,46 +312,46 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "41 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "101 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
       "details": {
         "packages": {
           "calc-doc": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
+            "entries": 99,
+            "entries_reach_unproven": 99,
+            "pub_enum_variants": 97,
+            "pub_traits": 2
           },
           "calc-doc-model": {
-            "entries": 56,
-            "entries_reach_unproven": 56,
-            "pub_enum_variants": 56,
+            "entries": 90,
+            "entries_reach_unproven": 90,
+            "pub_enum_variants": 90,
             "pub_traits": 0
           },
           "calc-engine": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
-          },
-          "calc-fml": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
-            "pub_traits": 0
-          },
-          "calc-func": {
-            "entries": 18,
-            "entries_reach_unproven": 18,
-            "pub_enum_variants": 17,
+            "entries": 36,
+            "entries_reach_unproven": 36,
+            "pub_enum_variants": 35,
             "pub_traits": 1
           },
+          "calc-fml": {
+            "entries": 101,
+            "entries_reach_unproven": 101,
+            "pub_enum_variants": 98,
+            "pub_traits": 3
+          },
+          "calc-func": {
+            "entries": 20,
+            "entries_reach_unproven": 20,
+            "pub_enum_variants": 18,
+            "pub_traits": 2
+          },
           "calc-host": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
+            "entries": 25,
+            "entries_reach_unproven": 25,
+            "pub_enum_variants": 25,
             "pub_traits": 0
           },
           "calc-value": {
@@ -298,9 +361,9 @@
             "pub_traits": 1
           },
           "calc-verdict": {
-            "entries": 54,
-            "entries_reach_unproven": 54,
-            "pub_enum_variants": 54,
+            "entries": 55,
+            "entries_reach_unproven": 55,
+            "pub_enum_variants": 55,
             "pub_traits": 0
           },
           "dna-calc": {
@@ -310,28 +373,33 @@
             "pub_traits": 0
           },
           "dna-onecalc": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
+            "entries": 13,
+            "entries_reach_unproven": 13,
+            "pub_enum_variants": 13,
             "pub_traits": 0
           }
         },
         "reach": {
-          "entries_reach_unproven": 160,
+          "entries_reach_unproven": 471,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 158 pub enum variants and 2 pub traits; their seams.json files list 160 entries, 160 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 462 pub enum variants and 9 pub traits; their seams.json files list 471 entries, 471 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
       "details": {
         "baseline_owner": "dc-0nvp",
         "baseline_recorded": "2026-10-14",
-        "commits": {},
+        "commits": {
+          "e24e1e355d92950513eee0bd91722729ef6bbb12": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
         "excluded_identifiers": [
           {
             "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
@@ -356,7 +424,7 @@
             "masked": {
               "commit_messages": 0,
               "files": 3,
-              "tracker_records": 1
+              "tracker_records": 2
             },
             "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
           },
@@ -415,9 +483,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 51,
+          "commit_messages": 176,
           "files": 20,
-          "tracker_records": 318
+          "tracker_records": 361
         },
         "tracker": {
           "ceng-m7.1": {
@@ -468,7 +536,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 318 tracker records, 0 in 0 of 51 commit messages; baseline 68 / 14 / 0 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 361 tracker records, 1 in 1 of 176 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -797,38 +865,6 @@
         "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
         "test",
         "-p",
-        "calc-oracle-excel",
-        "--test",
-        "acceptance",
-        "--locked",
-        "--target-dir",
-        "target/xtask-accept",
-        "--",
-        "--exact",
-        "infra_m1_2__untrusted_workbook",
-        "--nocapture"
-      ],
-      "case": "infra_m1_2__untrusted_workbook",
-      "duration_s": 34.09,
-      "exit_code": 0,
-      "log": "target/accept/infra-m1.2/windows/infra_m1_2__untrusted_workbook.log",
-      "notes": [
-        "a hanging stand-in worker (PID 37592) timed out after 20.1s with a 20s timeout; its stand-in Excel (PID 7332, the PID it wrote itself, started through WMI outside the worker's process tree) and the worker are gone from Win32_Process, and the sentinel (PID 15968, the same image) still runs",
-        "a stand-in worker that exited at once left its stand-in Excel (PID 6408) running; the run terminated it after the grace period, Win32_Process no longer lists it, and the sentinel still runs",
-        "a stand-in Excel (PID 23392) has parent PID 28128 in Win32_Process, not its worker (PID 25496)",
-        "a stand-in worker that reported the sentinel's PID 15968 (running before the run started) was refused (the worker reported Excel PID 15968, a powershell.exe process that was already running before the capture started, so not one this capture started; it is not terminated); the sentinel still runs after the grace period",
-        "the excel part (live captures of the untrusted fixtures: macros, the user-defined function and the external link) runs only on the owner's excel route; this run's route is Ok(\"windows\"), so only the isolation part ran and no Excel was started"
-      ],
-      "outcome": "passed",
-      "package": "calc-oracle-excel",
-      "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 33.93s"
-    },
-    {
-      "argv": [
-        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
-        "test",
-        "-p",
         "calc-verdict",
         "--test",
         "acceptance",
@@ -841,14 +877,48 @@
         "--nocapture"
       ],
       "case": "infra_m1_2__capture_replays",
-      "duration_s": 0.221,
+      "duration_s": 0.21,
       "exit_code": 0,
       "log": "target/accept/infra-m1.2/windows/infra_m1_2__capture_replays.log",
-      "notes": [],
-      "outcome": "not_run",
+      "notes": [
+        "the committed capture (12 formula cells, Excel 16.0.20430.20182, 0 capture failures, 1 COM add-ins connected: \"VS15ExcelAdaptor|Visual Studio Tools for Office Design-Time Adaptor for Excel\") replays to the committed verdict record byte for byte: calculated 0 of 12, file_cached 12, missing 0, not_calculated_equal_to_expectation 12, com_add_ins_connected 1"
+      ],
+      "outcome": "passed",
       "package": "calc-verdict",
-      "reason": "MissingCapture: no capture of platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx has been taken for case infra_m1_2__capture_replays; this path will hold its capture record once the owner's Excel run `cargo xtask capture --fixture platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx --case infra_m1_2__capture_replays --out tools/calc-verdict/tests/captures/infra_m1_2/replay.capture.json --verdict tools/calc-verdict/tests/captures/infra_m1_2/replay.verdict.json` writes it",
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s"
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s"
+    },
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-oracle-excel",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--",
+        "--exact",
+        "infra_m1_2__untrusted_workbook",
+        "--nocapture"
+      ],
+      "case": "infra_m1_2__untrusted_workbook",
+      "duration_s": 32.832,
+      "exit_code": 0,
+      "log": "target/accept/infra-m1.2/windows/infra_m1_2__untrusted_workbook.log",
+      "notes": [
+        "a hanging stand-in worker (PID 8796) timed out after 20.1s with a 20s timeout; its stand-in Excel (PID 20192, the PID it wrote itself, started through WMI outside the worker's process tree) and the worker are gone from Win32_Process, and the sentinel (PID 48816, the same image) still runs",
+        "a stand-in worker that exited at once left its stand-in Excel (PID 44744) running; the run terminated it after the grace period, Win32_Process no longer lists it, and the sentinel still runs",
+        "a stand-in Excel (PID 18960) has parent PID 28128 in Win32_Process, not its worker (PID 29700)",
+        "a stand-in worker that reported the sentinel's PID 48816 (running before the run started) was refused (the worker reported Excel PID 48816, a powershell.exe process that was already running before the capture started, so not one this capture started; it is not terminated); the sentinel still runs after the grace period",
+        "the excel part (live captures of the untrusted fixtures: macros, the user-defined function and the external link) runs only on the excel route; this run's route is Ok(\"windows\"), so only the isolation part ran and no Excel was started"
+      ],
+      "outcome": "passed",
+      "package": "calc-oracle-excel",
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 32.62s"
     }
   ],
   "command": [
@@ -870,13 +940,13 @@
         "calc-verdict",
         "--lib"
       ],
-      "duration_s": 8.984,
+      "duration_s": 0.191,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+        "test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
       ],
       "log": "target/accept/infra-m1.2/windows/command-1.log",
       "outcome": "passed",
@@ -897,13 +967,13 @@
         "calc-oracle-excel",
         "--lib"
       ],
-      "duration_s": 23.222,
+      "duration_s": 17.152,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.52s"
+        "test result: ok. 50 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.46s"
       ],
       "log": "target/accept/infra-m1.2/windows/command-2.log",
       "outcome": "passed",
@@ -924,13 +994,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 22.485,
+      "duration_s": 4.32,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 116 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s"
+        "test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s"
       ],
       "log": "target/accept/infra-m1.2/windows/command-3.log",
       "outcome": "passed",
@@ -1044,12 +1114,12 @@
     "failed": 0,
     "ignored": 0,
     "missing": 0,
-    "not_run": 1,
-    "passed": 1,
+    "not_run": 0,
+    "passed": 2,
     "selected": 2
   },
-  "duration_s": 108.444,
-  "exit_code": 1,
+  "duration_s": 66.769,
+  "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
     "arch": "x86_64",
@@ -1059,33 +1129,175 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "1ec34b81ff6a5e98389ef8e1b84b5f155e6f6072",
+          "blob": "2dfcd5008f80872c7e598aead652b0193743d26c",
+          "path": "accept-receipts/infra-m1.2/wasm.json",
+          "status": "M"
+        },
+        {
+          "blob": "052d1e0831c160c2b931652960fb376c265cb37f",
           "path": "migration/ports/infra-m1.2.json",
           "status": "M"
         },
         {
-          "blob": "fdbafba00fdaf26bf432f3a7a8be6325a58c79a5",
+          "blob": "35d4599c44608a1aca0728bcd37a1ecbd7b43162",
           "path": "platform/calc-oracle-excel/src/lib.rs",
           "status": "M"
         },
         {
-          "blob": "aadb2eb27f716a533e0fe4bdffed02376bdf42eb",
+          "blob": "2c238581fca77879a69df00c4f08c4f2bf1f6b03",
           "path": "platform/calc-oracle-excel/src/worker_tests.rs",
           "status": "M"
         },
         {
-          "blob": "78d907d9e50f82667ddbf268553efd5fe5a4c6d7",
+          "blob": "c136ea4346a694e3893706c026518ec03b99652a",
           "path": "platform/calc-oracle-excel/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "43649f2b83dd4760095e062aa30754cf62ba430b",
+          "blob": "2de8066837cfdcb2b65516775497c11883e1d5ce",
+          "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/untrusted-link.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "ce954198b7fa8ff39c7a961d5bff56ea97b8a5f7",
+          "path": "platform/calc-oracle-excel/tests/fixtures/make-fixtures.ps1",
+          "status": "M"
+        },
+        {
+          "blob": "1893b96be9a90ad3025fbbe1c79935cee731135a",
+          "path": "platform/calc-oracle-excel/tests/fixtures/standin-excel.ps1",
+          "status": "M"
+        },
+        {
+          "blob": "36d7353f3165bf1149db24943f29b0d80fe2cbc2",
+          "path": "platform/calc-oracle-excel/tests/fixtures/standin-harness.ps1",
+          "status": "M"
+        },
+        {
+          "blob": "4fc72c13e653c7f44399b7df16374b841065c185",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/dynamic-array.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "f4d8f8b36fa55fc9ec3f6d1aadf6f1ad3586302e",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/external-content.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "da1a9e794403a2c59e83dc11f2ca28765941aaca",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/macro-sheet.xlsm",
+          "status": "M"
+        },
+        {
+          "blob": "f2e206d636b3d5d8c9f306f608eeb4c9b6d248d1",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/pivot-refresh.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "a054ac46ae8d1c3d8a0c0f0fec719818d9fe6e14",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/query-table-refresh.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "aad8707a4ab4dae07d90d25bd1b595e518846925",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/spill-saved-cm.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "777db3faed102522655c1f6c1049673c22dbd61a",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/spill-saved-values.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "ed06809308823d19d59277c70c11ae51e64df5a5",
+          "path": "platform/calc-oracle-excel/tests/fixtures/worker/spill.xlsx",
+          "status": "M"
+        },
+        {
+          "blob": "eeda1426b1f68150a5ae3cd164f7a83b7bd05493",
           "path": "platform/calc-oracle-excel/worker/capture-worker.ps1",
           "status": "M"
+        },
+        {
+          "blob": "2b85fabe6ca91b30ef06810ca19de0c4f11ac0bb",
+          "path": "tools/calc-verdict/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "29288800c5b89eb5b6bfe5d002785a692d87481c",
+          "path": "tools/calc-verdict/src/capture.rs",
+          "status": "M"
+        },
+        {
+          "blob": "25c804701deb63e2b5b4c92bd736151889cc8e1c",
+          "path": "tools/calc-verdict/src/capture_v2_tests.rs",
+          "status": "M"
+        },
+        {
+          "blob": "905e1d4237d64ed58359e7d2813d1e5e716e6703",
+          "path": "tools/calc-verdict/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "208c433e1a43532cf10d6ac1bf2fdf5dc780a6f9",
+          "path": "tools/calc-verdict/src/replay.rs",
+          "status": "M"
+        },
+        {
+          "blob": "eb991ba7d46f46a891eea9f5db66c7f61d97288c",
+          "path": "tools/calc-verdict/src/verdict.rs",
+          "status": "M"
+        },
+        {
+          "blob": "9974a038af0dff1ae0e1e84e3745b7efceb00cfe",
+          "path": "tools/calc-verdict/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "5f21d3df79e2e574a6f853dcac8bcde99cc37619",
+          "path": "tools/calc-verdict/tests/captures/infra_m1_2/replay.capture.json",
+          "status": "M"
+        },
+        {
+          "blob": "a8863c3ea265ce7e5551e7c6f02912d8fe8af777",
+          "path": "tools/calc-verdict/tests/captures/infra_m1_2/replay.verdict.json",
+          "status": "M"
+        },
+        {
+          "blob": "3807aa1ab8f22f1898eebd66a31a1cafeb970698",
+          "path": "tools/xtask/src/accept.rs",
+          "status": "M"
+        },
+        {
+          "blob": "bab247d1095d9e92700083e19e00609706ff7d6f",
+          "path": "tools/xtask/src/capture.rs",
+          "status": "M"
+        },
+        {
+          "blob": "6373ab49872c1faf6a97bcfec8828642746d65ca",
+          "path": "tools/xtask/src/main.rs",
+          "status": "M"
+        },
+        {
+          "blob": "48b2078245e8316c88e270ecfbed8b8c7541cc85",
+          "path": "accept-receipts/dc-xb26/excel.json",
+          "status": "??"
+        },
+        {
+          "blob": "bf0ab0e2f0f6cf348bf5f383d9ad009213c6f1cd",
+          "path": "accept-receipts/infra-m1.2/excel.json",
+          "status": "??"
+        },
+        {
+          "blob": "2e9bca4c21e45344bb87d04f41b7dabda14f77a2",
+          "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/untrusted-macro.xlsm",
+          "status": "??"
         }
       ],
-      "head": "4ab6ab809c28f3728b0abebf3586070be990ac8d",
-      "receipt_paths_left_out": []
+      "head": "f05b577005d5e53039676c9b5d1c791dc08289e8",
+      "receipt_paths_left_out": [
+        "accept-receipts/infra-m1.2/windows.json"
+      ]
     },
     "legacy_root": {
       "exists": true,
@@ -1103,6 +1315,7 @@
     "files": [
       "crates/calc-value/acceptance.json",
       "crates/calc-func/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
       "crates/calc-fml/acceptance.json",
       "crates/calc-doc-model/acceptance.json",
       "crates/calc-doc/acceptance.json",
@@ -1112,7 +1325,6 @@
       "apps/dna-calc/acceptance.json",
       "platform/calc-platform-desktop/acceptance.json",
       "platform/calc-oracle-excel/acceptance.json",
-      "tools/calc-verdict/acceptance.json",
       "tools/xtask/acceptance.json"
     ]
   },
@@ -1121,7 +1333,7 @@
   "problems": [],
   "receipt": "target/accept/infra-m1.2/windows/receipt.json",
   "require_all": true,
-  "result": "not_run",
+  "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-19T21:10:52Z"
+  "started_utc": "2026-10-21T12:56:05Z"
 }

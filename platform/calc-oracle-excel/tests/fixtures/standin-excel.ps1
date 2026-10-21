@@ -32,11 +32,15 @@ public class StandinItems : IEnumerable {
 '@
 $global:StandinApplication = New-StandinApplication @() @()
 $app = $global:StandinApplication
-foreach ($pair in @(@('Calculation', -4105), @('Iteration', $false), @('MaxIterations', 100), @('MaxChange', 0.001), @('CalculationState', 0), @('Version', '16.0'), @('Build', 19127), @('OperatingSystem', 'Windows (64-bit) NT 10.00'), @('UseSystemSeparators', $true), @('CalculationVersion', 191029), @('AskToUpdateLinks', $true), @('IgnoreRemoteRequests', $false))) {
+# Build, MaxIterations (as read back after it is set) and the numeric International values are
+# doubles, as Excel 16.0.20430 gave them read through InvokeMember (the worker's Get-ComProperty).
+foreach ($pair in @(@('Calculation', -4105), @('Iteration', $false), @('MaxChange', 0.001), @('CalculationState', 0), @('Version', '16.0'), @('Build', 19127.0), @('OperatingSystem', 'Windows (64-bit) NT 10.00'), @('UseSystemSeparators', $true), @('CalculationVersion', 191029), @('AskToUpdateLinks', $true), @('IgnoreRemoteRequests', $false), @('StandinMaxIterations', 100))) {
     $app | Add-Member -MemberType NoteProperty -Name $pair[0] -Value $pair[1]
 }
+$app | Add-Member -MemberType ScriptProperty -Name MaxIterations -Value { [double]$this.StandinMaxIterations } -SecondValue { param($value) $this.StandinMaxIterations = $value }
 $app | Add-Member -MemberType ScriptMethod -Name CalculateFullRebuild -Value { Write-Standin 'CalculateFullRebuild' }
-$app | Add-Member -MemberType ScriptMethod -Name International -Value { param($index) return [string]$index }
+# xlCountryCode 1, xlCountrySetting 2 and xlDateOrder 32 as doubles; the separators as text.
+$app | Add-Member -MemberType ScriptMethod -Name International -Value { param($index) if (@(1, 2, 32) -contains $index) { return [double]$index } return [string]$index }
 $languages = [pscustomobject]@{}
 $languages | Add-Member -MemberType ScriptMethod -Name LanguageID -Value { param($kind) return 1033 }
 $app | Add-Member -MemberType NoteProperty -Name LanguageSettings -Value $languages
@@ -78,7 +82,7 @@ $used | Add-Member -MemberType ScriptMethod -Name SpecialCells -Value { param($t
 $sheet = [pscustomobject]@{ Name = 'Sheet1'; Cells = $cells; UsedRange = $used }
 $sheets = New-Object StandinItems
 $sheets.Add('Sheet1', $sheet)
-$book = [pscustomobject]@{ Worksheets = $sheets; Connections = @(); CompatibilityVersion = 16; CalculationVersion = 191029; Date1904 = $false; PrecisionAsDisplayed = $false; HasVBProject = $false }
+$book = [pscustomobject]@{ Worksheets = $sheets; Connections = @(); CompatibilityVersion = 16; CalculationVersion = 191029; Date1904 = $false; PrecisionAsDisplayed = $false; HasVBProject = $false; ReadOnly = $true }
 $book | Add-Member -MemberType ScriptMethod -Name LinkSources -Value { param($kind) if ($kind -eq 1) { return , @('C:\nowhere\link-target.xlsx') } return $null }
 $book | Add-Member -MemberType ScriptMethod -Name SaveAs -Value {
     param($path, $format)
@@ -90,4 +94,29 @@ $book | Add-Member -MemberType ScriptMethod -Name SaveAs -Value {
 $book | Add-Member -MemberType ScriptMethod -Name Close -Value { Write-Standin 'Close' }
 $global:StandinBook = $book
 $global:StandinInput = $null
-$app.Workbooks | Add-Member -MemberType ScriptMethod -Name Open -Value { Write-Standin ('Workbooks.Open ' + [System.IO.Path]::GetFileName($args[0]) + ' from ' + [System.IO.Path]::GetFileName([System.IO.Path]::GetDirectoryName($args[0]))); if ($null -eq $global:StandinInput) { $global:StandinInput = $args[0] }; return $global:StandinBook } -Force
+# Workbooks.Open prints the workbook it opens, then every argument it was called with, by the name
+# of Excel's parameter in its position: "Workbooks.Open arguments <count>: <name>=<value> (<.NET
+# type>); ...", an omitted argument ([System.Type]::Missing) as "<name>=missing", the file name
+# without its directory.
+$global:StandinOpenParameters = @('FileName', 'UpdateLinks', 'ReadOnly', 'Format', 'Password', 'WriteResPassword', 'IgnoreReadOnlyRecommended', 'Origin', 'Delimiter', 'Editable', 'Notify', 'Converter', 'AddToMru', 'Local', 'CorruptLoad')
+$app.Workbooks | Add-Member -MemberType ScriptMethod -Name Open -Value {
+    Write-Standin ('Workbooks.Open ' + [System.IO.Path]::GetFileName($args[0]) + ' from ' + [System.IO.Path]::GetFileName([System.IO.Path]::GetDirectoryName($args[0])))
+    $shown = @()
+    for ($i = 0; $i -lt $args.Count; $i++) {
+        $name = "argument$i"
+        if ($i -lt $global:StandinOpenParameters.Count) { $name = $global:StandinOpenParameters[$i] }
+        $value = $args[$i]
+        if ($value -is [System.Reflection.Missing]) {
+            $shown += "$name=missing"
+        } elseif ($null -eq $value) {
+            $shown += "$name=null"
+        } else {
+            $text = [string]$value
+            if ($i -eq 0) { $text = [System.IO.Path]::GetFileName($text) }
+            $shown += "$name=$text (" + $value.GetType().Name + ')'
+        }
+    }
+    Write-Standin ("Workbooks.Open arguments " + $args.Count + ': ' + ($shown -join '; '))
+    if ($null -eq $global:StandinInput) { $global:StandinInput = $args[0] }
+    return $global:StandinBook
+} -Force

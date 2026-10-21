@@ -1,8 +1,8 @@
 {
  "format": "dnacalc-port-record/1",
  "bead": "infra-m1.2",
- "written": "2026-10-19",
- "about": "What infra-m1.2 took from the legacy capture runners for the one Excel capture adapter (platform/calc-oracle-excel, its worker worker/capture-worker.ps1, and cargo xtask capture) and for CaptureRecord version 2 in tools/calc-verdict. Nothing was ported. Of the 30 runner_candidate inputs infra-m0.4 marked under OxFunc/smart-fuzzer/ and OxFunc/tools/xll-addin/, cargo xtask pin-sources --lookup exits 5 for 18 (numeric provenance unresolved), 3 for 1 (quarantine_derived) and 0 for 11, each of those of disposition reference and outside the release source allowlist. None is a port input without a re-pin, so no re-pin was made, none of the 30 files was opened, and the worker was written fresh from Excel's documented object model (Application, Workbooks.Open, Workbook.SaveAs, Range.Value2, Range.Formula2, Range.HasFormula, Range.SpecialCells, Application.International, CalculateFullRebuild, AutomationSecurity, COMAddIns and COMAddIn.Connect, AddIns2 and AddIn.IsOpen and AddIn.Installed, RegisteredFunctions, Workbook.LinkSources, Workbook.Connections; every add-in state and Excel option is read, never written), the COM late-binding call System.__ComObject.InvokeMember (so that a failed property read throws instead of reading as nothing), and the published SpreadsheetML package structure (including the refreshOnLoad of the connections part, of pivot cache definitions and of query tables, the external link part's externalBook, ddeLink and oleLink elements, and the cell metadata index cm that Excel with dynamic arrays writes on a dynamic-array formula). Only this bead writes this file.",
+ "written": "2026-10-21",
+ "about": "What infra-m1.2 took from the legacy capture runners for the one Excel capture adapter (platform/calc-oracle-excel, its worker worker/capture-worker.ps1, and cargo xtask capture) and for CaptureRecord version 2 in tools/calc-verdict. Nothing was ported. Of the 30 runner_candidate inputs infra-m0.4 marked under OxFunc/smart-fuzzer/ and OxFunc/tools/xll-addin/, cargo xtask pin-sources --lookup exits 5 for 18 (numeric provenance unresolved), 3 for 1 (quarantine_derived) and 0 for 11, each of those of disposition reference and outside the release source allowlist. None is a port input without a re-pin, so no re-pin was made, none of the 30 files was opened, and the worker was written fresh from Excel's documented object model (Application, Workbooks.Open, Workbook.SaveAs, Range.Value2, Range.Formula2, Range.HasFormula, Range.SpecialCells, Application.International, CalculateFullRebuild, AutomationSecurity, COMAddIns and COMAddIn.Connect, AddIns2 and AddIn.IsOpen and AddIn.Installed, RegisteredFunctions, Workbook.LinkSources, Workbook.Connections; every add-in state is read, never written, and no Excel option is written beyond the capture's own instance), the COM late-binding call System.__ComObject.InvokeMember (so that a failed property read throws instead of reading as nothing), and the published SpreadsheetML package structure (including the refreshOnLoad of the connections part, of pivot cache definitions and of query tables, the external link part's externalBook, ddeLink and oleLink elements, and the cell metadata index cm that Excel with dynamic arrays writes on a dynamic-array formula). Only this bead writes this file.",
  "selection": {
   "ported": [],
   "rule": "port nothing from an input whose lookup exits 3 or 5 (claim note of infra-m1.2, 2026-10-19); an input of disposition reference is a port input only after a re-pin names it for this bead through an Infrastructure disposition bead",
@@ -557,11 +557,23 @@
   },
   {
    "change": "CaptureRecord version 2 adds an optional \"dynamic_array\": true on an ordinary formulas entry (FormulaCell::dynamic_array): the workbook saves the formula as a dynamic-array formula over its own cell. It is written only when true, and the decoder refuses it as false or on a shared formula; version 1 records never carry it.",
-   "reason": "Review of round 2 (2026-10-19): Excel with dynamic arrays saves a formula such as =MarkUdf() as t=\"array\" with cm=\"1\" over one cell, which the converter refused, so modern packages, the owner's untrusted-macro.xlsm and infra-m1.3's fixture among them, would fail capture."
+   "reason": "Review of round 2 (2026-10-19): Excel with dynamic arrays saves a formula such as =MarkUdf() as t=\"array\" with cm=\"1\" over one cell, which the converter refused, so modern packages, untrusted-macro.xlsm and infra-m1.3's fixture among them, would fail capture."
   },
   {
    "change": "The worker result (dnacalc-capture-worker-result version 1, never committed) carries cm on each formula and may carry the raw value {\"unread\": \"<why>\"} for a Value2 read that failed; the converter makes the latter a value failure of the cell.",
    "reason": "Windows PowerShell reads a property whose getter fails as $null without an error, for COM objects too (measured 2026-10-19 in Windows PowerShell 5.1.26100 on an ADODB.Recordset never opened: $rs.RecordCount read as nothing with no error, [double] and [string] of that read gave 0 and an empty string, and InvokeMember of RecordCount threw; transcript and script in target/accept/infra-m1.2/getter-probe.log of the DnaCalc clone, not committed); read plainly, a failed Value2 read would have been recorded as an empty value."
+  },
+  {
+   "change": "calc-verdict's report (dnacalc-verdict-report) is version 4: a com_add_ins_connected member, after capture_failures, gives the number of COM add-ins the record's environment lists as connected during the capture (the setting com_add_ins_connected, SETTING_COM_ADD_INS_CONNECTED), present when the record carries that setting; and the uncertified reason com_add_in_connected marks a raw comparison against such a record that would otherwise be strict-bit certified (UncertifiedReason::ComAddInConnected, in calc-verdict's seams.json). The two unit tests that asserted version 3 assert 4.",
+   "reason": "Round-2 judge (2026-10-21): the committed capture ran with VS15ExcelAdaptor connected, yet its record had no failure and its verdict no count, so the broadening was not counted as honesty rule 2 requires. The orchestrator's ruling of 2026-10-21 took counting it in the verdict; bead dc-quhd owns the replacement."
+  },
+  {
+   "change": "A CaptureRecord setting that lists several things (add_ins, com_add_ins_connected, add_ins_installed, external_links, ole_dde_links, connections) separates items with ; and fields with |, and writes %, ; and | within a field as %25, %3B and %7C. Add-ins are named by ProgId or file name only: add_ins_installed lists names (it listed Name|FullName), and the refusal of an add-in open in the instance names its file name (it named its full path).",
+   "reason": "Round-2 judge: the ; and | joins were ambiguous for a name holding either character, and add_ins_installed committed the full local paths of the owner's development add-ins; the orchestrator's privacy ruling of 2026-10-21: add-in names only, never a path, in the record, the verdict and the receipts."
+  },
+  {
+   "change": "The worker records opened_read_only, the input workbook's Workbook.ReadOnly as Excel opened it, and the excel route of infra_m1_2__untrusted_workbook requires it to be true.",
+   "reason": "Round-2 judge: the call of Workbooks.Open through InvokeMember, the branch real Excel takes, was evidenced only indirectly; Excel's own ReadOnly shows that the third argument reached Excel."
   }
  ],
  "not_ported": [
@@ -620,7 +632,8 @@
    "a call to RTD, WEBSERVICE (and so FILTERXML over it), IMAGE, STOCKHISTORY, CUBEKPIMEMBER, CUBEMEMBER, CUBEMEMBERPROPERTY, CUBERANKEDMEMBER, CUBESET, CUBESETCOUNT, CUBEVALUE, TRANSLATE, DETECTLANGUAGE, COPILOT, PY, IMPORTTEXT, IMPORTCSV, CALL, REGISTER.ID or SQL.REQUEST (the worker's $ExternalDataFunctions), matched without regard to case on the function name after any _xl prefix and outside string literals, in a cell formula of a worksheet, macro sheet or dialog sheet, in a conditional-formatting or data-validation formula of such a sheet (any element f, formula, formula1 or formula2), or in a defined name (tests/fixtures/worker/external-functions.xlsx)"
   ],
   "checked_after_excel_starts": [
-   "an add-in that is open in the capture's Excel instance (one installed in the profile but not open is recorded only), a COM add-in that is connected, an add-in whose state cannot be read, and registered XLL functions: the capture is refused before the workbook is opened, and no add-in is switched off",
+   "an add-in that is open in the capture's Excel instance (one installed in the profile but not open is recorded only), an add-in of AddIns2 whose state cannot be read, and registered XLL functions: the capture is refused before the workbook is opened, each named by its file name, and no add-in is switched off",
+   "a connected COM add-in: not refused and not disconnected (the worker writes no add-in's state). It is recorded by name in the setting com_add_ins_connected (ProgId|Description), every installed add-in of Application.AddIns by its Name, a file name, in add_ins_installed, and no add-in is recorded by a path; each field of these lists writes %, ; and | as %25, %3B and %7C. calc-verdict counts the condition: the report (version 4) carries com_add_ins_connected, the number of COM add-ins the record lists as connected (1 in tools/calc-verdict/tests/captures/infra_m1_2/replay.verdict.json), and a raw comparison against such a record is uncertified with the reason com_add_in_connected where it would otherwise be strict-bit certified (unit test verdict::tests::a_connected_com_add_in_is_counted_and_certifies_no_target). This deviates from the Do, which says 'opening fixtures with macros/add-ins/external links disabled'; the orchestrator's ruling of 2026-10-21 took counting (option (b) of the round-2 judge). On the owner's machine the COM add-in VS15ExcelAdaptor (registered under HKLM with LoadBehavior 3, read 2026-10-21) read as connected in every automation instance measured. The safe-mode route (Excel started with /safe and attached through AccessibleObjectFromWindow) was tried once in round 1 and was not reliable: startup prompts left by force-stopped instances blocked later starts. Bead dc-quhd (it depends on infra-m1.2) owns capturing in an Excel instance with no COM add-in connected and no setting written, and measures the safe-mode route. A COM add-in whose state or names cannot be read is an environment failure.",
    "links to other workbooks: kept, opened with UpdateLinks 0, which never refreshes them, and recorded in the external_links setting",
    "an OLE or DDE link that Excel reports, and a data connection that Excel reports as refreshing on open or whose setting cannot be read: isolation failures that refuse the capture"
   ],
@@ -629,13 +642,14 @@
    "an OLE object embedded in a sheet",
    "a linked data type (rich values, such as Stocks or Geography)",
    "a function of an add-in, or a user-defined function, whose name is not in the list above",
+   "what a connected COM add-in does during the capture (its handlers of Excel's events, the functions it provides): the verdict counts every capture taken with one and certifies no raw comparison against it; bead dc-quhd owns capturing without one",
    "a formula outside the parts listed above (a chart series, a pivot table calculated field, an XML map, a Power Query mashup without a connection that refreshes on load)",
    "an external-data function added to Excel after the list above was written",
    "any other route not listed under checked"
   ]
  },
  "fixtures": {
-  "generator": "platform/calc-oracle-excel/tests/fixtures/make-fixtures.ps1 (sha256 c9da396ac8a4c0e6b1b6b7fdc1b2ed37cbcef10d46de6a30e63736ce635662c9) writes each package marked make-fixtures.ps1 below as UTF-8 XML parts, stored (ZIP method 0) with the timestamp 1980-01-01 00:00, by a ZIP writer in the script; run with -OutDir platform/calc-oracle-excel/tests/fixtures it rewrites them. The unit test fixtures_are_the_output_of_their_generator (src/worker_tests.rs) runs it into a fresh directory and compares every file with the committed one byte for byte. Round 3 replaced the round 1 and 2 files, which scripts outside the repository had written, with this output: the parts keep their cells, formulas, links, connections and sheets, and differ in namespace declarations, the styles part, override order and relationship IDs.",
+  "generator": "platform/calc-oracle-excel/tests/fixtures/make-fixtures.ps1 (sha256 c21bdcac29caaee12263d2224bcf71cbae4aaafaa221716e699363bb49e70686) writes each package marked make-fixtures.ps1 below as UTF-8 XML parts, stored (ZIP method 0) with the timestamp 1980-01-01 00:00, by a ZIP writer in the script; run with -OutDir platform/calc-oracle-excel/tests/fixtures it rewrites them. The unit test fixtures_are_the_output_of_their_generator (src/worker_tests.rs) runs it into a fresh directory and compares every file with the committed one byte for byte. Round 3 replaced the round 1 and 2 files, which scripts outside the repository had written, with this output: the parts keep their cells, formulas, links, connections and sheets, and differ in namespace declarations, the styles part, override order and relationship IDs. Round 2 of the resumed run (2026-10-21) corrected the generator's content-type overrides (a part's name and its content type were joined into one PartName with an empty ContentType; measured 2026-10-21, Excel 16.0.20430 failed Open of the previous dynamic-array.xlsx, spill.xlsx and untrusted-link.xlsx through the worker's Open-Workbook and opened the regenerated dynamic-array.xlsx and spill.xlsx read-only), which regenerated every package it writes, dc-xb26's three spill fixtures among them.",
   "files": [
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/replay.xlsx",
@@ -644,7 +658,7 @@
    },
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/untrusted-link.xlsx",
-    "sha256": "cd2651fb1b5fcbd0a55e2906dad7fc0f477f09dc62464188cf9bc53c5cfb1dd3",
+    "sha256": "0255c54424c38ffef00963fcc081160699bd7bbef4db09a066fe1551dd517fb7",
     "made_by": "make-fixtures.ps1"
    },
    {
@@ -654,22 +668,22 @@
    },
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/worker/macro-sheet.xlsm",
-    "sha256": "4fa3c24e94c5c070ee27e91bb61101b19542dd0bcd07ff1dc589447f4429a506",
+    "sha256": "1854791cd4c03bd602307c28bef031bca65545e745213fe9ecd2c7ef45672909",
     "made_by": "make-fixtures.ps1"
    },
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/worker/external-content.xlsx",
-    "sha256": "c333938cc44c69f22d9afdc7a0ec73254ba85847f2bc3cf6131baa07ac413d52",
+    "sha256": "4a5bc8d4d18d78c6948e566bd76fc9e6a3a240ae16820d660a1239c485e69e03",
     "made_by": "make-fixtures.ps1"
    },
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/worker/pivot-refresh.xlsx",
-    "sha256": "cae8f8477b27654280a163da22e7421fc9a001d06a60ad33b0ca0e67a74bdff6",
+    "sha256": "85d6c0953b247bd9f53dc38c52f8be036d90b50838dcd4e88a0dbbb7fb29603f",
     "made_by": "make-fixtures.ps1"
    },
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/worker/query-table-refresh.xlsx",
-    "sha256": "30f00a97fbe509739f5454b5092e63c2432239bbb67058d68282e0da941abeec",
+    "sha256": "4fc6e55912d2a2b288f02f2c32fcd40b54155dc1c5c21bd827bd9a0c002a9a11",
     "made_by": "make-fixtures.ps1"
    },
    {
@@ -679,7 +693,7 @@
    },
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/worker/dynamic-array.xlsx",
-    "sha256": "c73cf7f96b423a6d7c6094742085af0d7bd0687e8ebcc7b1ef8b118da3927151",
+    "sha256": "31f8f8ae2248d7ec0b94353609926d5b7e8e68722b3c80f33be52b6ef0bec0ae",
     "made_by": "make-fixtures.ps1"
    },
    {
@@ -689,8 +703,23 @@
    },
    {
     "path": "platform/calc-oracle-excel/tests/fixtures/infra_m1_2/untrusted-macro.xlsm",
-    "sha256": null,
-    "made_by": "not committed yet: the owner authors it in Excel by the steps at the top of platform/calc-oracle-excel/tests/acceptance.rs, and its hash is recorded when it is committed"
+    "sha256": "c5a9ba7a5f36d730efdb5bfcebd0d145ae60d97ac61b4a2b220dc3fe39c112ce",
+    "made_by": "authored 2026-10-21 in Excel 16.0.20430.20182 through COM automation (Windows PowerShell 5.1; Trust access to the VBA project object model was already enabled for the user, and no setting was changed), by the steps at the top of platform/calc-oracle-excel/tests/acceptance.rs: Workbooks.Add with Sheet1!A1 = 1 and B1 = =A1*2; Workbook_Open added to the workbook's own document module, found by Workbook.CodeName (ThisWorkbook), not by component type; Auto_Open, MarkRan and MarkUdf in a new standard module Module1; Workbook.RemovePersonalInformation set; SaveAs xlOpenXMLWorkbookMacroEnabled with A1 still 1; =MarkUdf() entered in Sheet1!C1 through Formula2, which showed 7 and wrote macro-ran.txt (MarkUdf); Save, with Application.DisplayAlerts off, so no privacy warning was shown or confirmed; the macro-ran.txt deleted. olevba 0.60.2 shows Workbook_Open in VBA/ThisWorkbook, no code in VBA/Sheet1, and Auto_Open, MarkRan and MarkUdf in VBA/Module1. docProps/core.xml has empty dc:creator and cp:lastModifiedBy, docProps/app.xml an empty Company, xl/workbook.xml no x15ac:absPath (workbookPr filterPrivacy=1), and no part holds the user's or the clone's name. Excel saved C1 as a single-cell dynamic-array formula (t=array, ref C1, cm 1). The authoring script and its log are in target/accept/infra-m1.2/round2/ of the DnaCalc-cdoc clone, not committed."
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/spill.xlsx",
+    "sha256": "d028263173aa276b4b306800df749138906882a3a191ee1a52ff985045ffb912",
+    "made_by": "make-fixtures.ps1. A fixture of bead dc-xb26 (commit 58d7a19, sha256 1f812e686a6a2f396dfe1099f6b041954f75355aee4bc61e2becb70f41c7ed76), regenerated by this bead's correction of the generator's content-type overrides; dc-xb26's excel route passed against it on 2026-10-21 (accept-receipts/dc-xb26/excel.json)."
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/spill-saved-cm.xlsx",
+    "sha256": "b449cdc4c5583442392d6be2d21774a64cd0dd1178e6207fe1a61814a1ac23d1",
+    "made_by": "make-fixtures.ps1. A fixture of bead dc-xb26 (commit 58d7a19, sha256 e2e81b30c5473295328e2dd6b2aaab7fc19e2cd98a1b08c8312164c3a969f5c5), regenerated by this bead's correction of the generator's content-type overrides; dc-xb26's excel route passed against it on 2026-10-21 (accept-receipts/dc-xb26/excel.json)."
+   },
+   {
+    "path": "platform/calc-oracle-excel/tests/fixtures/worker/spill-saved-values.xlsx",
+    "sha256": "3374a423b7a961c9d9ed5039d78a81759954c51ba1c77ce28de95123a815d8b0",
+    "made_by": "make-fixtures.ps1. A fixture of bead dc-xb26 (commit 58d7a19, sha256 4b3a3ddc266c55c9a18bd361e9083f6ab4a82b9184cd8ad6b0c0782b76ff95fb), regenerated by this bead's correction of the generator's content-type overrides; dc-xb26's excel route passed against it on 2026-10-21 (accept-receipts/dc-xb26/excel.json)."
    }
   ]
  }

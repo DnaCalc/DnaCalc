@@ -644,7 +644,7 @@ fn the_absent_capture_marker_is_recognized_and_nothing_else_is() {
     assert_eq!(missing.artifact, "capture record");
     assert_eq!(
         missing.to_string(),
-        "MissingCapture: no capture of f.xlsx has been taken for case k; this path will hold its capture record once the owner's Excel run `cargo xtask capture --fixture f.xlsx --out c.json` writes it"
+        "MissingCapture: no capture of f.xlsx has been taken for case k; this path will hold its capture record once an Excel run of `cargo xtask capture --fixture f.xlsx --out c.json` writes it"
     );
     assert_eq!(MissingCapture::recognize(RECORD.as_bytes()), None);
     let text = std::str::from_utf8(marker).unwrap();
@@ -806,7 +806,7 @@ fn capture_failures_are_counted_in_the_report() {
         Some(CaptureFailureCounts { total: 2, by_stage })
     );
     let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
-    assert_eq!(encoded["version"], 3);
+    assert_eq!(encoded["version"], 4);
     assert_eq!(
         encoded["capture_failures"],
         serde_json::json!({"total": 2, "by_stage": {"isolation": 1, "value": 1}})

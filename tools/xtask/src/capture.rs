@@ -8,7 +8,9 @@
 //! Excel instance, macros force-disabled and events off, a workbook whose package holds one of
 //! the checked routes to external data (a refresh-on-load connection, pivot cache or query table,
 //! an OLE or DDE link, a call to a listed external-data function) refused before Excel starts, a
-//! capture refused before the workbook opens when Excel has an add-in loaded, links and
+//! capture refused before the workbook opens when an add-in is open in the worker's Excel
+//! instance (a connected COM add-in is recorded by name, not refused and never switched off, and
+//! the verdict counts it and certifies no raw comparison against the record), links and
 //! connections recorded and never refreshed, the calculation policy set, a full rebuild, save and
 //! reopen. It always keeps the CaptureRecord version 2 in the work directory as `capture.json`,
 //! and computes the record's file-cache replay (`calc_verdict::file_cache_replay` of the record as
@@ -17,16 +19,17 @@
 //! DDE link Excel reports, a reported Excel the adapter refused, could not open, had to terminate
 //! or could not terminate, or none reported) or when the verdict refuses the replay (an inventory
 //! failure, say). The refusals the worker makes itself (a package refused before Excel starts, an
-//! Excel with an add-in loaded, a session setting that does not read back as set) end the worker
-//! with a fatal error, so no record is written and the capture fails.
+//! Excel with an add-in open in its instance, a session setting that does not read back as set)
+//! end the worker with a fatal error, so no record is written and the capture fails.
 //! Otherwise it writes the record to `--out` and, with `--verdict`, the replay's verdict record,
 //! the record the replay case compares on every platform. Companions are copied beside the
 //! fixture's copy (the target of an external link). The work directory defaults to
 //! `target/capture/<case>-<UTC time>` and must be new; the capture tool's revision names the
 //! repository's commit (with `+dirty` for a changed tree) when git can read it.
 //!
-//! Excel must be installed on this Windows host; this command is the owner's to run, never an
-//! agent's. Paths are relative to the current directory.
+//! Excel must be installed on this Windows host and registered for automation; on the owner's
+//! machine any agent may run this command (AGENTS.md, Excel on this machine). Paths are relative
+//! to the current directory.
 //!
 //! Exit codes: 0 when the record (and the verdict record) was written; 1 when the capture failed
 //! (setup, worker or result, the worker's own refusals among them) or a file cannot be written; 2

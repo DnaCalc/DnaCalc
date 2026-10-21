@@ -524,16 +524,17 @@ fn a_refused_package_never_starts_excel() {
     }
 }
 
-/// An Excel with add-ins loaded is refused before the workbook is opened, nothing switched off:
-/// a stand-in Application reporting a connected COM add-in, a COM add-in whose Connect cannot be
-/// read, a real COM object (a closed ADODB.Recordset, which has neither ProgId nor Connect) in the
-/// COM add-in list, an add-in open in the instance, and a DisplayAlerts that cannot be read back
-/// makes the worker report the stand-in's PID, refuse the capture with each named (and neither the
-/// idle add-ins nor one installed in the profile but not open), never call Workbooks.Open, and
-/// quit the stand-in. A read that fails, through
-/// PowerShell's property read or through COM, never passes for a state that is off.
+/// An Excel with an add-in open in its instance is refused before the workbook is opened, nothing
+/// switched off: a stand-in Application with an add-in open in the instance and a DisplayAlerts
+/// that cannot be read back makes the worker report the stand-in's PID, refuse the capture with
+/// both named (the add-in by its file name, no part of its directory anywhere in the result),
+/// never call Workbooks.Open, and quit the stand-in. A connected COM add-in, an idle one and one
+/// installed in the profile but not open refuse nothing. A COM add-in whose Connect cannot be read
+/// and a real COM object (a closed ADODB.Recordset, which has neither ProgId nor Connect) in the
+/// COM add-in list are environment failures naming each, never a state that is off: a read that
+/// fails, through PowerShell's property read or through COM, never passes for one.
 #[test]
-fn an_excel_with_loaded_add_ins_is_refused_before_the_workbook_opens() {
+fn an_excel_with_an_add_in_open_is_refused_before_the_workbook_opens() {
     let setup = "$recordset = Microsoft.PowerShell.Utility\\New-Object -ComObject ADODB.Recordset\n$global:StandinApplication = New-StandinApplication @((New-StandinComAddIn 'Contoso.Loaded' $true), (New-StandinComAddIn 'Contoso.Idle' $false), (New-StandinComAddIn 'Contoso.Broken' $null), $recordset) @((New-StandinAddIn 'C:\\AddIns\\Tool.xlam' $true $true), (New-StandinAddIn 'C:\\AddIns\\Installed.xll' $false $true), (New-StandinAddIn 'C:\\AddIns\\Idle.xlam' $false $false)) @('DisplayAlerts')";
     let (code, lines, result) = run_main_flow("add-ins", &fixture("infra_m1_2/replay.xlsx"), setup);
     assert_eq!(code, Some(1), "{lines:?}");
@@ -552,44 +553,165 @@ fn an_excel_with_loaded_add_ins_is_refused_before_the_workbook_opens() {
             .any(|line| line.starts_with("STANDIN: Workbooks.Open")),
         "the workbook was opened: {lines:?}"
     );
+    assert!(
+        !lines.iter().any(|line| line.contains("COMAddIn.Connect")),
+        "an add-in was switched: {lines:?}"
+    );
     assert!(lines.contains(&"STANDIN: Quit".to_owned()), "{lines:?}");
     let fatal = result["fatal"].as_str().unwrap();
     assert!(
-        fatal.starts_with("refused before the workbook was opened: this Excel instance is not isolated (a capture needs an Excel profile with no loaded add-ins, and nothing was switched off)"),
+        fatal.starts_with("refused before the workbook was opened: this Excel instance is not isolated (a capture needs an Excel instance with no add-in open in it, and nothing was switched off)"),
         "{fatal}"
     );
     let isolation = failure_messages(&result, "isolation");
-    assert_eq!(isolation.len(), 5, "{isolation:?}");
     assert_eq!(
-        isolation[0],
-        "DisplayAlerts reads back as nothing after it was set to False; the workbook was not opened"
-    );
-    assert_eq!(
-        isolation[1],
-        "COM add-in Contoso.Loaded is connected; the workbook was not opened"
-    );
-    assert_eq!(
-        isolation[2],
-        "the state of COM add-in Contoso.Broken cannot be read: Connect reads as nothing, not a boolean; the workbook was not opened"
+        isolation,
+        [
+            "DisplayAlerts reads back as nothing after it was set to False; the workbook was not opened",
+            "add-in Tool.xlam is open; the workbook was not opened"
+        ]
     );
     assert!(
-        isolation[3].starts_with("the state of COM add-in 4 cannot be read: ")
-            && isolation[3].contains("Unknown name"),
-        "{}",
-        isolation[3]
+        !result.to_string().contains("AddIns\\\\"),
+        "the result names an add-in's directory: {result}"
     );
+    let environment = failure_messages(&result, "environment");
+    assert_eq!(environment.len(), 2, "{environment:?}");
     assert_eq!(
-        isolation[4],
-        "add-in C:\\AddIns\\Tool.xlam is open; the workbook was not opened"
+        environment[0],
+        "the state of COM add-in Contoso.Broken cannot be read, so the record may omit it from com_add_ins_connected: Connect reads as nothing, not a boolean"
     );
-    assert!(!fatal.contains("Idle"), "{fatal}");
-    assert!(!fatal.contains("Installed.xll"), "{fatal}");
+    assert!(
+        environment[1].starts_with("the state of COM add-in 4 cannot be read, so the record may omit it from com_add_ins_connected: ")
+            && environment[1].contains("Unknown name"),
+        "{}",
+        environment[1]
+    );
+    for name in ["Contoso", "Idle", "Installed.xll"] {
+        assert!(!fatal.contains(name), "{name}: {fatal}");
+    }
     assert_eq!(result["cells"], json!([]));
 }
 
-/// The control of the test above: a stand-in with only idle add-ins passes the isolation and the
-/// worker goes on to open the workbook (the stand-in's Workbooks.Open is called, and throws), so
-/// the stand-in does show an open when one happens.
+/// A connected COM add-in is recorded and the capture completes (the orchestrator's rulings of
+/// 2026-10-21 under AGENTS.md, Excel on this machine; calc-verdict counts it): against the full
+/// stand-in Excel with two connected COM add-ins (one whose Description holds `|`, `;` and `%`),
+/// an idle one, three installed add-ins (one under the user's profile directory, one whose file
+/// name holds `;` and `%`) and one that is not installed, the worker opens the workbook, rebuilds,
+/// saves and reopens, exits 0 with no fatal error and no isolation failure, writes no add-in's
+/// Connect, and records the connected ones as `ProgId|Description` in `com_add_ins_connected` and
+/// the installed ones by file name in `add_ins_installed`, each field escaped (`%25`, `%3B`,
+/// `%7C`), so the lists split into exactly their items. No directory of an add-in, and not the
+/// user's profile directory, appears anywhere in the result. The result converts to a
+/// CaptureRecord that carries both settings.
+#[test]
+fn a_connected_com_add_in_is_recorded_and_the_capture_completes() {
+    let setup = format!(
+        "{FULL_STANDIN}\n$profileAddIn = Join-Path $env:USERPROFILE 'AppData\\Roaming\\Microsoft\\AddIns\\Tool.xlam'\n$app.COMAddIns = @((New-StandinComAddIn 'VS15ExcelAdaptor' $true 'Visual Studio Tools for Office Design-Time Adaptor for Excel'), (New-StandinComAddIn 'Contoso.Idle' $false 'Idle'), (New-StandinComAddIn 'Contoso.Odd' $true 'Tools | odd; 100%'))\n$app.AddIns = @((New-StandinAddIn 'C:\\AddIns\\Installed.xll' $false $true), (New-StandinAddIn $profileAddIn $false $true), (New-StandinAddIn 'C:\\AddIns\\Idle.xlam' $false $false), (New-StandinAddIn 'C:\\AddIns\\odd;name%.xll' $false $true))\n$app.AddIns2 = $app.AddIns\n"
+    );
+    let (code, lines, result) = run_main_flow(
+        "connected-com-add-in",
+        &fixture("infra_m1_2/untrusted-link.xlsx"),
+        &setup,
+    );
+    assert_eq!(code, Some(0), "{lines:?}\n{result}");
+    assert_eq!(result["fatal"], Value::Null, "{result}");
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| line.starts_with("STANDIN: Workbooks.Open untrusted-link.xlsx from "))
+            .count(),
+        2,
+        "{lines:?}"
+    );
+    assert!(lines.contains(&"STANDIN: SaveAs 51 from untrusted-link.xlsx".to_owned()));
+    assert!(
+        !lines.iter().any(|line| line.contains("COMAddIn.Connect")),
+        "an add-in was switched: {lines:?}"
+    );
+    assert_eq!(failure_messages(&result, "isolation"), Vec::<String>::new());
+    let record = convert::convert(
+        &result,
+        Frame {
+            case: "k".to_owned(),
+            source: "sha256:in".to_owned(),
+            tool: "t".to_owned(),
+            revision: 0,
+            operations: Vec::new(),
+            output_package: None,
+            failures: Vec::new(),
+        },
+    )
+    .unwrap_or_else(|e| panic!("{e}\n{result}"));
+    let settings = &record.environment.as_ref().unwrap().settings;
+    let setting = |name: &str| {
+        settings
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
+    };
+    let connected = setting("com_add_ins_connected").unwrap();
+    assert_eq!(
+        connected,
+        "VS15ExcelAdaptor|Visual Studio Tools for Office Design-Time Adaptor for Excel;Contoso.Odd|Tools %7C odd%3B 100%25"
+    );
+    let installed = setting("add_ins_installed").unwrap();
+    assert_eq!(installed, "Installed.xll;Tool.xlam;odd%3Bname%25.xll");
+    // The lists split into their items and fields, and each field unescapes to the name as read.
+    let unescape = |field: &str| {
+        field
+            .replace("%7C", "|")
+            .replace("%3B", ";")
+            .replace("%25", "%")
+    };
+    let items: Vec<Vec<String>> = connected
+        .split(';')
+        .map(|item| item.split('|').map(unescape).collect())
+        .collect();
+    assert_eq!(
+        items,
+        [
+            vec![
+                "VS15ExcelAdaptor".to_owned(),
+                "Visual Studio Tools for Office Design-Time Adaptor for Excel".to_owned()
+            ],
+            vec!["Contoso.Odd".to_owned(), "Tools | odd; 100%".to_owned()]
+        ]
+    );
+    let names: Vec<String> = installed.split(';').map(unescape).collect();
+    assert_eq!(names, ["Installed.xll", "Tool.xlam", "odd;name%.xll"]);
+    assert_eq!(
+        setting("add_ins"),
+        Some(
+            "COM add-in VS15ExcelAdaptor connect=true;COM add-in Contoso.Idle connect=false;COM add-in Contoso.Odd connect=true;add-in Installed.xll open=false installed=true;add-in Tool.xlam open=false installed=true;add-in Idle.xlam open=false installed=false;add-in odd%3Bname%25.xll open=false installed=true"
+        )
+    );
+    let profile = std::env::var("USERPROFILE").unwrap();
+    let text = result.to_string().to_lowercase();
+    for directory in [
+        profile.replace('\\', "\\\\").to_lowercase(),
+        "c:\\\\addins".to_owned(),
+        "%userprofile%".to_owned(),
+    ] {
+        assert!(
+            !text.contains(&directory),
+            "the result names {directory}: {result}"
+        );
+    }
+    let session = record.session.as_ref().unwrap();
+    assert!(
+        session
+            .failures
+            .iter()
+            .all(|failure| failure.stage == "environment"),
+        "{:?}",
+        session.failures
+    );
+}
+
+/// The control of the refusal test above: a stand-in with only idle add-ins passes the isolation
+/// and the worker goes on to open the workbook (the stand-in's Workbooks.Open is called, and
+/// throws), so the stand-in does show an open when one happens.
 #[test]
 fn an_excel_without_loaded_add_ins_goes_on_to_open_the_workbook() {
     let setup = "$global:StandinApplication = New-StandinApplication @((New-StandinComAddIn 'Contoso.Idle' $false)) @((New-StandinAddIn 'C:\\AddIns\\Idle.xlam' $false $false), (New-StandinAddIn 'C:\\AddIns\\Installed.xll' $false $true))";
@@ -640,6 +762,7 @@ fn the_main_flow_runs_to_a_record_against_a_stand_in_excel() {
     let standin: Vec<&str> = lines
         .iter()
         .filter_map(|line| line.strip_prefix("STANDIN: "))
+        .filter(|line| !line.starts_with("Workbooks.Open arguments "))
         .collect();
     assert_eq!(
         standin,
@@ -654,6 +777,45 @@ fn the_main_flow_runs_to_a_record_against_a_stand_in_excel() {
             "Quit"
         ]
     );
+    // Both opens (the input, then the saved package) pass Workbooks.Open these arguments, by the
+    // position of Excel's parameters, as the stand-in received them: links never updated,
+    // read-only, a password no workbook has (an encrypted one then fails to open instead of
+    // prompting), WriteResPassword omitted (Excel 16.0.20430 failed Open of replay.xlsx, which has
+    // no write reservation, given one), no repair on load, and not added to the recent-files list.
+    let opens: Vec<&str> = lines
+        .iter()
+        .filter_map(|line| line.strip_prefix("STANDIN: Workbooks.Open arguments "))
+        .collect();
+    assert_eq!(opens.len(), 2, "{lines:?}");
+    for open in opens {
+        let (count, list) = open.split_once(": ").unwrap();
+        assert_eq!(count, "15", "{open}");
+        let arguments: Vec<(&str, &str)> = list
+            .split("; ")
+            .map(|pair| pair.split_once('=').unwrap())
+            .collect();
+        assert_eq!(
+            arguments,
+            [
+                ("FileName", "untrusted-link.xlsx (String)"),
+                ("UpdateLinks", "0 (Int32)"),
+                ("ReadOnly", "True (Boolean)"),
+                ("Format", "missing"),
+                ("Password", "dnacalc-no-password (String)"),
+                ("WriteResPassword", "missing"),
+                ("IgnoreReadOnlyRecommended", "True (Boolean)"),
+                ("Origin", "missing"),
+                ("Delimiter", "missing"),
+                ("Editable", "False (Boolean)"),
+                ("Notify", "False (Boolean)"),
+                ("Converter", "missing"),
+                ("AddToMru", "False (Boolean)"),
+                ("Local", "False (Boolean)"),
+                ("CorruptLoad", "0 (Int32)"),
+            ],
+            "{open}"
+        );
+    }
     let record = convert::convert(
         &result,
         Frame {
@@ -710,6 +872,10 @@ fn the_main_flow_runs_to_a_record_against_a_stand_in_excel() {
     assert_eq!(setting("display_alerts"), Some("false"));
     assert_eq!(setting("external_links"), Some("link-target.xlsx"));
     assert_eq!(setting("add_ins"), Some(""));
+    assert_eq!(setting("com_add_ins_connected"), Some(""));
+    assert_eq!(setting("add_ins_installed"), Some(""));
+    // The stand-in workbook's ReadOnly, read back; the excel route shows Excel's own.
+    assert_eq!(setting("opened_read_only"), Some("true"));
     assert_eq!(setting("calculation"), Some("automatic"));
     // The request's max_change (0.001) as set and read back, an indexed International and
     // LanguageID read, and the target's compatibility from both calculation versions.
@@ -718,6 +884,26 @@ fn the_main_flow_runs_to_a_record_against_a_stand_in_excel() {
     assert_eq!(setting("decimal_separator"), Some("3"));
     assert_eq!(setting("ui_language_id"), Some("1033"));
     assert_eq!(setting("calculation_version"), Some("191029"));
+    // Integer settings Excel gives as doubles (Build, MaxIterations as read back, the numeric
+    // International values) are recorded as integers, with no environment failure for them.
+    assert_eq!(setting("excel_build_number"), Some("19127"));
+    assert_eq!(setting("max_iterations"), Some("100"));
+    assert_eq!(setting("country_code"), Some("1"));
+    assert_eq!(setting("date_order"), Some("32"));
+    let environment: Vec<&str> = session
+        .failures
+        .iter()
+        .filter(|failure| failure.stage == "environment")
+        .map(|failure| failure.message.as_str())
+        .collect();
+    assert!(
+        environment
+            .iter()
+            .all(|message| ["(Build)", "(MaxIterations)", "(International)"]
+                .iter()
+                .all(|property| !message.contains(property))),
+        "{environment:?}"
+    );
     assert_eq!(
         record.environment.as_ref().unwrap().target.compatibility(),
         "compat-16/calc-191029"
@@ -730,7 +916,8 @@ fn the_main_flow_runs_to_a_record_against_a_stand_in_excel() {
 /// for the record only. Each is recorded as an empty setting with an environment failure that
 /// names it, none as a value cast from nothing (a max_change of bits 0, a flag of "", a
 /// compatibility of "calc-"), and the conversion refuses the result: first for the empty
-/// compatibility, and, with that given back, for the empty iteration.
+/// compatibility, and, with that given back, for the empty iteration. A Build that reads as a
+/// double holding no whole number is not an integer either: empty, with its environment failure.
 #[test]
 fn settings_that_cannot_be_read_are_failures_and_never_defaults() {
     let unreadable = [
@@ -741,7 +928,7 @@ fn settings_that_cannot_be_read_are_failures_and_never_defaults() {
     ];
     let names: Vec<String> = unreadable.iter().map(|name| format!("'{name}'")).collect();
     let setup = format!(
-        "{FULL_STANDIN}\nforeach ($name in @({})) {{\n    $app.PSObject.Properties.Remove($name)\n    $app | Add-Member -MemberType ScriptProperty -Name $name -Value {{ throw 'the stand-in cannot read this setting' }} -SecondValue {{ }}\n}}\n",
+        "{FULL_STANDIN}\nforeach ($name in @({})) {{\n    $app.PSObject.Properties.Remove($name)\n    $app | Add-Member -MemberType ScriptProperty -Name $name -Value {{ throw 'the stand-in cannot read this setting' }} -SecondValue {{ }}\n}}\n$app.Build = 19127.5\n",
         names.join(", ")
     );
     let (code, lines, result) = run_main_flow(
@@ -773,6 +960,7 @@ fn settings_that_cannot_be_read_are_failures_and_never_defaults() {
         "calculation_version",
         "iteration",
         "ignore_remote_requests",
+        "excel_build_number",
     ] {
         assert_eq!(setting(name), Some(""), "{name}: {settings:?}");
     }
@@ -794,6 +982,12 @@ fn settings_that_cannot_be_read_are_failures_and_never_defaults() {
             "{property}: {environment:?}"
         );
     }
+    assert!(
+        environment.iter().any(|message| message.contains(
+            "(Build) cannot be read: it reads as 19127.5 (Double), not of the kind integer"
+        )),
+        "{environment:?}"
+    );
     let frame = || Frame {
         case: "k".to_owned(),
         source: "sha256:in".to_owned(),
@@ -1647,6 +1841,48 @@ fn fixtures_are_the_output_of_their_generator() {
             "{name}: the committed fixture is not the generator's output (sha256 {} committed, {} generated)",
             crate::sha256_hex(&committed),
             crate::sha256_hex(&generated)
+        );
+    }
+    // Every Override of each package's [Content_Types].xml names one part of the package (a
+    // PartName that is "/" and the part's name) and gives it a non-empty ContentType: a generator
+    // that joins the name and the type into one PartName writes a package Excel refuses to open.
+    let names: Vec<String> = GENERATED
+        .iter()
+        .map(|name| quoted(&dir.join(name).to_string_lossy()))
+        .collect();
+    let listing = powershell(&[
+        "-Command",
+        &format!(
+            "Add-Type -AssemblyName System.IO.Compression.FileSystem; foreach ($path in @({})) {{ $zip = [System.IO.Compression.ZipFile]::OpenRead($path); try {{ $parts = @($zip.Entries | ForEach-Object {{ '/' + $_.FullName }}); $entry = $zip.GetEntry('[Content_Types].xml'); $reader = New-Object System.IO.StreamReader($entry.Open()); $xml = [xml]$reader.ReadToEnd(); $reader.Dispose(); foreach ($node in $xml.Types.ChildNodes) {{ if ($node.LocalName -eq 'Override') {{ [Console]::Out.WriteLine([System.IO.Path]::GetFileName($path) + [char]9 + $node.GetAttribute('PartName') + [char]9 + $node.GetAttribute('ContentType') + [char]9 + ($parts -contains $node.GetAttribute('PartName'))) }} }} }} finally {{ $zip.Dispose() }} }}",
+            names.join(", ")
+        ),
+    ]);
+    assert!(
+        listing.status.success(),
+        "the content types could not be read: {}",
+        String::from_utf8_lossy(&listing.stderr)
+    );
+    let overrides: Vec<Vec<String>> = String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .map(|line| line.split('\t').map(str::to_owned).collect())
+        .collect();
+    assert!(
+        overrides.len() >= GENERATED.len(),
+        "every package has overrides: {overrides:?}"
+    );
+    for entry in &overrides {
+        assert_eq!(entry.len(), 4, "{entry:?}");
+        assert!(
+            entry[1].starts_with('/') && !entry[1].contains(' ') && !entry[2].is_empty(),
+            "{}: the override {:?} has the content type {:?}",
+            entry[0],
+            entry[1],
+            entry[2]
+        );
+        assert_eq!(
+            entry[3], "True",
+            "{}: the override {:?} names no part of the package",
+            entry[0], entry[1]
         );
     }
     let _ = std::fs::remove_dir_all(&dir);
