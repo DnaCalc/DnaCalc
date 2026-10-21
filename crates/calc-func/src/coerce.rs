@@ -9,13 +9,17 @@
 //! Text reads as a number only in the plain decimal form: optional spaces, an optional sign,
 //! digits with at most one '.', an optional exponent and optional spaces, with at most 15
 //! significant digits. Plain decimal text whose scale is outside -308..308 ([`Decimal::nearest`])
-//! is #VALUE!, not refused, and so is text with no digit at all. Any other text holding a digit (a
-//! date, a time, a fraction, a currency amount, grouped digits, a percentage, a 16th significant
-//! digit) is refused as not modelled, because Excel may read it as a number through its locale's
-//! number-text rules, which no service supplies yet; the same holds for a logical's text forms,
-//! which are the English TRUE and FALSE. Coercion only reads the decimal ([`Numeric::Decimal`]):
-//! finding its nearest binary64 rounds, so the kernel does that at an arithmetic site, under the
-//! call's numeric mode, and the scale's #VALUE! comes from there.
+//! is #VALUE!, not refused, and so is text with no digit at all. Text of printable ASCII holding
+//! a word outside the list that [`number_words`] measured in Excel 16.0 (build 20430) under the
+//! Windows locale en-ZA, such as the label 2016-17 Winter, is #VALUE! too: the rule takes those to
+//! be the only words Excel reads inside number text, and other locales were not measured. Any
+//! other text holding a digit (a date, a time, a fraction, a currency amount, grouped digits, a
+//! percentage, a 16th significant digit) is refused as not modelled, because Excel may read it as
+//! a number through its locale's number-text rules, which no service supplies yet (cfml-m2.6); the
+//! same holds for a logical's text forms, which are the English TRUE and FALSE. Coercion only
+//! reads the decimal ([`Numeric::Decimal`]): finding its nearest binary64 rounds, so the kernel
+//! does that at an arithmetic site, under the call's numeric mode, and the scale's #VALUE! comes
+//! from there.
 //!
 //! A number read as text takes its text from [`number_text`]. A subnormal number reads as text as
 //! 0, since Excel holds none and reads a cell written as one back as +0; read as a number
@@ -25,6 +29,7 @@
 //! (dc-rkzm).
 
 use crate::number_text;
+use crate::number_words;
 use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
 use std::borrow::Cow;
 
@@ -147,7 +152,8 @@ pub(crate) fn operand(n: f64) -> Result<f64, Stop> {
 
 /// The value as a logical: a number is TRUE unless it is 0, a logical as it is, Empty and
 /// Missing as FALSE, the text TRUE or FALSE in any ASCII case as that logical, an error as
-/// itself. Other text is #VALUE! unless it holds a digit, which is refused as not modelled.
+/// itself. Other text is #VALUE! unless it holds a digit and may be number text (it holds no word
+/// that [`number_words`] rules out), which is refused as not modelled.
 pub(crate) fn logical(value: &CalcValue) -> Result<bool, Stop> {
     match value.core() {
         CoreValue::Number(n) => operand(*n).map(|n| n != 0.0),
@@ -158,7 +164,7 @@ pub(crate) fn logical(value: &CalcValue) -> Result<bool, Stop> {
                 Ok(true)
             } else if eq_ignore_ascii_case(units, &FALSE_TEXT) {
                 Ok(false)
-            } else if holds_digit(text) {
+            } else if holds_digit(text) && !number_words::cannot_be_number(units) {
                 Err(Stop::NotModelled)
             } else {
                 Err(Stop::Error(WorksheetErrorCode::Value))
@@ -192,12 +198,13 @@ pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
 }
 
 /// Text that reads as a number, as the decimal it holds; see the module documentation for the
-/// form read.
+/// form read. Text with no digit, or holding a word [`number_words`] rules out, is #VALUE!; other
+/// text outside that form is not modelled.
 fn text_as_decimal(text: &ExcelText) -> Result<Decimal, Stop> {
-    if !holds_digit(text) {
+    let units = text.utf16_code_units();
+    if !holds_digit(text) || number_words::cannot_be_number(units) {
         return Err(Stop::Error(WorksheetErrorCode::Value));
     }
-    let units = text.utf16_code_units();
     let start = units.iter().position(|&u| u != u16::from(b' '));
     let end = units.iter().rposition(|&u| u != u16::from(b' '));
     let trimmed = match (start, end) {

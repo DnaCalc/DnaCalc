@@ -4,11 +4,12 @@
 #
 # writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx,
 # <directory>/cfunc_m3_4/oracle.xlsx, <directory>/cfunc_m3_5/oracle.xlsx,
-# <directory>/dc_q9rb/oracle.xlsx and <directory>/cfunc_m3_6/oracle.xlsx. Run with this directory
-# as -OutDir it rewrites the committed fixtures; the acceptance cases cfunc_m1_2__mixed_operands,
-# cfunc_m3_2__rounding_boundaries, cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes,
-# cfunc_m3_5__criteria_semantics, dc_q9rb__number_text_for_concatenation,
-# cfunc_m3_6__reference_result and cfunc_m3_6__lookup_edges run it into a fresh directory on
+# <directory>/dc_q9rb/oracle.xlsx, <directory>/cfunc_m3_6/oracle.xlsx and
+# <directory>/dc_e00t/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
+# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
+# cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes, cfunc_m3_5__criteria_semantics,
+# dc_q9rb__number_text_for_concatenation, cfunc_m3_6__reference_result,
+# cfunc_m3_6__lookup_edges and dc_e00t__digit_labels_as_text run it into a fresh directory on
 # Windows and compare its output with the committed workbooks byte for byte.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
@@ -16,13 +17,16 @@
 # cfunc_m3_2/oracle.xlsx the one an Excel capture of cfunc-m3.2's rounding and integer rows reads,
 # cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads,
 # cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads,
-# dc_q9rb/oracle.xlsx the one an Excel capture of dc-q9rb's number-text rows reads, and
-# cfunc_m3_6/oracle.xlsx the one an Excel capture of cfunc-m3.6's lookup rows reads. Each has one
+# dc_q9rb/oracle.xlsx the one an Excel capture of dc-q9rb's number-text rows reads,
+# cfunc_m3_6/oracle.xlsx the one an Excel capture of cfunc-m3.6's lookup rows reads, and
+# dc_e00t/oracle.xlsx the one an Excel capture of dc-e00t's digit-label rows reads. Each has one
 # sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
 # holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
 # its rows. Each case checks that its sheet holds exactly those formulas and cells; the sheet
 # lookup_edges of cfunc_m3_6/oracle.xlsx also holds source formulas, each a dynamic-array formula
-# over its one cell. No formula cell carries a cache: Excel calculates them.
+# over its one cell, and dc_e00t's workbook also has a sheet value_readings of Excel's VALUE over
+# its generated texts, which no row computes (see its section). No formula cell carries a cache:
+# Excel calculates them.
 #
 # The package is a minimal SpreadsheetML package written as text: every part is UTF-8 XML, stored
 # (ZIP method 0, no compression) with the timestamp 1980-01-01 00:00 and no extra fields, by the
@@ -1422,3 +1426,103 @@ Write-Workbook (Join-Path $OutDir 'cfunc_m3_6/oracle.xlsx') @(
     @('reference_result', (New-OracleSheet $referenceInputs $referenceFormulas)),
     @('lookup_edges', (New-OracleSheet $edgesInputs $edgesFormulas $edgesSources))
 ) -DynamicArrays
+
+# --- dc_e00t/oracle.xlsx ------------------------------------------------------------------------
+
+# Sheet digit_labels_as_text: the cells of dc_e00t__digit_labels_as_text's test sheet (A1:A8
+# labels holding digits beside the number 2016 and the text 2016, B1:B8 the powers of two 1 to
+# 128, C1:C10 criteria and texts: two labels, a date, a time, an amount in R, a label with an en
+# dash, a label of 314 characters, the text 2016-17 and the fractions 1 1/2 and 1/2), and its
+# oracle rows' formulas in its order: the hand-written rows, then each word of $labelWords in each
+# form of $labelForms, as "text"+0, the word in place of the underscore.
+# Sheet value_readings: in column D, VALUE("text") of each of those generated texts whose word is
+# one of $valueSampleWords, in the same order, Excel's second reading of them. calc_func has no
+# VALUE, so no row computes these cells; dc_e00t__excel_comparison checks them against the texts'
+# "text"+0 rows.
+$enDash = [string][char]0x2013
+$labelInputs = @(
+    (New-Text 'A1' '2016-17 Winter'),
+    (New-Text 'A2' '2047-48 Summer'),
+    (New-Text 'A3' '2047-48 Winter'),
+    (New-Text 'A4' 'Q1 2016'),
+    (New-Number 'A5' '2016'),
+    (New-Text 'A6' '2016'),
+    (New-Text 'A7' '2016-17 winter'),
+    (New-Text 'A8' '2063-2064 Winter'),
+    (New-Number 'B1' '1'),
+    (New-Number 'B2' '2'),
+    (New-Number 'B3' '4'),
+    (New-Number 'B4' '8'),
+    (New-Number 'B5' '16'),
+    (New-Number 'B6' '32'),
+    (New-Number 'B7' '64'),
+    (New-Number 'B8' '128'),
+    (New-Text 'C1' '2016-17 Winter'),
+    (New-Text 'C2' 'Q1 2016'),
+    (New-Text 'C3' '1 Jan 2020'),
+    (New-Text 'C4' '10:30 am'),
+    (New-Text 'C5' 'R1'),
+    (New-Text 'C6' ('2016' + $enDash + '17 Winter')),
+    (New-Text 'C7' ((@('2016-17 Winter') * 21) -join ' ')),
+    (New-Text 'C8' '2016-17'),
+    (New-Text 'C9' '1 1/2'),
+    (New-Text 'C10' '1/2')
+)
+$labelFormulas = New-Object System.Collections.ArrayList
+foreach ($formula in @(
+    # Labels read as numbers, and IF, SUM and COUNT over a label.
+    'A1+0', '0+A4', 'A2*2', '-A3', 'A8%', 'A1^1', 'C7+0', 'IF(A1,1,2)', 'SUM("Q1 2016",1)',
+    'COUNT("Q1 2016",1)',
+    # Text written like a date or a time that holds a word no number text holds.
+    '"2020-01-02T10:30"+0', '"10:30 a.m."+0', '"1st January 2020"+0', '"10:30Z"+0',
+    # Comparisons over labels.
+    'A1=A7', 'A1=C1', 'A1<>A3', 'A4=2016', 'A1>A5',
+    # Criteria over labels.
+    'COUNTIF(A1:A8,"2016-17 Winter")', 'COUNTIF(A1:A8,"="&C1)', 'COUNTIF(A1:A8,C1)',
+    'COUNTIF(A1:A8,"<>"&C1)', 'COUNTIF(A1:A8,"Q1 2016")', 'COUNTIF(A1:A8,C2)', 'COUNTIF(A1:A8,2016)',
+    'COUNTIF(A1:A8,"=2016")', 'SUMIF(A1:A8,"="&C1,B1:B8)', 'SUMIF(A1:A8,2016,B1:B8)',
+    'SUMIFS(B1:B8,A1:A8,"="&C1)', 'SUMIFS(B1:B8,A1:A8,"="&A2)',
+    'SUMIFS(B1:B8,A1:A8,"<>"&C1,A1:A8,"<>"&A2)', 'AVERAGEIF(A1:A8,"="&C1,B1:B8)',
+    'AVERAGEIFS(B1:B8,A1:A8,"="&C1)', 'COUNTIFS(A1:A8,"="&C1,B1:B8,">1")',
+    'MAXIFS(B1:B8,A1:A8,"="&C1)', 'MINIFS(B1:B8,A1:A8,"="&C1)',
+    # Forms the rule leaves undecided.
+    'C3+0', 'C4+0', 'C5+0', 'C6+0', 'C8+0', 'COUNTIF(A1:A8,"="&C3)', 'COUNTIF(A1:A8,C8)',
+    'COUNTIF(C3:C8,2016)', 'IF(C3,1,2)', 'C9+0', 'C10+0', 'COUNTIF(A1:A8,C9)', 'COUNTIF(A1:A8,C10)',
+    'SUMIFS(B1:B8,A1:A8,"1/2")',
+    # Ranges of different shapes beside an undecided criterion.
+    'SUMIFS(B1:B8,A1:A7,"1/2")'
+)) { [void]$labelFormulas.Add((Get-Stored $formula)) }
+$labelWords = @(
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
+    't', 'u', 'v', 'w', 'x', 'y', 'z', 'R', 'AM', 'am', 'pm',
+    'ja', 'fe', 'ma', 'ap', 'ju', 'au', 'se', 'oc', 'no', 'de',
+    'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'sept', 'JAN',
+    'january', 'february', 'march', 'april', 'june', 'july', 'august', 'september', 'october',
+    'november', 'december',
+    'janx', 'market', 'decade',
+    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+    'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
+    'winter', 'summer', 'fy', 'noon', 'gmt', 'st'
+)
+# A date with a month name, a time, an exponent, a currency symbol, numeric dates with / and -,
+# digits grouped by this machine's thousands separator (a space), a parenthesised negative, a
+# percentage, a currency amount, a weekday's long date and a fraction, each with the word.
+$labelForms = @(
+    '1 _ 2020', '10:30 _', '1_5', '_1', '2020/1/2 _', '2020-1-2 _', '1 000 _', '(1) _', '1% _',
+    'R1 _', '_, 1 January 2020', '1 1/2 _'
+)
+# A word no number text holds, a month name's prefix and a time marker.
+$valueSampleWords = @('winter', 'jan', 'pm')
+$valueFormulas = New-Object System.Collections.ArrayList
+foreach ($word in $labelWords) {
+    foreach ($form in $labelForms) {
+        $text = $form.Replace('_', $word)
+        [void]$labelFormulas.Add('"' + $text + '"+0')
+        if ($valueSampleWords -ccontains $word) { [void]$valueFormulas.Add('VALUE("' + $text + '")') }
+    }
+}
+
+Write-Workbook (Join-Path $OutDir 'dc_e00t/oracle.xlsx') @(
+    @('digit_labels_as_text', (New-OracleSheet $labelInputs $labelFormulas)),
+    @('value_readings', (New-OracleSheet @() $valueFormulas))
+)

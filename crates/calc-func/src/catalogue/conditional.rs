@@ -21,8 +21,9 @@
 //! pattern when = or <> is followed by text holding *, ? or ~ (* any run, ? one character, ~
 //! makes a following *, ? or ~ literal and is itself literal before any other character or at
 //! the end), else a number when the operand reads as one by worksheet number coercion, a logical
-//! when it spells TRUE or FALSE, and text otherwise. An array, an operand that coercion refuses
-//! (number text by locale rules) and an error literal Excel added after #N/A are not modelled.
+//! when it spells TRUE or FALSE, and text otherwise (a label such as 2016-17 Winter, which
+//! coercion finds is no number, is text). An array, an operand that coercion refuses (number text
+//! by locale rules) and an error literal Excel added after #N/A are not modelled.
 //!
 //! A cell meets a criterion by kind. A number criterion compares numbers; text meets it under =
 //! when the text reads as that number, never under <, <=, > or >=, and always under <>. A text
@@ -920,7 +921,9 @@ fn criterion_text(site: &Site<'_>, index: usize, units: &[u16]) -> Step<Criterio
     let operand = CalcValue::text(ExcelText::from_utf16_code_units(rest.to_vec()));
     match site.number_argument(index, &operand) {
         Ok(n) => Ok(Criterion::Number(op, n)),
-        // Text that reads as no number: no digit, or out of the range Excel reads.
+        // Text that reads as no number: no digit, out of the range Excel reads, or a word outside
+        // the words coercion's measured list lets number text hold (such as the label 2016-17
+        // Winter).
         Err(Exit::Error(_)) => {
             let logical = if spells(rest, TRUE_TEXT) {
                 Some(true)
@@ -973,7 +976,7 @@ impl Criterion {
                     CoreValue::Text(_) if *op != Op::Equal => None,
                     CoreValue::Text(_) => match site.number_argument(index, value) {
                         Ok(n) => Some(n),
-                        // Text that reads as no number: no digit, or out of the range Excel reads.
+                        // Text that reads as no number (see the criterion's operand above).
                         Err(Exit::Error(_)) => None,
                         Err(exit) => return decided(Err(exit)),
                     },

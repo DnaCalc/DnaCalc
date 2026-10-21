@@ -20,6 +20,7 @@ mod coerce;
 mod decimal;
 mod kernel;
 mod number_text;
+mod number_words;
 
 pub use call::{
     CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, Unreadable,

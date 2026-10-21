@@ -1530,12 +1530,13 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 6] = [
+const GENERATED_WORKBOOKS: [&str; 7] = [
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
     "cfunc_m3_4/oracle.xlsx",
     "cfunc_m3_5/oracle.xlsx",
     "cfunc_m3_6/oracle.xlsx",
+    "dc_e00t/oracle.xlsx",
     "dc_q9rb/oracle.xlsx",
 ];
 
@@ -1877,9 +1878,11 @@ const POWER_ALGORITHM: Owner = Owner {
     bead: "cfunc-m3.3, cfunc-m3.23",
     behaviour: "^ through a pinned power implementation",
 };
+/// Text that holds a digit and no word that rules out a number, or that holds a character beyond
+/// printable ASCII (dc-e00t's verdict decides the rest), read as a number or a logical.
 const NUMBER_TEXT: Owner = Owner {
     bead: "cfml-m2.6",
-    behaviour: "text read as a number or a logical by Excel's number-text rules",
+    behaviour: "text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules",
 };
 /// Excel loads the oracle workbook's IF({TRUE,FALSE},1,2) as the legacy formula
 /// =@IF({TRUE,FALSE},1,2) and gives 1, so its row measures that legacy formula, not IF lifted over
@@ -1932,6 +1935,8 @@ struct Rows {
     calls: Vec<Call>,
     /// Prints no notes (the rows of the other sheet, run again for the Excel comparison).
     quiet: bool,
+    /// The rows [`basis_row`] ran on a [`Basis::Measured`] rule.
+    measured: usize,
 }
 
 impl Rows {
@@ -1942,6 +1947,7 @@ impl Rows {
             oracle: Vec::new(),
             calls: Vec::new(),
             quiet,
+            measured: 0,
         }
     }
 
@@ -4570,11 +4576,14 @@ enum Basis {
     Documented(&'static str),
     /// Derived by hand from this rule, which no documentation settles.
     Choice(&'static str),
+    /// Derived by hand from this rule, which another bead measured in Excel and compares with its
+    /// capture; the rule names that bead.
+    Measured(&'static str),
     /// Refused, for this reason: as not modelled by the kernel, or at admission.
     Unsupported(&'static str),
 }
 
-use Basis::{Choice, Documented, Unsupported};
+use Basis::{Choice, Documented, Measured, Unsupported};
 
 /// A row of cfunc-m3.4: [`basis_row`] for that bead.
 fn aggregate_row(
@@ -4610,10 +4619,13 @@ fn basis_row(
             result.is_err(),
             "{formula}: an unsupported row computed {result:?}"
         ),
-        Documented(_) | Choice(_) => assert!(
+        Documented(_) | Choice(_) | Measured(_) => assert!(
             result.is_ok(),
             "{formula}: a row of {bead} computes a value"
         ),
+    }
+    if let Measured(_) = basis {
+        rows.measured += 1;
     }
     let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
     if !rows.quiet {
@@ -4630,6 +4642,7 @@ fn basis_row(
         let label = match basis {
             Documented(rule) => format!("hand-derived from the documented rule: {rule}"),
             Choice(rule) => format!("hand-derived; unmeasured choice: {rule}"),
+            Measured(rule) => format!("hand-derived from a rule measured in Excel: {rule}"),
             Unsupported(reason) => match &result {
                 Err(FunctionFault::NotImplemented { .. }) => {
                     format!("refused as not modelled: {reason}")
@@ -4638,8 +4651,13 @@ fn basis_row(
                 Ok(value) => unreachable!("an unsupported row computed {value:?}"),
             },
         };
+        // A measured row's rule was measured in Excel, so the suffix is left off its note.
+        let compared = match basis {
+            Measured(_) => "",
+            Documented(_) | Choice(_) | Unsupported(_) => "; not compared with Excel",
+        };
         note!(
-            "ACCEPT-NOTE: {}: oracle {at} {formula}{cells} -> {} ({label}; not compared with Excel)",
+            "ACCEPT-NOTE: {}: oracle {at} {formula}{cells} -> {} ({label}{compared})",
             rows.case,
             expect.shown()
         );
@@ -4651,7 +4669,7 @@ fn basis_row(
         outcome: result,
         choice: match basis {
             Choice(rule) => Some(rule),
-            Documented(_) | Unsupported(_) => None,
+            Documented(_) | Measured(_) | Unsupported(_) => None,
         },
         owner: None,
         tick,
@@ -8784,10 +8802,6 @@ fn owned(rows: &mut Rows, owner: Owner) {
 
 /// The behaviours that refused rows of cfunc-m3.5 show, by the bead that owns each. No row names
 /// cfunc-m3.5 itself: the Excel comparison counts such a row as a problem.
-const DIGIT_LABEL: Owner = Owner {
-    bead: "dc-e00t",
-    behaviour: "the not-a-number verdict for digit-bearing text such as Q1 or 2016-17 Winter",
-};
 const SEVERAL_AREAS: Owner = Owner {
     bead: "dc-gdii",
     behaviour: "a range of several areas in the conditional aggregates",
@@ -8814,11 +8828,12 @@ fn conditional_rows_note(rows: &Rows) {
     }
     let owners: Vec<String> = owners.iter().map(|(b, c)| format!("{c} {b}")).collect();
     note!(
-        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet {} of {CONDITIONAL_WORKBOOK_PATH}: {} from documented rules, {} unmeasured choices, {} refused (owned by: {}); none is compared with Excel here (cfunc_m3_5__excel_comparison compares them once that workbook is captured)",
+        "ACCEPT-NOTE: {}: {} rows through calc_func::invoke, each asserted against a value or a refusal derived here by hand and each with its formula on sheet {} of {CONDITIONAL_WORKBOOK_PATH}: {} from documented rules, {} from dc-e00t's rule measured in Excel, {} unmeasured choices, {} refused (owned by: {}); none is compared with Excel here: cfunc_m3_5__excel_comparison compares every row with Excel's committed capture of that workbook",
         rows.case,
         rows.oracle.len(),
         rows.sheet,
-        rows.oracle.len() - choices - refused,
+        rows.oracle.len() - choices - refused - rows.measured,
+        rows.measured,
         choices,
         refused,
         owners.join(", ")
@@ -8896,7 +8911,8 @@ const SKIPPED: &str =
     "text and logicals in the target are skipped, as SUM skips them in a reference";
 const MATCHED_ERROR: &str =
     "an error in a matched target cell is the result, the first in row-major order";
-const DIGIT_LABEL_TEXT: &str = "a criterion or an = criterion's range cell that holds a digit outside the plain decimal form, such as the label Q1 or 2016-17 Winter, is not modelled: whether Excel reads it as a number is owned by dc-e00t";
+const DIGIT_LABEL_CRITERION: &str = "a criterion holding a word that no number text holds, such as the label Q1 or 2016-17 Winter, is no number (dc-e00t's rule, from its measurement of the words Excel reads inside number text, compared with its Excel capture in dc_e00t__excel_comparison), so it asks for that text, which a text criterion matches ignoring case (the COUNTIF page); no cell of A1:A16 holds it";
+const DIGIT_LABEL_CELL: &str = "the label 2016-17 Winter in the range holds a word that no number text holds, so it is no number (dc-e00t's rule, compared with its Excel capture in dc_e00t__excel_comparison) and does not meet = 2016";
 const NUMBER_TEXT_FORMS: &str = "a criterion that Excel's number-text rules may read as a number, such as the fraction or date 1/2, is not modelled; owned by cfml-m2.6";
 const COLLATION_TEXT: &str = "text compared beyond the comparison operators' modelled rule needs Excel's collation; owned by cdoc-jpha";
 
@@ -9248,7 +9264,7 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         Choice("<>* matches every cell that holds no text: 5, 10, TRUE, the blank A8, #N/A and 0")
     );
 
-    // COUNTIF: refused criteria and cells.
+    // COUNTIF: refused criteria and cells, and the label Q1, which is a text criterion.
     cnd!(
         r,
         s,
@@ -9265,10 +9281,9 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "COUNTIF",
         [a(s), txt("Q1")],
-        Refused(Some(1)),
-        Unsupported(DIGIT_LABEL_TEXT)
+        N(0.0),
+        Measured(DIGIT_LABEL_CRITERION)
     );
-    owned(r, DIGIT_LABEL);
     cnd!(
         r,
         s,
@@ -9816,10 +9831,9 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "SUMIFS",
         [b(s), a(s), joined(s, "=", "A25")],
-        Refused(Some(2)),
-        Unsupported(DIGIT_LABEL_TEXT)
+        N(0.0),
+        Measured(DIGIT_LABEL_CRITERION)
     );
-    owned(r, DIGIT_LABEL);
     cnd!(
         r,
         s,
@@ -9845,10 +9859,9 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "COUNTIF",
         [reference(s, &["A25"]), num("2016")],
-        Refused(Some(0)),
-        Unsupported(DIGIT_LABEL_TEXT)
+        N(0.0),
+        Measured(DIGIT_LABEL_CELL)
     );
-    owned(r, DIGIT_LABEL);
 
     // A criterion joined over a number: & reads the number 4 as the text 4 (dc-q9rb).
     cnd!(
@@ -10635,8 +10648,8 @@ fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>)
         vec![at(s, &["A2:A5"]), at(s, &["B3:B5"]), txt("Q1")],
         &[],
         E(Value),
-        Choice(
-            "the shapes are compared before any criterion is read, so a criterion that is not modelled does not refuse the call",
+        Measured(
+            "ranges of different sizes return #VALUE! beside the label criterion Q1, which is text (dc-e00t's rule); Excel's capture of cfunc-m3.5's oracle workbook holds #VALUE! in this row's cell (mismatched_shapes!D9), compared in cfunc_m3_5__excel_comparison",
         ),
     );
     measure(
@@ -16536,4 +16549,1025 @@ fn cfunc_m3_6__excel_comparison() {
             comparison.report.summary()
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-e00t: digit-bearing text that cannot be a number, date or time, read as text, through
+// calc_func::invoke on catalogue targets.
+//
+// Text holding a word (a run of ASCII letters) that Excel's number, date and time recognition
+// never reads, such as the labels 2016-17 Winter and Q1 2016, is no number: calc_func's coercion
+// gives #VALUE! for it, a criterion holding it asks for text, and a range cell holding it does not
+// meet = a number. The words the rule lets Excel read inside number text, as measured in Excel on
+// this machine under the Windows locale en-ZA, are the month names and their prefixes of three
+// letters or more, A, P, AM, PM, E and R (en-ZA's currency symbol); text holding only those words,
+// or none, and text beyond printable ASCII stay refused as not modelled, owned by cfml-m2.6.
+//
+// Each hand-written row asserts the value Excel gives, as captured, or, for a form the rule leaves
+// undecided, the refusal beside the value Excel gives (1/2+0 states none: Excel reads 1/2 as a
+// date in the year it calculates it in). Then each word of [`LABEL_WORDS`] in each
+// form of [`LABEL_FORMS`] is read by + as "text"+0: a word marked no number gives #VALUE!, any
+// other is refused, apart from 1e5, which is in the plain decimal form and reads as 100000.
+// Comparisons over labels compared text before this bead too; their rows show that the labels
+// keep doing so. `tests/fixtures/dc_e00t/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of its sheet
+// digit_labels_as_text, in the order the case runs its rows, beside the cells the rows read, and
+// in column D of its sheet value_readings VALUE("text") of each generated text of the words of
+// [`VALUE_SAMPLE_WORDS`], in the same order: Excel's second reading of those texts, which no row
+// computes, since calc_func has no VALUE.
+// `cargo xtask capture --fixture crates/calc-func/tests/fixtures/dc_e00t/oracle.xlsx --case
+// dc_e00t__excel_comparison --out crates/calc-func/tests/captures/dc_e00t/oracle.capture.json`
+// wrote Excel's capture of that workbook, and dc_e00t__excel_comparison publishes the rows'
+// results and their recorded invoke calls to calc_verdict::judge against it: every computed row
+// must be matched, every refused row not modeled with its owner, and every value a row states
+// Excel gives must be the raw value the report carries for its cell. It publishes each
+// value_readings cell as missing, and Excel's VALUE of each sampled text must be the value its
+// "text"+0 row has, #VALUE! for every sampled text the rule decides.
+
+/// The oracle workbook of dc-e00t, as committed.
+const LABEL_WORKBOOK: &[u8] = include_bytes!("fixtures/dc_e00t/oracle.xlsx");
+const LABEL_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/dc_e00t/oracle.xlsx";
+/// Excel's capture of that workbook.
+const LABEL_CAPTURE: &[u8] = include_bytes!("captures/dc_e00t/oracle.capture.json");
+/// The case the capture is recorded under.
+const LABEL_CAPTURE_CASE: &str = "dc_e00t__excel_comparison";
+/// The oracle workbook's sheet that holds Excel's VALUE of each sampled generated text in column D.
+const VALUE_READINGS_SHEET: &str = "value_readings";
+/// Why the Excel comparison publishes no value for a cell of [`VALUE_READINGS_SHEET`].
+const VALUE_READING_MISSING: &str = "calc_func has no VALUE: the cell is Excel's VALUE of a sampled generated dc-e00t text, which dc_e00t__excel_comparison reads beside the text's \"text\"+0 row";
+
+/// The words the generated rows read, in the order the oracle workbook holds them, each with
+/// whether it is a word no number text holds (so text holding it is no number) or one Excel reads
+/// inside some number text (a month name or a prefix of one of three letters or more, A, P, AM,
+/// PM, E or R), which leaves the text undecided.
+const LABEL_WORDS: [(&str, bool); 88] = [
+    ("a", false),
+    ("b", true),
+    ("c", true),
+    ("d", true),
+    ("e", false),
+    ("f", true),
+    ("g", true),
+    ("h", true),
+    ("i", true),
+    ("j", true),
+    ("k", true),
+    ("l", true),
+    ("m", true),
+    ("n", true),
+    ("o", true),
+    ("p", false),
+    ("q", true),
+    ("r", false),
+    ("s", true),
+    ("t", true),
+    ("u", true),
+    ("v", true),
+    ("w", true),
+    ("x", true),
+    ("y", true),
+    ("z", true),
+    ("R", false),
+    ("AM", false),
+    ("am", false),
+    ("pm", false),
+    ("ja", true),
+    ("fe", true),
+    ("ma", true),
+    ("ap", true),
+    ("ju", true),
+    ("au", true),
+    ("se", true),
+    ("oc", true),
+    ("no", true),
+    ("de", true),
+    ("jan", false),
+    ("feb", false),
+    ("mar", false),
+    ("apr", false),
+    ("may", false),
+    ("jun", false),
+    ("jul", false),
+    ("aug", false),
+    ("sep", false),
+    ("oct", false),
+    ("nov", false),
+    ("dec", false),
+    ("sept", false),
+    ("JAN", false),
+    ("january", false),
+    ("february", false),
+    ("march", false),
+    ("april", false),
+    ("june", false),
+    ("july", false),
+    ("august", false),
+    ("september", false),
+    ("october", false),
+    ("november", false),
+    ("december", false),
+    ("janx", true),
+    ("market", true),
+    ("decade", true),
+    ("monday", true),
+    ("tuesday", true),
+    ("wednesday", true),
+    ("thursday", true),
+    ("friday", true),
+    ("saturday", true),
+    ("sunday", true),
+    ("mon", true),
+    ("tue", true),
+    ("wed", true),
+    ("thu", true),
+    ("fri", true),
+    ("sat", true),
+    ("sun", true),
+    ("winter", true),
+    ("summer", true),
+    ("fy", true),
+    ("noon", true),
+    ("gmt", true),
+    ("st", true),
+];
+
+/// The forms each word of [`LABEL_WORDS`] is read in, the word in place of the underscore: a date
+/// with a month name, a time, an exponent, a currency symbol, numeric dates with / and -, digits
+/// grouped by the capture's thousands separator (a space), a parenthesised negative, a percentage,
+/// a currency amount, a weekday's long date and a fraction.
+const LABEL_FORMS: [&str; 12] = [
+    "1 _ 2020",
+    "10:30 _",
+    "1_5",
+    "_1",
+    "2020/1/2 _",
+    "2020-1-2 _",
+    "1 000 _",
+    "(1) _",
+    "1% _",
+    "R1 _",
+    "_, 1 January 2020",
+    "1 1/2 _",
+];
+
+/// The words of [`LABEL_WORDS`] whose texts, in every form of [`LABEL_FORMS`], the oracle
+/// workbook also reads with VALUE: a word no number text holds, a month name's prefix and a time
+/// marker, so each form has a text the rule decides and texts it leaves undecided.
+const VALUE_SAMPLE_WORDS: [&str; 3] = ["winter", "jan", "pm"];
+
+/// A generated text: a word of [`LABEL_WORDS`] in a form of [`LABEL_FORMS`].
+struct LabelText {
+    text: String,
+    /// The form's index in [`LABEL_FORMS`].
+    form: usize,
+    /// Whether the word is one no number text holds, so the rule decides the text.
+    no_number: bool,
+    /// Whether the word is one of [`VALUE_SAMPLE_WORDS`], so the oracle workbook reads the text
+    /// with VALUE too.
+    sampled: bool,
+}
+
+/// The generated texts, in the order the oracle workbook holds them: each word of [`LABEL_WORDS`]
+/// in each form of [`LABEL_FORMS`].
+fn label_texts() -> Vec<LabelText> {
+    let mut texts = Vec::new();
+    for (word, no_number) in LABEL_WORDS {
+        for (form, pattern) in LABEL_FORMS.iter().enumerate() {
+            texts.push(LabelText {
+                text: pattern.replace('_', word),
+                form,
+                no_number,
+                sampled: VALUE_SAMPLE_WORDS.contains(&word),
+            });
+        }
+    }
+    texts
+}
+
+/// The behaviour the refused dc-e00t rows show: text the rule leaves undecided.
+const UNDECIDED_TEXT: Owner = NUMBER_TEXT;
+
+/// The cells the dc-e00t rows read. A1:A8 hold labels holding digits, as the criteria ranges of
+/// the Ofgem price-cap workbooks do, beside the number 2016 (A5) and the text 2016 (A6); A7 is A1
+/// in lower case. B1:B8 hold the powers of two 1 to 128, so a sum names the rows it added. C1 and
+/// C2 hold labels as criteria; C3:C10 hold forms the rule leaves undecided (a date, a time, an
+/// amount in R, a label with an en dash, the text 2016-17 and the fractions 1 1/2 and 1/2) or
+/// decides (a label of 314 characters).
+fn digit_labels_sheet() -> TestSheet {
+    let long = vec!["2016-17 Winter"; 21].join(" ");
+    let mut cells: Vec<(String, String, CalcValue)> = Vec::new();
+    for (address, text) in [
+        ("A1", "2016-17 Winter"),
+        ("A2", "2047-48 Summer"),
+        ("A3", "2047-48 Winter"),
+        ("A4", "Q1 2016"),
+        ("A6", "2016"),
+        ("A7", "2016-17 winter"),
+        ("A8", "2063-2064 Winter"),
+        ("C1", "2016-17 Winter"),
+        ("C2", "Q1 2016"),
+        ("C3", "1 Jan 2020"),
+        ("C4", "10:30 am"),
+        ("C5", "R1"),
+        ("C6", "2016\u{2013}17 Winter"),
+        ("C8", "2016-17"),
+        ("C9", "1 1/2"),
+        ("C10", "1/2"),
+    ] {
+        cells.push((
+            address.to_owned(),
+            format!("text {text:?}"),
+            text_value(text),
+        ));
+    }
+    cells.push((
+        "C7".to_owned(),
+        format!(
+            "text of {} characters, 2016-17 Winter 21 times with spaces",
+            long.len()
+        ),
+        text_value(&long),
+    ));
+    cells.push((
+        "A5".to_owned(),
+        "2016".to_owned(),
+        CalcValue::number(2016.0),
+    ));
+    for row in 1..=8u32 {
+        let power = 2f64.powi(row as i32 - 1);
+        cells.push((
+            format!("B{row}"),
+            format!("{power}"),
+            CalcValue::number(power),
+        ));
+    }
+    let cells: Vec<(&str, &str, CalcValue)> = cells
+        .iter()
+        .map(|(address, entry, value)| (address.as_str(), entry.as_str(), value.clone()))
+        .collect();
+    TestSheet::new(&cells)
+}
+
+/// What a dc-e00t row expects of calc_func::invoke.
+enum LabelOutcome {
+    /// This value, which is the value Excel gives.
+    Gives(Expect),
+    /// A refusal as not modelled naming this argument, owned by [`UNDECIDED_TEXT`]; Excel gives
+    /// this value, when the row states it (a generated row does not, nor the hand-written row
+    /// 1/2+0, whose value in Excel is a date in the year Excel calculates it in).
+    Undecided(usize, Option<Expect>),
+}
+
+/// The dc-e00t rows, with the value each states Excel gives, in row order.
+struct LabelRows {
+    rows: Rows,
+    excel: Vec<Option<Expect>>,
+}
+
+/// Runs one dc-e00t row: `surface` on `args` through calc_func::invoke under Fast, asserted to
+/// have `outcome`. Records the call and the row, with the next cell of column D (a refused row
+/// owned by [`UNDECIDED_TEXT`]), and the value it states Excel gives, and prints the row when
+/// `noted` (a generated row is counted in a note of its form instead).
+fn label_check(
+    label_rows: &mut LabelRows,
+    sheet: &mut TestSheet,
+    surface: (Notation, &str),
+    args: &[Arg],
+    outcome: LabelOutcome,
+    noted: bool,
+) {
+    let rows = &mut label_rows.rows;
+    let (expect, owner, excel) = match outcome {
+        LabelOutcome::Gives(expect) => (expect.clone(), None, Some(expect)),
+        LabelOutcome::Undecided(argument, excel) => {
+            (Refused(Some(argument)), Some(UNDECIDED_TEXT), excel)
+        }
+    };
+    let (formula, _, result, tick) =
+        call_and_assert(sheet, &NumericMode::Fast, surface, args, &expect);
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    if !rows.quiet && noted {
+        let reads: Vec<&str> = args
+            .iter()
+            .flat_map(|a| a.reads.iter().map(String::as_str))
+            .collect();
+        let cells = if reads.is_empty() {
+            String::new()
+        } else {
+            format!(" with {}", reads.join(", "))
+        };
+        let shown = match (owner, &excel) {
+            (None, _) => format!("{} (Excel's value, as captured)", expect.shown()),
+            (Some(owner), Some(excel)) => format!(
+                "refused as not modelled: {result:?} (owned by {}); Excel gives {} (as captured)",
+                owner.feature(),
+                excel.shown()
+            ),
+            (Some(owner), None) => format!(
+                "refused as not modelled: {result:?} (owned by {}); the row states no value of Excel's, which depends on the year Excel calculates it in",
+                owner.feature()
+            ),
+        };
+        note!(
+            "ACCEPT-NOTE: {}: oracle {}!{} {formula}{cells} -> {shown}",
+            rows.case,
+            rows.sheet,
+            encode_a1(row, FORMULA_COLUMN)
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice: None,
+        owner,
+        tick,
+    });
+    label_rows.excel.push(excel);
+}
+
+/// Runs a dc-e00t row that computes the value Excel gives:
+/// `label!(rows, sheet, surface, [args], expect)`.
+macro_rules! label {
+    ($rows:expr, $sheet:expr, $surface:expr, [$($arg:expr),* $(,)?], $expect:expr) => {{
+        let args = [$($arg),*];
+        label_check($rows, $sheet, $surface, &args, LabelOutcome::Gives($expect), true)
+    }};
+}
+
+/// Runs a dc-e00t row on a form the rule leaves undecided, which calc_func refuses naming
+/// `argument`: `undecided!(rows, sheet, surface, [args], argument, excel)`, `excel` the value
+/// Excel gives, as captured.
+macro_rules! undecided {
+    ($rows:expr, $sheet:expr, $surface:expr, [$($arg:expr),* $(,)?], $argument:expr, $excel:expr) => {{
+        let args = [$($arg),*];
+        label_check(
+            $rows,
+            $sheet,
+            $surface,
+            &args,
+            LabelOutcome::Undecided($argument, Some($excel)),
+            true,
+        )
+    }};
+}
+
+/// The rows of dc_e00t__digit_labels_as_text, run through calc_func::invoke on `s`, in the order
+/// the oracle workbook's sheet holds their formulas.
+fn digit_label_rows(s: &mut TestSheet, quiet: bool) -> LabelRows {
+    const CASE: &str = "dc_e00t__digit_labels_as_text";
+    let mut rows = LabelRows {
+        rows: Rows::new(CASE, "digit_labels_as_text", quiet),
+        excel: Vec::new(),
+    };
+    let r = &mut rows;
+    use WorksheetErrorCode::Value;
+    let a = |s: &TestSheet| reference(s, &["A1:A8"]);
+    let b = |s: &TestSheet| reference(s, &["B1:B8"]);
+    let at = |s: &TestSheet, a1: &str| reference(s, &[a1]);
+
+    // A label read as a number is #VALUE!, on either side of an operator, as IF's condition and
+    // as a direct argument of SUM; COUNT does not count it.
+    label!(r, s, PLUS, [cell(s, "A1"), num("0")], E(Value));
+    label!(r, s, PLUS, [num("0"), cell(s, "A4")], E(Value));
+    label!(r, s, TIMES, [cell(s, "A2"), num("2")], E(Value));
+    label!(r, s, NEGATE, [cell(s, "A3")], E(Value));
+    label!(r, s, PERCENT, [cell(s, "A8")], E(Value));
+    label!(r, s, POWER, [cell(s, "A1"), num("1")], E(Value));
+    label!(r, s, PLUS, [cell(s, "C7"), num("0")], E(Value));
+    label!(r, s, IF, [cell(s, "A1"), num("1"), num("2")], E(Value));
+    label!(r, s, SUM, [txt("Q1 2016"), num("1")], E(Value));
+    label!(r, s, named("COUNT"), [txt("Q1 2016"), num("1")], N(1.0));
+
+    // Text written like a date or a time that holds a word no number text holds: a date and time
+    // joined by T, a.m. written with stops, an ordinal day and a zone letter.
+    label!(r, s, PLUS, [txt("2020-01-02T10:30"), num("0")], E(Value));
+    label!(r, s, PLUS, [txt("10:30 a.m."), num("0")], E(Value));
+    label!(r, s, PLUS, [txt("1st January 2020"), num("0")], E(Value));
+    label!(r, s, PLUS, [txt("10:30Z"), num("0")], E(Value));
+
+    // Comparisons over labels compare text, ASCII case ignored, and text orders after numbers.
+    label!(r, s, EQ, [cell(s, "A1"), cell(s, "A7")], L(true));
+    label!(r, s, EQ, [cell(s, "A1"), cell(s, "C1")], L(true));
+    label!(r, s, NE, [cell(s, "A1"), cell(s, "A3")], L(true));
+    label!(r, s, EQ, [cell(s, "A4"), num("2016")], L(false));
+    label!(r, s, GT, [cell(s, "A1"), cell(s, "A5")], L(true));
+
+    // A criterion holding a label asks for that text (A1 and A7); a label in the range does not
+    // meet = 2016, which the number 2016 and the text 2016 meet.
+    label!(
+        r,
+        s,
+        named("COUNTIF"),
+        [a(s), txt("2016-17 Winter")],
+        N(2.0)
+    );
+    label!(r, s, named("COUNTIF"), [a(s), joined(s, "=", "C1")], N(2.0));
+    label!(r, s, named("COUNTIF"), [a(s), at(s, "C1")], N(2.0));
+    label!(
+        r,
+        s,
+        named("COUNTIF"),
+        [a(s), joined(s, "<>", "C1")],
+        N(6.0)
+    );
+    label!(r, s, named("COUNTIF"), [a(s), txt("Q1 2016")], N(1.0));
+    label!(r, s, named("COUNTIF"), [a(s), at(s, "C2")], N(1.0));
+    label!(r, s, named("COUNTIF"), [a(s), num("2016")], N(2.0));
+    label!(r, s, named("COUNTIF"), [a(s), txt("=2016")], N(2.0));
+    label!(
+        r,
+        s,
+        named("SUMIF"),
+        [a(s), joined(s, "=", "C1"), b(s)],
+        N(65.0)
+    );
+    label!(r, s, named("SUMIF"), [a(s), num("2016"), b(s)], N(48.0));
+    label!(
+        r,
+        s,
+        named("SUMIFS"),
+        [b(s), a(s), joined(s, "=", "C1")],
+        N(65.0)
+    );
+    label!(
+        r,
+        s,
+        named("SUMIFS"),
+        [b(s), a(s), joined(s, "=", "A2")],
+        N(2.0)
+    );
+    label!(
+        r,
+        s,
+        named("SUMIFS"),
+        [
+            b(s),
+            a(s),
+            joined(s, "<>", "C1"),
+            a(s),
+            joined(s, "<>", "A2")
+        ],
+        N(188.0)
+    );
+    label!(
+        r,
+        s,
+        named("AVERAGEIF"),
+        [a(s), joined(s, "=", "C1"), b(s)],
+        N(32.5)
+    );
+    label!(
+        r,
+        s,
+        named("AVERAGEIFS"),
+        [b(s), a(s), joined(s, "=", "C1")],
+        N(32.5)
+    );
+    label!(
+        r,
+        s,
+        named("COUNTIFS"),
+        [a(s), joined(s, "=", "C1"), b(s), txt(">1")],
+        N(1.0)
+    );
+    label!(
+        r,
+        s,
+        named("MAXIFS"),
+        [b(s), a(s), joined(s, "=", "C1")],
+        N(64.0)
+    );
+    label!(
+        r,
+        s,
+        named("MINIFS"),
+        [b(s), a(s), joined(s, "=", "C1")],
+        N(1.0)
+    );
+
+    // Forms the rule leaves undecided stay refused: a date with a month name, a time, an amount in
+    // R, text beyond printable ASCII and text holding no word, as an operand, as a criterion, as a
+    // range cell under = a number and as IF's condition.
+    undecided!(r, s, PLUS, [cell(s, "C3"), num("0")], 0, N(43831.0));
+    undecided!(r, s, PLUS, [cell(s, "C4"), num("0")], 0, N(0.4375));
+    undecided!(r, s, PLUS, [cell(s, "C5"), num("0")], 0, N(1.0));
+    undecided!(r, s, PLUS, [cell(s, "C6"), num("0")], 0, E(Value));
+    undecided!(r, s, PLUS, [cell(s, "C8"), num("0")], 0, E(Value));
+    undecided!(
+        r,
+        s,
+        named("COUNTIF"),
+        [a(s), joined(s, "=", "C3")],
+        1,
+        N(0.0)
+    );
+    undecided!(r, s, named("COUNTIF"), [a(s), at(s, "C8")], 1, N(0.0));
+    undecided!(
+        r,
+        s,
+        named("COUNTIF"),
+        [reference(s, &["C3:C8"]), num("2016")],
+        0,
+        N(0.0)
+    );
+    undecided!(r, s, IF, [cell(s, "C3"), num("1"), num("2")], 0, E(Value));
+    // Fractions: 1 1/2, and 1/2, as an operand, as a criterion and as a criterion whose ranges
+    // have one shape. As an operand, 1/2 states no value: Excel reads it in this locale as a date,
+    // 2 January of the year Excel calculates it in, so its value changes with the year.
+    undecided!(r, s, PLUS, [cell(s, "C9"), num("0")], 0, N(1.5));
+    label_check(
+        r,
+        s,
+        PLUS,
+        &[cell(s, "C10"), num("0")],
+        LabelOutcome::Undecided(0, None),
+        true,
+    );
+    undecided!(r, s, named("COUNTIF"), [a(s), at(s, "C9")], 1, N(0.0));
+    undecided!(r, s, named("COUNTIF"), [a(s), at(s, "C10")], 1, N(0.0));
+    undecided!(r, s, named("SUMIFS"), [b(s), a(s), txt("1/2")], 2, N(0.0));
+
+    // Ranges of different shapes give #VALUE! beside the criterion 1/2, which the row above
+    // refuses: the shapes are compared before any criterion is read.
+    label!(
+        r,
+        s,
+        named("SUMIFS"),
+        [b(s), reference(s, &["A1:A7"]), txt("1/2")],
+        E(Value)
+    );
+
+    // Each word in each form, read by +: a word no number text holds makes the text #VALUE!; text
+    // holding only words Excel reads is refused, apart from 1e5, which is in the plain decimal
+    // form and reads as 100000.
+    for LabelText {
+        text, no_number, ..
+    } in label_texts()
+    {
+        let args = [txt(&text), num("0")];
+        let outcome = if no_number {
+            LabelOutcome::Gives(E(Value))
+        } else if text == "1e5" {
+            LabelOutcome::Gives(N(100_000.0))
+        } else {
+            LabelOutcome::Undecided(0, None)
+        };
+        label_check(r, s, PLUS, &args, outcome, false);
+    }
+    rows
+}
+
+/// Asserts that the oracle workbook `package`'s sheet [`VALUE_READINGS_SHEET`] holds exactly
+/// VALUE("text") of each of `texts` in column D, in order, and nothing else.
+fn assert_value_readings_sheet(package: &[u8], texts: &[&LabelText]) {
+    let parts = stored_parts(package);
+    let workbook = part_text(&parts, "xl/workbook.xml");
+    let relationships = part_text(&parts, "xl/_rels/workbook.xml.rels");
+    let id = start_tags(workbook, "sheet")
+        .into_iter()
+        .find(|tag| attribute(tag, "name") == Some(VALUE_READINGS_SHEET))
+        .and_then(|tag| attribute(tag, "r:id"))
+        .unwrap_or_else(|| panic!("the oracle workbook lists no sheet {VALUE_READINGS_SHEET}"));
+    let target = start_tags(relationships, "Relationship")
+        .into_iter()
+        .find(|tag| attribute(tag, "Id") == Some(id))
+        .and_then(|tag| attribute(tag, "Target"))
+        .unwrap_or_else(|| panic!("the oracle workbook has no relationship {id}"));
+    let cells = worksheet_cells(part_text(&parts, &format!("xl/{target}")));
+    let expected: BTreeMap<(u32, u32), String> = texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            let row = u32::try_from(index + 1).expect("a row number");
+            ((row, FORMULA_COLUMN), format!("VALUE(\"{}\")", text.text))
+        })
+        .collect();
+    let found: BTreeMap<(u32, u32), String> = cells
+        .into_iter()
+        .map(|(place, cell)| match cell {
+            FixtureCell::Formula(formula) => (place, formula),
+            FixtureCell::DynamicArray(formula) => panic!(
+                "{VALUE_READINGS_SHEET}!{}: a dynamic-array formula {formula:?}",
+                encode_a1(place.0, place.1)
+            ),
+            FixtureCell::Constant(value) => panic!(
+                "{VALUE_READINGS_SHEET}!{}: a constant {value:?}",
+                encode_a1(place.0, place.1)
+            ),
+        })
+        .collect();
+    assert!(
+        found == expected,
+        "the oracle workbook's sheet {VALUE_READINGS_SHEET} does not hold exactly VALUE of each generated text in column D, in order"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_e00t__digit_labels_as_text() {
+    const CASE: &str = "dc_e00t__digit_labels_as_text";
+    let mut sheet = digit_labels_sheet();
+    note!("ACCEPT-NOTE: {CASE}: the sheet holds {}", sheet.described());
+    let LabelRows { rows, excel } = digit_label_rows(&mut sheet, false);
+    use WorksheetErrorCode::Value;
+    assert!(
+        rows.oracle
+            .iter()
+            .all(|row| row.owner.is_some() == row.outcome.is_err()),
+        "a refused row names its owner, a computed row none"
+    );
+    assert!(
+        rows.oracle
+            .iter()
+            .filter_map(|row| row.owner)
+            .all(|owner| owner == UNDECIDED_TEXT),
+        "every refused row is owned by {}",
+        UNDECIDED_TEXT.bead
+    );
+    let texts = label_texts();
+    let generated = texts.len();
+    assert_eq!(generated, LABEL_WORDS.len() * LABEL_FORMS.len());
+    let hand = rows.oracle.len() - generated;
+    let (hand_rows, generated_rows) = rows.oracle.split_at(hand);
+    let refused = |rows: &[OracleRow]| rows.iter().filter(|row| row.outcome.is_err()).count();
+    let decided_words = LABEL_WORDS.iter().filter(|(_, no)| *no).count();
+    assert_eq!(
+        generated_rows.len() - refused(generated_rows),
+        decided_words * LABEL_FORMS.len() + 1,
+        "every form of a word no number text holds computes #VALUE!, 1e5 computes 100000, and every other is refused"
+    );
+    assert_eq!(excel.len(), rows.oracle.len());
+    // Each generated row, counted by form: computed #VALUE!, computed as a number, refused.
+    let mut by_form = [(0usize, 0usize, 0usize); LABEL_FORMS.len()];
+    for (text, row) in texts.iter().zip(generated_rows) {
+        assert_eq!(row.formula, format!("=\"{}\"+0", text.text));
+        let counts = &mut by_form[text.form];
+        match &row.outcome {
+            Ok(value) if value.as_error() == Some(Value) => counts.0 += 1,
+            Ok(value) => {
+                assert_eq!(value.as_number(), Some(100_000.0), "{}", row.formula);
+                counts.1 += 1;
+            }
+            Err(_) => counts.2 += 1,
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: the generated rows by form (#VALUE! for a word no number text holds / computed as a number / refused): {}",
+        LABEL_FORMS
+            .iter()
+            .zip(by_form)
+            .map(|(form, (errors, numbers, refused))| format!(
+                "{form:?} {errors}/{numbers}/{refused}"
+            ))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
+    // The oracle workbook: its sheet holds exactly the rows' formulas and cells, its sheet
+    // value_readings exactly VALUE of each sampled generated text, and the committed workbook is
+    // its generator's output.
+    assert_workbook_sheet(LABEL_WORKBOOK, LABEL_WORKBOOK_PATH, &rows, &sheet);
+    let sampled: Vec<&LabelText> = texts.iter().filter(|text| text.sampled).collect();
+    assert_eq!(
+        sampled.len(),
+        VALUE_SAMPLE_WORDS.len() * LABEL_FORMS.len(),
+        "each sample word is a word of the generated rows"
+    );
+    assert_value_readings_sheet(LABEL_WORKBOOK, &sampled);
+    note!(
+        "ACCEPT-NOTE: {CASE}: {LABEL_WORKBOOK_PATH}: sheet {VALUE_READINGS_SHEET} holds exactly VALUE(\"text\") of each of the {} generated texts of the words {} (each of the {} forms), in column D, in the order of their \"text\"+0 rows, and no other cell",
+        sampled.len(),
+        VALUE_SAMPLE_WORDS.join(", "),
+        LABEL_FORMS.len()
+    );
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let written = generated_fixtures();
+        let names: Vec<&str> = written.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &written["dc_e00t/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == LABEL_WORKBOOK,
+            "the committed dc-e00t oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(LABEL_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed dc-e00t oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke: {hand} written by hand, of which {} compute the value Excel gives (the labels as operands, as IF's condition, as SUM's and COUNT's direct arguments, in comparisons, and as criteria and range cells of COUNTIF, COUNTIFS, SUMIF, SUMIFS, AVERAGEIF, AVERAGEIFS, MAXIFS and MINIFS, text written like a date or a time that holds such a word, and SUMIFS over ranges of different shapes beside an undecided criterion) and {} are refused (a date with a month name, a time, an amount in R, a label with an en dash, the text 2016-17 and the fractions 1 1/2 and 1/2), each beside the value Excel gives apart from 1/2+0, whose value in Excel is a date in the year Excel calculates it in; and {generated} generated, {} words in {} forms as \"text\"+0, of which {} hold a word no number text holds and give #VALUE!, 1e5 gives 100000 and {} are refused; every refusal is owned by {}",
+        rows.oracle.len(),
+        hand - refused(hand_rows),
+        refused(hand_rows),
+        LABEL_WORDS.len(),
+        LABEL_FORMS.len(),
+        decided_words * LABEL_FORMS.len(),
+        refused(generated_rows),
+        UNDECIDED_TEXT.feature()
+    );
+}
+
+/// Whether an observed value is the value `expect` states.
+fn states(expect: &Expect, value: &CalcValue) -> bool {
+    match expect {
+        N(n) => value.as_number().map(f64::to_bits) == Some(n.to_bits()),
+        L(b) => value.as_logical() == Some(*b),
+        Expect::Text(text) => value.as_text() == Some(&ExcelText::from_interop_assignment(text)),
+        Expect::Units(units) => {
+            value.as_text().map(ExcelText::utf16_code_units) == Some(units.as_slice())
+        }
+        E(code) => value.as_error() == Some(*code),
+        Refused(_) | Expect::Required(_) => false,
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_e00t__excel_comparison() {
+    const CASE: &str = "dc_e00t__excel_comparison";
+    let LabelRows { rows, excel } = digit_label_rows(&mut digit_labels_sheet(), true);
+    let (mut results, evaluations) = published_in(LABEL_WORKBOOK, LABEL_CAPTURE_CASE, &[&rows]);
+    assert_eq!(
+        (results.results.len(), evaluations.evaluations.len()),
+        (rows.oracle.len(), rows.oracle.len()),
+        "a result and an evaluation for each row"
+    );
+    // The value_readings cells: calc_func computes none of them, so each is published as missing.
+    let texts = label_texts();
+    let sampled: Vec<(usize, &LabelText)> = texts
+        .iter()
+        .enumerate()
+        .filter(|(_, text)| text.sampled)
+        .collect();
+    for index in 0..sampled.len() {
+        let row = u32::try_from(index + 1).expect("a row number");
+        results.results.push(CellResult {
+            cell: oracle_cell(VALUE_READINGS_SHEET, row),
+            provenance: Provenance::Missing {
+                reason: VALUE_READING_MISSING.to_owned(),
+            },
+            value: None,
+        });
+    }
+    let not_modelled = results
+        .results
+        .iter()
+        .filter(|result| matches!(result.provenance, Provenance::NotModeled { .. }))
+        .count();
+    assert_eq!(
+        not_modelled,
+        rows.refused(),
+        "every refused row is published as not modelled, and only those"
+    );
+    let capture = CaptureRecord::decode(LABEL_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, LABEL_CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(LABEL_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    let comparison = judged(&capture, &results, &evaluations, &rows)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    assert!(
+        comparison.problems.is_empty(),
+        "{} problems on the verdict on Excel {}'s capture ({}):\n{}",
+        comparison.problems.len(),
+        environment.target.excel_build(),
+        comparison.report.summary(),
+        comparison.problems.join("\n")
+    );
+
+    // The value each row states Excel gives (the expected value of a computed row, the value
+    // beside a refused hand-written row) is the raw value the report carries for the row's cell.
+    let observed: BTreeMap<u32, &Observation> = comparison
+        .report
+        .cells
+        .iter()
+        .filter(|cell| {
+            cell.formula.cell.sheet() == rows.sheet && cell.formula.cell.column() == FORMULA_COLUMN
+        })
+        .filter_map(|cell| Some((cell.formula.cell.row(), cell.observation.as_ref()?)))
+        .collect();
+    assert_eq!(observed.len(), rows.oracle.len(), "an observation per row");
+    let hand = rows.oracle.len() - texts.len();
+    let (mut stated, mut unstated_numbers, mut unstated_errors) = (0, 0, 0);
+    let mut unstated_hand = Vec::new();
+    let mut plus_readings = Vec::new();
+    for (index, (row, excel)) in rows.oracle.iter().zip(&excel).enumerate() {
+        let at = format!("{}!{}", rows.sheet, encode_a1(row.row, FORMULA_COLUMN));
+        let Some(Observation::ExcelRaw(value)) = observed.get(&row.row) else {
+            panic!("{at}: the report carries no raw value of Excel's");
+        };
+        plus_readings.push(value);
+        match excel {
+            Some(expect) => {
+                assert!(
+                    states(expect, value),
+                    "{at} {}: the row says Excel gives {}, the capture holds {}",
+                    row.formula,
+                    expect.shown(),
+                    shown_value(value)
+                );
+                stated += 1;
+            }
+            // A hand-written row that states no value (1/2+0): Excel reads the text as a date,
+            // which is a number in any year.
+            None if index < hand => {
+                assert!(
+                    value.as_number().is_some(),
+                    "{at} {}: Excel gives {}, not a date",
+                    row.formula,
+                    shown_value(value)
+                );
+                unstated_hand.push(format!("{at} {} {}", row.formula, shown_value(value)));
+            }
+            None if value.as_number().is_some() => unstated_numbers += 1,
+            None => {
+                assert_eq!(
+                    value.as_error(),
+                    Some(WorksheetErrorCode::Value),
+                    "{at} {}: Excel gives {}",
+                    row.formula,
+                    shown_value(value)
+                );
+                unstated_errors += 1;
+            }
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: the value each of {stated} rows states Excel gives is Excel's raw value for its cell on the report, the refused hand-written rows' included; {} hand-written row states none, its value in Excel being a date in the year Excel calculates it in, and Excel reads it as a number ({}); of the {} generated rows the rule leaves undecided, Excel reads {unstated_numbers} as numbers and gives #VALUE! for {unstated_errors}",
+        unstated_hand.len(),
+        unstated_hand.join("; "),
+        unstated_numbers + unstated_errors
+    );
+
+    // Each generated text's "text"+0 row, by form: texts the rule decides (#VALUE! in Excel, as
+    // each row states), other texts Excel reads as numbers (1e5, which calc_func reads as 100000,
+    // among them), other texts Excel gives #VALUE! for.
+    let generated_plus = &plus_readings[hand..];
+    let mut by_form = [(0usize, 0usize, 0usize); LABEL_FORMS.len()];
+    for (text, plus) in texts.iter().zip(generated_plus) {
+        let counts = &mut by_form[text.form];
+        if text.no_number {
+            assert_eq!(plus.as_error(), Some(WorksheetErrorCode::Value));
+            counts.0 += 1;
+        } else if plus.as_number().is_some() {
+            counts.1 += 1;
+        } else {
+            counts.2 += 1;
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel's \"text\"+0 of the {} generated texts by form (texts the rule decides, #VALUE! / other texts Excel reads as numbers, 1e5 among them / other texts Excel gives #VALUE! for): {}",
+        texts.len(),
+        LABEL_FORMS
+            .iter()
+            .zip(by_form)
+            .map(|(form, (decided, numbers, errors))| format!(
+                "{form:?} {decided}/{numbers}/{errors}"
+            ))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
+    // Excel's second reading: VALUE of each sampled generated text, on sheet value_readings,
+    // published as missing, is the value its "text"+0 row has (numbers bit for bit), so #VALUE!
+    // for every sampled text the rule decides.
+    let mut readings: BTreeMap<u32, &CalcValue> = BTreeMap::new();
+    for cell in &comparison.report.cells {
+        let address = &cell.formula.cell;
+        if address.sheet() != VALUE_READINGS_SHEET {
+            continue;
+        }
+        let at = format!("{VALUE_READINGS_SHEET}!{}", address.a1());
+        assert_eq!(address.column(), FORMULA_COLUMN, "{at}: outside column D");
+        assert!(
+            matches!(&cell.verdict, Verdict::Missing { reason: Some(reason) } if reason == VALUE_READING_MISSING),
+            "{at}: {:?}, not missing for the published reason",
+            cell.verdict
+        );
+        let Some(Observation::ExcelRaw(value)) = cell.observation.as_ref() else {
+            panic!("{at}: the report carries no raw value of Excel's");
+        };
+        readings.insert(address.row(), value);
+    }
+    assert_eq!(
+        readings.len(),
+        sampled.len(),
+        "a VALUE reading per sampled generated text"
+    );
+    // By form: decided texts (#VALUE! in both readings), undecided texts Excel reads as numbers in
+    // both readings, undecided texts #VALUE! in both.
+    let mut by_form = [(0usize, 0usize, 0usize); LABEL_FORMS.len()];
+    for (index, (generated, text)) in sampled.iter().enumerate() {
+        let row = u32::try_from(index + 1).expect("a row number");
+        let value = readings[&row];
+        let plus = generated_plus[*generated];
+        assert!(
+            identical(value, plus),
+            "{VALUE_READINGS_SHEET}!{}: Excel's VALUE({:?}) is {}, its +0 {}",
+            encode_a1(row, FORMULA_COLUMN),
+            text.text,
+            shown_value(value),
+            shown_value(plus)
+        );
+        let counts = &mut by_form[text.form];
+        if text.no_number {
+            assert_eq!(
+                value.as_error(),
+                Some(WorksheetErrorCode::Value),
+                "{VALUE_READINGS_SHEET}!{}: the rule decides {:?}, Excel's VALUE of it is {}",
+                encode_a1(row, FORMULA_COLUMN),
+                text.text,
+                shown_value(value)
+            );
+            counts.0 += 1;
+        } else if value.as_number().is_some() {
+            counts.1 += 1;
+        } else {
+            counts.2 += 1;
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel's VALUE of each of the {} generated texts of the words {} (sheet {VALUE_READINGS_SHEET}, each published as missing: calc_func has no VALUE) is the raw value of its \"text\"+0 row, numbers bit for bit; by form (texts the rule decides, #VALUE! in both readings / undecided texts Excel reads as numbers / undecided texts Excel gives #VALUE! for): {}",
+        sampled.len(),
+        VALUE_SAMPLE_WORDS.join(", "),
+        LABEL_FORMS
+            .iter()
+            .zip(by_form)
+            .map(|(form, (decided, numbers, errors))| format!(
+                "{form:?} {decided}/{numbers}/{errors}"
+            ))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
+    // The capture's settings: the words the rule reads were measured under the Windows locale
+    // en-ZA, whose currency symbol is R.
+    let setting = |name: &str| {
+        environment
+            .settings
+            .iter()
+            .find(|(setting, _)| setting == name)
+            .map(|(_, value)| value.as_str())
+    };
+    assert_eq!(environment.target.excel_build(), CAPTURED_BUILD);
+    for (name, value) in CAPTURED_SETTINGS {
+        assert_eq!(setting(name), Some(value), "the capture's setting {name}");
+    }
+    assert_eq!(comparison.report.com_add_ins_connected, Some(1));
+    assert!(
+        setting(calc_verdict::SETTING_COM_ADD_INS_CONNECTED)
+            .is_some_and(|value| value.starts_with(&format!("{CAPTURED_COM_ADD_IN}|"))),
+        "the COM add-in connected during the capture"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of {LABEL_WORKBOOK_PATH} under {}, with one COM add-in connected ({CAPTURED_COM_ADD_IN}): {} (every computed row matched, every refused row not modeled with its owner); the whole workbook: {}",
+        environment.target.excel_build(),
+        CAPTURED_SETTINGS
+            .iter()
+            .map(|(name, value)| format!("{name} {value:?}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        sheet_verdicts(&comparison.report, &rows),
+        comparison.report.summary()
+    );
 }

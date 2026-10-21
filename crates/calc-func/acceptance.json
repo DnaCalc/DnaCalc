@@ -155,6 +155,25 @@
         "cfunc_m3_6__lookup_edges": ["windows", "linux", "wasm"],
         "cfunc_m3_6__excel_comparison": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-e00t",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_e00t", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-e00t", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-e00t", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-e00t", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_e00t__digit_labels_as_text",
+        "dc_e00t__excel_comparison"
+      ],
+      "platforms": {
+        "dc_e00t__digit_labels_as_text": ["windows", "linux", "wasm"],
+        "dc_e00t__excel_comparison": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }
