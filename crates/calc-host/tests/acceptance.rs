@@ -697,7 +697,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         ProjectedValue::NotModeled {
             refusal: NotModeled::Compile(error),
             ..
-        } => assert!(format!("{error:?}").contains("spelling: \"ROUND\"")),
+        } => assert!(format!("{error:?}").contains("spelling: \"NOSUCHFUNCTION\"")),
         other => panic!("Calc!B1 is not refused: {other:?}"),
     }
     assert_eq!(

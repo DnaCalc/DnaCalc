@@ -90,17 +90,19 @@ pub const CALC_PART: &str = "xl/worksheets/sheet2.xml";
 /// The Inputs sheet: A1 = 2, A2 = 3, A3 = the text "rate", B1 = 0.5.
 pub const INPUTS_SHEET: &str = r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><v>2</v></c><c r="B1"><v>0.5</v></c></row><row r="2"><c r="A2"><v>3</v></c></row><row r="3"><c r="A3" t="inlineStr"><is><t>rate</t></is></c></row></sheetData></worksheet>"#;
 
+/// B1 calls a name no catalogue holds (Excel shows #NAME? for it), so it stays not modelled as
+/// functions are added to calc-func.
 /// The Calc sheet's formulas, each with the result the file caches for it:
 ///
 /// | cell | formula                         | cached  | value from the inputs above |
 /// |------|---------------------------------|---------|-----------------------------|
 /// | A1   | `Inputs!A1+Inputs!A2`           | 41      | 5                           |
-/// | B1   | `ROUND(Inputs!B1,0)`            | 1       | not in the catalogue        |
+/// | B1   | `NOSUCHFUNCTION(Inputs!B1,0)`   | 1       | not in the catalogue        |
 /// | C1   | `IF(Inputs!A1>1,"big","small")` | "small" | "big"                       |
 /// | A2   | `A1*10`                         | 999     | 50                          |
 /// | B2   | `Inputs!B1*4`                   | none    | 2                           |
 /// | A3   | `SUM(Inputs!A1:A2)*Inputs!B1`   | 7       | 2.5                         |
-pub const CALC_SHEET: &str = r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><f>Inputs!A1+Inputs!A2</f><v>41</v></c><c r="B1"><f>ROUND(Inputs!B1,0)</f><v>1</v></c><c r="C1" t="str"><f>IF(Inputs!A1&gt;1,"big","small")</f><v>small</v></c></row><row r="2"><c r="A2"><f>A1*10</f><v>999</v></c><c r="B2"><f>Inputs!B1*4</f></c></row><row r="3"><c r="A3"><f>SUM(Inputs!A1:A2)*Inputs!B1</f><v>7</v></c></row></sheetData></worksheet>"#;
+pub const CALC_SHEET: &str = r#"<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><f>Inputs!A1+Inputs!A2</f><v>41</v></c><c r="B1"><f>NOSUCHFUNCTION(Inputs!B1,0)</f><v>1</v></c><c r="C1" t="str"><f>IF(Inputs!A1&gt;1,"big","small")</f><v>small</v></c></row><row r="2"><c r="A2"><f>A1*10</f><v>999</v></c><c r="B2"><f>Inputs!B1*4</f></c></row><row r="3"><c r="A3"><f>SUM(Inputs!A1:A2)*Inputs!B1</f><v>7</v></c></row></sheetData></worksheet>"#;
 
 /// The package: the workbook part names the sheets Inputs (sheetId 1) and Calc (sheetId 2), in
 /// that order.

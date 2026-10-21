@@ -185,7 +185,7 @@
           "calc-doc-model": 13,
           "calc-engine": 7,
           "calc-fml": 15,
-          "calc-func": 10,
+          "calc-func": 12,
           "calc-host": 5,
           "calc-value": 5,
           "calc-verdict": 11,
@@ -201,7 +201,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "98 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "100 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -299,7 +299,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 98,
+        "files_scanned": 100,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -312,7 +312,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "98 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "100 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
@@ -483,7 +483,7 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 145,
+          "commit_messages": 150,
           "files": 20,
           "tracker_records": 345
         },
@@ -536,7 +536,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 345 tracker records, 1 in 1 of 145 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 345 tracker records, 1 in 1 of 150 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -899,7 +899,7 @@
           ],
           "browser": "chromium",
           "case": "chost_m1_1__atomic_prepare_failure@chromium",
-          "duration_s": 5.399,
+          "duration_s": 5.736,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -930,8 +930,8 @@
           "outcome": "passed",
           "package": "calc-host",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.10s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:53107/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.08s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:64844/`"
         },
         {
           "argv": [
@@ -953,7 +953,7 @@
           ],
           "browser": "firefox",
           "case": "chost_m1_1__atomic_prepare_failure@firefox",
-          "duration_s": 8.193,
+          "duration_s": 9.133,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -984,12 +984,12 @@
           "outcome": "passed",
           "package": "calc-host",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.02s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:61212/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.01s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55117/`"
         }
       ],
       "case": "chost_m1_1__atomic_prepare_failure",
-      "duration_s": 13.592,
+      "duration_s": 14.869,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1044,7 +1044,7 @@
           ],
           "browser": "chromium",
           "case": "chost_m1_1__recalc_failure_keeps_edit@chromium",
-          "duration_s": 5.119,
+          "duration_s": 5.997,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -1075,8 +1075,8 @@
           "outcome": "passed",
           "package": "calc-host",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.08s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:60265/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.10s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:61977/`"
         },
         {
           "argv": [
@@ -1098,7 +1098,7 @@
           ],
           "browser": "firefox",
           "case": "chost_m1_1__recalc_failure_keeps_edit@firefox",
-          "duration_s": 8.265,
+          "duration_s": 18.096,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1130,11 +1130,11 @@
           "package": "calc-host",
           "reason": null,
           "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.03s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:57129/`"
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55137/`"
         }
       ],
       "case": "chost_m1_1__recalc_failure_keeps_edit",
-      "duration_s": 13.384,
+      "duration_s": 24.093,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1174,7 +1174,7 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 0.195,
+      "duration_s": 0.362,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -1280,7 +1280,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 42.888,
+  "duration_s": 68.06,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1291,75 +1291,23 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "cf1ac1c6cf4ee74ab61744d996ed69b0f44e7f07",
-          "path": "Cargo.lock",
-          "status": "M"
-        },
-        {
-          "blob": "bbc9cd42bd2d515c10739d0bcc8bd7b4dba0e8d5",
-          "path": "crates/calc-host/Cargo.toml",
-          "status": "M"
-        },
-        {
-          "blob": "f5c546e1612833a3d3bf8c90c04567cfc1280c23",
-          "path": "crates/calc-host/acceptance.json",
-          "status": "M"
-        },
-        {
-          "blob": "69d88e22301c2bb95c8a290484d32bdc8ffa164f",
-          "path": "crates/calc-host/seams.json",
-          "status": "M"
-        },
-        {
-          "blob": "5d21e5af8eb063062101b074f68ee278e7e88a4d",
-          "path": "crates/calc-host/src/lib.rs",
-          "status": "M"
-        },
-        {
-          "blob": "4d81711a90a39f397a9cef030a791b7f8558716a",
+          "blob": "fb817862f935cae34e375762850efe4b827b8faf",
           "path": "accept-receipts/chost-m1.1/windows.json",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "682cf2db8fc2771cbf638319c220412ae7e4247e",
-          "path": "crates/calc-host/src/command.rs",
-          "status": "??"
-        },
-        {
-          "blob": "9209a5c10744738011f906f0755d6df71d5bdf9c",
-          "path": "crates/calc-host/src/project.rs",
-          "status": "??"
-        },
-        {
-          "blob": "7db04d242d8fc98be146d9273454d4cd86c2bc2c",
-          "path": "crates/calc-host/src/recalc.rs",
-          "status": "??"
-        },
-        {
-          "blob": "9747248d749d14d106d4cfb96fe38271ec87bfb5",
-          "path": "crates/calc-host/src/state.rs",
-          "status": "??"
-        },
-        {
-          "blob": "1e4f75f369184816ca6e0d512ccabe9b6c51b508",
+          "blob": "f83bf4bd72dc8c61756bc854993f357ba30d28d4",
           "path": "crates/calc-host/tests/acceptance.rs",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "984fc43acdfbe29c3b46dfbc26711ddb6096fb11",
+          "blob": "b7151506b19eeb04a0156d95d2c6a8466ddc0e53",
           "path": "crates/calc-host/tests/chost_m1_1_support/mod.rs",
-          "status": "??"
-        },
-        {
-          "blob": "c427d4468877864189d42f7432144e18e3bbc9b2",
-          "path": "migration/ports/chost-m1.1.json",
-          "status": "??"
+          "status": "M"
         }
       ],
-      "head": "9a023133e37b70c0280b7a90f462f03614c557ca",
-      "receipt_paths_left_out": [
-        "accept-receipts/chost-m1.1/wasm.json"
-      ]
+      "head": "9a254e4e7ab75e7409a6123a36badf94284cd7d2",
+      "receipt_paths_left_out": []
     },
     "legacy_root": {
       "exists": true,
@@ -1397,5 +1345,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-21T08:58:12Z"
+  "started_utc": "2026-10-21T09:37:21Z"
 }
