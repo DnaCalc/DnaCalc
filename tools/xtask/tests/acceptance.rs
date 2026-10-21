@@ -69,6 +69,23 @@ const LANE_DEADLINE: Duration = Duration::from_secs(600);
 /// every lane cargo runs with both removed from its environment.
 const TARGET_DIR_VARIABLES: [&str; 2] = ["CARGO_TARGET_DIR", "CARGO_BUILD_TARGET_DIR"];
 
+/// Cargo's last-use tracker, as paths directly under the cargo home: `.global-cache`, the SQLite
+/// database in which cargo records when each cached registry crate and git checkout was last used,
+/// and the files SQLite keeps beside a database it writes (`-journal` in the default rollback mode,
+/// which cargo 1.94 does not change; `-wal` and `-shm` in write-ahead-log mode). Cargo inserts a
+/// row for a crate it has not recorded yet and rewrites a recorded time only once it is older than
+/// its update interval, so whether a build writes these files depends largely on when the crates
+/// were last used, and any other cargo process on the machine may write them as well. The lanes
+/// case leaves exactly these paths out of its
+/// cargo-home comparison and names each of them that changed; a file of the same name anywhere
+/// below the cargo home is compared like every other path.
+const CARGO_LAST_USE_TRACKER: [&str; 4] = [
+    ".global-cache",
+    ".global-cache-journal",
+    ".global-cache-wal",
+    ".global-cache-shm",
+];
+
 const PLAN: &str = "DNA_CALC_REIMPLEMENTATION_PLAN.md";
 
 /// Follow-up beads created on 2026-10-19 with a library prefix, against AGENTS.md's rule that new
@@ -799,6 +816,33 @@ fn shown_paths(paths: &[PathBuf]) -> Vec<String> {
         .collect()
 }
 
+/// Whether a path relative to the cargo home is one of cargo's last-use tracker files, which sit
+/// directly under it.
+fn is_last_use_tracker(relative: &Path) -> bool {
+    CARGO_LAST_USE_TRACKER
+        .iter()
+        .any(|name| relative == Path::new(name))
+}
+
+/// A snapshot entry as text: absent, a directory, or a file's size and modification time.
+fn shown_entry(entry: Option<&Entry>) -> String {
+    match entry {
+        None => "absent".to_owned(),
+        Some((_, None, _)) => "a directory".to_owned(),
+        Some((size, Some(modified), _)) => match modified.duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(since) => format!(
+                "{size} bytes, modified at Unix time {}.{:09}",
+                since.as_secs(),
+                since.subsec_nanos()
+            ),
+            Err(e) => format!(
+                "{size} bytes, modified {:?} before the Unix epoch",
+                e.duration()
+            ),
+        },
+    }
+}
+
 fn remove_tree(path: &Path) -> Result<(), String> {
     let mut last_error = String::new();
     for _ in 0..5 {
@@ -1054,7 +1098,9 @@ impl Drop for KillOnDrop {
 ///   file's size, modification time and content hash.
 /// - The cargo home (`CARGO_HOME`, or `.cargo` under the home directory), before and after the
 ///   builds: every directory, and every file's size and modification time. Any added, removed or
-///   changed path fails.
+///   changed path fails, except cargo's last-use tracker (`CARGO_LAST_USE_TRACKER`), which cargo
+///   writes on its own schedule and other cargo processes write too; the evidence names the
+///   tracker files that changed, with their size and modification time before and after.
 /// - The source checkout: `HEAD` and `git status --porcelain=v1 --untracked-files=all`, from before
 ///   the clones are made to after the builds end; any difference fails.
 /// - Each lane's `target/debug/.fingerprint` after the builds: the packages it holds build state
@@ -1076,7 +1122,7 @@ fn infra_m0_1__independent_lanes() {
         "before any clone is made: the source checkout is on master and `git status --porcelain=v1 --untracked-files=all` prints nothing (target/ is ignored); otherwise no clone is made",
         "before any build: each clone's own HEAD, which must equal the source's, and each clone's target directory as `cargo metadata --no-deps --format-version 1 --offline --locked` reports it in the clone with CARGO_TARGET_DIR and CARGO_BUILD_TARGET_DIR removed; it must be <clone>/target for every clone, or no build runs",
         "each clone's tree outside target/, before and after the builds: every directory, and every file's size, modification time and content hash",
-        "the cargo home, before and after the builds: every directory, and every file's size and modification time; any added, removed or changed path fails",
+        "the cargo home, before and after the builds: every directory, and every file's size and modification time; any added, removed or changed path fails, except cargo's last-use tracker directly under the cargo home (.global-cache, .global-cache-journal, .global-cache-wal, .global-cache-shm), whose changes are named in the evidence and do not fail",
         "the source checkout: HEAD and `git status --porcelain=v1 --untracked-files=all`, from before the clones are made to after the builds end",
         "each lane's target/debug/.fingerprint after the builds: the packages it holds build state for; no other workspace package outside the lane package's workspace dependencies may appear",
         "each build's start (when its spawn returned), end (when try_wait first saw it exit, polling every started build before each later spawn and every 5 ms after the last) and exit code; a build that ended before the last started fails, a poll after the last start must find all four running, and a build still running at the deadline is killed and fails",
@@ -1381,9 +1427,30 @@ fn infra_m0_1__independent_lanes() {
         drop(builds);
 
         let home_after = snapshot(&home, None, false);
-        let home_changes = shown_paths(&changed_paths(&home_before, &home_after));
+        let (tracker_changes, home_changes): (Vec<PathBuf>, Vec<PathBuf>) =
+            changed_paths(&home_before, &home_after)
+                .into_iter()
+                .partition(|path| is_last_use_tracker(path));
+        let tracker_changes: Vec<String> = tracker_changes
+            .iter()
+            .map(|path| {
+                format!(
+                    "{}: {} -> {}",
+                    path.display(),
+                    shown_entry(home_before.get(path)),
+                    shown_entry(home_after.get(path))
+                )
+            })
+            .collect();
+        let home_changes = shown_paths(&home_changes);
+        let tracker_line = format!(
+            "cargo home {}: left out of the comparison: cargo's last-use tracker {CARGO_LAST_USE_TRACKER:?} directly under it, the SQLite database in which cargo records when each cached crate was last used and the files SQLite keeps beside it; cargo rewrites a recorded time only once it is older than its update interval, and any cargo process on the machine may write it, so a change there does not show what a lane build wrote. Changed during the builds: {tracker_changes:?}",
+            home.display(),
+        );
+        println!("ACCEPT-NOTE: {CASE}: {tracker_line}");
+        evidence.push(tracker_line);
         evidence.push(format!(
-            "cargo home {} ({home_source}): {} entries before the builds, {} after; added, removed or changed paths: {home_changes:?}",
+            "cargo home {} ({home_source}): {} entries before the builds, {} after; added, removed or changed paths other than the last-use tracker: {home_changes:?}",
             home.display(),
             home_before.len(),
             home_after.len(),
@@ -1396,6 +1463,8 @@ fn infra_m0_1__independent_lanes() {
         }
         cargo_home_record["entries_before"] = home_before.len().into();
         cargo_home_record["entries_after"] = home_after.len().into();
+        cargo_home_record["left_out"] = CARGO_LAST_USE_TRACKER.as_slice().into();
+        cargo_home_record["left_out_changed"] = tracker_changes.into();
         cargo_home_record["changed_paths"] = home_changes.into();
 
         for lane in &mut lanes {
