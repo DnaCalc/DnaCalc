@@ -2,9 +2,9 @@
 //! not been taken.
 //!
 //! A capture artifact is committed at a fixed path so that every platform judges the same bytes.
-//! Until the owner's Excel run takes the capture, that path holds the absent-capture marker
-//! instead, which [`MissingCapture::recognize`] reads, so a replay reports [`MissingCapture`]
-//! rather than passing or failing on bytes nobody captured:
+//! Until an Excel run of `cargo xtask capture` takes the capture, that path holds the
+//! absent-capture marker instead, which [`MissingCapture::recognize`] reads, so a replay reports
+//! [`MissingCapture`] rather than passing or failing on bytes nobody captured:
 //!
 //! ```text
 //! {"format": "dnacalc-capture-absent", "version": 1, "case": "<case id>",
@@ -70,7 +70,7 @@ impl fmt::Display for MissingCapture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "MissingCapture: no capture of {} has been taken for case {}; this path will hold its {} once the owner's Excel run `{}` writes it",
+            "MissingCapture: no capture of {} has been taken for case {}; this path will hold its {} once an Excel run of `{}` writes it",
             self.fixture, self.case, self.artifact, self.command
         )
     }

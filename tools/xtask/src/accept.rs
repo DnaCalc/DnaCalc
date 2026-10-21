@@ -786,8 +786,8 @@ fn run_wasm(
 }
 
 /// The variable a native case run carries naming its platform route (`windows`, `linux` or
-/// `excel`), so that one case can hold a part only the owner's excel route runs: a case runs with
-/// Excel only when this says `excel`, never on the windows route of a host that has Excel too.
+/// `excel`), so that one case can hold a part only the excel route runs: a case runs with Excel
+/// only when this says `excel`, never on the windows route of a host that has Excel too.
 pub(crate) const PLATFORM_VARIABLE: &str = "DNACALC_ACCEPT_PLATFORM";
 
 /// The variables a native route sets for each case it runs.

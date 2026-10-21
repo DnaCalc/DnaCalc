@@ -37,7 +37,8 @@
 //! `cargo xtask capture --fixture <xlsx|xlsm> --out <capture.json> [--timeout <s>] [--case <id>]
 //! [--verdict <report.json>] ...` takes one live capture through calc-oracle-excel, the one Excel
 //! capture adapter, writes the CaptureRecord version 2 and, with `--verdict`, the verdict record of
-//! its file-cache replay (`capture.rs`). It needs Excel on Windows: the owner's command.
+//! its file-cache replay (`capture.rs`). It needs Excel on Windows; on the owner's machine any
+//! agent may run it (AGENTS.md, Excel on this machine).
 //!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
