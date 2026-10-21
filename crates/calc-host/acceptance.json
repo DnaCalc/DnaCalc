@@ -18,6 +18,21 @@
         "chost_m1_1__atomic_prepare_failure": ["windows", "linux", "wasm"],
         "chost_m1_1__recalc_failure_keeps_edit": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-hqcv",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "xtask", "accept", "--id", "dc-hqcv", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-hqcv", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-hqcv", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_hqcv__applied_context_reported"
+      ],
+      "platforms": {
+        "dc_hqcv__applied_context_reported": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

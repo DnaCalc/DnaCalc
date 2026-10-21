@@ -30,6 +30,10 @@
 //!   or a formula), a value the engine calculated that still stands, a typed refusal, or a stale
 //!   value.
 //!
+//! [`HostState::recalc_context`] reports the calculation context every recalculation applies
+//! ([`RecalcContext`]), which a comparison names as its run's context, apart from what the
+//! package declares ([`HostState::declared_date1904`]).
+//!
 //! The types these calls take and return are re-exported here, with calc-value as [`value`];
 //! calc-doc, calc-doc-model and calc-engine themselves are not, so calc-host offers its callers
 //! no way around these calls to change the authored revision or the engine state.
@@ -45,7 +49,7 @@ pub use project::{
     StaleValue, project,
 };
 pub use recalc::{HostProgress, RecalcFailed, step};
-pub use state::{HostOptions, HostState, OpenFailure};
+pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
 pub use calc_doc::{
     CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,

@@ -2,7 +2,7 @@
 //! that revision, owned together.
 
 use crate::recalc::RecalcFailed;
-use calc_doc::{LoadError, LoadedWorkbook, OpenError, OpenPolicy, PackageRead};
+use calc_doc::{DateSystem, LoadError, LoadedWorkbook, OpenError, OpenPolicy, PackageRead};
 use calc_doc_model::value::{CellKey, IdAllocator, NumericMode, SheetId};
 use calc_doc_model::{AuthoredRevision, ModelRoot, SheetEntry};
 use calc_engine::{CacheWithoutFormula, EngineState, RecalcWork};
@@ -20,6 +20,40 @@ pub struct HostOptions {
     /// is admitted whatever the count, and opening a workbook is bounded only by the
     /// [`OpenPolicy`] limits. `None` admits every edit the engine reserves node IDs for.
     pub formula_cell_budget: Option<usize>,
+}
+
+/// The calculation context a host's recalculations apply ([`HostState::recalc_context`]), which
+/// is what a comparison names as its run's context. It is not what the package declares: a
+/// package's `workbookPr` and `calcPr` may name other settings
+/// ([`HostState::declared_date1904`]).
+///
+/// Only the numeric mode varies today. calc-doc does not read the workbook part's `calcPr`, and
+/// [`calc_engine::begin_recalc`] takes the numeric mode and no date system, iteration or precision
+/// setting, so whatever the package declares, no recalculation follows a 1904 date system, a
+/// circular reference is refused rather than iterated ([`calc_engine::StartError::Cycle`]), and
+/// every result is published at full precision whatever its number format displays. The host
+/// does not iterate, so it applies no iteration count or maximum change and reports none; a
+/// comparison names Excel's default limits for a context without iteration. `date1904 = false`
+/// follows from the engine taking no date system; no calculation observes it until a function
+/// that reads or returns a serial date is calculated.
+///
+/// ceng-m4.3 carries the workbook's date system, iteration settings and precision as displayed
+/// into the engine; `date1904` and `precision_as_displayed` then come from the engine's settings
+/// and change with the workbook. `iteration` also waits on ceng-m5.2, which calculates circular
+/// references iteratively: until then the engine refuses every cycle, so this reports `false`
+/// even for a workbook whose settings ask for iteration. A host that applies iteration must also
+/// report the iteration count and maximum change it applies, which this struct does not hold.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RecalcContext {
+    /// Serial dates count in the 1904 date system; `false`: the 1900 date system.
+    pub date1904: bool,
+    /// Circular references are calculated iteratively; `false`: they are refused.
+    pub iteration: bool,
+    /// Results are rounded to the precision their number format displays; `false`: full
+    /// precision.
+    pub precision_as_displayed: bool,
+    /// The numeric mode every recalculation runs under ([`HostOptions::numeric`]).
+    pub numeric: NumericMode,
 }
 
 /// Why [`HostState::open`] made no host.
@@ -121,5 +155,28 @@ impl HostState {
 
     pub fn options(&self) -> &HostOptions {
         &self.options
+    }
+
+    /// The calculation context every recalculation of this host applies: the 1900 date system,
+    /// no iteration and full precision, whatever the package declares, under the numeric mode the
+    /// host was opened with ([`RecalcContext`] says why, and that ceng-m4.3 changes these).
+    pub fn recalc_context(&self) -> RecalcContext {
+        RecalcContext {
+            date1904: false,
+            iteration: false,
+            precision_as_displayed: false,
+            numeric: self.options.numeric.clone(),
+        }
+    }
+
+    /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s
+    /// `date1904`), as calc-doc loaded it; no command changes it. Recalculation does not apply it
+    /// ([`HostState::recalc_context`]). calc-doc does not read `calcPr`, so the host has no
+    /// record of the iteration or precision a package declares.
+    pub fn declared_date1904(&self) -> bool {
+        match self.loaded.date_system() {
+            DateSystem::Date1900 => false,
+            DateSystem::Date1904 => true,
+        }
     }
 }

@@ -185,7 +185,7 @@
           "calc-doc-model": 13,
           "calc-engine": 7,
           "calc-fml": 15,
-          "calc-func": 10,
+          "calc-func": 12,
           "calc-host": 5,
           "calc-value": 5,
           "calc-verdict": 11,
@@ -201,7 +201,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "98 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "100 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -299,7 +299,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 98,
+        "files_scanned": 100,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -312,7 +312,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "98 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "100 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
@@ -483,9 +483,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 145,
+          "commit_messages": 162,
           "files": 20,
-          "tracker_records": 345
+          "tracker_records": 353
         },
         "tracker": {
           "ceng-m7.1": {
@@ -536,7 +536,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 345 tracker records, 1 in 1 of 145 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 353 tracker records, 1 in 1 of 162 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -877,14 +877,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_3__zero_tests_fail",
-      "duration_s": 151.073,
+      "duration_s": 211.761,
       "exit_code": 0,
       "log": "target/accept/infra-m0.3/windows/infra_m0_3__zero_tests_fail.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 150.88s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 211.49s"
     },
     {
       "argv": [
@@ -903,14 +903,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_3__forbidden_dependency",
-      "duration_s": 215.675,
+      "duration_s": 269.659,
       "exit_code": 0,
       "log": "target/accept/infra-m0.3/windows/infra_m0_3__forbidden_dependency.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 215.43s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 269.31s"
     }
   ],
   "command": [
@@ -936,13 +936,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 406.618,
+      "duration_s": 553.881,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 401.95s"
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 537.15s"
       ],
       "log": "target/accept/infra-m0.3/windows/command-1.log",
       "outcome": "passed",
@@ -967,13 +967,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 4.051,
+      "duration_s": 17.471,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s"
+        "test result: ok. 117 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s"
       ],
       "log": "target/accept/infra-m0.3/windows/command-2.log",
       "outcome": "passed",
@@ -1047,7 +1047,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 787.076,
+  "duration_s": 1064.552,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1058,77 +1058,57 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "cf1ac1c6cf4ee74ab61744d996ed69b0f44e7f07",
+          "blob": "7144294442c66d33703ed5603cd0b33042b20ea5",
           "path": "Cargo.lock",
           "status": "M"
         },
         {
-          "blob": "bbc9cd42bd2d515c10739d0bcc8bd7b4dba0e8d5",
+          "blob": "3b1192d430db92912f431a13d58235b6144488bc",
+          "path": "accept-receipts/chost-m1.1/windows.json",
+          "status": "M"
+        },
+        {
+          "blob": "fa1e55d03812a87cfb7998fbe293d772b99e2119",
           "path": "crates/calc-host/Cargo.toml",
           "status": "M"
         },
         {
-          "blob": "f5c546e1612833a3d3bf8c90c04567cfc1280c23",
+          "blob": "a85dcfd1e23f5aa9ef8adaf97df394f1d000817f",
           "path": "crates/calc-host/acceptance.json",
           "status": "M"
         },
         {
-          "blob": "69d88e22301c2bb95c8a290484d32bdc8ffa164f",
-          "path": "crates/calc-host/seams.json",
-          "status": "M"
-        },
-        {
-          "blob": "5d21e5af8eb063062101b074f68ee278e7e88a4d",
+          "blob": "f8832d739a69e9d43c891119ea18acd7bb180fe6",
           "path": "crates/calc-host/src/lib.rs",
           "status": "M"
         },
         {
-          "blob": "846177af0d972ac50d4fb92686198951a6fb0ed6",
-          "path": "accept-receipts/chost-m1.1/wasm.json",
-          "status": "??"
-        },
-        {
-          "blob": "4d81711a90a39f397a9cef030a791b7f8558716a",
-          "path": "accept-receipts/chost-m1.1/windows.json",
-          "status": "??"
-        },
-        {
-          "blob": "682cf2db8fc2771cbf638319c220412ae7e4247e",
-          "path": "crates/calc-host/src/command.rs",
-          "status": "??"
-        },
-        {
-          "blob": "9209a5c10744738011f906f0755d6df71d5bdf9c",
-          "path": "crates/calc-host/src/project.rs",
-          "status": "??"
-        },
-        {
-          "blob": "7db04d242d8fc98be146d9273454d4cd86c2bc2c",
-          "path": "crates/calc-host/src/recalc.rs",
-          "status": "??"
-        },
-        {
-          "blob": "9747248d749d14d106d4cfb96fe38271ec87bfb5",
+          "blob": "15ffacd6c7abba4f1cc317f99764df04f5f689ca",
           "path": "crates/calc-host/src/state.rs",
-          "status": "??"
+          "status": "M"
         },
         {
-          "blob": "1e4f75f369184816ca6e0d512ccabe9b6c51b508",
+          "blob": "4b275e9e5160ecfdc129b223428936e88e152318",
           "path": "crates/calc-host/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "702cd2d87b7b190b4c6a5ad960a73319bd6d7de9",
+          "path": "accept-receipts/dc-hqcv/wasm.json",
           "status": "??"
         },
         {
-          "blob": "984fc43acdfbe29c3b46dfbc26711ddb6096fb11",
-          "path": "crates/calc-host/tests/chost_m1_1_support/mod.rs",
+          "blob": "4c9498b1d4680b064d90cd939e4b7e37df8e304a",
+          "path": "accept-receipts/dc-hqcv/windows.json",
           "status": "??"
         },
         {
-          "blob": "c427d4468877864189d42f7432144e18e3bbc9b2",
-          "path": "migration/ports/chost-m1.1.json",
+          "blob": "0a44617009808522cb72081b11f6bf3c07794c35",
+          "path": "crates/calc-host/tests/dc_hqcv_support/mod.rs",
           "status": "??"
         }
       ],
-      "head": "9a023133e37b70c0280b7a90f462f03614c557ca",
+      "head": "75140c85985a4eb6b2a23980f9b4cc0992a52fb4",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -1167,5 +1147,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-21T08:58:56Z"
+  "started_utc": "2026-10-21T10:49:58Z"
 }
