@@ -44,6 +44,23 @@
       "platforms": {
         "infra_m1_2__capture_replays": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-61sj",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-verdict", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-61sj", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-61sj", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-61sj", "--platform", "wasm", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "infra-m1.1", "--platform", "windows", "--require-all"]
+      ],
+      "cases": [
+        "dc_61sj__shared_ref_with_holes_judged"
+      ],
+      "platforms": {
+        "dc_61sj__shared_ref_with_holes_judged": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

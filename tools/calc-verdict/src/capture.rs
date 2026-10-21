@@ -46,7 +46,7 @@
 //!
 //! `<value>` is the canonical typed value of `typed.rs` (numbers as binary64 bits in hex). Rows and
 //! columns are 1-based. Each formula cell of the workbook is listed once, hidden sheets, every cell
-//! of a shared-formula range (its master and each child) and error-valued formulas included: the
+//! of a shared-formula group (its master and each child) and error-valued formulas included: the
 //! list is enumerated from the workbook itself, never from what an evaluator returned.
 
 use crate::DecodeError;
@@ -660,8 +660,8 @@ impl fmt::Display for EncodeError {
 impl std::error::Error for EncodeError {}
 
 /// A canonical CaptureRecord. Its consistency (one entry per cell, known sheets, one master per
-/// shared group, observations only for inventory cells, and in version 2 each shared group's range
-/// covered by its cells) is checked by [`crate::judge`], so a record built in memory gets the same
+/// shared group, observations only for inventory cells, and in version 2 each shared group's cells
+/// inside its one range) is checked by [`crate::judge`], so a record built in memory gets the same
 /// checks as one decoded from JSON.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CaptureRecord {

@@ -377,9 +377,20 @@ fn place(cell: &CellAddress) -> String {
 }
 
 /// Checks a version 2 record's shared ranges against its inventory: each range on a listed sheet,
-/// one range per shared group and one group per range, every cell of a group inside its range,
-/// and every cell of a range listed as a cell of its group. Without the last rule an inventory
-/// that leaves a child of `C1:C3` out would be judged with a denominator one short.
+/// one range per shared group and one group per range, and every cell of a group inside its
+/// range, so a group with a member outside its ref is refused with that member named.
+///
+/// A range may cover cells that are not of its group. Packages saved by Excel hold such refs:
+/// desktop Excel 16.0.20430 saves a fill of B1:B500 as 64-row groups, the last with ref B449:B512
+/// over twelve empty cells, and the three Ofgem price-cap packages, saved by Excel for the web,
+/// hold refs that span cells of other shared groups, ordinary formulas, constants and empty cells
+/// (both measured 2026-10-21). The range therefore says nothing about which of its cells hold
+/// formulas, and the record is judged with every formula cell it lists in the denominator, each
+/// once. For a live capture, that the list misses no formula cell rests on the capture worker's
+/// cross-check against Excel's own `SpecialCells(xlCellTypeFormulas)`: a formula cell Excel
+/// lists that the inventory lacks, or a cross-check that cannot run, is a failure at
+/// [`STAGE_INVENTORY`], which refuses the record before these checks. A record from any other
+/// acquisition has no such cross-check (bead dc-dhlu).
 fn check_shared_ranges(
     session: &CaptureSession,
     sheets: &BTreeMap<&str, SheetVisibility>,
@@ -407,15 +418,6 @@ fn check_shared_ranges(
             return Err(JudgeError::new(format!(
                 "{} belongs to shared group {group} and lies outside the group's range {sheet}!{reference}",
                 place(outside)
-            )));
-        }
-        if cells.len() as u64 != range.cell_count() {
-            let uncovered = range
-                .cells()
-                .find(|cell| !cells.contains(cell))
-                .map_or_else(|| range.first_a1(), |cell| cell.a1());
-            return Err(JudgeError::new(format!(
-                "the listed cells of shared group {group} do not cover its range {sheet}!{reference}: {sheet}!{uncovered} is not listed as a cell of the group"
             )));
         }
     }

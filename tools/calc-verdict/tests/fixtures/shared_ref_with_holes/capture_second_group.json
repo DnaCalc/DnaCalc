@@ -1,0 +1,69 @@
+{
+  "format": "dnacalc-capture-record",
+  "version": 2,
+  "case": "dc_61sj__shared_ref_with_holes_judged",
+  "source": "fixture:shared-ref-with-holes/workbook-second-group",
+  "acquisition": {"kind": "live_capture"},
+  "environment": {
+    "excel_build": "fixture-build",
+    "channel": "fixture-channel",
+    "compatibility": "fixture-compatibility",
+    "numeric_environment": "fixture-x86-64",
+    "settings": {"date_system": "1900", "calculation": "automatic"}
+  },
+  "session": {
+    "revision": 0,
+    "operations": [],
+    "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
+    "tool": "hand-built fixture: Sheet1!A1:A8 hold 1 to 8 and B4 holds 5; C1 is the master of shared group 0 (=A1*2) with ref C1:C8; C4 is the master of shared group 1 (=B4*3) with ref C4:D4; C7 holds the constant 7",
+    "packages": {"input": "fixture:shared-ref-with-holes/workbook-second-group", "output": "fixture:shared-ref-with-holes/saved-second-group"},
+    "failures": []
+  },
+  "sheets": [
+    {"name": "Sheet1", "visibility": "visible"}
+  ],
+  "formulas": [
+    {"sheet": "Sheet1", "row": 1, "column": 3, "kind": "shared_master", "group": 0, "formula": "=A1*2"},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "kind": "shared_child", "group": 0, "formula": "=A2*2"},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "kind": "shared_child", "group": 0, "formula": "=A3*2"},
+    {"sheet": "Sheet1", "row": 4, "column": 3, "kind": "shared_master", "group": 1, "formula": "=B4*3"},
+    {"sheet": "Sheet1", "row": 4, "column": 4, "kind": "shared_child", "group": 1, "formula": "=C4*3"},
+    {"sheet": "Sheet1", "row": 5, "column": 3, "kind": "shared_child", "group": 0, "formula": "=A5*2"},
+    {"sheet": "Sheet1", "row": 6, "column": 3, "kind": "shared_child", "group": 0, "formula": "=A6*2"},
+    {"sheet": "Sheet1", "row": 8, "column": 3, "kind": "shared_child", "group": 0, "formula": "=A8*2"}
+  ],
+  "shared_ranges": [
+    {"sheet": "Sheet1", "group": 0, "ref": "C1:C8"},
+    {"sheet": "Sheet1", "group": 1, "ref": "C4:D4"}
+  ],
+  "observations": [
+    {"sheet": "Sheet1", "row": 1, "column": 3, "excel_raw": {"number": "4000000000000000"}},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "excel_raw": {"number": "4010000000000000"}},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "excel_raw": {"number": "4018000000000000"}},
+    {"sheet": "Sheet1", "row": 4, "column": 3, "excel_raw": {"number": "402e000000000000"}},
+    {"sheet": "Sheet1", "row": 4, "column": 4, "excel_raw": {"number": "4046800000000000"}},
+    {"sheet": "Sheet1", "row": 5, "column": 3, "excel_raw": {"number": "4024000000000000"}},
+    {"sheet": "Sheet1", "row": 6, "column": 3, "excel_raw": {"number": "4028000000000000"}},
+    {"sheet": "Sheet1", "row": 8, "column": 3, "excel_raw": {"number": "4030000000000000"}}
+  ],
+  "saved": [
+    {"sheet": "Sheet1", "row": 1, "column": 3, "excel_saved_cache": {"t": "n", "v": "2"}},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "excel_saved_cache": {"t": "n", "v": "4"}},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "excel_saved_cache": {"t": "n", "v": "6"}},
+    {"sheet": "Sheet1", "row": 4, "column": 3, "excel_saved_cache": {"t": "n", "v": "15"}},
+    {"sheet": "Sheet1", "row": 4, "column": 4, "excel_saved_cache": {"t": "n", "v": "45"}},
+    {"sheet": "Sheet1", "row": 5, "column": 3, "excel_saved_cache": {"t": "n", "v": "10"}},
+    {"sheet": "Sheet1", "row": 6, "column": 3, "excel_saved_cache": {"t": "n", "v": "12"}},
+    {"sheet": "Sheet1", "row": 8, "column": 3, "excel_saved_cache": {"t": "n", "v": "16"}}
+  ],
+  "reopened": [
+    {"sheet": "Sheet1", "row": 1, "column": 3, "excel_raw": {"number": "4000000000000000"}},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "excel_raw": {"number": "4010000000000000"}},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "excel_raw": {"number": "4018000000000000"}},
+    {"sheet": "Sheet1", "row": 4, "column": 3, "excel_raw": {"number": "402e000000000000"}},
+    {"sheet": "Sheet1", "row": 4, "column": 4, "excel_raw": {"number": "4046800000000000"}},
+    {"sheet": "Sheet1", "row": 5, "column": 3, "excel_raw": {"number": "4024000000000000"}},
+    {"sheet": "Sheet1", "row": 6, "column": 3, "excel_raw": {"number": "4028000000000000"}},
+    {"sheet": "Sheet1", "row": 8, "column": 3, "excel_raw": {"number": "4030000000000000"}}
+  ]
+}

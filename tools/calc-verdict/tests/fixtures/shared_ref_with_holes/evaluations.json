@@ -1,0 +1,15 @@
+{
+  "format": "dnacalc-evaluation-record",
+  "version": 1,
+  "case": "dc_61sj__shared_ref_with_holes_judged",
+  "source": "fixture:shared-ref-with-holes/workbook",
+  "evaluations": [
+    {"sheet": "Sheet1", "row": 1, "column": 3, "tick": 1, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "tick": 2, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "tick": 3, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"},
+    {"sheet": "Sheet1", "row": 4, "column": 3, "tick": 4, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"},
+    {"sheet": "Sheet1", "row": 5, "column": 3, "tick": 5, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"},
+    {"sheet": "Sheet1", "row": 6, "column": 3, "tick": 6, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"},
+    {"sheet": "Sheet1", "row": 8, "column": 3, "tick": 7, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}
+  ]
+}

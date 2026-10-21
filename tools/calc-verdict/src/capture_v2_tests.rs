@@ -1,5 +1,5 @@
 //! Unit tests of CaptureRecord version 2: the codec, the judge's version 2 rules (stale against the
-//! capture's revision and context, shared-range coverage, the round-trip lists, the capture's
+//! capture's revision and context, the shared ranges, the round-trip lists, the capture's
 //! failures), the file-cache replay and the absent-capture marker.
 
 use crate::evaluations::{Evaluation, EvaluationRecord};
@@ -430,15 +430,52 @@ fn a_run_at_another_revision_or_context_than_the_capture_is_stale() {
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-fn shared_ranges_must_be_covered_by_the_cells_of_their_group() {
-    // The inventory leaves the child C3 out (with its observation): the denominator would be one
-    // short of the range C1:C3.
+fn shared_ranges_must_hold_the_cells_of_their_group() {
+    // The inventory lists no formula at C3 (nor its observation), as for a package whose C3 holds
+    // a constant: the range C1:C3 covers a cell that is not of its group, as Excel saves refs, and
+    // the record is judged with the four formula cells it lists in the denominator.
     let mut dropped = record();
     dropped.formulas.remove(3);
     dropped.observations.remove(3);
+    let (mut results, mut proof) = calculated((1, CONTEXT), 1, CONTEXT);
+    results.results.remove(3);
+    proof.evaluations.remove(3);
+    let report = judge(&dropped, &results, &proof, &VerdictPolicy::default()).unwrap();
+    assert_eq!(
+        (
+            report.counts.denominator,
+            report.counts.calculated,
+            report.counts.matched
+        ),
+        (4, 4, 4)
+    );
+    assert_eq!(
+        report
+            .cells
+            .iter()
+            .map(|verdict| format!(
+                "{}!{}",
+                verdict.formula.cell.sheet(),
+                verdict.formula.cell.a1()
+            ))
+            .collect::<Vec<_>>(),
+        ["Sheet1!A1", "Sheet1!C1", "Sheet1!C2", "Hidden!A1"]
+    );
+    // Had C3 held a formula the package did not list, the worker's cross-check against Excel's
+    // SpecialCells would have recorded an inventory failure there, and the record is refused.
+    dropped
+        .session
+        .as_mut()
+        .unwrap()
+        .failures
+        .push(CaptureFailure {
+            stage: "inventory".to_owned(),
+            cell: Some(cell("Sheet1", 3, 3)),
+            message: "Excel reports a formula here that the package does not hold".to_owned(),
+        });
     refused(
         &dropped,
-        "the listed cells of shared group 0 do not cover its range Sheet1!C1:C3: Sheet1!C3 is not listed as a cell of the group",
+        "records an inventory failure at Sheet1!C3 (Excel reports a formula here that the package does not hold), so its formula inventory, the denominator, is not known to be complete",
     );
     // The range declared smaller than the group.
     let mut small = record();
@@ -691,17 +728,18 @@ fn shared_ranges_parse_relative_a1_refs() {
         (range.sheet(), range.group(), range.reference()),
         ("S", 3, "B2:D4")
     );
-    assert_eq!(range.cell_count(), 9);
-    let cells: Vec<String> = range.cells().map(|cell| cell.a1()).collect();
-    assert_eq!(
-        cells,
-        ["B2", "C2", "D2", "B3", "C3", "D3", "B4", "C4", "D4"]
-    );
+    assert!(range.contains(&cell("S", 2, 2)));
+    assert!(range.contains(&cell("S", 4, 4)));
+    assert!(!range.contains(&cell("S", 1, 2)));
+    assert!(!range.contains(&cell("S", 2, 5)));
+    assert!(!range.contains(&cell("S", 3, 1)));
     assert!(range.contains(&cell("S", 3, 3)));
     assert!(!range.contains(&cell("T", 3, 3)));
     assert!(!range.contains(&cell("S", 5, 3)));
     let single = SharedRange::new("S", 0, "XFD1048576").unwrap();
-    assert_eq!(single.cell_count(), 1);
+    assert!(single.contains(&cell("S", 1_048_576, 16_384)));
+    assert!(!single.contains(&cell("S", 1_048_575, 16_384)));
+    assert!(!single.contains(&cell("S", 1_048_576, 16_383)));
     for bad in [
         "", "B2:", ":B2", "b2", "B02", "B0", "XFE1", "AAAA1", "B2:A1", "B2:B1", "B2 :C3",
     ] {

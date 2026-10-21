@@ -6,7 +6,7 @@
 //! back after reopening it. The JSON form is in `capture.rs`.
 
 use crate::DecodeError;
-use crate::capture::{CellAddress, CellObservation, a1_text, parse_a1};
+use crate::capture::{CellAddress, CellObservation, parse_a1};
 use crate::json::{self, Fields, Node, Out};
 
 /// How a version 2 capture was taken.
@@ -82,8 +82,12 @@ impl CaptureSession {
 }
 
 /// A shared-formula range: shared group `group` (the package's `si`, scoped to its sheet) on
-/// `sheet`, and the ref its master declares. Every cell of the ref is a cell of the group and every
-/// cell of the group lies in the ref; [`crate::judge`] refuses a record where either fails.
+/// `sheet`, and the ref its master declares. Every cell of the group lies in the ref, and
+/// [`crate::judge`] refuses a record where one does not; the ref may also cover cells of other
+/// groups, ordinary formulas, constants and empty cells. Excel saves such refs: desktop Excel
+/// 16.0.20430 saves a fill of B1:B500 as 64-row groups, the last with ref B449:B512, and the
+/// three Ofgem price-cap packages, saved by Excel for the web, hold refs over cells of other
+/// groups, ordinary formulas, constants and empty cells (both measured 2026-10-21).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SharedRange {
     sheet: String,
@@ -138,24 +142,6 @@ impl SharedRange {
         cell.sheet() == self.sheet
             && (self.first.0..=self.last.0).contains(&cell.row())
             && (self.first.1..=self.last.1).contains(&cell.column())
-    }
-
-    /// The number of cells in the range.
-    pub fn cell_count(&self) -> u64 {
-        u64::from(self.last.0 - self.first.0 + 1) * u64::from(self.last.1 - self.first.1 + 1)
-    }
-
-    /// The cells of the range in row-major order.
-    pub fn cells(&self) -> impl Iterator<Item = CellAddress> + '_ {
-        (self.first.0..=self.last.0).flat_map(move |row| {
-            (self.first.1..=self.last.1)
-                .filter_map(move |column| CellAddress::new(&self.sheet, row, column))
-        })
-    }
-
-    /// The first cell's A1 form, for messages.
-    pub(crate) fn first_a1(&self) -> String {
-        a1_text(self.first.0, self.first.1)
     }
 
     pub(crate) fn out(&self) -> Out {

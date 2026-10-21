@@ -1,0 +1,16 @@
+{
+  "format": "dnacalc-result-set",
+  "version": 1,
+  "case": "dc_61sj__shared_ref_with_holes_judged",
+  "source": "fixture:shared-ref-with-holes/workbook",
+  "run": {"revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"},
+  "results": [
+    {"sheet": "Sheet1", "row": 1, "column": 3, "provenance": {"calculated": {"tick": 1, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}}, "value": {"number": "4000000000000000"}},
+    {"sheet": "Sheet1", "row": 2, "column": 3, "provenance": {"calculated": {"tick": 2, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}}, "value": {"number": "4010000000000000"}},
+    {"sheet": "Sheet1", "row": 3, "column": 3, "provenance": {"calculated": {"tick": 3, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}}, "value": {"number": "4018000000000000"}},
+    {"sheet": "Sheet1", "row": 4, "column": 3, "provenance": {"calculated": {"tick": 4, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}}, "value": {"number": "405a000000000000"}},
+    {"sheet": "Sheet1", "row": 5, "column": 3, "provenance": {"calculated": {"tick": 5, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}}, "value": {"number": "4024000000000000"}},
+    {"sheet": "Sheet1", "row": 6, "column": 3, "provenance": {"calculated": {"tick": 6, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}}, "value": {"number": "4028000000000000"}},
+    {"sheet": "Sheet1", "row": 8, "column": 3, "provenance": {"calculated": {"tick": 7, "revision": 0, "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"}}, "value": {"number": "4030000000000000"}}
+  ]
+}

@@ -18,6 +18,11 @@
 //! counts every calculated cell in `calculated_without_value_check`; bead `dc-i1ro` moves these
 //! fixtures to version 2.
 //!
+//! `dc_61sj__shared_ref_with_holes_judged` judges hand-built version 2 live-capture records under
+//! `tests/fixtures/shared_ref_with_holes/` whose shared-formula ref covers cells that are not of
+//! its group, both through `judge` and through `file_cache_replay`, the replay `cargo xtask
+//! capture` runs before it writes a record.
+//!
 //! `infra_m1_2__capture_replays` reads the capture artifacts under `tests/captures/infra_m1_2/`,
 //! which no one here authors: `cargo xtask capture` writes them on the owner's Windows machine with
 //! Excel. Until it has, each path holds the absent-capture marker and the case reports
@@ -761,4 +766,302 @@ fn infra_m1_2__capture_replays() {
         session.failures.len(),
         denominator - saved_count
     );
+}
+
+const HOLES_CAPTURE: &[u8] = include_bytes!("fixtures/shared_ref_with_holes/capture.json");
+const HOLES_RESULTS: &[u8] = include_bytes!("fixtures/shared_ref_with_holes/results.json");
+const HOLES_EVALUATIONS: &[u8] = include_bytes!("fixtures/shared_ref_with_holes/evaluations.json");
+const HOLES_SECOND_CAPTURE: &[u8] =
+    include_bytes!("fixtures/shared_ref_with_holes/capture_second_group.json");
+const HOLES_SECOND_RESULTS: &[u8] =
+    include_bytes!("fixtures/shared_ref_with_holes/results_second_group.json");
+const HOLES_SECOND_EVALUATIONS: &[u8] =
+    include_bytes!("fixtures/shared_ref_with_holes/evaluations_second_group.json");
+
+/// The file-cache replay of the capture record in `bytes`, decoded and replayed as `cargo xtask
+/// capture` decodes and replays the record it has written before it writes `--out`.
+fn replayed(bytes: &[u8]) -> Result<Value, JudgeError> {
+    let capture = CaptureRecord::decode(bytes).expect("the capture fixture decodes");
+    let report = file_cache_replay(&capture, &VerdictPolicy::default())?;
+    Ok(serde_json::from_str(&report.encode()).expect("the encoded report is JSON"))
+}
+
+/// The cells of a fixture's formula inventory, read without the library, as
+/// `<sheet>!<A1> <kind>[(<group>)]` in the record's order (columns A to Z only).
+fn listed(fixture: &Value) -> Vec<String> {
+    fixture["formulas"]
+        .as_array()
+        .expect("formulas")
+        .iter()
+        .map(|formula| {
+            let column = u8::try_from(formula["column"].as_u64().expect("column"))
+                .expect("a column within A to Z");
+            let mut line = format!(
+                "{}!{}{} {}",
+                text(formula, "sheet"),
+                char::from(b'A' + column - 1),
+                formula["row"].as_u64().expect("row"),
+                text(formula, "kind")
+            );
+            if let Some(group) = formula["group"].as_u64() {
+                line.push_str(&format!("({group})"));
+            }
+            line
+        })
+        .collect()
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_61sj__shared_ref_with_holes_judged() {
+    const CASE: &str = "dc_61sj__shared_ref_with_holes_judged";
+    const CONTEXT: &str = "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
+    let policy = VerdictPolicy::default();
+
+    // The hand-built record, read without the library: shared group 0's ref C1:C8 holds six cells
+    // of the group, the ordinary formula C4 and C7, which holds no formula (the record lists no
+    // cell there); seven formula cells in all.
+    let fixture: Value = serde_json::from_slice(HOLES_CAPTURE).expect("fixture JSON");
+    assert_eq!(
+        fixture["shared_ranges"],
+        json!([{"sheet": "Sheet1", "group": 0, "ref": "C1:C8"}])
+    );
+    assert_eq!(
+        listed(&fixture),
+        [
+            "Sheet1!C1 shared_master(0)",
+            "Sheet1!C2 shared_child(0)",
+            "Sheet1!C3 shared_child(0)",
+            "Sheet1!C4 ordinary",
+            "Sheet1!C5 shared_child(0)",
+            "Sheet1!C6 shared_child(0)",
+            "Sheet1!C8 shared_child(0)",
+        ],
+        "the fixture's inventory"
+    );
+    let expected_strata = json!({
+        "visible_sheet": 7, "hidden_sheet": 0, "very_hidden_sheet": 0, "ordinary": 1,
+        "shared_master": 1, "shared_child": 5, "observed": 7, "error_expected": 0
+    });
+
+    // The route `cargo xtask capture` takes before it writes a record: the file-cache replay of
+    // the record. It is judged, not refused, with all seven formula cells in the denominator and
+    // none calculated.
+    let replay = replayed(HOLES_CAPTURE).expect("a ref with holes is judged in the replay");
+    assert_eq!(
+        replay["headline"]["calculated_of_denominator"],
+        json!([0, 7])
+    );
+    assert_counts(
+        &replay,
+        json!({
+            "denominator": 7, "calculated": 0, "matched": 0, "mismatched": 0, "not_run": 0,
+            "strict_certified": 0, "uncertified": 0, "unproven": 0, "stale": 0,
+            "file_cached": 7, "not_modeled": 0, "failed": 0, "missing": 0,
+            "not_calculated_equal_to_expectation": 7, "outside_inventory": 0,
+            "evaluator_calls": 0,
+            "calculated_without_value_check": 0
+        }),
+        "file-cache replay",
+    );
+    assert_eq!(
+        replay["strata"], expected_strata,
+        "file-cache replay: strata"
+    );
+    assert_cells(
+        &replay,
+        &[
+            "Sheet1!C1 shared_master(0) visible file_cached equal=true",
+            "Sheet1!C2 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C3 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C4 ordinary visible file_cached equal=true",
+            "Sheet1!C5 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C6 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C8 shared_child(0) visible file_cached equal=true",
+        ],
+        "file-cache replay",
+    );
+    assert_eq!(
+        replay["captured"],
+        json!({"revision": 0, "context": CONTEXT})
+    );
+    assert_eq!(replay["capture_failures"]["total"], 0);
+    note!(
+        "ACCEPT-NOTE: {CASE}: shared ref Sheet1!C1:C8 listing 6 cells of group 0, the ordinary formula C4 and no formula at C7: the file-cache replay `cargo xtask capture` runs judges the record (denominator 7, calculated 0, file_cached 7, not_calculated_equal_to_expectation 7)"
+    );
+
+    // Every formula cell calculated, with an evaluation of each: all seven in the denominator,
+    // the ordinary C4 among them, each matched.
+    let calculated = report(HOLES_CAPTURE, HOLES_RESULTS, HOLES_EVALUATIONS, &policy);
+    assert_eq!(
+        calculated["headline"]["calculated_of_denominator"],
+        json!([7, 7])
+    );
+    assert_eq!(
+        calculated["headline"]["matched_of_calculated"],
+        json!([7, 7])
+    );
+    assert_counts(
+        &calculated,
+        json!({
+            "denominator": 7, "calculated": 7, "matched": 7, "mismatched": 0, "not_run": 0,
+            "strict_certified": 0, "uncertified": 7, "unproven": 0, "stale": 0,
+            "file_cached": 0, "not_modeled": 0, "failed": 0, "missing": 0,
+            "not_calculated_equal_to_expectation": 0, "outside_inventory": 0,
+            "evaluator_calls": 7,
+            "calculated_without_value_check": 7
+        }),
+        "calculated results",
+    );
+    assert_eq!(
+        calculated["strata"], expected_strata,
+        "calculated results: strata"
+    );
+    assert_cells(
+        &calculated,
+        &[
+            "Sheet1!C1 shared_master(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C2 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C3 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C4 ordinary visible matched uncertified/no_exact_target",
+            "Sheet1!C5 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C6 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C8 shared_child(0) visible matched uncertified/no_exact_target",
+        ],
+        "calculated results",
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: the same record judged against seven calculated results with an evaluation of each: denominator 7 (shared master 1, shared children 5, ordinary 1), calculated 7, matched 7"
+    );
+
+    // Variant: C4 is instead the master of a second shared group (ref C4:D4, with the child D4),
+    // so group 0's ref C1:C8 also covers a member of group 1. Judged in the replay and against
+    // calculated results, with all eight formula cells in the denominator, each once.
+    let second: Value = serde_json::from_slice(HOLES_SECOND_CAPTURE).expect("fixture JSON");
+    assert_eq!(
+        second["shared_ranges"],
+        json!([
+            {"sheet": "Sheet1", "group": 0, "ref": "C1:C8"},
+            {"sheet": "Sheet1", "group": 1, "ref": "C4:D4"}
+        ])
+    );
+    assert_eq!(
+        listed(&second),
+        [
+            "Sheet1!C1 shared_master(0)",
+            "Sheet1!C2 shared_child(0)",
+            "Sheet1!C3 shared_child(0)",
+            "Sheet1!C4 shared_master(1)",
+            "Sheet1!D4 shared_child(1)",
+            "Sheet1!C5 shared_child(0)",
+            "Sheet1!C6 shared_child(0)",
+            "Sheet1!C8 shared_child(0)",
+        ],
+        "the second-group fixture's inventory"
+    );
+    let second_strata = json!({
+        "visible_sheet": 8, "hidden_sheet": 0, "very_hidden_sheet": 0, "ordinary": 0,
+        "shared_master": 2, "shared_child": 6, "observed": 8, "error_expected": 0
+    });
+    let second_replay =
+        replayed(HOLES_SECOND_CAPTURE).expect("a ref covering another group is judged");
+    assert_eq!(
+        second_replay["headline"]["calculated_of_denominator"],
+        json!([0, 8])
+    );
+    assert_counts(
+        &second_replay,
+        json!({
+            "denominator": 8, "calculated": 0, "matched": 0, "mismatched": 0, "not_run": 0,
+            "strict_certified": 0, "uncertified": 0, "unproven": 0, "stale": 0,
+            "file_cached": 8, "not_modeled": 0, "failed": 0, "missing": 0,
+            "not_calculated_equal_to_expectation": 8, "outside_inventory": 0,
+            "evaluator_calls": 0,
+            "calculated_without_value_check": 0
+        }),
+        "second-group replay",
+    );
+    assert_eq!(
+        second_replay["strata"], second_strata,
+        "second-group replay: strata"
+    );
+    assert_cells(
+        &second_replay,
+        &[
+            "Sheet1!C1 shared_master(0) visible file_cached equal=true",
+            "Sheet1!C2 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C3 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C4 shared_master(1) visible file_cached equal=true",
+            "Sheet1!D4 shared_child(1) visible file_cached equal=true",
+            "Sheet1!C5 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C6 shared_child(0) visible file_cached equal=true",
+            "Sheet1!C8 shared_child(0) visible file_cached equal=true",
+        ],
+        "second-group replay",
+    );
+    let second_calculated = report(
+        HOLES_SECOND_CAPTURE,
+        HOLES_SECOND_RESULTS,
+        HOLES_SECOND_EVALUATIONS,
+        &policy,
+    );
+    assert_counts(
+        &second_calculated,
+        json!({
+            "denominator": 8, "calculated": 8, "matched": 8, "mismatched": 0, "not_run": 0,
+            "strict_certified": 0, "uncertified": 8, "unproven": 0, "stale": 0,
+            "file_cached": 0, "not_modeled": 0, "failed": 0, "missing": 0,
+            "not_calculated_equal_to_expectation": 0, "outside_inventory": 0,
+            "evaluator_calls": 8,
+            "calculated_without_value_check": 8
+        }),
+        "second-group calculated results",
+    );
+    assert_eq!(
+        second_calculated["strata"], second_strata,
+        "second-group calculated results: strata"
+    );
+    assert_cells(
+        &second_calculated,
+        &[
+            "Sheet1!C1 shared_master(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C2 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C3 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C4 shared_master(1) visible matched uncertified/no_exact_target",
+            "Sheet1!D4 shared_child(1) visible matched uncertified/no_exact_target",
+            "Sheet1!C5 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C6 shared_child(0) visible matched uncertified/no_exact_target",
+            "Sheet1!C8 shared_child(0) visible matched uncertified/no_exact_target",
+        ],
+        "second-group calculated results",
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: variant whose ref C1:C8 also covers C4, the master of group 1 (ref C4:D4): replay denominator 8, file_cached 8; calculated 8 of 8, matched 8 (shared masters 2, shared children 6)"
+    );
+
+    // Variant: the same record with group 0's ref declared C1:C6, so its member C8 lies outside
+    // its ref. Still refused, by the replay and against calculated results, naming the cell.
+    let source = std::str::from_utf8(HOLES_CAPTURE).expect("UTF-8 fixture");
+    assert_eq!(source.matches("\"ref\": \"C1:C8\"").count(), 1);
+    let narrowed = source.replace("\"ref\": \"C1:C8\"", "\"ref\": \"C1:C6\"");
+    let outside = JudgeError::Inconsistent {
+        message:
+            "Sheet1!C8 belongs to shared group 0 and lies outside the group's range Sheet1!C1:C6"
+                .to_owned(),
+    };
+    assert_eq!(
+        replayed(narrowed.as_bytes()).expect_err("a member outside its ref is refused"),
+        outside
+    );
+    assert_eq!(
+        judged(
+            narrowed.as_bytes(),
+            HOLES_RESULTS,
+            HOLES_EVALUATIONS,
+            &policy
+        )
+        .expect_err("a member outside its ref is refused"),
+        outside
+    );
+    note!("ACCEPT-NOTE: {CASE}: variant with group 0's ref narrowed to C1:C6: refused ({outside})");
 }
