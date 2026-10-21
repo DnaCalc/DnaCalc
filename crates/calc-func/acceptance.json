@@ -174,6 +174,25 @@
         "dc_e00t__digit_labels_as_text": ["windows", "linux", "wasm"],
         "dc_e00t__excel_comparison": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-fwpz",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_fwpz", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-fwpz", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-fwpz", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-fwpz", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_fwpz__logical_functions",
+        "dc_fwpz__excel_comparison"
+      ],
+      "platforms": {
+        "dc_fwpz__logical_functions": ["windows", "linux", "wasm"],
+        "dc_fwpz__excel_comparison": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

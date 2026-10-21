@@ -158,21 +158,32 @@ pub(crate) fn logical(value: &CalcValue) -> Result<bool, Stop> {
     match value.core() {
         CoreValue::Number(n) => operand(*n).map(|n| n != 0.0),
         CoreValue::Logical(b) => Ok(*b),
-        CoreValue::Text(text) => {
-            let units = text.utf16_code_units();
-            if eq_ignore_ascii_case(units, &TRUE_TEXT) {
-                Ok(true)
-            } else if eq_ignore_ascii_case(units, &FALSE_TEXT) {
-                Ok(false)
-            } else if holds_digit(text) && !number_words::cannot_be_number(units) {
+        CoreValue::Text(text) => match spelled_logical(text) {
+            Some(logical) => Ok(logical),
+            None if holds_digit(text)
+                && !number_words::cannot_be_number(text.utf16_code_units()) =>
+            {
                 Err(Stop::NotModelled)
-            } else {
-                Err(Stop::Error(WorksheetErrorCode::Value))
             }
-        }
+            None => Err(Stop::Error(WorksheetErrorCode::Value)),
+        },
         CoreValue::Empty | CoreValue::Missing => Ok(false),
         CoreValue::Error(code) => Err(Stop::Error(*code)),
         CoreValue::Array(_) | CoreValue::Reference(_) => Err(Stop::NotModelled),
+    }
+}
+
+/// The logical that text spells: TRUE or FALSE in any ASCII case, with nothing around it. Read
+/// as a logical ([`logical`]) other text is #VALUE! or refused; AND, OR and XOR skip it when it is
+/// given directly.
+pub(crate) fn spelled_logical(text: &ExcelText) -> Option<bool> {
+    let units = text.utf16_code_units();
+    if eq_ignore_ascii_case(units, &TRUE_TEXT) {
+        Some(true)
+    } else if eq_ignore_ascii_case(units, &FALSE_TEXT) {
+        Some(false)
+    } else {
+        None
     }
 }
 

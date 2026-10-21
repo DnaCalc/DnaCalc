@@ -1024,10 +1024,13 @@ fn cfunc_m1_1__catalogue_consistency() {
     // arity no argument is asked for. An eager entry is asked for each argument once, in order,
     // and admission stops at the first argument it refuses (a number at a reference parameter);
     // a lazy entry is asked for its discriminator first and then at most one held-back argument.
+    // Every entry admits an argument except TRUE and FALSE, which take none (listed below), and
+    // every entry that admits one requires one except ROW and COLUMN, whose reference is optional.
     let mut arity_ids = BTreeSet::new();
     let mut computed = Vec::new();
     let mut refused = Vec::new();
     let mut lazy = Vec::new();
+    let mut no_argument = Vec::new();
     for target in catalogue.targets() {
         let arity = target.arity();
         match target.notation() {
@@ -1037,16 +1040,20 @@ fn cfunc_m1_1__catalogue_consistency() {
             }
             Notation::Call => assert!(arity.min <= arity.max),
         }
-        // ROW and COLUMN take an optional reference (their pages: ROW([reference]),
-        // COLUMN([reference])); every other admitted entry takes an argument.
-        assert!(
-            arity.min >= 1 || ["ROW", "COLUMN"].contains(&target.spelling()),
-            "{target:?}: every admitted entry but ROW and COLUMN takes an argument"
-        );
-        assert!(
-            target.parameter_class(arity.max - 1).is_some(),
-            "{target:?}"
-        );
+        if arity.max == 0 {
+            no_argument.push(target.id());
+        } else {
+            // ROW and COLUMN take an optional reference (their pages: ROW([reference]),
+            // COLUMN([reference])); every other entry that admits an argument requires one.
+            assert!(
+                arity.min >= 1 || ["ROW", "COLUMN"].contains(&target.spelling()),
+                "{target:?}: every entry that admits an argument but ROW and COLUMN requires one"
+            );
+            assert!(
+                target.parameter_class(arity.max - 1).is_some(),
+                "{target:?}"
+            );
+        }
         assert_eq!(target.parameter_class(arity.max), None, "{target:?}");
 
         let demand = target.argument_demand();
@@ -1142,15 +1149,24 @@ fn cfunc_m1_1__catalogue_consistency() {
         [iff.id(), fallbacks[0], fallbacks[1], choose.id()],
         "only IF, IFERROR, IFNA and CHOOSE are lazy"
     );
+    let constants = [
+        surface(Notation::Call, "TRUE").id(),
+        surface(Notation::Call, "FALSE").id(),
+    ];
+    assert_eq!(
+        no_argument, constants,
+        "only TRUE and FALSE take no argument"
+    );
     note!(
-        "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}",
+        "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}; entries that take no argument {:?}",
         dispatch_ids.len(),
         dispatch_ids.len(),
         computed.len(),
         computed.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
         refused.len(),
         refused,
-        lazy
+        lazy,
+        no_argument
     );
 
     // SUM(1, 2, 3) and SUM(0.5, -2, 10) through calc_func::invoke, by FunctionCallTarget::invoke.
@@ -1530,13 +1546,14 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 7] = [
+const GENERATED_WORKBOOKS: [&str; 8] = [
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
     "cfunc_m3_4/oracle.xlsx",
     "cfunc_m3_5/oracle.xlsx",
     "cfunc_m3_6/oracle.xlsx",
     "dc_e00t/oracle.xlsx",
+    "dc_fwpz/oracle.xlsx",
     "dc_q9rb/oracle.xlsx",
 ];
 
@@ -2296,11 +2313,30 @@ fn worksheet_cells(xml: &str) -> BTreeMap<(u32, u32), FixtureCell> {
 
 /// A formula as SpreadsheetML stores it: a function added to Excel after the file format's first
 /// version is written with the `_xlfn.` prefix, which Excel requires to recognize it in a file
-/// (MAXIFS and MINIFS among the functions these fixtures call).
+/// (MAXIFS, MINIFS, XOR and IFNA among the functions these fixtures call). XOR and IFNA are
+/// matched as whole names, so a longer name that ends in one, such as BITXOR, keeps its own
+/// spelling.
 fn stored_formula(formula: &str) -> String {
-    formula
+    let mut stored = formula
         .replace("MAXIFS(", "_xlfn.MAXIFS(")
-        .replace("MINIFS(", "_xlfn.MINIFS(")
+        .replace("MINIFS(", "_xlfn.MINIFS(");
+    for name in ["XOR(", "IFNA("] {
+        let mut prefixed = String::with_capacity(stored.len());
+        let mut from = 0;
+        for (at, _) in stored.match_indices(name) {
+            let whole_name = stored[..at].chars().next_back().is_none_or(|before| {
+                !(before.is_ascii_alphanumeric() || matches!(before, '_' | '.'))
+            });
+            if whole_name {
+                prefixed.push_str(&stored[from..at]);
+                prefixed.push_str("_xlfn.");
+                from = at;
+            }
+        }
+        prefixed.push_str(&stored[from..]);
+        stored = prefixed;
+    }
+    stored
 }
 
 /// Asserts that the oracle workbook's sheet for this case holds exactly the test sheet's cells
@@ -17567,6 +17603,1376 @@ fn dc_e00t__excel_comparison() {
             .map(|(name, value)| format!("{name} {value:?}"))
             .collect::<Vec<_>>()
             .join(", "),
+        sheet_verdicts(&comparison.report, &rows),
+        comparison.report.summary()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-fwpz: the logical functions AND, OR, XOR, NOT, TRUE and FALSE through calc_func::invoke on
+// catalogue targets.
+//
+// Each oracle row runs one call and asserts a value written here by hand, and says how it was
+// obtained. A `documented` row applies a rule that Microsoft's page for the function states, named
+// in the row. A `measured` row applies a rule that no page settles, and its value is Excel's raw
+// value for the row's cell in the committed capture of the oracle workbook: how direct numbers,
+// text, omitted arguments and a blank cell's value given directly (through IFNA or IFERROR, which
+// return it as it is) read, the order in which errors win, and how NOT reads text and cells. A
+// refused row ends in a fault and names the bead that owns the behaviour it refuses, never dc-fwpz
+// itself. Every row is also run under NumericMode::Exact, with the same outcome: none of these
+// functions rounds.
+//
+// `tests/fixtures/dc_fwpz/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds every row's formula in column D of its sheet, in the
+// order the case runs its rows, beside the cells the rows read; dc_fwpz__logical_functions checks
+// that the sheet holds exactly those formulas and cells. `cargo xtask capture --fixture
+// crates/calc-func/tests/fixtures/dc_fwpz/oracle.xlsx --case dc_fwpz__excel_comparison --out
+// crates/calc-func/tests/captures/dc_fwpz/oracle.capture.json` wrote Excel's capture of that
+// workbook, and dc_fwpz__excel_comparison publishes the rows' results and their recorded invoke
+// calls to calc_verdict::judge against it: each computed row must be matched, and each refused
+// row not modelled with its owner.
+
+/// The oracle workbook of dc-fwpz, as committed.
+const LOGICAL_WORKBOOK: &[u8] = include_bytes!("fixtures/dc_fwpz/oracle.xlsx");
+const LOGICAL_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/dc_fwpz/oracle.xlsx";
+/// Excel's capture of that workbook.
+const LOGICAL_CAPTURE: &[u8] = include_bytes!("captures/dc_fwpz/oracle.capture.json");
+/// The case the capture is recorded under.
+const LOGICAL_CAPTURE_CASE: &str = "dc_fwpz__excel_comparison";
+
+/// The entries dc-fwpz adds to family 5, beside IF (member 1): each spelling and the member number
+/// of its FunctionId.
+const LOGICAL_ENTRIES: [(&str, u32); 6] = [
+    ("AND", 2),
+    ("OR", 3),
+    ("XOR", 4),
+    ("NOT", 5),
+    ("TRUE", 6),
+    ("FALSE", 7),
+];
+
+/// Why a dc-fwpz row expects its outcome.
+#[derive(Clone, Copy, Debug)]
+enum Logic {
+    /// This rule, which Microsoft's page for the function states.
+    Documented(&'static str),
+    /// This rule, which no page settles; the row's value is Excel's raw value for its cell in the
+    /// committed capture.
+    Measured(&'static str),
+    /// A refusal as not modelled; the named bead, never this one, owns the refused behaviour.
+    Owned(Owner),
+}
+
+/// The rows of dc_fwpz__logical_functions, with how many are documented and how many measured.
+struct LogicalRows {
+    rows: Rows,
+    documented: usize,
+    measured: usize,
+}
+
+/// Runs the named call `spelling` on `args` through calc_func::invoke under Fast with the test
+/// sheet as the cell reader and asserts `expect`, that the eager call asked for each argument once
+/// in order, that the same call under Exact has the same outcome, and that the outcome fits
+/// `logic` (a value, or a refusal for an owned row). Then records the row with the next cell of
+/// column D and prints it with how its outcome was obtained.
+fn logical_row(
+    lr: &mut LogicalRows,
+    sheet: &mut TestSheet,
+    spelling: &'static str,
+    args: &[Arg],
+    expect: Expect,
+    logic: Logic,
+) {
+    let (formula, asked, result, tick) =
+        call_and_assert(sheet, &NumericMode::Fast, named(spelling), args, &expect);
+    let in_order: Vec<usize> = (0..args.len()).collect();
+    assert_eq!(asked, in_order, "{formula}: the arguments asked for");
+    let exact = exact_mode();
+    let under_exact = invoke(
+        surface(Notation::Call, spelling),
+        &mut Recorded::new(args.iter().map(|a| a.value.clone()).collect()),
+        &mut EvalServices::with_cells(&exact, sheet),
+        &mut FunctionCallScratch::new(),
+    );
+    assert!(
+        match (&under_exact, &result) {
+            (Ok(e), Ok(f)) => identical(e, f),
+            (Err(e), Err(f)) => e == f,
+            _ => false,
+        },
+        "{formula} under Exact gives {under_exact:?}, under Fast {result:?}"
+    );
+    let owner = match logic {
+        Logic::Owned(owner) => {
+            assert!(
+                result.is_err(),
+                "{formula}: an owned row computed {result:?}"
+            );
+            Some(owner)
+        }
+        Logic::Documented(_) | Logic::Measured(_) => {
+            assert!(
+                result.is_ok(),
+                "{formula}: a row of dc-fwpz computes a value"
+            );
+            None
+        }
+    };
+    let rows = &mut lr.rows;
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    if !rows.quiet {
+        let reads: Vec<&str> = args
+            .iter()
+            .flat_map(|a| a.reads.iter().map(String::as_str))
+            .collect();
+        let cells = if reads.is_empty() {
+            String::new()
+        } else {
+            format!(" with {}", reads.join(", "))
+        };
+        let shown = if formula.len() > 64 {
+            format!("{}... ({} arguments)", &formula[..24], args.len())
+        } else {
+            formula.clone()
+        };
+        let label = match logic {
+            Logic::Documented(rule) => format!(
+                "documented: {rule}; the same under Exact; dc_fwpz__excel_comparison compares it with Excel's capture"
+            ),
+            Logic::Measured(rule) => format!(
+                "measured: {rule}; the value is Excel's raw value for this cell in the committed capture; the same under Exact; dc_fwpz__excel_comparison compares it with Excel's capture"
+            ),
+            Logic::Owned(owner) => format!(
+                "refused as not modelled, owned by {}: {}; the same under Exact; dc_fwpz__excel_comparison publishes it as not modelled with that owner",
+                owner.bead, owner.behaviour
+            ),
+        };
+        note!(
+            "ACCEPT-NOTE: {}: oracle {}!{} {shown}{cells} -> {} ({label})",
+            rows.case,
+            rows.sheet,
+            encode_a1(row, FORMULA_COLUMN),
+            expect.shown()
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice: None,
+        owner,
+        tick,
+    });
+    match logic {
+        Logic::Documented(_) => lr.documented += 1,
+        Logic::Measured(_) => lr.measured += 1,
+        Logic::Owned(_) => {}
+    }
+}
+
+/// Runs a row of dc-fwpz: `lg!(rows, sheet, "SPELLING", [args], expect, logic)`.
+macro_rules! lg {
+    ($rows:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], $expect:expr, $logic:expr) => {{
+        let args: Vec<Arg> = vec![$($arg),*];
+        logical_row($rows, $sheet, $spelling, &args, $expect, $logic)
+    }};
+}
+
+// Rules the documented rows apply, as the functions' pages state them.
+const TRUE_RETURNS: &str =
+    "TRUE() returns the logical value TRUE and takes no argument (the TRUE page)";
+const FALSE_RETURNS: &str =
+    "FALSE() returns the logical value FALSE and takes no argument (the FALSE page)";
+const AND_ALL: &str = "AND returns TRUE if all its arguments evaluate to TRUE and FALSE if one or more evaluate to FALSE; an argument may be an array or a reference that holds logicals (the AND page)";
+const OR_ANY: &str = "OR returns TRUE if any of its arguments evaluates to TRUE and FALSE if all of them evaluate to FALSE (the OR page)";
+const XOR_ODD: &str = "the result of XOR is TRUE when the number of TRUE inputs is odd and FALSE when it is even (the XOR page)";
+const NOT_REVERSES: &str =
+    "if logical is FALSE, NOT returns TRUE; if logical is TRUE, NOT returns FALSE (the NOT page)";
+const HELD_IGNORED: &str = "text and empty cells in an array or a reference argument are ignored (the AND, OR and XOR pages)";
+const NO_LOGICAL: &str =
+    "a range that holds no logical value gives #VALUE! (the AND, OR and XOR pages)";
+const MOST_255: &str = "AND and OR test up to a maximum of 255 conditions (their pages)";
+const MOST_254: &str = "XOR tests 1 to 254 conditions (the XOR page)";
+
+// Rules the measured rows apply, which no page states.
+const NUMBER_LOGICAL: &str =
+    "a number is TRUE unless it is 0, given directly, in a cell or in an array";
+const DIRECT_SPELLING: &str =
+    "direct text that spells TRUE or FALSE, in any ASCII case, is that logical";
+const DIRECT_SKIPPED: &str = "any other direct text is skipped: a word, a digit, empty text, an error's spelling, a spelling with a space or in fullwidth letters";
+const ONLY_SKIPPED: &str =
+    "with nothing but skipped text no logical is read, and the result is #VALUE!";
+const OMITTED_FALSE: &str = "an omitted argument is a FALSE";
+const ALL_READ: &str =
+    "every argument is read: an error after the value that decides the result is the result";
+const ERROR_RESULT: &str = "an error among the arguments is the result";
+const DIRECT_ERROR_ORDER: &str = "of the errors given directly, the first in argument order wins";
+const DIRECT_FIRST: &str = "an error given directly wins over any error a reference or an array holds, wherever it stands among the arguments";
+const HELD_ORDER: &str = "references and arrays are read in argument order, each range and each array row by row, and the first error met wins";
+const NOT_TEXT: &str =
+    "NOT reads text as IF reads its condition: TRUE or FALSE in any ASCII case, other text #VALUE!";
+const NOT_CELL: &str =
+    "a cell given to NOT is read as its value: a blank cell as FALSE, text as NOT reads text";
+const BLANK_DIRECT: &str = "a blank cell's value given directly (IFNA and IFERROR return it as it is) is a FALSE, as an omitted argument is";
+const NOT_BLANK_DIRECT: &str = "NOT reads a blank cell's value given directly (through IFNA or IFERROR) as FALSE, as it reads a blank cell";
+
+/// NOT applied to an array lifts over its elements, which cfml-m3.4 owns. Excel loads the oracle
+/// workbook's NOT({TRUE,FALSE}) as the legacy formula =NOT(@{TRUE,FALSE}).
+const LEGACY_ARRAY_NOT: Owner = Owner {
+    bead: "cfml-m3.4",
+    behaviour: "an array argument of NOT in a legacy formula, which Excel loads as =NOT(@{TRUE,FALSE})",
+};
+
+/// The cells the logical rows read. A1:A10 hold one value of each kind AND, OR and XOR tell apart
+/// (A7 is blank, A8 holds empty text); B1:B4 two errors and two logicals; A12:B13 a number, a
+/// logical and two errors, one in each corner off the diagonal, so the error a range gives tells
+/// row-by-row reading from column-by-column; C1:C4 text and a blank cell, no logical, and
+/// C1048576 TRUE, the only logical of column C.
+fn logical_functions_sheet() -> TestSheet {
+    TestSheet::new(&[
+        ("A1", "TRUE", CalcValue::logical(true)),
+        ("A2", "FALSE", CalcValue::logical(false)),
+        ("A3", "1", CalcValue::number(1.0)),
+        ("A4", "0", CalcValue::number(0.0)),
+        ("A5", "text \"TRUE\"", text_value("TRUE")),
+        ("A6", "text \"x\"", text_value("x")),
+        ("A8", "empty text", text_value("")),
+        ("A9", "-2.5", CalcValue::number(-2.5)),
+        ("A10", "text \"FALSE\"", text_value("FALSE")),
+        ("A12", "1", CalcValue::number(1.0)),
+        ("A13", "#REF!", CalcValue::error(WorksheetErrorCode::Ref)),
+        ("B1", "#DIV/0!", CalcValue::error(WorksheetErrorCode::Div0)),
+        ("B2", "#N/A", CalcValue::error(WorksheetErrorCode::NA)),
+        ("B3", "TRUE", CalcValue::logical(true)),
+        ("B4", "FALSE", CalcValue::logical(false)),
+        ("B12", "#NUM!", CalcValue::error(WorksheetErrorCode::Num)),
+        ("B13", "TRUE", CalcValue::logical(true)),
+        ("C1", "text \"abc\"", text_value("abc")),
+        ("C3", "text \"TRUE\"", text_value("TRUE")),
+        ("C4", "text \"1\"", text_value("1")),
+        ("C1048576", "TRUE", CalcValue::logical(true)),
+    ])
+}
+
+/// The rows of dc_fwpz__logical_functions, run through calc_func::invoke on `s`, in the order the
+/// oracle workbook's sheet `logical_functions` holds their formulas.
+fn logical_functions_rows(s: &mut TestSheet, quiet: bool) -> LogicalRows {
+    const CASE: &str = "dc_fwpz__logical_functions";
+    let mut lr = LogicalRows {
+        rows: Rows::new(CASE, "logical_functions", quiet),
+        documented: 0,
+        measured: 0,
+    };
+    let r = &mut lr;
+    use Logic::{Documented as Doc, Measured as Meas, Owned};
+    use WorksheetErrorCode::{Div0, NA, Num, Value};
+    let t_ = || logical(true);
+    let f_ = || logical(false);
+    let yes = || CalcValue::logical(true);
+    let no = || CalcValue::logical(false);
+    let error = CalcValue::error;
+
+    lg!(r, s, "TRUE", [], L(true), Doc(TRUE_RETURNS));
+    lg!(r, s, "FALSE", [], L(false), Doc(FALSE_RETURNS));
+
+    // AND: direct arguments.
+    lg!(r, s, "AND", [t_(), t_()], L(true), Doc(AND_ALL));
+    lg!(r, s, "AND", [t_(), f_()], L(false), Doc(AND_ALL));
+    lg!(
+        r,
+        s,
+        "AND",
+        [num("1"), num("2")],
+        L(true),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [num("1"), num("0")],
+        L(false),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(r, s, "AND", [num("-2.5")], L(true), Meas(NUMBER_LOGICAL));
+    lg!(
+        r,
+        s,
+        "AND",
+        [txt("TRUE"), t_()],
+        L(true),
+        Meas(DIRECT_SPELLING)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [txt("false"), t_()],
+        L(false),
+        Meas(DIRECT_SPELLING)
+    );
+    lg!(r, s, "AND", [t_(), txt("x")], L(true), Meas(DIRECT_SKIPPED));
+    lg!(r, s, "AND", [txt("x")], E(Value), Meas(ONLY_SKIPPED));
+    lg!(r, s, "AND", [t_(), txt("1")], L(true), Meas(DIRECT_SKIPPED));
+    lg!(r, s, "AND", [t_(), txt("0")], L(true), Meas(DIRECT_SKIPPED));
+    lg!(r, s, "AND", [t_(), txt("")], L(true), Meas(DIRECT_SKIPPED));
+    lg!(
+        r,
+        s,
+        "AND",
+        [t_(), omitted()],
+        L(false),
+        Meas(OMITTED_FALSE)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [omitted(), omitted()],
+        L(false),
+        Meas(OMITTED_FALSE)
+    );
+    lg!(r, s, "AND", [f_(), err(NA)], E(NA), Meas(ALL_READ));
+    lg!(
+        r,
+        s,
+        "AND",
+        [err(NA), err(Div0)],
+        E(NA),
+        Meas(DIRECT_ERROR_ORDER)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [err(Div0), err(NA)],
+        E(Div0),
+        Meas(DIRECT_ERROR_ORDER)
+    );
+    lg!(r, s, "AND", [txt("x"), err(NA)], E(NA), Meas(ERROR_RESULT));
+
+    // AND: references and arrays.
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["A1:A10"])],
+        L(false),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["A3"]), reference(s, &["A9"])],
+        L(true),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["A5:A8"])],
+        E(Value),
+        Doc(NO_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["C1:C4"])],
+        E(Value),
+        Doc(NO_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["C:C"])],
+        L(true),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["A1"]), reference(s, &["A5"])],
+        L(true),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["A10"]), t_()],
+        L(true),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [array_arg("{TRUE,FALSE}", vec![vec![yes(), no()]])],
+        L(false),
+        Doc(AND_ALL)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [array_arg(
+            "{1,2,\"x\"}",
+            vec![vec![
+                CalcValue::number(1.0),
+                CalcValue::number(2.0),
+                text_value("x")
+            ]]
+        )],
+        L(true),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [array_arg("{\"TRUE\"}", vec![vec![text_value("TRUE")]])],
+        E(Value),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["B1:B4"])],
+        E(Div0),
+        Meas(HELD_ORDER)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["B3:B4"]), reference(s, &["B2"])],
+        E(NA),
+        Meas(ALL_READ)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["B2"]), err(Div0)],
+        E(Div0),
+        Meas(DIRECT_FIRST)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [err(Div0), reference(s, &["B2"])],
+        E(Div0),
+        Meas(DIRECT_FIRST)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [
+            array_arg("{TRUE,#N/A}", vec![vec![yes(), error(NA)]]),
+            err(Div0)
+        ],
+        E(Div0),
+        Meas(DIRECT_FIRST)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [
+            array_arg("{TRUE,#DIV/0!}", vec![vec![yes(), error(Div0)]]),
+            reference(s, &["B2"])
+        ],
+        E(Div0),
+        Meas(HELD_ORDER)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [
+            reference(s, &["B2"]),
+            array_arg("{TRUE,#DIV/0!}", vec![vec![yes(), error(Div0)]])
+        ],
+        E(NA),
+        Meas(HELD_ORDER)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["B2"]), txt("x"), err(Div0)],
+        E(Div0),
+        Meas(DIRECT_FIRST)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["A1:A2", "B3:B4"])],
+        L(false),
+        Doc(AND_ALL)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [array_arg(
+            "{TRUE,#N/A,#DIV/0!}",
+            vec![vec![yes(), error(NA), error(Div0)]]
+        )],
+        E(NA),
+        Meas(HELD_ORDER)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [array_arg(
+            "{TRUE,#N/A;#DIV/0!,TRUE}",
+            vec![vec![yes(), error(NA)], vec![error(Div0), yes()]]
+        )],
+        E(NA),
+        Meas(HELD_ORDER)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [f_(), array_arg("{TRUE,#N/A}", vec![vec![yes(), error(NA)]])],
+        E(NA),
+        Meas(ALL_READ)
+    );
+    lg!(
+        r,
+        s,
+        "AND",
+        [reference(s, &["A7"])],
+        E(Value),
+        Doc(NO_LOGICAL)
+    );
+    let many_true: Vec<Arg> = (0..255).map(|_| t_()).collect();
+    logical_row(r, s, "AND", &many_true, L(true), Doc(MOST_255));
+
+    // OR.
+    lg!(r, s, "OR", [f_(), f_()], L(false), Doc(OR_ANY));
+    lg!(r, s, "OR", [f_(), t_()], L(true), Doc(OR_ANY));
+    lg!(
+        r,
+        s,
+        "OR",
+        [num("0"), num("0")],
+        L(false),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [num("0"), num("-2.5")],
+        L(true),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [f_(), txt("TRUE")],
+        L(true),
+        Meas(DIRECT_SPELLING)
+    );
+    lg!(r, s, "OR", [f_(), txt("x")], L(false), Meas(DIRECT_SKIPPED));
+    lg!(r, s, "OR", [f_(), txt("1")], L(false), Meas(DIRECT_SKIPPED));
+    lg!(r, s, "OR", [f_(), txt("")], L(false), Meas(DIRECT_SKIPPED));
+    lg!(
+        r,
+        s,
+        "OR",
+        [f_(), txt(" TRUE")],
+        L(false),
+        Meas(DIRECT_SKIPPED)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [f_(), txt("\u{FF34}\u{FF32}\u{FF35}\u{FF25}")],
+        L(false),
+        Meas(DIRECT_SKIPPED)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [f_(), txt("#N/A")],
+        L(false),
+        Meas(DIRECT_SKIPPED)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [txt("x"), txt("y")],
+        E(Value),
+        Meas(ONLY_SKIPPED)
+    );
+    lg!(r, s, "OR", [f_(), omitted()], L(false), Meas(OMITTED_FALSE));
+    lg!(
+        r,
+        s,
+        "OR",
+        [omitted(), omitted()],
+        L(false),
+        Meas(OMITTED_FALSE)
+    );
+    lg!(r, s, "OR", [t_(), err(NA)], E(NA), Meas(ALL_READ));
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["B1"]), err(NA)],
+        E(NA),
+        Meas(DIRECT_FIRST)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["A1:A10"])],
+        L(true),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["A2"]), reference(s, &["A4"])],
+        L(false),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["A5:A8"])],
+        E(Value),
+        Doc(NO_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["C:C"])],
+        L(true),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [array_arg(
+            "{FALSE,0,\"TRUE\"}",
+            vec![vec![no(), CalcValue::number(0.0), text_value("TRUE")]]
+        )],
+        L(false),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["B3:B4"]), reference(s, &["B1"])],
+        E(Div0),
+        Meas(ALL_READ)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["A6"]), f_()],
+        L(false),
+        Doc(HELD_IGNORED)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [reference(s, &["A12:B13"])],
+        E(Num),
+        Meas(HELD_ORDER)
+    );
+    let many_false: Vec<Arg> = (0..255).map(|_| f_()).collect();
+    logical_row(r, s, "OR", &many_false, L(false), Doc(MOST_255));
+
+    // XOR.
+    lg!(r, s, "XOR", [t_(), f_()], L(true), Doc(XOR_ODD));
+    lg!(r, s, "XOR", [t_(), t_()], L(false), Doc(XOR_ODD));
+    lg!(r, s, "XOR", [t_(), t_(), t_()], L(true), Doc(XOR_ODD));
+    lg!(r, s, "XOR", [f_(), f_()], L(false), Doc(XOR_ODD));
+    lg!(
+        r,
+        s,
+        "XOR",
+        [num("1"), num("2")],
+        L(false),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "XOR",
+        [reference(s, &["A1:A10"])],
+        L(true),
+        Meas(NUMBER_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "XOR",
+        [reference(s, &["A5:A8"])],
+        E(Value),
+        Doc(NO_LOGICAL)
+    );
+    lg!(
+        r,
+        s,
+        "XOR",
+        [array_arg("{TRUE,TRUE}", vec![vec![yes(), yes()]]), t_()],
+        L(true),
+        Doc(XOR_ODD)
+    );
+    lg!(r, s, "XOR", [t_(), txt("x")], L(true), Meas(DIRECT_SKIPPED));
+    lg!(r, s, "XOR", [txt("x")], E(Value), Meas(ONLY_SKIPPED));
+    lg!(r, s, "XOR", [t_(), err(NA)], E(NA), Meas(ERROR_RESULT));
+    lg!(
+        r,
+        s,
+        "XOR",
+        [reference(s, &["B1"]), reference(s, &["B2"])],
+        E(Div0),
+        Meas(HELD_ORDER)
+    );
+    lg!(
+        r,
+        s,
+        "XOR",
+        [reference(s, &["B2"]), err(Div0)],
+        E(Div0),
+        Meas(DIRECT_FIRST)
+    );
+    lg!(
+        r,
+        s,
+        "XOR",
+        [reference(s, &["C:C"])],
+        L(true),
+        Doc(HELD_IGNORED)
+    );
+    lg!(r, s, "XOR", [t_(), omitted()], L(true), Meas(OMITTED_FALSE));
+    logical_row(r, s, "XOR", &many_true[..254], L(false), Doc(MOST_254));
+
+    // NOT.
+    lg!(r, s, "NOT", [t_()], L(false), Doc(NOT_REVERSES));
+    lg!(r, s, "NOT", [f_()], L(true), Doc(NOT_REVERSES));
+    lg!(r, s, "NOT", [num("0")], L(true), Meas(NUMBER_LOGICAL));
+    lg!(r, s, "NOT", [num("-2.5")], L(false), Meas(NUMBER_LOGICAL));
+    lg!(r, s, "NOT", [txt("TRUE")], L(false), Meas(NOT_TEXT));
+    lg!(r, s, "NOT", [txt("false")], L(true), Meas(NOT_TEXT));
+    lg!(r, s, "NOT", [txt("x")], E(Value), Meas(NOT_TEXT));
+    lg!(r, s, "NOT", [txt("")], E(Value), Meas(NOT_TEXT));
+    lg!(r, s, "NOT", [err(NA)], E(NA), Meas(ERROR_RESULT));
+    lg!(r, s, "NOT", [cell(s, "A7")], L(true), Meas(NOT_CELL));
+    lg!(r, s, "NOT", [cell(s, "A5")], L(false), Meas(NOT_CELL));
+    lg!(r, s, "NOT", [cell(s, "A6")], E(Value), Meas(NOT_CELL));
+    lg!(r, s, "NOT", [cell(s, "A8")], E(Value), Meas(NOT_CELL));
+    lg!(r, s, "NOT", [cell(s, "B1")], E(Div0), Meas(ERROR_RESULT));
+    lg!(r, s, "NOT", [cell(s, "A3")], L(false), Meas(NUMBER_LOGICAL));
+    lg!(
+        r,
+        s,
+        "NOT",
+        [array_arg("{TRUE,FALSE}", vec![vec![yes(), no()]])],
+        Refused(Some(0)),
+        Owned(LEGACY_ARRAY_NOT)
+    );
+    lg!(
+        r,
+        s,
+        "NOT",
+        [txt("1")],
+        Refused(Some(0)),
+        Owned(NUMBER_TEXT)
+    );
+
+    // Digit text alone, and two arrays.
+    lg!(r, s, "AND", [txt("1")], E(Value), Meas(ONLY_SKIPPED));
+    lg!(
+        r,
+        s,
+        "AND",
+        [
+            array_arg("{FALSE,TRUE,TRUE}", vec![vec![no(), yes(), yes()]]),
+            array_arg("{TRUE,TRUE,TRUE}", vec![vec![yes(), yes(), yes()]])
+        ],
+        L(false),
+        Doc(AND_ALL)
+    );
+
+    // A7's blank value given directly: IFNA and IFERROR, each run first through calc_func::invoke,
+    // return it as it is, the empty value, and the outer call receives that value.
+    let ifna_blank = |s: &mut TestSheet| nest!(s, "IFNA", [cell(s, "A7"), num("0")]);
+    let iferror_blank = |s: &mut TestSheet| nest!(s, "IFERROR", [cell(s, "A7"), f_()]);
+    for blank in [ifna_blank(s), iferror_blank(s)] {
+        assert!(
+            matches!(blank.value.core(), CoreValue::Empty),
+            "{} gives {:?}",
+            blank.excel,
+            blank.value
+        );
+    }
+    lg!(
+        r,
+        s,
+        "AND",
+        [t_(), ifna_blank(s)],
+        L(false),
+        Meas(BLANK_DIRECT)
+    );
+    lg!(r, s, "AND", [ifna_blank(s)], L(false), Meas(BLANK_DIRECT));
+    lg!(
+        r,
+        s,
+        "AND",
+        [t_(), iferror_blank(s)],
+        L(false),
+        Meas(BLANK_DIRECT)
+    );
+    lg!(
+        r,
+        s,
+        "OR",
+        [f_(), iferror_blank(s)],
+        L(false),
+        Meas(BLANK_DIRECT)
+    );
+    lg!(r, s, "OR", [iferror_blank(s)], L(false), Meas(BLANK_DIRECT));
+    lg!(r, s, "OR", [ifna_blank(s)], L(false), Meas(BLANK_DIRECT));
+    lg!(
+        r,
+        s,
+        "XOR",
+        [t_(), ifna_blank(s)],
+        L(true),
+        Meas(BLANK_DIRECT)
+    );
+    lg!(r, s, "XOR", [ifna_blank(s)], L(false), Meas(BLANK_DIRECT));
+    lg!(
+        r,
+        s,
+        "XOR",
+        [iferror_blank(s)],
+        L(false),
+        Meas(BLANK_DIRECT)
+    );
+    lg!(
+        r,
+        s,
+        "NOT",
+        [ifna_blank(s)],
+        L(true),
+        Meas(NOT_BLANK_DIRECT)
+    );
+    lg!(
+        r,
+        s,
+        "NOT",
+        [iferror_blank(s)],
+        L(true),
+        Meas(NOT_BLANK_DIRECT)
+    );
+    lr
+}
+
+/// One call of `spelling` on `values` through calc_func::invoke with `cells` as the reader.
+fn logical_call(
+    spelling: &str,
+    values: Vec<CalcValue>,
+    mode: &NumericMode,
+    cells: &mut dyn CellReader,
+) -> Result<CalcValue, FunctionFault> {
+    invoke(
+        surface(Notation::Call, spelling),
+        &mut Recorded::new(values),
+        &mut EvalServices::with_cells(mode, cells),
+        &mut FunctionCallScratch::new(),
+    )
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_fwpz__logical_functions() {
+    const CASE: &str = "dc_fwpz__logical_functions";
+    let fast = NumericMode::Fast;
+    let mut sheet = logical_functions_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; A7 and C2 are blank",
+        sheet.described()
+    );
+    let lr = logical_functions_rows(&mut sheet, false);
+    let rows = &lr.rows;
+    let s = &mut sheet;
+
+    // Metadata and dispatch come from the one generated catalogue: family 5 holds IF and exactly
+    // these entries, each eager, with Excel's arity, its parameter classes and its signature help.
+    let family: BTreeSet<(u32, String)> = catalogue()
+        .targets()
+        .filter(|target| target.id().raw() >> 16 == 5)
+        .map(|target| (target.id().raw(), target.spelling().to_owned()))
+        .collect();
+    let mut expected: BTreeSet<(u32, String)> = LOGICAL_ENTRIES
+        .iter()
+        .map(|(spelling, member)| ((5 << 16) | member, (*spelling).to_owned()))
+        .collect();
+    expected.insert(((5 << 16) | 1, "IF".to_owned()));
+    assert_eq!(family, expected, "the logical family in the catalogue");
+    let either = Some(ParameterClass::ValueOrReference);
+    let mut outside_arity = 0;
+    for (spelling, arity, class, help) in [
+        ("AND", (1, 255), either, "AND(logical1, [logical2], ...)"),
+        ("OR", (1, 255), either, "OR(logical1, [logical2], ...)"),
+        ("XOR", (1, 254), either, "XOR(logical1, [logical2], ...)"),
+        ("NOT", (1, 1), Some(ParameterClass::Value), "NOT(logical)"),
+        ("TRUE", (0, 0), None, "TRUE()"),
+        ("FALSE", (0, 0), None, "FALSE()"),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            target.argument_demand(),
+            ArgumentDemand::Eager,
+            "{spelling}"
+        );
+        let shape = target.arity();
+        assert_eq!((shape.min, shape.max), arity, "{spelling}");
+        for index in 0..shape.max {
+            assert_eq!(target.parameter_class(index), class, "{spelling} {index}");
+        }
+        assert_eq!(target.parameter_class(shape.max), None, "{spelling}");
+        assert_eq!(target.signature_help().display, help);
+        // Outside the arity the call is refused before any argument is asked for.
+        for count in std::iter::once(shape.max + 1).chain(shape.min.checked_sub(1)) {
+            let mut given = Recorded::numbers(count);
+            assert_eq!(
+                run(target, &mut given, &fast),
+                Err(FunctionFault::ArityMismatch {
+                    id: target.id(),
+                    supplied: count
+                }),
+                "{spelling} with {count} arguments"
+            );
+            assert!(given.asked.is_empty(), "{spelling} asked {:?}", given.asked);
+            outside_arity += 1;
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: the catalogue's family 5 holds IF and exactly {:?}, each eager; AND and OR take 1 to 255 values or references, XOR 1 to 254, NOT one value, TRUE and FALSE none; {outside_arity} calls outside an entry's arity ended in ArityMismatch with no argument asked for",
+        LOGICAL_ENTRIES.map(|(spelling, _)| spelling)
+    );
+
+    // Through the call interface alone. What is no worksheet value, or what another bead owns, is
+    // refused naming the argument: a number that is no worksheet value (NaN and an infinity, and a
+    // subnormal, which cfunc-m3.23 owns), directly or in an array; an array or a reference inside
+    // an array (array evaluation, cfml-m3.4); and a callable, directly or in an array, whose core
+    // is #CALC! but which is no worksheet error until it reaches a cell (LAMBDA, cfml-m2.3). No
+    // oracle row measures these. NOT's parameter takes a value, so a reference is refused at
+    // admission.
+    let lambda = CalcValue::callable(CallableValue::new(
+        CallableArityShape::exact(1),
+        "LAMBDA(x, x)",
+        Arc::new(Token(5)),
+    ));
+    let held_lambda = CalcValue::array(
+        CalcArray::from_rows(vec![vec![CalcValue::logical(true), lambda.clone()]])
+            .expect("a 1-by-2 array"),
+    );
+    let nested = CalcValue::array(
+        CalcArray::from_rows(vec![vec![CalcValue::array(CalcArray::from_scalar(
+            CalcValue::logical(true),
+        ))]])
+        .expect("a 1-by-1 array"),
+    );
+    let reference_held = CalcValue::array(
+        CalcArray::from_rows(vec![vec![reference(s, &["A1"]).value]]).expect("a 1-by-1 array"),
+    );
+    let held_nan = CalcValue::array(CalcArray::from_scalar(CalcValue::number(f64::NAN)));
+    let mut refused_calls = 0;
+    for (spelling, values, index) in [
+        ("AND", vec![CalcValue::logical(true), lambda.clone()], 1),
+        ("OR", vec![lambda.clone()], 0),
+        ("XOR", vec![CalcValue::logical(true), lambda.clone()], 1),
+        ("NOT", vec![lambda.clone()], 0),
+        ("AND", vec![held_lambda.clone()], 0),
+        ("XOR", vec![CalcValue::number(f64::NAN)], 0),
+        ("AND", vec![CalcValue::number(f64::INFINITY)], 0),
+        ("OR", vec![CalcValue::number(f64::from_bits(1))], 0),
+        ("XOR", vec![CalcValue::logical(true), held_nan.clone()], 1),
+        ("AND", vec![nested.clone()], 0),
+        ("OR", vec![reference_held.clone()], 0),
+        ("NOT", vec![CalcValue::number(f64::NAN)], 0),
+    ] {
+        let id = surface(Notation::Call, spelling).id();
+        assert_eq!(
+            logical_call(spelling, values.clone(), &fast, s),
+            Err(FunctionFault::NotImplemented {
+                id,
+                argument: Some(index)
+            }),
+            "{spelling} on {values:?}"
+        );
+        refused_calls += 1;
+    }
+    let not = surface(Notation::Call, "NOT");
+    assert_eq!(
+        logical_call("NOT", vec![reference(s, &["A1"]).value], &fast, s),
+        Err(FunctionFault::ReferenceArgument {
+            id: not.id(),
+            index: 0
+        })
+    );
+    // A reference is read only through the services' reader: without one, or over one that
+    // refuses, the call ends in ReferenceUnreadable naming it. A direct error is the result
+    // before any reference is read, so it needs no reader.
+    let mut unreadable = 0;
+    for spelling in ["AND", "OR", "XOR"] {
+        let target = surface(Notation::Call, spelling);
+        let values = vec![CalcValue::logical(true), reference(s, &["A1:A10"]).value];
+        let fault = Err(FunctionFault::ReferenceUnreadable {
+            id: target.id(),
+            index: 1,
+        });
+        assert_eq!(
+            run(target, &mut Recorded::new(values.clone()), &fast),
+            fault,
+            "{spelling} without a cell reader"
+        );
+        s.refuse = true;
+        let refused = logical_call(spelling, values, &fast, s);
+        s.refuse = false;
+        assert_eq!(refused, fault, "{spelling} over a refusing reader");
+        unreadable += 2;
+        let direct_error = vec![
+            reference(s, &["A1:A10"]).value,
+            CalcValue::error(WorksheetErrorCode::NA),
+        ];
+        assert_eq!(
+            run(target, &mut Recorded::new(direct_error), &fast),
+            Ok(CalcValue::error(WorksheetErrorCode::NA)),
+            "{spelling} with a direct error and no cell reader"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: through the call interface alone: {refused_calls} calls refused a callable (directly to AND, OR, XOR and NOT, and held in an array), NaN, an infinity or a subnormal (directly or in an array), and an array or a reference inside an array (NotImplemented naming the argument); NOT refused a reference at admission (ReferenceArgument); {unreadable} calls of AND, OR and XOR without a reader or over a refusing one ended in ReferenceUnreadable naming the reference, and each gave a direct #N/A without reading its reference"
+    );
+
+    // A whole column costs what the reader visits: AND(C:C) asks for column C once and is given
+    // its four held cells.
+    s.reads.clear();
+    s.visited = 0;
+    let column = logical_call("AND", vec![reference(s, &["C:C"]).value], &fast, s);
+    assert_eq!(column, Ok(CalcValue::logical(true)));
+    assert_eq!((s.reads.clone(), s.visited), (vec![s.area("C:C")], 4));
+    // A reader may also visit a blank cell, as Empty: over such a reader each call that reads a
+    // bounded range gives the value of its oracle row.
+    let mut dense_calls = 0;
+    for (spelling, areas) in [
+        ("AND", vec!["A1:A10"]),
+        ("AND", vec!["A5:A8"]),
+        ("AND", vec!["C1:C4"]),
+        ("AND", vec!["A7"]),
+        ("AND", vec!["A1:A2", "B3:B4"]),
+        ("OR", vec!["A5:A8"]),
+        ("OR", vec!["A12:B13"]),
+        ("XOR", vec!["A1:A10"]),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        let argument = reference(s, &areas);
+        let formula = target
+            .oracle_formula(&[argument.excel.as_str()])
+            .expect("a formula");
+        let mut dense = DenseReader(s);
+        let visited_blanks = logical_call(spelling, vec![argument.value], &fast, &mut dense);
+        let under_fast = row_value(rows, &formula);
+        assert!(
+            visited_blanks
+                .as_ref()
+                .is_ok_and(|value| identical(value, under_fast)),
+            "{formula} over a reader that visits blank cells gives {visited_blanks:?}, the row {under_fast:?}"
+        );
+        dense_calls += 1;
+    }
+    // A reader that visits a cell outside the area it was asked for cannot supply the range.
+    let range = reference(s, &["A1:A2"]).value;
+    let and = surface(Notation::Call, "AND");
+    let mut breaching = BreachingReader {
+        sheet: s,
+        breach: Breach::Outside("C1"),
+    };
+    assert_eq!(
+        logical_call("AND", vec![range], &fast, &mut breaching),
+        Err(FunctionFault::ReferenceUnreadable {
+            id: and.id(),
+            index: 0
+        }),
+        "AND(A1:A2) over a reader that also visits C1"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: AND(C:C) asked the reader for column C once and was given its 4 held cells; {dense_calls} calls over a reader that also visits every blank cell as Empty gave the values of their oracle rows; AND(A1:A2) over a reader that visits C1 outside the area ended in ReferenceUnreadable (argument 0)"
+    );
+
+    // The oracle workbook: its sheet holds exactly the rows' formulas and cells (XOR and IFNA
+    // stored with the `_xlfn.` prefix, matched as whole names), and the committed workbook is its
+    // generator's output.
+    assert_eq!(
+        stored_formula("BITXOR(1,XOR(TRUE),IFNA(1,2),_xlfn.XOR(TRUE))"),
+        "BITXOR(1,_xlfn.XOR(TRUE),_xlfn.IFNA(1,2),_xlfn.XOR(TRUE))"
+    );
+    assert_workbook_sheet(LOGICAL_WORKBOOK, LOGICAL_WORKBOOK_PATH, rows, s);
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["dc_fwpz/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == LOGICAL_WORKBOOK,
+            "the committed dc-fwpz oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(LOGICAL_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed dc-fwpz oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+    let mut owners: BTreeMap<&str, usize> = BTreeMap::new();
+    for row in &rows.oracle {
+        assert_eq!(
+            row.owner.is_some(),
+            row.outcome.is_err(),
+            "{}: a refused row names its owner, a computed row none",
+            row.formula
+        );
+        if let Some(owner) = row.owner {
+            *owners.entry(owner.bead).or_default() += 1;
+        }
+    }
+    assert_eq!(
+        lr.documented + lr.measured + rows.refused(),
+        rows.oracle.len()
+    );
+    let owners: Vec<String> = owners.iter().map(|(b, c)| format!("{c} {b}")).collect();
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke, each asserted against an outcome written here by hand and run again under Exact with the same outcome, each with its formula on sheet {} of {LOGICAL_WORKBOOK_PATH}: {} documented, {} measured (their values are Excel's raw values in the committed capture), {} refused (owned by: {}); dc_fwpz__excel_comparison compares every row with Excel's capture",
+        rows.oracle.len(),
+        rows.sheet,
+        lr.documented,
+        lr.measured,
+        rows.refused(),
+        owners.join(", ")
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_fwpz__excel_comparison() {
+    const CASE: &str = "dc_fwpz__excel_comparison";
+    let LogicalRows { rows, .. } = logical_functions_rows(&mut logical_functions_sheet(), true);
+    let all = rows.oracle.len();
+    let refused = rows.refused();
+    let computed = all - refused;
+    assert!(
+        rows.oracle
+            .iter()
+            .all(|row| row.owner.is_some() == row.outcome.is_err()),
+        "a refused row names its owner, a computed row none"
+    );
+    let comparison_of = |capture: &CaptureRecord, run: &Rows| {
+        let (results, evaluations) = published_in(LOGICAL_WORKBOOK, LOGICAL_CAPTURE_CASE, &[run]);
+        judged(capture, &results, &evaluations, run)
+    };
+
+    // The comparison itself, on capture records built here in memory, which carry no Excel
+    // evidence: a capture that observes each computed row's own value matches every computed row
+    // and counts every refused row not modelled with its owner; a capture that observes the other
+    // logical for one computed row is exactly one problem, at that row's cell; a refused row that
+    // names dc-fwpz as its owner is exactly one problem, at its cell.
+    let agreeing_capture = capture_in(LOGICAL_WORKBOOK, LOGICAL_CAPTURE_CASE, &[&rows], agreeing);
+    let comparison = comparison_of(&agreeing_capture, &rows)
+        .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
+    assert_eq!(comparison.problems, Vec::<String>::new());
+    let counts = &comparison.report.counts;
+    assert_eq!(
+        (
+            counts.denominator,
+            counts.calculated,
+            counts.matched,
+            counts.not_modeled,
+            counts.mismatched + counts.not_run + counts.unproven + counts.stale,
+            counts.evaluator_calls
+        ),
+        (
+            all as u64,
+            computed as u64,
+            computed as u64,
+            refused as u64,
+            0,
+            all as u64
+        ),
+        "{}",
+        comparison.report.summary()
+    );
+    let changed = rows
+        .oracle
+        .iter()
+        .find(|row| {
+            row.outcome
+                .as_ref()
+                .is_ok_and(|value| value.as_logical().is_some())
+        })
+        .expect("a computed row with a logical")
+        .row;
+    let other_logical = capture_in(
+        LOGICAL_WORKBOOK,
+        LOGICAL_CAPTURE_CASE,
+        &[&rows],
+        |sheet, row| {
+            if row.row == changed {
+                let logical = row.outcome.as_ref().ok()?.as_logical()?;
+                Some(CalcValue::logical(!logical))
+            } else {
+                agreeing(sheet, row)
+            }
+        },
+    );
+    let problems = comparison_of(&other_logical, &rows)
+        .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"))
+        .problems;
+    let cell = format!("{}!{}", rows.sheet, encode_a1(changed, FORMULA_COLUMN));
+    assert!(
+        problems.len() == 1 && problems[0].starts_with(&format!("{cell} ")),
+        "a capture with the other logical at {cell} gives {problems:?}"
+    );
+    let LogicalRows {
+        rows: mut self_owned,
+        ..
+    } = logical_functions_rows(&mut logical_functions_sheet(), true);
+    let row = self_owned
+        .oracle
+        .iter_mut()
+        .find(|row| row.outcome.is_err())
+        .expect("a refused row");
+    row.owner = Some(Owner {
+        bead: "dc-fwpz",
+        behaviour: "a refusal of the bead under test",
+    });
+    let self_cell = format!(
+        "{}!{}",
+        self_owned.sheet,
+        encode_a1(row.row, FORMULA_COLUMN)
+    );
+    let problems = comparison_of(
+        &capture_in(
+            LOGICAL_WORKBOOK,
+            LOGICAL_CAPTURE_CASE,
+            &[&self_owned],
+            agreeing,
+        ),
+        &self_owned,
+    )
+    .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"))
+    .problems;
+    assert!(
+        problems.len() == 1
+            && problems[0].starts_with(&format!("{self_cell} "))
+            && problems[0].contains("names its own bead dc-fwpz"),
+        "a row owned by dc-fwpz at {self_cell} gives {problems:?}"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: on in-memory captures of {LOGICAL_WORKBOOK_PATH} (no Excel evidence; {all} rows: {computed} computed, {refused} refused): calc_verdict::judge's report through the comparison matches every computed row of the agreeing capture and counts every refused row not modeled with its owner, none of which is dc-fwpz; a capture with the other logical at {cell} is exactly one problem, at that cell; the refused row at {self_cell} given dc-fwpz as its owner is exactly one problem, at that cell"
+    );
+
+    // Excel's capture of the workbook.
+    let capture = CaptureRecord::decode(LOGICAL_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, LOGICAL_CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(LOGICAL_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the dc-fwpz oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the dc-fwpz oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    let comparison = comparison_of(&capture, &rows)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    assert!(
+        comparison.problems.is_empty(),
+        "{} problems on the verdict on Excel {}'s capture ({}):\n{}",
+        comparison.problems.len(),
+        environment.target.excel_build(),
+        comparison.report.summary(),
+        comparison.problems.join("\n")
+    );
+    let observed = comparison
+        .report
+        .cells
+        .iter()
+        .filter(|cell| {
+            cell.formula.cell.sheet() == rows.sheet
+                && cell.formula.cell.column() == FORMULA_COLUMN
+                && matches!(cell.observation, Some(Observation::ExcelRaw(_)))
+        })
+        .count();
+    assert_eq!(observed, all, "a raw value of Excel's for every row");
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of {LOGICAL_WORKBOOK_PATH}: {} (every computed row matched, every refused row not modeled with its owner); the whole workbook: {}",
+        environment.target.excel_build(),
         sheet_verdicts(&comparison.report, &rows),
         comparison.report.summary()
     );
