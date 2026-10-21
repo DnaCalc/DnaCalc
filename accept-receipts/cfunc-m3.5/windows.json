@@ -361,9 +361,9 @@
             "pub_traits": 1
           },
           "calc-verdict": {
-            "entries": 54,
-            "entries_reach_unproven": 54,
-            "pub_enum_variants": 54,
+            "entries": 55,
+            "entries_reach_unproven": 55,
+            "pub_enum_variants": 55,
             "pub_traits": 0
           },
           "dna-calc": {
@@ -380,14 +380,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 470,
+          "entries_reach_unproven": 471,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 461 pub enum variants and 9 pub traits; their seams.json files list 470 entries, 470 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 462 pub enum variants and 9 pub traits; their seams.json files list 471 entries, 471 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -483,9 +483,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 170,
+          "commit_messages": 177,
           "files": 20,
-          "tracker_records": 356
+          "tracker_records": 361
         },
         "tracker": {
           "ceng-m7.1": {
@@ -536,7 +536,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 356 tracker records, 1 in 1 of 170 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 361 tracker records, 1 in 1 of 177 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -877,7 +877,7 @@
         "--nocapture"
       ],
       "case": "cfunc_m3_5__criteria_semantics",
-      "duration_s": 1.736,
+      "duration_s": 1.24,
       "exit_code": 0,
       "log": "target/accept/cfunc-m3.5/windows/cfunc_m3_5__criteria_semantics.log",
       "notes": [
@@ -993,7 +993,7 @@
       "outcome": "passed",
       "package": "calc-func",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1.50s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1.05s"
     },
     {
       "argv": [
@@ -1012,7 +1012,7 @@
         "--nocapture"
       ],
       "case": "cfunc_m3_5__mismatched_shapes",
-      "duration_s": 0.4,
+      "duration_s": 0.207,
       "exit_code": 0,
       "log": "target/accept/cfunc-m3.5/windows/cfunc_m3_5__mismatched_shapes.log",
       "notes": [
@@ -1123,16 +1123,18 @@
         "--nocapture"
       ],
       "case": "cfunc_m3_5__excel_comparison",
-      "duration_s": 0.316,
+      "duration_s": 0.255,
       "exit_code": 0,
       "log": "target/accept/cfunc-m3.5/windows/cfunc_m3_5__excel_comparison.log",
       "notes": [
-        "on in-memory captures of crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx (no Excel evidence; 136 rows: 117 computed, 19 refused): calc_verdict::judge's report through the comparison matches every computed row of the agreeing capture and counts every refused row not modeled with its owner, none of which is cfunc-m3.5; a capture changed in the last bit at criteria_semantics!D1 is exactly one problem, at that cell; the refused row at criteria_semantics!D29 given cfunc-m3.5 as its owner is exactly one problem, at that cell"
+        "on in-memory captures of crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx (no Excel evidence; 136 rows: 117 computed, 19 refused): calc_verdict::judge's report through the comparison matches every computed row of the agreeing capture and counts every refused row not modeled with its owner, none of which is cfunc-m3.5; a capture changed in the last bit at criteria_semantics!D1 is exactly one problem, at that cell; the refused row at criteria_semantics!D29 given cfunc-m3.5 as its owner is exactly one problem, at that cell",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx: sheet criteria_semantics: matched 86, not_modeled 11; not modeled by owner: 1 (cdoc-jpha: Excel's comparison of nearly equal numbers), 3 (cdoc-jpha: Excel's text collation), 1 (cfml-m2.6: text read as a number or a logical by Excel's number-text rules), 2 (dc-1mc8: a SUMIF or AVERAGEIF sum range shaped past the reference the formula gives, as a recalculation prerequisite), 3 (dc-e00t: the not-a-number verdict for digit-bearing text such as Q1 or 2016-17 Winter), 1 (dc-q9rb: a number's text when & reads the number) (every computed row matched, every refused row not modeled with its owner); the whole workbook: cfunc_m3_5__excel_comparison: calculated 117 of 136 formula cells; matched 117 of 117 calculated, mismatched 0, not run 0; of the 117 compared, strict-bit certified 0, uncertified 117 (no_exact_target 117); not calculated: unproven 0, stale 0, file-cached 0, not modeled 19, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 136 evaluator calls (evaluation record version 1, 117 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx: sheet mismatched_shapes: matched 31, not_modeled 8; not modeled by owner: 7 (dc-1mc8: a SUMIF or AVERAGEIF sum range shaped past the reference the formula gives, as a recalculation prerequisite), 1 (dc-gdii: a range of several areas in the conditional aggregates) (every computed row matched, every refused row not modeled with its owner); the whole workbook: cfunc_m3_5__excel_comparison: calculated 117 of 136 formula cells; matched 117 of 117 calculated, mismatched 0, not run 0; of the 117 compared, strict-bit certified 0, uncertified 117 (no_exact_target 117); not calculated: unproven 0, stale 0, file-cached 0, not modeled 19, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 136 evaluator calls (evaluation record version 1, 117 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
       ],
-      "outcome": "not_run",
+      "outcome": "passed",
       "package": "calc-func",
-      "reason": "MissingCapture: no capture of crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx has been taken for case cfunc_m3_5__excel_comparison; this path will hold its capture record (Excel's raw values for the oracle rows of cfunc_m3_5__criteria_semantics and cfunc_m3_5__mismatched_shapes) once the owner's Excel run `cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx --case cfunc_m3_5__excel_comparison --out crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json` writes it",
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.05s"
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.06s"
     }
   ],
   "command": [
@@ -1158,13 +1160,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 9.663,
+      "duration_s": 1.373,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 1.11s"
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 1.17s"
       ],
       "log": "target/accept/cfunc-m3.5/windows/command-1.log",
       "outcome": "passed",
@@ -1260,12 +1262,12 @@
     "failed": 0,
     "ignored": 0,
     "missing": 0,
-    "not_run": 1,
-    "passed": 2,
+    "not_run": 0,
+    "passed": 3,
     "selected": 3
   },
-  "duration_s": 29.783,
-  "exit_code": 1,
+  "duration_s": 14.145,
+  "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
     "arch": "x86_64",
@@ -1275,65 +1277,18 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "11bdb171210528132f47e2415353222540b2a47d",
-          "path": "crates/calc-func/acceptance.json",
+          "blob": "c7a472e2f57cb78ad87cf998e1036147809b5251",
+          "path": "accept-receipts/cfunc-m1.2/windows.json",
           "status": "M"
         },
         {
-          "blob": "d76ff09df5e7ca1e2daf0322531e1fdba25ed9fb",
-          "path": "crates/calc-func/src/catalogue.rs",
-          "status": "M"
-        },
-        {
-          "blob": "09de8ed8ad2874fe512afa05adbef1e1f81c14d5",
-          "path": "crates/calc-func/src/catalogue/aggregate.rs",
-          "status": "M"
-        },
-        {
-          "blob": "c4ce5fd8f5060a147ef5820bbd4b82df49a45ed5",
-          "path": "crates/calc-func/src/catalogue/comparison.rs",
-          "status": "M"
-        },
-        {
-          "blob": "66a2919efff81f00c932ebdb1f7deb852b42d471",
-          "path": "crates/calc-func/tests/acceptance.rs",
-          "status": "M"
-        },
-        {
-          "blob": "b9b9d2f8ff2cd45bdda7335c18325ce1d39507ad",
-          "path": "crates/calc-func/tests/fixtures/make-fixtures.ps1",
-          "status": "M"
-        },
-        {
-          "blob": "ee69c63b7f25dfaddb3cb50ec71b32ff7c328fc5",
-          "path": "accept-receipts/cfunc-m3.5/wasm.json",
-          "status": "??"
-        },
-        {
-          "blob": "dda1df62e31880f34652efa21891fcafeeed7103",
-          "path": "crates/calc-func/src/catalogue/conditional.rs",
-          "status": "??"
-        },
-        {
-          "blob": "233459fb1a25b4e2bc1848df83bb3e743602bc81",
+          "blob": "144918134ee4de6eb4c23d3055dc95a73d2ca498",
           "path": "crates/calc-func/tests/captures/cfunc_m3_5/oracle.capture.json",
-          "status": "??"
-        },
-        {
-          "blob": "955a638dc28e784228cf103734cd890b2ba01685",
-          "path": "crates/calc-func/tests/fixtures/cfunc_m3_5/oracle.xlsx",
-          "status": "??"
-        },
-        {
-          "blob": "ad5b8797d9d32ecaf74701a550831441cb9db0b1",
-          "path": "migration/ports/cfunc-m3.5.json",
-          "status": "??"
+          "status": "M"
         }
       ],
-      "head": "6cbb404e5efb9cda22e1cca5bfa6930cdeb00a33",
-      "receipt_paths_left_out": [
-        "accept-receipts/cfunc-m3.5/windows.json"
-      ]
+      "head": "9adaa097feee4b5c8549db1508592aedb5634f83",
+      "receipt_paths_left_out": []
     },
     "legacy_root": {
       "exists": true,
@@ -1369,7 +1324,7 @@
   "problems": [],
   "receipt": "target/accept/cfunc-m3.5/windows/receipt.json",
   "require_all": true,
-  "result": "not_run",
+  "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-21T11:56:55Z"
+  "started_utc": "2026-10-21T13:04:59Z"
 }
