@@ -18,9 +18,13 @@
 //! on every edit.
 
 pub mod display;
+pub mod editor;
 mod fixture;
+pub mod grid;
+pub mod result;
 mod session;
 pub mod surface;
+pub mod web;
 
 pub use fixture::{Read, ReadRun, RunCells};
 pub use session::{Calculation, Diagnostic, InputError, InputValue, Session, SheetError};

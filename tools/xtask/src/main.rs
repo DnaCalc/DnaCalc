@@ -51,6 +51,12 @@
 //! compare` process, and summarised in `summary.md` and `summary.json` with the failures grouped
 //! by root cause across the corpus (`corpus.rs`, `corpus_summary.rs`).
 //!
+//! `cargo xtask onecalc bundle [--out <dir>]` builds DNA OneCalc's browser bundle (the app's wasm
+//! entry through wasm-bindgen, and its page) into a folder, and `cargo xtask onecalc smoke
+//! [--bundle <dir>] [--browser chromium|firefox]` serves it on 127.0.0.1 and drives it in headless
+//! Chrome and Firefox through WebDriver, failing on a wrong answer or any panic or uncaught error
+//! the page records (`onecalc.rs`).
+//!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
 
@@ -80,6 +86,7 @@ mod evidence;
 mod evidence_labels;
 mod legacy;
 mod manifest;
+mod onecalc;
 mod owners;
 mod rust_source;
 mod text;
@@ -98,6 +105,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
         Some((command, rest)) if command == "verdict" => verdict::run(rest),
         Some((command, rest)) if command == "compare" => compare::run(rest),
+        Some((command, rest)) if command == "onecalc" => onecalc::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "capture" => capture::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -112,6 +120,7 @@ fn main() -> ExitCode {
                 evidence::USAGE,
                 verdict::USAGE,
                 compare::USAGE,
+                onecalc::USAGE,
             ];
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(capture::USAGE);

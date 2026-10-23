@@ -1,26 +1,47 @@
-//! The browser surface over a [`Session`]: a formula box and the cell it is entered in, the
-//! session's sheets, a table of typed inputs, and the result, diagnostics and reads of the
-//! formula, recalculated on every edit.
+//! The browser surface over a [`Session`]: the formula editor (syntax highlighting, bracket pairs,
+//! completion of calc-func's function names, signature help and function help), the cell the
+//! formula is entered in, the session's sheets, a scratch grid of cells on the first sheet, a table
+//! of typed inputs, and the result (its type, its value or array grid, a worksheet error and what it
+//! means, where it came from), the diagnostics and the reads, recalculated on every edit.
 //!
 //! The surface keeps only what the person typed. On each edit it gives the session the formula
-//! cell, every input row and the formula, has the session calculate, and shows the session's
-//! answers through [`crate::display`]; no value is computed here. Every element a person uses
-//! carries a `data-onecalc` attribute naming its role.
+//! cell, the grid's entries, every input row and the formula, has the session calculate, and shows
+//! the session's answers through [`crate::display`] and [`crate::result`]; no value is computed
+//! here. The editor's assistance is calc-fml's ([`calc_fml::assist`]) and the function help text is
+//! calc-func's ([`calc_func::help`]). Every element a person uses carries a `data-onecalc`
+//! attribute naming its role.
+//!
+//! Ported in part from DnaTreeCalc's Leptos formula skin (`src/dnacalc-formula-skin-leptos/src/lib.rs`
+//! at DnaTreeCalc c68ecaa: the editor, completion list, signature and help elements, the array
+//! result grid and its CSS) and DnaOneCalc's editor (at 61e3979: the highlighted overlay behind the
+//! text field from `src/dnaonecalc-host/src/ui/editor/render_projection.rs`, whose runs must
+//! reproduce the field's text exactly so the caret does not drift).
+//!
+//! No reactive effect writes a signal: the popup is reconciled in the event handlers that change
+//! the text or the caret, so a panic can only come from a memo or a view, where the browser smoke
+//! test (`cargo xtask onecalc smoke`) sees it.
 
 use crate::display;
+use crate::editor::{BracketPair, Popup, PopupKey, bracket_pair_at, popup_key};
+use crate::grid::{self, Entry};
+use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
+use calc_fml::assist::{self, CallSite, HighlightRun, TokenRole};
 use calc_fml::parse_formula;
-use calc_fml::syntax::SyntaxKind;
+use calc_fml::syntax::TextSpan;
+use calc_func::value::CellKey;
+use calc_func::{FunctionCallTarget, help};
 use leptos::mount::mount_to;
 use leptos::prelude::*;
 use std::any::Any;
+use std::collections::BTreeSet;
 use web_sys::HtmlElement;
 
-/// The sheet a new surface's session starts with.
+/// The sheet a new surface's session starts with; the scratch grid's cells are on it.
 const FIRST_SHEET: &str = "Sheet1";
 
-/// The cell a new surface's formula is entered in.
-const FIRST_FORMULA_CELL: &str = "A1";
+/// The cell a new surface's formula is entered in: the grid's top right cell.
+const FIRST_FORMULA_CELL: &str = "H1";
 
 /// The kinds of value an input row holds: the selector's value and its label.
 const KINDS: [(&str, &str); 5] = [
@@ -30,6 +51,60 @@ const KINDS: [(&str, &str); 5] = [
     ("error", "Error"),
     ("blank", "Blank"),
 ];
+
+/// The surface's style sheet, carried in the view so every page that mounts the surface has it.
+pub const SURFACE_CSS: &str = r#"
+.oc{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1f24;max-width:1100px;margin:0 auto;padding:16px}
+.oc h1{font-size:20px;margin:0 0 4px}
+.oc .oc-sub{color:#57606a;margin:0 0 16px;font-size:13px}
+.oc-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.oc-col{flex:1 1 420px;min-width:300px}
+.oc-editor{position:relative;font:15px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace;border:1px solid #8c959f;border-radius:6px;background:#fff;min-height:3em}
+.oc-editor pre,.oc-editor textarea{margin:0;padding:8px 10px;white-space:pre-wrap;word-break:break-all;font:inherit;letter-spacing:normal;tab-size:4;box-sizing:border-box;width:100%;min-height:3em;border:0}
+.oc-editor pre{position:absolute;inset:0;pointer-events:none;color:#1b1f24;overflow:hidden}
+.oc-editor textarea{position:relative;display:block;resize:vertical;background:transparent;color:transparent;caret-color:#1b1f24;outline:none}
+.oc-editor:focus-within{border-color:#0969da;box-shadow:0 0 0 2px #0969da33}
+.oc-r-function{color:#8250df;font-weight:600}.oc-r-name{color:#0550ae}.oc-r-number{color:#116329}
+.oc-r-text{color:#0a3069}.oc-r-error{color:#cf222e;font-weight:600}.oc-r-operator{color:#953800}
+.oc-r-delimiter{color:#57606a}.oc-r-unknown{color:#cf222e;text-decoration:underline wavy}
+.oc-diag{text-decoration:underline wavy #cf222e;text-decoration-skip-ink:none}
+.oc-bracket{background:#ddf4ff;outline:1px solid #54aeff;border-radius:2px}
+.oc-pop{list-style:none;margin:4px 0 0;padding:2px;border:1px solid #8c959f;border-radius:6px;max-height:220px;overflow:auto;background:#fff;font:13px ui-monospace,Consolas,monospace;box-shadow:0 4px 12px #0002}
+.oc-pop li{padding:2px 8px;cursor:pointer;display:flex;justify-content:space-between;gap:12px}
+.oc-pop li.oc-sel{background:#0969da;color:#fff}
+.oc-pop li small{opacity:.75}
+.oc-sig{margin:6px 0;font:13px ui-monospace,Consolas,monospace;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px}
+.oc-sig strong{color:#0969da;text-decoration:underline}
+.oc-help{border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;margin:8px 0;background:#f6f8fa;font-size:13px}
+.oc-help h3{margin:0 0 4px;font:600 14px ui-monospace,Consolas,monospace}
+.oc-help code{font-size:13px}
+.oc-help p{margin:4px 0}
+.oc-result{border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;margin:8px 0}
+.oc-kind{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#eaeef2;color:#424a53;border-radius:10px;padding:1px 8px;margin-right:8px}
+.oc-value{font:600 18px ui-monospace,Consolas,monospace}
+.oc-err{color:#cf222e}
+.oc-prov{color:#57606a;font-size:12px;margin:6px 0 0}
+.oc-diags{color:#cf222e;margin:6px 0;padding-left:20px}
+.oc-reads{color:#424a53;font-size:12px;margin:6px 0;padding-left:20px}
+.oc-array{border-collapse:collapse;margin:6px 0;font:13px ui-monospace,Consolas,monospace}
+.oc-array td{border:1px solid #d0d7de;padding:2px 8px;height:22px;min-width:56px;white-space:nowrap}
+.oc-array td[data-kind=number]{text-align:right}
+.oc-array td[data-kind=error]{color:#cf222e}
+.oc-grid{border-collapse:collapse;font:13px ui-monospace,Consolas,monospace}
+.oc-grid th{background:#f6f8fa;color:#57606a;font-weight:400;border:1px solid #d0d7de;padding:0 6px;min-width:20px}
+.oc-grid td{border:1px solid #d0d7de;padding:0}
+.oc-grid input{border:0;width:84px;padding:2px 4px;font:inherit;box-sizing:border-box;background:transparent}
+.oc-grid input:focus{outline:2px solid #0969da}
+.oc-grid td.oc-formula{background:#fff8c5}
+.oc-grid td.oc-formula input{font-weight:600}
+.oc-grid td.oc-refused{background:#ffebe9}
+.oc-grid input[data-kind=number]{text-align:right}
+.oc-grid input[data-kind=error]{color:#cf222e}
+.oc-panel{margin:12px 0}
+.oc-panel h2{font-size:14px;margin:0 0 6px;color:#424a53}
+.oc table.oc-inputs{border-collapse:collapse;font-size:13px}
+.oc table.oc-inputs td,.oc table.oc-inputs th{padding:2px 4px;text-align:left}
+"#;
 
 /// One input row as typed.
 #[derive(Clone, Debug, PartialEq)]
@@ -48,13 +123,30 @@ enum Field {
     Entry,
 }
 
+/// What one grid cell shows besides its entry.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct GridShown {
+    /// The type of what the cell holds (`number`, `text`, ...), `formula` for the formula's cell,
+    /// `refused` for an entry the grid does not hold, and empty for a blank cell.
+    kind: &'static str,
+    /// The formula's value, for the formula's cell.
+    value: String,
+    /// A tooltip: why an entry was refused, or what the formula's cell holds.
+    note: String,
+}
+
 /// What the surface shows for one state of its fields.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Shown {
     formula_cell: String,
     rows: Vec<(u32, String)>,
+    grid: Vec<GridShown>,
     result: String,
+    view: ResultView,
+    provenance: String,
     diagnostics: Vec<String>,
+    /// The spans of the formula text the diagnostics point at.
+    diagnostic_spans: Vec<TextSpan>,
     reads: Vec<String>,
 }
 
@@ -66,6 +158,10 @@ impl Shown {
             .map(|(_, status)| status.clone())
             .unwrap_or_default()
     }
+
+    fn cell(&self, index: usize) -> GridShown {
+        self.grid.get(index).cloned().unwrap_or_default()
+    }
 }
 
 /// The surface, mounted; dropping it unmounts the surface.
@@ -74,7 +170,7 @@ pub struct Mounted {
 }
 
 /// Mounts a new surface, over a new session with one sheet (`Sheet1`) and the formula entered in
-/// its cell A1, as the last child of `parent`.
+/// its cell H1, as the last child of `parent`.
 pub fn mount(parent: HtmlElement) -> Mounted {
     Mounted {
         _handle: Box::new(mount_to(parent, surface)),
@@ -94,7 +190,7 @@ fn entry_value(session: &Session, kind: &str, entry: &str) -> Result<InputValue,
         "logical" if text.eq_ignore_ascii_case("TRUE") => Ok(InputValue::logical(true)),
         "logical" if text.eq_ignore_ascii_case("FALSE") => Ok(InputValue::logical(false)),
         "logical" => Err(format!("{entry:?} is neither TRUE nor FALSE")),
-        "error" => error_literal(text)
+        "error" => grid::error_literal(text)
             .map(InputValue::error)
             .ok_or_else(|| format!("{entry:?} is not a worksheet error such as #N/A")),
         "blank" => Ok(InputValue::blank()),
@@ -102,21 +198,22 @@ fn entry_value(session: &Session, kind: &str, entry: &str) -> Result<InputValue,
     }
 }
 
-/// The worksheet error `text` spells, read by calc-fml's lexer as an error literal of a formula.
-fn error_literal(text: &str) -> Option<calc_func::value::WorksheetErrorCode> {
-    let tree = parse_formula(text);
-    if !tree.diagnostics().is_empty() {
-        return None;
-    }
-    let expression = tree.expression()?;
-    if expression.kind() != SyntaxKind::ErrorLiteralExpr {
-        return None;
-    }
-    expression.tokens().first()?.error_code()
+/// The grid's cell at a 0-based index, row by row.
+fn grid_cell(session: &Session, index: usize) -> Option<CellKey> {
+    let (_, sheet) = session.sheets().next()?;
+    let row = index as u32 / grid::COLUMNS + 1;
+    let column = index as u32 % grid::COLUMNS + 1;
+    CellKey::new(sheet, row, column).ok()
 }
 
 /// Gives the session the fields as typed, calculates, and says what to show.
-fn recalculate(session: &mut Session, formula: &str, formula_cell: &str, rows: &[Row]) -> Shown {
+fn recalculate(
+    session: &mut Session,
+    formula: &str,
+    formula_cell: &str,
+    rows: &[Row],
+    entries: &[String],
+) -> Shown {
     session.clear_inputs();
     let formula_cell = match session.set_formula_cell(formula_cell) {
         Ok(cell) => display::cell(session, cell),
@@ -126,32 +223,100 @@ fn recalculate(session: &mut Session, formula: &str, formula_cell: &str, rows: &
             display::cell(session, session.formula_cell())
         ),
     };
+    let at = session.formula_cell();
+
+    // The grid's entries first, then the rows, then every grid cell still empty is blank.
+    let mut grid = vec![GridShown::default(); entries.len()];
+    let mut from_grid = BTreeSet::new();
+    for (index, text) in entries.iter().enumerate() {
+        let Some(cell) = grid_cell(session, index) else {
+            continue;
+        };
+        if cell == at {
+            continue;
+        }
+        match grid::entry(text) {
+            Entry::Blank => {}
+            Entry::Value(value) => {
+                grid[index].kind = result::kind(value.value());
+                if session.set_input_at(cell, value).is_ok() {
+                    from_grid.insert(cell);
+                }
+            }
+            Entry::Refused(why) => {
+                grid[index].kind = "refused";
+                grid[index].note = why;
+            }
+        }
+    }
     let rows = rows
         .iter()
-        .map(|row| (row.id, set_row(session, row)))
+        .map(|row| (row.id, set_row(session, row, &from_grid)))
         .collect();
+    for (index, text) in entries.iter().enumerate() {
+        let Some(cell) = grid_cell(session, index) else {
+            continue;
+        };
+        if cell != at && grid::entry(text) == Entry::Blank && session.input(cell).is_none() {
+            let _ = session.set_input_at(cell, InputValue::blank());
+        }
+    }
+
     session.set_formula(formula);
+    let formula_index = (0..entries.len()).find(|&index| grid_cell(session, index) == Some(at));
     if formula.trim().is_empty() {
+        if let Some(index) = formula_index {
+            grid[index] = GridShown {
+                kind: "formula",
+                value: String::new(),
+                note: "the formula's cell: no formula yet".to_owned(),
+            };
+        }
         return Shown {
             formula_cell,
             rows,
+            grid,
             result: "no formula".to_owned(),
             ..Shown::default()
         };
     }
     let calculation = session.calculate();
+    let view = ResultView::of(&calculation);
+    if let Some(index) = formula_index {
+        grid[index] = GridShown {
+            kind: "formula",
+            value: match &calculation.result {
+                Some(value) => result::plain(value),
+                None => "(no value)".to_owned(),
+            },
+            note: format!("the formula's cell: {formula}"),
+        };
+    }
+    let diagnostic_spans = calculation
+        .diagnostics
+        .iter()
+        .filter_map(|diagnostic| match diagnostic {
+            crate::Diagnostic::Syntax(syntax) => Some(syntax.span),
+            crate::Diagnostic::Compile(error) => Some(compile_span(error)),
+            crate::Diagnostic::Eval(_) => None,
+        })
+        .collect();
     Shown {
         formula_cell,
         rows,
+        grid,
         result: match &calculation.result {
             Some(value) => display::value(value),
             None => "not calculated".to_owned(),
         },
+        view,
+        provenance: result::provenance(session, &calculation).unwrap_or_default(),
         diagnostics: calculation
             .diagnostics
             .iter()
             .map(|diagnostic| display::diagnostic(session, diagnostic))
             .collect(),
+        diagnostic_spans,
         reads: calculation
             .reads
             .iter()
@@ -160,8 +325,21 @@ fn recalculate(session: &mut Session, formula: &str, formula_cell: &str, rows: &
     }
 }
 
+/// Where in the formula text a compile error points.
+fn compile_span(error: &calc_fml::CompileError) -> TextSpan {
+    use calc_fml::CompileError as E;
+    match error {
+        E::Syntax { span }
+        | E::Reference { span, .. }
+        | E::Unsupported { span, .. }
+        | E::UnknownFunction { span, .. }
+        | E::Arity { span, .. }
+        | E::NumberLiteral { span } => *span,
+    }
+}
+
 /// Gives the session one row's input and says what became of it.
-fn set_row(session: &mut Session, row: &Row) -> String {
+fn set_row(session: &mut Session, row: &Row, from_grid: &BTreeSet<CellKey>) -> String {
     if row.address.trim().is_empty() {
         return "enter a cell".to_owned();
     }
@@ -170,6 +348,12 @@ fn set_row(session: &mut Session, row: &Row) -> String {
         Err(why) => return why,
     };
     match session.cell(&row.address) {
+        Ok(cell) if from_grid.contains(&cell) => {
+            return format!(
+                "{} is set in the scratch grid",
+                display::cell(session, cell)
+            );
+        }
         Ok(cell) if session.input(cell).is_some() => {
             return format!("{} is set by an earlier row", display::cell(session, cell));
         }
@@ -195,26 +379,225 @@ fn edit_row(rows: RwSignal<Vec<Row>>, id: u32, field: Field, text: String) {
     });
 }
 
+/// A highlighted run as the overlay shows it: its text and its classes.
+fn run_classes(
+    run: &HighlightRun,
+    diagnostics: &[TextSpan],
+    brackets: Option<BracketPair>,
+) -> String {
+    let mut classes = String::from(match run.role {
+        TokenRole::Function => "oc-r-function",
+        TokenRole::Name => "oc-r-name",
+        TokenRole::Number => "oc-r-number",
+        TokenRole::Text => "oc-r-text",
+        TokenRole::Error => "oc-r-error",
+        TokenRole::Operator => "oc-r-operator",
+        TokenRole::Delimiter => "oc-r-delimiter",
+        TokenRole::Whitespace => "oc-r-space",
+        TokenRole::Unknown => "oc-r-unknown",
+    });
+    let span = run.span;
+    let overlaps = |d: &TextSpan| {
+        if d.len == 0 {
+            d.start >= span.start && d.start < span.end()
+        } else {
+            d.start < span.end() && span.start < d.end()
+        }
+    };
+    if diagnostics.iter().any(overlaps) {
+        classes.push_str(" oc-diag");
+    }
+    if let Some(pair) = brackets
+        && span.len == 1
+        && (span.start == pair.open || span.start == pair.close)
+    {
+        classes.push_str(" oc-bracket");
+    }
+    classes
+}
+
+fn role_name(role: TokenRole) -> &'static str {
+    match role {
+        TokenRole::Function => "function",
+        TokenRole::Name => "name",
+        TokenRole::Number => "number",
+        TokenRole::Text => "text",
+        TokenRole::Error => "error",
+        TokenRole::Operator => "operator",
+        TokenRole::Delimiter => "delimiter",
+        TokenRole::Whitespace => "whitespace",
+        TokenRole::Unknown => "unknown",
+    }
+}
+
+/// How many arguments a function takes, in words.
+fn arity_text(target: FunctionCallTarget<'_>) -> String {
+    let arity = target.arity();
+    match (arity.min, arity.max) {
+        (0, 0) => "takes no arguments".to_owned(),
+        (min, max) if min == max => {
+            format!("takes {min} argument{}", if min == 1 { "" } else { "s" })
+        }
+        (min, max) => format!("takes {min} to {max} arguments"),
+    }
+}
+
+/// The signature help line's pieces: the text before the active parameter, the active one, and
+/// the rest.
+fn signature_pieces(target: FunctionCallTarget<'_>, active: usize) -> (String, String, String) {
+    let help = target.signature_help();
+    let count = help.parameters.len();
+    let repeats = help.parameters.last().is_some_and(|p| p.repeats);
+    let active = if active >= count && repeats {
+        count - 1
+    } else {
+        active
+    };
+    let label = |index: usize| {
+        let parameter = help.parameters[index];
+        if parameter.optional {
+            format!("[{}]", parameter.name)
+        } else {
+            parameter.name.to_owned()
+        }
+    };
+    let mut before = format!("{}(", target.spelling());
+    let mut current = String::new();
+    let mut after = String::new();
+    for index in 0..count {
+        let text = label(index);
+        let separator = if index > 0 { ", " } else { "" };
+        if index < active {
+            before.push_str(separator);
+            before.push_str(&text);
+        } else if index == active {
+            before.push_str(separator);
+            current = text;
+        } else {
+            after.push_str(separator);
+            after.push_str(&text);
+        }
+    }
+    if repeats {
+        after.push_str(", ...");
+    }
+    after.push(')');
+    (before, current, after)
+}
+
+/// The function help panel for one function.
+fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
+    let signature = target.signature_help().display;
+    let description = help::description(target)
+        .unwrap_or("No description in calc-func's help text.")
+        .to_owned();
+    view! {
+        <aside class="oc-help" data-onecalc="function-help">
+            <h3 data-onecalc="help-name">{target.spelling()}</h3>
+            <code data-onecalc="help-signature">{signature}</code>
+            <p data-onecalc="help-description">{description}</p>
+            <p>{format!("{}; in calc-func's catalogue.", arity_text(target))}</p>
+        </aside>
+    }
+}
+
 fn surface() -> impl IntoView {
     let session = StoredValue::new(Session::new(FIRST_SHEET).expect("Sheet1 is a sheet name"));
     let formula = RwSignal::new(String::new());
+    let caret = RwSignal::new(0usize);
+    let popup = RwSignal::new(Popup::Hidden);
+    let dismissed: RwSignal<Option<String>> = RwSignal::new(None);
     let formula_cell = RwSignal::new(FIRST_FORMULA_CELL.to_owned());
     let sheets = RwSignal::new(vec![FIRST_SHEET.to_owned()]);
     let sheet_entry = RwSignal::new(String::new());
     let sheet_status = RwSignal::new(String::new());
     let rows: RwSignal<Vec<Row>> = RwSignal::new(Vec::new());
     let next_row = StoredValue::new(0u32);
+    let cells = (grid::ROWS * grid::COLUMNS) as usize;
+    let entries: RwSignal<Vec<String>> = RwSignal::new(vec![String::new(); cells]);
+    let editor: NodeRef<leptos::html::Textarea> = NodeRef::new();
 
     let shown = Memo::new(move |_| {
         let formula = formula.get();
         let formula_cell = formula_cell.get();
         let rows = rows.get();
+        let entries = entries.get();
         // A new sheet changes what the addresses and the formula's references name.
         sheets.track();
         session
-            .try_update_value(|session| recalculate(session, &formula, &formula_cell, &rows))
+            .try_update_value(|session| {
+                recalculate(session, &formula, &formula_cell, &rows, &entries)
+            })
             .unwrap_or_default()
     });
+    let runs = Memo::new(move |_| formula.with(|formula| assist::highlight(formula)));
+    let brackets = Memo::new(move |_| {
+        let caret = caret.get();
+        formula.with(|formula| bracket_pair_at(formula, caret))
+    });
+    let call: Memo<Option<CallSite>> = Memo::new(move |_| {
+        let caret = caret.get();
+        formula.with(|formula| assist::call_at(&parse_formula(formula), caret))
+    });
+
+    // Reads the field's text and caret after an edit or a caret move, and reconciles the popup.
+    let sync_from_field = move |text_changed: bool| {
+        let Some(field) = editor.get_untracked() else {
+            return;
+        };
+        let text = field.value();
+        let at = field
+            .selection_start()
+            .ok()
+            .flatten()
+            .map_or(text.encode_utf16().count(), |at| at as usize);
+        if text_changed {
+            formula.set(text.clone());
+        }
+        caret.set(at);
+        let completion = assist::complete(&text, at);
+        let prefix_now = completion.as_ref().map(|c| c.prefix.clone());
+        if dismissed.get_untracked() != prefix_now {
+            dismissed.set(None);
+        }
+        let dismissed_prefix = dismissed.get_untracked();
+        popup.update(|popup| popup.sync(completion, dismissed_prefix.as_deref()));
+    };
+    let accept = move || {
+        let text = formula.get_untracked();
+        let Some((next, at)) = popup.try_update(|popup| popup.accept(&text)).flatten() else {
+            return;
+        };
+        if let Some(field) = editor.get_untracked() {
+            field.set_value(&next);
+            let _ = field.set_selection_range(at as u32, at as u32);
+            let _ = field.focus();
+        }
+        formula.set(next);
+        caret.set(at);
+    };
+    let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
+        if !popup.with_untracked(Popup::is_open) {
+            return;
+        }
+        let Some(key) = popup_key(&ev.key()) else {
+            return;
+        };
+        ev.prevent_default();
+        match key {
+            PopupKey::Next => popup.update(|popup| popup.move_selection(1)),
+            PopupKey::Previous => popup.update(|popup| popup.move_selection(-1)),
+            PopupKey::Accept => accept(),
+            PopupKey::Dismiss => {
+                let prefix = popup.with_untracked(|popup| match popup {
+                    Popup::Open { completion, .. } => Some(completion.prefix.clone()),
+                    Popup::Hidden => None,
+                });
+                dismissed.set(prefix);
+                popup.set(Popup::Hidden);
+            }
+        }
+    };
 
     let add_sheet = move |_| {
         let name = sheet_entry.get_untracked();
@@ -241,139 +624,543 @@ fn surface() -> impl IntoView {
         });
     };
 
-    view! {
-        <section data-onecalc="surface">
-            <p>
-                <label>
-                    "Formula "
-                    <input
-                        data-onecalc="formula"
-                        type="text"
-                        on:input=move |ev| formula.set(event_target_value(&ev))
-                    />
-                </label>
-                " in "
-                <input
-                    data-onecalc="formula-cell"
-                    type="text"
-                    value=FIRST_FORMULA_CELL
-                    on:input=move |ev| formula_cell.set(event_target_value(&ev))
-                />
-                " "
-                <span data-onecalc="formula-cell-status">
-                    {move || shown.with(|shown| shown.formula_cell.clone())}
-                </span>
-            </p>
-            <p>
-                "Sheets: "
-                <span data-onecalc="sheets">{move || sheets.with(|sheets| sheets.join(", "))}</span>
-                " "
-                <input
-                    data-onecalc="sheet-name"
-                    type="text"
-                    on:input=move |ev| sheet_entry.set(event_target_value(&ev))
-                />
-                <button data-onecalc="add-sheet" type="button" on:click=add_sheet>
-                    "Add sheet"
-                </button>
-                " "
-                <span data-onecalc="sheet-status">{move || sheet_status.get()}</span>
-            </p>
-            <table data-onecalc="inputs">
-                <thead>
-                    <tr>
-                        <th>"Cell"</th>
-                        <th>"Type"</th>
-                        <th>"Value"</th>
-                        <th>"Input"</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <For
-                        each=move || rows.with(|rows| rows.iter().map(|row| row.id).collect::<Vec<_>>())
-                        key=|id| *id
-                        children=move |id| {
-                            view! {
-                                <tr data-onecalc="input-row">
-                                    <td>
-                                        <input
-                                            data-onecalc="input-cell"
-                                            type="text"
-                                            on:input=move |ev| {
-                                                edit_row(rows, id, Field::Address, event_target_value(&ev))
-                                            }
-                                        />
-                                    </td>
-                                    <td>
-                                        <select
-                                            data-onecalc="input-kind"
-                                            on:change=move |ev| {
-                                                edit_row(rows, id, Field::Kind, event_target_value(&ev))
-                                            }
-                                        >
-                                            {KINDS
-                                                .iter()
-                                                .map(|(kind, label)| {
-                                                    view! { <option value=*kind>{*label}</option> }
-                                                })
-                                                .collect_view()}
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <input
-                                            data-onecalc="input-value"
-                                            type="text"
-                                            on:input=move |ev| {
-                                                edit_row(rows, id, Field::Entry, event_target_value(&ev))
-                                            }
-                                        />
-                                    </td>
-                                    <td data-onecalc="input-status">
-                                        {move || shown.with(|shown| shown.row(id))}
-                                    </td>
-                                    <td>
-                                        <button
-                                            data-onecalc="remove-input"
-                                            type="button"
-                                            on:click=move |_| {
-                                                rows.update(|rows| rows.retain(|row| row.id != id))
-                                            }
-                                        >
-                                            "Remove"
-                                        </button>
-                                    </td>
-                                </tr>
-                            }
+    let highlight_view = move || {
+        let diagnostics = shown.with(|shown| shown.diagnostic_spans.clone());
+        let pair = brackets.get();
+        runs.with(|runs| {
+            runs.iter()
+                .map(|run| {
+                    let classes = run_classes(run, &diagnostics, pair);
+                    let role = role_name(run.role);
+                    let text = run.text.clone();
+                    view! { <span class=classes data-role=role>{text}</span> }
+                })
+                .collect_view()
+        })
+    };
+
+    let popup_view = move || {
+        popup.with(|state| match state {
+            Popup::Hidden => None,
+            Popup::Open {
+                completion,
+                selected,
+            } => {
+                let selected = *selected;
+                let items = completion
+                    .proposals
+                    .iter()
+                    .enumerate()
+                    .map(|(index, proposal)| {
+                        let label = proposal.label();
+                        let signature = proposal.target.signature_help().display;
+                        let class = if index == selected { "oc-sel" } else { "" };
+                        view! {
+                            <li
+                                class=class
+                                data-onecalc="completion"
+                                role="option"
+                                aria-selected=if index == selected { "true" } else { "false" }
+                                on:mousedown=move |ev| {
+                                    ev.prevent_default();
+                                    popup_select_and_accept(popup, index, accept);
+                                }
+                            >
+                                <span data-onecalc="completion-label">{label}</span>
+                                <small>{signature}</small>
+                            </li>
                         }
-                    />
-                </tbody>
-            </table>
-            <button data-onecalc="add-input" type="button" on:click=add_row>
-                "Add input"
-            </button>
-            <p>
-                "Result: "
-                <output data-onecalc="result">{move || shown.with(|shown| shown.result.clone())}</output>
+                    })
+                    .collect_view();
+                Some(view! { <ul class="oc-pop" data-onecalc="completions" role="listbox">{items}</ul> })
+            }
+        })
+    };
+
+    let signature_view = move || {
+        let site = call.get()?;
+        let view = match site.target {
+            Some(target) => {
+                let (before, current, after) = signature_pieces(target, site.active_argument);
+                view! {
+                    <div class="oc-sig" data-onecalc="signature">
+                        {before}
+                        <strong data-onecalc="active-parameter">{current}</strong>
+                        {after}
+                    </div>
+                }
+                .into_any()
+            }
+            None => view! {
+                <div class="oc-sig oc-err" data-onecalc="signature">
+                    {format!("{} is not a function in calc-func's catalogue", site.callee)}
+                </div>
+            }
+            .into_any(),
+        };
+        Some(view)
+    };
+
+    let help_panel = move || {
+        let target = popup
+            .with(Popup::selected)
+            .map(|proposal| proposal.target)
+            .or_else(|| call.with(|site| site.as_ref().and_then(|site| site.target)))?;
+        Some(help_view(target))
+    };
+
+    let result_view = move || {
+        shown.with(|shown| match &shown.view {
+            ResultView::NoFormula => view! {
+                <p class="oc-prov">"Type a formula, starting with =."</p>
+            }
+            .into_any(),
+            ResultView::Value { kind, text } => {
+                let (kind, text) = (*kind, text.clone());
+                view! {
+                    <div>
+                        <span class="oc-kind" data-onecalc="result-type">{kind}</span>
+                        <span class="oc-value" data-onecalc="result-value">{text}</span>
+                    </div>
+                }
+                .into_any()
+            }
+            ResultView::Error { code, meaning } => {
+                let (code, meaning) = (*code, *meaning);
+                view! {
+                    <div>
+                        <span class="oc-kind" data-onecalc="result-type">"error"</span>
+                        <span class="oc-value oc-err" data-onecalc="result-value">{code}</span>
+                        " "
+                        <span class="oc-err" data-onecalc="result-error">{meaning}</span>
+                    </div>
+                }
+                .into_any()
+            }
+            ResultView::Array(window) => {
+                let caption = format!(
+                    "{} x {} array{}",
+                    window.total_rows,
+                    window.total_cols,
+                    if window.truncated() {
+                        format!(
+                            ", first {} rows by {} columns shown",
+                            window.cells.len(),
+                            window.cells.first().map_or(0, Vec::len)
+                        )
+                    } else {
+                        String::new()
+                    }
+                );
+                let body = window
+                    .cells
+                    .iter()
+                    .map(|row| {
+                        let cells = row
+                            .iter()
+                            .map(|cell| {
+                                let (kind, text) = (cell.kind, cell.text.clone());
+                                view! { <td data-kind=kind title=kind>{text}</td> }
+                            })
+                            .collect_view();
+                        view! { <tr>{cells}</tr> }
+                    })
+                    .collect_view();
+                view! {
+                    <div>
+                        <span class="oc-kind" data-onecalc="result-type">"array"</span>
+                        <span data-onecalc="result-shape">{caption}</span>
+                        <table class="oc-array" data-onecalc="result-array" role="grid">
+                            <tbody>{body}</tbody>
+                        </table>
+                    </div>
+                }
+                .into_any()
+            }
+            ResultView::NotCalculated => view! {
+                <div>
+                    <span class="oc-kind" data-onecalc="result-type">"no value"</span>
+                    <span class="oc-err">"The formula was not calculated; see below."</span>
+                </div>
+            }
+            .into_any(),
+        })
+    };
+
+    let grid_header = (1..=grid::COLUMNS)
+        .map(|column| view! { <th>{grid::column_letter(column).to_string()}</th> })
+        .collect_view();
+    let grid_body = (1..=grid::ROWS)
+        .map(|row| {
+            let cells = (1..=grid::COLUMNS)
+                .map(|column| {
+                    let index = ((row - 1) * grid::COLUMNS + (column - 1)) as usize;
+                    let address = grid::address(row, column);
+                    let cell = move || shown.with(|shown| shown.cell(index));
+                    let class = move || match cell().kind {
+                        "formula" => "oc-formula",
+                        "refused" => "oc-refused",
+                        _ => "",
+                    };
+                    let value = move || {
+                        let shown = cell();
+                        if shown.kind == "formula" {
+                            shown.value
+                        } else {
+                            entries.with(|entries| entries.get(index).cloned().unwrap_or_default())
+                        }
+                    };
+                    view! {
+                        <td class=class>
+                            <input
+                                type="text"
+                                data-onecalc="grid-cell"
+                                data-cell=address.clone()
+                                aria-label=address
+                                data-kind=move || cell().kind
+                                title=move || cell().note
+                                readonly=move || cell().kind == "formula"
+                                prop:value=value
+                                on:input=move |ev| {
+                                    let text = event_target_value(&ev);
+                                    entries.update(|entries| {
+                                        if let Some(entry) = entries.get_mut(index) {
+                                            *entry = text;
+                                        }
+                                    });
+                                }
+                            />
+                        </td>
+                    }
+                })
+                .collect_view();
+            view! { <tr><th>{row}</th>{cells}</tr> }
+        })
+        .collect_view();
+
+    view! {
+        <section class="oc" data-onecalc="surface">
+            <style>{SURFACE_CSS}</style>
+            <h1>"DNA OneCalc"</h1>
+            <p class="oc-sub">
+                "One Excel formula, calculated in your browser by calc-fml and calc-func. No workbook, no calculation engine."
             </p>
-            <ul data-onecalc="diagnostics">
-                {move || {
-                    shown
-                        .with(|shown| shown.diagnostics.clone())
-                        .into_iter()
-                        .map(|line| view! { <li>{line}</li> })
-                        .collect_view()
-                }}
-            </ul>
-            <ol data-onecalc="reads">
-                {move || {
-                    shown
-                        .with(|shown| shown.reads.clone())
-                        .into_iter()
-                        .map(|line| view! { <li>{line}</li> })
-                        .collect_view()
-                }}
-            </ol>
+            <div class="oc-row">
+                <div class="oc-col">
+                    <div class="oc-editor">
+                        <pre data-onecalc="highlight" aria-hidden="true">{highlight_view}"\n"</pre>
+                        <textarea
+                            data-onecalc="formula"
+                            node_ref=editor
+                            rows="2"
+                            spellcheck="false"
+                            autocomplete="off"
+                            aria-label="Formula"
+                            placeholder="=SUM(A1:A3)"
+                            on:input=move |_| sync_from_field(true)
+                            on:keydown=on_keydown
+                            on:keyup=move |ev: leptos::ev::KeyboardEvent| {
+                                if !matches!(ev.key().as_str(), "ArrowDown" | "ArrowUp" | "Enter" | "Tab" | "Escape") {
+                                    sync_from_field(false)
+                                }
+                            }
+                            on:click=move |_| sync_from_field(false)
+                        ></textarea>
+                    </div>
+                    {popup_view}
+                    {signature_view}
+                    <p>
+                        "Entered in "
+                        <input
+                            data-onecalc="formula-cell"
+                            type="text"
+                            size="10"
+                            value=FIRST_FORMULA_CELL
+                            on:input=move |ev| formula_cell.set(event_target_value(&ev))
+                        />
+                        " "
+                        <span data-onecalc="formula-cell-status">
+                            {move || shown.with(|shown| shown.formula_cell.clone())}
+                        </span>
+                    </p>
+                    <div class="oc-result" data-onecalc="result-panel">
+                        <p>
+                            "Result: "
+                            <output data-onecalc="result">
+                                {move || shown.with(|shown| shown.result.clone())}
+                            </output>
+                        </p>
+                        {result_view}
+                        <p class="oc-prov" data-onecalc="provenance">
+                            {move || shown.with(|shown| shown.provenance.clone())}
+                        </p>
+                        <ul class="oc-diags" data-onecalc="diagnostics">
+                            {move || {
+                                shown
+                                    .with(|shown| shown.diagnostics.clone())
+                                    .into_iter()
+                                    .map(|line| view! { <li>{line}</li> })
+                                    .collect_view()
+                            }}
+                        </ul>
+                        <ol class="oc-reads" data-onecalc="reads">
+                            {move || {
+                                shown
+                                    .with(|shown| shown.reads.clone())
+                                    .into_iter()
+                                    .map(|line| view! { <li>{line}</li> })
+                                    .collect_view()
+                            }}
+                        </ol>
+                    </div>
+                    {help_panel}
+                </div>
+                <div class="oc-col">
+                    <div class="oc-panel">
+                        <h2>{format!("Scratch grid: {FIRST_SHEET}!A1:{}", grid::address(grid::ROWS, grid::COLUMNS))}</h2>
+                        <table class="oc-grid" data-onecalc="grid">
+                            <thead><tr><th></th>{grid_header}</tr></thead>
+                            <tbody>{grid_body}</tbody>
+                        </table>
+                    </div>
+                    <div class="oc-panel">
+                        <h2>"Sheets"</h2>
+                        <span data-onecalc="sheets">{move || sheets.with(|sheets| sheets.join(", "))}</span>
+                        " "
+                        <input
+                            data-onecalc="sheet-name"
+                            type="text"
+                            size="12"
+                            on:input=move |ev| sheet_entry.set(event_target_value(&ev))
+                        />
+                        <button data-onecalc="add-sheet" type="button" on:click=add_sheet>
+                            "Add sheet"
+                        </button>
+                        " "
+                        <span data-onecalc="sheet-status">{move || sheet_status.get()}</span>
+                    </div>
+                    <div class="oc-panel">
+                        <h2>"Typed inputs, on any sheet"</h2>
+                        <table class="oc-inputs" data-onecalc="inputs">
+                            <thead>
+                                <tr>
+                                    <th>"Cell"</th>
+                                    <th>"Type"</th>
+                                    <th>"Value"</th>
+                                    <th>"Input"</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <For
+                                    each=move || rows.with(|rows| rows.iter().map(|row| row.id).collect::<Vec<_>>())
+                                    key=|id| *id
+                                    children=move |id| {
+                                        view! {
+                                            <tr data-onecalc="input-row">
+                                                <td>
+                                                    <input
+                                                        data-onecalc="input-cell"
+                                                        type="text"
+                                                        size="10"
+                                                        on:input=move |ev| {
+                                                            edit_row(rows, id, Field::Address, event_target_value(&ev))
+                                                        }
+                                                    />
+                                                </td>
+                                                <td>
+                                                    <select
+                                                        data-onecalc="input-kind"
+                                                        on:change=move |ev| {
+                                                            edit_row(rows, id, Field::Kind, event_target_value(&ev))
+                                                        }
+                                                    >
+                                                        {KINDS
+                                                            .iter()
+                                                            .map(|(kind, label)| {
+                                                                view! { <option value=*kind>{*label}</option> }
+                                                            })
+                                                            .collect_view()}
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <input
+                                                        data-onecalc="input-value"
+                                                        type="text"
+                                                        size="10"
+                                                        on:input=move |ev| {
+                                                            edit_row(rows, id, Field::Entry, event_target_value(&ev))
+                                                        }
+                                                    />
+                                                </td>
+                                                <td data-onecalc="input-status">
+                                                    {move || shown.with(|shown| shown.row(id))}
+                                                </td>
+                                                <td>
+                                                    <button
+                                                        data-onecalc="remove-input"
+                                                        type="button"
+                                                        on:click=move |_| {
+                                                            rows.update(|rows| rows.retain(|row| row.id != id))
+                                                        }
+                                                    >
+                                                        "Remove"
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                />
+                            </tbody>
+                        </table>
+                        <button data-onecalc="add-input" type="button" on:click=add_row>
+                            "Add input"
+                        </button>
+                    </div>
+                </div>
+            </div>
         </section>
+    }
+}
+
+/// Selects the popup item at `index` and accepts it (a click on the item).
+fn popup_select_and_accept(popup: RwSignal<Popup>, index: usize, accept: impl Fn()) {
+    popup.update(|popup| popup.select(index));
+    accept();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use calc_func::{Notation, catalogue};
+
+    #[test]
+    fn signature_pieces_mark_the_active_parameter() {
+        let sum = catalogue()
+            .resolve_surface(Notation::Call, "SUM")
+            .expect("SUM");
+        let (before, current, after) = signature_pieces(sum, 0);
+        assert_eq!(
+            format!("{before}<{current}>{after}"),
+            "SUM(<number1>, [number2], ...)"
+        );
+        // Past the named parameters, the repeating last one stays active.
+        let (before, current, after) = signature_pieces(sum, 5);
+        assert_eq!(
+            format!("{before}<{current}>{after}"),
+            "SUM(number1, <[number2]>, ...)"
+        );
+        let pi = catalogue()
+            .resolve_surface(Notation::Call, "PI")
+            .expect("PI");
+        let (before, current, after) = signature_pieces(pi, 0);
+        assert_eq!(format!("{before}<{current}>{after}"), "PI(<>)");
+        assert_eq!(arity_text(pi), "takes no arguments");
+        assert_eq!(arity_text(sum), "takes 1 to 255 arguments");
+    }
+
+    fn entries(cells: &[(usize, &str)]) -> Vec<String> {
+        let mut entries = vec![String::new(); (grid::ROWS * grid::COLUMNS) as usize];
+        for (index, text) in cells {
+            entries[*index] = (*text).to_owned();
+        }
+        entries
+    }
+
+    #[test]
+    fn the_grid_supplies_cells_and_shows_the_formula_cell() {
+        let mut session = Session::new(FIRST_SHEET).expect("a session");
+        // A1 = 1.5, A2 = 2, A3 typed nothing (blank); the formula in H1.
+        let shown = recalculate(
+            &mut session,
+            "=SUM(A1:A4)*2",
+            "H1",
+            &[],
+            &entries(&[(0, "1.5"), (8, "2")]),
+        );
+        assert_eq!(shown.result, "number 7");
+        assert_eq!(
+            shown.view,
+            ResultView::Value {
+                kind: "number",
+                text: "7".to_owned()
+            }
+        );
+        assert_eq!(shown.grid[7].kind, "formula");
+        assert_eq!(shown.grid[7].value, "7");
+        assert_eq!(shown.grid[0].kind, "number");
+        assert_eq!(
+            shown.reads,
+            [
+                "Sheet1!A1:A4: Sheet1!A1 = number 1.5; Sheet1!A2 = number 2; 2 blank cells from Sheet1!A3"
+            ]
+        );
+        assert!(
+            shown.provenance.starts_with("calculated in Sheet1!H1"),
+            "{}",
+            shown.provenance
+        );
+
+        // A formula typed into a grid cell is refused there; the cell then has no input.
+        let shown = recalculate(&mut session, "=A1+1", "H1", &[], &entries(&[(0, "=2")]));
+        assert_eq!(shown.grid[0].kind, "refused");
+        assert_eq!(shown.result, "not calculated");
+        assert_eq!(shown.diagnostics, ["missing input: Sheet1!A1 has no input"]);
+
+        // A row naming a grid cell with an entry is refused; one naming an empty one sets it.
+        let rows = [
+            Row {
+                id: 0,
+                address: "A1".to_owned(),
+                kind: "number".to_owned(),
+                entry: "9".to_owned(),
+            },
+            Row {
+                id: 1,
+                address: "B1".to_owned(),
+                kind: "number".to_owned(),
+                entry: "4".to_owned(),
+            },
+        ];
+        let shown = recalculate(&mut session, "=A1*B1", "H1", &rows, &entries(&[(0, "3")]));
+        assert_eq!(shown.rows[0].1, "Sheet1!A1 is set in the scratch grid");
+        assert_eq!(shown.rows[1].1, "Sheet1!B1 = number 4");
+        assert_eq!(shown.result, "number 12");
+
+        // An array result and an error result.
+        let shown = recalculate(&mut session, "={1,2;3,4}", "H1", &[], &entries(&[]));
+        assert!(
+            matches!(&shown.view, ResultView::Array(window) if window.total_rows == 2),
+            "{shown:?}"
+        );
+        assert_eq!(shown.grid[7].value, "{2x2 array}");
+        let shown = recalculate(&mut session, "=1/0", "H1", &[], &entries(&[]));
+        assert_eq!(
+            shown.view,
+            ResultView::Error {
+                code: "#DIV/0!",
+                meaning: "division by zero"
+            }
+        );
+        // A syntax diagnostic points into the text.
+        let shown = recalculate(&mut session, "=A1*", "H1", &[], &entries(&[]));
+        assert_eq!(shown.diagnostic_spans, [TextSpan::new(4, 0)]);
+    }
+
+    #[test]
+    fn highlight_classes_mark_diagnostics_and_brackets() {
+        let runs = assist::highlight("=SUM(1,2)");
+        let pair = bracket_pair_at("=SUM(1,2)", 4);
+        let classes: Vec<String> = runs.iter().map(|run| run_classes(run, &[], pair)).collect();
+        assert_eq!(classes[1], "oc-r-function");
+        assert_eq!(classes[2], "oc-r-delimiter oc-bracket");
+        assert_eq!(classes[6], "oc-r-delimiter oc-bracket");
+        let runs = assist::highlight("=Sheet9!A1+1");
+        let classes: Vec<String> = runs
+            .iter()
+            .map(|run| run_classes(run, &[TextSpan::new(1, 9)], None))
+            .collect();
+        assert!(classes[1].ends_with("oc-diag"));
+        assert!(!classes[classes.len() - 1].ends_with("oc-diag"));
     }
 }

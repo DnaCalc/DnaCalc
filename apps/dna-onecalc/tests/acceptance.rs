@@ -595,11 +595,28 @@ fn controller_part() -> usize {
 
 #[cfg(target_arch = "wasm32")]
 mod browser {
-    use super::{EXAMPLES, Example, FORMULA_CELL, check_lines};
+    use super::{COLUMN, EXAMPLES, Example, FORMULA_CELL, check_lines};
+
+    /// `=SUM(A1:A4)` in the surface: A4 is an empty cell of the scratch grid, which the surface
+    /// gives the session as a blank cell, as a worksheet's empty cell is. SUM skips both blanks:
+    /// 1.5 + 2.
+    const SCRATCH_GRID_BLANK: Example = Example {
+        name: "a range reaching an empty scratch-grid cell",
+        inputs: COLUMN,
+        formula: "=SUM(A1:A4)",
+        result: "number 3.5",
+        diagnostics: &[],
+        reads: &[
+            "Sheet1!A1:A4: Sheet1!A1 = number 1.5; Sheet1!A2 blank; Sheet1!A3 = number 2; Sheet1!A4 blank",
+        ],
+    };
     use dna_onecalc::surface::{Mounted, mount};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_futures::JsFuture;
-    use web_sys::{Element, Event, EventInit, HtmlElement, HtmlInputElement, HtmlSelectElement};
+    use web_sys::{
+        Element, Event, EventInit, HtmlElement, HtmlInputElement, HtmlSelectElement,
+        HtmlTextAreaElement,
+    };
 
     /// The surface mounted in a fresh element of the test page.
     pub struct Page {
@@ -782,12 +799,15 @@ mod browser {
         }
     }
 
+    /// Sets the text of an input, or of the formula's text area, and dispatches `input`.
     fn type_text(target: &Element, text: &str) {
-        target
-            .clone()
-            .dyn_into::<HtmlInputElement>()
-            .expect("an input")
-            .set_value(text);
+        match target.clone().dyn_into::<HtmlInputElement>() {
+            Ok(input) => input.set_value(text),
+            Err(other) => other
+                .dyn_into::<HtmlTextAreaElement>()
+                .expect("an input or a text area")
+                .set_value(text),
+        }
         dispatch(target, "input");
     }
 
@@ -832,6 +852,14 @@ mod browser {
 
         let mut checked = 3;
         for example in &EXAMPLES[3..] {
+            // Sheet1!A4 is a cell of the surface's scratch grid (dc-q4y), which is blank while
+            // nothing is typed in it, so in the surface this range reads a blank where the
+            // controller alone has no input for the cell.
+            let example = if example.formula == "=SUM(A1:A4)" {
+                &SCRATCH_GRID_BLANK
+            } else {
+                example
+            };
             page.enter(example).await;
             page.check(example);
             checked += 1;
