@@ -39,3 +39,5 @@ pub use catalogue::{
     ParameterClass, RegistrationError, SignatureHelp, catalogue,
 };
 pub use file_prefix::FilePrefix;
+/// A number in Excel's General format under a locale profile, as a cell shows it.
+pub use format::general as general_format;

@@ -27,8 +27,8 @@ use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
 use calc_fml::assist::{self, CallSite, HighlightRun, TokenRole};
-use calc_fml::parse_formula;
 use calc_fml::syntax::TextSpan;
+use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm, parse_formula};
 use calc_func::value::CellKey;
 use calc_func::{FunctionCallTarget, help};
 use leptos::mount::mount_to;
@@ -198,6 +198,34 @@ fn entry_value(session: &Session, kind: &str, entry: &str) -> Result<InputValue,
     }
 }
 
+/// The calculation environment the surface gives the session: the 1900 date system, the en-US
+/// locale profile, and this browser's clock for NOW and TODAY (no clock off the browser, which
+/// refuses them).
+fn environment() -> CalcEnvironment {
+    CalcEnvironment {
+        date_system: DateSystem::System1900,
+        profile: FormatProfile::for_culture(LOCALE),
+        now: clock(),
+    }
+}
+
+/// The locale profile the surface calculates and shows numbers in.
+const LOCALE: &str = "en-US";
+
+/// The browser's local time as an Excel serial date number in the 1900 system: days since
+/// 1899-12-30, the epoch of serial numbers from 1900-03-01 on.
+#[cfg(target_arch = "wasm32")]
+fn clock() -> Option<f64> {
+    let now = js_sys::Date::new_0();
+    let local_ms = now.get_time() - now.get_timezone_offset() * 60_000.0;
+    Some(local_ms / 86_400_000.0 + 25_569.0)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn clock() -> Option<f64> {
+    None
+}
+
 /// The grid's cell at a 0-based index, row by row.
 fn grid_cell(session: &Session, index: usize) -> Option<CellKey> {
     let (_, sheet) = session.sheets().next()?;
@@ -281,12 +309,15 @@ fn recalculate(
         };
     }
     let calculation = session.calculate();
-    let view = ResultView::of(&calculation);
+    let profile = session
+        .environment()
+        .and_then(|environment| environment.profile);
+    let view = ResultView::of(&calculation, profile.as_ref());
     if let Some(index) = formula_index {
         grid[index] = GridShown {
             kind: "formula",
             value: match &calculation.result {
-                Some(value) => result::plain(value),
+                Some(value) => result::shown(value, profile.as_ref()),
                 None => "(no value)".to_owned(),
             },
             note: format!("the formula's cell: {formula}"),
@@ -508,6 +539,7 @@ fn surface() -> impl IntoView {
     let popup = RwSignal::new(Popup::Hidden);
     let dismissed: RwSignal<Option<String>> = RwSignal::new(None);
     let formula_cell = RwSignal::new(FIRST_FORMULA_CELL.to_owned());
+    let form_choice = RwSignal::new(FormulaForm::Dynamic);
     let sheets = RwSignal::new(vec![FIRST_SHEET.to_owned()]);
     let sheet_entry = RwSignal::new(String::new());
     let sheet_status = RwSignal::new(String::new());
@@ -522,10 +554,13 @@ fn surface() -> impl IntoView {
         let formula_cell = formula_cell.get();
         let rows = rows.get();
         let entries = entries.get();
+        let form = form_choice.get();
         // A new sheet changes what the addresses and the formula's references name.
         sheets.track();
         session
             .try_update_value(|session| {
+                session.set_form(form);
+                session.set_environment(Some(environment()));
                 recalculate(session, &formula, &formula_cell, &rows, &entries)
             })
             .unwrap_or_default()
@@ -715,12 +750,20 @@ fn surface() -> impl IntoView {
                 <p class="oc-prov">"Type a formula, starting with =."</p>
             }
             .into_any(),
-            ResultView::Value { kind, text } => {
+            ResultView::Value { kind, text, exact } => {
                 let (kind, text) = (*kind, text.clone());
+                let exact = exact.clone().map(|exact| {
+                    view! {
+                        <span class="oc-prov" data-onecalc="result-exact">
+                            {format!(" exactly {exact}")}
+                        </span>
+                    }
+                });
                 view! {
                     <div>
                         <span class="oc-kind" data-onecalc="result-type">{kind}</span>
                         <span class="oc-value" data-onecalc="result-value">{text}</span>
+                        {exact}
                     </div>
                 }
                 .into_any()
@@ -870,7 +913,24 @@ fn surface() -> impl IntoView {
                     {popup_view}
                     {signature_view}
                     <p>
-                        "Entered in "
+                        <select
+                            data-onecalc="formula-form"
+                            aria-label="Formula form"
+                            on:change=move |ev| {
+                                form_choice
+                                    .set(
+                                        if event_target_value(&ev) == "legacy" {
+                                            FormulaForm::Legacy
+                                        } else {
+                                            FormulaForm::Dynamic
+                                        },
+                                    )
+                            }
+                        >
+                            <option value="dynamic">"Excel 365: dynamic arrays"</option>
+                            <option value="legacy">"Legacy: implicit intersection"</option>
+                        </select>
+                        " entered in "
                         <input
                             data-onecalc="formula-cell"
                             type="text"
@@ -893,6 +953,12 @@ fn surface() -> impl IntoView {
                         {result_view}
                         <p class="oc-prov" data-onecalc="provenance">
                             {move || shown.with(|shown| shown.provenance.clone())}
+                        </p>
+                        <p class="oc-prov" data-onecalc="environment">
+                            {format!(
+                                "Dates in the 1900 system; numbers shown in the {LOCALE} General format; NOW and TODAY read {}.",
+                                if cfg!(target_arch = "wasm32") { "this browser's clock" } else { "no clock" },
+                            )}
                         </p>
                         <ul class="oc-diags" data-onecalc="diagnostics">
                             {move || {
@@ -1083,7 +1149,8 @@ mod tests {
             shown.view,
             ResultView::Value {
                 kind: "number",
-                text: "7".to_owned()
+                text: "7".to_owned(),
+                exact: None
             }
         );
         assert_eq!(shown.grid[7].kind, "formula");

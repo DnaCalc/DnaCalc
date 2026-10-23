@@ -2,7 +2,7 @@
 //! [--browser chromium|firefox]`: DNA OneCalc's browser bundle and its smoke test.
 //!
 //! `bundle` builds the app's browser entry (`apps/dna-onecalc/src/bin/dna-onecalc-web.rs`) for
-//! wasm32-unknown-unknown in release, runs wasm-bindgen 0.2.117 (`--target web`) over it, and
+//! wasm32-unknown-unknown in the workspace's `web` profile (release, optimised for size), runs wasm-bindgen 0.2.117 (`--target web`) over it, and
 //! copies `apps/dna-onecalc/web/index.html` beside the output, into `target/onecalc-bundle` unless
 //! `--out` names another folder. It prints each file's size and the total. Nothing is published:
 //! the folder is served only by `smoke`, on 127.0.0.1.
@@ -42,6 +42,9 @@ const ENTRY: &str = "dna-onecalc-web";
 
 /// The wasm-bindgen CLI release the bundle needs: the one the app's wasm-bindgen crate is pinned to.
 const BINDGEN_VERSION: &str = "wasm-bindgen 0.2.117";
+
+/// The cargo profile of the bundle: release, optimised for size (the workspace's `[profile.web]`).
+const PROFILE: &str = "web";
 
 /// The page, relative to the workspace root.
 const PAGE: &str = "apps/dna-onecalc/web/index.html";
@@ -114,7 +117,7 @@ fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
             bindgen.display()
         ));
     }
-    println!("ONECALC building {ENTRY} for {WASM_TARGET} (release)");
+    println!("ONECALC building {ENTRY} for {WASM_TARGET} (profile {PROFILE})");
     let target_dir = ws.accept_target_dir();
     let mut build = Command::new(cargo::cargo_program());
     build
@@ -122,7 +125,8 @@ fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
         .args([
             "build",
             "--locked",
-            "--release",
+            "--profile",
+            PROFILE,
             "-p",
             PACKAGE,
             "--bin",
@@ -140,7 +144,7 @@ fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
     }
     let wasm = target_dir
         .join(WASM_TARGET)
-        .join("release")
+        .join(PROFILE)
         .join(format!("{ENTRY}.wasm"));
     fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
     let generated = cargo::output(
@@ -506,6 +510,8 @@ enum Action {
     Formula(&'static str),
     /// Types these keys into the formula field.
     Keys(&'static str),
+    /// Chooses the option with this value in the select element with this role.
+    Choose(&'static str, &'static str),
 }
 
 /// What a case expects the page to show.
@@ -671,6 +677,42 @@ const CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "a number shows as a cell shows it, with the exact decimal beside",
+        actions: &[Action::Formula("=0.1+0.2")],
+        checks: &[
+            Check::Text("result-value", "0.3"),
+            Check::Text("result-exact", " exactly 0.30000000000000004"),
+        ],
+    },
+    Case {
+        name: "a date function reads the 1900 date system: =DATE(2024,1,31) is 45322",
+        actions: &[Action::Formula("=DATE(2024,1,31)")],
+        checks: &[Check::Text("result", "number 45322")],
+    },
+    Case {
+        name: "a number format reads the en-US profile: =TEXT(1234.5,\"#,##0.00\")",
+        actions: &[Action::Formula("=TEXT(1234.5,\"#,##0.00\")")],
+        checks: &[Check::Text("result", "text \"1,234.50\"")],
+    },
+    Case {
+        name: "NOW reads the browser's clock: =NOW()>45000 is TRUE",
+        actions: &[Action::Formula("=NOW()>45000")],
+        checks: &[Check::Text("result", "logical TRUE")],
+    },
+    Case {
+        name: "the legacy form takes one value: ={1,2;3,4}*10 is 10",
+        actions: &[
+            Action::Choose("formula-form", "legacy"),
+            Action::Formula("={1,2;3,4}*10"),
+        ],
+        checks: &[Check::Text("result", "number 10")],
+    },
+    Case {
+        name: "back in the dynamic-array form the same formula is a 2 x 2 array",
+        actions: &[Action::Choose("formula-form", "dynamic")],
+        checks: &[Check::Array(&[&["10", "20"], &["30", "40"]])],
+    },
+    Case {
         name: "Escape dismisses the completion list",
         actions: &[Action::Formula("=AVER"), Action::Keys(ESCAPE)],
         checks: &[Check::Absent("completions"), Check::Field("=AVER")],
@@ -783,6 +825,11 @@ fn act(session: &Session, action: &Action) -> Result<(), String> {
             session.keys(&role("formula"), text)
         }
         Action::Keys(keys) => session.keys(&role("formula"), keys),
+        Action::Choose(name, value) => {
+            let option = session.element(&format!("{} option[value=\"{value}\"]", role(name)))?;
+            session.post(&format!("/element/{option}/click"), json!({}))?;
+            Ok(())
+        }
     }
 }
 

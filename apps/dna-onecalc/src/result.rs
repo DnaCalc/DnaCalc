@@ -9,6 +9,7 @@
 
 use crate::display;
 use crate::session::{Calculation, Session};
+use calc_func::locale::FormatProfile;
 use calc_func::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
 
 /// The most cells an array window holds.
@@ -55,13 +56,15 @@ pub enum ArrayWindowError {
     Overflow,
 }
 
-/// The window of `array` with `row_count` rows and `col_count` columns from the 0-based offsets.
+/// The window of `array` with `row_count` rows and `col_count` columns from the 0-based offsets,
+/// each number shown as [`shown`] shows it under `profile`.
 pub fn array_window(
     array: &CalcArray,
     row_offset: usize,
     col_offset: usize,
     row_count: usize,
     col_count: usize,
+    profile: Option<&FormatProfile>,
 ) -> Result<ArrayWindow, ArrayWindowError> {
     if row_count == 0 || col_count == 0 {
         return Err(ArrayWindowError::Empty);
@@ -92,7 +95,7 @@ pub fn array_window(
                         .expect("a cell inside the checked window");
                     WindowCell {
                         kind: kind(value),
-                        text: plain(value),
+                        text: shown(value, profile),
                     }
                 })
                 .collect()
@@ -108,13 +111,13 @@ pub fn array_window(
 }
 
 /// The first window of `array`: up to 32 rows, and as many columns as the cell bound leaves.
-pub fn first_window(array: &CalcArray) -> ArrayWindow {
+pub fn first_window(array: &CalcArray, profile: Option<&FormatProfile>) -> ArrayWindow {
     let shape = array.shape();
     let rows = shape.rows.min(FIRST_WINDOW_ROWS);
     let cols = shape
         .cols
         .min((MAX_ARRAY_WINDOW_CELLS / rows.max(1)).max(1));
-    array_window(array, 0, 0, rows, cols).expect("the first window lies inside the array")
+    array_window(array, 0, 0, rows, cols, profile).expect("the first window lies inside the array")
 }
 
 /// A value's type as the surface labels it.
@@ -128,6 +131,16 @@ pub fn kind(value: &CalcValue) -> &'static str {
         CoreValue::Missing => "omitted argument",
         CoreValue::Array(_) => "array",
         CoreValue::Reference(_) => "reference",
+    }
+}
+
+/// A value as a cell of Excel's standard column width shows it: a number in the General format of
+/// `profile` (`0.3` for 0.1+0.2, `0.333333333` for 1/3), and every other value as [`plain`] gives
+/// it. Without a profile a number is [`plain`]'s shortest round-trip decimal.
+pub fn shown(value: &CalcValue, profile: Option<&FormatProfile>) -> String {
+    match (value.core(), profile) {
+        (CoreValue::Number(number), Some(profile)) => calc_func::general_format(profile, *number),
+        _ => plain(value),
     }
 }
 
@@ -176,8 +189,13 @@ pub enum ResultView {
     /// No formula has been entered.
     #[default]
     NoFormula,
-    /// A scalar value: its type and the value.
-    Value { kind: &'static str, text: String },
+    /// A scalar value: its type, the value as a cell shows it ([`shown`]), and, for a number whose
+    /// shortest round-trip decimal differs from that, the decimal.
+    Value {
+        kind: &'static str,
+        text: String,
+        exact: Option<String>,
+    },
     /// A worksheet error value, which the formula calculated: its spelling and meaning.
     Error {
         code: &'static str,
@@ -190,20 +208,25 @@ pub enum ResultView {
 }
 
 impl ResultView {
-    /// The view of a calculation.
-    pub fn of(calculation: &Calculation) -> ResultView {
+    /// The view of a calculation, numbers shown under `profile` as a cell shows them.
+    pub fn of(calculation: &Calculation, profile: Option<&FormatProfile>) -> ResultView {
         match &calculation.result {
             None => ResultView::NotCalculated,
             Some(value) => match value.core() {
-                CoreValue::Array(array) => ResultView::Array(first_window(array)),
+                CoreValue::Array(array) => ResultView::Array(first_window(array, profile)),
                 CoreValue::Error(code) => ResultView::Error {
                     code: display::error_spelling(*code),
                     meaning: error_meaning(*code),
                 },
-                _ => ResultView::Value {
-                    kind: kind(value),
-                    text: plain(value),
-                },
+                _ => {
+                    let text = shown(value, profile);
+                    let exact = plain(value);
+                    ResultView::Value {
+                        kind: kind(value),
+                        exact: (value.as_number().is_some() && exact != text).then_some(exact),
+                        text,
+                    }
+                }
             },
         }
     }
@@ -269,7 +292,7 @@ mod tests {
             ],
         ])
         .expect("2x2");
-        let window = array_window(&array, 0, 0, 2, 2).expect("the whole array");
+        let window = array_window(&array, 0, 0, 2, 2, None).expect("the whole array");
         assert_eq!(
             window.cells[0][1],
             WindowCell {
@@ -286,7 +309,7 @@ mod tests {
             reads: Vec::new(),
         };
         assert!(matches!(
-            ResultView::of(&calculation),
+            ResultView::of(&calculation, None),
             ResultView::Array(ArrayWindow {
                 total_rows: 2,
                 total_cols: 2,
@@ -298,7 +321,7 @@ mod tests {
             ..calculation.clone()
         };
         assert_eq!(
-            ResultView::of(&error),
+            ResultView::of(&error, None),
             ResultView::Error {
                 code: "#DIV/0!",
                 meaning: "division by zero"
@@ -308,33 +331,78 @@ mod tests {
             result: None,
             ..calculation
         };
-        assert_eq!(ResultView::of(&none), ResultView::NotCalculated);
+        assert_eq!(ResultView::of(&none, None), ResultView::NotCalculated);
+    }
+
+    #[test]
+    fn numbers_show_as_a_cell_shows_them_with_the_exact_decimal_beside() {
+        let profile = FormatProfile::for_culture("en-US").expect("en-US");
+        let view = |value: f64| {
+            ResultView::of(
+                &Calculation {
+                    result: Some(CalcValue::number(value)),
+                    diagnostics: Vec::new(),
+                    reads: Vec::new(),
+                },
+                Some(&profile),
+            )
+        };
+        // Excel's General format at the standard column width: 11 characters.
+        assert_eq!(
+            view(0.1 + 0.2),
+            ResultView::Value {
+                kind: "number",
+                text: "0.3".to_owned(),
+                exact: Some("0.30000000000000004".to_owned())
+            }
+        );
+        assert_eq!(
+            view(1.0 / 3.0),
+            ResultView::Value {
+                kind: "number",
+                text: "0.333333333".to_owned(),
+                exact: Some("0.3333333333333333".to_owned())
+            }
+        );
+        assert_eq!(
+            view(13.5),
+            ResultView::Value {
+                kind: "number",
+                text: "13.5".to_owned(),
+                exact: None
+            }
+        );
+        assert_eq!(shown(&CalcValue::logical(true), Some(&profile)), "TRUE");
+        assert_eq!(
+            shown(&CalcValue::number(1.0 / 3.0), None),
+            "0.3333333333333333"
+        );
     }
 
     #[test]
     fn array_windows_stay_bounded() {
         let large = numbers(100, 100);
-        let first = first_window(&large);
+        let first = first_window(&large, None);
         assert_eq!(first.cells.len(), 32);
         assert!(first.cells.len() * first.cells[0].len() <= MAX_ARRAY_WINDOW_CELLS);
         assert!(first.truncated());
         assert_eq!(
-            array_window(&large, 0, 0, 100, 100),
+            array_window(&large, 0, 0, 100, 100, None),
             Err(ArrayWindowError::TooLarge)
         );
         assert_eq!(
-            array_window(&large, 99, 0, 2, 1),
+            array_window(&large, 99, 0, 2, 1, None),
             Err(ArrayWindowError::OutsideArray)
         );
         assert_eq!(
-            array_window(&large, 0, 0, 0, 1),
+            array_window(&large, 0, 0, 0, 1, None),
             Err(ArrayWindowError::Empty)
         );
         assert_eq!(
-            array_window(&large, usize::MAX, 0, 2, 1),
+            array_window(&large, usize::MAX, 0, 2, 1, None),
             Err(ArrayWindowError::Overflow)
         );
-        let window = array_window(&large, 10, 20, 2, 3).expect("inside");
+        let window = array_window(&large, 10, 20, 2, 3, None).expect("inside");
         assert_eq!(window.cells[1][2].text, (11 * 100 + 22).to_string());
     }
 }
