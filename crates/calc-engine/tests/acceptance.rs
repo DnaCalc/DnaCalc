@@ -2126,7 +2126,11 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(6, 1), formula("SUM(Data:Calc!A1)")),
             set(c(7, 1), unpaired),
             set(c(8, 1), formula("0.1+0.2-0.3")),
-            set(c(9, 1), formula("Data!A1:A2")),
+            // A range where a legacy formula takes one value at a place whose evaluation is not
+            // modelled (XLOOKUP's lookup array; dc-mzk): a typed refusal. (A range at the
+            // formula's root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9
+            // is #VALUE!.)
+            set(c(9, 1), formula("XLOOKUP(1,Data!A1:A2*1,Data!A1:A2)")),
             set(c(1, 3), formula("A2*2")),
         ],
     );

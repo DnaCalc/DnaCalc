@@ -2206,11 +2206,12 @@ fn cfml_m1_3__reuse_plan() {
                 vec![one_cell(s1, "B1")],
             ),
         ),
-        // A reference to three cells where + needs one value: implicit intersection is refused.
+        // A reference to three cells where + needs one value: the legacy formula intersects it
+        // with its own row, 10, which A1:A3 does not reach, so it reads no cell (dc-mzk).
         (
             "=A1:A3+1",
-            (Err(EvalFault::AreaAsValue { area: a1_to_a3 }), vec![]),
-            (Err(EvalFault::AreaAsValue { area: a1_to_a3 }), vec![]),
+            (Ok(CalcValue::error(WorksheetErrorCode::Value)), vec![]),
+            (Ok(CalcValue::error(WorksheetErrorCode::Value)), vec![]),
         ),
     ];
 
@@ -2432,8 +2433,10 @@ fn cfml_m1_3__reuse_plan() {
     let refusals = [
         ("=1+", "syntax"),
         ("=Nope!A1", "reference"),
-        ("=TaxRate*2", "unsupported cfml-m3.1"),
-        ("=SUM({1,2})", "unsupported cfml-m3.4"),
+        // A catalogue that carries no defined names refuses one, naming D1, which loads them.
+        ("=TaxRate*2", "unsupported dc-ndi"),
+        // An array constant whose rows differ in length is no array constant.
+        ("=SUM({1,2;3})", "syntax"),
         ("=NOSUCH(1)", "unknown function"),
         ("=IF(1)", "arity"),
         ("=1234567890123456", "number literal"),
@@ -2803,16 +2806,17 @@ fn maximum_length_formulas() {
         );
     }
 
-    // The other directions of nesting, at 8,192 characters: compile refuses each, typed, after
-    // parsing and binding it without diagnostics. Each with the depth of its tree, its number of
-    // binding sites and its refusal.
+    // The other directions of nesting, at 8,192 characters: each parses and binds without
+    // diagnostics, and compile lowers it or refuses it, typed; one that compiles also evaluates
+    // on this stack (the reference operators and `@` run in one block's loop; dc-mzk). Each with
+    // the depth of its tree, its number of binding sites and its compile outcome.
     let refused: Vec<(&str, String, usize, usize, &str)> = vec![
         (
             "prefix @ chain",
             format!("={}A1", "@".repeat(8189)),
             8190,
             1,
-            "Unsupported cfml-m3.3",
+            "compiled",
         ),
         (
             "qualifier chain",
@@ -2826,35 +2830,35 @@ fn maximum_length_formulas() {
             format!("=1{}", ":1".repeat(4095)),
             4096,
             1,
-            "Unsupported cfml-m3.3",
+            "compiled",
         ),
         (
             "union chain",
             format!("=(1{})", ",1".repeat(4094)),
             4096,
             0,
-            "Unsupported cfml-m3.3",
+            "compiled",
         ),
         (
             "intersection chain",
             format!("=1{}", " 1".repeat(4095)),
             4096,
             0,
-            "Unsupported cfml-m3.3",
+            "compiled",
         ),
         (
             "nested array constants",
             format!("={}1{}", "{".repeat(4095), "}".repeat(4095)),
             4096,
             0,
-            "Unsupported cfml-m3.4",
+            "Syntax { span: TextSpan { start: 2, len: 8189 } }",
         ),
         (
             "invocation chain",
             format!("=A{}", "(1)".repeat(2730)),
             2732,
             0,
-            "Unsupported cfml-m2.3",
+            "UnknownFunction { span: TextSpan { start: 1, len: 1 }, spelling: \"A\" }",
         ),
     ];
     for (name, formula, depth, references, refusal) in &refused {
@@ -2880,12 +2884,24 @@ fn maximum_length_formulas() {
         );
         let sites = bind_references(&tree, ReferenceNotation::A1, c10, &catalog);
         assert_eq!(sites.len(), *references, "{name}");
-        let seen = compile(&tree, ReferenceNotation::A1, c10, &catalog, &mut cache)
-            .map(|_| "compiled".to_owned())
-            .unwrap_or_else(|refused| refusal_kind(&refused));
+        let compiled = compile(&tree, ReferenceNotation::A1, c10, &catalog, &mut cache);
+        let seen = match &compiled {
+            Ok(_) => "compiled".to_owned(),
+            Err(refused) => refusal_kind(refused),
+        };
         assert_eq!(seen, *refusal, "{name}");
+        let evaluated = match compiled {
+            Ok(plan) => {
+                let instance = instantiate(&plan, c10);
+                format!(
+                    "; evaluated to {:?}",
+                    evaluated(&instance, &mut reader, &mut scratch).0
+                )
+            }
+            Err(_) => String::new(),
+        };
         note!(
-            "ACCEPT-NOTE: dc_2mlz__maximum_length: {name}: 8192 characters, a tree {depth} nodes deep, {references} binding sites; compile refused it: {seen}"
+            "ACCEPT-NOTE: dc_2mlz__maximum_length: {name}: 8192 characters, a tree {depth} nodes deep, {references} binding sites; compile: {seen}{evaluated}"
         );
     }
 
@@ -3217,7 +3233,7 @@ impl Condition {
                 "Excel loads the generator's empty inline string at A5 as empty text, not as a blank cell"
             }
             Condition::LegacyForm => {
-                "the oracle workbook holds the formula in its legacy form, without dynamic-array cell metadata, and the value holds for that form; its dynamic-array form, whose range argument is array evaluation (cfml-m3.4), is not compared"
+                "the oracle workbook holds the formula in its legacy form, without dynamic-array cell metadata, and the value holds for that form; its dynamic-array form, whose range argument lifts (dc-mzk), is not compared"
             }
         }
     }
@@ -3971,9 +3987,8 @@ fn dc_ibp2__error_fallback() {
     }
 
     // The fallback is evaluated only on a caught error: the reader is asked for its areas, and
-    // the calls it holds run, only then. `2^0.5` is refused by calc-func (NotImplemented) and
-    // `A1:A2` where one value is needed by the evaluator (AreaAsValue), so a fallback holding
-    // either would end the evaluation in a fault had it run.
+    // the calls it holds run, only then. `2^0.5` is refused by calc-func (NotImplemented), so a
+    // fallback holding it would end the evaluation in a fault had it run.
     let by_formula = |formula: &str| -> &OracleRun {
         run.iter()
             .find(|row| row.formula == formula)
@@ -4106,27 +4121,22 @@ fn dc_ibp2__error_fallback() {
         "a refused value: the fallback is not read"
     );
     assert_eq!(refused.log.calls, ["Infix ^", "Call IFERROR"]);
-    for (formula, area) in [
-        ("=IFERROR(A1:A2,0)", "A1:A2"),
-        ("=IFNA(#N/A,A1:A2)", "A1:A2"),
-        ("=SUM(IFERROR(A1:A3,0))", "A1:A3"),
+    // A legacy formula intersects a range at IFERROR's and IFNA's value parameters with its own
+    // row, 100 here, which the ranges do not reach: #VALUE!, which IFERROR catches and IFNA
+    // passes on. Excel 16.0 writes these as `=IFERROR(@A1:A2,0)` and `=SUM(IFERROR(@A1:A3,0))`
+    // (measured 2026-10-23; dc-mzk). An array constant takes its first element there.
+    for (formula, value) in [
+        ("=IFERROR(A1:A2,0)", CalcValue::number(0.0)),
+        (
+            "=IFNA(#N/A,A1:A2)",
+            CalcValue::error(WorksheetErrorCode::Value),
+        ),
+        ("=SUM(IFERROR(A1:A3,0))", CalcValue::number(0.0)),
+        ("=IFERROR({1,#N/A},0)", CalcValue::number(1.0)),
     ] {
-        assert_eq!(
-            book.evaluate(formula, at).outcome,
-            Err(EvalFault::AreaAsValue {
-                area: book.areas(&[area])[0]
-            }),
-            "{formula}: a range where one value is needed (array lifting is cfml-m3.4's)"
-        );
+        assert_eq!(book.evaluate(formula, at).outcome, Ok(value), "{formula}");
     }
     let compiled = |book: &mut FallbackBook, formula: &str| book.compile(formula, at).err();
-    assert!(matches!(
-        compiled(&mut book, "=IFERROR({1,#N/A},0)"),
-        Some(CompileError::Unsupported {
-            owner: "cfml-m3.4",
-            ..
-        })
-    ));
     assert!(matches!(
         compiled(&mut book, "=IFERROR(1)"),
         Some(CompileError::Arity { supplied: 1, .. })
@@ -4172,7 +4182,7 @@ fn dc_ibp2__error_fallback() {
             .join(", ")
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: not compared with Excel: IFERROR catches and IFNA passes on #CALC!, #SPILL!, #FIELD!, #BLOCKED!, #CONNECT! and #BUSY! read from cells of the sheet elsewhere (unmeasured choice: {NOT_IN_WORKBOOK}); a value that reads an unresolved input stops the call with MissingInput and a value calc-func refuses with NotImplemented, neither reading its fallback; a range as IFERROR's or IFNA's value or fallback, and IFERROR over a range inside SUM, is refused with AreaAsValue (array lifting is cfml-m3.4's); an array constant is refused at compile (cfml-m3.4); one and three arguments are refused at compile; the package form =_xlfn.IFNA(#N/A,1) compiles to IFNA (bead dc-besk) and gives 1"
+        "ACCEPT-NOTE: {CASE}: not compared with Excel: IFERROR catches and IFNA passes on #CALC!, #SPILL!, #FIELD!, #BLOCKED!, #CONNECT! and #BUSY! read from cells of the sheet elsewhere (unmeasured choice: {NOT_IN_WORKBOOK}); a value that reads an unresolved input stops the call with MissingInput and a value calc-func refuses with NotImplemented, neither reading its fallback; a range as IFERROR's or IFNA's value or fallback, and IFERROR over a range inside SUM, is intersected with the formula's row as Excel intersects a legacy formula's (dc-mzk); an array constant there gives its first element; one and three arguments are refused at compile; the package form =_xlfn.IFNA(#N/A,1) compiles to IFNA (bead dc-besk) and gives 1"
     );
 
     // The oracle workbook's sheet holds exactly the rows' formulas, in their file form, in
@@ -5073,17 +5083,6 @@ struct Refused {
     owner: &'static str,
 }
 
-/// An array constant (`{1,2;3,4}`): compile refuses it whole, and array evaluation is cfml-m3.4's.
-const ARRAY_CONSTANT: Refused = Refused {
-    construct: "an array constant",
-    owner: "cfml-m3.4",
-};
-/// The union operator (`(A1:A3,C1:C3)`): reference algebra is cfml-m3.3's.
-const UNION: Refused = Refused {
-    construct: "the union operator",
-    owner: "cfml-m3.3",
-};
-
 /// An oracle row: its sheet, its row of column D, its formula as entered (the workbooks store
 /// XLOOKUP as `_xlfn.XLOOKUP`, the form the cases compile), and, for a row whose formula holds a
 /// construct compile refuses at this revision, that refusal; every other row must evaluate and
@@ -5112,10 +5111,6 @@ fn engine_rows() -> Vec<EngineRow> {
         formula,
         refused: None,
     };
-    let refused = |row: EngineRow, refusal| EngineRow {
-        refused: Some(refusal),
-        ..row
-    };
     vec![
         // INDEX's reference to one cell, dereferenced at the formula's root.
         reference(1, "=INDEX(A1:C3,2,3)"),
@@ -5124,8 +5119,8 @@ fn engine_rows() -> Vec<EngineRow> {
         reference(4, "=INDEX(A1:C1,3)"),
         reference(5, "=INDEX(A1:C1,,2)"),
         reference(6, "=INDEX(B1:B4,4)"),
-        refused(reference(10, "=INDEX((A1:A3,C1:C3),2,1,2)"), UNION),
-        refused(reference(11, "=INDEX((A1:A3,C1:C3),3)"), UNION),
+        reference(10, "=INDEX((A1:A3,C1:C3),2,1,2)"),
+        reference(11, "=INDEX((A1:A3,C1:C3),3)"),
         reference(12, "=INDEX(A:A,1000)"),
         reference(13, "=INDEX(A1:C3,\"2\",\"3\")"),
         // INDEX's reference to several cells, consumed by the call around it.
@@ -5134,7 +5129,7 @@ fn engine_rows() -> Vec<EngineRow> {
         reference(21, "=SUM(INDEX(A1:C3,0,0))"),
         reference(22, "=ROWS(INDEX(A1:C3,0,2))"),
         reference(23, "=COLUMNS(INDEX(A1:C3,2,0))"),
-        refused(reference(24, "=AREAS(INDEX((A1:A3,C1:C3),1,1,2))"), UNION),
+        reference(24, "=AREAS(INDEX((A1:A3,C1:C3),1,1,2))"),
         reference(25, "=ROW(INDEX(A1:C3,2,3))"),
         reference(26, "=COLUMN(INDEX(A1:C3,2,3))"),
         reference(27, "=COUNTBLANK(INDEX(A1:C4,4,0))"),
@@ -5153,10 +5148,10 @@ fn engine_rows() -> Vec<EngineRow> {
         reference(38, "=SUM(CHOOSE(2,A1:A3,B1:B3))"),
         reference(39, "=ROWS(CHOOSE(1,A1:A3,B1:B2))"),
         reference(40, "=CHOOSE(2,\"a\",B4)"),
-        refused(reference(45, "=SUM(INDEX({1,2;3,4},2))"), ARRAY_CONSTANT),
+        reference(45, "=SUM(INDEX({1,2;3,4},2))"),
         reference(49, "=AREAS(INDEX(A1:C3,0,2))"),
-        refused(reference(50, "=ROWS(INDEX({1,2;3,4},0,2))"), ARRAY_CONSTANT),
-        refused(reference(51, "=SUM(INDEX({1,2;3,4},0,2))"), ARRAY_CONSTANT),
+        reference(50, "=ROWS(INDEX({1,2;3,4},0,2))"),
+        reference(51, "=SUM(INDEX({1,2;3,4},0,2))"),
         reference(52, "=VLOOKUP(\"k4\",A10:B14,2,FALSE)&\"\""),
         reference(57, "=INDEX(A1:C3,TRUE,1)"),
         reference(62, "=INDEX(A1:C3,1.9999,1)"),
@@ -5184,8 +5179,8 @@ fn engine_rows() -> Vec<EngineRow> {
         edge(193, "=SUM(XLOOKUP(1,A1,C1:C3))"),
         edge(194, "=VLOOKUP(3,A9:C10,3,FALSE)&\"\""),
         edge(195, "=CHOOSE(2,\"a\",)&\"\""),
-        refused(edge(268, "=XLOOKUP(1,{1,2},I9:J9)"), ARRAY_CONSTANT),
-        refused(edge(270, "=XLOOKUP(2,{1,2,3},B1:D1)"), ARRAY_CONSTANT),
+        edge(268, "=XLOOKUP(1,{1,2},I9:J9)"),
+        edge(270, "=XLOOKUP(2,{1,2,3},B1:D1)"),
         edge(311, "=CHOOSE(1,C9,7)"),
         edge(318, "=INDEX(A1:C7,2,3)"),
     ]

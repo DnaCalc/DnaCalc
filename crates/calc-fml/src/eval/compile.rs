@@ -1,8 +1,10 @@
 //! Lowering a parsed formula into a [`CompiledPlan`].
 //!
-//! Literals, bound references, the arithmetic, comparison and concatenation operators and calls
-//! of catalogue functions compile; everything else is refused with a typed [`CompileError`] that
-//! names the construct and the bead that owns it, never compiled into an approximation.
+//! Literals and array constants, bound references and the reference operators, the arithmetic,
+//! comparison and concatenation operators, implicit intersection (`@`) and spill references
+//! (`#`), calls of catalogue functions, LET and LAMBDA, calls of LAMBDA values, and defined names
+//! compile; everything else is refused with a typed [`CompileError`] that names the construct and
+//! the work package that owns it, never compiled into an approximation.
 //!
 //! A number literal becomes its nearest binary64 here, once, under no numeric mode (ties to even,
 //! at most 15 significant digits); that Excel converts every such literal to the same binary64 is
@@ -12,28 +14,45 @@
 //! Lowering walks the tree on a stack of its own [`Task`]s, not on the native stack: a node's
 //! operands are lowered before the instruction that consumes them, in source order, so a formula
 //! nested as deep as its 8,192 characters allow (`=1+1+...+1`, `=((...(1)...))`, `=--...-1`)
-//! lowers without recursion.
+//! lowers without recursion. A defined name's formula is lowered, once per plan, into a block of
+//! its own when the formula first uses the name; that lowering nests at most
+//! [`MAX_NAME_NESTING`] names deep.
+//!
+//! Names are resolved as Excel resolves them (ported from OxFml's binder and evaluator,
+//! `binding/mod.rs` and `eval/mod.rs`): a name written as a value is a LET name or LAMBDA
+//! parameter in scope (the innermost, regardless of case), else a defined name; a name written as
+//! a call is a built-in function first (Excel 16.0, 2026-10-23:
+//! `=LET(gcd,LAMBDA(a,b,a+b),gcd(48,36))` is GCD's 12), else a LET name or parameter holding a
+//! LAMBDA, else a defined name. The file forms Excel writes are read too: `_xlfn.` before a
+//! function, `_xlpm.` before a LET name or LAMBDA parameter, `_xlop.` before an optional LAMBDA
+//! parameter, `_xlfn.SINGLE(x)` for `@x` and `_xlfn.ANCHORARRAY(x)` for `x#` (OxFml's
+//! `binding/excel_prefix.rs`, measured on Excel 16.0 on 2026-09-15).
 
-use super::{CompiledPlan, Instruction, Literal, PlanCache, Target};
+use super::builtins::is_builtin;
+use super::legacy::Place;
+use super::{Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCache, Target};
+use crate::parse_formula;
 use crate::reference::{
-    BindError, FormulaAnchor, ReferenceCatalog, ReferenceNotation, ReferenceOperand,
-    bind_references,
+    AxisRef, BindError, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog,
+    ReferenceNotation, ReferenceOperand, ReferenceShape, bind_references, qualified_name,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
-use calc_func::value::ExcelText;
-use calc_func::{ArgumentDemand, Notation, catalogue};
+use calc_func::value::{CellKey, ExcelText, WorksheetErrorCode};
+use calc_func::{ArgumentDemand, Notation, ParameterClass, catalogue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Why a formula did not compile.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompileError {
-    /// The parser refused the formula; `span` is its first diagnostic's.
+    /// The parser refused the formula; `span` is its first diagnostic's. Also syntax the parser
+    /// accepts and Excel does not (a LET or LAMBDA name that is no name, an array constant
+    /// element that is no constant).
     Syntax { span: TextSpan },
     /// A reference that binding refused.
     Reference { span: TextSpan, error: BindError },
     /// Formula syntax this compiler does not lower yet: `construct` says what it is and `owner`
-    /// names the bead that owns it.
+    /// names the work package that owns it.
     Unsupported {
         span: TextSpan,
         construct: &'static str,
@@ -51,18 +70,43 @@ pub enum CompileError {
     NumberLiteral { span: TextSpan },
 }
 
-/// Compiles the formula `tree`, its references read in `notation` and bound for a formula
-/// anchored at `anchor` through `catalog`, and returns the plan `cache` holds for its normal form.
-///
-/// The plan does not depend on the anchor: binding gives each relative coordinate as an offset
-/// from it, so the same formula copied to another anchor compiles to the same plan. Each call
-/// lowers the tree and binds its references; the cache only shares the resulting plan.
+/// This work package, which owns the refusals of the constructs it lowers.
+const OWNER: &str = "dc-mzk";
+
+/// The work package that loads a workbook's defined names into the document model.
+const NAMES_OWNER: &str = "dc-ndi";
+
+/// How many defined names deep one name's formula may use another's while it is lowered.
+pub const MAX_NAME_NESTING: usize = 32;
+
+/// Compiles the formula `tree` in its legacy form ([`FormulaForm::Legacy`]), the form of every
+/// formula a file holds without dynamic-array cell metadata: [`compile_with`] under that form.
 pub fn compile(
     tree: &SyntaxTree,
     notation: ReferenceNotation,
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
     cache: &mut PlanCache,
+) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_with(tree, notation, anchor, catalog, cache, FormulaForm::Legacy)
+}
+
+/// Compiles the formula `tree` in the form `form`, its references read in `notation` and bound
+/// for a formula anchored at `anchor` through `catalog`, and returns the plan `cache` holds for
+/// its normal form.
+///
+/// The plan does not depend on the anchor: binding gives each relative coordinate as an offset
+/// from it, so the same formula copied to another anchor compiles to the same plan. Each call
+/// lowers the tree and binds its references; the cache only shares the resulting plan. A defined
+/// name the formula uses is compiled into the plan from the definition `catalog` gives, so a plan
+/// holds the names' formulas as they were when it was compiled.
+pub fn compile_with(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+    form: FormulaForm,
 ) -> Result<Arc<CompiledPlan>, CompileError> {
     if let Some(first) = tree.diagnostics().first() {
         return Err(CompileError::Syntax { span: first.span });
@@ -73,14 +117,19 @@ pub fn compile(
         });
     };
     let mut lowering = Lowering {
-        sites: bind_references(tree, notation, anchor, catalog)
-            .into_iter()
-            .map(|site| (site.span, site.binding))
-            .collect(),
+        form,
+        anchor,
+        catalog,
+        sites: HashMap::new(),
         blocks: vec![Vec::new()],
         references: Vec::new(),
+        scope: Vec::new(),
+        floor: 0,
+        names: HashMap::new(),
+        nesting: 0,
     };
-    lowering.formula(expression)?;
+    let sites = sites(tree, notation, anchor, catalog);
+    lowering.lower_root(expression, sites, 0, true, Place::Value)?;
     let plan = CompiledPlan {
         blocks: lowering
             .blocks
@@ -88,29 +137,59 @@ pub fn compile(
             .map(Vec::into_boxed_slice)
             .collect(),
         references: lowering.references.into_boxed_slice(),
+        form,
     };
     Ok(cache.share(plan))
 }
 
-struct Lowering {
-    /// The binder's sites by span; each is taken once, by the node it spans.
-    sites: HashMap<TextSpan, Result<ReferenceOperand, BindError>>,
+type Sites = HashMap<TextSpan, Result<ReferenceOperand, BindError>>;
+
+fn sites(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+) -> Sites {
+    bind_references(tree, notation, anchor, catalog)
+        .into_iter()
+        .map(|site| (site.span, site.binding))
+        .collect()
+}
+
+struct Lowering<'c> {
+    form: FormulaForm,
+    anchor: FormulaAnchor,
+    catalog: &'c dyn ReferenceCatalog,
+    /// The binder's sites of the tree being lowered, by span; each is taken once, by the node it
+    /// spans.
+    sites: Sites,
     blocks: Vec<Vec<Instruction>>,
     references: Vec<ReferenceOperand>,
+    /// The LET names and LAMBDA parameters in scope, innermost last, each with its local slot.
+    scope: Vec<(String, u32)>,
+    /// The first entry of `scope` the tree being lowered sees: a defined name's formula sees none
+    /// of the formula that uses it.
+    floor: usize,
+    /// The block of each defined name compiled into the plan, by its upper-case spelling and
+    /// definition.
+    names: HashMap<(String, String), usize>,
+    /// How many defined names' formulas are being lowered, one inside another.
+    nesting: usize,
 }
 
 /// One step of the lowering, on the lowering's own stack: the steps a node pushes run in the
 /// reverse order of their pushing, so it pushes the instruction that consumes its operands first
 /// and its first operand last.
 enum Task<'t> {
-    /// Append to block `block` the instructions that push the value of `node`. `tail` says
-    /// whether that value is the formula's result for the check of a final `+` or `-`: the root
-    /// expression, through parentheses, a prefix `+` or `-` and IF's branches
-    /// ([`carries_final_sum`]).
+    /// Append to block `block` the instructions that push the value of `node`, which holds the
+    /// place `place` of a legacy formula. `tail` says whether that value is the formula's result
+    /// for the check of a final `+` or `-`: the root expression, through parentheses, a prefix
+    /// `+` or `-`, IF's branches and LET's result ([`carries_final_sum`]).
     Lower {
         node: &'t SyntaxNode,
         tail: bool,
         block: usize,
+        place: Place,
     },
     /// Append `instruction` to block `block`, after its operands' instructions.
     Emit {
@@ -119,38 +198,108 @@ enum Task<'t> {
     },
     /// Append to block `block` the check of the formula's final `+` or `-`, written `operator`.
     FinalSumCheck { block: usize, operator: &'t Token },
+    /// Append to block `block` the store of the value on top of the stack into the next local,
+    /// and bring `name` into scope as that local: a LET name after its value.
+    Declare { block: usize, name: String },
+    /// Bring `name` into scope as the next local without storing anything: a LAMBDA parameter,
+    /// which the call fills.
+    Bind { name: String },
+    /// Take the last `.0` names out of scope.
+    Unbind(usize),
 }
 
-impl Lowering {
-    /// Lowers the formula's expression into block 0, and each argument of a lazy call into the
-    /// block it is given, in source order.
-    fn formula(&mut self, expression: &SyntaxNode) -> Result<(), CompileError> {
+impl<'c> Lowering<'c> {
+    /// The local slot the next name brought into scope takes.
+    fn depth(&self) -> u32 {
+        u32::try_from(self.scope.len() - self.floor).expect("fewer than 2^32 locals")
+    }
+
+    /// The slot of the innermost LET name or LAMBDA parameter `key` in scope.
+    fn local(&self, key: &str) -> Option<u32> {
+        self.scope[self.floor..]
+            .iter()
+            .rev()
+            .find(|(name, _)| name == key)
+            .map(|(_, slot)| *slot)
+    }
+
+    /// How a call at `place` admits a range or an array given to a single-value parameter.
+    fn admission(&self, place: Place) -> Admission {
+        match self.form {
+            FormulaForm::Dynamic => Admission::Lift,
+            FormulaForm::Legacy => place.admission(),
+        }
+    }
+
+    /// Lowers `expression`, whose reference sites are `sites`, into block `block`, and each
+    /// argument of a lazy call or LAMBDA body inside it into the block it is given, in source
+    /// order.
+    fn lower_root(
+        &mut self,
+        expression: &SyntaxNode,
+        sites: Sites,
+        block: usize,
+        tail: bool,
+        place: Place,
+    ) -> Result<(), CompileError> {
+        let outer = std::mem::replace(&mut self.sites, sites);
         let mut tasks = vec![Task::Lower {
             node: expression,
-            tail: true,
-            block: 0,
+            tail,
+            block,
+            place,
         }];
+        let mut outcome = Ok(());
         while let Some(task) = tasks.pop() {
-            match task {
-                Task::Lower { node, tail, block } => {
-                    self.expression(node, tail, block, &mut tasks)?
+            let step = match task {
+                Task::Lower {
+                    node,
+                    tail,
+                    block,
+                    place,
+                } => self.expression(node, tail, block, place, &mut tasks),
+                Task::Emit { block, instruction } => {
+                    self.blocks[block].push(instruction);
+                    Ok(())
                 }
-                Task::Emit { block, instruction } => self.blocks[block].push(instruction),
                 Task::FinalSumCheck { block, operator } => {
-                    final_sum_check(operator, &mut self.blocks[block])?
+                    final_sum_check(operator, &mut self.blocks[block])
                 }
+                Task::Declare { block, name } => {
+                    let slot = self.depth();
+                    self.blocks[block].push(Instruction::Store(slot));
+                    self.scope.push((name, slot));
+                    Ok(())
+                }
+                Task::Bind { name } => {
+                    let slot = self.depth();
+                    self.scope.push((name, slot));
+                    Ok(())
+                }
+                Task::Unbind(count) => {
+                    let keep = self.scope.len() - count;
+                    self.scope.truncate(keep);
+                    Ok(())
+                }
+            };
+            if let Err(error) = step {
+                outcome = Err(error);
+                break;
             }
         }
-        Ok(())
+        self.sites = outer;
+        outcome
     }
 
     /// Lowers `node` into block `block`: a leaf at once, and an operation as the tasks that lower
-    /// its operands and then emit it, pushed onto `tasks`. `tail` is as [`Task::Lower`] says.
+    /// its operands and then emit it, pushed onto `tasks`. `tail` and `place` are as
+    /// [`Task::Lower`] says.
     fn expression<'t>(
         &mut self,
         node: &'t SyntaxNode,
         tail: bool,
         block: usize,
+        place: Place,
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let span = node.span();
@@ -167,27 +316,83 @@ impl Lowering {
                         self.blocks[block].push(Instruction::Literal(Literal::Logical(true)));
                     } else if text.eq_ignore_ascii_case("FALSE") {
                         self.blocks[block].push(Instruction::Literal(Literal::Logical(false)));
+                    } else if let Some(slot) = self.local(&name_key(text)) {
+                        self.blocks[block].push(Instruction::Local(slot));
                     } else {
-                        return Err(unsupported(span, "a defined name", "cfml-m3.1"));
+                        let scope = NameScope::Formula(self.anchor.sheet());
+                        self.defined_name(text, scope, span, block)?;
                     }
                 }
             }
             SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
                 if !self.reference(node, block)? {
-                    return Err(unsupported(span, "a sheet-qualified name", "cfml-m3.1"));
+                    let Some((sheet, name)) = qualified_name(node) else {
+                        return Err(unsupported(span, "a sheet-qualified name", OWNER));
+                    };
+                    let Some(sheet) = self.catalog.sheet_named(&sheet) else {
+                        return Err(CompileError::Reference {
+                            span,
+                            error: BindError::UnknownSheet { name: sheet },
+                        });
+                    };
+                    self.defined_name(name.text(), NameScope::Sheet(sheet), span, block)?;
                 }
             }
             SyntaxKind::RangeExpr => {
                 if !self.reference(node, block)? {
-                    return Err(unsupported(
-                        span,
-                        "the range operator between separate references",
-                        "cfml-m3.3",
-                    ));
+                    let mut operands = node.child_nodes();
+                    let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
+                        return Err(CompileError::Syntax { span });
+                    };
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::Range,
+                    });
+                    for operand in [right, left] {
+                        tasks.push(Task::Lower {
+                            node: operand,
+                            tail: false,
+                            block,
+                            place,
+                        });
+                    }
+                }
+            }
+            SyntaxKind::IntersectionExpr => {
+                let mut operands = node.child_nodes();
+                let (Some(left), Some(right)) = (operands.next(), operands.next()) else {
+                    return Err(CompileError::Syntax { span });
+                };
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Intersect,
+                });
+                for operand in [right, left] {
+                    tasks.push(Task::Lower {
+                        node: operand,
+                        tail: false,
+                        block,
+                        place,
+                    });
+                }
+            }
+            SyntaxKind::UnionExpr => {
+                let operands: Vec<&SyntaxNode> = node.child_nodes().collect();
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Union(operands.len()),
+                });
+                for operand in operands.into_iter().rev() {
+                    tasks.push(Task::Lower {
+                        node: operand,
+                        tail: false,
+                        block,
+                        place,
+                    });
                 }
             }
             SyntaxKind::QuotedIdentifierExpr => {
-                return Err(unsupported(span, "a quoted name", "cfml-m3.1"));
+                return Err(unsupported(span, "a quoted name", OWNER));
             }
             SyntaxKind::StringLiteralExpr => {
                 self.blocks[block].push(Instruction::Literal(text(node)?))
@@ -197,6 +402,9 @@ impl Lowering {
                     .and_then(Token::error_code)
                     .ok_or(CompileError::Syntax { span })?;
                 self.blocks[block].push(Instruction::Literal(Literal::Error(code)));
+            }
+            SyntaxKind::ArrayLiteralExpr => {
+                self.blocks[block].push(Instruction::Literal(array(node)?));
             }
             SyntaxKind::OmittedArgExpr => self.blocks[block].push(Instruction::Omitted),
             SyntaxKind::GroupingExpr => {
@@ -208,6 +416,7 @@ impl Lowering {
                     node: inner,
                     tail,
                     block,
+                    place,
                 });
             }
             SyntaxKind::BinaryExpr => {
@@ -232,6 +441,7 @@ impl Lowering {
                         argc: 2,
                         retain: final_sum,
                         synthetic: false,
+                        admission: self.admission(place),
                     },
                 });
                 for operand in [right, left] {
@@ -239,6 +449,7 @@ impl Lowering {
                         node: operand,
                         tail: false,
                         block,
+                        place: place.operand(),
                     });
                 }
             }
@@ -250,7 +461,17 @@ impl Lowering {
                     _ => return Err(CompileError::Syntax { span }),
                 };
                 if operator.kind() == TokenKind::At {
-                    return Err(unsupported(span, "implicit intersection (@)", "cfml-m3.3"));
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::Implicit,
+                    });
+                    tasks.push(Task::Lower {
+                        node: operand,
+                        tail: false,
+                        block,
+                        place: Place::Unknown,
+                    });
+                    return Ok(());
                 }
                 let target = target(Notation::Prefix, operator)?;
                 tasks.push(Task::Emit {
@@ -260,6 +481,7 @@ impl Lowering {
                         argc: 1,
                         retain: false,
                         synthetic: false,
+                        admission: self.admission(place),
                     },
                 });
                 // A prefix `+` or `-` changes no magnitude (the sign flips exactly), so an operand
@@ -269,6 +491,7 @@ impl Lowering {
                     node: operand,
                     tail,
                     block,
+                    place: place.operand(),
                 });
             }
             SyntaxKind::PostfixExpr => {
@@ -279,7 +502,17 @@ impl Lowering {
                     _ => return Err(CompileError::Syntax { span }),
                 };
                 if operator.kind() == TokenKind::Hash {
-                    return Err(unsupported(span, "a spilled range (#)", "cfml-m3.3"));
+                    tasks.push(Task::Emit {
+                        block,
+                        instruction: Instruction::Spill,
+                    });
+                    tasks.push(Task::Lower {
+                        node: operand,
+                        tail: false,
+                        block,
+                        place: Place::Unknown,
+                    });
+                    return Ok(());
                 }
                 let target = target(Notation::Postfix, operator)?;
                 tasks.push(Task::Emit {
@@ -289,30 +522,43 @@ impl Lowering {
                         argc: 1,
                         retain: false,
                         synthetic: false,
+                        admission: self.admission(place),
                     },
                 });
                 tasks.push(Task::Lower {
                     node: operand,
                     tail: false,
                     block,
+                    place: place.operand(),
                 });
             }
-            SyntaxKind::CallExpr => self.call(node, tail, block, tasks)?,
-            SyntaxKind::ArrayLiteralExpr => {
-                return Err(unsupported(span, "an array constant", "cfml-m3.4"));
-            }
-            SyntaxKind::IntersectionExpr => {
-                return Err(unsupported(span, "the intersection operator", "cfml-m3.3"));
-            }
-            SyntaxKind::UnionExpr => {
-                return Err(unsupported(span, "the union operator", "cfml-m3.3"));
-            }
+            SyntaxKind::CallExpr => self.call(node, tail, block, place, tasks)?,
             SyntaxKind::InvokeExpr => {
-                return Err(unsupported(
-                    span,
-                    "a call of an expression's value",
-                    "cfml-m2.3",
-                ));
+                let (callee, list) = match node.children() {
+                    [SyntaxChild::Node(callee), SyntaxChild::Node(list)] => (callee, list),
+                    _ => return Err(CompileError::Syntax { span }),
+                };
+                let arguments: Vec<&SyntaxNode> = list.child_nodes().collect();
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Invoke {
+                        argc: arguments.len(),
+                    },
+                });
+                for argument in arguments.into_iter().rev() {
+                    tasks.push(Task::Lower {
+                        node: argument,
+                        tail: false,
+                        block,
+                        place: Place::Unknown,
+                    });
+                }
+                tasks.push(Task::Lower {
+                    node: callee,
+                    tail: false,
+                    block,
+                    place: Place::Unknown,
+                });
             }
             // The parser gives each of these a diagnostic, refused above, or never places them
             // under an expression.
@@ -324,14 +570,16 @@ impl Lowering {
         Ok(())
     }
 
-    /// A call by name, lowered into block `block`. An eager entry's arguments are pushed in order
-    /// before the call; each argument of a lazy entry becomes a block of its own, numbered when
-    /// the call is met and run only when the entry asks for it.
+    /// A call by name, lowered into block `block`: LET, LAMBDA and the file forms of `@` and `#`;
+    /// a catalogue function, whose eager arguments are pushed in order before the call and whose
+    /// lazy arguments each become a block of their own, run only when the function asks for it;
+    /// or a call of the LAMBDA value a LET name, LAMBDA parameter or defined name holds.
     fn call<'t>(
         &mut self,
         node: &'t SyntaxNode,
         tail: bool,
         block: usize,
+        place: Place,
         tasks: &mut Vec<Task<'t>>,
     ) -> Result<(), CompileError> {
         let span = node.span();
@@ -339,9 +587,46 @@ impl Lowering {
             [SyntaxChild::Token(name), SyntaxChild::Node(list)] => (name, list),
             _ => return Err(CompileError::Syntax { span }),
         };
-        let target = call_target(name)?;
         let arguments: Vec<&SyntaxNode> = list.child_nodes().collect();
         let argc = arguments.len();
+        let spelling = file_unprefixed(name.text());
+        let prefixed = spelling.len() != name.text().len();
+        if spelling.eq_ignore_ascii_case("LET") {
+            return self.let_call(span, &arguments, tail, block, place, tasks);
+        }
+        if spelling.eq_ignore_ascii_case("LAMBDA") {
+            return self.lambda(span, &arguments, block, place, tasks);
+        }
+        if prefixed
+            && (spelling.eq_ignore_ascii_case("SINGLE")
+                || spelling.eq_ignore_ascii_case("ANCHORARRAY"))
+        {
+            let [operand] = arguments[..] else {
+                return Err(CompileError::Arity {
+                    span,
+                    supplied: argc,
+                });
+            };
+            let instruction = if spelling.eq_ignore_ascii_case("SINGLE") {
+                Instruction::Implicit
+            } else {
+                Instruction::Spill
+            };
+            tasks.push(Task::Emit { block, instruction });
+            tasks.push(Task::Lower {
+                node: operand,
+                tail: false,
+                block,
+                place: Place::Unknown,
+            });
+            return Ok(());
+        }
+        let target = match call_target(name) {
+            Ok(target) => target,
+            Err(unknown) => {
+                return self.named_call(name, unknown, &arguments, block, tasks);
+            }
+        };
         if !target.0.arity().accepts(argc) {
             return Err(CompileError::Arity {
                 span,
@@ -349,7 +634,11 @@ impl Lowering {
             });
         }
         let demand = target.0.argument_demand();
-        if !demand.is_lazy() {
+        let lazy = demand.is_lazy();
+        let spelled = target.0.spelling();
+        let value_place = place.argument(spelled, 0, Some(ParameterClass::Value), lazy);
+        let admission = self.admission(value_place);
+        if !lazy {
             tasks.push(Task::Emit {
                 block,
                 instruction: Instruction::Call {
@@ -357,13 +646,15 @@ impl Lowering {
                     argc,
                     retain: false,
                     synthetic: false,
+                    admission,
                 },
             });
-            for argument in arguments.into_iter().rev() {
+            for (index, argument) in arguments.into_iter().enumerate().rev() {
                 tasks.push(Task::Lower {
                     node: argument,
                     tail: false,
                     block,
+                    place: place.argument(spelled, index, target.0.parameter_class(index), false),
                 });
             }
             return Ok(());
@@ -376,6 +667,7 @@ impl Lowering {
                 target,
                 first_block,
                 argc,
+                admission,
             },
         });
         for (index, argument) in arguments.into_iter().enumerate().rev() {
@@ -383,9 +675,298 @@ impl Lowering {
                 node: argument,
                 tail: tail && carries_final_sum(demand, index),
                 block: first_block + index,
+                place: place.argument(spelled, index, target.0.parameter_class(index), true),
             });
         }
         Ok(())
+    }
+
+    /// A call written with a name that is no catalogue function: the LAMBDA value of a LET name,
+    /// LAMBDA parameter or defined name, called with `arguments`. A built-in function the
+    /// catalogue does not hold yet is refused as `unknown`, and so is a name the catalogue cannot
+    /// say is unknown; a name the workbook does not hold is #NAME?.
+    fn named_call<'t>(
+        &mut self,
+        name: &Token,
+        unknown: CompileError,
+        arguments: &[&'t SyntaxNode],
+        block: usize,
+        tasks: &mut Vec<Task<'t>>,
+    ) -> Result<(), CompileError> {
+        let spelling = file_unprefixed(name.text());
+        if is_builtin(spelling) || spelling.len() != name.text().len() {
+            return Err(unknown);
+        }
+        if let Some(slot) = self.local(&name_key(name.text())) {
+            self.blocks[block].push(Instruction::Local(slot));
+        } else {
+            let scope = NameScope::Formula(self.anchor.sheet());
+            match self.catalog.defined_name(name.text(), scope) {
+                NameDefinition::Formula(definition) => {
+                    let name_block = self.name_block(name.text(), &definition, name.span())?;
+                    self.blocks[block].push(Instruction::Name(name_block));
+                }
+                NameDefinition::Unknown => {
+                    self.blocks[block].push(Instruction::Literal(Literal::Error(
+                        WorksheetErrorCode::Name,
+                    )));
+                    return Ok(());
+                }
+                NameDefinition::NotModelled => return Err(unknown),
+            }
+        }
+        tasks.push(Task::Emit {
+            block,
+            instruction: Instruction::Invoke {
+                argc: arguments.len(),
+            },
+        });
+        for argument in arguments.iter().rev() {
+            tasks.push(Task::Lower {
+                node: argument,
+                tail: false,
+                block,
+                place: Place::Unknown,
+            });
+        }
+        Ok(())
+    }
+
+    /// `LET(name1, value1, [name2, value2, ...], calculation)`: each value is stored in a local
+    /// of its own, in order, its name in scope for the values after it and for the calculation.
+    /// Every value runs, whether or not a later expression uses it.
+    fn let_call<'t>(
+        &mut self,
+        span: TextSpan,
+        arguments: &[&'t SyntaxNode],
+        tail: bool,
+        block: usize,
+        place: Place,
+        tasks: &mut Vec<Task<'t>>,
+    ) -> Result<(), CompileError> {
+        let argc = arguments.len();
+        if argc < 3 || argc.is_multiple_of(2) {
+            return Err(CompileError::Arity {
+                span,
+                supplied: argc,
+            });
+        }
+        // Where a legacy formula's LET intersects is not measured: refused there.
+        let _ = place;
+        let inner = Place::Unknown;
+        let pairs = argc / 2;
+        tasks.push(Task::Unbind(pairs));
+        tasks.push(Task::Lower {
+            node: arguments[argc - 1],
+            tail,
+            block,
+            place: inner,
+        });
+        for pair in (0..pairs).rev() {
+            let name = self.declared_name(arguments[2 * pair])?;
+            if name.1 {
+                return Err(CompileError::Syntax {
+                    span: arguments[2 * pair].span(),
+                });
+            }
+            tasks.push(Task::Declare {
+                block,
+                name: name.0,
+            });
+            tasks.push(Task::Lower {
+                node: arguments[2 * pair + 1],
+                tail: false,
+                block,
+                place: inner,
+            });
+        }
+        Ok(())
+    }
+
+    /// `LAMBDA([parameter1, ...], calculation)`: the LAMBDA value, its body lowered into a block
+    /// of its own with its parameters in scope after the names it captures.
+    fn lambda<'t>(
+        &mut self,
+        span: TextSpan,
+        arguments: &[&'t SyntaxNode],
+        block: usize,
+        place: Place,
+        tasks: &mut Vec<Task<'t>>,
+    ) -> Result<(), CompileError> {
+        let Some((body, parameters)) = arguments.split_last() else {
+            return Err(CompileError::Arity { span, supplied: 0 });
+        };
+        if body.kind() == SyntaxKind::OmittedArgExpr {
+            return Err(CompileError::Syntax { span: body.span() });
+        }
+        let mut names = Vec::with_capacity(parameters.len());
+        let mut required = 0;
+        for parameter in parameters {
+            let (name, optional) = self.declared_name(parameter)?;
+            if names.contains(&name) {
+                return Err(CompileError::Syntax {
+                    span: parameter.span(),
+                });
+            }
+            if optional {
+                // A parameter after an optional one is optional too.
+            } else if required == names.len() {
+                required += 1;
+            } else {
+                return Err(CompileError::Syntax {
+                    span: parameter.span(),
+                });
+            }
+            names.push(name);
+        }
+        let _ = place;
+        let body_block = self.blocks.len();
+        self.blocks.push(Vec::new());
+        let captured = self.depth();
+        self.blocks[block].push(Instruction::Lambda {
+            block: body_block,
+            params: u32::try_from(names.len()).expect("at most 253 parameters"),
+            required: u32::try_from(required).expect("at most 253 parameters"),
+            captured,
+        });
+        tasks.push(Task::Unbind(names.len()));
+        tasks.push(Task::Lower {
+            node: body,
+            tail: false,
+            block: body_block,
+            place: Place::Unknown,
+        });
+        for name in names.into_iter().rev() {
+            tasks.push(Task::Bind { name });
+        }
+        Ok(())
+    }
+
+    /// The name a LET name or LAMBDA parameter node declares, upper case and without its file
+    /// prefix, and whether it is optional (`[y]`, or `_xlop.y` in a file). A node that is no
+    /// name, or that binding read as a reference, is refused as syntax Excel does not accept.
+    fn declared_name(&self, node: &SyntaxNode) -> Result<(String, bool), CompileError> {
+        let span = node.span();
+        let refused = CompileError::Syntax { span };
+        if node.kind() != SyntaxKind::IdentifierExpr || self.sites.contains_key(&span) {
+            return Err(refused);
+        }
+        let text = only_token(node).map(Token::text).ok_or(refused.clone())?;
+        if text.eq_ignore_ascii_case("TRUE") || text.eq_ignore_ascii_case("FALSE") {
+            return Err(refused);
+        }
+        let (text, optional) = match text.strip_prefix('[').and_then(|t| t.strip_suffix(']')) {
+            Some(inner) => (inner, true),
+            None => match without_prefix(text, "_xlop.") {
+                Some(inner) => (inner, true),
+                None => (text, false),
+            },
+        };
+        let valid = text
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_' || c == '\\')
+            && text
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '.');
+        if !valid {
+            return Err(refused);
+        }
+        Ok((name_key(text), optional))
+    }
+
+    /// Pushes onto block `block` the value of the defined name `name` seen from `scope`: its
+    /// formula's block, #NAME? when the workbook holds no such name, or the refusal of a name the
+    /// catalogue cannot say.
+    fn defined_name(
+        &mut self,
+        name: &str,
+        scope: NameScope,
+        span: TextSpan,
+        block: usize,
+    ) -> Result<(), CompileError> {
+        match self.catalog.defined_name(name, scope) {
+            NameDefinition::Formula(definition) => {
+                let name_block = self.name_block(name, &definition, span)?;
+                self.blocks[block].push(Instruction::Name(name_block));
+            }
+            NameDefinition::Unknown => {
+                self.blocks[block].push(Instruction::Literal(Literal::Error(
+                    WorksheetErrorCode::Name,
+                )));
+            }
+            NameDefinition::NotModelled => {
+                return Err(unsupported(span, "a defined name", NAMES_OWNER));
+            }
+        }
+        Ok(())
+    }
+
+    /// The block of the defined name `name` whose formula is `definition`, compiled into the plan
+    /// the first time the formula uses it. Its references are bound as a file stores them,
+    /// relative to cell A1 of the formula's sheet; a name with a relative reference is refused.
+    /// It sees no LET name or LAMBDA parameter of the formula that uses it. A name that uses
+    /// itself is given its own block, so a LAMBDA a name holds may call that name.
+    fn name_block(
+        &mut self,
+        name: &str,
+        definition: &str,
+        span: TextSpan,
+    ) -> Result<usize, CompileError> {
+        let key = (name_key(name), definition.to_owned());
+        if let Some(block) = self.names.get(&key) {
+            return Ok(*block);
+        }
+        if self.nesting >= MAX_NAME_NESTING {
+            return Err(unsupported(
+                span,
+                "defined names nested more deeply than this package lowers",
+                OWNER,
+            ));
+        }
+        let text = if definition.starts_with('=') {
+            definition.to_owned()
+        } else {
+            format!("={definition}")
+        };
+        let tree = parse_formula(&text);
+        let refused = || unsupported(span, "a defined name whose formula does not compile", OWNER);
+        if !tree.diagnostics().is_empty() {
+            return Err(refused());
+        }
+        let Some(expression) = tree.expression() else {
+            return Err(refused());
+        };
+        let a1 = CellKey::new(self.anchor.sheet(), 1, 1).expect("A1 lies on the grid");
+        let sites = sites(
+            &tree,
+            ReferenceNotation::A1,
+            FormulaAnchor::new(a1),
+            self.catalog,
+        );
+        if sites
+            .values()
+            .any(|site| matches!(site, Ok(operand) if relative(operand)))
+        {
+            return Err(unsupported(
+                span,
+                "a defined name with a relative reference",
+                OWNER,
+            ));
+        }
+        let block = self.blocks.len();
+        self.blocks.push(Vec::new());
+        self.names.insert(key, block);
+        let floor = std::mem::replace(&mut self.floor, self.scope.len());
+        self.nesting += 1;
+        let lowered = self.lower_root(expression, sites, block, false, Place::Unknown);
+        self.nesting -= 1;
+        self.floor = floor;
+        lowered.map_err(|error| match error {
+            CompileError::Unsupported { .. } | CompileError::UnknownFunction { .. } => error,
+            _ => refused(),
+        })?;
+        Ok(block)
     }
 
     /// Pushes onto block `block` the reference `node` binds to, when binding gave it a site;
@@ -401,6 +982,101 @@ impl Lowering {
                 Ok(true)
             }
         }
+    }
+}
+
+/// Whether a bound operand has a relative row or column.
+fn relative(operand: &ReferenceOperand) -> bool {
+    let rel = |axis: AxisRef| matches!(axis, AxisRef::Relative(_));
+    match operand.shape {
+        ReferenceShape::Cell(cell) => rel(cell.row) || rel(cell.column),
+        ReferenceShape::Area { first, last } => {
+            rel(first.row) || rel(first.column) || rel(last.row) || rel(last.column)
+        }
+        ReferenceShape::Rows { first, last } | ReferenceShape::Columns { first, last } => {
+            rel(first) || rel(last)
+        }
+        ReferenceShape::Deleted => false,
+    }
+}
+
+/// The key a LET name, LAMBDA parameter or defined name is matched by: without a leading
+/// `_xlpm.` (any ASCII case), upper case. Excel matches names regardless of case.
+fn name_key(text: &str) -> String {
+    without_prefix(text, "_xlpm.")
+        .unwrap_or(text)
+        .to_uppercase()
+}
+
+/// An array constant: rows of number, text, logical and error constants (a number may carry a
+/// sign), separated by `,` within a row and `;` between rows, every row as long as the first.
+/// Anything else inside the braces is syntax Excel does not accept.
+fn array(node: &SyntaxNode) -> Result<Literal, CompileError> {
+    let span = node.span();
+    let mut rows: Vec<Vec<Literal>> = vec![Vec::new()];
+    for child in node.children() {
+        match child {
+            SyntaxChild::Token(token) => match token.kind() {
+                TokenKind::Semicolon => rows.push(Vec::new()),
+                TokenKind::Comma | TokenKind::LBrace | TokenKind::RBrace => {}
+                _ => return Err(CompileError::Syntax { span: token.span() }),
+            },
+            SyntaxChild::Node(element) => {
+                let literal = array_element(element)?;
+                rows.last_mut().expect("a row").push(literal);
+            }
+        }
+    }
+    let cols = rows[0].len();
+    if cols == 0 || rows.iter().any(|row| row.len() != cols) {
+        return Err(CompileError::Syntax { span });
+    }
+    let count = rows.len();
+    Ok(Literal::Array {
+        rows: count,
+        cols,
+        cells: rows.into_iter().flatten().collect(),
+    })
+}
+
+fn array_element(node: &SyntaxNode) -> Result<Literal, CompileError> {
+    let span = node.span();
+    match node.kind() {
+        SyntaxKind::NumberLiteralExpr => number(node),
+        SyntaxKind::StringLiteralExpr => text(node),
+        SyntaxKind::ErrorLiteralExpr => only_token(node)
+            .and_then(Token::error_code)
+            .map(Literal::Error)
+            .ok_or(CompileError::Syntax { span }),
+        SyntaxKind::IdentifierExpr => {
+            let text = only_token(node).map(Token::text).unwrap_or_default();
+            if text.eq_ignore_ascii_case("TRUE") {
+                Ok(Literal::Logical(true))
+            } else if text.eq_ignore_ascii_case("FALSE") {
+                Ok(Literal::Logical(false))
+            } else {
+                Err(CompileError::Syntax { span })
+            }
+        }
+        SyntaxKind::PrefixExpr => match node.children() {
+            [SyntaxChild::Token(sign), SyntaxChild::Node(operand)]
+                if operand.kind() == SyntaxKind::NumberLiteralExpr
+                    && matches!(sign.kind(), TokenKind::Minus | TokenKind::Plus) =>
+            {
+                let Literal::Number(bits) = number(operand)? else {
+                    unreachable!("number gives a number literal")
+                };
+                let value = f64::from_bits(bits);
+                let signed = if sign.kind() == TokenKind::Minus && value != 0.0 {
+                    -value
+                } else {
+                    value
+                };
+                Ok(Literal::Number(signed.to_bits()))
+            }
+            _ => Err(CompileError::Syntax { span }),
+        },
+        _ => Err(CompileError::Syntax { span }),
     }
 }
 
@@ -493,6 +1169,7 @@ fn final_sum_check(operator: &Token, out: &mut Vec<Instruction>) -> Result<(), C
         argc: 1,
         retain: false,
         synthetic: true,
+        admission: Admission::Lift,
     };
     // Stack: left, right, result. Two below the top is the left operand; after its negation is
     // pushed, two below the top is the right operand.
@@ -608,19 +1285,26 @@ mod tests {
         }
     }
 
-    /// Each construct this compiler does not lower is refused with its owner, never lowered.
+    /// A defined name the catalogue cannot supply is refused with the work package that loads
+    /// names; the constructs L1 lowers compile.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn unsupported_constructs_name_their_owner() {
-        assert_eq!(owner("=TaxRate*2"), "cfml-m3.1");
-        assert_eq!(owner("=Sheet2!TaxRate"), "cfml-m3.1");
-        assert_eq!(owner("=(A1):B2"), "cfml-m3.3");
-        assert_eq!(owner("=SUM(A1 B2)"), "cfml-m3.3");
-        assert_eq!(owner("=SUM((A1,B2))"), "cfml-m3.3");
-        assert_eq!(owner("=@A1:A3"), "cfml-m3.3");
-        assert_eq!(owner("=A1#"), "cfml-m3.3");
-        assert_eq!(owner("=SUM({1,2})"), "cfml-m3.4");
-        assert_eq!(owner("=(A1)(2)"), "cfml-m2.3");
+        assert_eq!(owner("=TaxRate*2"), "dc-ndi");
+        assert_eq!(owner("=Sheet2!TaxRate"), "dc-ndi");
+        for compiles in [
+            "=(A1):B2",
+            "=SUM(A1 B2)",
+            "=SUM((A1,B2))",
+            "=@A1:A3",
+            "=A1#",
+            "=SUM({1,2})",
+            "=(A1)(2)",
+            "=LET(x,1,x)",
+            "=LAMBDA(x,x)(1)",
+        ] {
+            assert!(compiled(compiles).is_ok(), "{compiles}");
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -786,12 +1470,14 @@ mod tests {
             argc,
             retain,
             synthetic: false,
+            admission: Admission::IntersectAll,
         };
         let synthetic = |target| Instruction::Call {
             target,
             argc: 1,
             retain: false,
             synthetic: true,
+            admission: Admission::Lift,
         };
         let minus = resolved(Notation::Infix, "-");
         let negate = resolved(Notation::Prefix, "-");

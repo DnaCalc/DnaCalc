@@ -36,8 +36,8 @@ const REVISION: u64 = 0;
 /// a<mark>b of [`MARKED`] and the seven of [`WIDE`].
 const SHEETS: [&str; 42] = [
     "indirect", "data", "bench", "Q2 Data", "It's", "a-b", "1x", "A1", "a.b", ".x", "TRUE",
-    "FALSE", "a_b", "\u{e9}", "a(b", "a)b", "a+b", "a&b", "a,b", "a%b", "a#b", "a$b", "a{b",
-    "a~b", "a^b", "a=b", "a!b", "a;b", "a\"b", "a<b", "a>b", "a@b", "a`b", "a|b", "a}b", "\u{df}",
+    "FALSE", "a_b", "\u{e9}", "a(b", "a)b", "a+b", "a&b", "a,b", "a%b", "a#b", "a$b", "a{b", "a~b",
+    "a^b", "a=b", "a!b", "a;b", "a\"b", "a<b", "a>b", "a@b", "a`b", "a|b", "a}b", "\u{df}",
     "\u{d8}", "\u{f1}", "\u{3a9}", "\u{416}", "\u{4e2d}", "\u{20ac}",
 ];
 
@@ -234,7 +234,7 @@ fn refused(argument: usize) -> EvalFault {
     })
 }
 
-fn rows(book: &Book) -> Vec<Row> {
+fn rows(_book: &Book) -> Vec<Row> {
     use self::Basis::{Documented as D, Measured as M};
     use WorksheetErrorCode as W;
     let n = |x: f64| Ok(CalcValue::number(x));
@@ -393,7 +393,7 @@ fn rows(book: &Book) -> Vec<Row> {
         "=INDIRECT(\"\\x\")",
         refused(0),
         DEFINED,
-        "cfml-m3.3",
+        "dc-mzk",
     ));
     // Tab, carriage return and no-break space before, inside and after the text.
     for formula in BLANKS {
@@ -401,24 +401,19 @@ fn rows(book: &Book) -> Vec<Row> {
     }
     rows.extend([
         // Rows calc_fml does not model.
-        not_modelled("=INDIRECT(\"NoSuchName\")", refused(0), NAME, "cfml-m3.3"),
-        not_modelled("=INDIRECT(\"data!Foo\")", refused(0), NAME, "cfml-m3.3"),
-        not_modelled("=INDIRECT(\"XFE1\")", refused(0), NAME, "cfml-m3.3"),
-        not_modelled("=INDIRECT(\"Rate\")", refused(0), DEFINED, "cfml-m3.3"),
+        not_modelled("=INDIRECT(\"NoSuchName\")", refused(0), NAME, "dc-mzk"),
+        not_modelled("=INDIRECT(\"data!Foo\")", refused(0), NAME, "dc-mzk"),
+        not_modelled("=INDIRECT(\"XFE1\")", refused(0), NAME, "dc-mzk"),
+        not_modelled("=INDIRECT(\"Rate\")", refused(0), DEFINED, "dc-mzk"),
         not_modelled(
             "=INDIRECT(\"[Book1]data!A1\")",
             refused(0),
             "a qualifier naming another workbook, which INDIRECT resolves when that workbook is open",
             "cfml-m3.5",
         ),
-        not_modelled(
-            "=INDIRECT(\"A1:B2\")",
-            EvalFault::AreaAsValue {
-                area: book.area(SHEET, "A1", "B2"),
-            },
-            "a range where the formula needs one value: the legacy formula's implicit intersection",
-            "cfml-m3.3",
-        ),
+        // The legacy formula intersects the range with its own row, which A1:B2 does not reach
+        // (Excel writes it `=@INDIRECT("A1:B2")`; dc-mzk).
+        row("=INDIRECT(\"A1:B2\")", e(W::Value), M),
         not_modelled(
             "=INDIRECT(\"A1\",\"1\")",
             refused(1),
@@ -429,7 +424,7 @@ fn rows(book: &Book) -> Vec<Row> {
             "=SUM(INDIRECT(\"A1:B\"))",
             refused(0),
             "a range whose end could be a defined name (B), which is not bound",
-            "cfml-m3.3",
+            "dc-mzk",
         ),
         not_modelled(
             "=INDIRECT(\"A1\n\")",
@@ -934,7 +929,7 @@ pub(super) fn indirect_text_references() {
         "ACCEPT-NOTE: {CASE}: the check that the committed generator tests/fixtures/make-fixtures.ps1 writes the committed workbook byte for byte did not run on this target: the generator is a Windows PowerShell script, which the case runs only in its native Windows build"
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: what this case does not show: calc-engine and DNA OneCalc do not give calc_fml::evaluate a catalogue yet, so INDIRECT through them is refused as not modelled (dc-dumd); the engine is not shown the areas INDIRECT resolves and does not re-dirty a formula when a cell inside one changes (dc-dumd for INDIRECT, ceng-m3.3 for dynamic reads in general); text naming a sheet the workbook lacks gives #REF! and resolves no area, so nothing records the dependency and creating that sheet later re-dirties nothing (cfml-m3.3, whose case cfml_m3_3__absent_target owns it); the catalogue declares no volatility, so INDIRECT is not marked volatile (cfunc-m4.1, whose volatility declaration owns it); OFFSET and the reference operators (cfml-m3.3) are not covered"
+        "ACCEPT-NOTE: {CASE}: what this case does not show: calc-engine and DNA OneCalc do not give calc_fml::evaluate a catalogue yet, so INDIRECT through them is refused as not modelled (dc-dumd); the engine is not shown the areas INDIRECT resolves and does not re-dirty a formula when a cell inside one changes (dc-dumd for INDIRECT, ceng-m3.3 for dynamic reads in general); text naming a sheet the workbook lacks gives #REF! and resolves no area, so nothing records the dependency and creating that sheet later re-dirties nothing (dc-mzk); the catalogue declares no volatility, so INDIRECT is not marked volatile (cfunc-m4.1, whose volatility declaration owns it); OFFSET and the reference operators (dc-mzk) are covered by its own tests, not here"
     );
 }
 

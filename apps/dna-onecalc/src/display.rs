@@ -256,9 +256,12 @@ fn eval_fault(session: &Session, fault: &EvalFault) -> String {
             error.covered
         ),
         EvalFault::AreaAsValue { area: at } => format!(
-            "range as value: {} is more than one cell where one value is needed (beads cfml-m3.3 and cfml-m3.4)",
+            "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (work package dc-mzk)",
             area(session, *at)
         ),
+        EvalFault::NotModelled { construct, owner } => {
+            format!("not modelled: {construct} (work package {owner})")
+        }
         EvalFault::NearZeroFinalSum { result } => format!(
             "near-zero sum: the final + or - gave {result}, a result Excel adjusts by a rule not modelled yet (bead dc-r4ci)"
         ),

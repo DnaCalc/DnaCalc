@@ -30,8 +30,11 @@ mod notation;
 mod read;
 mod text;
 
-pub use bind::{BindError, ReferenceCatalog, ReferenceSite, bind_references};
-pub use read::{CellRun, ReadContractError, ReferenceReader, read_cells};
+pub(crate) use bind::qualified_name;
+pub use bind::{
+    BindError, NameDefinition, NameScope, ReferenceCatalog, ReferenceSite, bind_references,
+};
+pub use read::{CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells};
 pub(crate) use text::bind_text;
 
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode};
