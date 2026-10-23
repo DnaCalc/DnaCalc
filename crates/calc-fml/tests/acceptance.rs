@@ -42,12 +42,13 @@
 //! the case passed shows that the 1 MB stack sufficed.
 //!
 //! The dc-besk case compiles function names as a file spells them (`_xlfn.MAXIFS`,
-//! `_xlfn._xlws.MAXIFS`) through `calc_fml::compile` and evaluates them through
-//! `calc_fml::evaluate`, beside the same formula as a cell entry spells it: the two must share one
-//! plan from the `PlanCache`, which holds one plan per distinct set of catalogue entries, and
-//! give the value derived by hand from the functions' documented rules. Which spellings compile
-//! reads as a function, and which as an unknown name, is the rule `file_unprefixed` in
-//! `src/eval/compile.rs` states; the case holds no value read from Excel.
+//! `_xlfn._xlws.MAXIFS`) through `calc_fml::compile_loaded`, which reads a formula's text as a file
+//! stores it, and evaluates them through `calc_fml::evaluate`, beside the same formula as a cell
+//! entry spells it, compiled through `calc_fml::compile`: the two must share one plan from the
+//! `PlanCache`, which holds one plan per distinct set of catalogue entries, and give the value
+//! derived by hand from the functions' documented rules. Which spellings compile reads as a
+//! function, and which as an unknown name, is the rule `file_unprefixed` and `unknown_on_load` in
+//! `src/eval/compile.rs` state; the case holds no value read from Excel.
 //!
 //! The dc-ibp2 cases run IFERROR and IFNA through the same public route (parse_formula, compile,
 //! instantiate, evaluate), over a reader that logs the areas it is asked for and an
@@ -79,6 +80,13 @@
 //! Excel's capture of it (`tests/captures/dc_l10u/oracle.capture.json`), whose rows pass a reference
 //! result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function,
 //! over cells holding numbers, a blank, errors, text, numeric text, a logical and empty text.
+//!
+//! The dc-51ka cases (`acceptance/dc_51ka.rs`) run INDIRECT through the same public route, with the
+//! catalogue of the oracle workbook's sheets given to the evaluation
+//! (`EvaluationServices::with_catalog`) and an observer that records the areas INDIRECT resolved;
+//! each row is labelled documented (Microsoft's INDIRECT page) or measured (Excel's value), and
+//! `tests/fixtures/dc_51ka/oracle.xlsx`, from the committed generator, and its capture
+//! `tests/captures/dc_51ka/oracle.capture.json` are judged through calc_verdict::judge.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -95,7 +103,7 @@ use calc_fml::syntax::{
 use calc_fml::{
     CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
     EvaluationReport, EvaluationServices, ExecutedCall, FormulaInstance, PlanCache, compile,
-    evaluate, instantiate,
+    compile_loaded, evaluate, instantiate,
 };
 use calc_fml::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 use calc_func::value::{
@@ -2954,6 +2962,16 @@ fn dc_besk__prefixed_calls_evaluate() {
             cache,
         )
     };
+    // A formula's text as a file stores it.
+    let loaded_at = |formula: &str, cache: &mut PlanCache| {
+        compile_loaded(
+            &parse_formula(formula),
+            ReferenceNotation::A1,
+            e1,
+            &catalog,
+            cache,
+        )
+    };
     // The refusal of `formula` as an unknown function written `spelling`, at that spelling.
     let unknown = |formula: &str, spelling: &str| {
         let start = formula
@@ -2970,18 +2988,6 @@ fn dc_besk__prefixed_calls_evaluate() {
         supplied,
     };
     let value = |value: CalcValue| (Outcome::Value(value.clone()), Outcome::Value(value));
-
-    // IFNA is catalogued by dc-ibp2. Until it lands, its file spelling is refused as an unknown
-    // function with that spelling, as its plain spelling is with its own.
-    let ifna_catalogued = catalogue().resolve_surface(Notation::Call, "IFNA").is_ok();
-    let ifna = if ifna_catalogued {
-        value(CalcValue::number(7.0))
-    } else {
-        (
-            Outcome::Refused(unknown("=_xlfn.IFNA(C1,7)", "_xlfn.IFNA")),
-            Outcome::Refused(unknown("=IFNA(C1,7)", "IFNA")),
-        )
-    };
 
     // Each formula as a file spells it, the same formula as a cell entry spells it (its plain
     // twin), and what each gives. The values are derived by hand from the documented rules of
@@ -3047,7 +3053,11 @@ fn dc_besk__prefixed_calls_evaluate() {
             r#"=MAXIFS(A1:A3,B1:B3,"x")*10+MINIFS(A1:A3,B1:B3,"x")"#,
             value(CalcValue::number(31.0)),
         ),
-        ("=_xlfn.IFNA(C1,7)", "=IFNA(C1,7)", ifna),
+        (
+            "=_xlfn.IFNA(C1,7)",
+            "=IFNA(C1,7)",
+            value(CalcValue::number(7.0)),
+        ),
         // The entry's arity applies to the prefixed spelling as to the plain one.
         (
             "=_xlfn.MAXIFS(A1:A3,B1:B3)",
@@ -3060,7 +3070,7 @@ fn dc_besk__prefixed_calls_evaluate() {
     ];
     let mut evaluated_rows = 0;
     for (file, entered, (file_expected, entered_expected)) in &rows {
-        let file_plan = compiled_at(file, &mut cache);
+        let file_plan = loaded_at(file, &mut cache);
         let entered_plan = compiled_at(entered, &mut cache);
         let mut outcome = |plan: &Result<Arc<CompiledPlan>, CompileError>| match plan {
             Ok(plan) => Outcome::Value(
@@ -3117,21 +3127,38 @@ fn dc_besk__prefixed_calls_evaluate() {
     ];
     for (formula, spelling) in refused {
         assert_eq!(
+            loaded_at(formula, &mut cache).err(),
+            Some(unknown(formula, spelling)),
+            "{formula}"
+        );
+        assert_eq!(
             compiled_at(formula, &mut cache).err(),
             Some(unknown(formula, spelling)),
             "{formula}"
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: {} formulas refused as CompileError::UnknownFunction at the name, with its spelling as written: {}",
+        "ACCEPT-NOTE: {CASE}: {} formulas refused as CompileError::UnknownFunction at the name, with its spelling as written, by calc_fml::compile_loaded and calc_fml::compile alike: {}",
         refused.len(),
         refused.map(|(formula, _)| formula).join(" ")
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: {evaluated_rows} prefixed formulas evaluated through calc_fml::evaluate, each on the plan of its unprefixed spelling; IFNA catalogued: {ifna_catalogued}; every expected value derived by hand from the functions' documented rules"
+        "ACCEPT-NOTE: {CASE}: {evaluated_rows} prefixed formulas compiled by calc_fml::compile_loaded and evaluated through calc_fml::evaluate, each on the plan calc_fml::compile gives its unprefixed spelling; every expected value derived by hand from the functions' documented rules"
     );
+
+    // The unprefixed spelling as a file stores it: MAXIFS and IFNA are functions a file writes
+    // with the prefix _xlfn., so calc_fml::compile_loaded reads the plain name as Excel's load
+    // does, as an unknown name (bead dc-xrxb), while the entries above computed.
+    for file in [maxifs, "=IFNA(C1,7)"] {
+        let plan = loaded_at(file, &mut cache).unwrap_or_else(|e| panic!("{file}: {e:?}"));
+        assert_eq!(
+            evaluated(&instantiate(&plan, e1), &mut reader, &mut scratch).0,
+            Ok(CalcValue::error(WorksheetErrorCode::Name)),
+            "{file}"
+        );
+    }
     note!(
-        "ACCEPT-NOTE: {CASE}: counted divergence, owned by bead dc-xrxb: compile reads {maxifs} as MAXIFS whether the text came from a file or from a cell entry, while a file that spells MAXIFS or IFNA without its prefix loads in Excel 16.0 as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input"
+        "ACCEPT-NOTE: {CASE}: {maxifs} and =IFNA(C1,7) as a file stores them, through calc_fml::compile_loaded, give #NAME?; entered, through calc_fml::compile, they give 3 and 7"
     );
 }
 
@@ -3803,7 +3830,11 @@ fn sheet_cells(xml: &str) -> BTreeMap<String, SheetCell> {
 
 /// The workbooks the committed generator writes, by their path under its output directory.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 2] = ["dc_ibp2/oracle.xlsx", "dc_l10u/oracle.xlsx"];
+const GENERATED_WORKBOOKS: [&str; 3] = [
+    "dc_51ka/oracle.xlsx",
+    "dc_ibp2/oracle.xlsx",
+    "dc_l10u/oracle.xlsx",
+];
 
 /// Runs the committed generator under Windows PowerShell into a new directory under the target
 /// directory's temporary directory, named for `case` so that cases running at the same time in one
@@ -6117,4 +6148,28 @@ fn dc_l10u__reference_results_as_values() {
         "ACCEPT-NOTE: {CASE}: against a copy of the capture with reference_values!D1 observed as 7 (made by the case, not Excel's), the comparison reports D1 alone: {}",
         changed_problems[0]
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-51ka: INDIRECT's text resolved to a reference through calc_fml, and its Excel comparison
+// through calc_verdict::judge. The bodies are in `acceptance/dc_51ka.rs`.
+
+#[path = "acceptance/dc_51ka.rs"]
+mod dc_51ka;
+
+/// Every oracle row of the dc-51ka workbook through calc_fml::evaluate with the workbook's
+/// catalogue: values, refusals with their owners, the areas INDIRECT resolved as the observer is
+/// shown them, and the workbook as the committed generator writes it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_51ka__indirect_text_references() {
+    dc_51ka::indirect_text_references();
+}
+
+/// The committed Excel capture of the dc-51ka workbook judged through calc_verdict::judge: every
+/// row calc_fml computes matched, every row it refuses published as not modelled.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_51ka__excel_comparison() {
+    dc_51ka::excel_comparison();
 }

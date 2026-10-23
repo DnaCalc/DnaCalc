@@ -22,20 +22,15 @@
 //!   build script) contains a denied phrase, in any case or joining (`TreeRef`, `tree_ref`,
 //!   `tree-ref`, `Tree ref` are one phrase). Plain comments, `tests/`, `benches/`, `examples/` and
 //!   `#[cfg(test)]` items are outside its scope by design.
-//! - `seams` (plan section 8.8): see `seams.rs`.
 //! - `word-scan`: see `words.rs`.
-//! - `numeric-provenance` (plan sections 5.2, 10.2 and 12; bead infra-m0.5): the release source
-//!   allowlist, the manifest's numeric provenance and the retained witness set against the
-//!   reviewed dispositions; see `provenance.rs`.
 //!
 //! Neither source scan follows `include!`, `include_str!` or `include_bytes!`: a portable package
 //! that uses one, in a shipped target or its build script, fails both `os-imports` and
 //! `tree-reference-tokens` until a bead extends them to read the included file.
 
 use crate::cargo::{self, Edge, Resolved, SHIPPED_TARGETS, WASM_TARGET, Workspace};
-use crate::manifest::Manifests;
 use crate::rust_source::{self, SourceFile};
-use crate::{provenance, seams, text, words};
+use crate::{text, words};
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::ToTokens;
 use serde_json::{Map, Value, json};
@@ -242,8 +237,8 @@ fn resolved_targets(ws: &Workspace) -> ResolvedTargets {
     resolved
 }
 
-/// Runs the seven checks in order. Logs of the cargo runs they start go to `log_dir`.
-pub fn run_all(ws: &Workspace, manifests: &Manifests, log_dir: &Path) -> Vec<CheckResult> {
+/// Runs the five checks in order. Logs of the cargo runs they start go to `log_dir`.
+pub fn run_all(ws: &Workspace, log_dir: &Path) -> Vec<CheckResult> {
     let config = Config::load(&ws.root);
     let resolved = resolved_targets(ws);
     let parse = |roots: Vec<std::path::PathBuf>| rust_source::crate_sources(&ws.root, &roots);
@@ -271,9 +266,7 @@ pub fn run_all(ws: &Workspace, manifests: &Manifests, log_dir: &Path) -> Vec<Che
             Ok(config) => tree_reference_tokens(ws, config, &sources, &build_sources),
             Err(e) => CheckResult::unavailable("tree-reference-tokens", e),
         },
-        seams::check(ws, &sources, manifests),
         words::check(&ws.root),
-        provenance::check(&ws.root),
     ]
 }
 

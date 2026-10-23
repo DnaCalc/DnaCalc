@@ -213,6 +213,40 @@
         "cdoc_jpha__text_and_number_comparison": ["windows", "linux", "wasm"],
         "cdoc_jpha__excel_comparison": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-nzpw",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_nzpw", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_nzpw__information_functions",
+        "dc_nzpw__excel_comparison"
+      ],
+      "platforms": {
+        "dc_nzpw__information_functions": ["windows", "linux", "wasm"],
+        "dc_nzpw__excel_comparison": ["windows", "linux", "wasm"]
+      }
+    },
+    {
+      "id": "dc-xrxb",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "wasm", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "windows", "--require-all"]
+      ],
+      "cases": [
+        "dc_xrxb__prefix_metadata_matches_excel"
+      ],
+      "platforms": {
+        "dc_xrxb__prefix_metadata_matches_excel": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

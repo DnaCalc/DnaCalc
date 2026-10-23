@@ -24,11 +24,11 @@ use calc_func::{
     Unreadable, catalogue, invoke,
 };
 use calc_verdict::{
-    Acquisition, CalculationContext, CaptureFailure, CaptureRecord, CaptureSession, CellAddress,
-    CellObservation, CellResult, Evaluation, EvaluationRecord, FormulaCell, FormulaKind,
-    JudgeError, MissingCapture, Observation, Provenance, ResultSet, RunIdentity, STAGE_INVENTORY,
-    STAGE_ISOLATION, SheetEntry, SheetVisibility, Verdict, VerdictPolicy, VerdictReport, judge,
-    sha256_hex,
+    Acquisition, CacheCellType, CalculationContext, CaptureFailure, CaptureRecord, CaptureSession,
+    CellAddress, CellObservation, CellResult, Evaluation, EvaluationRecord, FormulaCell,
+    FormulaKind, JudgeError, MissingCapture, Observation, Provenance, ResultSet, RunIdentity,
+    STAGE_INVENTORY, STAGE_ISOLATION, SavedCache, SheetEntry, SheetVisibility, Verdict,
+    VerdictPolicy, VerdictReport, judge, sha256_hex,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::any::Any;
@@ -53,6 +53,8 @@ macro_rules! note {
         println!("{line}");
     }};
 }
+
+mod dc_xrxb_support;
 
 // ---------------------------------------------------------------------------------------------
 // The counting allocator.
@@ -1024,7 +1026,7 @@ fn cfunc_m1_1__catalogue_consistency() {
     // arity no argument is asked for. An eager entry is asked for each argument once, in order,
     // and admission stops at the first argument it refuses (a number at a reference parameter);
     // a lazy entry is asked for its discriminator first and then at most one held-back argument.
-    // Every entry admits an argument except TRUE and FALSE, which take none (listed below), and
+    // Every entry admits an argument except TRUE, FALSE and NA, which take none (listed below), and
     // every entry that admits one requires one except ROW and COLUMN, whose reference is optional.
     let mut arity_ids = BTreeSet::new();
     let mut computed = Vec::new();
@@ -1111,6 +1113,7 @@ fn cfunc_m1_1__catalogue_consistency() {
             })
         );
         assert!(too_many.asked.is_empty());
+        // An entry whose arguments are all optional has no call with too few.
         if let Some(fewer) = arity.min.checked_sub(1) {
             let mut too_few = Recorded::numbers(fewer);
             assert_eq!(
@@ -1150,8 +1153,8 @@ fn cfunc_m1_1__catalogue_consistency() {
         [iff.id(), fallbacks[0], fallbacks[1], choose.id()],
         "only IF, IFERROR, IFNA and CHOOSE are lazy"
     );
-    // F1 (dc-8dq) adds PI and RAND to the entries that take no argument.
-    let constants: BTreeSet<FunctionId> = ["TRUE", "FALSE", "PI", "RAND"]
+    // F1 (dc-8dq) adds PI and RAND, and dc-nzpw NA, to the entries that take no argument.
+    let constants: BTreeSet<FunctionId> = ["TRUE", "FALSE", "NA", "PI", "RAND"]
         .into_iter()
         .filter_map(|name| catalogue.resolve_surface(Notation::Call, name).ok())
         .map(|target| target.id())
@@ -1159,7 +1162,7 @@ fn cfunc_m1_1__catalogue_consistency() {
     assert!(
         no_argument.iter().all(|id| constants.contains(id))
             && constants.iter().all(|id| no_argument.contains(id)),
-        "only TRUE, FALSE, PI and RAND take no argument: {no_argument:?}"
+        "only TRUE, FALSE, NA, PI and RAND take no argument: {no_argument:?}"
     );
     note!(
         "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}; entries that take no argument {:?}",
@@ -1549,7 +1552,7 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 9] = [
+const GENERATED_WORKBOOKS: [&str; 11] = [
     "cdoc_jpha/oracle.xlsx",
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
@@ -1558,7 +1561,9 @@ const GENERATED_WORKBOOKS: [&str; 9] = [
     "cfunc_m3_6/oracle.xlsx",
     "dc_e00t/oracle.xlsx",
     "dc_fwpz/oracle.xlsx",
+    "dc_nzpw/oracle.xlsx",
     "dc_q9rb/oracle.xlsx",
+    "dc_xrxb/oracle.xlsx",
 ];
 
 /// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
@@ -19816,4 +19821,2974 @@ fn cdoc_jpha__excel_comparison() {
         sheet_verdicts(&comparison.report, &rows),
         comparison.report.summary()
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-nzpw: the information functions (ISBLANK, ISERR, ISERROR, ISNA, ISNUMBER, ISTEXT, ISNONTEXT,
+// ISLOGICAL, ISEVEN, ISODD, ISREF, ISFORMULA, TYPE, N, NA and ERROR.TYPE) through
+// calc_func::invoke on catalogue targets.
+//
+// Each oracle row runs one call and asserts the value it expects, and says why. A `documented`
+// row applies a rule or an example that Microsoft's page for the function states, named in the
+// row. A `measured` row expects what Excel gives where no page settles it (a blank cell or empty
+// text where a page is silent, number text and logicals given to ISEVEN, a logical given to
+// ISNUMBER, the newer errors, a reference of several cells or areas, ERROR.TYPE's numbers past
+// #GETTING_DATA, the tolerance of ISEVEN and ISODD): its expectation is Excel's raw value for the
+// row's cell in the committed capture, which dc_nzpw__excel_comparison asserts through
+// calc_verdict::judge's report. A `refused` row ends in a fault and names the bead that owns the
+// behaviour it refuses, never dc-nzpw itself; the comparison publishes it as not modelled with
+// that owner. An `unrecorded` row, N(B9), computes
+// #BUSY!, whose CVErr code the capture's value model does not hold: it is published not modelled
+// with its owner, and the comparison checks the capture's value failure naming the code and
+// Excel's saved cache of the cell instead. The comparison also checks each formula's text as
+// Excel loaded it, where Excel inserts `@`, and which rows are dynamic-array formulas.
+//
+// A row that reads a source cell of column F (FILTER with no match, #CALC!; SEQUENCE blocked by
+// F3, #SPILL!; FIELDVALUE of a number, #FIELD!) reads the error the case's sheet holds for it,
+// the error it assumes Excel gives the source: calc_func has no entry for those functions, so no
+// route of the product calculates the source. Such a row is published not modelled, conditional
+// on Excel's value of its source, and the comparison checks both that Excel's raw value of the
+// source is the assumed error and that the row's raw value is the value calc_func::invoke gave.
+// Row 3, IF(A4,"x",""), gives empty text through calc_func::invoke, and the rows that read D3
+// read that computed value: a formula's empty text.
+//
+// `tests/fixtures/dc_nzpw/oracle.xlsx`, written by the committed generator
+// `tests/fixtures/make-fixtures.ps1`, holds the cells the rows read, the source formulas of column
+// F (as dynamic-array formulas) and every row's formula in column D, in the order the case runs its
+// rows (rows 171 to 173 as dynamic-array formulas, the others as legacy formulas);
+// dc_nzpw__information_functions checks that its sheet holds exactly those. `cargo xtask
+// capture` wrote Excel's capture of that workbook to `tests/captures/dc_nzpw/oracle.capture.json`.
+
+/// The information oracle workbook, as committed.
+const INFORMATION_WORKBOOK: &[u8] = include_bytes!("fixtures/dc_nzpw/oracle.xlsx");
+const INFORMATION_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/dc_nzpw/oracle.xlsx";
+/// Excel's capture of the information oracle workbook.
+const INFORMATION_CAPTURE: &[u8] = include_bytes!("captures/dc_nzpw/oracle.capture.json");
+/// The case the information capture is recorded under.
+const INFORMATION_CAPTURE_CASE: &str = "dc_nzpw__excel_comparison";
+/// The command that writes the information capture.
+const INFORMATION_CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-func/tests/fixtures/dc_nzpw/oracle.xlsx --case dc_nzpw__excel_comparison --out crates/calc-func/tests/captures/dc_nzpw/oracle.capture.json";
+/// The sheet of the information oracle workbook that holds the rows.
+const INFORMATION_SHEET: &str = "information_functions";
+/// The column (F) of the source formulas.
+const SOURCE_COLUMN: u32 = 6;
+
+/// The family's entries: each spelling and the member number of its FunctionId in family 10.
+const INFORMATION: [(&str, u32); 16] = [
+    ("ISBLANK", 1),
+    ("ISERR", 2),
+    ("ISERROR", 3),
+    ("ISNA", 4),
+    ("ISNUMBER", 5),
+    ("ISTEXT", 6),
+    ("ISNONTEXT", 7),
+    ("ISLOGICAL", 8),
+    ("ISEVEN", 9),
+    ("ISODD", 10),
+    ("ISREF", 11),
+    ("ISFORMULA", 12),
+    ("TYPE", 13),
+    ("N", 14),
+    ("NA", 15),
+    ("ERROR.TYPE", 16),
+];
+
+/// Why a dc-nzpw row expects its value.
+#[derive(Clone, Copy, Debug)]
+enum InfoBasis {
+    /// This rule, which Microsoft's page for the function states.
+    Documented(&'static str),
+    /// What Excel gives, which no page settles: the row's value in the committed capture.
+    Measured(&'static str),
+    /// Refused; the behaviour is this bead's.
+    Refused(Owner),
+    /// Computed by this rule, which Microsoft's page states, but Excel's raw value is an error the
+    /// capture's value model holds no code for: the row is published not modelled with this
+    /// owner, and the comparison checks Excel's saved cache of the cell and the capture's failure
+    /// naming the error's code instead.
+    Unrecorded(&'static str, Owner),
+}
+
+impl InfoBasis {
+    /// The bead that owns what the row does not publish as calculated, if any.
+    fn owner(self) -> Option<Owner> {
+        match self {
+            InfoBasis::Refused(owner) | InfoBasis::Unrecorded(_, owner) => Some(owner),
+            InfoBasis::Documented(_) | InfoBasis::Measured(_) => None,
+        }
+    }
+}
+
+/// Excel's CVErr code for #BUSY! (the low 16 bits of the VT_ERROR value), which bead dc-nzpw's
+/// capture records in its failure at the row reading B9.
+const BUSY_CODE: u64 = 2051;
+
+/// A source formula of column F: a call to a function calc_func has no entry for, which the
+/// workbook holds as a dynamic-array formula over its one cell. Rows read the error the case's
+/// sheet holds for it, `assumed`; the comparison checks Excel's raw value of the cell against it.
+struct InfoSource {
+    address: &'static str,
+    row: u32,
+    formula: &'static str,
+    assumed: WorksheetErrorCode,
+    owner: Owner,
+}
+
+const INFO_SOURCES: [InfoSource; 3] = [
+    InfoSource {
+        address: "F1",
+        row: 1,
+        formula: "=FILTER(C9:C10,C9:C10>100)",
+        assumed: WorksheetErrorCode::Calc,
+        owner: Owner {
+            bead: "cfunc-m3.16",
+            behaviour: "FILTER (no row matches: #CALC!)",
+        },
+    },
+    InfoSource {
+        address: "F2",
+        row: 2,
+        formula: "=SEQUENCE(2)",
+        assumed: WorksheetErrorCode::Spill,
+        owner: Owner {
+            bead: "cfunc-m3.16, cfml-m3.4",
+            behaviour: "SEQUENCE and its spill (blocked by F3: #SPILL!)",
+        },
+    },
+    InfoSource {
+        address: "F4",
+        row: 4,
+        formula: "=FIELDVALUE(A3,\"x\")",
+        assumed: WorksheetErrorCode::Field,
+        owner: Owner {
+            bead: "cfunc-m3.19",
+            behaviour: "FIELDVALUE (A3 holds no data type: #FIELD!)",
+        },
+    },
+];
+
+/// The behaviours refused rows of dc-nzpw show, by the bead that owns each.
+const ARRAY_ARGUMENT: Owner = Owner {
+    bead: "cfml-m3.4",
+    behaviour: "an array given to a value argument, which Excel loads in a legacy formula with @ (its first element) and which array evaluation applies the function to in a dynamic-array formula",
+};
+const RANGE_TO_TYPE: Owner = Owner {
+    bead: "cfml-m3.3, cfml-m3.4",
+    behaviour: "a range of several cells given to TYPE, which Excel loads in a legacy formula with @ (implicit intersection); its dynamic-array result is unmeasured",
+};
+const FORMULA_FACT: Owner = Owner {
+    bead: "cfunc-m3.18",
+    behaviour: "whether a cell holds a formula, a host fact the cell reader does not supply",
+};
+const RANGE_TO_VALUE: Owner = Owner {
+    bead: "cfml-m3.3",
+    behaviour: "a range given to a value argument in a legacy formula, which Excel loads with @ (implicit intersection) and the caller intersects before the call",
+};
+const BUSY_RAW: Owner = Owner {
+    bead: "dc-tt73",
+    behaviour: "#BUSY! as Excel's raw value: its CVErr code 2051 is none the capture's value model holds, so the comparison checks Excel's saved cache of the cell",
+};
+
+/// The rows of a dc-nzpw case, with each row's basis, the source cell a conditional row reads and
+/// the rows written as dynamic-array formulas (every other row is a legacy formula).
+struct InfoRows {
+    rows: Rows,
+    basis: Vec<InfoBasis>,
+    sources_read: BTreeMap<u32, &'static str>,
+    dynamic: BTreeSet<u32>,
+}
+
+impl InfoRows {
+    fn count(&self, kind: fn(&InfoBasis) -> bool) -> usize {
+        self.basis.iter().filter(|basis| kind(basis)).count()
+    }
+}
+
+/// What a dc-nzpw row asserts of its call: a value or a refusal as [`Expect`] states it, or the
+/// call interface's refusal of a reference given to the entry's value parameter, which the
+/// caller dereferences (`FunctionFault::ReferenceArgument` naming argument 0).
+enum InfoCheck {
+    Expect(Expect),
+    ReferenceArgument,
+}
+
+impl InfoCheck {
+    fn shown(&self) -> String {
+        match self {
+            InfoCheck::Expect(expect) => information_shown(expect),
+            InfoCheck::ReferenceArgument => "ReferenceArgument (argument 0)".to_owned(),
+        }
+    }
+}
+
+/// Runs the named call `spelling` on `args` through calc_func::invoke under Fast with the test
+/// sheet as the cell reader and asserts `check`, that an eager call asked for each argument once
+/// in order, and that the result fits `basis` (a value, or a refusal for a refused row). Then
+/// records the row with the next cell of column D, prints it with its basis and returns its row.
+fn info_row(
+    r: &mut InfoRows,
+    sheet: &mut TestSheet,
+    spelling: &'static str,
+    args: &[Arg],
+    check: InfoCheck,
+    basis: InfoBasis,
+) -> u32 {
+    let target = surface(Notation::Call, spelling);
+    let (formula, asked, result, tick) = match &check {
+        InfoCheck::Expect(expect) => {
+            call_and_assert(sheet, &NumericMode::Fast, named(spelling), args, expect)
+        }
+        InfoCheck::ReferenceArgument => {
+            let texts: Vec<&str> = args.iter().map(|a| a.excel.as_str()).collect();
+            let formula = target
+                .oracle_formula(&texts)
+                .unwrap_or_else(|| panic!("{spelling} does not admit {texts:?}"));
+            let mut recorded = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+            let tick = next_tick();
+            let result = invoke(
+                target,
+                &mut recorded,
+                &mut EvalServices::with_cells(&NumericMode::Fast, sheet),
+                &mut FunctionCallScratch::new(),
+            );
+            assert_eq!(
+                result,
+                Err(FunctionFault::ReferenceArgument {
+                    id: target.id(),
+                    index: 0
+                }),
+                "{formula}"
+            );
+            (formula, recorded.asked, result, tick)
+        }
+    };
+    if !target.argument_demand().is_lazy() {
+        let in_order: Vec<usize> = (0..args.len()).collect();
+        assert_eq!(asked, in_order, "{formula}: the arguments asked for");
+    }
+    match basis {
+        InfoBasis::Refused(owner) => {
+            assert!(
+                result.is_err(),
+                "{formula}: a refused row computed {result:?}"
+            );
+            assert!(
+                !owner.bead.split(", ").any(|bead| bead == "dc-nzpw"),
+                "{formula}: a refused row names dc-nzpw as its owner"
+            );
+        }
+        InfoBasis::Unrecorded(_, owner) => {
+            assert!(
+                result.is_ok(),
+                "{formula}: a row of dc-nzpw computes a value"
+            );
+            assert!(
+                !owner.bead.split(", ").any(|bead| bead == "dc-nzpw"),
+                "{formula}: an unrecorded row names dc-nzpw as its owner"
+            );
+        }
+        InfoBasis::Documented(_) | InfoBasis::Measured(_) => {
+            assert!(
+                result.is_ok(),
+                "{formula}: a row of dc-nzpw computes a value"
+            )
+        }
+    }
+    let source = args.iter().find_map(|a| {
+        INFO_SOURCES
+            .iter()
+            .find(|source| source.address == a.excel)
+            .map(|source| source.address)
+    });
+    let row = u32::try_from(r.rows.oracle.len() + 1).expect("a row number");
+    if !r.rows.quiet {
+        let reads: Vec<&str> = args
+            .iter()
+            .flat_map(|a| a.reads.iter().map(String::as_str))
+            .collect();
+        let cells = if reads.is_empty() {
+            String::new()
+        } else {
+            format!(" with {}", reads.join(", "))
+        };
+        let at = format!("{}!{}", r.rows.sheet, encode_a1(row, FORMULA_COLUMN));
+        let label = match basis {
+            InfoBasis::Documented(rule) => format!("documented: {rule}"),
+            InfoBasis::Measured(note) => format!(
+                "measured: {note}; the expectation is Excel's raw value of the cell, which dc_nzpw__excel_comparison asserts against the committed capture"
+            ),
+            InfoBasis::Refused(owner) => format!(
+                "refused with {:?}, owned by {}: {}",
+                result.as_ref().err(),
+                owner.bead,
+                owner.behaviour
+            ),
+            InfoBasis::Unrecorded(rule, owner) => format!(
+                "documented: {rule}; published not modelled, owned by {}: {}",
+                owner.bead, owner.behaviour
+            ),
+        };
+        let conditional = match source {
+            Some(read) => format!(
+                "; conditional on Excel's value of {read}, the assumed error the sheet holds for it"
+            ),
+            None => String::new(),
+        };
+        note!(
+            "ACCEPT-NOTE: {}: oracle {at} {formula}{cells} -> {} ({label}{conditional})",
+            r.rows.case,
+            check.shown()
+        );
+    }
+    if let Some(read) = source {
+        r.sources_read.insert(row, read);
+    }
+    r.rows.calls.push(Call { row, tick });
+    r.rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice: None,
+        owner: basis.owner(),
+        tick,
+    });
+    r.basis.push(basis);
+    row
+}
+
+/// Every worksheet error's literal, as Excel shows it.
+const ALL_ERROR_LITERALS: [(WorksheetErrorCode, &str); 14] = [
+    (WorksheetErrorCode::Null, "#NULL!"),
+    (WorksheetErrorCode::Div0, "#DIV/0!"),
+    (WorksheetErrorCode::Value, "#VALUE!"),
+    (WorksheetErrorCode::Ref, "#REF!"),
+    (WorksheetErrorCode::Name, "#NAME?"),
+    (WorksheetErrorCode::Num, "#NUM!"),
+    (WorksheetErrorCode::NA, "#N/A"),
+    (WorksheetErrorCode::Busy, "#BUSY!"),
+    (WorksheetErrorCode::GettingData, "#GETTING_DATA"),
+    (WorksheetErrorCode::Spill, "#SPILL!"),
+    (WorksheetErrorCode::Calc, "#CALC!"),
+    (WorksheetErrorCode::Field, "#FIELD!"),
+    (WorksheetErrorCode::Blocked, "#BLOCKED!"),
+    (WorksheetErrorCode::Connect, "#CONNECT!"),
+];
+
+/// An expectation as a dc-nzpw note shows it, an error of any kind by its literal.
+fn information_shown(expect: &Expect) -> String {
+    match expect {
+        E(code) => ALL_ERROR_LITERALS
+            .iter()
+            .find(|(known, _)| known == code)
+            .map(|(_, literal)| (*literal).to_owned())
+            .expect("every error has a literal"),
+        other => other.shown(),
+    }
+}
+
+/// Runs a row of dc-nzpw and gives its row: `info!(r, sheet, "SPELLING", [args], expect, basis)`,
+/// or, for a reference given to a value parameter, `info!(r, sheet, "SPELLING", [args],
+/// reference_argument, basis)`.
+macro_rules! info {
+    ($r:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], reference_argument, $basis:expr) => {{
+        let args = [$($arg),*];
+        info_row($r, $sheet, $spelling, &args, InfoCheck::ReferenceArgument, $basis)
+    }};
+    ($r:expr, $sheet:expr, $spelling:expr, [$($arg:expr),* $(,)?], $expect:expr, $basis:expr) => {{
+        let args = [$($arg),*];
+        info_row($r, $sheet, $spelling, &args, InfoCheck::Expect($expect), $basis)
+    }};
+}
+
+/// The cells the information rows read: A1 is blank, A2 holds empty text, A3:A12 one value of each
+/// kind and number text (A10 is blank), B1:B9 one error of each kind a cell holds as a constant,
+/// C1:C8 integers at and past 2^52, the largest binary64, -2.5 and number text, C9:C10 FILTER's
+/// source, C11 and C12 the binary64 two and three steps below 300001, C13 the binary64 one step
+/// below 435, E167:E174 odd and even integers for the ranges of rows 168 to 173; D3 holds row 3's
+/// result, F1, F2 and F4 the errors assumed for the source formulas, and F3 the text that blocks
+/// F2's spill.
+fn information_sheet() -> TestSheet {
+    use WorksheetErrorCode as W;
+    let e = CalcValue::error;
+    let n = CalcValue::number;
+    TestSheet::new(&[
+        ("A2", "empty text", text_value("")),
+        ("A3", "0", n(0.0)),
+        ("A4", "FALSE", CalcValue::logical(false)),
+        ("A5", "TRUE", CalcValue::logical(true)),
+        ("A6", "text \"2\"", text_value("2")),
+        ("A7", "text \"a\"", text_value("a")),
+        ("A8", "2.5", n(2.5)),
+        ("A9", "-3", n(-3.0)),
+        ("A11", "text \"TRUE\"", text_value("TRUE")),
+        ("A12", "text \"1e3\"", text_value("1e3")),
+        ("B1", "#NULL!", e(W::Null)),
+        ("B2", "#DIV/0!", e(W::Div0)),
+        ("B3", "#VALUE!", e(W::Value)),
+        ("B4", "#REF!", e(W::Ref)),
+        ("B5", "#NAME?", e(W::Name)),
+        ("B6", "#NUM!", e(W::Num)),
+        ("B7", "#N/A", e(W::NA)),
+        ("B8", "#GETTING_DATA", e(W::GettingData)),
+        ("B9", "#BUSY!", e(W::Busy)),
+        ("C1", "9007199254740991", n(9_007_199_254_740_991.0)),
+        ("C2", "1.7976931348623157E+308", n(f64::MAX)),
+        ("C3", "-9007199254740991", n(-9_007_199_254_740_991.0)),
+        ("C4", "4503599627370497", n(4_503_599_627_370_497.0)),
+        ("C5", "1E+300", n(1e300)),
+        ("C6", "-2.5", n(-2.5)),
+        ("C7", "text \"1e308\"", text_value("1e308")),
+        ("C8", "text \"1/2\"", text_value("1/2")),
+        ("C9", "0", n(0.0)),
+        ("C10", "2", n(2.0)),
+        (
+            "C11",
+            "300000.99999999988, the binary64 two steps below 300001",
+            n(f64::from_bits(300_001.0_f64.to_bits() - 2)),
+        ),
+        (
+            "C12",
+            "300000.99999999983, the binary64 three steps below 300001",
+            n(f64::from_bits(300_001.0_f64.to_bits() - 3)),
+        ),
+        (
+            "C13",
+            "434.99999999999994, the binary64 one step below 435",
+            n(f64::from_bits(435.0_f64.to_bits() - 1)),
+        ),
+        ("E167", "3", n(3.0)),
+        ("E168", "2", n(2.0)),
+        ("E169", "5", n(5.0)),
+        ("E170", "4", n(4.0)),
+        ("E171", "7", n(7.0)),
+        ("E172", "6", n(6.0)),
+        ("E173", "9", n(9.0)),
+        ("E174", "8", n(8.0)),
+        (
+            "D3",
+            "the formula =IF(A4,\"x\",\"\") of row 3, giving empty text through calc_func::invoke",
+            text_value(""),
+        ),
+        (
+            "F1",
+            "the formula =FILTER(C9:C10,C9:C10>100), assumed #CALC!",
+            e(W::Calc),
+        ),
+        (
+            "F2",
+            "the formula =SEQUENCE(2), assumed #SPILL! (F3 blocks it)",
+            e(W::Spill),
+        ),
+        ("F3", "text \"block\"", text_value("block")),
+        (
+            "F4",
+            "the formula =FIELDVALUE(A3,\"x\"), assumed #FIELD!",
+            e(W::Field),
+        ),
+    ])
+}
+
+// Rules the rows apply, as the functions' pages state them.
+const IS_BLANK: &str = "ISBLANK is TRUE when value refers to an empty cell (the IS functions page)";
+const IS_NOT_BLANK: &str = "ISBLANK is TRUE only when value refers to an empty cell; this cell holds a value (the IS functions page)";
+const IS_ERR: &str = "ISERR is TRUE for any error value except #N/A (the IS functions page)";
+const IS_ERROR: &str = "ISERROR is TRUE for any error value (the IS functions page)";
+const IS_NA: &str = "ISNA is TRUE for the #N/A error value alone (the IS functions page)";
+const NOT_CONVERTED: &str = "the IS functions' value is not converted: a number in quotation marks is text, as ISNUMBER(\"19\") is FALSE (the IS functions page)";
+const IS_NUMBER: &str = "ISNUMBER is TRUE when value is a number (the IS functions page)";
+const IS_TEXT: &str = "ISTEXT is TRUE when value is text (the IS functions page)";
+const IS_NONTEXT: &str = "ISNONTEXT is TRUE for any value that is not text, a blank cell included (the IS functions page)";
+const IS_LOGICAL: &str = "ISLOGICAL is TRUE when value is a logical value (the IS functions page)";
+const TRUNCATED: &str = "a number that is not an integer is truncated (the ISEVEN and ISODD pages)";
+const PARITY_NONNUMERIC: &str =
+    "a value that is not numeric is #VALUE! (the ISEVEN and ISODD pages)";
+const IS_REF: &str = "ISREF is TRUE when value refers to a reference (the IS functions page)";
+const NOT_REF: &str = "ISREF is FALSE for a value that is not a reference (the IS functions page)";
+const TYPE_TABLE: &str = "TYPE gives 1 for a number, 2 for text, 4 for a logical, 16 for an error and 64 for an array (the TYPE page)";
+const TYPE_RESULT: &str = "TYPE gives the type of a formula's resulting value (the TYPE page)";
+const N_TABLE: &str = "N gives a number as itself, TRUE as 1, FALSE as 0, an error as itself and anything else as 0 (the N page)";
+const NA_PAGE: &str = "NA() is the error value #N/A (the NA page)";
+const ERROR_TYPE_TABLE: &str = "ERROR.TYPE gives #NULL! 1, #DIV/0! 2, #VALUE! 3, #REF! 4, #NAME? 5, #NUM! 6, #N/A 7 and #GETTING_DATA 8, and #N/A for anything else (the ERROR.TYPE page)";
+const IF_FALSE: &str = "IF gives value_if_false when logical_test is FALSE (the IF page)";
+const BELOW_INTEGER: &str = "a number less than about 1e-10 below an integer counts as that integer: ISEVEN and ISODD truncate the magnitude plus 1e-10, rounded once to binary64";
+
+/// The rows of dc_nzpw__information_functions, run through calc_func::invoke on `s`, in the order
+/// the information oracle workbook's sheet holds their formulas.
+fn information_rows(s: &mut TestSheet, quiet: bool) -> InfoRows {
+    const CASE: &str = "dc_nzpw__information_functions";
+    use InfoBasis::{Documented as Doc, Measured as Meas, Refused as Ref};
+    use WorksheetErrorCode as W;
+    let mut info = InfoRows {
+        rows: Rows::new(CASE, INFORMATION_SHEET, quiet),
+        basis: Vec::new(),
+        sources_read: BTreeMap::new(),
+        dynamic: BTreeSet::new(),
+    };
+    let r = &mut info;
+    let one = || CalcValue::number(1.0);
+    let getting_data = || arg("#GETTING_DATA", CalcValue::error(W::GettingData));
+
+    // ISBLANK over a blank cell, empty text held and given by a formula, other values and an array.
+    info!(r, s, "ISBLANK", [cell(s, "A1")], L(true), Doc(IS_BLANK));
+    info!(
+        r,
+        s,
+        "ISBLANK",
+        [cell(s, "A2")],
+        L(false),
+        Meas("empty text held as a constant is not blank; the page names only an empty cell")
+    );
+    info!(
+        r,
+        s,
+        "IF",
+        [cell(s, "A4"), txt("x"), txt("")],
+        t(""),
+        Doc(IF_FALSE)
+    );
+    let d3 = r.rows.oracle.last().expect("row 3").outcome.clone();
+    assert!(
+        d3.as_ref()
+            .is_ok_and(|value| identical(value, &s.value("D3"))),
+        "row 3 gives {d3:?}, which the sheet holds for D3"
+    );
+    info!(
+        r,
+        s,
+        "ISBLANK",
+        [cell(s, "D3")],
+        L(false),
+        Meas("a formula's empty text is not blank")
+    );
+    info!(
+        r,
+        s,
+        "ISBLANK",
+        [txt("")],
+        L(false),
+        Meas("empty text given directly is not blank")
+    );
+    info!(
+        r,
+        s,
+        "ISBLANK",
+        [cell(s, "A3")],
+        L(false),
+        Doc(IS_NOT_BLANK)
+    );
+    info!(
+        r,
+        s,
+        "ISBLANK",
+        [cell(s, "B7")],
+        L(false),
+        Doc(IS_NOT_BLANK)
+    );
+    info!(
+        r,
+        s,
+        "ISBLANK",
+        [array_arg(
+            "{1,2}",
+            vec![vec![one(), CalcValue::number(2.0)]]
+        )],
+        Refused(Some(0)),
+        Ref(ARRAY_ARGUMENT)
+    );
+
+    // ISERR, ISERROR and ISNA over every error a cell or a formula here holds, and other values.
+    for (address, code) in [
+        ("B1", W::Null),
+        ("B2", W::Div0),
+        ("B3", W::Value),
+        ("B4", W::Ref),
+        ("B5", W::Name),
+        ("B6", W::Num),
+    ] {
+        assert_eq!(s.value(address), CalcValue::error(code));
+        info!(r, s, "ISERR", [cell(s, address)], L(true), Doc(IS_ERR));
+    }
+    info!(r, s, "ISERR", [cell(s, "B7")], L(false), Doc(IS_ERR));
+    info!(
+        r,
+        s,
+        "ISERR",
+        [cell(s, "B8")],
+        L(true),
+        Meas("#GETTING_DATA, which the page does not name, is an error ISERR is TRUE for")
+    );
+    info!(
+        r,
+        s,
+        "ISERR",
+        [cell(s, "B9")],
+        L(true),
+        Meas("#BUSY!, held as a constant, is an error ISERR is TRUE for")
+    );
+    info!(r, s, "ISERR", [cell(s, "A7")], L(false), Doc(IS_ERR));
+    info!(
+        r,
+        s,
+        "ISERR",
+        [cell(s, "A1")],
+        L(false),
+        Meas("a blank cell is no error")
+    );
+    info!(
+        r,
+        s,
+        "ISERR",
+        [getting_data()],
+        L(true),
+        Meas("the literal #GETTING_DATA is an error ISERR is TRUE for")
+    );
+    info!(
+        r,
+        s,
+        "ISERR",
+        [cell(s, "F1")],
+        L(true),
+        Meas("#CALC! is an error ISERR is TRUE for")
+    );
+    info!(
+        r,
+        s,
+        "ISERR",
+        [cell(s, "F2")],
+        L(true),
+        Meas("#SPILL! is an error ISERR is TRUE for")
+    );
+    info!(
+        r,
+        s,
+        "ISERR",
+        [cell(s, "F4")],
+        L(true),
+        Meas("#FIELD! is an error ISERR is TRUE for")
+    );
+    info!(r, s, "ISERROR", [cell(s, "B7")], L(true), Doc(IS_ERROR));
+    info!(r, s, "ISERROR", [cell(s, "B2")], L(true), Doc(IS_ERROR));
+    info!(
+        r,
+        s,
+        "ISERROR",
+        [cell(s, "B8")],
+        L(true),
+        Meas("#GETTING_DATA is an error ISERROR is TRUE for")
+    );
+    info!(
+        r,
+        s,
+        "ISERROR",
+        [cell(s, "B9")],
+        L(true),
+        Meas("#BUSY! is an error ISERROR is TRUE for")
+    );
+    info!(r, s, "ISERROR", [cell(s, "A2")], L(false), Doc(IS_ERROR));
+    info!(r, s, "ISERROR", [err(W::Div0)], L(true), Doc(IS_ERROR));
+    info!(
+        r,
+        s,
+        "ISERROR",
+        [cell(s, "F1")],
+        L(true),
+        Meas("#CALC! is an error ISERROR is TRUE for")
+    );
+    info!(
+        r,
+        s,
+        "ISERROR",
+        [cell(s, "F2")],
+        L(true),
+        Meas("#SPILL! is an error ISERROR is TRUE for")
+    );
+    info!(
+        r,
+        s,
+        "ISERROR",
+        [cell(s, "F4")],
+        L(true),
+        Meas("#FIELD! is an error ISERROR is TRUE for")
+    );
+    info!(r, s, "ISNA", [cell(s, "B7")], L(true), Doc(IS_NA));
+    info!(r, s, "ISNA", [cell(s, "B2")], L(false), Doc(IS_NA));
+    info!(
+        r,
+        s,
+        "ISNA",
+        [cell(s, "B8")],
+        L(false),
+        Meas("#GETTING_DATA is not #N/A")
+    );
+    info!(
+        r,
+        s,
+        "ISNA",
+        [cell(s, "B9")],
+        L(false),
+        Meas("#BUSY! is not #N/A")
+    );
+    info!(r, s, "ISNA", [err(W::NA)], L(true), Doc(IS_NA));
+    info!(
+        r,
+        s,
+        "ISNA",
+        [cell(s, "F1")],
+        L(false),
+        Meas("#CALC! is not #N/A")
+    );
+
+    // ISNUMBER, ISTEXT, ISNONTEXT and ISLOGICAL, whose argument is not converted.
+    info!(r, s, "ISNUMBER", [cell(s, "A3")], L(true), Doc(IS_NUMBER));
+    info!(r, s, "ISNUMBER", [cell(s, "A8")], L(true), Doc(IS_NUMBER));
+    info!(
+        r,
+        s,
+        "ISNUMBER",
+        [cell(s, "A6")],
+        L(false),
+        Doc(NOT_CONVERTED)
+    );
+    info!(r, s, "ISNUMBER", [txt("19")], L(false), Doc(NOT_CONVERTED));
+    info!(
+        r,
+        s,
+        "ISNUMBER",
+        [cell(s, "A5")],
+        L(false),
+        Meas("TRUE in a cell is no number, though arithmetic reads it as 1")
+    );
+    info!(
+        r,
+        s,
+        "ISNUMBER",
+        [cell(s, "A1")],
+        L(false),
+        Meas("a blank cell is no number, though arithmetic reads it as 0")
+    );
+    info!(r, s, "ISTEXT", [cell(s, "A6")], L(true), Doc(IS_TEXT));
+    info!(
+        r,
+        s,
+        "ISTEXT",
+        [cell(s, "A2")],
+        L(true),
+        Meas("empty text held as a constant is text")
+    );
+    info!(
+        r,
+        s,
+        "ISTEXT",
+        [cell(s, "D3")],
+        L(true),
+        Meas("a formula's empty text is text")
+    );
+    info!(
+        r,
+        s,
+        "ISTEXT",
+        [txt("")],
+        L(true),
+        Meas("empty text given directly is text")
+    );
+    info!(
+        r,
+        s,
+        "ISTEXT",
+        [cell(s, "A1")],
+        L(false),
+        Meas("a blank cell is not text")
+    );
+    info!(r, s, "ISTEXT", [cell(s, "A3")], L(false), Doc(IS_TEXT));
+    info!(r, s, "ISNONTEXT", [cell(s, "A1")], L(true), Doc(IS_NONTEXT));
+    info!(
+        r,
+        s,
+        "ISNONTEXT",
+        [cell(s, "A2")],
+        L(false),
+        Meas("empty text held as a constant is text")
+    );
+    info!(
+        r,
+        s,
+        "ISNONTEXT",
+        [cell(s, "D3")],
+        L(false),
+        Meas("a formula's empty text is text")
+    );
+    info!(r, s, "ISNONTEXT", [cell(s, "B7")], L(true), Doc(IS_NONTEXT));
+    info!(r, s, "ISNONTEXT", [cell(s, "A5")], L(true), Doc(IS_NONTEXT));
+    info!(
+        r,
+        s,
+        "ISNONTEXT",
+        [cell(s, "A7")],
+        L(false),
+        Doc(IS_NONTEXT)
+    );
+    info!(r, s, "ISLOGICAL", [cell(s, "A4")], L(true), Doc(IS_LOGICAL));
+    info!(r, s, "ISLOGICAL", [logical(true)], L(true), Doc(IS_LOGICAL));
+    info!(
+        r,
+        s,
+        "ISLOGICAL",
+        [cell(s, "A11")],
+        L(false),
+        Doc(NOT_CONVERTED)
+    );
+    info!(
+        r,
+        s,
+        "ISLOGICAL",
+        [cell(s, "A3")],
+        L(false),
+        Doc(IS_LOGICAL)
+    );
+    info!(
+        r,
+        s,
+        "ISLOGICAL",
+        [cell(s, "A1")],
+        L(false),
+        Meas("a blank cell is no logical, though IF reads it as FALSE")
+    );
+
+    // ISEVEN and ISODD: truncation, number text, logicals, errors, references of several cells or
+    // areas, large integers, an array and number text read by Excel's number-text rules.
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A3"])],
+        L(true),
+        Doc(TRUNCATED)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A1"])],
+        L(true),
+        Meas("a blank cell reads as 0, which is even")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A8"])],
+        L(true),
+        Doc(TRUNCATED)
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["A9"])],
+        L(true),
+        Doc(TRUNCATED)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["C6"])],
+        L(true),
+        Meas("-2.5 is truncated toward zero, to -2")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [num("-1.5")],
+        L(true),
+        Meas("-1.5 is truncated toward zero, to -1")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [num("-0.5")],
+        L(true),
+        Meas("-0.5 is truncated toward zero, to 0")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A6"])],
+        L(true),
+        Meas(
+            "number text in a cell is read as the number, against the page's #VALUE! for a value that is not numeric"
+        )
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [txt("2")],
+        L(true),
+        Meas("number text given directly is read as the number")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A12"])],
+        L(true),
+        Meas("the number text 1e3 in a cell is read as 1000")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [txt(" 2 ")],
+        L(true),
+        Meas("number text with spaces around it is read as the number")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A7"])],
+        E(W::Value),
+        Doc(PARITY_NONNUMERIC)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A2"])],
+        E(W::Value),
+        Doc(PARITY_NONNUMERIC)
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["D3"])],
+        E(W::Value),
+        Doc(PARITY_NONNUMERIC)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A5"])],
+        E(W::Value),
+        Meas("TRUE in a cell is #VALUE!, though arithmetic reads it as 1")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [logical(true)],
+        E(W::Value),
+        Meas("TRUE given directly is #VALUE!")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["B2"])],
+        E(W::Div0),
+        Meas("an error in the cell is the result")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["F1"])],
+        E(W::Calc),
+        Meas("#CALC! in the cell is the result")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["A1:A2"])],
+        E(W::Value),
+        Meas("a range of several cells is #VALUE!, not intersected: Excel loads it without @")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["A3", "A8"])],
+        E(W::Value),
+        Meas("a reference of several areas is #VALUE!")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["C1"])],
+        L(true),
+        Meas("2^53-1 is odd")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["C2"])],
+        L(true),
+        Meas("the largest binary64, an integer of 2^1023 or more, is even")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["C3"])],
+        L(true),
+        Meas("-(2^53-1) is odd")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["C4"])],
+        L(true),
+        Meas("2^52+1 is odd")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["C5"])],
+        L(false),
+        Meas("1E+300, an integer beyond 2^53, is even")
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["C7"])],
+        E(W::Value),
+        Meas(
+            "the text 1e308, whose number is beyond the range Excel reads number text in, is #VALUE!"
+        )
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [array_arg(
+            "{2,3}",
+            vec![vec![CalcValue::number(2.0), CalcValue::number(3.0)]]
+        )],
+        Refused(Some(0)),
+        Ref(ARRAY_ARGUMENT)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["C8"])],
+        Refused(Some(0)),
+        Ref(NUMBER_TEXT)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [txt("$4")],
+        Refused(Some(0)),
+        Ref(NUMBER_TEXT)
+    );
+
+    // ISREF and ISFORMULA.
+    info!(r, s, "ISREF", [reference(s, &["A1"])], L(true), Doc(IS_REF));
+    info!(
+        r,
+        s,
+        "ISREF",
+        [reference(s, &["A1:B2"])],
+        L(true),
+        Doc(IS_REF)
+    );
+    info!(
+        r,
+        s,
+        "ISREF",
+        [reference(s, &["A1", "B2"])],
+        L(true),
+        Doc(IS_REF)
+    );
+    info!(r, s, "ISREF", [reference(s, &["B7"])], L(true), Doc(IS_REF));
+    info!(r, s, "ISREF", [num("1")], L(false), Doc(NOT_REF));
+    info!(r, s, "ISREF", [txt("A1")], L(false), Doc(NOT_REF));
+    info!(
+        r,
+        s,
+        "ISREF",
+        [err(W::Ref)],
+        L(false),
+        Meas("the error #REF! is no reference")
+    );
+    info!(
+        r,
+        s,
+        "ISREF",
+        [array_arg("{1}", vec![vec![one()]])],
+        L(false),
+        Meas("an array is no reference, and ISREF is not lifted over it: Excel loads it without @")
+    );
+    info!(
+        r,
+        s,
+        "ISFORMULA",
+        [reference(s, &["D3"])],
+        Refused(Some(0)),
+        Ref(FORMULA_FACT)
+    );
+    info!(
+        r,
+        s,
+        "ISFORMULA",
+        [reference(s, &["A3"])],
+        Refused(Some(0)),
+        Ref(FORMULA_FACT)
+    );
+
+    // TYPE.
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["A1"])],
+        N(1.0),
+        Meas("a blank cell is of type 1, as a number")
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["A3"])],
+        N(1.0),
+        Doc(TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["A2"])],
+        N(2.0),
+        Doc(TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["D3"])],
+        N(2.0),
+        Doc(TYPE_RESULT)
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["A4"])],
+        N(4.0),
+        Doc(TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["B7"])],
+        N(16.0),
+        Doc(TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["B9"])],
+        N(16.0),
+        Meas("#BUSY! is an error, of type 16")
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [array_arg(
+            "{1,2}",
+            vec![vec![one(), CalcValue::number(2.0)]]
+        )],
+        N(64.0),
+        Doc(TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [array_arg("{1}", vec![vec![one()]])],
+        N(64.0),
+        Meas("an array of one element is of type 64")
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["A1", "A2"])],
+        N(16.0),
+        Meas("a reference of several areas is of type 16: Excel loads it without @")
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["A1:A2"])],
+        Refused(Some(0)),
+        Ref(RANGE_TO_TYPE)
+    );
+    info!(r, s, "TYPE", [txt("")], N(2.0), Doc(TYPE_TABLE));
+    info!(r, s, "TYPE", [err(W::NA)], N(16.0), Doc(TYPE_TABLE));
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["F1"])],
+        N(16.0),
+        Meas("#CALC! is an error, of type 16")
+    );
+    info!(
+        r,
+        s,
+        "TYPE",
+        [reference(s, &["F2"])],
+        N(16.0),
+        Meas("#SPILL! is an error, of type 16")
+    );
+
+    // N and NA.
+    info!(r, s, "N", [reference(s, &["A8"])], N(2.5), Doc(N_TABLE));
+    info!(r, s, "N", [reference(s, &["A5"])], N(1.0), Doc(N_TABLE));
+    info!(r, s, "N", [reference(s, &["A4"])], N(0.0), Doc(N_TABLE));
+    info!(r, s, "N", [reference(s, &["A6"])], N(0.0), Doc(N_TABLE));
+    info!(r, s, "N", [reference(s, &["A1"])], N(0.0), Doc(N_TABLE));
+    info!(r, s, "N", [reference(s, &["A2"])], N(0.0), Doc(N_TABLE));
+    info!(r, s, "N", [reference(s, &["B2"])], E(W::Div0), Doc(N_TABLE));
+    info!(r, s, "N", [txt("7")], N(0.0), Doc(N_TABLE));
+    info!(r, s, "N", [logical(true)], N(1.0), Doc(N_TABLE));
+    info!(
+        r,
+        s,
+        "N",
+        [reference(s, &["A8:A9"])],
+        N(2.5),
+        Meas("a range of several cells is read at its first cell: Excel loads it without @")
+    );
+    info!(
+        r,
+        s,
+        "N",
+        [reference(s, &["A5", "A8"])],
+        N(1.0),
+        Meas("a reference of several areas is read at the first cell of its first area")
+    );
+    info!(r, s, "N", [reference(s, &["D3"])], N(0.0), Doc(N_TABLE));
+    info!(
+        r,
+        s,
+        "N",
+        [array_arg(
+            "{5,6}",
+            vec![vec![CalcValue::number(5.0), CalcValue::number(6.0)]]
+        )],
+        Refused(Some(0)),
+        Ref(ARRAY_ARGUMENT)
+    );
+    info!(
+        r,
+        s,
+        "N",
+        [reference(s, &["F1"])],
+        E(W::Calc),
+        Meas("#CALC! in the cell is the result")
+    );
+    info!(r, s, "NA", [], E(W::NA), Doc(NA_PAGE));
+
+    // ERROR.TYPE.
+    for (address, number) in [
+        ("B1", 1.0),
+        ("B2", 2.0),
+        ("B3", 3.0),
+        ("B4", 4.0),
+        ("B5", 5.0),
+        ("B6", 6.0),
+        ("B7", 7.0),
+        ("B8", 8.0),
+    ] {
+        info!(
+            r,
+            s,
+            "ERROR.TYPE",
+            [cell(s, address)],
+            N(number),
+            Doc(ERROR_TYPE_TABLE)
+        );
+    }
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [cell(s, "B9")],
+        N(0.0),
+        Meas("#BUSY! is 0, where the page gives #N/A for anything not listed")
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [getting_data()],
+        N(8.0),
+        Doc(ERROR_TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [cell(s, "F1")],
+        N(14.0),
+        Meas("#CALC! is 14, where the page gives #N/A for anything not listed")
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [cell(s, "F2")],
+        N(9.0),
+        Meas("#SPILL! is 9, where the page gives #N/A for anything not listed")
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [cell(s, "F4")],
+        N(13.0),
+        Meas("#FIELD! is 13, where the page gives #N/A for anything not listed")
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [cell(s, "A3")],
+        E(W::NA),
+        Doc(ERROR_TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [cell(s, "A1")],
+        E(W::NA),
+        Doc(ERROR_TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [cell(s, "A7")],
+        E(W::NA),
+        Doc(ERROR_TYPE_TABLE)
+    );
+    info!(
+        r,
+        s,
+        "ERROR.TYPE",
+        [array_arg(
+            "{1,#N/A}",
+            vec![vec![one(), CalcValue::error(W::NA)]]
+        )],
+        Refused(Some(0)),
+        Ref(ARRAY_ARGUMENT)
+    );
+
+    // A range given to the value argument of ISBLANK, ISERR, ISERROR, ISNA, ISNUMBER, ISTEXT,
+    // ISNONTEXT, ISLOGICAL and ERROR.TYPE: Excel loads each with @ (the comparison checks the
+    // loaded text), and the caller intersects it before the call, so calc_func::invoke refuses
+    // the reference at admission.
+    for (spelling, range) in [
+        ("ISBLANK", "A1:A2"),
+        ("ISERR", "B1:B2"),
+        ("ISERROR", "B1:B2"),
+        ("ISNA", "B1:B2"),
+        ("ISNUMBER", "A1:A2"),
+        ("ISTEXT", "A1:A2"),
+        ("ISNONTEXT", "A1:A2"),
+        ("ISLOGICAL", "A4:A5"),
+        ("ERROR.TYPE", "B1:B2"),
+    ] {
+        info!(
+            r,
+            s,
+            spelling,
+            [reference(s, &[range])],
+            reference_argument,
+            Ref(RANGE_TO_VALUE)
+        );
+    }
+
+    // B9's loaded error, as N gives it: N gives an error as itself, so Excel's result of N(B9) is
+    // the error Excel loaded B9 as.
+    info!(
+        r,
+        s,
+        "N",
+        [reference(s, &["B9"])],
+        E(W::Busy),
+        InfoBasis::Unrecorded(N_TABLE, BUSY_RAW)
+    );
+
+    // ISEVEN and ISODD just below an integer, typed and in a cell.
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [num("2.99999999999")],
+        L(false),
+        Meas(BELOW_INTEGER)
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [num("2.99999999999")],
+        L(true),
+        Meas(BELOW_INTEGER)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["C13"])],
+        L(false),
+        Meas(BELOW_INTEGER)
+    );
+    info!(
+        r,
+        s,
+        "ISEVEN",
+        [num("-2.99999999999")],
+        L(false),
+        Meas(BELOW_INTEGER)
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [num("2.99999999991")],
+        L(true),
+        Meas("0.9e-10 below 3 counts as 3")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [num("2.99999999989")],
+        L(false),
+        Meas("1.1e-10 below 3 is truncated to 2")
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["C11"])],
+        L(true),
+        Meas(
+            "two binary64 steps (1.16e-10) below 300001 count as 300001: the magnitude plus 1e-10 rounds to 300001"
+        )
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["C12"])],
+        L(false),
+        Meas(
+            "three binary64 steps (1.75e-10) below 300001 are truncated to 300000: the magnitude plus 1e-10 rounds below 300001"
+        )
+    );
+    for address in ["C11", "C12"] {
+        let held = s.value(address);
+        let number = held.as_number().expect("a number");
+        info!(
+            r,
+            s,
+            "N",
+            [reference(s, &[address])],
+            N(number),
+            Doc(N_TABLE)
+        );
+    }
+
+    // ISEVEN, ISODD and N over a range of several cells, each placed within its range's rows, so
+    // intersection would read the cell of its own row: as legacy formulas, then as dynamic-array
+    // formulas.
+    let row = info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["E167:E169"])],
+        E(W::Value),
+        Meas(
+            "a range of several cells is #VALUE! in a legacy formula within the range's rows: not intersected (E168, in the formula's row, holds 2)"
+        )
+    );
+    assert_eq!(
+        row, 168,
+        "the rows over E167:E174 sit within their ranges' rows"
+    );
+    info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["E168:E170"])],
+        E(W::Value),
+        Meas(
+            "a range of several cells is #VALUE! in a legacy formula within the range's rows: not intersected (E169, in the formula's row, holds 5)"
+        )
+    );
+    info!(
+        r,
+        s,
+        "N",
+        [reference(s, &["E169:E171"])],
+        N(5.0),
+        Meas(
+            "a range of several cells is read at its first cell, E169, in a legacy formula within the range's rows, not at E170 in the formula's row"
+        )
+    );
+    let first_dynamic = info!(
+        r,
+        s,
+        "ISEVEN",
+        [reference(s, &["E170:E172"])],
+        E(W::Value),
+        Meas(
+            "a range of several cells is #VALUE! in a dynamic-array formula: ISEVEN is not lifted over its cells"
+        )
+    );
+    r.dynamic.insert(first_dynamic);
+    let row = info!(
+        r,
+        s,
+        "ISODD",
+        [reference(s, &["E171:E173"])],
+        E(W::Value),
+        Meas(
+            "a range of several cells is #VALUE! in a dynamic-array formula: ISODD is not lifted over its cells"
+        )
+    );
+    r.dynamic.insert(row);
+    let row = info!(
+        r,
+        s,
+        "N",
+        [reference(s, &["E172:E174"])],
+        N(6.0),
+        Meas(
+            "a range of several cells is read at its first cell, E172, in a dynamic-array formula: N is not lifted over its cells"
+        )
+    );
+    r.dynamic.insert(row);
+    assert_eq!(
+        r.dynamic.iter().copied().collect::<Vec<_>>(),
+        [171, 172, 173],
+        "the dynamic-array rows the generator writes"
+    );
+
+    // ISNA over a blank cell, and ISNA, ISNUMBER, ISLOGICAL and ISERR over empty text held as a
+    // constant and given by a formula; then N of C13, the cell row 160 reads, as Excel holds it.
+    info!(
+        r,
+        s,
+        "ISNA",
+        [cell(s, "A1")],
+        L(false),
+        Meas("a blank cell is not #N/A")
+    );
+    for (spelling, held, given) in [
+        (
+            "ISNA",
+            "empty text held as a constant is not #N/A",
+            "a formula's empty text is not #N/A",
+        ),
+        (
+            "ISNUMBER",
+            "empty text held as a constant is no number",
+            "a formula's empty text is no number",
+        ),
+        (
+            "ISLOGICAL",
+            "empty text held as a constant is no logical",
+            "a formula's empty text is no logical",
+        ),
+        (
+            "ISERR",
+            "empty text held as a constant is no error",
+            "a formula's empty text is no error",
+        ),
+    ] {
+        info!(r, s, spelling, [cell(s, "A2")], L(false), Meas(held));
+        info!(r, s, spelling, [cell(s, "D3")], L(false), Meas(given));
+    }
+    let c13 = s.value("C13").as_number().expect("a number");
+    info!(r, s, "N", [reference(s, &["C13"])], N(c13), Doc(N_TABLE));
+    info
+}
+
+/// The pairs `(family 10 member, spelling)` the catalogue holds.
+fn information_family() -> BTreeSet<(u32, String)> {
+    catalogue()
+        .targets()
+        .filter(|target| target.id().raw() >> 16 == 10)
+        .map(|target| (target.id().raw(), target.spelling().to_owned()))
+        .collect()
+}
+
+/// One call of `spelling` on `values` through calc_func::invoke, with `cells` as the reader when
+/// given.
+fn information_call(
+    spelling: &str,
+    values: Vec<CalcValue>,
+    mode: &NumericMode,
+    cells: Option<&mut dyn CellReader>,
+) -> Result<CalcValue, FunctionFault> {
+    let mut services = match cells {
+        Some(cells) => EvalServices::with_cells(mode, cells),
+        None => EvalServices::new(mode),
+    };
+    invoke(
+        surface(Notation::Call, spelling),
+        &mut Recorded::new(values),
+        &mut services,
+        &mut FunctionCallScratch::new(),
+    )
+}
+
+/// A formula as the information oracle workbook stores it: ISFORMULA and the source formulas'
+/// functions carry their `_xlfn.` prefixes (FILTER also `_xlws.`).
+fn information_stored(formula: &str) -> String {
+    formula
+        .replace("ISFORMULA(", "_xlfn.ISFORMULA(")
+        .replace("FILTER(", "_xlfn._xlws.FILTER(")
+        .replace("SEQUENCE(", "_xlfn.SEQUENCE(")
+        .replace("FIELDVALUE(", "_xlfn.FIELDVALUE(")
+}
+
+/// The rows whose formula Excel loads with another text than the row's: each formula as the row
+/// writes it and as Excel 16.0.20430.20182 loaded it in bead dc-nzpw's capture. Excel inserts `@`
+/// before an array or a range of one area given to a value argument in a legacy formula, and not
+/// before a range given to ISEVEN, ISODD or N, a reference of several areas, or an array given to
+/// TYPE or ISREF (rows that keep their text).
+const INFORMATION_LOADED: [(&str, &str); 14] = [
+    ("=ISBLANK({1,2})", "=ISBLANK(@{1,2})"),
+    ("=ISEVEN({2,3})", "=ISEVEN(@{2,3})"),
+    ("=TYPE(A1:A2)", "=TYPE(@A1:A2)"),
+    ("=N({5,6})", "=N(@{5,6})"),
+    ("=ERROR.TYPE({1,#N/A})", "=ERROR.TYPE(@{1,#N/A})"),
+    ("=ISBLANK(A1:A2)", "=ISBLANK(@A1:A2)"),
+    ("=ISERR(B1:B2)", "=ISERR(@B1:B2)"),
+    ("=ISERROR(B1:B2)", "=ISERROR(@B1:B2)"),
+    ("=ISNA(B1:B2)", "=ISNA(@B1:B2)"),
+    ("=ISNUMBER(A1:A2)", "=ISNUMBER(@A1:A2)"),
+    ("=ISTEXT(A1:A2)", "=ISTEXT(@A1:A2)"),
+    ("=ISNONTEXT(A1:A2)", "=ISNONTEXT(@A1:A2)"),
+    ("=ISLOGICAL(A4:A5)", "=ISLOGICAL(@A4:A5)"),
+    ("=ERROR.TYPE(B1:B2)", "=ERROR.TYPE(@B1:B2)"),
+];
+
+/// A row's formula as Excel loads it.
+fn information_loaded(formula: &str) -> String {
+    INFORMATION_LOADED
+        .iter()
+        .find(|(written, _)| *written == formula)
+        .map_or(formula, |(_, loaded)| loaded)
+        .to_owned()
+}
+
+/// The saved cache Excel writes for a value: an error as its literal, anything else as text.
+fn information_saved_cache(value: &CalcValue) -> SavedCache {
+    let cache = match value.core() {
+        CoreValue::Error(code) => SavedCache::new(
+            CacheCellType::Error,
+            ALL_ERROR_LITERALS
+                .iter()
+                .find(|(known, _)| known == code)
+                .map(|(_, literal)| *literal)
+                .expect("every error has a literal"),
+        ),
+        _ => SavedCache::new(CacheCellType::Text, &shown_value(value)),
+    };
+    cache.expect("a saved cache")
+}
+
+/// The error constants the information oracle workbook holds, by their literals.
+const INFORMATION_ERROR_LITERALS: [(WorksheetErrorCode, &str); 9] = [
+    (WorksheetErrorCode::Null, "#NULL!"),
+    (WorksheetErrorCode::Div0, "#DIV/0!"),
+    (WorksheetErrorCode::Value, "#VALUE!"),
+    (WorksheetErrorCode::Ref, "#REF!"),
+    (WorksheetErrorCode::Name, "#NAME?"),
+    (WorksheetErrorCode::Num, "#NUM!"),
+    (WorksheetErrorCode::NA, "#N/A"),
+    (WorksheetErrorCode::GettingData, "#GETTING_DATA"),
+    (WorksheetErrorCode::Busy, "#BUSY!"),
+];
+
+/// A cell of the information oracle sheet: a formula (its text, without `=`, and whether it is a
+/// dynamic-array formula over its one cell) or a constant.
+enum InfoCell {
+    Formula { text: String, dynamic: bool },
+    Constant(CalcValue),
+}
+
+/// The cells of the information oracle sheet's part.
+fn information_cells(xml: &str) -> BTreeMap<(u32, u32), InfoCell> {
+    let mut cells = BTreeMap::new();
+    let mut rest = xml;
+    while let Some(at) = rest.find("<c ") {
+        rest = &rest[at..];
+        let tag_end = rest.find('>').expect("a cell's start tag ends");
+        let tag = &rest[..tag_end];
+        let close = rest.find("</c>").expect("a cell ends");
+        let body = &rest[tag_end + 1..close];
+        rest = &rest[close + 4..];
+        let reference = attribute(tag, "r").expect("a cell names its reference");
+        let inner = |name: &str| -> Option<String> {
+            let open = format!("<{name}>");
+            let start = body.find(&open)? + open.len();
+            let end = body[start..].find(&format!("</{name}>"))? + start;
+            Some(unescape(&body[start..end]))
+        };
+        let cell = if let Some(at) = body.find("<f") {
+            let f_tag_end = at + body[at..].find('>').expect("a formula's start tag ends");
+            let f_tag = &body[at..f_tag_end];
+            let end = body.find("</f>").expect("a formula ends");
+            let dynamic = attribute(tag, "cm") == Some("1")
+                && attribute(f_tag, "t") == Some("array")
+                && attribute(f_tag, "ref") == Some(reference);
+            assert!(
+                dynamic || f_tag == "<f",
+                "{reference}: a formula of another kind: {f_tag}"
+            );
+            InfoCell::Formula {
+                text: unescape(&body[f_tag_end + 1..end]),
+                dynamic,
+            }
+        } else {
+            let value =
+                |name: &str| inner(name).unwrap_or_else(|| panic!("{reference} has no <{name}>"));
+            InfoCell::Constant(match attribute(tag, "t") {
+                None | Some("n") => CalcValue::number(value("v").parse().expect("a number")),
+                Some("b") => CalcValue::logical(value("v") == "1"),
+                Some("e") => {
+                    let literal = value("v");
+                    let code = INFORMATION_ERROR_LITERALS
+                        .iter()
+                        .find(|(_, known)| *known == literal)
+                        .unwrap_or_else(|| {
+                            panic!("{reference}: {literal} is no error literal here")
+                        })
+                        .0;
+                    CalcValue::error(code)
+                }
+                Some("inlineStr") => text_value(&value("t")),
+                Some(other) => panic!("{reference}: a cell of type {other}"),
+            })
+        };
+        assert!(
+            cells.insert(decode_a1(reference), cell).is_none(),
+            "{reference} repeats"
+        );
+    }
+    cells
+}
+
+/// Asserts that the information oracle workbook's sheet holds exactly the rows' formulas in column
+/// D (the dynamic-array rows as dynamic-array formulas, every other row as a legacy formula), the
+/// source formulas of column F as dynamic-array formulas, and the test sheet's other cells as
+/// constants; that the sheet's value of D3 is row 3's result; and that its value of each source
+/// cell is the error assumed for it.
+fn assert_information_workbook(info: &InfoRows, sheet: &TestSheet) {
+    let rows = &info.rows;
+    let parts = stored_parts(INFORMATION_WORKBOOK);
+    let workbook = part_text(&parts, "xl/workbook.xml");
+    let relationships = part_text(&parts, "xl/_rels/workbook.xml.rels");
+    let id = start_tags(workbook, "sheet")
+        .into_iter()
+        .find(|tag| attribute(tag, "name") == Some(rows.sheet))
+        .and_then(|tag| attribute(tag, "r:id"))
+        .unwrap_or_else(|| panic!("the information workbook lists no sheet {}", rows.sheet));
+    let target = start_tags(relationships, "Relationship")
+        .into_iter()
+        .find(|tag| attribute(tag, "Id") == Some(id))
+        .and_then(|tag| attribute(tag, "Target"))
+        .unwrap_or_else(|| panic!("the information workbook has no relationship {id}"));
+    assert!(
+        part_text(&parts, "xl/metadata.xml").contains("dynamicArrayProperties fDynamic=\"1\""),
+        "the information workbook's metadata part marks no dynamic-array formula"
+    );
+    let cells = information_cells(part_text(&parts, &format!("xl/{target}")));
+
+    let mut expected: BTreeMap<(u32, u32), (String, bool)> = rows
+        .oracle
+        .iter()
+        .map(|row| {
+            (
+                (row.row, FORMULA_COLUMN),
+                (
+                    information_stored(&row.formula[1..]),
+                    info.dynamic.contains(&row.row),
+                ),
+            )
+        })
+        .collect();
+    for source in &INFO_SOURCES {
+        expected.insert(
+            (source.row, SOURCE_COLUMN),
+            (information_stored(&source.formula[1..]), true),
+        );
+        assert_eq!(decode_a1(source.address), (source.row, SOURCE_COLUMN));
+        assert!(
+            identical(
+                &sheet.value(source.address),
+                &CalcValue::error(source.assumed)
+            ),
+            "the sheet holds the assumed error for {}",
+            source.address
+        );
+    }
+    let at = |(row, column): (u32, u32)| format!("{}!{}", rows.sheet, encode_a1(row, column));
+    let mut differences = Vec::new();
+    for (place, (formula, dynamic)) in &expected {
+        match cells.get(place) {
+            Some(InfoCell::Formula { text, dynamic: found }) if text == formula && found == dynamic => {}
+            Some(InfoCell::Formula { text, dynamic: found }) => differences.push(format!(
+                "{}: the formula is {formula:?} (dynamic {dynamic}), the workbook holds {text:?} (dynamic {found})",
+                at(*place)
+            )),
+            Some(InfoCell::Constant(value)) => differences.push(format!(
+                "{}: the formula is {formula:?}, the workbook holds the constant {value:?}",
+                at(*place)
+            )),
+            None => differences.push(format!("{}: the formula {formula:?} is absent", at(*place))),
+        }
+    }
+    for (place, cell) in &cells {
+        let held = sheet.cells.get(place);
+        match cell {
+            InfoCell::Formula { .. } if expected.contains_key(place) => {}
+            InfoCell::Formula { text, .. } => differences.push(format!(
+                "{}: a formula that no row or source has: {text:?}",
+                at(*place)
+            )),
+            InfoCell::Constant(value) => match held {
+                Some(found) if identical(found, value) => {}
+                found => differences.push(format!(
+                    "{}: the workbook holds {value:?}, the test sheet {found:?}",
+                    at(*place)
+                )),
+            },
+        }
+    }
+    for place in sheet.cells.keys() {
+        let is_formula = expected.contains_key(place);
+        if !cells.contains_key(place) {
+            differences.push(format!(
+                "{}: a cell the test sheet holds and the workbook does not",
+                at(*place)
+            ));
+        } else if is_formula && place.1 == FORMULA_COLUMN {
+            let row = rows
+                .oracle
+                .iter()
+                .find(|row| row.row == place.0)
+                .expect("a row's cell");
+            match &row.outcome {
+                Ok(value) if identical(value, &sheet.cells[place]) => {}
+                outcome => differences.push(format!(
+                    "{}: the test sheet holds {:?}, the row gives {outcome:?}",
+                    at(*place),
+                    sheet.cells[place]
+                )),
+            }
+        }
+    }
+    assert!(
+        differences.is_empty(),
+        "the information workbook's sheet {} differs from the case's rows and cells:\n{}",
+        rows.sheet,
+        differences.join("\n")
+    );
+    if !rows.quiet {
+        note!(
+            "ACCEPT-NOTE: {}: {INFORMATION_WORKBOOK_PATH} (sha256 {}): sheet {} holds exactly the {} oracle rows' formulas in column D in row order (ISFORMULA as _xlfn.ISFORMULA; rows {:?} as dynamic-array formulas, the others as legacy formulas), the {} source formulas of column F as dynamic-array formulas (cell metadata naming XLDAPR) and the {} constant cells the rows read; the test sheet's D3 is row 3's result and its F1, F2 and F4 the errors assumed for the sources",
+            rows.case,
+            sha256_hex(INFORMATION_WORKBOOK),
+            rows.sheet,
+            rows.oracle.len(),
+            info.dynamic,
+            INFO_SOURCES.len(),
+            cells
+                .values()
+                .filter(|cell| matches!(cell, InfoCell::Constant(_)))
+                .count()
+        );
+    }
+}
+
+/// Checks that the committed information oracle workbook is its generator's output, on the route
+/// where the generator runs.
+fn assert_information_workbook_generated(case: &str) {
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["dc_nzpw/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == INFORMATION_WORKBOOK,
+            "the committed information oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(INFORMATION_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {case}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed information oracle workbook byte for byte ({} bytes)",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {case}: the generator runs under Windows PowerShell, so the check that the committed information oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+}
+
+/// A callable's handle, for the refusal of a callable argument.
+#[derive(Debug)]
+struct InformationCallable;
+
+impl OpaqueCallable for InformationCallable {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_nzpw__information_functions() {
+    const CASE: &str = "dc_nzpw__information_functions";
+    use WorksheetErrorCode as W;
+    let fast = NumericMode::Fast;
+    let mut sheet = information_sheet();
+    note!(
+        "ACCEPT-NOTE: {CASE}: the sheet holds {}; A1 and A10 are blank",
+        sheet.described()
+    );
+    let info = information_rows(&mut sheet, false);
+
+    // Metadata and dispatch come from the one generated catalogue: family 10 holds exactly these
+    // entries, each eager, with Excel's arity, its parameter classes and its signature help.
+    let expected: BTreeSet<(u32, String)> = INFORMATION
+        .iter()
+        .map(|(spelling, member)| ((10 << 16) | member, (*spelling).to_owned()))
+        .collect();
+    assert_eq!(
+        information_family(),
+        expected,
+        "the information family in the catalogue"
+    );
+    let value = Some(ParameterClass::Value);
+    let either = Some(ParameterClass::ValueOrReference);
+    let reference_only = Some(ParameterClass::Reference);
+    for (spelling, class, help) in [
+        ("ISBLANK", value, "ISBLANK(value)"),
+        ("ISERR", value, "ISERR(value)"),
+        ("ISERROR", value, "ISERROR(value)"),
+        ("ISNA", value, "ISNA(value)"),
+        ("ISNUMBER", value, "ISNUMBER(value)"),
+        ("ISTEXT", value, "ISTEXT(value)"),
+        ("ISNONTEXT", value, "ISNONTEXT(value)"),
+        ("ISLOGICAL", value, "ISLOGICAL(value)"),
+        ("ISEVEN", either, "ISEVEN(number)"),
+        ("ISODD", either, "ISODD(number)"),
+        ("ISREF", either, "ISREF(value)"),
+        ("ISFORMULA", reference_only, "ISFORMULA(reference)"),
+        ("TYPE", either, "TYPE(value)"),
+        ("N", either, "N(value)"),
+        ("ERROR.TYPE", value, "ERROR.TYPE(error_val)"),
+    ] {
+        let target = surface(Notation::Call, spelling);
+        assert_eq!(
+            target.argument_demand(),
+            ArgumentDemand::Eager,
+            "{spelling}"
+        );
+        assert_eq!(
+            (target.arity().min, target.arity().max),
+            (1, 1),
+            "{spelling}"
+        );
+        assert_eq!(target.parameter_class(0), class, "{spelling}");
+        assert_eq!(target.signature_help().display, help);
+    }
+    let na = surface(Notation::Call, "NA");
+    assert_eq!((na.arity().min, na.arity().max), (0, 0));
+    assert_eq!(na.parameter_class(0), None);
+    assert_eq!(na.signature_help().display, "NA()");
+    assert_eq!(na.oracle_formula(&[]).as_deref(), Some("=NA()"));
+    assert_eq!(
+        information_call("NA", vec![one_value()], &fast, None),
+        Err(FunctionFault::ArityMismatch {
+            id: na.id(),
+            supplied: 1
+        })
+    );
+
+    // Admission: a value parameter refuses a reference (the caller dereferences one cell first),
+    // and ISFORMULA's reference parameter refuses anything else, as Excel refuses such a formula
+    // at entry.
+    let a1_key = sheet.key("A1");
+    let a1 = || CalcValue::reference(ReferenceLike::cell(a1_key));
+    for spelling in [
+        "ISBLANK",
+        "ISERR",
+        "ISERROR",
+        "ISNA",
+        "ISNUMBER",
+        "ISTEXT",
+        "ISNONTEXT",
+        "ISLOGICAL",
+        "ERROR.TYPE",
+    ] {
+        assert_eq!(
+            information_call(spelling, vec![a1()], &fast, Some(&mut sheet)),
+            Err(FunctionFault::ReferenceArgument {
+                id: surface(Notation::Call, spelling).id(),
+                index: 0
+            }),
+            "{spelling}"
+        );
+    }
+    let isformula = surface(Notation::Call, "ISFORMULA").id();
+    for refused in [one_value(), text_value("A1"), CalcValue::error(W::NA)] {
+        assert_eq!(
+            information_call("ISFORMULA", vec![refused], &fast, Some(&mut sheet)),
+            Err(FunctionFault::ReferenceRequired {
+                id: isformula,
+                index: 0
+            })
+        );
+    }
+
+    // The predicates over every error code: ISERROR is TRUE for each, ISERR for each but #N/A,
+    // ISNA for #N/A alone, ISBLANK for none, TYPE gives 16 for each, N the error and ERROR.TYPE a
+    // number. Over #BLOCKED! and #CONNECT!, whose results in Excel are unknown, each of these seven
+    // is refused as not modelled, owned by dc-tt73: given directly and, for TYPE and N, which read
+    // a reference, read from a cell.
+    let unknown = [W::Blocked, W::Connect];
+    let mut unknown_cells = TestSheet::new(&[
+        ("B1", "#BLOCKED!", CalcValue::error(W::Blocked)),
+        ("B2", "#CONNECT!", CalcValue::error(W::Connect)),
+    ]);
+    let seven = [
+        "ISERROR",
+        "ISERR",
+        "ISNA",
+        "ISBLANK",
+        "TYPE",
+        "N",
+        "ERROR.TYPE",
+    ];
+    let mut refused_unknown = 0;
+    for code in W::all() {
+        let error = CalcValue::error(code);
+        let call = |spelling: &str| information_call(spelling, vec![error.clone()], &fast, None);
+        if unknown.contains(&code) {
+            for spelling in seven {
+                assert_eq!(
+                    call(spelling),
+                    Err(FunctionFault::NotImplemented {
+                        id: surface(Notation::Call, spelling).id(),
+                        argument: Some(0)
+                    }),
+                    "{spelling} of {code:?}"
+                );
+                refused_unknown += 1;
+            }
+            continue;
+        }
+        assert_eq!(call("ISERROR"), Ok(CalcValue::logical(true)), "{code:?}");
+        assert_eq!(
+            call("ISERR"),
+            Ok(CalcValue::logical(code != W::NA)),
+            "{code:?}"
+        );
+        assert_eq!(
+            call("ISNA"),
+            Ok(CalcValue::logical(code == W::NA)),
+            "{code:?}"
+        );
+        assert_eq!(call("ISBLANK"), Ok(CalcValue::logical(false)), "{code:?}");
+        assert_eq!(call("TYPE"), Ok(CalcValue::number(16.0)), "{code:?}");
+        assert_eq!(call("N"), Ok(error.clone()), "{code:?}");
+        let typed = call("ERROR.TYPE");
+        assert!(
+            typed
+                .as_ref()
+                .is_ok_and(|value| value.as_number().is_some()),
+            "{code:?}: {typed:?}"
+        );
+    }
+    for (address, code) in [("B1", W::Blocked), ("B2", W::Connect)] {
+        for spelling in ["TYPE", "N"] {
+            let given = CalcValue::reference(ReferenceLike::cell(unknown_cells.key(address)));
+            assert_eq!(
+                information_call(spelling, vec![given], &fast, Some(&mut unknown_cells)),
+                Err(FunctionFault::NotImplemented {
+                    id: surface(Notation::Call, spelling).id(),
+                    argument: Some(0)
+                }),
+                "{spelling} of {address}, holding {code:?}"
+            );
+            refused_unknown += 1;
+        }
+    }
+    assert_eq!(refused_unknown, seven.len() * unknown.len() + 4);
+
+    // A callable, an omitted argument and a number that is not finite are refused by every entry
+    // that reads a value; ISREF reads no value of a reference, so it needs no cell reader.
+    let callable = CalcValue::callable(CallableValue::new(
+        CallableArityShape::exact(1),
+        "LAMBDA(x,x)",
+        Arc::new(InformationCallable),
+    ));
+    for spelling in [
+        "ISBLANK",
+        "ISERR",
+        "ISERROR",
+        "ISNA",
+        "ISNUMBER",
+        "ISTEXT",
+        "ISNONTEXT",
+        "ISLOGICAL",
+        "ISEVEN",
+        "ISODD",
+        "ISREF",
+        "TYPE",
+        "N",
+        "ERROR.TYPE",
+    ] {
+        let id = surface(Notation::Call, spelling).id();
+        for refused in [
+            callable.clone(),
+            CalcValue::missing(),
+            CalcValue::number(f64::NAN),
+            CalcValue::number(f64::INFINITY),
+        ] {
+            assert_eq!(
+                information_call(spelling, vec![refused.clone()], &fast, None),
+                Err(FunctionFault::NotImplemented {
+                    id,
+                    argument: Some(0)
+                }),
+                "{spelling} of {refused:?}"
+            );
+        }
+    }
+    assert_eq!(
+        information_call("ISREF", vec![a1()], &fast, None),
+        Ok(CalcValue::logical(true))
+    );
+    for spelling in ["ISEVEN", "ISODD", "TYPE", "N"] {
+        assert_eq!(
+            information_call(spelling, vec![a1()], &fast, None),
+            Err(FunctionFault::ReferenceUnreadable {
+                id: surface(Notation::Call, spelling).id(),
+                index: 0
+            }),
+            "{spelling} without a cell reader"
+        );
+    }
+
+    // A reader that also visits blank cells, as Empty, gives what the sparse reader gives.
+    for (spelling, address, expected) in [
+        ("ISEVEN", "A1", CalcValue::logical(true)),
+        ("TYPE", "A1", CalcValue::number(1.0)),
+        ("N", "A1", CalcValue::number(0.0)),
+        ("N", "A10", CalcValue::number(0.0)),
+    ] {
+        let given = CalcValue::reference(ReferenceLike::cell(sheet.key(address)));
+        assert_eq!(
+            information_call(spelling, vec![given], &fast, Some(&mut DenseReader(&sheet))),
+            Ok(expected),
+            "{spelling}({address}) through a reader that visits blank cells"
+        );
+    }
+
+    // Under Exact, only a site that rounds is refused: ISEVEN converts number text to the nearest
+    // binary64 and adds Excel's tolerance to a number's magnitude, both of which round, while the
+    // IS predicates do no arithmetic.
+    let exact = exact_mode();
+    let iseven = surface(Notation::Call, "ISEVEN").id();
+    assert_eq!(
+        information_call("ISEVEN", vec![text_value("2")], &exact, None),
+        Err(FunctionFault::ExactUnavailable { id: iseven })
+    );
+    assert_eq!(
+        information_call("ISEVEN", vec![CalcValue::number(2.5)], &exact, None),
+        Err(FunctionFault::ExactUnavailable { id: iseven })
+    );
+    assert_eq!(
+        information_call("ISEVEN", vec![CalcValue::logical(true)], &exact, None),
+        Ok(CalcValue::error(W::Value))
+    );
+    assert_eq!(
+        information_call("ISBLANK", vec![CalcValue::empty()], &exact, None),
+        Ok(CalcValue::logical(true))
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: family 10 holds exactly {} entries, each eager with its arity, parameter class and signature help; NA takes no argument; a value parameter refuses a reference and ISFORMULA anything but one at admission; ISERROR, ISERR, ISNA, ISBLANK, TYPE, N and ERROR.TYPE over the {} error codes but #BLOCKED! and #CONNECT!; over those two, {refused_unknown} calls of the seven refused with NotImplemented naming argument 0, not modelled, owned by dc-tt73 (each given directly, and TYPE and N of a cell holding it); a callable, an omitted argument and NaN or infinity refused by the 14 entries that read a value; without a cell reader ISREF of a reference computes and ISEVEN, ISODD, TYPE and N refuse; a reader that visits blank cells gives the same results; under Exact ISEVEN of number text and of 2.5 is refused at its rounding sites, ISEVEN(TRUE) is #VALUE! before any, and ISBLANK computes",
+        INFORMATION.len(),
+        W::all().len() - unknown.len()
+    );
+
+    assert_information_workbook(&info, &sheet);
+    assert_information_workbook_generated(CASE);
+    let rows = &info.rows;
+    let mut owners: BTreeMap<&str, usize> = BTreeMap::new();
+    for row in &rows.oracle {
+        if let Some(owner) = row.owner {
+            *owners.entry(owner.bead).or_default() += 1;
+        }
+    }
+    let owners: Vec<String> = owners.iter().map(|(b, c)| format!("{c} {b}")).collect();
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke ({} of them information-function rows; row 3 is IF), each asserted against its expectation and each with its formula on sheet {INFORMATION_SHEET} of {INFORMATION_WORKBOOK_PATH} (rows {:?} as dynamic-array formulas): {} from documented rules, {} measured, {} refused and {} computed but unrecorded in the capture's value model (not modelled, owned by: {}); {} rows read a source cell of column F and are conditional on its value; dc_nzpw__excel_comparison compares every row with Excel's capture",
+        rows.oracle.len(),
+        rows.oracle
+            .iter()
+            .filter(|row| !row.formula.starts_with("=IF("))
+            .count(),
+        info.dynamic,
+        info.count(|basis| matches!(basis, InfoBasis::Documented(_))),
+        info.count(|basis| matches!(basis, InfoBasis::Measured(_))),
+        info.count(|basis| matches!(basis, InfoBasis::Refused(_))),
+        info.count(|basis| matches!(basis, InfoBasis::Unrecorded(..))),
+        owners.join(", "),
+        info.sources_read.len()
+    );
+}
+
+fn one_value() -> CalcValue {
+    CalcValue::number(1.0)
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc_nzpw__excel_comparison
+
+/// What the information rows publish: a result for each row's cell (calculated at its call's tick
+/// for a row that reads no source and computes; not modelled with its owner for a refused row; not
+/// modelled, conditional on Excel's value of its source, for a row that reads a source cell), a
+/// not-modelled result for each source cell, and the evaluation record of the rows' invoke calls.
+fn information_documents(info: &InfoRows) -> (ResultSet, EvaluationRecord) {
+    let source = format!("sha256:{}", sha256_hex(INFORMATION_WORKBOOK));
+    let context = package_context(INFORMATION_WORKBOOK).fingerprint();
+    let rows = &info.rows;
+    let mut results = Vec::new();
+    for row in &rows.oracle {
+        let read = info.sources_read.get(&row.row).map(|address| {
+            INFO_SOURCES
+                .iter()
+                .find(|source| source.address == *address)
+                .expect("a source")
+        });
+        let (provenance, value) = match (&row.outcome, row.owner, read) {
+            (Ok(value), None, None) => (
+                Provenance::Calculated {
+                    tick: row.tick,
+                    revision: AUTHORED_REVISION,
+                    context: context.clone(),
+                },
+                Some(value.clone()),
+            ),
+            (Ok(value), None, Some(source)) => (
+                Provenance::NotModeled {
+                    feature: format!("reads {}, {}", source.address, source.owner.feature()),
+                    diagnostic: format!(
+                        "conditional on Excel's value of {}, whose formula {} calc_func has no entry for: with the sheet holding {} for it, calc_func::invoke gives {}",
+                        source.address,
+                        source.formula,
+                        shown_value(&CalcValue::error(source.assumed)),
+                        shown_value(value)
+                    ),
+                },
+                None,
+            ),
+            (outcome, Some(owner), _) => (
+                Provenance::NotModeled {
+                    feature: owner.feature(),
+                    diagnostic: match outcome {
+                        Ok(value) => format!("calc_func::invoke gives {}", shown_value(value)),
+                        Err(fault) => format!("calc_func::invoke refuses: {fault:?}"),
+                    },
+                },
+                None,
+            ),
+            (Err(fault), None, _) => (
+                Provenance::Failed {
+                    fault: format!("{fault:?}"),
+                },
+                None,
+            ),
+        };
+        results.push(CellResult {
+            cell: oracle_cell(rows.sheet, row.row),
+            provenance,
+            value,
+        });
+    }
+    for source in &INFO_SOURCES {
+        results.push(CellResult {
+            cell: source_cell(source),
+            provenance: Provenance::NotModeled {
+                feature: source.owner.feature(),
+                diagnostic: format!(
+                    "calc_func has no entry for the function of {}",
+                    source.formula
+                ),
+            },
+            value: None,
+        });
+    }
+    let evaluations = rows
+        .calls
+        .iter()
+        .map(|call| Evaluation {
+            cell: oracle_cell(rows.sheet, call.row),
+            tick: call.tick,
+            revision: AUTHORED_REVISION,
+            context: context.clone(),
+        })
+        .collect();
+    (
+        ResultSet {
+            case: INFORMATION_CAPTURE_CASE.to_owned(),
+            source: source.clone(),
+            run: RunIdentity {
+                revision: AUTHORED_REVISION,
+                context,
+            },
+            results,
+        },
+        EvaluationRecord {
+            case: INFORMATION_CAPTURE_CASE.to_owned(),
+            source,
+            evaluations,
+        },
+    )
+}
+
+fn source_cell(source: &InfoSource) -> CellAddress {
+    CellAddress::new(INFORMATION_SHEET, source.row, SOURCE_COLUMN).expect("a cell of the grid")
+}
+
+/// The verdict on `capture` of what the rows publish, and what on it disagrees with the rows: a
+/// formula cell no row or source has, a source cell whose verdict is not `not_modeled` or whose
+/// raw value is not the error assumed for it, a row that reads no source and computes whose
+/// verdict is not `matched`, a conditional row whose verdict is not `not_modeled` or whose raw
+/// value is not the value calc_func::invoke gave, a refused or unrecorded row that names dc-nzpw
+/// or whose verdict is not `not_modeled` with its owner, an unrecorded row whose cell has a raw
+/// value, lacks the value failure naming #BUSY!'s code or has a saved cache other than the value
+/// calc_func::invoke gave, a row or source whose loaded formula text or dynamic-array flag is not
+/// the one it expects, and a row or source whose cell the inventory lacks. Returns the report, the
+/// problems and how many conditional rows agree.
+fn information_comparison(
+    capture: &CaptureRecord,
+    info: &InfoRows,
+) -> Result<(VerdictReport, Vec<String>, usize), JudgeError> {
+    let (results, evaluations) = information_documents(info);
+    let policy = VerdictPolicy {
+        numeric_mode: NumericMode::Fast,
+        evidence: None,
+    };
+    let report = judge(capture, &results, &evaluations, &policy)?;
+    let rows: BTreeMap<u32, &OracleRow> =
+        info.rows.oracle.iter().map(|row| (row.row, row)).collect();
+    let raw = |address: &CellAddress| -> Option<&CalcValue> {
+        capture
+            .observations
+            .iter()
+            .find_map(|observed| match &observed.observation {
+                Observation::ExcelRaw(value) if observed.cell == *address => Some(value),
+                _ => None,
+            })
+    };
+    let mut problems = Vec::new();
+    let mut conditional_agreed = 0;
+    for cell in &report.cells {
+        let address = &cell.formula.cell;
+        let at = format!("{}!{}", address.sheet(), address.a1());
+        if address.sheet() != INFORMATION_SHEET {
+            problems.push(format!(
+                "{at}: a formula cell outside sheet {INFORMATION_SHEET}"
+            ));
+            continue;
+        }
+        if let Some(source) = INFO_SOURCES
+            .iter()
+            .find(|source| source_cell(source) == *address)
+        {
+            let assumed = CalcValue::error(source.assumed);
+            match (&cell.verdict, raw(address)) {
+                (Verdict::NotModeled { .. }, Some(value)) if identical(value, &assumed) => {}
+                (verdict, value) => problems.push(format!(
+                    "{at} {}: the source of rows that assume {}: {}, Excel's raw value {value:?}",
+                    source.formula,
+                    shown_value(&assumed),
+                    verdict.name()
+                )),
+            }
+            continue;
+        }
+        let row = (address.column() == FORMULA_COLUMN)
+            .then(|| rows.get(&address.row()))
+            .flatten();
+        let Some(row) = row else {
+            problems.push(format!(
+                "{at}: a formula cell that no oracle row has ({})",
+                cell.verdict.name()
+            ));
+            continue;
+        };
+        let formula = &row.formula;
+        match (row.owner, info.sources_read.get(&row.row), &row.outcome, &cell.verdict) {
+            (Some(owner), _, _, verdict) => {
+                if owner.bead.split(", ").any(|bead| bead == "dc-nzpw") {
+                    problems.push(format!(
+                        "{at} {formula}: a row of dc-nzpw names its own bead as the owner of what it refuses ({})",
+                        verdict.name()
+                    ));
+                } else if !matches!(verdict, Verdict::NotModeled { feature, .. } if *feature == owner.feature())
+                {
+                    problems.push(format!(
+                        "{at} {formula}: a row owned by {} is {}, not not_modeled with its owner: {verdict:?}",
+                        owner.bead,
+                        verdict.name()
+                    ));
+                }
+            }
+            (None, Some(read), Ok(value), Verdict::NotModeled { .. }) => match raw(address) {
+                Some(excel) if identical(excel, value) => conditional_agreed += 1,
+                excel => problems.push(format!(
+                    "{at} {formula}: conditional on {read}: calc_func::invoke gave {}, Excel's raw value {excel:?}",
+                    shown_value(value)
+                )),
+            },
+            (None, None, Ok(_), Verdict::Matched { .. }) => {}
+            (None, None, Ok(_), Verdict::Mismatched { expected, actual, .. }) => problems.push(format!(
+                "{at} {formula}: calc_func::invoke gave {}, Excel's raw value is {}",
+                shown_value(actual),
+                shown_value(expected)
+            )),
+            (None, _, outcome, verdict) => problems.push(format!(
+                "{at} {formula}: {} with outcome {outcome:?}: {verdict:?}",
+                verdict.name()
+            )),
+        }
+    }
+    // Each row's and source's formula as Excel loaded it, and whether it is a dynamic-array
+    // formula.
+    for formula in &capture.formulas {
+        let address = &formula.cell;
+        let at = format!("{}!{}", address.sheet(), address.a1());
+        let expected = match INFO_SOURCES
+            .iter()
+            .find(|source| source_cell(source) == *address)
+        {
+            Some(source) => Some((source.formula.to_owned(), true)),
+            None if address.sheet() == INFORMATION_SHEET && address.column() == FORMULA_COLUMN => {
+                rows.get(&address.row()).map(|row| {
+                    (
+                        information_loaded(&row.formula),
+                        info.dynamic.contains(&row.row),
+                    )
+                })
+            }
+            None => None,
+        };
+        let Some((text, dynamic)) = expected else {
+            continue;
+        };
+        if formula.formula.as_deref() != Some(text.as_str()) || formula.dynamic_array != dynamic {
+            problems.push(format!(
+                "{at} {text}: Excel loaded the formula {:?} (dynamic-array {}), where {text:?} (dynamic-array {dynamic}) is expected",
+                formula.formula, formula.dynamic_array
+            ));
+        }
+    }
+    // An unrecorded row: no raw value, the capture's value failure naming #BUSY!'s code, and
+    // Excel's saved cache of the cell equal to the value calc_func::invoke gave.
+    let session = capture.session.as_ref();
+    for (row, basis) in info.rows.oracle.iter().zip(&info.basis) {
+        if !matches!(basis, InfoBasis::Unrecorded(..)) {
+            continue;
+        }
+        let address = oracle_cell(INFORMATION_SHEET, row.row);
+        let at = format!("{}!{}", address.sheet(), address.a1());
+        let Ok(value) = &row.outcome else {
+            problems.push(format!("{at} {}: an unrecorded row refuses", row.formula));
+            continue;
+        };
+        let named = format!("Excel error code {BUSY_CODE} ");
+        let failed = session.is_some_and(|session| {
+            session.failures.iter().any(|failure| {
+                failure.stage == "value"
+                    && failure.cell.as_ref() == Some(&address)
+                    && failure.message.starts_with(&named)
+            })
+        });
+        let cache = session
+            .and_then(|session| session.saved.iter().find(|saved| saved.cell == address))
+            .and_then(|saved| match &saved.observation {
+                Observation::ExcelSavedCache(cache) => Some(cache),
+                _ => None,
+            });
+        match (raw(&address), failed, cache) {
+            (None, true, Some(cache)) if identical(cache.value(), value) => {}
+            (excel, failed, cache) => problems.push(format!(
+                "{at} {}: an unrecorded row: Excel's raw value {excel:?}, a value failure naming error code {BUSY_CODE} {}, Excel's saved cache {:?}, where calc_func::invoke gave {}",
+                row.formula,
+                if failed { "recorded" } else { "absent" },
+                cache.map(SavedCache::text),
+                shown_value(value)
+            )),
+        }
+    }
+    for outside in &report.outside_inventory {
+        problems.push(format!(
+            "{}!{}: the capture's inventory lacks this cell",
+            outside.cell.sheet(),
+            outside.cell.a1()
+        ));
+    }
+    Ok((report, problems, conditional_agreed))
+}
+
+/// A capture record of the information oracle workbook built here in memory: a version 2 live
+/// capture of the workbook as authored by the committed worker, listing every row's formula cell,
+/// with the text Excel loads it as and its dynamic-array flag, and every source cell, with the raw
+/// value `observe` gives a row and `source_value` a source. For an unrecorded row it holds what
+/// the capture adapter records of an error it has no code for: no raw value, a value failure
+/// naming #BUSY!'s code, and the saved cache of the value `observe` gives.
+fn information_capture(
+    info: &InfoRows,
+    observe: impl Fn(&OracleRow) -> Option<CalcValue>,
+    source_value: impl Fn(&InfoSource) -> CalcValue,
+) -> CaptureRecord {
+    let source = format!("sha256:{}", sha256_hex(INFORMATION_WORKBOOK));
+    let mut formulas = Vec::new();
+    let mut observations = Vec::new();
+    let mut failures = Vec::new();
+    let mut saved = Vec::new();
+    for (row, basis) in info.rows.oracle.iter().zip(&info.basis) {
+        let cell = oracle_cell(INFORMATION_SHEET, row.row);
+        formulas.push(FormulaCell {
+            cell: cell.clone(),
+            kind: FormulaKind::Ordinary,
+            formula: Some(information_loaded(&row.formula)),
+            dynamic_array: info.dynamic.contains(&row.row),
+        });
+        if let InfoBasis::Unrecorded(..) = basis {
+            failures.push(CaptureFailure {
+                stage: "value".to_owned(),
+                cell: Some(cell.clone()),
+                message: format!("Excel error code {BUSY_CODE} is not one this value model holds"),
+            });
+            if let Some(value) = observe(row) {
+                saved.push(CellObservation {
+                    cell,
+                    observation: Observation::ExcelSavedCache(information_saved_cache(&value)),
+                });
+            }
+            continue;
+        }
+        if let Some(value) = observe(row) {
+            observations.push(CellObservation {
+                cell,
+                observation: Observation::ExcelRaw(value),
+            });
+        }
+    }
+    for cell in &INFO_SOURCES {
+        formulas.push(FormulaCell {
+            cell: source_cell(cell),
+            kind: FormulaKind::Ordinary,
+            formula: Some(cell.formula.to_owned()),
+            dynamic_array: true,
+        });
+        observations.push(CellObservation {
+            cell: source_cell(cell),
+            observation: Observation::ExcelRaw(source_value(cell)),
+        });
+    }
+    CaptureRecord {
+        case: INFORMATION_CAPTURE_CASE.to_owned(),
+        source: source.clone(),
+        acquisition: Acquisition::LiveCapture,
+        environment: None,
+        sheets: vec![SheetEntry {
+            name: INFORMATION_SHEET.to_owned(),
+            visibility: SheetVisibility::Visible,
+        }],
+        formulas,
+        observations,
+        session: Some(CaptureSession {
+            revision: AUTHORED_REVISION,
+            operations: Vec::new(),
+            context: package_context(INFORMATION_WORKBOOK).fingerprint(),
+            tool: format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER)),
+            input_package: source,
+            output_package: None,
+            failures,
+            shared_ranges: Vec::new(),
+            saved,
+            reopened: Vec::new(),
+        }),
+    }
+}
+
+/// An observation that agrees with every computed row, its own value; a refused row is observed as
+/// a text that differs from anything calc_func gives, so its verdict shows it is never compared.
+fn information_agreeing(row: &OracleRow) -> Option<CalcValue> {
+    match &row.outcome {
+        Ok(value) => Some(value.clone()),
+        Err(_) => Some(text_value("an observation never compared")),
+    }
+}
+
+/// A kind of row a probe of the comparison changes, and how to select one.
+type RowProbe<'a> = (&'static str, Box<dyn Fn(&OracleRow) -> bool + 'a>);
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_nzpw__excel_comparison() {
+    const CASE: &str = "dc_nzpw__excel_comparison";
+    let mut sheet = information_sheet();
+    let info = information_rows(&mut sheet, true);
+    let rows = &info.rows;
+    let all = rows.oracle.len();
+    let refused = rows.refused();
+    let conditional = info.sources_read.len();
+    let unrecorded = info.count(|basis| matches!(basis, InfoBasis::Unrecorded(..)));
+    let calculated = all - refused - conditional - unrecorded;
+    assert!(
+        rows.oracle.iter().zip(&info.basis).all(|(row, basis)| {
+            row.owner.is_some()
+                == (row.outcome.is_err() || matches!(basis, InfoBasis::Unrecorded(..)))
+        }),
+        "a refused or unrecorded row names its owner, a calculated row none"
+    );
+    assert!(
+        info.sources_read
+            .keys()
+            .all(|row| rows.oracle[*row as usize - 1].outcome.is_ok()),
+        "every conditional row computes"
+    );
+
+    // The comparison itself, on capture records built here in memory, which carry no Excel
+    // evidence: a capture that observes each computed row's own value and each source's assumed
+    // error matches every calculated row, agrees on every conditional row and counts every refused
+    // row not modelled with its owner; a capture that changes one of them is exactly one problem,
+    // at its cell.
+    let assumed = |source: &InfoSource| CalcValue::error(source.assumed);
+    let (report, problems, agreed) = information_comparison(
+        &information_capture(&info, information_agreeing, assumed),
+        &info,
+    )
+    .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
+    assert_eq!(problems, Vec::<String>::new());
+    assert_eq!(agreed, conditional);
+    let counts = &report.counts;
+    assert_eq!(
+        (
+            counts.denominator,
+            counts.calculated,
+            counts.matched,
+            counts.not_modeled,
+            counts.mismatched + counts.not_run + counts.unproven + counts.stale,
+            counts.evaluator_calls
+        ),
+        (
+            (all + INFO_SOURCES.len()) as u64,
+            calculated as u64,
+            calculated as u64,
+            (refused + conditional + unrecorded + INFO_SOURCES.len()) as u64,
+            0,
+            all as u64
+        ),
+        "{}",
+        report.summary()
+    );
+    let probes: [RowProbe<'_>; 4] = [
+        (
+            "a calculated row",
+            Box::new(|row: &OracleRow| {
+                row.owner.is_none()
+                    && !info.sources_read.contains_key(&row.row)
+                    && row
+                        .outcome
+                        .as_ref()
+                        .is_ok_and(|value| value.as_number().is_some_and(|n| n != 0.0))
+            }),
+        ),
+        (
+            "a calculated logical row",
+            Box::new(|row: &OracleRow| {
+                row.owner.is_none()
+                    && !info.sources_read.contains_key(&row.row)
+                    && row
+                        .outcome
+                        .as_ref()
+                        .is_ok_and(|value| value.as_logical().is_some())
+            }),
+        ),
+        (
+            "a conditional row",
+            Box::new(|row: &OracleRow| info.sources_read.contains_key(&row.row)),
+        ),
+        (
+            "an unrecorded row's saved cache",
+            Box::new(|row: &OracleRow| {
+                matches!(info.basis[row.row as usize - 1], InfoBasis::Unrecorded(..))
+            }),
+        ),
+    ];
+    let mut changed_cells = Vec::new();
+    for (what, select) in &probes {
+        let changed = rows
+            .oracle
+            .iter()
+            .find(|row| select(row))
+            .unwrap_or_else(|| panic!("{what}"))
+            .row;
+        let capture = information_capture(
+            &info,
+            |row| {
+                let own = information_agreeing(row)?;
+                if row.row != changed {
+                    return Some(own);
+                }
+                Some(match own.core() {
+                    CoreValue::Number(n) => CalcValue::number(f64::from_bits(n.to_bits() ^ 1)),
+                    CoreValue::Logical(b) => CalcValue::logical(!b),
+                    _ => text_value("changed"),
+                })
+            },
+            assumed,
+        );
+        let (_, problems, _) = information_comparison(&capture, &info)
+            .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
+        let cell = format!("{INFORMATION_SHEET}!{}", encode_a1(changed, FORMULA_COLUMN));
+        assert!(
+            problems.len() == 1 && problems[0].starts_with(&format!("{cell} ")),
+            "{what} changed at {cell} gives {problems:?}"
+        );
+        changed_cells.push(cell);
+    }
+    let (_, problems, _) = information_comparison(
+        &information_capture(&info, information_agreeing, |source| {
+            if source.address == "F2" {
+                CalcValue::error(WorksheetErrorCode::Calc)
+            } else {
+                assumed(source)
+            }
+        }),
+        &info,
+    )
+    .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
+    assert!(
+        problems.len() == 1 && problems[0].starts_with(&format!("{INFORMATION_SHEET}!F2 ")),
+        "a source observed with another error than assumed gives {problems:?}"
+    );
+    // A loaded formula text without Excel's @, a dynamic-array row loaded as a legacy formula, and
+    // an unrecorded row without its value failure are each exactly one problem, at its cell.
+    let at_row = rows
+        .oracle
+        .iter()
+        .find(|row| information_loaded(&row.formula).contains('@'))
+        .expect("a row Excel loads with @");
+    let dynamic_row = *info.dynamic.first().expect("a dynamic-array row");
+    let unrecorded_row = rows
+        .oracle
+        .iter()
+        .zip(&info.basis)
+        .find(|(_, basis)| matches!(basis, InfoBasis::Unrecorded(..)))
+        .map(|(row, _)| row.row)
+        .expect("an unrecorded row");
+    let mut altered_cells = Vec::new();
+    for (what, row) in [
+        ("the written text as loaded", at_row.row),
+        ("a legacy formula loaded", dynamic_row),
+        ("no value failure", unrecorded_row),
+    ] {
+        let cell = oracle_cell(INFORMATION_SHEET, row);
+        let mut capture = information_capture(&info, information_agreeing, assumed);
+        match what {
+            "the written text as loaded" => {
+                capture
+                    .formulas
+                    .iter_mut()
+                    .find(|formula| formula.cell == cell)
+                    .expect("the row's formula cell")
+                    .formula = Some(at_row.formula.clone());
+            }
+            "a legacy formula loaded" => {
+                capture
+                    .formulas
+                    .iter_mut()
+                    .find(|formula| formula.cell == cell)
+                    .expect("the row's formula cell")
+                    .dynamic_array = false;
+            }
+            _ => capture
+                .session
+                .as_mut()
+                .expect("a version 2 record")
+                .failures
+                .retain(|failure| failure.cell.as_ref() != Some(&cell)),
+        }
+        let (_, problems, _) = information_comparison(&capture, &info)
+            .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
+        let at = format!("{INFORMATION_SHEET}!{}", encode_a1(row, FORMULA_COLUMN));
+        assert!(
+            problems.len() == 1 && problems[0].starts_with(&format!("{at} ")),
+            "{what} at {at} gives {problems:?}"
+        );
+        altered_cells.push(format!("{what} at {at}"));
+    }
+    let mut self_owned = information_rows(&mut information_sheet(), true);
+    let row = self_owned
+        .rows
+        .oracle
+        .iter_mut()
+        .find(|row| row.outcome.is_err())
+        .expect("a refused row");
+    row.owner = Some(Owner {
+        bead: "dc-nzpw",
+        behaviour: "a refusal of the bead under test",
+    });
+    let self_cell = format!("{INFORMATION_SHEET}!{}", encode_a1(row.row, FORMULA_COLUMN));
+    let (_, problems, _) = information_comparison(
+        &information_capture(&self_owned, information_agreeing, assumed),
+        &self_owned,
+    )
+    .unwrap_or_else(|refusal| panic!("judge refused the in-memory capture: {refusal}"));
+    assert!(
+        problems.len() == 1
+            && problems[0].starts_with(&format!("{self_cell} "))
+            && problems[0].contains("names its own bead"),
+        "a row owned by dc-nzpw at {self_cell} gives {problems:?}"
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: on in-memory captures of {INFORMATION_WORKBOOK_PATH} (no Excel evidence; {all} rows: {calculated} calculated, {conditional} conditional on a source, {refused} refused, {unrecorded} unrecorded; {} sources): calc_verdict::judge's report through the comparison matches every calculated row of the agreeing capture, agrees on every conditional row, counts every refused and unrecorded row and source not modeled with its owner, and finds every loaded formula text and dynamic-array flag as expected; a change at {} is exactly one problem each, at that cell; F2 observed as #CALC! instead of the assumed #SPILL! is exactly one problem, at F2; {} is exactly one problem each, at that cell; the refused row at {self_cell} given dc-nzpw as its owner is exactly one problem, at that cell",
+        INFO_SOURCES.len(),
+        changed_cells.join(", "),
+        altered_cells.join(", ")
+    );
+
+    // Excel's capture of the workbook.
+    if let Some(missing) = MissingCapture::recognize(INFORMATION_CAPTURE) {
+        assert_eq!(
+            (
+                missing.case.as_str(),
+                missing.fixture.as_str(),
+                missing.command.as_str()
+            ),
+            (
+                INFORMATION_CAPTURE_CASE,
+                INFORMATION_WORKBOOK_PATH,
+                INFORMATION_CAPTURE_COMMAND
+            ),
+            "the absent-capture marker names this capture"
+        );
+        note!("ACCEPT-NOT-RUN: {CASE}: {missing}");
+        return;
+    }
+    let capture =
+        CaptureRecord::decode(INFORMATION_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, INFORMATION_CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(INFORMATION_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the information oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the information oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    let (report, problems, agreed) = information_comparison(&capture, &info)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    assert!(
+        problems.is_empty(),
+        "{} problems on sheet {INFORMATION_SHEET} of the verdict on Excel {}'s capture ({}):\n{}",
+        problems.len(),
+        environment.target.excel_build(),
+        report.summary(),
+        problems.join("\n")
+    );
+    assert_eq!(agreed, conditional);
+    assert_eq!(
+        (report.counts.calculated, report.counts.matched),
+        (calculated as u64, calculated as u64),
+        "{}",
+        report.summary()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of {INFORMATION_WORKBOOK_PATH}: {} (every calculated row matched; every row that reads a source not modeled, with Excel's raw value equal to calc_func::invoke's ({agreed} of {conditional}); every source's raw value the assumed error; every refused row not modeled with its owner; every unrecorded row ({unrecorded}) not modeled with its owner, with no raw value, the capture's value failure naming error code {BUSY_CODE} and Excel's saved cache equal to calc_func::invoke's value; every row's and source's formula as Excel loaded it, {} of them with @, and rows {:?} dynamic-array formulas); the whole workbook: {}",
+        environment.target.excel_build(),
+        sheet_verdicts(&report, rows),
+        rows.oracle
+            .iter()
+            .filter(|row| information_loaded(&row.formula).contains('@'))
+            .count(),
+        info.dynamic,
+        report.summary()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-xrxb: the file prefix of each catalogued named function, against the package Excel saved.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_xrxb__prefix_metadata_matches_excel() {
+    dc_xrxb_support::prefix_metadata_matches_excel();
 }

@@ -20,8 +20,8 @@ use crate::reference::{
     bind_references,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
-use calc_func::value::ExcelText;
-use calc_func::{ArgumentDemand, Notation, catalogue};
+use calc_func::value::{ExcelText, WorksheetErrorCode};
+use calc_func::{ArgumentDemand, FilePrefix, Notation, catalogue};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -57,8 +57,39 @@ pub enum CompileError {
 /// The plan does not depend on the anchor: binding gives each relative coordinate as an offset
 /// from it, so the same formula copied to another anchor compiles to the same plan. Each call
 /// lowers the tree and binds its references; the cache only shares the resulting plan.
+///
+/// It reads the formula as a user enters it: a function is written by its plain name, and also
+/// through the prefixes a file stores before it ([`file_unprefixed`]). [`compile_loaded`] reads
+/// the formula as a file stores it.
 pub fn compile(
     tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_as(tree, false, notation, anchor, catalog, cache)
+}
+
+/// [`compile`] for a formula whose text is as a file stores it (the text of a worksheet's `<f>`
+/// element, as the document model holds every formula): a call that writes, without the prefix
+/// `_xlfn.`, a function a file stores with that prefix ([`calc_func::FilePrefix::Xlfn`]) is an
+/// unknown name to Excel's load, and gives `#NAME?` where it is called, whatever its arguments,
+/// which are not compiled. Every other formula compiles as [`compile`] compiles it.
+pub fn compile_loaded(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_as(tree, true, notation, anchor, catalog, cache)
+}
+
+/// [`compile`], or with `loaded` [`compile_loaded`].
+fn compile_as(
+    tree: &SyntaxTree,
+    loaded: bool,
     notation: ReferenceNotation,
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
@@ -79,6 +110,7 @@ pub fn compile(
             .collect(),
         blocks: vec![Vec::new()],
         references: Vec::new(),
+        loaded,
     };
     lowering.formula(expression)?;
     let plan = CompiledPlan {
@@ -97,6 +129,8 @@ struct Lowering {
     sites: HashMap<TextSpan, Result<ReferenceOperand, BindError>>,
     blocks: Vec<Vec<Instruction>>,
     references: Vec<ReferenceOperand>,
+    /// Whether the formula's text is as a file stores it ([`compile_loaded`]).
+    loaded: bool,
 }
 
 /// One step of the lowering, on the lowering's own stack: the steps a node pushes run in the
@@ -340,6 +374,12 @@ impl Lowering {
             _ => return Err(CompileError::Syntax { span }),
         };
         let target = call_target(name)?;
+        if self.loaded && unknown_on_load(name.text(), target) {
+            self.blocks[block].push(Instruction::Literal(Literal::Error(
+                WorksheetErrorCode::Name,
+            )));
+            return Ok(());
+        }
         let arguments: Vec<&SyntaxNode> = list.child_nodes().collect();
         let argc = arguments.len();
         if !target.0.arity().accepts(argc) {
@@ -449,16 +489,24 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
         })
 }
 
+/// Whether a file's call written `spelling`, of the catalogue entry `target`, names a function a
+/// file stores with a prefix without that prefix: Excel's load reads such a name as an unknown
+/// one. A spelling with `_xlfn.` names the function whatever prefix a file stores it with
+/// ([`file_unprefixed`]). An entry whose file prefix is not known is read by its plain name.
+fn unknown_on_load(spelling: &str, target: Target) -> bool {
+    without_prefix(spelling, "_xlfn.").is_none()
+        && match target.0.file_prefix() {
+            Some(FilePrefix::Xlfn) => true,
+            Some(FilePrefix::Bare) | None => false,
+        }
+}
+
 /// `spelling` without a leading `_xlfn.`, and without a `_xlws.` right after that, each matched
 /// in any ASCII case; any other spelling unchanged. Excel reads a function it knows after
 /// `_xlfn.` or `_xlfn._xlws.`, in any case, as that function, also one it stores without a prefix
 /// (`_xlfn.SUM`), and reads `_xlws.` alone as an unknown name (#NAME?); in a file it loads, so are
-/// `_xlfn._xlfn.` and `_xlws._xlfn.`. A file that spells a function Excel stores with a prefix
-/// without it (`MAXIFS`, `IFNA`) loads in Excel as an unknown name, while a formula set through
-/// Range.Formula or Range.Formula2 spells it so; compile is not told which kind of text it is
-/// given and reads that spelling as the function, so it differs from Excel on such a file. Bead
-/// dc-xrxb owns that difference: the file prefix of each catalogued function and a load-origin
-/// input to compile.
+/// `_xlfn._xlfn.` and `_xlws._xlfn.`. A formula a user enters may spell a function a file stores
+/// with a prefix without it (`MAXIFS`); a file that does is read by [`unknown_on_load`].
 fn file_unprefixed(spelling: &str) -> &str {
     match without_prefix(spelling, "_xlfn.") {
         Some(rest) => without_prefix(rest, "_xlws.").unwrap_or(rest),
@@ -695,6 +743,71 @@ mod tests {
                 span: TextSpan::new(1, 12),
                 spelling: "_xlfn.NOSUCH".to_owned()
             }
+        );
+    }
+
+    /// Read as a file stores it, a call that writes without `_xlfn.` a function a file stores with
+    /// it becomes the `#NAME?` literal, whatever its arguments and in any case of its name; with
+    /// `_xlfn.`, and for a function a file writes bare, the plan is the one [`compile`] gives.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn loaded_unprefixed_calls() {
+        let loaded = |formula: &str| {
+            let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+            let one = ids.issue().unwrap();
+            let two = ids.issue().unwrap();
+            compile_loaded(
+                &parse_formula(formula),
+                ReferenceNotation::A1,
+                FormulaAnchor::new(CellKey::new(one, 5, 3).unwrap()),
+                &Sheets(two),
+                &mut PlanCache::new(),
+            )
+        };
+        let name = [Instruction::Literal(Literal::Error(
+            WorksheetErrorCode::Name,
+        ))];
+        for formula in [
+            "=MAXIFS(A1:A3,B1:B3,\"x\")",
+            "=maxifs(A1:A3,B1:B3,\"x\")",
+            "=IFNA(1,2)",
+            "=XMATCH(1,A1:A3)",
+            "=MAXIFS(A1)",
+            "=MAXIFS({1,2},A1:A2,1)",
+        ] {
+            let plan = loaded(formula).unwrap_or_else(|e| panic!("{formula}: {e:?}"));
+            assert_eq!(&plan.blocks[0][..], &name, "{formula}");
+            assert!(plan.references.is_empty(), "{formula}");
+            assert_eq!(plan.blocks.len(), 1, "{formula}");
+        }
+        for (file, entered) in [
+            (
+                "=_xlfn.MAXIFS(A1:A3,B1:B3,\"x\")",
+                "=MAXIFS(A1:A3,B1:B3,\"x\")",
+            ),
+            ("=_xlfn._xlws.IFNA(1,2)", "=IFNA(1,2)"),
+            ("=SUM(A1:A3)+1", "=SUM(A1:A3)+1"),
+            ("=_xlfn.SUM(A1:A3)", "=SUM(A1:A3)"),
+        ] {
+            assert_eq!(loaded(file).unwrap(), compiled(entered).unwrap(), "{file}");
+        }
+        assert_eq!(
+            compiled("=MAXIFS(A1:A3,B1:B3,\"x\")").unwrap().blocks[0].len(),
+            4
+        );
+        assert_eq!(
+            loaded("=_xlfn.MAXIFS(A1)"),
+            Err(CompileError::Arity {
+                span: TextSpan::new(1, 16),
+                supplied: 1
+            })
+        );
+        assert_eq!(
+            loaded("=NOSUCH(1)"),
+            Err(CompileError::UnknownFunction {
+                span: TextSpan::new(1, 6),
+                spelling: "NOSUCH".to_owned()
+            })
         );
     }
 

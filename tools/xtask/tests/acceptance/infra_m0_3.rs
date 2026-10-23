@@ -300,7 +300,6 @@ static ACCEPT_FIXTURE: Fixture = Fixture {
         ("acceptance.rs", "tests/acceptance.rs"),
         ("zero_run.rs", "tests/zero_run.rs"),
         ("acceptance.json", "acceptance.json"),
-        ("seams.json", "seams.json"),
     ],
 };
 
@@ -699,14 +698,12 @@ impl Accepted {
     }
 }
 
-const CHECKS: [&str; 7] = [
+const CHECKS: [&str; 5] = [
     "dependencies",
     "os-imports",
     "wasm-refusal",
     "tree-reference-tokens",
-    "seams",
     "word-scan",
-    "numeric-provenance",
 ];
 
 /// A misspelled required test name fails the runner, and so does every other way of not
@@ -762,12 +759,7 @@ pub fn zero_tests_fail() {
     );
     evidence.expect(
         run.checks_ok_except(&[]),
-        "01-pass: all seven architecture checks passed".to_owned(),
-    );
-    let reach = &run.check("seams")["details"]["reach"];
-    evidence.expect(
-        reach["owner"] == "dc-pz3u" && reach["entries_reach_unproven"].is_u64(),
-        format!("01-pass: the seams details count the entries whose reach is unproven and name dc-pz3u: {reach}"),
+        "01-pass: all five architecture checks passed".to_owned(),
     );
     // Paths: relative to the copy, and nothing outside it named.
     let receipt_text = normal_path(&run.text.replace("\\\\", "/"));

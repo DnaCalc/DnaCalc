@@ -181,6 +181,7 @@ dependencies = [
  "calc-value",
  "calc-verdict",
  "libm",
+ "miniz_oxide",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

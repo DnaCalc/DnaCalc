@@ -23,9 +23,9 @@
 //!    cargo run, and, for a bead some manifest registers, copies it to
 //!    `accept-receipts/<bead>/<platform>.json`. Paths in the receipt are relative to the workspace
 //!    root; the toolchain, cargo home, home and temporary directories appear as `<rustup>`,
-//!    `<cargo-home>`, `<home>` and `<temp>`. The host record names the legacy root that
-//!    `pin-sources` reads as `..` (the workspace root's parent) or `<legacy-root>` (elsewhere,
-//!    from `DNACALC_LEGACY_ROOT`). Format `dnacalc-accept-receipt/3` added that record; format
+//!    `<cargo-home>`, `<home>` and `<temp>`. The host record names the legacy root (the
+//!    directory holding the legacy repositories) as `..` (the workspace root's parent) or
+//!    `<legacy-root>` (elsewhere, from `DNACALC_LEGACY_ROOT`). Format `dnacalc-accept-receipt/3` added that record; format
 //!    `dnacalc-accept-receipt/4` added case notes and, on wasm, each browser's route environment
 //!    and the runner's banner naming the browser that ran the case.
 //!
@@ -1041,7 +1041,7 @@ fn host_record(ws: &Workspace, own: &str, problems: &mut Vec<String>) -> Value {
     json!({
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
-        "legacy_root": crate::pin::legacy_root_record(&ws.root),
+        "legacy_root": crate::legacy::legacy_root_record(&ws.root),
         "rustc": rustc.as_ref().map(|(_, version)| version.clone()).ok(),
         "rustc_host": rustc.as_ref().map(|(host, _)| host.clone()).ok(),
         "cargo": cargo_version.ok(),
@@ -1245,7 +1245,7 @@ pub fn run(raw: &[String]) -> ExitCode {
     let manifests = manifest::load(&ws);
     problems.extend(manifests.errors.iter().map(|e| format!("manifest: {e}")));
 
-    let checks = arch::run_all(&ws, &manifests, &out_dir.join("arch"));
+    let checks = arch::run_all(&ws, &out_dir.join("arch"));
     for check in &checks {
         println!(
             "ARCH {} {}: {}",

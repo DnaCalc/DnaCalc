@@ -12,7 +12,8 @@ use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
 
-const CODE: u16 = 10;
+/// F1's families take codes from 100 up, clear of the other lanes' families.
+const CODE: u16 = 100;
 
 /// A one-argument kernel whose raw result Excel publishes under `policy`.
 fn raw(site: &Site<'_>, a: &[CalcValue], policy: ExcelRealPolicy, kernel: fn(f64) -> f64) -> Step<CalcValue> {

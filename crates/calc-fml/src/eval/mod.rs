@@ -22,18 +22,26 @@
 //!
 //! A caller may attach an [`EvaluationObserver`] to the services ([`EvaluationServices::observed_by`]):
 //! the evaluator itself shows it each catalogue call it runs ([`ExecutedCall`], marked when compile
-//! inserted the call) and the outcome it returns ([`EvaluationReport`]), so what the observer
-//! records comes from the evaluation, not from a caller's account of it. Neither has a public
-//! constructor: a caller can pass on what it is shown, but cannot make it.
+//! inserted the call), each reference it resolved from text as it ran ([`ResolvedReference`]) and
+//! the outcome it returns ([`EvaluationReport`]), so what the observer records comes from the
+//! evaluation, not from a caller's account of it. None has a public constructor: a caller can pass
+//! on what it is shown, but cannot make it.
+//!
+//! INDIRECT's text is bound to a reference as the call runs, in the formula's workbook context:
+//! the sheets of the [`ReferenceCatalog`] the caller gives the services
+//! ([`EvaluationServices::with_catalog`]) and the instance's anchor. Without a catalogue, calc-func
+//! refuses the call as not modelled.
 
 mod cells;
 mod compile;
 mod run;
 
-pub use compile::{CompileError, compile};
+pub use compile::{CompileError, compile, compile_loaded};
 pub use run::{EvalFault, evaluate};
 
-use crate::reference::{FormulaAnchor, PlacementError, ReferenceOperand, ReferenceReader};
+use crate::reference::{
+    FormulaAnchor, PlacementError, ReferenceCatalog, ReferenceOperand, ReferenceReader,
+};
 use calc_func::value::{
     CalcValue, ExcelText, GridArea, NumericMode, ReferenceLike, WorksheetErrorCode,
 };
@@ -220,11 +228,13 @@ pub fn instantiate(plan: &Arc<CompiledPlan>, anchor: FormulaAnchor) -> FormulaIn
 
 /// What an evaluation runs with, owned by the caller: the numeric policy, which every arithmetic
 /// site reads, the reader that supplies every cell the formula reads, and, when the caller gives
-/// one, the observer the evaluator reports the evaluation to.
+/// them, the catalogue that INDIRECT's text is bound against and the observer the evaluator
+/// reports the evaluation to.
 pub struct EvaluationServices<'s> {
     numeric: &'s NumericMode,
     reader: &'s mut dyn ReferenceReader,
     observer: Option<&'s mut dyn EvaluationObserver>,
+    catalog: Option<&'s dyn ReferenceCatalog>,
 }
 
 impl<'s> EvaluationServices<'s> {
@@ -233,6 +243,16 @@ impl<'s> EvaluationServices<'s> {
             numeric,
             reader,
             observer: None,
+            catalog: None,
+        }
+    }
+
+    /// These services, with reference text (INDIRECT's) bound against `catalog`'s sheets, the
+    /// formula's workbook context. Without a catalogue such a call is refused as not modelled.
+    pub fn with_catalog(self, catalog: &'s dyn ReferenceCatalog) -> Self {
+        EvaluationServices {
+            catalog: Some(catalog),
+            ..self
         }
     }
 
@@ -251,6 +271,7 @@ impl fmt::Debug for EvaluationServices<'_> {
         f.debug_struct("EvaluationServices")
             .field("numeric", self.numeric)
             .field("observed", &self.observer.is_some())
+            .field("catalog", &self.catalog.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -265,6 +286,15 @@ pub trait EvaluationObserver {
     /// function ran: a call whose arguments the evaluation could not supply is not shown. The
     /// arguments of a lazy call run inside it, so their calls are shown before it.
     fn called(&mut self, call: ExecutedCall);
+
+    /// The call `reference.target()` resolved reference text to an area as it ran (INDIRECT's),
+    /// a reference the formula does not write: the evaluation's dynamic read footprint, beside the
+    /// references its plan holds ([`CompiledPlan::references`]). Shown as that call returns, before
+    /// the call itself is shown to [`EvaluationObserver::called`]; text that names no reference
+    /// (#REF!) shows nothing. The default records nothing.
+    fn resolved(&mut self, reference: ResolvedReference) {
+        let _ = reference;
+    }
 
     /// The evaluation's outcome, exactly as [`evaluate`] returns it, in a report only the
     /// evaluator makes.
@@ -338,6 +368,27 @@ impl ExecutedCall {
     /// only this flag tells them apart.
     pub fn synthetic(self) -> bool {
         self.synthetic
+    }
+}
+
+/// An area a call resolved from reference text as an evaluation ran, as
+/// [`EvaluationObserver::resolved`] is shown it: the area and the catalogue call (INDIRECT) that
+/// resolved it. Only the evaluator makes one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResolvedReference {
+    target: FunctionCallTarget<'static>,
+    area: GridArea,
+}
+
+impl ResolvedReference {
+    /// The catalogue entry whose call resolved the text.
+    pub fn target(self) -> FunctionCallTarget<'static> {
+        self.target
+    }
+
+    /// The area the text named, on its sheet.
+    pub fn area(self) -> GridArea {
+        self.area
     }
 }
 

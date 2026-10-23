@@ -15,12 +15,9 @@
 //! and both app cores were built and had their test harness run on each required target, from a
 //! clean tree unless `--allow-dirty` (`ci_audit.rs`).
 //!
-//! `cargo xtask pin-sources` pins the legacy repositories and the port inputs the beads cite in
-//! `migration/source-manifest.json`, with each input's numeric provenance from the reviewed
-//! `migration/numeric-provenance.json`, and writes the release source allowlist
-//! `migration/release-source-allowlist.json` (`pin.rs`, `provenance.rs`); `cargo xtask
-//! pin-sources --lookup <Repo>/<path>` prints one pinned input, or why there is none, with an exit
-//! code per disposition (`pin.rs`).
+//! `cargo xtask check [--wasm]` builds the workspace and runs `cargo test` for every package,
+//! printing one summary line per package; with `--wasm` it also runs the portable packages' tests
+//! in headless Chrome and Firefox (`check.rs`).
 //!
 //! `cargo xtask evidence verify [--all | --sample N] [--seed S]` and `cargo xtask evidence restore
 //! <dir> [--sample N] [--seed S]` run the evidence repository's own `archive-evidence.py` over the
@@ -63,20 +60,16 @@ mod arch;
 #[cfg(not(target_arch = "wasm32"))]
 mod capture;
 mod cargo;
+mod check;
 mod ci;
 mod ci_audit;
 mod compare;
 mod compare_triage;
 mod evidence;
 mod evidence_labels;
+mod legacy;
 mod manifest;
-mod pin;
-mod pin_cite;
-mod pin_git;
-mod pin_rust;
-mod provenance;
 mod rust_source;
-mod seams;
 mod text;
 mod verdict;
 mod words;
@@ -87,7 +80,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.split_first() {
         Some((command, rest)) if command == "accept" => accept::run(rest),
-        Some((command, rest)) if command == "pin-sources" => pin::run(rest),
+        Some((command, rest)) if command == "check" => check::run(rest),
         Some((command, rest)) if command == "ci" => ci::run(rest),
         Some((command, rest)) if command == "ci-audit" => ci_audit::run(rest),
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
@@ -99,7 +92,7 @@ fn main() -> ExitCode {
             #[allow(unused_mut)]
             let mut usages = vec![
                 accept::USAGE,
-                pin::USAGE,
+                check::USAGE,
                 ci::USAGE,
                 ci_audit::USAGE,
                 evidence::USAGE,

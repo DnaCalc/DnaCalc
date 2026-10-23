@@ -11,12 +11,15 @@
 //! through [`read_cells`].
 //!
 //! [`eval`] compiles and evaluates formulas: [`compile`] turns a parsed formula into a shared,
-//! immutable [`CompiledPlan`] held by the caller's [`PlanCache`], [`instantiate`] places a plan at
+//! immutable [`CompiledPlan`] held by the caller's [`PlanCache`] ([`compile_loaded`] for a formula's
+//! text as a file stores it), [`instantiate`] places a plan at
 //! an anchor, and [`evaluate`] runs the instance in a per-call [`EvalFrame`] over the caller's
 //! [`EvalScratch`], with every operator and function run by `calc_func::invoke` and every cell read
 //! through the caller's [`ReferenceReader`]. An [`EvaluationObserver`] the caller attaches is shown
-//! each call the evaluation runs and the outcome it returns, by the evaluator itself, the outcome
-//! in an [`EvaluationReport`] that only the evaluator can make.
+//! each call the evaluation runs, each area INDIRECT resolved from text ([`ResolvedReference`])
+//! and the outcome it returns, by the evaluator itself, the outcome in an [`EvaluationReport`]
+//! that only the evaluator can make. INDIRECT's text is bound against the [`ReferenceCatalog`] the
+//! caller gives the services ([`EvaluationServices::with_catalog`]).
 //!
 //! Parsing, binding and compiling keep stacks of their own instead of recursing on the native
 //! stack, so a formula nested as deep as Excel's 8,192 characters allow is handled on a 1 MB
@@ -31,8 +34,8 @@ pub mod syntax;
 
 pub use eval::{
     CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
-    EvaluationReport, EvaluationServices, ExecutedCall, FormulaInstance, PlanCache, compile,
-    evaluate, instantiate,
+    EvaluationReport, EvaluationServices, ExecutedCall, FormulaInstance, PlanCache,
+    ResolvedReference, compile, compile_loaded, evaluate, instantiate,
 };
 pub use reference::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 pub use syntax::parse_formula;

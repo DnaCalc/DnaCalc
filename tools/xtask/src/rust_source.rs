@@ -12,8 +12,6 @@ use syn::{Attribute, ImplItem, Item, Meta, Token, TraitItem};
 pub struct SourceFile {
     /// The path relative to the workspace root, with forward slashes.
     pub rel: String,
-    /// The module path of the file's top level inside its crate; empty for a crate root.
-    pub module: Vec<String>,
     /// The file's syntax with every test-only item removed.
     pub syntax: syn::File,
 }
@@ -24,14 +22,14 @@ pub struct SourceFile {
 pub fn crate_sources(workspace_root: &Path, roots: &[PathBuf]) -> Result<Vec<SourceFile>, String> {
     let mut seen = BTreeSet::new();
     let mut files = Vec::new();
-    let mut pending: Vec<(PathBuf, PathBuf, Vec<String>)> = roots
+    let mut pending: Vec<(PathBuf, PathBuf)> = roots
         .iter()
         .map(|root| {
             let dir = root.parent().map(Path::to_path_buf).unwrap_or_default();
-            (root.clone(), dir, Vec::new())
+            (root.clone(), dir)
         })
         .collect();
-    while let Some((path, dir, module)) = pending.pop() {
+    while let Some((path, dir)) = pending.pop() {
         if !seen.insert(path.clone()) {
             continue;
         }
@@ -48,12 +46,8 @@ pub fn crate_sources(workspace_root: &Path, roots: &[PathBuf]) -> Result<Vec<Sou
             file: &path,
             rel: &rel,
         };
-        found.collect(&syntax.items, &dir, &module, false, &mut pending)?;
-        files.push(SourceFile {
-            rel,
-            module,
-            syntax,
-        });
+        found.collect(&syntax.items, &dir, false, &mut pending)?;
+        files.push(SourceFile { rel, syntax });
     }
     files.sort_by(|a, b| a.rel.cmp(&b.rel));
     Ok(files)
@@ -71,9 +65,8 @@ impl ModuleFiles<'_> {
         &self,
         items: &[Item],
         dir: &Path,
-        module: &[String],
         inline: bool,
-        pending: &mut Vec<(PathBuf, PathBuf, Vec<String>)>,
+        pending: &mut Vec<(PathBuf, PathBuf)>,
     ) -> Result<(), String> {
         for item in items {
             let Item::Mod(declared) = item else {
@@ -81,10 +74,8 @@ impl ModuleFiles<'_> {
             };
             let name = declared.ident.to_string();
             let name = name.trim_start_matches("r#").to_owned();
-            let mut child = module.to_vec();
-            child.push(name.clone());
             match &declared.content {
-                Some((_, inner)) => self.collect(inner, &dir.join(&name), &child, true, pending)?,
+                Some((_, inner)) => self.collect(inner, &dir.join(&name), true, pending)?,
                 None => {
                     let (path, child_dir) = match path_attribute(&declared.attrs) {
                         Some(relative) => {
@@ -127,7 +118,7 @@ impl ModuleFiles<'_> {
                             path.display()
                         ));
                     }
-                    pending.push((path, child_dir, child));
+                    pending.push((path, child_dir));
                 }
             }
         }
@@ -347,20 +338,14 @@ mod tests {
     fn module_tree_skips_test_only_modules_and_items() {
         let root = fixture_dir("module_tree");
         let files = crate_sources(&root, &[root.join("src").join("lib.rs")]).unwrap();
-        let shown: Vec<(String, Vec<String>)> = files
-            .iter()
-            .map(|file| (file.rel.clone(), file.module.clone()))
-            .collect();
+        let shown: Vec<&str> = files.iter().map(|file| file.rel.as_str()).collect();
         assert_eq!(
             shown,
             [
-                ("src/lib.rs".to_owned(), vec![]),
-                (
-                    "src/nested/inner.rs".to_owned(),
-                    vec!["nested".to_owned(), "inner".to_owned()]
-                ),
-                ("src/nested/mod.rs".to_owned(), vec!["nested".to_owned()]),
-                ("src/renamed.rs".to_owned(), vec!["by_path".to_owned()]),
+                "src/lib.rs",
+                "src/nested/inner.rs",
+                "src/nested/mod.rs",
+                "src/renamed.rs",
             ]
         );
         let text = files[0].syntax.to_token_stream().to_string();

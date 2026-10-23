@@ -77,16 +77,6 @@ pub struct Manifests {
     pub errors: Vec<String>,
 }
 
-impl Manifests {
-    /// Every registered case name in the workspace.
-    pub fn case_names(&self) -> BTreeSet<String> {
-        self.entries
-            .iter()
-            .flat_map(|entry| entry.cases.iter().map(|case| case.name.clone()))
-            .collect()
-    }
-}
-
 /// The bead ID as it prefixes case names: `infra-m0.3` gives `infra_m0_3`.
 pub fn snake(id: &str) -> String {
     id.replace(['-', '.'], "_")

@@ -1,0 +1,128 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "dc-51ka",
+  "written": "2026-10-21",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), case-insensitive substrings, on 2026-10-21 over .beads/issues.jsonl of commit 019db79ed948ce32a855b34fa7992e6fa3b8c05a (sha256 980378b852deef313aeeb178059c41e4fdbfbfe8ad67eba78035f3775160bb75, unmodified in the working tree): INDIRECT, defined name, external workbook, volatil, implicit intersection, read footprint, dynamic read (transcript target/accept/dc-51ka/owner-search.log; target/ is not committed). Each beads list below is drawn from the hits of the terms its basis names, read by title and text.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/indirect.rs",
+      "blob": "edf16202e13e8a42453db9f6cfb138a00150a0ee",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/indirect.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": [
+        {
+          "symbol": "INDIRECT_META (arity 1 to 2) and eval_indirect_with_reference_system_provider",
+          "to": "crates/calc-func/src/catalogue/reference_text.rs FAMILY (INDIRECT, family 11, ref_text and a1 as value parameters) and resolved",
+          "changes": [
+            {
+              "change": "Ported against clean replacements of both listed modules: ref_text and a1 are read by calc-func's own coercion (crates/calc-func/src/coerce.rs, text and logical) in place of coercion.rs and adapters.rs's coerce_prepared_to_number, and the arguments are admitted by calc-func's call interface (invoke, admit_argument, the value parameter class) in place of adapters.rs's run_values_only_prepared. Nothing of either quarantined module is used.",
+              "reason": "The lookup exits 6: the file is admitted only against clean replacements of coercion.rs and adapters.rs."
+            },
+            {
+              "change": "a1 is read as a worksheet logical: the text TRUE or FALSE in any case is that logical, other text #VALUE! (digit-bearing text refused as not modelled, as calc-func's coercion refuses it everywhere), an error is the result; the pinned code read a1 as a number.",
+              "reason": "Measured in Excel 16.0.20430: =INDIRECT(\"R1C1\",\"FALSE\") is 10 and =INDIRECT(\"A1\",\"x\") is #VALUE! (rows of dc_51ka's oracle workbook, matched in its capture)."
+            },
+            {
+              "change": "ref_text is not trimmed and a blank cell or omitted argument is empty text, giving #REF!, and a number or logical is read as its text; the pinned code trimmed the text, gave #VALUE! for a blank cell and refused a number or logical before any resolution.",
+              "reason": "Measured: =INDIRECT(\" A1\") and =INDIRECT(A4) over the blank A4 are #REF!, =INDIRECT(1) and =INDIRECT(TRUE) are #REF!, and =INDIRECT(1,#N/A) is #N/A (ref_text's error first, then a1's, before the text is resolved)."
+            },
+            {
+              "change": "The resolution is calc-func's ReferenceText service (crates/calc-func/src/call.rs, EvalServices::with_reference_text), which calc-fml supplies from its reference binder (crates/calc-fml/src/reference/text.rs, bind_text, through crates/calc-fml/src/eval/run.rs TextBinding); text that names no reference is #REF!, and text the binder does not model (a possible defined name, another workbook) refuses the call as NotImplemented instead of answering #REF!.",
+              "reason": "calc-func never depends on calc-fml (plan section 4.4's injected-service pattern), and typed not-modelled replaces an answer the code cannot know: Excel resolves such text when the workbook defines the name or has the other workbook open."
+            },
+            {
+              "change": "The pinned metadata declares INDIRECT volatile (VolatilityClass::VolatileContextual); calc-func's catalogue has no volatility property, so the entry declares none.",
+              "reason": "The catalogue does not hold the property yet; see not_ported."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "INDIRECT text that names a defined name, workbook- or sheet-scoped (and a range whose end could be one), which the binder does not resolve"
+      ],
+      "beads": [
+        "cfml-m3.3",
+        "cfml-m3.1"
+      ],
+      "basis": "INDIRECT: cfml-m3.3 (Report dynamic references and reference algebra reads), whose Do routes INDIRECT text resolution through CalcFml's binder and which bead dc-51ka's Do names for a defined name in the text; defined name: cfml-m3.1 (Bind scoped and caller-relative defined names), which binds the names INDIRECT's text would then resolve."
+    },
+    {
+      "items": [
+        "INDIRECT text qualified by another workbook ([Book2]Sheet1!A1)"
+      ],
+      "beads": [
+        "cfml-m3.5"
+      ],
+      "basis": "external workbook: cfml-m3.5 (Bind external workbook references through a typed catalogue), which BindError::ExternalWorkbook already names."
+    },
+    {
+      "items": [
+        "the implicit intersection of INDIRECT's range result where a legacy formula needs one value (=INDIRECT(\"A1:B2\") gives #VALUE! below row 2 in Excel)"
+      ],
+      "beads": [
+        "cfml-m3.3"
+      ],
+      "basis": "implicit intersection has no hit; INDIRECT: cfml-m3.3, which implements the implicit-intersection operator and which EvalFault::AreaAsValue and compile's refusal of @ already name."
+    },
+    {
+      "items": [
+        "a volatility property in calc-func's catalogue, so INDIRECT is declared volatile"
+      ],
+      "beads": [],
+      "basis": "volatil: cfunc-m3.19 ports NOW, TODAY, RAND, RANDBETWEEN, RTD and provider adapters and ceng-m3.6 replays time and random effects; neither names a volatility property of the catalogue or INDIRECT. No owner found: a gap reported for a follow-up bead."
+    },
+    {
+      "items": [
+        "calc-engine passing a catalogue to calc_fml::evaluate (EvaluationServices::with_catalog) and forwarding EvaluationObserver::resolved to its ReadObserver; re-dirtying a formula when a cell of INDIRECT's area changes"
+      ],
+      "beads": [
+        "ceng-m3.3"
+      ],
+      "basis": "read footprint and dynamic read: ceng-m3.3 (Update dynamic read overlays atomically), which bead dc-51ka's Context names for the engine's dynamic edges; the catalogue argument is a calc-engine change no bead names yet."
+    }
+  ],
+  "legacy_tests": [
+    {
+      "file": "OxFunc crates/oxfunc_core/src/functions/indirect.rs (its #[cfg(test)] module)",
+      "blob": "edf16202e13e8a42453db9f6cfb138a00150a0ee",
+      "tests": [
+        {
+          "test": "eval_indirect_requires_reference_system_provider_text_resolution",
+          "disposition": "kept",
+          "replaced_by": "crates/calc-func/src/catalogue/reference_text.rs errors_and_refusals; dc_51ka__indirect_text_references (without EvaluationServices::with_catalog)",
+          "reason": "Without a resolution INDIRECT is refused; the refusal is FunctionFault::NotImplemented rather than a reference-system error."
+        },
+        {
+          "test": "eval_indirect_rejects_non_text_reference_expression",
+          "disposition": "changed",
+          "replaced_by": "crates/calc-func/src/catalogue/reference_text.rs the_resolution_decides; the oracle row =INDIRECT(1)",
+          "reason": "A number is read as its text and resolved, giving #REF! as Excel does (measured), rather than refused before resolution."
+        },
+        {
+          "test": "eval_indirect_missing_a1_flag_passes_false_to_reference_system_provider",
+          "disposition": "kept",
+          "replaced_by": "crates/calc-func/src/catalogue/reference_text.rs the_resolution_decides; the oracle rows =INDIRECT(\"A1\",) and =INDIRECT(\"R1C1\",)",
+          "reason": "An omitted a1 reads R1C1 text, as the pinned test expects and Excel gives (measured)."
+        },
+        {
+          "test": "eval_indirect_uses_reference_system_provider_when_supplied",
+          "disposition": "changed",
+          "replaced_by": "crates/calc-func/src/catalogue/reference_text.rs the_resolution_decides",
+          "reason": "The text and notation reach the resolution as the arguments give them; the pinned test's text Tree.Node and its caller-context prefix are tree-reference syntax, which this Excel-only product does not have."
+        }
+      ]
+    }
+  ]
+}

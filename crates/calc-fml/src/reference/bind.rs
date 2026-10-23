@@ -375,7 +375,7 @@ fn qualified_site(
 }
 
 /// The shape between two endpoints of one form, each axis's pair in the order of [`ordered`].
-fn pair(left: Spelled, right: Spelled) -> Result<ReferenceShape, BindError> {
+pub(super) fn pair(left: Spelled, right: Spelled) -> Result<ReferenceShape, BindError> {
     match (left, right) {
         (Spelled::Cell(a), Spelled::Cell(b)) => {
             let (top, bottom) = ordered(a.row, b.row);

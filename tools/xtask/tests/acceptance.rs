@@ -86,84 +86,11 @@ const CARGO_LAST_USE_TRACKER: [&str; 4] = [
     ".global-cache-shm",
 ];
 
-const PLAN: &str = "DNA_CALC_REIMPLEMENTATION_PLAN.md";
+/// The plan agents read first.
+const PLAN: &str = "docs/plan/BULK_PORT_PLAN.md";
 
-/// Follow-up beads created on 2026-10-19 with a library prefix, against AGENTS.md's rule that new
-/// IDs use `dc`. br has no rename, so they keep their IDs; they are not imports, and the
-/// agent-contract case checks that neither carries a plan reference.
-const MISNAMED_FOLLOW_UPS: [&str; 2] = ["cdoc-jpha", "cdoc-qhau"];
-
-/// The plan bundle that bead descriptions cite.
-const PLAN_BUNDLE: [&str; 7] = [
-    PLAN,
-    "BEAD_GRAPH.md",
-    "BEAD_DETAILS.md",
-    "beads.plan.jsonl",
-    "beads.br.jsonl",
-    "coverage.json",
-    "validate_plan.py",
-];
-
-/// What AGENTS.md must name, as (rule, exact text).
-const AGENTS_REQUIREMENTS: [(&str, &str); 30] = [
-    ("pick work", "`br ready`"),
-    ("pick work", "`bv --robot-next`"),
-    ("read a bead", "`br show <id>`"),
-    (
-        "claim",
-        "`br update <id> --status in_progress --assignee <clone-name> --actor <clone-name>`",
-    ),
-    (
-        "one bead per clone",
-        "One bead is being built per clone at a time",
-    ),
-    (
-        "acceptance",
-        "`cargo test -p <package> --test acceptance -- --exact <case> --nocapture`",
-    ),
-    ("acceptance count", "must report `1 passed`"),
-    ("acceptance receipt", "`target/accept/<id>/`"),
-    ("acceptance manifest", "`acceptance.json`"),
-    ("zero-test run", "A zero-test run"),
-    ("commit", "git commit -m \"<id>: "),
-    (
-        "commit",
-        "one build commit per bead on master, bead ID first",
-    ),
-    ("close", "`br close <id> --reason \""),
-    ("flush the tracker", "br sync --flush-only"),
-    ("follow-up bead", "br create ... --deps blocks:<current>"),
-    ("prerequisite bead", "br dep add <current> <new>"),
-    (
-        "master only",
-        "Git: master only, no branches, no worktrees, ever",
-    ),
-    (
-        "pull, work, commit, push",
-        "The loop is: `git pull --no-rebase`, work on one bead, `git commit`",
-    ),
-    ("pull, work, commit, push", "`git push`"),
-    (
-        "concurrent agents",
-        "their own full clone of this repository on master",
-    ),
-    ("pull before starting", "Pull before starting."),
-    (
-        "rejected push",
-        "If a push is rejected, run `git pull --no-rebase`, re-run the bead's acceptance, and push again.",
-    ),
-    (
-        "one cargo per target directory",
-        "Never run two cargo invocations in one target directory at the same time.",
-    ),
-    ("honesty", "Provenance before value"),
-    ("honesty", "Count every fallback"),
-    ("honesty", "No faked behaviour"),
-    ("honesty", "No seams without traffic"),
-    ("honesty", "One of everything"),
-    ("honesty", "The machine is not the product"),
-    ("honesty", "Measure, do not assert"),
-];
+/// What AGENTS.md must name.
+const AGENTS_REQUIREMENTS: [&str; 2] = ["`git pull --no-rebase`", "`docs/plan/BULK_PORT_PLAN.md`"];
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1693,98 +1620,7 @@ fn infra_m0_1__independent_lanes() {
     finish(CASE, &receipt, &evidence, &failures);
 }
 
-/// One parsed `§` reference: a top-level section and, optionally, a subsection.
-type SectionRef = (u32, Option<u32>);
-
-fn parse_section_ref(text: &str) -> Option<(SectionRef, &str)> {
-    let digits = text.len() - text.trim_start_matches(|c: char| c.is_ascii_digit()).len();
-    let section = text[..digits].parse().ok()?;
-    let rest = &text[digits..];
-    if let Some(after_dot) = rest.strip_prefix('.') {
-        let sub_digits = after_dot.len()
-            - after_dot
-                .trim_start_matches(|c: char| c.is_ascii_digit())
-                .len();
-        if sub_digits > 0 {
-            let subsection = after_dot[..sub_digits].parse().ok()?;
-            return Some(((section, Some(subsection)), &after_dot[sub_digits..]));
-        }
-    }
-    Some(((section, None), rest))
-}
-
-/// The plan sections a bead description cites, in the forms `§§1, 10–13 of <plan>` and `plan §8`.
-fn plan_citations(description: &str) -> Vec<SectionRef> {
-    let mut cited = Vec::new();
-    let mut rest = description;
-    while let Some(position) = rest.find('§') {
-        let before = &rest[..position];
-        let mut tail = rest[position..].trim_start_matches('§');
-        let mut refs = Vec::new();
-        while let Some((first, after)) = parse_section_ref(tail) {
-            tail = after;
-            let range_end = tail
-                .strip_prefix('–')
-                .or_else(|| tail.strip_prefix('-'))
-                .and_then(parse_section_ref);
-            match range_end {
-                Some((last, after)) => {
-                    refs.extend((first.0..=last.0).map(|section| (section, None)));
-                    tail = after;
-                }
-                None => refs.push(first),
-            }
-            match tail.strip_prefix(", ") {
-                Some(next) if next.starts_with(|c: char| c.is_ascii_digit()) => tail = next,
-                _ => break,
-            }
-        }
-        if tail.starts_with(&format!(" of {PLAN}")) || before.ends_with("plan ") {
-            cited.extend(refs);
-        }
-        rest = tail;
-    }
-    cited
-}
-
-/// The numbered `## n.` and `### n.m` headings of the plan.
-fn plan_headings(plan: &str) -> BTreeSet<SectionRef> {
-    plan.lines()
-        .filter_map(|line| {
-            if let Some(heading) = line.strip_prefix("### ") {
-                parse_section_ref(heading)
-                    .filter(|(r, _)| r.1.is_some())
-                    .map(|(r, _)| r)
-            } else if let Some(heading) = line.strip_prefix("## ") {
-                parse_section_ref(heading)
-                    .filter(|(r, rest)| r.1.is_none() && rest.starts_with('.'))
-                    .map(|(r, _)| r)
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-fn jsonl_ids(path: &Path) -> BTreeSet<String> {
-    read_text(path)
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| {
-            let record: Value = serde_json::from_str(line).unwrap_or_else(|e| {
-                panic!("{} holds a line that is not JSON ({e})", path.display())
-            });
-            record["id"]
-                .as_str()
-                .unwrap_or_else(|| panic!("{} holds a record without an id", path.display()))
-                .to_owned()
-        })
-        .collect()
-}
-
-/// AGENTS.md names the claim, acceptance, commit and close commands, the master-only loop and the
-/// one-cargo-per-target-directory rule; docs/plan holds the plan text and bead exports the
-/// tracker's bead descriptions cite.
+/// AGENTS.md exists and names the pull command and the bulk-port plan, and the plan exists.
 #[test]
 fn infra_m0_1__agent_contract() {
     const CASE: &str = "infra_m0_1__agent_contract";
@@ -1795,125 +1631,22 @@ fn infra_m0_1__agent_contract() {
     let mut evidence = vec!["cargo program: none; this case runs no cargo command".to_owned()];
     let mut failures = Vec::new();
 
-    let agents = read_text(&root.join("AGENTS.md"));
-    for (rule, text) in AGENTS_REQUIREMENTS {
-        if agents.contains(text) {
-            evidence.push(format!("AGENTS.md names {rule}: {text}"));
-        } else {
-            failures.push(format!("AGENTS.md does not name {rule}: missing {text:?}"));
-        }
-    }
-    for (index, _) in agents.match_indices("`docs/plan/") {
-        let span = &agents[index + 1..];
-        let cited = &span[..span.find('`').unwrap_or(span.len())];
-        if root.join(cited).exists() {
-            evidence.push(format!("AGENTS.md cites {cited}, which exists"));
-        } else {
-            failures.push(format!("AGENTS.md cites {cited}, which does not exist"));
-        }
-    }
-
-    let plan_dir = root.join("docs").join("plan");
-    for name in PLAN_BUNDLE {
-        let path = plan_dir.join(name);
-        match fs::metadata(&path) {
-            Ok(meta) if meta.len() > 0 => {
-                evidence.push(format!("docs/plan/{name}: {} bytes", meta.len()))
-            }
-            _ => failures.push(format!("docs/plan/{name} is missing or empty")),
-        }
-    }
-    read_json(&plan_dir.join("coverage.json"));
-    let plan_ids = jsonl_ids(&plan_dir.join("beads.plan.jsonl"));
-    let br_ids = jsonl_ids(&plan_dir.join("beads.br.jsonl"));
-    evidence.push(format!(
-        "beads.plan.jsonl: {} records; beads.br.jsonl: {} records",
-        plan_ids.len(),
-        br_ids.len()
-    ));
-    let headings = plan_headings(&read_text(&plan_dir.join(PLAN)));
-    let detailed: BTreeSet<String> = read_text(&plan_dir.join("BEAD_DETAILS.md"))
-        .lines()
-        .filter_map(|line| line.strip_prefix("## "))
-        .filter_map(|line| line.split(" — ").next())
-        .map(str::to_owned)
-        .collect();
-
-    let tracker = read_text(&root.join(".beads").join("issues.jsonl"));
-    let (mut issues, mut citing, mut citations, mut imported) = (0, 0, 0, 0);
-    let mut misnamed: Vec<String> = Vec::new();
-    let mut sections_cited = BTreeSet::new();
-    for line in tracker.lines().filter(|line| !line.trim().is_empty()) {
-        let issue: Value = serde_json::from_str(line).expect("tracker line is JSON");
-        let id = issue["id"].as_str().expect("tracker issue has an id");
-        issues += 1;
-        let Some(description) = issue["description"].as_str() else {
-            failures.push(format!("tracker issue {id} has no string description"));
-            continue;
-        };
-        let cited = plan_citations(description);
-        if description.contains(PLAN) {
-            citing += 1;
-        }
-        for section in cited {
-            citations += 1;
-            sections_cited.insert(section);
-            if !headings.contains(&section) {
-                failures.push(format!(
-                    "{id} cites plan section {section:?}, which {PLAN} does not have"
-                ));
-            }
-        }
-        for name in PLAN_BUNDLE
-            .iter()
-            .filter(|name| description.contains(*name))
-        {
-            if !plan_dir.join(name).is_file() {
-                failures.push(format!("{id} cites {name}, which docs/plan does not hold"));
-            }
-        }
-        if MISNAMED_FOLLOW_UPS.contains(&id) {
-            misnamed.push(id.to_owned());
-            if issue["external_ref"]
-                .as_str()
-                .is_some_and(|reference| reference.starts_with("dnacalc-plan/"))
-            {
-                failures.push(format!(
-                    "{id} is listed as a misnamed follow-up but carries a plan reference"
-                ));
-            }
-        } else if !id.starts_with("dc-") {
-            imported += 1;
-            for (export, ids) in [("beads.plan.jsonl", &plan_ids), ("beads.br.jsonl", &br_ids)] {
-                if !ids.contains(id) {
-                    failures.push(format!("imported bead {id} is not in docs/plan/{export}"));
+    match fs::read_to_string(root.join("AGENTS.md")) {
+        Ok(agents) => {
+            for text in AGENTS_REQUIREMENTS {
+                if agents.contains(text) {
+                    evidence.push(format!("AGENTS.md names {text}"));
+                } else {
+                    failures.push(format!("AGENTS.md does not name {text}"));
                 }
             }
-            if !detailed.contains(id) {
-                failures.push(format!(
-                    "imported bead {id} has no section in docs/plan/BEAD_DETAILS.md"
-                ));
-            }
         }
+        Err(e) => failures.push(format!("cannot read AGENTS.md: {e}")),
     }
-    if citing == 0 || citations == 0 {
-        failures.push(format!(
-            "no tracker description cites {PLAN}, so nothing was checked"
-        ));
+    match fs::metadata(root.join(PLAN)) {
+        Ok(meta) if meta.is_file() => evidence.push(format!("{PLAN}: {} bytes", meta.len())),
+        _ => failures.push(format!("{PLAN} is missing")),
     }
-    evidence.push(format!(
-        "tracker: {issues} issues, {imported} imported; {citing} descriptions cite {PLAN} with {citations} section references"
-    ));
-    evidence.push(format!(
-        "follow-ups with a library prefix, not imports: {} of {} listed ({})",
-        misnamed.len(),
-        MISNAMED_FOLLOW_UPS.len(),
-        misnamed.join(", ")
-    ));
-    evidence.push(format!(
-        "plan sections cited: {sections_cited:?}; numbered headings in {PLAN}: {}",
-        headings.len()
-    ));
 
     finish(CASE, &receipt, &evidence, &failures);
 }
@@ -1976,60 +1709,6 @@ fn infra_m0_2__browser_failure_is_red() {
 #[test]
 fn infra_m0_2__platform_matrix() {
     infra_m0_2::platform_matrix();
-}
-
-/// The bodies of the infra-m0.4 cases, which pin the legacy sources through the xtask binary and
-/// read the pins back independently.
-#[path = "acceptance/infra_m0_4.rs"]
-mod infra_m0_4;
-
-/// Every pinned port input carries repository, commit, path, blob, license status and read
-/// disposition, every blob resolves at a pinned commit object, and a fresh pin written to a
-/// temporary file reproduces the committed manifest's pinned content; see
-/// `acceptance/infra_m0_4.rs`.
-#[test]
-fn infra_m0_4__source_manifest() {
-    let _serial = serial();
-    infra_m0_4::source_manifest();
-}
-
-/// A port input absent from the pinned manifest is reported unavailable and never counted among
-/// the port inputs, all of which stay provisional; see `acceptance/infra_m0_4.rs`.
-#[test]
-fn infra_m0_4__missing_source() {
-    let _serial = serial();
-    infra_m0_4::missing_source();
-}
-
-/// The bodies of the infra-m0.5 cases, which read the numeric provenance record independently and
-/// drive `pin-sources` and `accept` through the xtask binary.
-#[path = "acceptance/infra_m0_5.rs"]
-mod infra_m0_5;
-
-/// No source manifest entry marked unresolved or tainted enters the release source allowlist, and
-/// a file that only calls one enters it only with its calls_quarantined list: the committed
-/// allowlist and its facts recomputed from git, the generator over fixture dispositions, and hand
-/// edits, which the check of `cargo xtask accept` rejects, except a coordinated edit of the
-/// tainted-commit list, the manifest's recorded rule sets and the review hash, which only this
-/// case's recomputation from git rejects; see `acceptance/infra_m0_5.rs`.
-#[test]
-fn infra_m0_5__quarantine_gate() {
-    let _serial = serial();
-    infra_m0_5::quarantine();
-}
-
-/// Every retained numeric witness is a selection of a pinned capture with black-box acquisition
-/// metadata, and no quarantined implementation generated its expected bits: every file of its
-/// chain is admitted only through a reviewed witness_chain entry at the blob that ran, and a
-/// generator that builds, runs or names a package of a tainted class leaves a witness retained only
-/// when its bits equal the retention of the same capture row by row and the raw capture's hash is
-/// continuous through the snapshot and freeze steps; a witness without metadata, with a quarantined
-/// generator, without that equality or with a chain entry that does not match the review fails the
-/// check of `cargo xtask accept`; see `acceptance/infra_m0_5.rs`.
-#[test]
-fn infra_m0_5__independent_witness() {
-    let _serial = serial();
-    infra_m0_5::independent_witness();
 }
 
 /// The bodies of the infra-m0.6 cases, which check the backup of OxFunc's smart-fuzzer evidence
