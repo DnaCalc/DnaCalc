@@ -62,7 +62,7 @@ pub(crate) fn designator(profile: &FormatProfile, am: bool) -> &'static str {
 /// The magnitude of `x` rounded to 15 significant digits and then to `places` decimal places
 /// (negative places round to tens, hundreds and so on), a half away from zero, as its integer
 /// digits (no leading zero; empty for zero) and exactly `max(places, 0)` decimal digits.
-fn digits(x: f64, places: i32) -> (String, String) {
+pub(crate) fn digits(x: f64, places: i32) -> (String, String) {
     let first = fifteen(x.abs());
     let rounded = first.round_at(-places, Direction::Nearest).unwrap_or(first);
     split(&rounded, places.max(0) as usize)

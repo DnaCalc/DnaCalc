@@ -164,7 +164,28 @@ fn delimited_split_regex_and_conversions() {
     exact(c(&e, "HYPERLINK", vec![t("x"), n(5.0)]), 5.0);
     text(c(&e, "HYPERLINK", vec![t("https://example.com")]), "https://example.com");
     refused(c(&e, "ENCODEURL", vec![t("a b")]));
-    refused(c(&e, "BAHTTEXT", vec![n(1.0)]));
+    // Excel: BAHTTEXT of these numbers on this machine, read ad hoc.
+    for (number, expected) in [
+        (0.0, "\u{0e28}\u{0e39}\u{0e19}\u{0e22}\u{0e4c}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (1.0, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (11.0, "\u{0e2a}\u{0e34}\u{0e1a}\u{0e40}\u{0e2d}\u{0e47}\u{0e14}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (21.0, "\u{0e22}\u{0e35}\u{0e48}\u{0e2a}\u{0e34}\u{0e1a}\u{0e40}\u{0e2d}\u{0e47}\u{0e14}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (101.0, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e23}\u{0e49}\u{0e2d}\u{0e22}\u{0e40}\u{0e2d}\u{0e47}\u{0e14}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (1234567.89, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e25}\u{0e49}\u{0e32}\u{0e19}\u{0e2a}\u{0e2d}\u{0e07}\u{0e41}\u{0e2a}\u{0e19}\u{0e2a}\u{0e32}\u{0e21}\u{0e2b}\u{0e21}\u{0e37}\u{0e48}\u{0e19}\u{0e2a}\u{0e35}\u{0e48}\u{0e1e}\u{0e31}\u{0e19}\u{0e2b}\u{0e49}\u{0e32}\u{0e23}\u{0e49}\u{0e2d}\u{0e22}\u{0e2b}\u{0e01}\u{0e2a}\u{0e34}\u{0e1a}\u{0e40}\u{0e08}\u{0e47}\u{0e14}\u{0e1a}\u{0e32}\u{0e17}\u{0e41}\u{0e1b}\u{0e14}\u{0e2a}\u{0e34}\u{0e1a}\u{0e40}\u{0e01}\u{0e49}\u{0e32}\u{0e2a}\u{0e15}\u{0e32}\u{0e07}\u{0e04}\u{0e4c}"),
+        (1000001.0, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e25}\u{0e49}\u{0e32}\u{0e19}\u{0e40}\u{0e2d}\u{0e47}\u{0e14}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (0.5, "\u{0e2b}\u{0e49}\u{0e32}\u{0e2a}\u{0e34}\u{0e1a}\u{0e2a}\u{0e15}\u{0e32}\u{0e07}\u{0e04}\u{0e4c}"),
+        (0.01, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e2a}\u{0e15}\u{0e32}\u{0e07}\u{0e04}\u{0e4c}"),
+        (-12.25, "\u{0e25}\u{0e1a}\u{0e2a}\u{0e34}\u{0e1a}\u{0e2a}\u{0e2d}\u{0e07}\u{0e1a}\u{0e32}\u{0e17}\u{0e22}\u{0e35}\u{0e48}\u{0e2a}\u{0e34}\u{0e1a}\u{0e2b}\u{0e49}\u{0e32}\u{0e2a}\u{0e15}\u{0e32}\u{0e07}\u{0e04}\u{0e4c}"),
+        (10.0, "\u{0e2a}\u{0e34}\u{0e1a}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (20.0, "\u{0e22}\u{0e35}\u{0e48}\u{0e2a}\u{0e34}\u{0e1a}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (1000000.0, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e25}\u{0e49}\u{0e32}\u{0e19}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (11000000.0, "\u{0e2a}\u{0e34}\u{0e1a}\u{0e40}\u{0e2d}\u{0e47}\u{0e14}\u{0e25}\u{0e49}\u{0e32}\u{0e19}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (1.005, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e1a}\u{0e32}\u{0e17}\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e2a}\u{0e15}\u{0e32}\u{0e07}\u{0e04}\u{0e4c}"),
+        (100000000000.0, "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}\u{0e41}\u{0e2a}\u{0e19}\u{0e25}\u{0e49}\u{0e32}\u{0e19}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+        (2.999, "\u{0e2a}\u{0e32}\u{0e21}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
+    ] {
+        text(call("BAHTTEXT", vec![n(number)]), expected);
+    }
 }
 
 fn e_na() -> CalcValue {

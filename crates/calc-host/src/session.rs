@@ -4,9 +4,9 @@
 //!
 //! - [`HostSession::dispatch`] takes a [`SkinIntent`]: a cell entry, a multi-cell edit, undo,
 //!   redo, recalculation, the calculation mode, the selection, or a subscription's interest. Each
-//!   edit commits as one transaction ([`crate::dispatch`]) and is one undo step; under
-//!   [`CalcMode::Automatic`] the workbook is recalculated after each commit, an undo's and a
-//!   redo's included. Every intent gets an [`IntentReceipt`] and is logged as an
+//!   edit commits as one transaction ([`crate::dispatch`]) and is one undo step; unless the
+//!   host's calculation mode ([`HostState::calc_mode`]) is [`CalcMode::Manual`], the workbook is
+//!   recalculated after each commit, an undo's and a redo's included. Every intent gets an [`IntentReceipt`] and is logged as an
 //!   [`IntentRecord`], which [`replay`] can dispatch again against another session.
 //! - [`HostSession::subscribe`] registers a [`DeltaSink`] for an [`Interest`] (an area, a sheet,
 //!   or the selection: "viewing is subscribing"). The sink first gets the interest's cells as
@@ -33,10 +33,10 @@ use crate::command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispat
 use crate::entry::{EntryRefusal, interpret_entry};
 use crate::history::{History, Irreversible, Selection, Step, inverse};
 use crate::project::{ProjectedCell, ProjectedValue, ProjectionRequest, project};
-use crate::recalc::{HostProgress, step};
+use crate::recalc::{HostProgress, calculate, step};
 use crate::save::{SaveFailed, save};
 use crate::state::{HostOptions, HostState, OpenFailure};
-use calc_doc::{OpenPolicy, PackageRead, PackageWrite, SavePolicy, SaveReceipt};
+use calc_doc::{CalcMode, OpenPolicy, PackageRead, PackageWrite, SavePolicy, SaveReceipt};
 use calc_doc_model::AuthoredRevision;
 use calc_doc_model::value::{CellKey, GridArea, SheetId};
 use calc_engine::{CalcTick, Unobserved, WorkBudget};
@@ -46,16 +46,6 @@ use std::sync::Arc;
 
 /// The number of undo steps a session keeps (Excel's default).
 pub const UNDO_LIMIT: usize = 100;
-
-/// When the session recalculates.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum CalcMode {
-    /// After every committed transaction.
-    #[default]
-    Automatic,
-    /// Only when asked ([`SkinIntent::Recalculate`]).
-    Manual,
-}
 
 /// What a subscription watches.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -123,21 +113,18 @@ pub type DeltaSink = Box<dyn FnMut(&HostDelta)>;
 pub enum SkinIntent {
     /// Text typed into a cell, read as Excel reads a cell entry ([`crate::interpret_entry`]): a
     /// formula, a value, or, for an empty text, a clear. One transaction, one undo step.
-    EnterCell {
-        at: CellKey,
-        text: String,
-    },
+    EnterCell { at: CellKey, text: String },
     /// Cell edits (values, formulas and clears, over any cells) applied in order as one
     /// transaction and one undo step.
-    Edit {
-        edits: Vec<CellEdit>,
-    },
+    Edit { edits: Vec<CellEdit> },
     /// Takes back the last edit not yet undone, as a new transaction.
     Undo,
     /// Commits again the last edit undone, as a new transaction.
     Redo,
-    /// Recalculates the workbook now.
+    /// Recalculates the workbook now, whatever the calculation mode ([`crate::calculate`]: what
+    /// Excel's Calculate Now does).
     Recalculate,
+    /// Sets the host's calculation mode; leaving manual mode recalculates.
     SetCalcMode(CalcMode),
     /// Moves the selection. A selection interest follows it.
     Select(Selection),
@@ -258,7 +245,6 @@ pub struct HostSession {
     host: HostState,
     history: History,
     selection: Selection,
-    mode: CalcMode,
     subscriptions: BTreeMap<SubscriptionId, Subscription>,
     next_subscription: u64,
     log: Vec<IntentRecord>,
@@ -269,7 +255,7 @@ impl fmt::Debug for HostSession {
         f.debug_struct("HostSession")
             .field("revision", &self.host.revision())
             .field("selection", &self.selection)
-            .field("mode", &self.mode)
+            .field("mode", &self.host.calc_mode())
             .field("subscriptions", &self.subscriptions.len())
             .field("log", &self.log.len())
             .finish()
@@ -277,13 +263,12 @@ impl fmt::Debug for HostSession {
 }
 
 impl HostSession {
-    /// A session over an open host, in automatic calculation mode, with nothing selected.
+    /// A session over an open host, in the host's calculation mode, with nothing selected.
     pub fn new(host: HostState) -> HostSession {
         HostSession {
             host,
             history: History::new(UNDO_LIMIT),
             selection: Selection::default(),
-            mode: CalcMode::default(),
             subscriptions: BTreeMap::new(),
             next_subscription: 1,
             log: Vec::new(),
@@ -308,8 +293,9 @@ impl HostSession {
         &self.selection
     }
 
+    /// The host's calculation mode ([`HostState::calc_mode`]).
     pub fn calc_mode(&self) -> CalcMode {
-        self.mode
+        self.host.calc_mode()
     }
 
     /// The number of steps an undo can take back and a redo can commit again.
@@ -384,12 +370,13 @@ impl HostSession {
             SkinIntent::Undo => self.undo(&mut receipt),
             SkinIntent::Redo => self.redo(&mut receipt),
             SkinIntent::Recalculate => {
+                calculate(&mut self.host);
                 self.recalculate(&mut receipt);
                 Ok(())
             }
             SkinIntent::SetCalcMode(mode) => {
-                self.mode = mode;
-                if mode == CalcMode::Automatic {
+                self.host.options.calc_mode = Some(mode);
+                if mode != CalcMode::Manual {
                     self.recalculate(&mut receipt);
                 }
                 Ok(())
@@ -457,7 +444,7 @@ impl HostSession {
     }
 
     fn after_commit(&mut self, receipt: &mut IntentReceipt) {
-        if self.mode == CalcMode::Automatic {
+        if self.host.calc_mode() != CalcMode::Manual {
             self.recalculate(receipt);
         }
     }
@@ -505,7 +492,7 @@ impl HostSession {
             }
         };
         let cause = match &progress {
-            HostProgress::Current => None,
+            HostProgress::Current | HostProgress::Manual => None,
             HostProgress::Calculating { .. } => unreachable!("the loop runs to the end"),
             HostProgress::Published(delta) => Some(DeltaCause::Recalculated {
                 revision: delta.revision(),

@@ -26,7 +26,7 @@ type W = WorksheetErrorCode;
 const CODE: u16 = 203;
 
 /// The call's environment, or the refusal of a call that has none.
-fn environment<'m>(site: &Site<'m>) -> Step<&'m CalcEnvironment> {
+fn environment<'a>(site: &'a Site<'_>) -> Step<&'a CalcEnvironment> {
     site.environment().ok_or_else(|| site.not_modelled(None))
 }
 

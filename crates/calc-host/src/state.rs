@@ -2,10 +2,13 @@
 //! that revision, owned together.
 
 use crate::recalc::RecalcFailed;
-use calc_doc::{DateSystem, LoadError, LoadedWorkbook, OpenError, OpenPolicy, PackageRead};
+use calc_doc::{
+    CalcMode, DateSystem, LoadError, LoadedWorkbook, OpenError, OpenPolicy, PackageRead,
+};
 use calc_doc_model::value::{CellKey, IdAllocator, NumericMode, SheetId};
 use calc_doc_model::{AuthoredRevision, ModelRoot, SheetEntry};
 use calc_engine::{CacheWithoutFormula, EngineState, RecalcWork};
+use calc_fml::{CalcEnvironment, DateSystem as FmlDateSystem, FormatProfile};
 use std::fmt;
 use std::sync::Arc;
 
@@ -20,6 +23,12 @@ pub struct HostOptions {
     /// is admitted whatever the count, and opening a workbook is bounded only by the
     /// [`OpenPolicy`] limits. `None` admits every edit the engine reserves node IDs for.
     pub formula_cell_budget: Option<usize>,
+    /// The calculation mode [`crate::step`] follows; `None` follows the mode the package's
+    /// `calcPr` declares ([`HostState::calc_mode`]).
+    pub calc_mode: Option<CalcMode>,
+    /// The host's locale profile (decimal and group separators, currency, date order), which
+    /// TEXT, VALUE, FIXED, DOLLAR and number text read as a number use. `None` refuses them.
+    pub locale: Option<FormatProfile>,
 }
 
 /// The calculation context a host's recalculations apply ([`HostState::recalc_context`]), which
@@ -103,6 +112,8 @@ pub struct HostState {
     /// Whether an edit committed since the workbook was opened changed a cell's input or formula.
     /// Until one does, every file cache is the package's result for the inputs it holds.
     pub(crate) inputs_changed_since_open: bool,
+    /// Whether [`crate::calculate`] asked for a recalculation that has not begun yet.
+    pub(crate) calculate_requested: bool,
 }
 
 impl HostState {
@@ -129,7 +140,15 @@ impl HostState {
                 Some((at, cache.clone()))
             })
         });
-        let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        let mut engine =
+            EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        // The 1900 date system whatever the package declares ([`RecalcContext`]), the options'
+        // locale profile, and no clock: NOW, TODAY and a date read without a year are refused.
+        engine.set_environment(Some(CalcEnvironment {
+            date_system: FmlDateSystem::System1900,
+            profile: options.locale,
+            now: None,
+        }));
         Ok(HostState {
             loaded,
             model,
@@ -139,6 +158,7 @@ impl HostState {
             published: None,
             last_failure: None,
             inputs_changed_since_open: false,
+            calculate_requested: false,
         })
     }
 
@@ -155,6 +175,18 @@ impl HostState {
 
     pub fn options(&self) -> &HostOptions {
         &self.options
+    }
+
+    /// The calculation mode [`crate::step`] follows: the host's option, or else the mode the
+    /// package's `calcPr` declares (automatic when it declares none). Under
+    /// [`CalcMode::Manual`] a step begins a recalculation only after [`crate::calculate`] asks for
+    /// one. [`CalcMode::AutomaticExceptTables`] recalculates as [`CalcMode::Automatic`] does: the
+    /// cells of a what-if data table are not calculated in either mode (they are unloaded cells,
+    /// read as not available; data tables are L3's, dc-m3u).
+    pub fn calc_mode(&self) -> CalcMode {
+        self.options
+            .calc_mode
+            .unwrap_or_else(|| self.loaded.calc_mode())
     }
 
     /// The calculation context every recalculation of this host applies: the 1900 date system,

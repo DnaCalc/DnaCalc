@@ -422,12 +422,8 @@ fn rows(_book: &Book) -> Vec<Row> {
             "a range whose end could be a defined name (B), which is not bound",
             "dc-mzk",
         ),
-        not_modelled(
-            "=INDIRECT(\"A1\n\")",
-            refused(0),
-            "a line feed in the text, which Excel reads as a space after the text",
-            "dc-ea6r",
-        ),
+        // A line feed after the text reads as a space: A1 = 10 (dc-0k9).
+        row("=INDIRECT(\"A1\n\")", n(10.0), M),
     ]);
     rows
 }
@@ -705,7 +701,7 @@ pub(super) fn indirect_text_references() {
             vec![b.area("\u{20ac}", "A1", "A1")],
         ),
         ("=INDIRECT(\"\\x\")", vec![]),
-        ("=INDIRECT(\"A1\n\")", vec![]),
+        ("=INDIRECT(\"A1\n\")", vec![b.area(SHEET, "A1", "A1")]),
         ("=INDIRECT(\"data!A1\")", vec![b.area("data", "A1", "A1")]),
         (
             "=INDIRECT(\"'Q2 Data'!C3\")",

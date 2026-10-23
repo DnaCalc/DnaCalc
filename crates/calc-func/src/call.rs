@@ -46,6 +46,19 @@ pub trait CellReader {
         let _ = area;
         None
     }
+
+    /// The calculation environment of the workbook the reader reads (its date system, the
+    /// host's locale profile and clock), for services given none of their own. `None`, the
+    /// default, when the reader cannot say.
+    fn environment(&self) -> Option<CalcEnvironment> {
+        None
+    }
+
+    /// The host facts of the workbook the reader reads, for services given none of their own.
+    /// `None`, the default, when the reader has none.
+    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
+        None
+    }
 }
 
 /// The cells of an area that SUBTOTAL and AGGREGATE leave out, as a [`CellReader`] reports them.
@@ -206,12 +219,19 @@ impl<'s> EvalServices<'s> {
         self
     }
 
-    pub(crate) fn environment(&self) -> Option<&'s CalcEnvironment> {
+    /// The environment the services were given, or else the one the cell reader reports.
+    pub(crate) fn environment(&self) -> Option<CalcEnvironment> {
         self.environment
+            .copied()
+            .or_else(|| self.cells.as_ref().and_then(|cells| cells.environment()))
     }
 
-    pub(crate) fn host(&mut self) -> Option<&mut (dyn HostFacts + 's)> {
-        self.host.as_deref_mut()
+    /// The host facts the services were given, or else the cell reader's.
+    pub(crate) fn host(&mut self) -> Option<&mut dyn HostFacts> {
+        if let Some(host) = self.host.as_deref_mut() {
+            return Some(host);
+        }
+        self.cells.as_deref_mut().and_then(|cells| cells.host_facts())
     }
 
     pub fn numeric_mode(&self) -> &'s NumericMode {

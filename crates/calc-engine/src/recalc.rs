@@ -963,6 +963,45 @@ impl ReferenceReader for Observed<'_, '_> {
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<calc_fml::SubtotalExclusions> {
         self.cells.subtotal_exclusions(area)
     }
+
+    fn environment(&self) -> Option<calc_fml::CalcEnvironment> {
+        self.cells.environment()
+    }
+
+    fn host_facts(&mut self) -> Option<&mut dyn calc_fml::HostFacts> {
+        Some(self)
+    }
+}
+
+/// The engine reader's host facts, with the formula being evaluated as the caller.
+impl calc_fml::HostFacts for Observed<'_, '_> {
+    fn caller(&mut self) -> Option<CellKey> {
+        Some(self.formula)
+    }
+
+    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
+        self.cells.host_facts()?.is_formula(cell)
+    }
+
+    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
+        self.cells.host_facts()?.formula_text(cell)
+    }
+
+    fn sheet_index(&mut self, sheet: calc_value::SheetId) -> Option<u32> {
+        self.cells.host_facts()?.sheet_index(sheet)
+    }
+
+    fn sheet_named(&mut self, name: &str) -> Option<calc_value::SheetId> {
+        self.cells.host_facts()?.sheet_named(name)
+    }
+
+    fn sheet_name(&mut self, sheet: calc_value::SheetId) -> Option<String> {
+        self.cells.host_facts()?.sheet_name(sheet)
+    }
+
+    fn sheet_count(&mut self) -> Option<u32> {
+        self.cells.host_facts()?.sheet_count()
+    }
 }
 
 /// The instrument on the evaluation route: CalcFml's evaluator reports each call it runs, each

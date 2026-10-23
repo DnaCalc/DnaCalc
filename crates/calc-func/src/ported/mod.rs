@@ -98,3 +98,15 @@ pub(crate) mod text_more;
 pub(crate) mod tanh;
 pub(crate) mod variance_common;
 pub(crate) mod excel_numeric;
+// F3 (dc-728): the financial kernels.
+pub(crate) mod amor_depreciation_family;
+pub(crate) mod bond_core_family;
+pub(crate) mod coupon_family;
+pub(crate) mod day_count_common;
+pub(crate) mod discount_bill_yearfrac_family;
+pub(crate) mod odd_bond_family;
+pub(crate) mod cashflow_rate_family;
+pub(crate) mod cumulative_finance_family;
+pub(crate) mod depreciation_family;
+pub(crate) mod dollar_fraction_family;
+pub(crate) mod financial_time_value_family;

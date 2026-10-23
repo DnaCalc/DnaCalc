@@ -66,17 +66,17 @@ pub use project::{
     ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,
     StaleValue, project,
 };
-pub use recalc::{HostProgress, RecalcFailed, step};
+pub use recalc::{HostProgress, RecalcFailed, calculate, step};
 pub use save::{SaveFailed, save};
 pub use session::{
-    CalcMode, DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, IntentError,
+    DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, IntentError,
     IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId, UNDO_LIMIT,
     replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
 pub use calc_doc::{
-    CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
+    CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
 };
 pub use calc_doc_model::value;
@@ -88,4 +88,5 @@ pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,
     RecalcFailure, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
 };
+pub use calc_fml::FormatProfile;
 pub use calc_fml::reference::CellRun;

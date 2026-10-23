@@ -2,7 +2,8 @@
 //! [`CellRun`]s, and [`read_cells`] asks it for one area and checks that the runs account for
 //! every cell exactly once.
 
-use calc_func::SubtotalExclusions;
+use calc_func::locale::CalcEnvironment;
+use calc_func::{HostFacts, SubtotalExclusions};
 use calc_func::value::{CalcValue, CellKey, GridArea};
 use std::ops::ControlFlow;
 
@@ -29,6 +30,19 @@ pub trait ReferenceReader {
     /// tell, and those functions refuse a reference rather than count cells Excel leaves out.
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
         let _ = area;
+        None
+    }
+
+    /// The calculation environment of the workbook (calc-func's
+    /// [`calc_func::CellReader::environment`]): its date system and the host's locale profile and
+    /// clock. The default, `None`, refuses the date, time and number-format functions.
+    fn environment(&self) -> Option<CalcEnvironment> {
+        None
+    }
+
+    /// The workbook's host facts (calc-func's [`calc_func::HostFacts`]) for the formula being
+    /// evaluated. The default, `None`, refuses ISFORMULA, FORMULATEXT, SHEET and the like.
+    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
         None
     }
 }

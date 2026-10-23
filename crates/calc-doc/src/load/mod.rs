@@ -10,8 +10,9 @@
 //! is allocated for the extent the cells span.
 //!
 //! Of the workbook part's other elements, the loaded workbook carries the date system its
-//! `workbookPr` names ([`DateSystem`]) and its `definedName` elements: a block's locator becomes
-//! the block's anchor, and every other defined name is counted and not loaded. `calcPr` and every
+//! `workbookPr` names ([`DateSystem`]), the calculation mode `calcPr`'s `calcMode` names
+//! ([`CalcMode`]), and its `definedName` elements: a block's locator becomes the block's anchor,
+//! and every other defined name is counted and not loaded. `calcPr`'s other attributes and every
 //! other element of the workbook part are not read.
 //!
 //! The package's DNA view manifest, when it holds one, is read into the model's skin layout
@@ -43,8 +44,9 @@ use crate::save::{DocumentSnapshot, SaveRefusal};
 use crate::xml::{XmlElement, XmlEvent, XmlPart, XmlReader};
 use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId};
 use calc_doc_model::{
-    AuthoredRevision, Definitions, FileCached, LocatorName, ModelRoot, NameScope, SheetEntry,
-    SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, StyleTable, WorkbookOp,
+    AuthoredRevision, Definitions, FileCached, LocatorName, ModelRoot, NameScope, RowHidden,
+    SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, StyleTable,
+    WorkbookOp,
 };
 use manifest::{DefinedName, ManifestState};
 use std::collections::{BTreeMap, BTreeSet};
@@ -200,6 +202,19 @@ pub enum DateSystem {
     Date1904,
 }
 
+/// How a workbook asks to be recalculated, from the `calcMode` attribute of its workbook part's
+/// `calcPr` element.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum CalcMode {
+    /// After every change: `calcMode` absent or `auto`.
+    #[default]
+    Automatic,
+    /// After every change, except what-if data tables: `autoNoTable`.
+    AutomaticExceptTables,
+    /// Only when asked: `manual`.
+    Manual,
+}
+
 /// A loaded workbook: the model root of its sheets, their cells and its skin layout at the
 /// document's first revision, each sheet's records beside it, and the package they were read
 /// from.
@@ -212,6 +227,7 @@ pub struct LoadedWorkbook {
     cell_formats: u32,
     styles: Arc<StyleTable>,
     date_system: DateSystem,
+    calc_mode: CalcMode,
     defined_names_not_loaded: usize,
     manifest: ManifestState,
     layout_warnings: Vec<LayoutWarning>,
@@ -253,6 +269,11 @@ impl LoadedWorkbook {
     /// The date system the workbook part names.
     pub fn date_system(&self) -> DateSystem {
         self.date_system
+    }
+
+    /// The calculation mode the workbook part's `calcPr` names.
+    pub fn calc_mode(&self) -> CalcMode {
+        self.calc_mode
     }
 
     /// The number of defined names (`definedName` elements) the workbook part holds that are not
@@ -533,6 +554,7 @@ struct WorkbookPart {
     /// The sheets it declares, in workbook order.
     sheets: Vec<DeclaredSheet>,
     date_system: DateSystem,
+    calc_mode: CalcMode,
     /// Its `definedName` elements, in order.
     defined_names: Vec<DefinedName>,
 }
@@ -565,6 +587,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut names: BTreeSet<Vec<u16>> = BTreeSet::new();
     let mut keys = BTreeSet::new();
     let mut date_system = None;
+    let mut calc_mode = CalcMode::Automatic;
     let mut defined_names = Vec::new();
     loop {
         let element = match events.next()? {
@@ -587,6 +610,16 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                     return Err(events.invalid("a workbookPr whose date1904 is not a boolean"));
                 }
             });
+            continue;
+        }
+        if element.name.is(MAIN_NAMESPACE, "calcPr") {
+            events.skip()?;
+            calc_mode = match element.attribute("calcMode").map(str::trim) {
+                None | Some("auto") => CalcMode::Automatic,
+                Some("autoNoTable") => CalcMode::AutomaticExceptTables,
+                Some("manual") => CalcMode::Manual,
+                Some(_) => return Err(events.invalid("a calcPr whose calcMode is not a mode")),
+            };
             continue;
         }
         if element.name.is(MAIN_NAMESPACE, "definedNames") {
@@ -700,6 +733,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     Ok(WorkbookPart {
         sheets: declared,
         date_system: date_system.unwrap_or(DateSystem::Date1900),
+        calc_mode,
         defined_names,
     })
 }
@@ -795,6 +829,7 @@ pub fn load(
     let WorkbookPart {
         sheets: declared,
         date_system,
+        calc_mode,
         defined_names,
     } = read_workbook(package, &workbook)?;
     let shared_strings = match workbook_part_of(package, &workbook, SHARED_STRINGS)? {
@@ -831,6 +866,7 @@ pub fn load(
     let mut cells = Vec::new();
     let mut sheets = Vec::with_capacity(declared.len());
     let (mut arrays, mut unloaded, mut tables) = (Vec::new(), Vec::new(), Vec::new());
+    let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
     for (declared, &id) in declared.iter().zip(&issued) {
         let loaded = sheet::load_sheet(package, &context, id, &declared.part)
             .and_then(|loaded| Ok((loaded, tables::read_tables(package, &declared.part, id)?)));
@@ -838,6 +874,12 @@ pub fn load(
             Ok((loaded, sheet_tables)) => {
                 cells.extend(loaded.inputs);
                 arrays.extend(loaded.arrays);
+                hidden_rows.extend(
+                    loaded
+                        .hidden_rows
+                        .iter()
+                        .map(|row| (id, *row, loaded.auto_filter)),
+                );
                 unloaded.extend(loaded.unloaded);
                 tables.extend(sheet_tables);
                 sheets.push(LoadedSheet {
@@ -892,7 +934,28 @@ pub fn load(
             })
         })
         .collect();
-    let definitions = Definitions::new(arrays, names, tables, unloaded);
+    // A hidden row below the header of the sheet's filter range or of a table's (whose filter the
+    // table part holds) is taken as hidden by the filter; any other hidden row as hidden by hand.
+    let hidden_rows: Vec<(SheetId, u32, RowHidden)> = hidden_rows
+        .into_iter()
+        .map(|(sheet, row, auto_filter)| {
+            let in_filter = auto_filter
+                .is_some_and(|(top, _, bottom, _)| row > top && row <= bottom)
+                || tables.iter().any(|table: &calc_doc_model::Table| {
+                    table.sheet == sheet
+                        && row > table.area.first().row()
+                        && row <= table.area.last().row()
+                });
+            let why = if in_filter {
+                RowHidden::Filtered
+            } else {
+                RowHidden::Manual
+            };
+            (sheet, row, why)
+        })
+        .collect();
+    let definitions =
+        Definitions::new(arrays, names, tables, unloaded).with_hidden_rows(hidden_rows);
     let entries = declared
         .into_iter()
         .zip(&issued)
@@ -918,6 +981,7 @@ pub fn load(
         cell_formats,
         styles: Arc::new(styles),
         date_system,
+        calc_mode,
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
         manifest: layout.state,
         layout_warnings: layout.warnings,

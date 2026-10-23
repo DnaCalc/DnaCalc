@@ -21,8 +21,8 @@
 //!   cells are materialized. Each cell's style index and each formula's shared formula group and
 //!   cached result are kept beside the model; a cached result is [`model::FileCached`] with the
 //!   identity of the part it was read from. The loaded workbook also carries its
-//!   [`DateSystem`] and the number of defined names it holds and does not load; `calcPr` is not
-//!   read. A cell or formula it does not read is a typed refusal ([`LoadError`]). The package's
+//!   [`DateSystem`], its [`CalcMode`] (`calcPr`'s `calcMode`; no other `calcPr` attribute is read)
+//!   and the number of defined names it holds and does not load. A cell or formula it does not read is a typed refusal ([`LoadError`]). The package's
 //!   DNA view manifest, one custom XML part, is read into the model's skin layout
 //!   ([`model::SkinLayout`]): each block with its opaque ID, its kind and its locator, a hidden,
 //!   workbook-scoped defined name named `_dna.block.` and 32 hex digits whose reference becomes
@@ -77,8 +77,8 @@ pub use calc_doc_model as model;
 pub use edit::{EditError, PreparedEdit, prepare_edit};
 pub use error::{OpenError, PartReadError, UnsafeName};
 pub use load::{
-    CellError, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LayoutWarning, LoadError,
-    LoadedSheet, LoadedWorkbook, SharedFormula, load,
+    CalcMode, CellError, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LayoutWarning,
+    LoadError, LoadedSheet, LoadedWorkbook, SharedFormula, load,
 };
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,

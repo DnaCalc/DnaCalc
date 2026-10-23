@@ -31,10 +31,9 @@ use std::ops::ControlFlow;
 
 /// The prefix_metadata cells the host refuses, each with the reason and the bead that owns it:
 /// every other formula cell of the workbook must match Excel, the INDIRECT cells A26 and B26
-/// included since the engine binds INDIRECT's text against the workbook's sheets (dc-0k9).
-/// ISFORMULA asks whether a cell holds a formula, a host fact the cell reader does not supply
-/// (dc-ip6). Unprefixed, ISFORMULA is #NAME? on load and computes.
-const REFUSED: [(&str, &str); 1] = [("A32", "ISFORMULA, a host fact (dc-ip6)")];
+/// included since the engine binds INDIRECT's text against the workbook's sheets (dc-0k9), and
+/// the ISFORMULA cell A32 since the engine supplies host facts (dc-ip6). No cell is refused.
+const REFUSED: [(&str, &str); 0] = [];
 use std::sync::Arc;
 
 const CASE: &str = "dc_xrxb__unprefixed_file_spelling_gives_name";
@@ -188,7 +187,7 @@ pub fn unprefixed_file_spelling_gives_name() -> Vec<String> {
     loop {
         match step(&mut host, WorkBudget::UNLIMITED, &mut evaluations) {
             HostProgress::Calculating { .. } => {}
-            HostProgress::Published(_) | HostProgress::Current => break,
+            HostProgress::Published(_) | HostProgress::Current | HostProgress::Manual => break,
             HostProgress::Failed(failure) => panic!("the recalculation failed: {failure}"),
         }
     }
