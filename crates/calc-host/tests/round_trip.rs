@@ -17,9 +17,9 @@ use calc_host::{
     CachedValue, CalcMode, CellEdit, CellInput, CellText, DeltaCause, DeltaMirror, EntryRefusal,
     FiniteNumber, FormulaText, HostCommand, HostDelta, HostOptions, HostProgress, HostSession,
     HostState, IntentError, IntentReceipt, Interest, Irreversible, IrreversibleReason,
-    MemorySource, NotModeled, OpenPolicy, PackageRead, ProjectedCell, ProjectedValue,
-    ProjectionRequest, SavePolicy, Selection, SkinIntent, SubscriptionId, Unobserved, WorkBudget,
-    dispatch, project, replay, save, step,
+    MemorySource, OpenPolicy, PackageRead, ProjectedCell, ProjectedValue, ProjectionRequest,
+    SavePolicy, Selection, SkinIntent, SubscriptionId, Unobserved, WorkBudget, dispatch, project,
+    replay, save, step,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -111,9 +111,7 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
     let mut host = open(&fixture());
     let calc = sheet(&host, "Calc");
     recalculate(&mut host);
-    // The rest of the workbook calculates. The array at A1:B3 is SEQUENCE(3,2), which the
-    // catalogue does not hold yet (F3, dc-728): its anchor is refused, and the cells it fills read
-    // as not available.
+    // The workbook calculates, its arrays included.
     assert_eq!(
         calculated(&host, at(calc, "U1")),
         Some(CalcValue::number(2.0))
@@ -122,17 +120,15 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
         calculated(&host, at(calc, "U3")),
         Some(CalcValue::number(21.0))
     );
-    assert!(matches!(
-        value(&host, at(calc, "A1")),
-        ProjectedValue::NotModeled {
-            refusal: NotModeled::Compile(_) | NotModeled::Evaluation(_),
-            ..
-        }
-    ));
-    assert!(matches!(
-        value(&host, at(calc, "B2")),
-        ProjectedValue::NotModeled { .. }
-    ));
+    // SEQUENCE(3,2) at A1 spills 1 to 6 over A1:B3 (F3 and L2): B2 is 4.
+    assert_eq!(
+        calculated(&host, at(calc, "A1")),
+        Some(CalcValue::number(1.0))
+    );
+    assert_eq!(
+        calculated(&host, at(calc, "B2")),
+        Some(CalcValue::number(4.0))
+    );
     // Edit an input, recalculate, save.
     edit(
         &mut host,
@@ -150,8 +146,8 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
     let receipt = save(&host, &SavePolicy::default(), &mut saved).expect("saved");
     assert!(receipt.values_written > 0, "{receipt:?}");
     let xml = part_text(&saved, "xl/worksheets/sheet2.xml");
-    // Calculated cells carry the engine's values, a text with t="str"; the refused anchor has
-    // none, which Excel calculates on open because a full calculation is asked for (below).
+    // Calculated cells carry the engine's values, a text with t="str"; an array's anchor and the
+    // cells its spill fills carry theirs too.
     assert!(
         xml.contains(r#"<c r="U3"><f>U2*3</f><v>24</v></c>"#),
         "{xml}"
@@ -161,13 +157,14 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
         "{xml}"
     );
     assert!(
-        xml.contains(r#"<c r="A1" cm="1"><f t="array" ref="A1:B3">_xlfn.SEQUENCE(3,2)</f></c>"#),
+        xml.contains(
+            r#"<c r="A1" cm="1"><f t="array" ref="A1:B3">_xlfn.SEQUENCE(3,2)</f><v>1</v></c>"#
+        ),
         "{xml}"
     );
-    // The refused arrays (SEQUENCE, SORT and FILTER wait on F3, dc-728) are saved without a
-    // value, which Excel does not calculate on open (calc-doc's tests/fixtures/d1/
-    // excel-open.json, array-no-value), so a full calculation is asked for.
-    assert!(part_text(&saved, "xl/workbook.xml").contains(r#"fullCalcOnLoad="1""#));
+    assert!(xml.contains(r#"<c r="B2"><v>4</v></c>"#), "{xml}");
+    // Every array is calculated and saved with its values, so no full calculation is asked for.
+    assert!(!part_text(&saved, "xl/workbook.xml").contains("fullCalcOnLoad"));
     let reopened = open(&saved);
     assert!(matches!(
         value(&reopened, at(sheet(&reopened, "Calc"), "U3")),
@@ -187,7 +184,7 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
 fn d1_round_trip__readers_of_a_removed_array_recalculate() {
     let mut host = open(&fixture());
     let calc = sheet(&host, "Calc");
-    // Z1 reads B2, a cell the array at A1:B3 fills: not available while the array stands.
+    // Z1 reads B2, a cell the array at A1:B3 (SEQUENCE(3,2)) fills: 4+1.
     edit(
         &mut host,
         vec![CellEdit::Set {
@@ -196,10 +193,10 @@ fn d1_round_trip__readers_of_a_removed_array_recalculate() {
         }],
     );
     recalculate(&mut host);
-    assert!(matches!(
-        value(&host, at(calc, "Z1")),
-        ProjectedValue::NotModeled { .. }
-    ));
+    assert_eq!(
+        calculated(&host, at(calc, "Z1")),
+        Some(CalcValue::number(5.0))
+    );
     // Replacing the anchor removes the array: B2 is empty from then on, and Z1 recalculates.
     edit(
         &mut host,
@@ -670,8 +667,12 @@ fn d2_m1_proof__open_edit_undo_recalculate_save_reopen() {
         assert!(f1.contains(expected), "{expected} in {f1}");
     }
     let metadata = part_text(&blocked, "xl/metadata.xml");
+    // Four value-metadata entries (three while SEQUENCE and FILTER were refused; they are
+    // calculated now, F3 and L2, so H1's #SPILL! and J1's #CALC! are written as rich errors too).
+    // Excel 16.0.20430 opened this package through COM on 2026-10-23 and showed #SPILL! at F1
+    // and H1 and #CALC! at J1.
     assert!(
-        metadata.contains(r#"<valueMetadata count="3">"#),
+        metadata.contains(r#"<valueMetadata count="4">"#),
         "{metadata}"
     );
 }
@@ -686,10 +687,9 @@ fn save_and_check_reopen(session: &HostSession, sheets: &[SheetId], name: &str) 
         .save(&SavePolicy::default(), &mut saved)
         .expect("saved");
     assert!(receipt.values_written > 0, "{receipt:?}");
-    // The fixture's refused arrays (SEQUENCE, SORT and FILTER wait on F3, dc-728) are saved
-    // without a value, which Excel does not calculate on open, so a full calculation is asked
-    // for (calc-doc's tests/fixtures/d1/excel-open.json, array-no-value).
-    assert!(part_text(&saved, "xl/workbook.xml").contains(r#"fullCalcOnLoad="1""#));
+    // The fixture's arrays (SEQUENCE, SORT and FILTER) are calculated and saved with their
+    // values, so no full calculation is asked for.
+    assert!(!part_text(&saved, "xl/workbook.xml").contains("fullCalcOnLoad"));
     let mut reopened = open(&saved);
     let mut cells = Vec::new();
     let mut reopened_cells = Vec::new();
