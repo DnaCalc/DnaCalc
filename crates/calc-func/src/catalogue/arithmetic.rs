@@ -91,10 +91,14 @@ fn operands(site: &Site<'_>, arguments: &[CalcValue]) -> Step<(f64, f64)> {
     Ok((a, b))
 }
 
-/// `x ^ y` where its value is decided without a power algorithm: the domain errors (0 to a
-/// negative power is #DIV/0!; 0 to the power 0 and a negative base to a non-integer power are
-/// #NUM!) and the exponents whose result is exact or a single rounding (0, 1, 2 and -1, a base of
-/// 0, 1 or -1). Every other power needs a pinned power implementation, which is not modelled.
+/// `x ^ y`. The cases decided without a power algorithm keep their measured rule: 0 to a
+/// negative power is #DIV/0! and 0 to the power 0 is #NUM!; the exponents 0, 1, 2 and -1 and the
+/// bases 0, 1 and -1 give their exact or singly rounded result. Every other power, a negative
+/// base with a fractional exponent included, is OxFunc's Excel power kernel
+/// (ported/power_fn.rs, OxFunc 6fca3518): binary exponentiation with x87-staged products for an
+/// integer exponent, a decimal scale for a base of 10, `exp(y ln x)` on the x87 backend for a
+/// fractional one, and Excel's real-root rule for a negative base (accepted when `1/y`, read to
+/// 15 significant digits, is an odd integer; #NUM! otherwise). That kernel is an arithmetic site.
 pub(super) fn raise(site: &Site<'_>, x: f64, y: f64) -> Step<f64> {
     if x == 0.0 {
         return if y == 0.0 {
@@ -106,7 +110,7 @@ pub(super) fn raise(site: &Site<'_>, x: f64, y: f64) -> Step<f64> {
         };
     }
     if x < 0.0 && y.fract() != 0.0 {
-        return Err(Exit::Error(WorksheetErrorCode::Num));
+        return power_algorithm(site, x, y);
     }
     if y == 0.0 || x == 1.0 {
         Ok(1.0)
@@ -115,12 +119,21 @@ pub(super) fn raise(site: &Site<'_>, x: f64, y: f64) -> Step<f64> {
     } else if x == -1.0 {
         Ok(if y % 2.0 == 0.0 { 1.0 } else { -1.0 })
     } else if y == 2.0 {
-        site.multiply(x, x)
+        // A square below the normal range is +0, as Excel gives it (1E-160^2 in the catalogue
+        // oracle's sheet f1_power), and as the power kernel flushes it.
+        let square = site.multiply(x, x)?;
+        Ok(if square.is_subnormal() { 0.0 } else { square })
     } else if y == -1.0 {
         site.divide(1.0, x)
     } else {
-        Err(site.not_modelled(None))
+        power_algorithm(site, x, y)
     }
+}
+
+/// The powers that need a power algorithm: OxFunc's Excel power kernel, at one arithmetic site.
+fn power_algorithm(site: &Site<'_>, x: f64, y: f64) -> Step<f64> {
+    site.binary64()?;
+    crate::ported::power_fn::power_kernel(x, y).map_err(Exit::Error)
 }
 
 /// `-x`: the sign changes exactly, so no rounding takes place.

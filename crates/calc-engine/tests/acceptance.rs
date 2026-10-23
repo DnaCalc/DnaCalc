@@ -2121,7 +2121,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(1, 1), formula("Data!A1*Data!A2")),
             set(c(2, 1), formula("A1+Data!A1")),
             set(c(3, 1), formula("IF(A2>10,\"big\",\"small\")")),
-            set(c(4, 1), formula("2^0.5")),
+            set(c(4, 1), formula("1E-300*1E-10")),
             set(c(5, 1), formula("A4+1")),
             set(c(6, 1), formula("SUM(Data:Calc!A1)")),
             set(c(7, 1), unpaired),
@@ -2742,8 +2742,8 @@ const QGUW_CONTEXT: &str = "calc-engine;numeric_mode=fast";
 
 /// The dc-qguw workbook: Data!A1 = 3 and Data!A2 = 4, and on Calc three formulas whose file caches
 /// hold the answers (hand-derived): A1 `=Data!A1*Data!A2` (3 * 4 = 12), A2 `=-Data!A1+10`
-/// (-3 + 10 = 7, a final sum whose near-zero check runs) and A3 `=2^0.5` (the binary64 nearest
-/// the square root of 2, 1.4142135623730951, which calc-func does not compute: its evaluation is
+/// (-3 + 10 = 7, a final sum whose near-zero check runs) and A3 `=1E-300*1E-10` (a product below
+/// the normal range, whose cache holds 0, which calc-func does not compute: its evaluation is
 /// refused). The engine state is opened with those caches.
 struct QguwBook {
     data: SheetId,
@@ -2765,7 +2765,7 @@ impl QguwBook {
                 set(key(data, 2, 1), number(4.0)),
                 set(key(calc, 1, 1), formula("Data!A1*Data!A2")),
                 set(key(calc, 2, 1), formula("-Data!A1+10")),
-                set(key(calc, 3, 1), formula("2^0.5")),
+                set(key(calc, 3, 1), formula("1E-300*1E-10")),
             ],
         );
         let root = ModelRoot::new(rev(0), sheets)
@@ -2788,7 +2788,7 @@ impl QguwBook {
             [
                 (key(calc, 1, 1), cache(12.0)),
                 (key(calc, 2, 1), cache(7.0)),
-                (key(calc, 3, 1), cache(std::f64::consts::SQRT_2)),
+                (key(calc, 3, 1), cache(0.0)),
             ],
         )
         .unwrap();
@@ -2828,7 +2828,7 @@ impl QguwBook {
                {{"sheet": "Calc", "row": 3, "column": 1, "kind": "ordinary"}}],
   "observations": [{{"sheet": "Calc", "row": 1, "column": 1, "unknown_freshness_cache": {{"t": "n", "v": "12"}}}},
                    {{"sheet": "Calc", "row": 2, "column": 1, "unknown_freshness_cache": {{"t": "n", "v": "7"}}}},
-                   {{"sheet": "Calc", "row": 3, "column": 1, "unknown_freshness_cache": {{"t": "n", "v": "1.4142135623730951"}}}}]}}
+                   {{"sheet": "Calc", "row": 3, "column": 1, "unknown_freshness_cache": {{"t": "n", "v": "0"}}}}]}}
 "#
         )
         .into_bytes()
@@ -3051,7 +3051,7 @@ fn qguw_write(case: &str, documents: &[(&str, &[u8])]) {
 fn dc_qguw__fault_injection() {
     const CASE: &str = "dc_qguw__fault_injection";
     note!(
-        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived (3*4 = 12, -3+10 = 7, 2^0.5 = 1.4142135623730951); no Excel ran, and agreement with Excel is infra-m1.3's round trip"
+        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived (3*4 = 12, -3+10 = 7, 1E-300*1E-10 shown as 0); no Excel ran, and agreement with Excel is infra-m1.3's round trip"
     );
     let mut book = QguwBook::new();
     let capture = book.capture();
@@ -3134,7 +3134,7 @@ fn dc_qguw__fault_injection() {
     assert_eq!(delta.tick().get(), 1);
     // What the evaluator reported, in the order of evaluation: one evaluation per formula, each
     // at revision 1 and tick 1 under Fast. A3's evaluation was refused (calc-func does not compute
-    // a fractional power), and the engine published no value for it.
+    // a product below the normal range), and the engine published no value for it.
     assert_eq!(
         qguw_evaluations(&instrument),
         [
@@ -3157,7 +3157,7 @@ fn dc_qguw__fault_injection() {
             "R2C1 Infix +",
             "R2C1 Prefix - *",
             "R2C1 Prefix - *",
-            "R3C1 Infix ^",
+            "R3C1 Infix *",
         ]
     );
     let published = book.published();
@@ -3230,7 +3230,7 @@ fn dc_qguw__published_value_differs() {
             if at == a1 {
                 (at, provenance, Some(13.0))
             } else if at == a3 {
-                (at, calculated_claim(1, 1), Some(std::f64::consts::SQRT_2))
+                (at, calculated_claim(1, 1), Some(0.0))
             } else {
                 (at, provenance, value)
             }

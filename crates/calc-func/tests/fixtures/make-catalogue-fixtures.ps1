@@ -1,16 +1,33 @@
-# The generator of F1's (dc-8dq) workbook fixtures under crates/calc-func/tests/fixtures/.
+# The generator of the catalogue oracle under crates/calc-func/tests/fixtures/catalogue/.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File make-f1-fixtures.ps1 -OutDir <directory>
+#   powershell -NoProfile -ExecutionPolicy Bypass -File make-catalogue-fixtures.ps1 -OutDir <directory>
 #
-# writes <directory>/f1_prefix/oracle.xlsx. Run with this directory as -OutDir it rewrites the
+# writes <directory>/catalogue/oracle.xlsx. Run with this directory as -OutDir it rewrites the
 # committed fixture; the acceptance case dc_xrxb__prefix_metadata_matches_excel runs it into a
 # fresh directory on Windows and compares its output with the committed workbook byte for byte.
 #
-# f1_prefix/oracle.xlsx is the workbook the Excel capture of F1's file prefixes reads
-# (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/f1_prefix/oracle.xlsx --case
-# f1__prefix_metadata ...`), which also keeps the package Excel saves from it. It holds the rows
-# of the functions F1 catalogues, in the layout of dc_xrxb/oracle.xlsx (see make-fixtures.ps1),
-# so that make-fixtures.ps1, which other lanes extend, stays as it is.
+# catalogue/oracle.xlsx is the one oracle workbook of the functions the catalogue adds from the
+# bulk port on (F1 dc-8dq first; F2 and the later packages append their own sections), which the
+# Excel capture reads (`cargo xtask capture --fixture
+# crates/calc-func/tests/fixtures/catalogue/oracle.xlsx --case catalogue__oracle --out
+# crates/calc-func/tests/captures/catalogue/oracle.capture.json --work-dir <dir>`, keeping
+# <dir>/out/oracle.xlsx as captures/catalogue/oracle.saved.xlsx). The functions catalogued before
+# the bulk port keep their rows in dc_xrxb/oracle.xlsx (make-fixtures.ps1).
+#
+# Its sheets:
+# - Data: the constant cells the formulas read (A1:A3 the numbers 1, 5 and 3; B1:B3 the texts x,
+#   y and x; C1 #N/A; E1:E3 the numbers 1, 2 and 3).
+# - prefix_metadata: one row per catalogued function, in the layout of dc_xrxb/oracle.xlsx: in
+#   column A its call written with the prefix _xlfn., in column B the same call without one. The
+#   rows are the lines of the package sections' prefix files, in the order of $PrefixSections,
+#   each file's lines in order; the case reads the function from the text before the call's '('.
+# - one sheet per entry of $FormulaSheets: its file's lines, one formula per row of column D
+#   from row 1 (written without '='), for rows that are not one call per function (operators,
+#   edge cases). The corpus comparison judges them with every other cell.
+#
+# A package adds its own section: a line adding its prefix file to $PrefixSections, and lines
+# adding its sheets to $FormulaSheets, each with its own file, after the sections above it; it does
+# not edit another section's files, so the rows above its own keep their places.
 #
 # The package writer below is make-fixtures.ps1's, copied: a minimal SpreadsheetML package written
 # as text, every part stored with the timestamp 1980-01-01 00:00, so the bytes depend on nothing
@@ -217,21 +234,30 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
 
 # --- cfunc_m1_2/oracle.xlsx ---------------------------------------------------------------------
 
-# --- f1_prefix/oracle.xlsx ----------------------------------------------------------------------
+# --- catalogue/oracle.xlsx ----------------------------------------------------------------------
 
-# Sheet Data: the constant cells the formulas read (A1:A3 the numbers 1, 5 and 3; B1:B3 the texts
-# x, y and x; C1 #N/A; E1:E3 the numbers 1, 2 and 3).
-# Sheet prefix_metadata: one row per named function F1 catalogues, in name order, each with one
-# call of it over literals and Data's cells: in column A the call written with the prefix _xlfn.,
-# in column B the same call without a prefix.
+# The sections, in order. Each package appends its own lines here and nowhere else.
+$PrefixSections = @()
+$FormulaSheets = @()
+# F1 dc-8dq: math, statistics and engineering; the ^ and POWER edge cases.
+$PrefixSections += 'prefix-f1.txt'
+$FormulaSheets += , @('f1_power', 'sheet-f1_power.txt')
+
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
     (New-Text 'B1' 'x'), (New-Text 'B2' 'y'), (New-Text 'B3' 'x'),
     (New-Error 'C1' '#N/A'),
     (New-Number 'E1' '1'), (New-Number 'E2' '2'), (New-Number 'E3' '3')
 )
-$prefixCalls = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'f1_prefix/calls.txt') |
-    Where-Object { $_ -ne '' }
+
+# The non-empty lines of a section file beside this script.
+function Get-SectionLines([string]$Name) {
+    return @(Get-Content -LiteralPath (Join-Path (Join-Path $PSScriptRoot 'catalogue') $Name) |
+        Where-Object { $_ -ne '' })
+}
+
+$prefixCalls = @()
+foreach ($section in $PrefixSections) { $prefixCalls += Get-SectionLines $section }
 
 # The sheet prefix_metadata: row n holds call n of $Calls, with the prefix _xlfn. in column A and
 # without it in column B.
@@ -246,7 +272,11 @@ function New-PrefixSheet($Calls) {
     return $text + '</sheetData></worksheet>'
 }
 
-Write-Workbook (Join-Path $OutDir 'f1_prefix/oracle.xlsx') @(
+$sheets = @(
     @('Data', (New-OracleSheet $prefixInputs @())),
     @('prefix_metadata', (New-PrefixSheet $prefixCalls))
 )
+foreach ($sheet in $FormulaSheets) {
+    $sheets += , @($sheet[0], (New-OracleSheet @() (Get-SectionLines $sheet[1])))
+}
+Write-Workbook (Join-Path $OutDir 'catalogue/oracle.xlsx') $sheets

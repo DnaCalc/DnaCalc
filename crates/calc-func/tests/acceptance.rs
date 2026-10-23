@@ -1531,9 +1531,10 @@ fn cfunc_m1_1__unknown_function() {
 //
 // The retained witness `migration/witnesses/w111-extended-power.json` holds Excel's results of the
 // POWER function. The mixed-operand case applies it to the ^ operator, which assumes that ^
-// computes POWER. Of the oracle workbook's ^ rows that ^ refuses (=2^3, =10^-2 and =2^0.5), the
-// witness holds the arguments of =10^-2 alone; the case compares Excel's captured value of each
-// such row with the witness's row for its arguments.
+// computes POWER. Of the oracle workbook's ^ rows that need a power algorithm (=2^3, =10^-2 and
+// =2^0.5), which ^ computes by OxFunc's power kernel since F1 (dc-8dq), the witness holds the
+// arguments of =10^-2 alone; the case compares Excel's captured value of each such row with the
+// witness's row for its arguments.
 
 /// The oracle workbook, as committed (its bytes are kept across checkouts by `.gitattributes`).
 const ORACLE_WORKBOOK: &[u8] = include_bytes!("fixtures/cfunc_m1_2/oracle.xlsx");
@@ -1895,10 +1896,6 @@ const COLLATION: Owner = Owner {
 const NEAR_ZERO: Owner = Owner {
     bead: "dc-r4ci",
     behaviour: "the near-zero adjustment of + and - by the formula's final operation",
-};
-const POWER_ALGORITHM: Owner = Owner {
-    bead: "cfunc-m3.3, cfunc-m3.23",
-    behaviour: "^ through a pinned power implementation",
 };
 /// Text that holds a digit and no word that rules out a number, or that holds a character beyond
 /// printable ASCII (dc-e00t's verdict decides the rest), read as a number or a logical.
@@ -3103,33 +3100,13 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [num("2.2250738585073E-308"), num("2")],
         Refused(None)
     );
-    // ^ computes only the powers that need no power algorithm; the others are refused.
+    // ^ computes the powers that need a power algorithm by OxFunc's Excel power kernel (F1,
+    // dc-8dq); Excel's capture of these rows is the check.
     row!(r, s, POWER, [txt("2"), num("2")], N(4.0));
     row!(r, s, POWER, [logical(true), num("2")], N(1.0));
-    owned_by!(
-        r,
-        s,
-        POWER_ALGORITHM,
-        POWER,
-        [num("2"), num("3")],
-        Refused(None)
-    );
-    owned_by!(
-        r,
-        s,
-        POWER_ALGORITHM,
-        POWER,
-        [num("10"), num("-2")],
-        Refused(None)
-    );
-    owned_by!(
-        r,
-        s,
-        POWER_ALGORITHM,
-        POWER,
-        [num("2"), num("0.5")],
-        Refused(None)
-    );
+    row!(r, s, POWER, [num("2"), num("3")], N(8.0));
+    row!(r, s, POWER, [num("10"), num("-2")], N(0.01));
+    row!(r, s, POWER, [num("2"), num("0.5")], N(std::f64::consts::SQRT_2));
     row!(r, s, POWER, [num("3"), num("1")], N(3.0));
     // Written -(0): Excel loads the formula -0 from a file as the literal 0, with no negation.
     row!(
@@ -3784,7 +3761,7 @@ fn cfunc_m1_2__mixed_operands() {
 
     // The retained Excel witness of the POWER function, applied to the ^ operator on the
     // assumption that ^ computes POWER: every result ^ computes equals the witness's bit for bit
-    // or error for error, and every other row is refused as not modelled.
+    // or error for error, and since F1 (dc-8dq) every row computes.
     let power = surface(POWER.0, POWER.1);
     let witness = power_witness_rows();
     assert_eq!(witness.len(), 111, "the witness selection holds 111 rows");
@@ -3812,10 +3789,10 @@ fn cfunc_m1_2__mixed_operands() {
     }
     assert_eq!(
         (computed, errors, refused),
-        (56, 19, 55),
-        "witness rows computed, of them errors, and refused"
+        (111, 20, 0),
+        "witness rows computed, of them errors, and refused (F1, dc-8dq: every row computes)"
     );
-    // Excel's captured value of each oracle row of ^ that ^ refuses, against the witness's POWER
+    // Excel's captured value of each oracle row of ^ that needs a power algorithm, against the witness's POWER
     // row for the same arguments where the witness holds one: equal bits support the assumption
     // for those arguments, and different bits would refute it.
     let mut captured_powers = Vec::new();
@@ -3829,8 +3806,8 @@ fn cfunc_m1_2__mixed_operands() {
             let row = rows
                 .oracle
                 .iter()
-                .find(|row| row.formula == formula && row.owner == Some(POWER_ALGORITHM))
-                .unwrap_or_else(|| panic!("no row {formula} owned by {}", POWER_ALGORITHM.bead));
+                .find(|row| row.formula == formula)
+                .unwrap_or_else(|| panic!("no row {formula}"));
             let cell = oracle_cell(rows.sheet, row.row);
             let at = format!("{}!{}", cell.sheet(), cell.a1());
             let excel = capture
@@ -3864,10 +3841,10 @@ fn cfunc_m1_2__mixed_operands() {
         "ACCEPT-NOTE: {CASE}: retained witness of the POWER function (migration/witnesses/w111-extended-power.json, {} rows), applied to ^ on the assumption that ^ computes POWER: ^ computed {computed} rows equal to Excel's POWER results ({errors} of them #NUM! or #DIV/0!) and refused {refused} rows that need a power algorithm; {}",
         witness.len(),
         if captured_powers.is_empty() {
-            "the oracle's ^ rows that ^ refuses are not captured".to_owned()
+            "the oracle's ^ rows that need a power algorithm are not captured".to_owned()
         } else {
             format!(
-                "Excel's capture gives the oracle's ^ rows that ^ refuses (not modeled here): {}",
+                "Excel's capture gives the oracle's ^ rows that need a power algorithm: {}",
                 captured_powers.join(", ")
             )
         }

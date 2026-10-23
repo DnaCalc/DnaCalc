@@ -25,9 +25,10 @@ const CASE: &str = "dc_xrxb__prefix_metadata_matches_excel";
 const SHEET: &str = "prefix_metadata";
 
 /// One oracle workbook of the case, its capture and the package Excel saved from it. dc-xrxb's
-/// workbook holds the rows of the functions catalogued before F1; F1 (dc-8dq) keeps its rows in
-/// a workbook of its own, written by its own generator (make-f1-fixtures.ps1), so that the two
-/// generators do not share one list. A catalogued named function has its row in exactly one.
+/// workbook holds the rows of the functions catalogued before the bulk port; the catalogue
+/// oracle (catalogue/oracle.xlsx, written by make-catalogue-fixtures.ps1 in one section per
+/// package, F1 dc-8dq's first) holds the rest. A catalogued named function has its row in
+/// exactly one.
 struct Oracle {
     /// The workbook's directory below tests/fixtures/ (and its capture's below tests/captures/).
     name: &'static str,
@@ -54,12 +55,12 @@ const ORACLES: [Oracle; 2] = [
         command: "cargo xtask capture --fixture crates/calc-func/tests/fixtures/dc_xrxb/oracle.xlsx --case dc_xrxb__prefix_metadata_matches_excel --out crates/calc-func/tests/captures/dc_xrxb/oracle.capture.json",
     },
     Oracle {
-        name: "f1_prefix",
-        case: "f1__prefix_metadata",
-        workbook: include_bytes!("../fixtures/f1_prefix/oracle.xlsx"),
-        capture: include_bytes!("../captures/f1_prefix/oracle.capture.json"),
-        saved: include_bytes!("../captures/f1_prefix/oracle.saved.xlsx"),
-        command: "cargo xtask capture --fixture crates/calc-func/tests/fixtures/f1_prefix/oracle.xlsx --case f1__prefix_metadata --out crates/calc-func/tests/captures/f1_prefix/oracle.capture.json --work-dir <dir>",
+        name: "catalogue",
+        case: "catalogue__oracle",
+        workbook: include_bytes!("../fixtures/catalogue/oracle.xlsx"),
+        capture: include_bytes!("../captures/catalogue/oracle.capture.json"),
+        saved: include_bytes!("../captures/catalogue/oracle.saved.xlsx"),
+        command: "cargo xtask capture --fixture crates/calc-func/tests/fixtures/catalogue/oracle.xlsx --case catalogue__oracle --out crates/calc-func/tests/captures/catalogue/oracle.capture.json --work-dir <dir>",
     },
 ];
 
@@ -246,16 +247,16 @@ fn oracle_rows(workbook: &[u8]) -> Vec<Row> {
     rows
 }
 
-/// F1's generator, run into a fresh directory: the workbook it writes.
+/// The catalogue generator, run into a fresh directory: the workbook it writes.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-fn f1_generated() -> Vec<u8> {
+fn catalogue_generated() -> Vec<u8> {
     use std::path::Path;
     use std::process::{Command, Stdio};
     let generator = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fixtures")
-        .join("make-f1-fixtures.ps1");
-    let out = std::env::temp_dir().join(format!("calc-func-f1-fixtures-{}", std::process::id()));
+        .join("make-catalogue-fixtures.ps1");
+    let out = std::env::temp_dir().join(format!("calc-func-catalogue-fixtures-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
     let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
     let powershell = Path::new(&system_root)
@@ -280,12 +281,12 @@ fn f1_generated() -> Vec<u8> {
         .expect("Windows PowerShell starts");
     assert!(
         ran.status.success(),
-        "the F1 generator failed ({:?}):\n{}\n{}",
+        "the catalogue generator failed ({:?}):\n{}\n{}",
         ran.status,
         String::from_utf8_lossy(&ran.stdout),
         String::from_utf8_lossy(&ran.stderr)
     );
-    let bytes = std::fs::read(out.join("f1_prefix").join("oracle.xlsx")).expect("the F1 workbook");
+    let bytes = std::fs::read(out.join("catalogue").join("oracle.xlsx")).expect("the catalogue workbook");
     let _ = std::fs::remove_dir_all(&out);
     bytes
 }
@@ -357,11 +358,11 @@ pub fn prefix_metadata_matches_excel() {
             "the committed dc_xrxb/oracle.xlsx differs from the generator's output"
         );
         assert!(
-            f1_generated() == ORACLES[1].workbook,
-            "the committed f1_prefix/oracle.xlsx differs from make-f1-fixtures.ps1's output"
+            catalogue_generated() == ORACLES[1].workbook,
+            "the committed catalogue/oracle.xlsx differs from make-catalogue-fixtures.ps1's output"
         );
         note!(
-            "ACCEPT-NOTE: {CASE}: the committed generators wrote {} workbooks and f1_prefix/oracle.xlsx; dc_xrxb/oracle.xlsx (sha256 {}) and f1_prefix/oracle.xlsx (sha256 {}) equal the committed fixtures byte for byte",
+            "ACCEPT-NOTE: {CASE}: the committed generators wrote {} workbooks and catalogue/oracle.xlsx; dc_xrxb/oracle.xlsx (sha256 {}) and catalogue/oracle.xlsx (sha256 {}) equal the committed fixtures byte for byte",
             generated.len(),
             sha256_hex(ORACLES[0].workbook),
             sha256_hex(ORACLES[1].workbook)

@@ -618,12 +618,13 @@ mod tests {
                 &[],
                 evaluated("=A1:A2+1", three.clone()),
             ),
-            // A function that refuses still ran.
+            // A function that refuses still ran (a product below the normal range, which
+            // calc-func refuses as not modelled).
             (
-                "=2^0.5",
+                "=1E-300*1E-10",
                 CalcValue::empty(),
-                &["Infix ^"],
-                evaluated("=2^0.5", CalcValue::empty()),
+                &["Infix *"],
+                evaluated("=1E-300*1E-10", CalcValue::empty()),
             ),
         ];
         assert!(matches!(cases[8].3, Err(EvalFault::AreaAsValue { .. })));
@@ -766,13 +767,13 @@ mod tests {
         let cases: [(&str, &[&str]); 4] = [
             ("=IFERROR(1/0,5)", &["Infix /", "Call IFERROR"]),
             ("=IFERROR(2,1/0)", &["Call IFERROR"]),
-            ("=IFERROR(2^0.5,1/0)", &["Infix ^", "Call IFERROR"]),
+            ("=IFERROR(1E-300*1E-10,1/0)", &["Infix *", "Call IFERROR"]),
             ("=IFNA(1/0,1/0)", &["Infix /", "Call IFNA"]),
         ];
         let outcomes = [
             Ok(CalcValue::number(5.0)),
             Ok(CalcValue::number(2.0)),
-            evaluated("=2^0.5", blank.clone()),
+            evaluated("=1E-300*1E-10", blank.clone()),
             Ok(CalcValue::error(WorksheetErrorCode::Div0)),
         ];
         for ((formula, calls), expected) in cases.into_iter().zip(outcomes) {
@@ -798,7 +799,7 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn function_faults_pass_through() {
         assert!(matches!(
-            evaluated("=2^0.5", CalcValue::empty()),
+            evaluated("=1E-300*1E-10", CalcValue::empty()),
             Err(EvalFault::Function(FunctionFault::NotImplemented { .. }))
         ));
     }
