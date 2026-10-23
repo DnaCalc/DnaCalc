@@ -209,14 +209,8 @@ mod tests {
                 Ok(CalcValue::error(W::NA)),
             ),
             (vec![text("A1"), text("x")], Ok(CalcValue::error(W::Value))),
-            // Text holding a digit may be number text, which coercion does not model.
-            (
-                vec![text("A1"), text("1")],
-                Err(FunctionFault::NotImplemented {
-                    id: INDIRECT,
-                    argument: Some(1),
-                }),
-            ),
+            // Digit text is no logical either: Excel reads no number in a logical position.
+            (vec![text("A1"), text("1")], Ok(CalcValue::error(W::Value))),
         ];
         for (arguments, expected) in cases {
             assert_eq!(

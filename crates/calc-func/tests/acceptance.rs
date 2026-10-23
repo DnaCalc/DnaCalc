@@ -1046,11 +1046,14 @@ fn cfunc_m1_1__catalogue_consistency() {
             no_argument.push(target.id());
         } else {
             // ROW and COLUMN take an optional reference (their pages: ROW([reference]),
-            // COLUMN([reference])), and RANDARRAY optional dimensions (F1, dc-8dq); every other
-            // entry that admits an argument requires one.
+            // COLUMN([reference])), RANDARRAY optional dimensions (F1, dc-8dq), and SHEET and
+            // SHEETS an optional value or reference (F2, dc-ip6); every other entry that admits
+            // an argument requires one.
             assert!(
-                arity.min >= 1 || ["ROW", "COLUMN", "RANDARRAY"].contains(&target.spelling()),
-                "{target:?}: every entry that admits an argument but ROW, COLUMN and RANDARRAY requires one"
+                arity.min >= 1
+                    || ["ROW", "COLUMN", "RANDARRAY", "SHEET", "SHEETS"]
+                        .contains(&target.spelling()),
+                "{target:?}: every entry that admits an argument but ROW, COLUMN, RANDARRAY, SHEET and SHEETS requires one"
             );
             assert!(
                 target.parameter_class(arity.max - 1).is_some(),
@@ -1153,8 +1156,9 @@ fn cfunc_m1_1__catalogue_consistency() {
         [iff.id(), fallbacks[0], fallbacks[1], choose.id()],
         "only IF, IFERROR, IFNA and CHOOSE are lazy"
     );
-    // F1 (dc-8dq) adds PI and RAND, and dc-nzpw NA, to the entries that take no argument.
-    let constants: BTreeSet<FunctionId> = ["TRUE", "FALSE", "NA", "PI", "RAND"]
+    // F1 (dc-8dq) adds PI and RAND, dc-nzpw NA, and F2 (dc-ip6) NOW and TODAY, to the entries
+    // that take no argument.
+    let constants: BTreeSet<FunctionId> = ["TRUE", "FALSE", "NA", "PI", "RAND", "NOW", "TODAY"]
         .into_iter()
         .filter_map(|name| catalogue.resolve_surface(Notation::Call, name).ok())
         .map(|target| target.id())
@@ -1162,7 +1166,7 @@ fn cfunc_m1_1__catalogue_consistency() {
     assert!(
         no_argument.iter().all(|id| constants.contains(id))
             && constants.iter().all(|id| no_argument.contains(id)),
-        "only TRUE, FALSE, NA, PI and RAND take no argument: {no_argument:?}"
+        "only TRUE, FALSE, NA, PI, RAND, NOW and TODAY take no argument: {no_argument:?}"
     );
     note!(
         "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}; entries that take no argument {:?}",
@@ -3366,13 +3370,12 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [txt(""), num("1"), num("2")],
         E(WorksheetErrorCode::Value)
     );
-    owned_by!(
+    row!(
         r,
         s,
-        NUMBER_TEXT,
         IF,
         [txt("1"), num("1"), num("2")],
-        Refused(Some(0))
+        E(WorksheetErrorCode::Value)
     );
     row!(r, s, IF, [cell(s, "A5"), num("1"), num("2")], N(2.0));
     row!(r, s, IF, [num("0"), num("1")], L(false));
@@ -14395,13 +14398,12 @@ fn lookup_edges_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         ],
         refused(Some(0))
     );
-    lk_refused!(
+    lk!(
         r,
         s,
-        NUMBER_TEXT,
         "VLOOKUP",
         [num("3"), table(s), num("2"), txt("1")],
-        refused(Some(3))
+        er(Value)
     );
 
     // ROW and COLUMN of several areas, and of several columns.
@@ -17075,7 +17077,8 @@ fn digit_label_rows(s: &mut TestSheet, quiet: bool) -> LabelRows {
         0,
         N(0.0)
     );
-    undecided!(r, s, IF, [cell(s, "C3"), num("1"), num("2")], 0, E(Value));
+    // IF reads no number in its condition: digit text there is #VALUE!, whatever it reads as.
+    label!(r, s, IF, [cell(s, "C3"), num("1"), num("2")], E(Value));
     // Fractions: 1 1/2, and 1/2, as an operand, as a criterion and as a criterion whose ranges
     // have one shape. As an operand, 1/2 states no value: Excel reads it in this locale as a date,
     // 2 January of the year Excel calculates it in, so its value changes with the year.
@@ -18370,14 +18373,7 @@ fn logical_functions_rows(s: &mut TestSheet, quiet: bool) -> LogicalRows {
         Refused(Some(0)),
         Owned(LEGACY_ARRAY_NOT)
     );
-    lg!(
-        r,
-        s,
-        "NOT",
-        [txt("1")],
-        Refused(Some(0)),
-        Owned(NUMBER_TEXT)
-    );
+    lg!(r, s, "NOT", [txt("1")], E(Value), Meas(NOT_TEXT));
 
     // Digit text alone, and two arrays.
     lg!(r, s, "AND", [txt("1")], E(Value), Meas(ONLY_SKIPPED));
@@ -21867,41 +21863,16 @@ fn dc_nzpw__information_functions() {
 
     // The predicates over every error code: ISERROR is TRUE for each, ISERR for each but #N/A,
     // ISNA for #N/A alone, ISBLANK for none, TYPE gives 16 for each, N the error and ERROR.TYPE a
-    // number. Over #BLOCKED! and #CONNECT!, whose results in Excel are unknown, each of these seven
-    // is refused as not modelled, owned by dc-tt73: given directly and, for TYPE and N, which read
-    // a reference, read from a cell.
-    let unknown = [W::Blocked, W::Connect];
+    // number. #BLOCKED! and #CONNECT!, which no capture measures (Excel refuses either as a
+    // literal), are read like every other error (dc-ip6), given directly and, for TYPE and N,
+    // which read a reference, from a cell; ERROR.TYPE gives them 11 and 10.
     let mut unknown_cells = TestSheet::new(&[
         ("B1", "#BLOCKED!", CalcValue::error(W::Blocked)),
         ("B2", "#CONNECT!", CalcValue::error(W::Connect)),
     ]);
-    let seven = [
-        "ISERROR",
-        "ISERR",
-        "ISNA",
-        "ISBLANK",
-        "TYPE",
-        "N",
-        "ERROR.TYPE",
-    ];
-    let mut refused_unknown = 0;
     for code in W::all() {
         let error = CalcValue::error(code);
         let call = |spelling: &str| information_call(spelling, vec![error.clone()], &fast, None);
-        if unknown.contains(&code) {
-            for spelling in seven {
-                assert_eq!(
-                    call(spelling),
-                    Err(FunctionFault::NotImplemented {
-                        id: surface(Notation::Call, spelling).id(),
-                        argument: Some(0)
-                    }),
-                    "{spelling} of {code:?}"
-                );
-                refused_unknown += 1;
-            }
-            continue;
-        }
         assert_eq!(call("ISERROR"), Ok(CalcValue::logical(true)), "{code:?}");
         assert_eq!(
             call("ISERR"),
@@ -21924,21 +21895,27 @@ fn dc_nzpw__information_functions() {
             "{code:?}: {typed:?}"
         );
     }
+    assert_eq!(
+        information_call("ERROR.TYPE", vec![CalcValue::error(W::Blocked)], &fast, None),
+        Ok(CalcValue::number(11.0))
+    );
+    assert_eq!(
+        information_call("ERROR.TYPE", vec![CalcValue::error(W::Connect)], &fast, None),
+        Ok(CalcValue::number(10.0))
+    );
     for (address, code) in [("B1", W::Blocked), ("B2", W::Connect)] {
-        for spelling in ["TYPE", "N"] {
-            let given = CalcValue::reference(ReferenceLike::cell(unknown_cells.key(address)));
-            assert_eq!(
-                information_call(spelling, vec![given], &fast, Some(&mut unknown_cells)),
-                Err(FunctionFault::NotImplemented {
-                    id: surface(Notation::Call, spelling).id(),
-                    argument: Some(0)
-                }),
-                "{spelling} of {address}, holding {code:?}"
-            );
-            refused_unknown += 1;
-        }
+        let given = CalcValue::reference(ReferenceLike::cell(unknown_cells.key(address)));
+        assert_eq!(
+            information_call("TYPE", vec![given.clone()], &fast, Some(&mut unknown_cells)),
+            Ok(CalcValue::number(16.0)),
+            "TYPE of {address}, holding {code:?}"
+        );
+        assert_eq!(
+            information_call("N", vec![given], &fast, Some(&mut unknown_cells)),
+            Ok(CalcValue::error(code)),
+            "N of {address}, holding {code:?}"
+        );
     }
-    assert_eq!(refused_unknown, seven.len() * unknown.len() + 4);
 
     // A callable, an omitted argument and a number that is not finite are refused by every entry
     // that reads a value; ISREF reads no value of a reference, so it needs no cell reader.
@@ -22032,9 +22009,9 @@ fn dc_nzpw__information_functions() {
         Ok(CalcValue::logical(true))
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: family 10 holds exactly {} entries, each eager with its arity, parameter class and signature help; NA takes no argument; a value parameter refuses a reference and ISFORMULA anything but one at admission; ISERROR, ISERR, ISNA, ISBLANK, TYPE, N and ERROR.TYPE over the {} error codes but #BLOCKED! and #CONNECT!; over those two, {refused_unknown} calls of the seven refused with NotImplemented naming argument 0, not modelled, owned by dc-tt73 (each given directly, and TYPE and N of a cell holding it); a callable, an omitted argument and NaN or infinity refused by the 14 entries that read a value; without a cell reader ISREF of a reference computes and ISEVEN, ISODD, TYPE and N refuse; a reader that visits blank cells gives the same results; under Exact ISEVEN of number text and of 2.5 is refused at its rounding sites, ISEVEN(TRUE) is #VALUE! before any, and ISBLANK computes",
+        "ACCEPT-NOTE: {CASE}: family 10 holds exactly {} entries, each eager with its arity, parameter class and signature help; NA takes no argument; a value parameter refuses a reference and ISFORMULA anything but one at admission; ISERROR, ISERR, ISNA, ISBLANK, TYPE, N and ERROR.TYPE over all {} error codes, #BLOCKED! and #CONNECT! read as other errors (each given directly, and TYPE and N of a cell holding it); a callable, an omitted argument and NaN or infinity refused by the 14 entries that read a value; without a cell reader ISREF of a reference computes and ISEVEN, ISODD, TYPE and N refuse; a reader that visits blank cells gives the same results; under Exact ISEVEN of number text and of 2.5 is refused at its rounding sites, ISEVEN(TRUE) is #VALUE! before any, and ISBLANK computes",
         INFORMATION.len(),
-        W::all().len() - unknown.len()
+        W::all().len()
     );
 
     assert_information_workbook(&info, &sheet);

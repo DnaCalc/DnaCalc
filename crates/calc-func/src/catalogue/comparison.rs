@@ -202,7 +202,7 @@ impl Operand<'_> {
     }
 }
 
-fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering> {
+pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering> {
     site.scalar_operands(arguments)?;
     let mut operands = [Operand::Blank; 2];
     for (index, argument) in arguments.iter().enumerate() {

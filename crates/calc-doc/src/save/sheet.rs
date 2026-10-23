@@ -46,7 +46,7 @@ use crate::load::sheet::{ERRORS, collapsed};
 use crate::load::{LoadedSheet, MAIN_NAMESPACE};
 use crate::xml::{XmlElement, XmlEvent, XmlPart};
 use calc_doc_model::value::CellKey;
-use calc_doc_model::{CellInput, ModelRoot};
+use calc_doc_model::{CachedValue, CellInput, ModelRoot};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// What one sheet's rewrite reads beside its part.
@@ -60,6 +60,9 @@ pub(super) struct Job<'a> {
     pub(super) forms: &'a BTreeMap<(u32, u32), FileForm>,
     /// The `cm` a dynamic-array formula among the changes names; set when one is.
     pub(super) dynamic_cm: Option<u32>,
+    /// The caller's values for the sheet's formula cells, which are written as their cached
+    /// values; `None` for a save without values, which leaves every cached value out.
+    pub(super) values: Option<&'a BTreeMap<(u32, u32), CachedValue>>,
     pub(super) loaded: &'a LoadedSheet,
     pub(super) model: &'a ModelRoot,
 }
@@ -103,6 +106,8 @@ struct Rewrite<'a, 'j> {
     bounds: Bounds,
     /// The formula cells the edit did not change whose cached result the rewrite left out.
     caches_dropped: usize,
+    values_written: usize,
+    values_left_to_excel: usize,
 }
 
 /// A rewritten worksheet part.
@@ -110,6 +115,8 @@ pub(super) struct Rewritten {
     pub(super) bytes: Vec<u8>,
     /// The formula cells the edit did not change whose cached result was left out.
     pub(super) caches_dropped: usize,
+    pub(super) values_written: usize,
+    pub(super) values_left_to_excel: usize,
 }
 
 /// A cell's `<f>` element: as read, and the byte ranges of its start tag and of the whole element.
@@ -156,6 +163,8 @@ pub(super) fn rewrite(
         unshared,
         bounds: Bounds::default(),
         caches_dropped: 0,
+        values_written: 0,
+        values_left_to_excel: 0,
     };
     rewrite.worksheet()
 }
@@ -167,7 +176,47 @@ fn styled(element: &XmlElement) -> bool {
         .is_some_and(|style| collapsed(style).parse::<u32>() != Ok(0))
 }
 
+/// A value as a formula cell's cache: its `t` and the text of its `<v>`; `None` for a value Excel
+/// stores only with value metadata (a newer error), which is left for Excel to calculate.
+fn cache_xml(value: &CachedValue) -> Option<(Option<&'static str>, Vec<u8>)> {
+    Some(match value {
+        CachedValue::Number(number) => (None, super::text::number(number.get()).into_bytes()),
+        CachedValue::Text(text) => {
+            let mut out = Vec::new();
+            xstring(text.text().utf16_code_units(), &mut out);
+            (Some("str"), out)
+        }
+        CachedValue::Logical(logical) => (Some("b"), u8::from(*logical).to_string().into_bytes()),
+        CachedValue::Error(code) if crate::edit::error_constant_writable(*code) => (
+            Some("e"),
+            ERRORS
+                .iter()
+                .find(|(_, known)| known == code)
+                .map(|(spelling, _)| spelling.as_bytes().to_vec())
+                .expect("every worksheet error has a spelling"),
+        ),
+        CachedValue::Error(_) => return None,
+    })
+}
+
 impl<'j> Rewrite<'_, 'j> {
+    /// The cached value a formula cell at `row` and `column` is written with, counted: the
+    /// caller's value, or `None` (a save without values, a cell the caller gave none, or a value
+    /// Excel stores only with value metadata).
+    fn formula_cache(&mut self, row: u32, column: u32) -> Option<(Option<&'static str>, Vec<u8>)> {
+        let values = self.job.values?;
+        match values.get(&(row, column)).and_then(cache_xml) {
+            Some(cache) => {
+                self.values_written += 1;
+                Some(cache)
+            }
+            None => {
+                self.values_left_to_excel += 1;
+                None
+            }
+        }
+    }
+
     fn source(&self) -> &'j [u8] {
         self.splice.source()
     }
@@ -219,6 +268,8 @@ impl<'j> Rewrite<'_, 'j> {
         Ok(Rewritten {
             bytes,
             caches_dropped: self.caches_dropped,
+            values_written: self.values_written,
+            values_left_to_excel: self.values_left_to_excel,
         })
     }
 
@@ -324,6 +375,14 @@ impl<'j> Rewrite<'_, 'j> {
             CellInput::Logical(_) => Some("b"),
             CellInput::Error(_) => Some("e"),
         };
+        let cache = match input {
+            CellInput::Formula(_) => self.formula_cache(row, column),
+            _ => None,
+        };
+        let kind = match &cache {
+            Some((cache_kind, _)) => *cache_kind,
+            None => kind,
+        };
         let form = match input {
             CellInput::Formula(_) => Some(
                 self.job
@@ -374,6 +433,11 @@ impl<'j> Rewrite<'_, 'j> {
             }
             xstring(&form.text, out);
             end_tag(prefix, b"f", out);
+            if let Some((_, text)) = &cache {
+                start_tag(prefix, b"v", out);
+                out.extend_from_slice(text);
+                end_tag(prefix, b"v", out);
+            }
         } else {
             let value = match input {
                 CellInput::Number(value) => number(value.get()),
@@ -591,11 +655,14 @@ impl<'j> Rewrite<'_, 'j> {
                     }
                     return Ok(());
                 }
-                // A formula cell: its cache, its type and its value metadata go, and a cell of a
-                // group written as individual formulas gets its own text.
+                // A formula cell: its cache, its type and its value metadata go (replaced by the
+                // caller's value when the save has one), and a cell of a group written as
+                // individual formulas gets its own text.
+                let cache = self.formula_cache(row, column);
+                let kind = cache.as_ref().and_then(|(kind, _)| *kind);
                 self.splice.replace(
                     span,
-                    &tag.rebuilt(&[("r", Some(&at)), ("t", None), ("vm", None)], false),
+                    &tag.rebuilt(&[("r", Some(&at)), ("t", kind), ("vm", None)], false),
                 );
                 if shared_string {
                     self.strings.removed += 1;
@@ -624,17 +691,32 @@ impl<'j> Rewrite<'_, 'j> {
                     end_tag(prefix, b"f", &mut bytes);
                     edits.push((formula_element, bytes));
                 }
-                if let Some(value) = value {
-                    edits.push((value, Vec::new()));
-                    let cached = self
-                        .job
-                        .loaded
-                        .formula(row, column)
-                        .and_then(|record| record.cache())
-                        .is_some();
-                    if cached {
-                        self.caches_dropped += 1;
+                let cached = self
+                    .job
+                    .loaded
+                    .formula(row, column)
+                    .and_then(|record| record.cache())
+                    .is_some();
+                let new_value = cache.map(|(_, text)| {
+                    let prefix = formula_raw.prefix();
+                    let mut bytes = Vec::new();
+                    start_tag(prefix, b"v", &mut bytes);
+                    bytes.extend_from_slice(&text);
+                    end_tag(prefix, b"v", &mut bytes);
+                    bytes
+                });
+                match (value, new_value) {
+                    (Some(value), Some(bytes)) => edits.push((value, bytes)),
+                    (Some(value), None) => {
+                        edits.push((value, Vec::new()));
+                        if cached {
+                            self.caches_dropped += 1;
+                        }
                     }
+                    (None, Some(bytes)) => {
+                        edits.push(((formula_element.1, formula_element.1), bytes));
+                    }
+                    (None, None) => {}
                 }
                 edits.sort_by_key(|(range, _)| range.0);
                 for (range, bytes) in edits {

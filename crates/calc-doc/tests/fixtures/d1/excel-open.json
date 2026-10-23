@@ -1,0 +1,126 @@
+﻿{
+    "excel":  "16.0 build 20430",
+    "base_calc_chain":  "\u003c?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?\u003e\r\n\u003ccalcChain xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"\u003e\u003cc r=\"B3\" i=\"1\" l=\"1\"/\u003e\u003cc r=\"B2\" i=\"1\"/\u003e\u003cc r=\"B1\" i=\"1\"/\u003e\u003cc r=\"A4\" i=\"1\"/\u003e\u003cc r=\"A3\" i=\"1\"/\u003e\u003cc r=\"A2\" i=\"1\"/\u003e\u003c/calcChain\u003e",
+    "rows":  [
+                 {
+                     "variant":  "base",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "2",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 },
+                 {
+                     "variant":  "wrong-cache",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "99",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 },
+                 {
+                     "variant":  "no-value",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "2",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 },
+                 {
+                     "variant":  "wrong-full",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "2",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 },
+                 {
+                     "variant":  "no-chain",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "2",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 },
+                 {
+                     "variant":  "chain-missing",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "2",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "25",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 },
+                 {
+                     "variant":  "chain-extra",
+                     "opened":  false,
+                     "error":  "Exception calling \"InvokeMember\" with \"5\" argument(s): \"Open method of Workbooks class failed\"",
+                     "values":  {
+
+                                }
+                 },
+                 {
+                     "variant":  "no-chain-new",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "2",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "25",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 },
+                 {
+                     "variant":  "old-calc-id",
+                     "opened":  true,
+                     "error":  null,
+                     "values":  {
+                                    "A2":  "2",
+                                    "A3":  "20",
+                                    "A4":  "23",
+                                    "A5":  "",
+                                    "B1":  "t1",
+                                    "B2":  "True",
+                                    "B3":  "-2146826281"
+                                }
+                 }
+             ]
+}

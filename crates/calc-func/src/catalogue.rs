@@ -22,11 +22,15 @@ mod aggregate;
 mod arithmetic;
 mod comparison;
 mod conditional;
+mod database;
+mod dates;
 mod distributions;
 mod engineering;
 mod error_fallback;
+mod host_reference;
 mod information;
 mod logical;
+mod logical_more;
 mod lookup;
 mod math;
 mod offset;
@@ -37,10 +41,12 @@ mod rounding_more;
 mod statistics;
 mod subtotal;
 mod text;
+mod text_format;
+mod text_functions;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 19] = [
+const FAMILIES: [&Family; 25] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -60,6 +66,12 @@ const FAMILIES: [&Family; 19] = [
     &subtotal::FAMILY,
     &random::FAMILY,
     &offset::FAMILY,
+    &text_functions::FAMILY,
+    &logical_more::FAMILY,
+    &text_format::FAMILY,
+    &dates::FAMILY,
+    &host_reference::FAMILY,
+    &database::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);

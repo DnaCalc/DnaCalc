@@ -161,3 +161,33 @@ fn d1_authoring__error_constants_excel_cannot_hold_are_refused() {
             .contains(r#"<c r="Z9" t="e"><v>#N/A</v></c>"#)
     );
 }
+
+#[test]
+fn d1_authoring__a_value_for_a_cell_without_a_formula_is_refused() {
+    let loaded = load(&fixture("../cdoc_m1_2/d1.saved.xlsx"));
+    let calc = sheet(&loaded, "Calc");
+    let model = edited(
+        &loaded,
+        vec![WorkbookOp::SetCell {
+            at: at(calc, "U2"),
+            input: number(8.0),
+        }],
+    );
+    let values = std::collections::BTreeMap::from([(
+        at(calc, "U2"),
+        calc_doc::model::CachedValue::Number(calc_doc::model::FiniteNumber::new(8.0).unwrap()),
+    )]);
+    let refused = calc_doc::prepare_save(
+        &loaded.snapshot_with_values(&model, values),
+        &calc_doc::SavePolicy::default(),
+    )
+    .map(|_| ());
+    assert_eq!(
+        refused,
+        Err(calc_doc::SaveRefusal::ValueWithoutFormula {
+            part: "xl/worksheets/sheet2.xml".to_owned(),
+            row: 2,
+            column: 21,
+        })
+    );
+}

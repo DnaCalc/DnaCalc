@@ -244,6 +244,8 @@ $PrefixSections += 'prefix-f1.txt'
 $FormulaSheets += , @('f1_power', 'sheet-f1_power.txt')
 # L1 dc-mzk: OFFSET and ISOMITTED.
 $PrefixSections += 'prefix-l1.txt'
+# F2 dc-ip6: text, date and time, information, logical, lookup, database and web text.
+$PrefixSections += 'prefix-f2.txt'
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
