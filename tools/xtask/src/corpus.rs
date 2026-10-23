@@ -365,7 +365,18 @@ fn excel_build() -> Result<String, String> {
 /// The repository root: two levels above xtask's manifest.
 fn repository_root() -> PathBuf {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
-    root.canonicalize().unwrap_or(root)
+    match root.canonicalize() {
+        // Windows gives a canonical path its verbatim prefix `\\?\`, which the summary need not
+        // show; the path without it names the same folder.
+        Ok(canonical) => {
+            let text = canonical.to_string_lossy();
+            match text.strip_prefix(r"\\?\") {
+                Some(plain) if !plain.starts_with("UNC") => PathBuf::from(plain),
+                _ => canonical,
+            }
+        }
+        Err(_) => root,
+    }
 }
 
 /// The release xtask the comparisons run in, and its description.
