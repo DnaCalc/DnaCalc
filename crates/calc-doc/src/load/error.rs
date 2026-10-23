@@ -55,8 +55,12 @@ pub enum CellError {
     OutOfOrder,
     /// The cell's type (`t`) is one this loader does not read, such as `d` (an ISO 8601 date).
     UnsupportedType { kind: String },
-    /// The cell carries cell or value metadata (`cm`, `vm`), whose values are not read here.
+    /// The array formula's cell metadata (`cm`) does not resolve to dynamic-array properties: the
+    /// workbook has no metadata part, the index names no record, or the record is of another
+    /// type.
     UnsupportedMetadata,
+    /// An array or data table formula is not well formed.
+    ArrayFormula { detail: &'static str },
     /// The cell's style (`s`) is not an index into the workbook's cell formats.
     StyleIndex { text: String, cell_formats: u32 },
     /// The cell's value is not a number, or not a finite one.
@@ -71,7 +75,8 @@ pub enum CellError {
     TextTooLong { units: usize },
     /// The cell's elements do not fit its type.
     Malformed { detail: &'static str },
-    /// The formula is an array or data table formula, or of a kind this loader does not read.
+    /// The formula is of a kind this loader does not read (not normal, shared, array or data
+    /// table).
     UnsupportedFormula { kind: String },
     /// The formula's text is empty.
     EmptyFormula,
@@ -135,7 +140,10 @@ impl fmt::Display for CellError {
         match self {
             Self::OutOfOrder => f.write_str("it is not after the cell or row before it"),
             Self::UnsupportedType { kind } => write!(f, "the cell type {kind:?} is not read"),
-            Self::UnsupportedMetadata => f.write_str("cell and value metadata are not read"),
+            Self::UnsupportedMetadata => f.write_str(
+                "the array formula's cell metadata does not resolve to dynamic-array properties",
+            ),
+            Self::ArrayFormula { detail } => write!(f, "the array formula is refused: {detail}"),
             Self::StyleIndex { text, cell_formats } => write!(
                 f,
                 "the style {text:?} is not an index into the {cell_formats} cell formats"

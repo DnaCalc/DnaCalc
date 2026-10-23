@@ -318,6 +318,19 @@ pub(crate) fn refusal_of(
             format!("Result:{}", value_kind(value)),
             "Result",
         ),
+        NotModeled::ArrayFormula(kind) => {
+            let kind = if format!("{kind:?}").starts_with("Legacy") {
+                "legacy"
+            } else {
+                "dynamic"
+            };
+            Refusal::new(
+                Class::Engine,
+                format!("ArrayFormula:{kind} (L1, L2)"),
+                "ArrayFormula",
+            )
+            .about(format!("{kind} array formula, L1 and L2"))
+        }
     }
 }
 

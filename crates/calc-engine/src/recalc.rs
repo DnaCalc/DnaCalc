@@ -358,7 +358,11 @@ fn bind(
     text: &FormulaText,
 ) {
     let anchor = FormulaAnchor::new(at);
+    let array = inputs.definitions().array(at).map(|array| array.kind());
     let binding = match String::from_utf16(text.text().utf16_code_units()) {
+        _ if array.is_some() => Binding::Refused(NotModeled::ArrayFormula(
+            array.expect("an array formula's kind"),
+        )),
         Err(_) => Binding::Refused(NotModeled::FormulaText),
         Ok(source) => match compile(
             &parse_formula(&source),

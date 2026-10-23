@@ -181,11 +181,14 @@ impl ReferenceReader for WorkbookReader<'_> {
             return;
         };
         let (first, width) = (area.first(), u64::from(area.column_count()));
+        let index_of = |at: CellKey| {
+            u64::from(at.row() - first.row()) * width + u64::from(at.column() - first.column())
+        };
+        let missing = not_available(inputs, area, index_of);
         let mut covered = 0u64;
         for (at, input) in occupied {
-            let index =
-                u64::from(at.row() - first.row()) * width + u64::from(at.column() - first.column());
-            if index > covered && sink(CellRun::Blank(index - covered)).is_break() {
+            let index = index_of(at);
+            if index > covered && gap(covered, index, &missing, sink).is_break() {
                 return;
             }
             covered = index + 1;
@@ -201,9 +204,60 @@ impl ReferenceReader for WorkbookReader<'_> {
             }
         }
         if total > covered {
-            let _ = sink(CellRun::Blank(total - covered));
+            let _ = gap(covered, total, &missing, sink);
         }
     }
+}
+
+/// The indexes, within `area` in row-major order, of the cells a calculation reads as not
+/// available though the model holds no input for them: the cells an array formula fills beside
+/// its anchor, and unloaded cells ([`calc_doc_model::Definitions::not_available`]). A cell that
+/// holds an input is read as that input instead, so an index here may also be an occupied cell's.
+fn not_available(
+    inputs: &ModelRoot,
+    area: GridArea,
+    index_of: impl Fn(CellKey) -> u64,
+) -> BTreeSet<u64> {
+    let definitions = inputs.definitions();
+    let mut missing = BTreeSet::new();
+    for array in definitions.arrays_meeting(area) {
+        let (a, b) = (array.area().first(), array.area().last());
+        let (first, last) = (area.first(), area.last());
+        for row in a.row().max(first.row())..=b.row().min(last.row()) {
+            for column in a.column().max(first.column())..=b.column().min(last.column()) {
+                let at = CellKey::new(area.sheet(), row, column).expect("a cell of the area");
+                if at != array.anchor() {
+                    missing.insert(index_of(at));
+                }
+            }
+        }
+    }
+    for (at, _) in definitions.unloaded_in(area) {
+        missing.insert(index_of(at));
+    }
+    missing
+}
+
+/// Reports the cells of indexes `from..to`, which hold no input: blank, except those `missing`
+/// holds, which are not available.
+fn gap(
+    from: u64,
+    to: u64,
+    missing: &BTreeSet<u64>,
+    sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+) -> ControlFlow<()> {
+    let mut at = from;
+    for &index in missing.range(from..to) {
+        if index > at {
+            sink(CellRun::Blank(index - at))?;
+        }
+        sink(CellRun::Missing(1))?;
+        at = index + 1;
+    }
+    if to > at {
+        sink(CellRun::Blank(to - at))?;
+    }
+    ControlFlow::Continue(())
 }
 
 /// The value of a literal input; `None` for a formula, whose value is its result.
