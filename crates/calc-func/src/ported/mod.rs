@@ -4,10 +4,13 @@
 
 #![allow(dead_code, unused_imports, unused_variables, unreachable_patterns, private_interfaces, clippy::all)]
 
+pub(crate) mod a1_refs;
 pub(crate) mod acos;
 pub(crate) mod acosh;
 pub(crate) mod acot;
 pub(crate) mod acoth;
+pub(crate) mod address;
+pub(crate) mod address_name_classes;
 pub(crate) mod arabic_fn;
 pub(crate) mod asin;
 pub(crate) mod asinh;
@@ -34,6 +37,7 @@ pub(crate) mod confidence_test_family;
 pub(crate) mod cos;
 pub(crate) mod cosh;
 pub(crate) mod cot;
+pub(crate) mod date_kernels;
 pub(crate) mod coth;
 pub(crate) mod csc;
 pub(crate) mod csch;
@@ -90,6 +94,7 @@ pub(crate) mod subtotal_aggregate_family;
 pub(crate) mod sumproduct_family;
 pub(crate) mod tan;
 pub(crate) mod text_kernels;
+pub(crate) mod text_more;
 pub(crate) mod tanh;
 pub(crate) mod variance_common;
 pub(crate) mod excel_numeric;

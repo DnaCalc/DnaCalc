@@ -142,6 +142,35 @@ pub fn call_random(
     )
 }
 
+/// `spelling` called on `args` in `environment` (F2: dates, locale), reading references from
+/// `sheet` when one is given and asking `host` for host facts when one is given.
+pub fn call_in(
+    environment: &calc_func::locale::CalcEnvironment,
+    sheet: Option<&mut Sheet>,
+    host: Option<&mut dyn calc_func::HostFacts>,
+    spelling: &str,
+    args: Vec<CalcValue>,
+) -> Result<CalcValue, FunctionFault> {
+    let target = catalogue()
+        .resolve_surface(Notation::Call, spelling)
+        .unwrap_or_else(|_| panic!("{spelling} is catalogued"));
+    let mode = NumericMode::Fast;
+    let services = match sheet {
+        Some(sheet) => EvalServices::with_cells(&mode, sheet),
+        None => EvalServices::new(&mode),
+    };
+    let mut services = services.with_environment(environment);
+    if let Some(host) = host {
+        services = services.with_host(host);
+    }
+    invoke(
+        target,
+        &mut Given(args),
+        &mut services,
+        &mut FunctionCallScratch::new(),
+    )
+}
+
 pub fn n(x: f64) -> CalcValue {
     CalcValue::number(x)
 }

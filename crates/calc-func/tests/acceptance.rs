@@ -9393,12 +9393,11 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "COUNTIF",
         [reference(s, &["A22:A23"]), txt("caf*")],
-        Refused(Some(0)),
-        Unsupported(
-            "a pattern matched against text beyond ASCII needs Excel's matching of such text; owned by dc-o4do"
+        N(1.0),
+        Measured(
+            "a pattern matches text beyond ASCII character by character, case folded (dc-ip6); this sheet's capture gives 1"
         )
     );
-    owned(r, COLLATION);
     cnd!(
         r,
         s,
