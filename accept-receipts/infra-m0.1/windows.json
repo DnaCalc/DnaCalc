@@ -28,7 +28,14 @@
               "calc-func": [
                 "calc-value"
               ],
-              "calc-host": [],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "calc-oracle-excel": [
                 "calc-value",
                 "calc-verdict"
@@ -45,6 +52,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-value",
                 "calc-verdict"
               ]
@@ -74,7 +87,14 @@
               "calc-func": [
                 "calc-value"
               ],
-              "calc-host": [],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "calc-oracle-excel": [
                 "calc-value",
                 "calc-verdict"
@@ -91,6 +111,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -121,7 +147,14 @@
               "calc-func": [
                 "calc-value"
               ],
-              "calc-host": [],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
               "calc-oracle-excel": [
                 "calc-value",
                 "calc-verdict"
@@ -138,6 +171,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -160,12 +199,12 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 24,
-          "calc-doc-model": 12,
+          "calc-doc": 26,
+          "calc-doc-model": 13,
           "calc-engine": 7,
           "calc-fml": 15,
-          "calc-func": 10,
-          "calc-host": 1,
+          "calc-func": 17,
+          "calc-host": 5,
           "calc-value": 5,
           "calc-verdict": 11,
           "dna-calc": 1,
@@ -180,7 +219,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "91 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "105 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -278,7 +317,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 91,
+        "files_scanned": 105,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -291,22 +330,22 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "91 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "105 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
       "details": {
         "packages": {
           "calc-doc": {
-            "entries": 94,
-            "entries_reach_unproven": 94,
-            "pub_enum_variants": 92,
+            "entries": 99,
+            "entries_reach_unproven": 99,
+            "pub_enum_variants": 97,
             "pub_traits": 2
           },
           "calc-doc-model": {
-            "entries": 61,
-            "entries_reach_unproven": 61,
-            "pub_enum_variants": 61,
+            "entries": 90,
+            "entries_reach_unproven": 90,
+            "pub_enum_variants": 90,
             "pub_traits": 0
           },
           "calc-engine": {
@@ -316,21 +355,21 @@
             "pub_traits": 1
           },
           "calc-fml": {
-            "entries": 100,
-            "entries_reach_unproven": 100,
+            "entries": 101,
+            "entries_reach_unproven": 101,
             "pub_enum_variants": 98,
-            "pub_traits": 2
+            "pub_traits": 3
           },
           "calc-func": {
-            "entries": 20,
-            "entries_reach_unproven": 20,
-            "pub_enum_variants": 18,
+            "entries": 21,
+            "entries_reach_unproven": 21,
+            "pub_enum_variants": 19,
             "pub_traits": 2
           },
           "calc-host": {
-            "entries": 0,
-            "entries_reach_unproven": 0,
-            "pub_enum_variants": 0,
+            "entries": 25,
+            "entries_reach_unproven": 25,
+            "pub_enum_variants": 25,
             "pub_traits": 0
           },
           "calc-value": {
@@ -340,9 +379,9 @@
             "pub_traits": 1
           },
           "calc-verdict": {
-            "entries": 54,
-            "entries_reach_unproven": 54,
-            "pub_enum_variants": 54,
+            "entries": 55,
+            "entries_reach_unproven": 55,
+            "pub_enum_variants": 55,
             "pub_traits": 0
           },
           "dna-calc": {
@@ -359,14 +398,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 410,
+          "entries_reach_unproven": 472,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 402 pub enum variants and 8 pub traits; their seams.json files list 410 entries, 410 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 463 pub enum variants and 9 pub traits; their seams.json files list 472 entries, 472 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -462,9 +501,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 134,
+          "commit_messages": 239,
           "files": 20,
-          "tracker_records": 339
+          "tracker_records": 378
         },
         "tracker": {
           "ceng-m7.1": {
@@ -515,7 +554,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 339 tracker records, 1 in 1 of 134 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 378 tracker records, 1 in 1 of 239 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -856,14 +895,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_1__workspace_builds",
-      "duration_s": 178.783,
+      "duration_s": 186.485,
       "exit_code": 0,
       "log": "target/accept/infra-m0.1/windows/infra_m0_1__workspace_builds.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 178.56s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 186.18s"
     },
     {
       "argv": [
@@ -882,14 +921,16 @@
         "--nocapture"
       ],
       "case": "infra_m0_1__independent_lanes",
-      "duration_s": 75.516,
+      "duration_s": 83.006,
       "exit_code": 0,
       "log": "target/accept/infra-m0.1/windows/infra_m0_1__independent_lanes.log",
-      "notes": [],
+      "notes": [
+        "cargo home <cargo-home>: left out of the comparison: cargo's last-use tracker [\".global-cache\", \".global-cache-journal\", \".global-cache-wal\", \".global-cache-shm\"] directly under it, the SQLite database in which cargo records when each cached crate was last used and the files SQLite keeps beside it; cargo rewrites a recorded time only once it is older than its update interval, and any cargo process on the machine may write it, so a change there does not show what a lane build wrote. Changed during the builds: []"
+      ],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 75.27s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 82.77s"
     },
     {
       "argv": [
@@ -908,14 +949,14 @@
         "--nocapture"
       ],
       "case": "infra_m0_1__agent_contract",
-      "duration_s": 0.417,
+      "duration_s": 0.881,
       "exit_code": 0,
       "log": "target/accept/infra-m0.1/windows/infra_m0_1__agent_contract.log",
       "notes": [],
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.15s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.16s"
     }
   ],
   "command": [
@@ -937,7 +978,7 @@
         "--format-version",
         "1"
       ],
-      "duration_s": 0.067,
+      "duration_s": 0.073,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -960,7 +1001,7 @@
         "check",
         "--workspace"
       ],
-      "duration_s": 73.559,
+      "duration_s": 14.047,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -989,7 +1030,7 @@
         "--exclude",
         "xtask"
       ],
-      "duration_s": 83.09,
+      "duration_s": 8.376,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
@@ -1029,7 +1070,7 @@
     "passed": 3,
     "selected": 3
   },
-  "duration_s": 446.523,
+  "duration_s": 314.44,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1039,7 +1080,7 @@
       "branch": "master",
       "dirty": false,
       "dirty_paths": [],
-      "head": "6b59f00c9dee38aea0b3d58fe205da32b922049f",
+      "head": "328d822a9c9a620dd2f203e96ff3300021fb4d09",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -1078,5 +1119,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-20T21:35:08Z"
+  "started_utc": "2026-10-21T18:17:14Z"
 }
