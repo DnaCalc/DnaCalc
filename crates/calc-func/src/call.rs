@@ -152,6 +152,23 @@ pub trait HostFacts {
     }
 }
 
+/// Calls LAMBDA values, as MAP, REDUCE, SCAN, BYROW, BYCOL and MAKEARRAY call the LAMBDA they
+/// are given. calc-func holds no formula evaluator, so the caller supplies one with the services
+/// ([`EvalServices::with_callables`]); calc-fml implements it with its own evaluator. Without one
+/// those functions are refused as not modelled.
+pub trait CallableInvoker {
+    /// The value of calling `callable` (a value whose [`CalcValue::callable_value`] is set) with
+    /// `arguments`. A call that is not a LAMBDA call's value (a callable of another formula, a
+    /// call of the wrong number of arguments) is the worksheet error Excel gives it. When the
+    /// evaluation of the call stops with a fault, the invoker keeps the fault for its caller and
+    /// returns [`CallAbandoned`]; the kernel then stops, and the caller reports the kept fault.
+    fn call(&mut self, callable: &CalcValue, arguments: &[CalcValue]) -> Result<CalcValue, CallAbandoned>;
+}
+
+/// A [`CallableInvoker`]'s report that a call stopped with a fault it keeps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CallAbandoned;
+
 /// The services a call runs with, owned by the caller: the numeric policy, which every
 /// arithmetic site reads instead of assuming one, the typed reader of reference arguments, and
 /// the resolution of reference text.
@@ -162,6 +179,7 @@ pub struct EvalServices<'s> {
     reference_text: Option<&'s mut dyn ReferenceText>,
     environment: Option<&'s CalcEnvironment>,
     host: Option<&'s mut dyn HostFacts>,
+    callables: Option<&'s mut dyn CallableInvoker>,
 }
 
 impl<'s> EvalServices<'s> {
@@ -175,6 +193,7 @@ impl<'s> EvalServices<'s> {
             reference_text: None,
             environment: None,
             host: None,
+            callables: None,
         }
     }
 
@@ -187,6 +206,7 @@ impl<'s> EvalServices<'s> {
             reference_text: None,
             environment: None,
             host: None,
+            callables: None,
         }
     }
 
@@ -211,6 +231,16 @@ impl<'s> EvalServices<'s> {
     pub fn with_environment(mut self, environment: &'s CalcEnvironment) -> Self {
         self.environment = Some(environment);
         self
+    }
+
+    /// These services with `callables` as the caller of LAMBDA values ([`CallableInvoker`]).
+    pub fn with_callables(mut self, callables: &'s mut dyn CallableInvoker) -> Self {
+        self.callables = Some(callables);
+        self
+    }
+
+    pub(crate) fn callables(&mut self) -> Option<&mut (dyn CallableInvoker + 's)> {
+        self.callables.as_deref_mut()
     }
 
     /// These services with `host` as the source of the host's facts ([`HostFacts`]).
@@ -260,6 +290,7 @@ impl fmt::Debug for EvalServices<'_> {
             .field("reference_text", &self.reference_text.is_some())
             .field("environment", &self.environment)
             .field("host", &self.host.is_some())
+            .field("callables", &self.callables.is_some())
             .finish()
     }
 }

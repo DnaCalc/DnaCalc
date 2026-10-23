@@ -38,8 +38,8 @@ use calc_func::value::{
     WorksheetErrorCode,
 };
 use calc_func::{
-    EvalServices, FunctionCallScratch, FunctionFault, ParameterClass, PreparedArguments,
-    RandomSource, ReferenceText, TextReference, invoke,
+    CallAbandoned, CallableInvoker, EvalServices, FunctionCallScratch, FunctionFault,
+    ParameterClass, PreparedArguments, RandomSource, ReferenceText, TextReference, invoke,
 };
 use std::cell::RefCell;
 
@@ -458,6 +458,9 @@ impl Run<'_, '_> {
         arguments: &[CalcValue],
         synthetic: bool,
     ) -> Result<CalcValue, EvalFault> {
+        if arguments.iter().any(|value| value.callable_value().is_some()) {
+            return self.eager_with_callables(target, arguments, synthetic);
+        }
         let mut scratch = self.calls.pop().unwrap_or_default();
         self.reader.clear_refusal();
         let mut text = self.catalog.map(|catalog| TextBinding {
@@ -484,6 +487,47 @@ impl Run<'_, '_> {
             self.show_resolved(target, area);
         }
         self.show_call(target, synthetic);
+        result.map_err(|fault| self.function_fault(fault))
+    }
+
+    /// Runs the eager entry `target` once on `arguments`, of which at least one is a LAMBDA value,
+    /// with the services' callables calling LAMBDA values through this evaluation (MAP, REDUCE
+    /// and the other helpers call theirs). A LAMBDA call that stops with a fault stops the
+    /// entry's call, and the fault is the evaluation's. No reference text is bound for such a
+    /// call: no entry that takes a LAMBDA resolves reference text.
+    fn eager_with_callables(
+        &mut self,
+        target: Target,
+        arguments: &[CalcValue],
+        synthetic: bool,
+    ) -> Result<CalcValue, EvalFault> {
+        let mut scratch = self.calls.pop().unwrap_or_default();
+        let reader = self.reader;
+        let numeric = self.numeric;
+        let random = self.random;
+        reader.clear_refusal();
+        let mut callables = Callables {
+            run: &mut *self,
+            fault: None,
+        };
+        let result = {
+            let mut cells = ReaderCells::new(reader);
+            let mut draws = random.map(RandomDraws);
+            let mut services =
+                call_services(numeric, &mut cells, draws.as_mut()).with_callables(&mut callables);
+            invoke(
+                target.0,
+                &mut Evaluated(arguments),
+                &mut services,
+                &mut scratch,
+            )
+        };
+        let fault = callables.fault.take();
+        self.calls.push(scratch);
+        self.show_call(target, synthetic);
+        if let Some(fault) = fault {
+            return Err(fault);
+        }
         result.map_err(|fault| self.function_fault(fault))
     }
 
@@ -672,35 +716,39 @@ impl Run<'_, '_> {
     fn invoke(&mut self, argc: usize) -> Result<(), EvalFault> {
         let start = self.stack.len() - argc;
         let callee = self.stack[start - 1].clone();
-        let Some(closure) = Closure::of(&callee) else {
+        let arguments: Vec<CalcValue> = self.stack.drain(start..).collect();
+        self.stack.pop();
+        let value = self.call_closure(&callee, arguments)?;
+        self.stack.push(value);
+        Ok(())
+    }
+
+    /// The value of calling `callee` with `arguments`: a LAMBDA call's value, or the worksheet
+    /// error Excel gives a call of something else or of the wrong number of arguments.
+    fn call_closure(&mut self, callee: &CalcValue, arguments: Vec<CalcValue>) -> Result<CalcValue, EvalFault> {
+        let argc = arguments.len();
+        let Some(closure) = Closure::of(callee) else {
             // Excel 16.0, 2026-10-23: `=(A1)(2)` is #REF! and `=LET(x,1,x(2))` #VALUE!.
-            let value = match callee.core() {
+            return Ok(match callee.core() {
                 CoreValue::Reference(_) => CalcValue::error(WorksheetErrorCode::Ref),
                 _ => CalcValue::error(WorksheetErrorCode::Value),
-            };
-            self.stack.truncate(start - 1);
-            self.stack.push(value);
-            return Ok(());
+            });
         };
         if closure.plan != plan_address(self.instance) {
             return Err(not_modelled("a LAMBDA value made by another formula"));
         }
         // Excel 16.0, 2026-10-23: `=LAMBDA(x,y,x)(1)` and `=LAMBDA(x,x)(1,2)` are #VALUE!.
         if argc > closure.params || argc < closure.required {
-            self.stack.truncate(start - 1);
-            self.stack.push(CalcValue::error(WorksheetErrorCode::Value));
-            return Ok(());
+            return Ok(CalcValue::error(WorksheetErrorCode::Value));
         }
         let cost = CALL_COST
             + CALLABLE_ARGUMENT_COST
-                * self.stack[start..]
+                * arguments
                     .iter()
                     .filter(|value| value.callable_value().is_some())
                     .count();
         if self.budget + cost > RECURSION_BUDGET {
-            self.stack.truncate(start - 1);
-            self.stack.push(CalcValue::error(WorksheetErrorCode::Num));
-            return Ok(());
+            return Ok(CalcValue::error(WorksheetErrorCode::Num));
         }
         if self.depth >= MAX_CALL_DEPTH {
             return Err(EvalFault::NotModelled {
@@ -710,11 +758,10 @@ impl Run<'_, '_> {
         }
         let frame = self.locals.len();
         self.locals.extend(closure.captured.iter().cloned());
-        self.locals.extend(self.stack.drain(start..));
+        self.locals.extend(arguments);
         for _ in argc..closure.params {
             self.locals.push(CalcValue::missing());
         }
-        self.stack.pop();
         let caller = std::mem::replace(&mut self.base, frame);
         self.depth += 1;
         self.budget += cost;
@@ -723,8 +770,7 @@ impl Run<'_, '_> {
         self.depth -= 1;
         self.base = caller;
         self.locals.truncate(frame);
-        self.stack.push(value?);
-        Ok(())
+        value
     }
 
     /// Runs the block of a defined name's formula in a frame of its own and pushes its value.
@@ -882,6 +928,42 @@ impl ReferenceText for TextBinding<'_> {
             self.resolved.push(area);
         }
         bound
+    }
+}
+
+/// The caller of LAMBDA values for one eager call's kernel ([`calc_func::CallableInvoker`]): each
+/// call runs the LAMBDA's body in this evaluation, as a call written in the formula does. The
+/// first fault stops every further call; the kernel's call is then discarded and the fault
+/// reported.
+struct Callables<'b, 'a, 'r> {
+    run: &'b mut Run<'a, 'r>,
+    fault: Option<EvalFault>,
+}
+
+impl CallableInvoker for Callables<'_, '_, '_> {
+    fn call(&mut self, callable: &CalcValue, arguments: &[CalcValue]) -> Result<CalcValue, CallAbandoned> {
+        if self.fault.is_some() {
+            return Err(CallAbandoned);
+        }
+        let value = self
+            .run
+            .call_closure(callable, arguments.to_vec())
+            .and_then(|value| match value.core() {
+                // A LAMBDA's value that is a reference reaches the helper as its value: one
+                // cell's value, or the array of a larger range's values.
+                CoreValue::Reference(reference) => match reference.areas() {
+                    [area] if area.cell_count() == 1 => self.run.reader.value_of(reference),
+                    _ => self.run.reader.values_of(reference),
+                },
+                _ => Ok(value),
+            });
+        match value {
+            Ok(value) => Ok(value),
+            Err(fault) => {
+                self.fault = Some(fault);
+                Err(CallAbandoned)
+            }
+        }
     }
 }
 

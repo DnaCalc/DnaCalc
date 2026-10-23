@@ -22,13 +22,13 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 /// A workbook of two sheets, Sheet1 and Sheet2, over the cfml-m1.3 fixtures, with defined names
 /// and spills known.
-struct Book {
+pub(super) struct Book {
     catalog: LoggingCatalog,
     reader: RunReader,
 }
 
 impl Book {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let mut catalog = LoggingCatalog::new(&["Sheet1", "Sheet2"]);
         catalog.names = Some(Default::default());
         let reader = RunReader {
@@ -50,13 +50,13 @@ impl Book {
         GridArea::new(self.at(a), self.at(b)).unwrap()
     }
 
-    fn set(&mut self, address: &str, value: CalcValue) -> &mut Self {
+    pub(super) fn set(&mut self, address: &str, value: CalcValue) -> &mut Self {
         let at = self.at(address);
         self.reader.values.insert(at, value);
         self
     }
 
-    fn number(&mut self, address: &str, value: f64) -> &mut Self {
+    pub(super) fn number(&mut self, address: &str, value: f64) -> &mut Self {
         self.set(address, CalcValue::number(value))
     }
 
@@ -79,7 +79,7 @@ impl Book {
 
     /// Compiles `formula` at `at` in `form` and evaluates it, with the catalogue as the
     /// formula's workbook context.
-    fn eval_in(
+    pub(super) fn eval_in(
         &mut self,
         form: FormulaForm,
         formula: &str,
@@ -105,11 +105,11 @@ impl Book {
     }
 
     /// A dynamic-array formula's value at Sheet1!Z100.
-    fn dynamic(&mut self, formula: &str) -> CalcValue {
+    pub(super) fn dynamic(&mut self, formula: &str) -> CalcValue {
         self.dynamic_at(formula, "Z100")
     }
 
-    fn dynamic_at(&mut self, formula: &str, at: &str) -> CalcValue {
+    pub(super) fn dynamic_at(&mut self, formula: &str, at: &str) -> CalcValue {
         match self.eval_in(FormulaForm::Dynamic, formula, at) {
             Ok(Ok(value)) => value,
             other => panic!("{formula}: {other:?}"),
@@ -117,7 +117,7 @@ impl Book {
     }
 
     /// A legacy formula's value at `at`.
-    fn legacy_at(&mut self, formula: &str, at: &str) -> CalcValue {
+    pub(super) fn legacy_at(&mut self, formula: &str, at: &str) -> CalcValue {
         match self.eval_in(FormulaForm::Legacy, formula, at) {
             Ok(Ok(value)) => value,
             other => panic!("{formula}: {other:?}"),
@@ -125,29 +125,29 @@ impl Book {
     }
 }
 
-fn n(value: f64) -> CalcValue {
+pub(super) fn n(value: f64) -> CalcValue {
     CalcValue::number(value)
 }
 
-fn t(text: &str) -> CalcValue {
+pub(super) fn t(text: &str) -> CalcValue {
     CalcValue::text(ExcelText::from_interop_assignment(text))
 }
 
-fn b(value: bool) -> CalcValue {
+pub(super) fn b(value: bool) -> CalcValue {
     CalcValue::logical(value)
 }
 
-fn e(code: W) -> CalcValue {
+pub(super) fn e(code: W) -> CalcValue {
     CalcValue::error(code)
 }
 
 /// The array of these rows.
-fn rows(rows: &[&[CalcValue]]) -> CalcValue {
+pub(super) fn rows(rows: &[&[CalcValue]]) -> CalcValue {
     CalcValue::array(CalcArray::from_rows(rows.iter().map(|row| row.to_vec()).collect()).unwrap())
 }
 
 /// The array of these numbers, in rows.
-fn numbers(values: &[&[f64]]) -> CalcValue {
+pub(super) fn numbers(values: &[&[f64]]) -> CalcValue {
     rows(
         &values
             .iter()

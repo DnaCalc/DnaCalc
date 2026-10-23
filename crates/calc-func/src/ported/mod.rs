@@ -104,6 +104,7 @@ pub(crate) mod bond_core_family;
 pub(crate) mod coupon_family;
 pub(crate) mod day_count_common;
 pub(crate) mod discount_bill_yearfrac_family;
+pub(crate) mod dynamic_array_reshape_family;
 pub(crate) mod odd_bond_family;
 pub(crate) mod cashflow_rate_family;
 pub(crate) mod cumulative_finance_family;
