@@ -2,8 +2,9 @@
 //! workbook graph.
 
 use crate::graph::{Prerequisite, ReverseIndex};
-use crate::recalc::{dirty_closure, live_anchor};
+use crate::recalc::{dirty_closure, live_anchor, published_areas};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
+use crate::spill::{Spill, SpillIndex};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
 use calc_fml::{FormulaInstance, PlanCache};
 use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
@@ -18,6 +19,7 @@ pub struct FormulaNode {
     id: NodeId,
     anchor: CellKey,
     prerequisites: Option<Vec<Prerequisite>>,
+    dynamic: Vec<Prerequisite>,
 }
 
 impl FormulaNode {
@@ -37,6 +39,16 @@ impl FormulaNode {
     /// its result is a refusal no input changes.
     pub fn prerequisites(&self) -> Option<&[Prerequisite]> {
         self.prerequisites.as_deref()
+    }
+
+    /// What the node's last calculated evaluation read beyond its placed references: the areas a
+    /// reference computed as it ran (INDIRECT's text, OFFSET's result, a spilled range `#` names)
+    /// read, and, for an array formula, the cells beside its anchor its result covers or would
+    /// cover. They are edges of the one graph like the placed references, so a change to one of
+    /// these cells makes the node stale. A node with no published calculation, and one whose
+    /// formula an edit replaced, has none.
+    pub fn dynamic_prerequisites(&self) -> &[Prerequisite] {
+        &self.dynamic
     }
 }
 
@@ -78,8 +90,21 @@ impl std::error::Error for PrerequisiteError {}
 /// A formula node's bound plan: its compiled plan placed at its anchor, or CalcFml's refusal.
 #[derive(Debug)]
 pub(crate) enum Binding {
-    Placed(FormulaInstance),
+    Placed(FormulaInstance, ArrayRole),
     Refused(NotModeled),
+}
+
+/// How a bound formula's result fills cells.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ArrayRole {
+    /// A formula that is not an array formula: its result is the one value of its cell.
+    Cell,
+    /// A legacy array formula of one cell: its cell shows the first element of its result.
+    LegacyCell,
+    /// A legacy array formula filling this fixed area.
+    LegacyFill(GridArea),
+    /// A dynamic-array formula: its result spills from its anchor.
+    Spill,
 }
 
 /// The engine's derived state for one workbook, owned by its caller (plan 3.1): node IDs interned
@@ -125,6 +150,16 @@ pub struct EngineState {
     /// The numeric mode of the last recalculation that published; `None` before the first. Every
     /// node that is not pending was last calculated under it.
     pub(crate) published_mode: Option<NumericMode>,
+    /// The bound nodes whose formulas call a volatile function; every recalculation calculates
+    /// them.
+    pub(crate) volatile: BTreeSet<NodeId>,
+    /// The anchors of the bound formulas that call SUBTOTAL or AGGREGATE, which those functions
+    /// leave out of the ranges they read.
+    pub(crate) subtotal_cells: BTreeSet<CellKey>,
+    /// The published spills: each array formula's filled cells, by anchor.
+    pub(crate) spills: SpillIndex,
+    /// The seed RAND, RANDBETWEEN and RANDARRAY draw from, mixed with each recalculation's tick.
+    pub(crate) random_seed: u64,
 }
 
 impl EngineState {
@@ -147,6 +182,10 @@ impl EngineState {
             last_tick: 0,
             generation: 0,
             published_mode: None,
+            volatile: BTreeSet::new(),
+            subtotal_cells: BTreeSet::new(),
+            spills: SpillIndex::default(),
+            random_seed: 0,
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -234,7 +273,8 @@ impl EngineState {
         if inputs.revision() != self.revision {
             return None;
         }
-        let mut cells: Vec<CellKey> = dirty_closure(self, inputs, self.pending.clone())
+        let areas = |node| published_areas(self, inputs, node);
+        let mut cells: Vec<CellKey> = dirty_closure(self, inputs, self.pending.clone(), &areas)
             .into_keys()
             .map(|node| live_anchor(self, node))
             .collect();
@@ -250,8 +290,58 @@ impl EngineState {
     pub fn instance(&self, node: NodeId) -> Option<&FormulaInstance> {
         self.node(node)?;
         match self.bindings.get(&node)? {
-            Binding::Placed(instance) => Some(instance),
+            Binding::Placed(instance, _) => Some(instance),
             Binding::Refused(_) => None,
+        }
+    }
+
+    /// Whether a live, bound node's formula calls a volatile function, so that every
+    /// recalculation calculates it (see [`calc_fml::CompiledPlan::volatile`]).
+    pub fn is_volatile(&self, node: NodeId) -> bool {
+        self.volatile.contains(&node)
+    }
+
+    /// The published spill of the array formula anchored at `anchor`: the cells its last
+    /// calculated result fills. `None` when the formula's result fills only its own cell, is
+    /// blocked (`#SPILL!`), was refused or is not calculated.
+    pub fn spill(&self, anchor: CellKey) -> Option<&Spill> {
+        self.spills.get(anchor)
+    }
+
+    /// The published spill whose filled cells include `at`.
+    pub fn spill_covering(&self, at: CellKey) -> Option<&Spill> {
+        self.spills.covering(at)
+    }
+
+    /// Every published spill, in anchor order.
+    pub fn spills(&self) -> impl Iterator<Item = &Spill> {
+        self.spills.iter()
+    }
+
+    /// The seed RAND, RANDBETWEEN and RANDARRAY draw from. Each recalculation mixes it with its
+    /// tick and each formula's cell, so the draws differ from one recalculation to the next and
+    /// a recalculation's draws can be reproduced from the seed and the tick.
+    pub fn random_seed(&self) -> u64 {
+        self.random_seed
+    }
+
+    /// Sets the seed RAND, RANDBETWEEN and RANDARRAY draw from (see
+    /// [`EngineState::random_seed`]).
+    pub fn set_random_seed(&mut self, seed: u64) {
+        self.random_seed = seed;
+    }
+
+    /// Replaces the dynamic prerequisites of a live node and files them in the graph.
+    pub(crate) fn set_dynamic(&mut self, node: NodeId, dynamic: Vec<Prerequisite>) {
+        if let Some(record) = self
+            .nodes
+            .get_mut(node.slot() as usize)
+            .and_then(Option::as_mut)
+            .filter(|record| record.id == node)
+        {
+            let old = std::mem::replace(&mut record.dynamic, dynamic);
+            self.index.remove(node, &old);
+            self.index.insert(node, &record.dynamic);
         }
     }
 
@@ -352,7 +442,10 @@ impl EngineState {
             if let Some(prerequisites) = &record.prerequisites {
                 self.index.remove(node, prerequisites);
             }
+            self.index.remove(node, &record.dynamic);
             self.bindings.remove(&node);
+            self.volatile.remove(&node);
+            self.subtotal_cells.remove(&record.anchor);
             self.pending.remove(&node);
             self.retired.insert(record.anchor);
             self.by_anchor.remove(&record.anchor);
@@ -376,7 +469,11 @@ impl EngineState {
             if let Some(prerequisites) = record.prerequisites.take() {
                 self.index.remove(node, &prerequisites);
             }
+            let dynamic = std::mem::take(&mut record.dynamic);
+            self.index.remove(node, &dynamic);
             self.bindings.remove(&node);
+            self.volatile.remove(&node);
+            self.subtotal_cells.remove(&record.anchor);
             self.pending.insert(node);
         }
     }
@@ -392,6 +489,7 @@ impl EngineState {
             id,
             anchor,
             prerequisites: None,
+            dynamic: Vec::new(),
         });
         self.by_anchor.insert(anchor, id);
     }

@@ -30,15 +30,11 @@ use std::collections::{BTreeMap, HashMap};
 use std::ops::ControlFlow;
 
 /// The prefix_metadata cells the host refuses, each with the reason and the bead that owns it:
-/// every other formula cell of the workbook must match Excel. INDIRECT's text is resolved only
-/// where the caller gives calc-fml the workbook's sheets, which the engine does not yet do
-/// (dc-0k9, dynamic dependencies); ISFORMULA asks whether a cell holds a formula, a host fact the
-/// cell reader does not supply (dc-ip6). Unprefixed, ISFORMULA is #NAME? on load and computes.
-const REFUSED: [(&str, &str); 3] = [
-    ("A26", "INDIRECT through the engine (dc-0k9)"),
-    ("B26", "INDIRECT through the engine (dc-0k9)"),
-    ("A32", "ISFORMULA, a host fact (dc-ip6)"),
-];
+/// every other formula cell of the workbook must match Excel, the INDIRECT cells A26 and B26
+/// included since the engine binds INDIRECT's text against the workbook's sheets (dc-0k9).
+/// ISFORMULA asks whether a cell holds a formula, a host fact the cell reader does not supply
+/// (dc-ip6). Unprefixed, ISFORMULA is #NAME? on load and computes.
+const REFUSED: [(&str, &str); 1] = [("A32", "ISFORMULA, a host fact (dc-ip6)")];
 use std::sync::Arc;
 
 const CASE: &str = "dc_xrxb__unprefixed_file_spelling_gives_name";

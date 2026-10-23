@@ -51,7 +51,7 @@ use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, ExcelText, GridArea, NumericMode, ReferenceLike,
     WorksheetErrorCode,
 };
-use calc_func::{FunctionCallScratch, FunctionCallTarget};
+use calc_func::{FunctionCallScratch, FunctionCallTarget, RandomSource};
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -109,6 +109,55 @@ impl CompiledPlan {
     /// The form the plan was compiled in.
     pub fn form(&self) -> FormulaForm {
         self.form
+    }
+
+    /// Every catalogue entry the plan may call, in the order compile emitted the calls, those in
+    /// arguments a lazy function may never ask for and in defined names' formulas included, with
+    /// repeats.
+    pub fn calls(&self) -> impl Iterator<Item = FunctionCallTarget<'static>> + '_ {
+        self.blocks
+            .iter()
+            .flatten()
+            .filter_map(|instruction| match instruction {
+                Instruction::Call { target, .. } | Instruction::LazyCall { target, .. } => {
+                    Some(target.0)
+                }
+                _ => None,
+            })
+    }
+
+    /// Whether the plan calls a function Excel recalculates on every recalculation: RAND,
+    /// RANDBETWEEN, RANDARRAY, NOW, TODAY, OFFSET, INDIRECT, CELL and INFO (Microsoft's
+    /// "Excel Recalculation" page lists these as volatile). A call a lazy function may never ask
+    /// for counts too, as it does in Excel.
+    pub fn volatile(&self) -> bool {
+        self.calls().any(|target| {
+            VOLATILE_FUNCTIONS
+                .iter()
+                .any(|name| strip_future_prefix(target.spelling()).eq_ignore_ascii_case(name))
+        })
+    }
+}
+
+/// The functions [`CompiledPlan::volatile`] counts as volatile.
+const VOLATILE_FUNCTIONS: [&str; 9] = [
+    "RAND",
+    "RANDBETWEEN",
+    "RANDARRAY",
+    "NOW",
+    "TODAY",
+    "OFFSET",
+    "INDIRECT",
+    "CELL",
+    "INFO",
+];
+
+/// A catalogue spelling without the file form's `_XLFN.` prefix.
+fn strip_future_prefix(spelling: &str) -> &str {
+    let upper = spelling.get(..6).map(str::to_ascii_uppercase);
+    match upper.as_deref() {
+        Some("_XLFN.") => &spelling[6..],
+        _ => spelling,
     }
 }
 
@@ -341,6 +390,7 @@ pub struct EvaluationServices<'s> {
     reader: &'s mut dyn ReferenceReader,
     observer: Option<&'s mut dyn EvaluationObserver>,
     catalog: Option<&'s dyn ReferenceCatalog>,
+    random: Option<&'s mut dyn RandomSource>,
 }
 
 impl<'s> EvaluationServices<'s> {
@@ -350,6 +400,16 @@ impl<'s> EvaluationServices<'s> {
             reader,
             observer: None,
             catalog: None,
+            random: None,
+        }
+    }
+
+    /// These services, with `random` the source of RAND, RANDBETWEEN and RANDARRAY. Without one
+    /// those functions are refused as not modelled.
+    pub fn with_random(self, random: &'s mut dyn RandomSource) -> Self {
+        EvaluationServices {
+            random: Some(random),
+            ..self
         }
     }
 
@@ -378,6 +438,7 @@ impl fmt::Debug for EvaluationServices<'_> {
             .field("numeric", self.numeric)
             .field("observed", &self.observer.is_some())
             .field("catalog", &self.catalog.is_some())
+            .field("random", &self.random.is_some())
             .finish_non_exhaustive()
     }
 }

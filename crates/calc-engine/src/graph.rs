@@ -117,6 +117,62 @@ pub enum Prerequisite {
 
 impl Prerequisite {
     /// The sheets this prerequisite names: one, or a span's two endpoints.
+    /// Whether the cell `at` is one this prerequisite reads (a span's middle sheets aside: a span
+    /// covers `at` only on one of its endpoints here).
+    pub(crate) fn covers(self, at: CellKey) -> bool {
+        match self {
+            Prerequisite::Cell(cell) => cell == at,
+            Prerequisite::Area(area) => area.contains(at),
+            Prerequisite::AxisValue(interval) => {
+                let position = match interval.axis() {
+                    Axis::Rows => at.row(),
+                    Axis::Columns => at.column(),
+                };
+                interval.sheet() == at.sheet()
+                    && (interval.first()..=interval.last()).contains(&position)
+            }
+            Prerequisite::SheetSpan(span) => {
+                (span.first() == at.sheet() || span.last() == at.sheet())
+                    && Rect::of(span.target()).contains(at.row(), at.column())
+            }
+        }
+    }
+
+    /// Whether some cell of `area` is one this prerequisite reads.
+    pub(crate) fn meets_area(self, area: GridArea) -> bool {
+        let rect = Rect::of(area);
+        match self {
+            Prerequisite::Cell(cell) => area.contains(cell),
+            Prerequisite::Area(own) => {
+                own.sheet() == area.sheet() && Rect::of(own).intersects(rect)
+            }
+            Prerequisite::AxisValue(interval) => {
+                let (low, high) = match interval.axis() {
+                    Axis::Rows => (rect.top, rect.bottom),
+                    Axis::Columns => (rect.left, rect.right),
+                };
+                interval.sheet() == area.sheet()
+                    && low <= interval.last()
+                    && interval.first() <= high
+            }
+            Prerequisite::SheetSpan(span) => {
+                (span.first() == area.sheet() || span.last() == area.sheet())
+                    && Rect::of(span.target()).intersects(rect)
+            }
+        }
+    }
+
+    /// Whether every cell of `area` is one this prerequisite reads.
+    pub(crate) fn contains_area(self, area: GridArea) -> bool {
+        match self {
+            Prerequisite::Cell(cell) => area.cell_count() == 1 && area.first() == cell,
+            Prerequisite::Area(own) => own.contains(area.first()) && own.contains(area.last()),
+            Prerequisite::AxisValue(_) | Prerequisite::SheetSpan(_) => {
+                self.covers(area.first()) && self.covers(area.last())
+            }
+        }
+    }
+
     pub(crate) fn sheets(self) -> [SheetId; 2] {
         match self {
             Prerequisite::Cell(at) => [at.sheet(); 2],
@@ -323,6 +379,46 @@ impl ReverseIndex {
             self.spans
                 .iter()
                 .filter(|edge| edge.rect.contains(row, column) && covers(inputs, edge, sheet))
+                .map(|edge| edge.node),
+        );
+    }
+
+    /// Adds to `out` every node with a value edge that covers at least one cell of `area`.
+    pub(crate) fn dependents_of_area(
+        &self,
+        inputs: &ModelRoot,
+        area: GridArea,
+        out: &mut BTreeSet<NodeId>,
+    ) {
+        let sheet = area.sheet();
+        let rect = Rect::of(area);
+        out.extend(
+            self.cells
+                .range(area.first()..=area.last())
+                .filter(|(at, _)| area.contains(**at))
+                .flat_map(|(_, nodes)| nodes),
+        );
+        let edges = self.rects_by_sheet.get(&sheet).into_iter().flatten();
+        out.extend(
+            edges
+                .filter(|edge| edge.rect.intersects(rect))
+                .map(|edge| edge.node),
+        );
+        for (map, low, high) in [
+            (&self.row_values, rect.top, rect.bottom),
+            (&self.column_values, rect.left, rect.right),
+        ] {
+            let edges = map.get(&sheet).into_iter().flatten();
+            out.extend(
+                edges
+                    .filter(|edge| low <= edge.last && edge.first <= high)
+                    .map(|edge| edge.node),
+            );
+        }
+        out.extend(
+            self.spans
+                .iter()
+                .filter(|edge| edge.rect.intersects(rect) && covers(inputs, edge, sheet))
                 .map(|edge| edge.node),
         );
     }

@@ -10,7 +10,7 @@ use crate::reference::{CellRun, ReadContractError, ReferenceReader, SpillExtent,
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, CellKey, GridArea, ReferenceLike, WorksheetErrorCode,
 };
-use calc_func::{CellReader, Unreadable};
+use calc_func::{CellReader, SubtotalExclusions, Unreadable};
 use std::cell::{Cell, RefCell};
 use std::ops::ControlFlow;
 
@@ -210,6 +210,10 @@ impl CellReader for ReaderCells<'_, '_> {
         };
         self.shared.refusal.set(Some(refusal));
         Err(Unreadable)
+    }
+
+    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
+        self.shared.reader.borrow_mut().subtotal_exclusions(area)
     }
 }
 

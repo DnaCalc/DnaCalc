@@ -9,11 +9,15 @@
 //! and is shown what CalcFml's evaluator reports of each evaluation it ran.
 
 use crate::result::{Calculation, FormulaResult};
+use crate::spill::{Spill, SpillIndex};
 use crate::state::EngineState;
 use calc_doc_model::{CellInput, ModelRoot, NameScope};
-use calc_fml::reference::{CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader};
-use calc_fml::{EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog};
+use calc_fml::reference::{
+    CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader, SpillExtent,
+};
+use calc_fml::{EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog, ResolvedReference};
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId};
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
 
@@ -57,6 +61,21 @@ pub trait ReadObserver {
     /// One evaluation's outcome, as the evaluator reported it.
     fn evaluated(&mut self, evaluation: ObservedEvaluation<'_>) {
         let _ = evaluation;
+    }
+
+    /// The evaluation of the formula at `formula` resolved reference text to an area as it ran
+    /// (INDIRECT's), as CalcFml's evaluator reported it ([`calc_fml::EvaluationObserver::resolved`]).
+    /// The engine files the area as one of the formula's dynamic prerequisites.
+    fn resolved(&mut self, formula: CellKey, reference: ResolvedReference) {
+        let _ = (formula, reference);
+    }
+
+    /// The evaluation of the formula at `formula` read `cell`, which this recalculation has yet
+    /// to calculate, so its result was discarded and the formula waits to be evaluated again once
+    /// `cell` is. The calls and reads shown for that evaluation since it began were of the
+    /// discarded attempt, and [`ReadObserver::evaluated`] was not shown its outcome.
+    fn deferred(&mut self, formula: CellKey, cell: CellKey) {
+        let _ = (formula, cell);
     }
 }
 
@@ -179,42 +198,217 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
     }
 }
 
-/// The engine's reader of the workbook's cells during one recalculation.
-pub(crate) struct WorkbookReader<'a> {
+/// What one recalculation knows of the workbook's formula results while it runs: the results and
+/// spills it has staged, the nodes it calculates and those it has evaluated, over the published
+/// generation.
+#[derive(Clone, Copy)]
+pub(crate) struct RecalcView<'a> {
     pub(crate) inputs: &'a ModelRoot,
     pub(crate) state: &'a EngineState,
     /// The results this recalculation has staged.
     pub(crate) staged: &'a BTreeMap<NodeId, FormulaResult>,
-    /// The nodes this recalculation evaluates.
+    /// The nodes this recalculation calculates.
     pub(crate) scheduled: &'a BTreeSet<NodeId>,
-    /// The first formula cell read that this recalculation schedules but has not evaluated yet.
-    pub(crate) unscheduled: Option<CellKey>,
+    /// The scheduled nodes whose staged result is current: evaluated in this recalculation and
+    /// not scheduled again since.
+    pub(crate) evaluated: &'a BTreeSet<NodeId>,
+    /// The spills of the anchors this recalculation evaluated whose results fill cells.
+    pub(crate) spills: &'a SpillIndex,
+}
+
+/// Where a formula node's result stands for a recalculation in progress.
+pub(crate) enum NodeStanding<'a> {
+    /// The recalculation calculates the node and has not evaluated it yet.
+    Pending,
+    /// The recalculation evaluated the node: its staged result.
+    Staged(&'a FormulaResult),
+    /// The recalculation does not calculate the node: its published result, if any.
+    Published(Option<&'a FormulaResult>),
+}
+
+impl<'a> RecalcView<'a> {
+    pub(crate) fn standing(&self, node: NodeId) -> NodeStanding<'a> {
+        if self.scheduled.contains(&node) {
+            if self.evaluated.contains(&node) {
+                NodeStanding::Staged(&self.staged[&node])
+            } else {
+                NodeStanding::Pending
+            }
+        } else {
+            let at = self.state.node(node).map(|record| record.anchor());
+            NodeStanding::Published(at.and_then(|at| self.state.result(at)))
+        }
+    }
+
+    /// The spill whose filled cells hold `at` as the recalculation stands, with its anchor's node:
+    /// a staged spill, or a published spill of an anchor the recalculation does not calculate.
+    /// `Err` with the anchor's node and cell when the cell may lie in the spill of an anchor the
+    /// recalculation calculates and has not evaluated yet. Both `Ok(None)` when no spill holds
+    /// the cell.
+    pub(crate) fn spill_at(&self, at: CellKey) -> Result<Option<&'a Spill>, (NodeId, CellKey)> {
+        if let Some(spill) = self.spills.covering(at) {
+            return Ok(Some(spill));
+        }
+        if let Some(spill) = self.state.spills.covering(at) {
+            let anchor = spill.anchor();
+            if let Some(node) = self.state.node_at(anchor) {
+                match self.standing(node) {
+                    NodeStanding::Pending => return Err((node, anchor)),
+                    NodeStanding::Staged(_) => {}
+                    NodeStanding::Published(_) => return Ok(Some(spill)),
+                }
+            }
+        }
+        Ok(None)
+    }
+}
+
+/// What the reader reports for a cell that holds no input.
+enum Overlay<'a> {
+    /// A value an array formula's result fills the cell with.
+    Value(&'a CalcValue),
+    /// A cell the reader cannot supply: an unloaded cell, a cell an array formula fills whose
+    /// result is not calculated, or one a formula not yet evaluated may fill.
+    Missing,
+    /// A blank cell.
+    Blank,
+}
+
+/// The engine's reader of the workbook's cells during one recalculation.
+pub(crate) struct WorkbookReader<'a> {
+    pub(crate) view: RecalcView<'a>,
+    /// The first cell read that this recalculation has yet to calculate, with the node that
+    /// calculates it: a formula cell, or a cell the spill of a formula not yet evaluated may fill.
+    uncomputed: &'a Cell<Option<(CellKey, NodeId)>>,
 }
 
 impl<'a> WorkbookReader<'a> {
+    pub(crate) fn new(
+        view: RecalcView<'a>,
+        uncomputed: &'a Cell<Option<(CellKey, NodeId)>>,
+    ) -> Self {
+        WorkbookReader { view, uncomputed }
+    }
+
+    fn wait(&mut self, at: CellKey, node: NodeId) {
+        if self.uncomputed.get().is_none() {
+            self.uncomputed.set(Some((at, node)));
+        }
+    }
+
     /// The value of the formula cell `at`, or `None` when it has none to hand out. A published
     /// value it hands out was calculated under this recalculation's numeric mode: when the mode
     /// differs from the published generation's, [`crate::begin_recalc`] schedules every formula
     /// node, and no published value is handed out at all.
     fn formula_value(&mut self, at: CellKey) -> Option<&'a CalcValue> {
-        let (state, staged) = (self.state, self.staged);
-        let node = state.node_at(at)?;
-        let result = match staged.get(&node) {
-            Some(staged) => staged,
-            None if self.scheduled.contains(&node) => {
-                self.unscheduled.get_or_insert(at);
+        let node = self.view.state.node_at(at)?;
+        let result = match self.view.standing(node) {
+            NodeStanding::Pending => {
+                self.wait(at, node);
                 return None;
             }
-            None => state.result(at)?,
+            NodeStanding::Staged(result) => result,
+            NodeStanding::Published(result) => result?,
         };
         result.calculated().map(|(value, _)| value)
+    }
+
+    /// What the cell `at`, which holds no input, reads as.
+    fn overlay(&mut self, at: CellKey) -> Overlay<'a> {
+        let view = self.view;
+        let definitions = view.inputs.definitions();
+        if definitions.unloaded(at).is_some() {
+            return Overlay::Missing;
+        }
+        match view.spill_at(at) {
+            Ok(Some(spill)) => return Overlay::Value(spill.value_at(at)),
+            Err((node, _)) => {
+                self.wait(at, node);
+                return Overlay::Missing;
+            }
+            Ok(None) => {}
+        }
+        let Some(array) = definitions
+            .array_containing(at)
+            .filter(|array| array.anchor() != at)
+        else {
+            return Overlay::Blank;
+        };
+        let Some(node) = view.state.node_at(array.anchor()) else {
+            return Overlay::Missing;
+        };
+        // The file's area of an array formula: a calculated result's own spill, which the engine
+        // tracks, has decided the cell is blank; any other result leaves it unknown.
+        match view.standing(node) {
+            NodeStanding::Pending => {
+                self.wait(at, node);
+                Overlay::Missing
+            }
+            NodeStanding::Staged(result) | NodeStanding::Published(Some(result))
+                if result.calculated().is_some() =>
+            {
+                Overlay::Blank
+            }
+            NodeStanding::Staged(_) | NodeStanding::Published(_) => Overlay::Missing,
+        }
+    }
+
+    /// The cells of `area` that hold no input and that an array formula, a spill or an unloaded
+    /// cell may give something other than blank, by their index in `area` in row-major order.
+    fn overlays(&mut self, area: GridArea) -> BTreeMap<u64, Overlay<'a>> {
+        let view = self.view;
+        let inputs = view.inputs;
+        let definitions = inputs.definitions();
+        let (first, width) = (area.first(), u64::from(area.column_count()));
+        let mut candidates: BTreeSet<CellKey> = BTreeSet::new();
+        let mut add = |spilled: GridArea| {
+            let (a, b) = (spilled.first(), spilled.last());
+            let (top, bottom) = (a.row().max(first.row()), b.row().min(area.last().row()));
+            let (left, right) = (
+                a.column().max(first.column()),
+                b.column().min(area.last().column()),
+            );
+            for row in top..=bottom {
+                for column in left..=right {
+                    let at = CellKey::new(area.sheet(), row, column).expect("a cell of the area");
+                    if at != spilled.first() {
+                        candidates.insert(at);
+                    }
+                }
+            }
+        };
+        for spill in view.spills.meeting(area) {
+            add(spill.area());
+        }
+        for spill in view.state.spills.meeting(area) {
+            add(spill.area());
+        }
+        for array in definitions.arrays_meeting(area) {
+            add(array.area());
+        }
+        candidates.extend(definitions.unloaded_in(area).map(|(at, _)| at));
+        let mut out = BTreeMap::new();
+        for at in candidates {
+            if inputs.cell(at).is_some() {
+                continue;
+            }
+            let index =
+                u64::from(at.row() - first.row()) * width + u64::from(at.column() - first.column());
+            match self.overlay(at) {
+                Overlay::Blank => {}
+                overlay => {
+                    out.insert(index, overlay);
+                }
+            }
+        }
+        out
     }
 }
 
 impl ReferenceReader for WorkbookReader<'_> {
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         let total = area.cell_count();
-        let inputs = self.inputs;
+        let inputs = self.view.inputs;
         let Some(occupied) = inputs.cells(area) else {
             let _ = sink(CellRun::Missing(total));
             return;
@@ -223,11 +417,11 @@ impl ReferenceReader for WorkbookReader<'_> {
         let index_of = |at: CellKey| {
             u64::from(at.row() - first.row()) * width + u64::from(at.column() - first.column())
         };
-        let missing = not_available(inputs, area, index_of);
+        let overlays = self.overlays(area);
         let mut covered = 0u64;
         for (at, input) in occupied {
             let index = index_of(at);
-            if index > covered && gap(covered, index, &missing, sink).is_break() {
+            if index > covered && gap(covered, index, &overlays, sink).is_break() {
                 return;
             }
             covered = index + 1;
@@ -243,54 +437,56 @@ impl ReferenceReader for WorkbookReader<'_> {
             }
         }
         if total > covered {
-            let _ = gap(covered, total, &missing, sink);
+            let _ = gap(covered, total, &overlays, sink);
         }
     }
-}
 
-/// The indexes, within `area` in row-major order, of the cells a calculation reads as not
-/// available though the model holds no input for them: the cells an array formula fills beside
-/// its anchor, and unloaded cells ([`calc_doc_model::Definitions::not_available`]). A cell that
-/// holds an input is read as that input instead, so an index here may also be an occupied cell's.
-fn not_available(
-    inputs: &ModelRoot,
-    area: GridArea,
-    index_of: impl Fn(CellKey) -> u64,
-) -> BTreeSet<u64> {
-    let definitions = inputs.definitions();
-    let mut missing = BTreeSet::new();
-    for array in definitions.arrays_meeting(area) {
-        let (a, b) = (array.area().first(), array.area().last());
-        let (first, last) = (area.first(), area.last());
-        for row in a.row().max(first.row())..=b.row().min(last.row()) {
-            for column in a.column().max(first.column())..=b.column().min(last.column()) {
-                let at = CellKey::new(area.sheet(), row, column).expect("a cell of the area");
-                if at != array.anchor() {
-                    missing.insert(index_of(at));
-                }
+    fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
+        let view = self.view;
+        let Some(node) = view.state.node_at(anchor) else {
+            return SpillExtent::None;
+        };
+        let (result, spill) = match view.standing(node) {
+            NodeStanding::Pending => {
+                self.wait(anchor, node);
+                return SpillExtent::NotModelled;
             }
+            NodeStanding::Staged(result) => (Some(result), view.spills.get(anchor)),
+            NodeStanding::Published(result) => (result, view.state.spills.get(anchor)),
+        };
+        // Excel 16.0, measured through COM on 2026-10-23: `=A1#` where A1 holds `=1+1` is 2 and
+        // where A1 holds `={5}` is 5 (the anchor alone); where A4 holds `={1;2;3}` blocked by a
+        // value in A5 it is #SPILL! and `=ROWS(A4#)` is 1 (the anchor alone); where A10 holds a
+        // number it is #REF!. What it gives for a legacy array formula's area is not measured.
+        match result {
+            Some(FormulaResult::Calculated { .. }) => match spill {
+                Some(spill) if spill.is_fixed() => SpillExtent::NotModelled,
+                Some(spill) => SpillExtent::Area(spill.area()),
+                None => SpillExtent::Area(GridArea::cell(anchor)),
+            },
+            _ => SpillExtent::NotModelled,
         }
     }
-    for (at, _) in definitions.unloaded_in(area) {
-        missing.insert(index_of(at));
-    }
-    missing
 }
 
-/// Reports the cells of indexes `from..to`, which hold no input: blank, except those `missing`
-/// holds, which are not available.
+/// Reports the cells of indexes `from..to`, which hold no input: blank, except those `overlays`
+/// holds.
 fn gap(
     from: u64,
     to: u64,
-    missing: &BTreeSet<u64>,
+    overlays: &BTreeMap<u64, Overlay<'_>>,
     sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
 ) -> ControlFlow<()> {
     let mut at = from;
-    for &index in missing.range(from..to) {
+    for (&index, overlay) in overlays.range(from..to) {
         if index > at {
             sink(CellRun::Blank(index - at))?;
         }
-        sink(CellRun::Missing(1))?;
+        match overlay {
+            Overlay::Value(value) => sink(CellRun::Values(std::slice::from_ref(*value)))?,
+            Overlay::Missing => sink(CellRun::Missing(1))?,
+            Overlay::Blank => sink(CellRun::Blank(1))?,
+        }
         at = index + 1;
     }
     if to > at {

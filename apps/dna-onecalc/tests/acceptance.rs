@@ -164,6 +164,15 @@ const EXAMPLES: &[Example] = &[
         reads: &[READ_A1, "Sheet2!B2: Sheet2!B2 no input"],
     },
     Example {
+        name: "INDIRECT's text names a cell of another sheet",
+        inputs: TWO_CELLS,
+        formula: "=INDIRECT(\"Sheet2!B\"&2)*2",
+        // Sheet2!B2 = 4, doubled.
+        result: "number 8",
+        diagnostics: &[],
+        reads: &["Sheet2!B2: Sheet2!B2 = number 4"],
+    },
+    Example {
         name: "a text input",
         inputs: &[("Sheet2!A1", Kind::Text, "a")],
         formula: "=Sheet2!A1&\"x\"",

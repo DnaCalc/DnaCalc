@@ -211,6 +211,9 @@ pub fn dispatch(
                 cleared_areas.push(*area);
                 seeded += dependents.len();
             }
+            // The cells a removed array formula filled change though no input of theirs did;
+            // the anchor's own cell is among the changed or cleared cells already.
+            InputSeed::Spill { dependents, .. } => seeded += dependents.len(),
         }
     }
     // After the commit the pending nodes are those pending before, the added and replaced nodes

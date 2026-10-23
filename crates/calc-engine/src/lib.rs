@@ -41,9 +41,11 @@
 
 mod edit;
 mod graph;
+mod random;
 mod read;
 mod recalc;
 mod result;
+mod spill;
 mod state;
 
 pub use edit::{
@@ -56,6 +58,8 @@ pub use recalc::{
     RecalcFailure, RecalcProgress, RecalcWork, StartError, WorkBudget, begin_recalc, finish, step,
 };
 pub use result::{
-    CacheWithoutFormula, CalcTick, Calculation, FormulaResult, NotModeled, ValueChange, ValueDelta,
+    CacheWithoutFormula, CalcTick, Calculation, FormulaResult, NotModeled, SpillChange,
+    ValueChange, ValueDelta,
 };
+pub use spill::Spill;
 pub use state::{EngineState, FormulaNode, PrerequisiteError};

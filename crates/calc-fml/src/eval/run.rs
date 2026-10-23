@@ -39,8 +39,39 @@ use calc_func::value::{
 };
 use calc_func::{
     EvalServices, FunctionCallScratch, FunctionFault, ParameterClass, PreparedArguments,
-    ReferenceText, TextReference, invoke,
+    RandomSource, ReferenceText, TextReference, invoke,
 };
+use std::cell::RefCell;
+
+/// The caller's random source, shared by every kernel call of one evaluation. A lazy call's
+/// arguments run while its kernel holds the services, so each call reaches the source through
+/// this shared cell, borrowed only for one draw.
+struct SharedRandom<'r> {
+    source: RefCell<&'r mut dyn RandomSource>,
+}
+
+/// One call's view of the shared random source.
+struct RandomDraws<'a, 'r>(&'a SharedRandom<'r>);
+
+impl RandomSource for RandomDraws<'_, '_> {
+    fn next_unit(&mut self) -> f64 {
+        self.0.source.borrow_mut().next_unit()
+    }
+}
+
+/// Services for one kernel call: the shared reader as its cells and, when the caller gave one,
+/// the shared random source.
+fn call_services<'s>(
+    numeric: &'s NumericMode,
+    cells: &'s mut ReaderCells<'_, '_>,
+    random: Option<&'s mut RandomDraws<'_, '_>>,
+) -> EvalServices<'s> {
+    let services = EvalServices::with_cells(numeric, cells);
+    match random {
+        Some(random) => services.with_random(random),
+        None => services,
+    }
+}
 
 /// Why an evaluation produced no value. Each is a refusal to calculate, never a worksheet value:
 /// a caller reports the formula as not calculated.
@@ -126,7 +157,14 @@ pub fn evaluate(
 ) -> Result<CalcValue, EvalFault> {
     let EvalFrame { instance, scratch } = frame;
     let reader = SharedReader::new(&mut *services.reader);
+    let random = match services.random.as_mut() {
+        Some(source) => Some(SharedRandom {
+            source: RefCell::new(&mut **source),
+        }),
+        None => None,
+    };
     let mut run = Run {
+        random: random.as_ref(),
         instance,
         stack: &mut scratch.stack,
         calls: &mut scratch.calls,
@@ -192,6 +230,8 @@ struct Run<'a, 'r> {
     arguments: Vec<CalcValue>,
     numeric: &'a NumericMode,
     reader: &'a SharedReader<'r>,
+    /// The source of RAND, RANDBETWEEN and RANDARRAY, when the caller gave one.
+    random: Option<&'a SharedRandom<'r>>,
     /// The workbook context INDIRECT's text is bound in, when the caller gave one.
     catalog: Option<&'a dyn ReferenceCatalog>,
     observer: Option<&'a mut dyn EvaluationObserver>,
@@ -427,7 +467,8 @@ impl Run<'_, '_> {
         });
         let result = {
             let mut cells = ReaderCells::new(self.reader);
-            let mut services = EvalServices::with_cells(self.numeric, &mut cells);
+            let mut draws = self.random.map(RandomDraws);
+            let mut services = call_services(self.numeric, &mut cells, draws.as_mut());
             if let Some(text) = text.as_mut() {
                 services = services.with_reference_text(text);
             }
@@ -501,7 +542,8 @@ impl Run<'_, '_> {
         self.reader.clear_refusal();
         let result = {
             let mut cells = ReaderCells::new(self.reader);
-            let mut services = EvalServices::with_cells(self.numeric, &mut cells);
+            let mut draws = self.random.map(RandomDraws);
+            let mut services = call_services(self.numeric, &mut cells, draws.as_mut());
             invoke(
                 target.0,
                 &mut Evaluated(arguments),
@@ -543,6 +585,7 @@ impl Run<'_, '_> {
         let mut scratch = self.calls.pop().unwrap_or_default();
         let reader = self.reader;
         let numeric = self.numeric;
+        let random = self.random;
         reader.clear_refusal();
         let mut arguments = Blocks {
             run: &mut *self,
@@ -555,7 +598,8 @@ impl Run<'_, '_> {
         };
         let result = {
             let mut cells = ReaderCells::new(reader);
-            let mut services = EvalServices::with_cells(numeric, &mut cells);
+            let mut draws = random.map(RandomDraws);
+            let mut services = call_services(numeric, &mut cells, draws.as_mut());
             invoke(target.0, &mut arguments, &mut services, &mut scratch)
         };
         let fault = arguments.fault.take();
