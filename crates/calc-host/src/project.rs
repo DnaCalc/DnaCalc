@@ -114,6 +114,15 @@ pub struct ProjectedCell {
 }
 
 impl ProjectedCell {
+    /// An empty cell: no input, no value.
+    pub(crate) fn empty(at: CellKey) -> ProjectedCell {
+        ProjectedCell {
+            at,
+            input: None,
+            value: ProjectedValue::Empty,
+        }
+    }
+
     pub fn at(&self) -> CellKey {
         self.at
     }

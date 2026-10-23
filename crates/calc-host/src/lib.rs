@@ -30,6 +30,14 @@
 //!   or a formula), a value the engine calculated that still stands, a typed refusal, or a stale
 //!   value.
 //!
+//! [`HostSession`] is what the applications build on: the session a skin (grid, notebook, tree,
+//! canvas), a headless tool or a test drives with [`SkinIntent`]s (cell entries read as Excel
+//! reads them, multi-cell edits, undo, redo, recalculation, the calculation mode, the selection),
+//! each edit one transaction and one undo step, recalculated after each commit in automatic mode;
+//! its subscriptions ([`Interest`]: an area, a sheet or the selection) get a [`HostDelta`] of the
+//! cells whose input, value or provenance changed after each committed transaction and each
+//! recalculation. It is independent of any UI toolkit: a sink is any closure.
+//!
 //! [`save`] writes the current revision through calc-doc's save, with each standing calculated
 //! formula value as its cached value and every other formula cell left for Excel to calculate on
 //! open.
@@ -43,18 +51,28 @@
 //! no way around these calls to change the authored revision or the engine state.
 
 mod command;
+mod entry;
+mod history;
 mod project;
 mod recalc;
 mod save;
+mod session;
 mod state;
 
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
+pub use entry::{EntryRefusal, interpret_entry};
+pub use history::{Irreversible, IrreversibleReason, Selection};
 pub use project::{
     ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,
     StaleValue, project,
 };
 pub use recalc::{HostProgress, RecalcFailed, step};
 pub use save::{SaveFailed, save};
+pub use session::{
+    CalcMode, DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, IntentError,
+    IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId, UNDO_LIMIT,
+    replay,
+};
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
 pub use calc_doc::{
