@@ -3,7 +3,8 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
 # writes <directory>/cells.xlsx, <directory>/extent.xlsx, <directory>/corner.xlsx and
-# <directory>/manifest.json. Run with this directory as -OutDir it rewrites the committed fixtures.
+# <directory>/manifest.json, and, for dc-ndi (D1), <directory>/d1.xlsx (its own section at the
+# end). Run with this directory as -OutDir it rewrites the committed fixtures.
 #
 # manifest.json is the generator's own record of what it wrote, computed here and not by the code
 # under test: for each package its sheets in workbook order (name, sheetId, state, the r:id of the
@@ -545,3 +546,104 @@ $manifest = [ordered]@{
     )
 }
 [System.IO.File]::WriteAllText((Join-Path $OutDir 'manifest.json'), (ConvertTo-Json -InputObject $manifest -Depth 12), $Utf8)
+
+# --- d1.xlsx (dc-ndi, work package D1) ----------------------------------------------------------
+#
+# The workbook D1's tests read once Excel has saved it: `cargo xtask capture --fixture d1.xlsx
+# --case dc_ndi__excel_d1 ...` opens it in Excel, recalculates and saves it, and the package Excel
+# saved is committed beside it as d1.saved.xlsx (with the capture as d1.capture.json). It holds two
+# sheets, Data and Calc. Data: numbers A1:A5 in five cell formats (bold, a fill, a percentage, a
+# date, a currency), texts B1:B5, and the table Sales over D1:F7 with a totals row. Calc:
+# dynamic-array formulas (cm naming the XLDAPR record of xl/metadata.xml) that spill (A1, D1, F1),
+# one whose spill a text blocks (H1) and one with an empty result (J1); legacy array formulas
+# (L1:L3, N1); a spilled-range reference, names of both scopes and a hidden one, a structured
+# reference, prefixed functions and ordinary formulas. Formulas carry no cached values: Excel
+# calculates them. Nothing of this section enters manifest.json.
+
+$d1Data = New-Sheet 'Data' 1 'visible' 'rId1' 'xl/worksheets/sheet1.xml'
+for ($i = 1; $i -le 5; $i++) {
+    Add-CellXml $d1Data $i ('<c r="A' + $i + '" s="' + $i + '"><v>' + $i + '</v></c>')
+    Add-CellXml $d1Data $i ('<c r="B' + $i + '" t="inlineStr"><is><t>item' + $i + '</t></is></c>')
+}
+$d1Regions = @('Region', 'North', 'South', 'East', 'West', 'Centre')
+for ($i = 0; $i -lt 6; $i++) {
+    $row = $i + 1
+    Add-CellXml $d1Data $row ('<c r="D' + $row + '" t="inlineStr"><is><t>' + $d1Regions[$i] + '</t></is></c>')
+    if ($i -eq 0) {
+        Add-CellXml $d1Data $row '<c r="E1" t="inlineStr"><is><t>Units</t></is></c><c r="F1" t="inlineStr"><is><t>Price</t></is></c>'
+    } else {
+        Add-CellXml $d1Data $row ('<c r="E' + $row + '"><v>' + ($i * 10) + '</v></c><c r="F' + $row + '"><v>' + (0.5 + $i) + '</v></c>')
+    }
+}
+Add-CellXml $d1Data 7 '<c r="D7" t="inlineStr"><is><t>Total</t></is></c><c r="E7"><f>SUBTOTAL(109,Sales[Units])</f></c>'
+
+$d1Calc = New-Sheet 'Calc' 2 'visible' 'rId2' 'xl/worksheets/sheet2.xml'
+$d1Row1 = '<c r="A1" cm="1"><f t="array" ref="A1">_xlfn.SEQUENCE(3,2)</f></c>' +
+    '<c r="D1" cm="1"><f t="array" ref="D1">_xlfn._xlws.SORT(Data!A1:A5,,-1)</f></c>' +
+    '<c r="F1" cm="1"><f t="array" ref="F1">Data!A1:A3*2</f></c>' +
+    '<c r="H1" cm="1"><f t="array" ref="H1">_xlfn.SEQUENCE(2)</f></c>' +
+    '<c r="J1" cm="1"><f t="array" ref="J1">_xlfn._xlws.FILTER(Data!A1:A5,Data!A1:A5&gt;100)</f></c>' +
+    '<c r="L1"><f t="array" ref="L1:L3">Data!A1:A3*10</f></c>' +
+    '<c r="N1"><f t="array" ref="N1">SUM(Data!A1:A5*Data!A1:A5)</f></c>' +
+    '<c r="P1"><f>SUM(_xlfn.ANCHORARRAY(A1))</f></c>' +
+    '<c r="Q1"><f>Rate*2</f></c>' +
+    '<c r="R1"><f>SUM(Sales[Units])</f></c>' +
+    '<c r="S1"><f>_xlfn.XLOOKUP(3,Data!A1:A5,Data!B1:B5)</f></c>' +
+    '<c r="T1"><f>_xlfn.IFNA(NA(),"none")</f></c>' +
+    '<c r="U1"><f>Data!A1+1</f></c>' +
+    '<c r="V1"><f>SUM(Local)</f></c>' +
+    '<c r="W1" cm="1"><f t="array" ref="W1">HiddenTotal</f></c>'
+Add-CellXml $d1Calc 1 $d1Row1
+Add-CellXml $d1Calc 2 '<c r="H2" t="inlineStr"><is><t>blocker</t></is></c><c r="U2"><v>7</v></c>'
+Add-CellXml $d1Calc 3 '<c r="U3"><f>U2*3</f></c>'
+
+$d1Workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><sheets>' +
+    '<sheet name="Data" sheetId="1" r:id="rId1"/><sheet name="Calc" sheetId="2" r:id="rId2"/></sheets>' +
+    '<definedNames><definedName name="HiddenTotal" hidden="1">SUM(Data!$A$1:$A$5)</definedName>' +
+    '<definedName name="Local" localSheetId="1">Calc!$A$1:$B$3</definedName>' +
+    '<definedName name="Rate">0.05</definedName></definedNames><calcPr calcId="191029"/></workbook>'
+$d1Styles = $Decl + '<styleSheet xmlns="' + $Main + '">' +
+    '<numFmts count="3"><numFmt numFmtId="164" formatCode="0.00%"/><numFmt numFmtId="165" formatCode="yyyy\-mm\-dd"/><numFmt numFmtId="166" formatCode="#,##0.00\ [$EUR]"/></numFmts>' +
+    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font></fonts>' +
+    '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+    '<xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1"/>' +
+    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+    '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+    '<xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>' +
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'
+$d1Metadata = $Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">' +
+    '<metadataTypes count="1"><metadataType name="XLDAPR" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/></metadataTypes>' +
+    '<futureMetadata name="XLDAPR" count="1"><bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk></futureMetadata>' +
+    '<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>'
+$d1Table = $Decl + '<table xmlns="' + $Main + '" id="1" name="Sales" displayName="Sales" ref="D1:F7" totalsRowCount="1"><autoFilter ref="D1:F6"/>' +
+    '<tableColumns count="3"><tableColumn id="1" name="Region" totalsRowLabel="Total"/><tableColumn id="2" name="Units" totalsRowFunction="sum"/><tableColumn id="3" name="Price"/></tableColumns>' +
+    '<tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/></table>'
+
+[void](Write-Zip (Join-Path $OutDir 'd1.xlsx') @(
+    @('[Content_Types].xml', $Utf8.GetBytes((New-ContentTypes @(
+        @('xl/workbook.xml', $WorkbookType),
+        @('xl/worksheets/sheet1.xml', $WorksheetType),
+        @('xl/worksheets/sheet2.xml', $WorksheetType),
+        @('xl/styles.xml', $StylesType),
+        @('xl/metadata.xml', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml'),
+        @('xl/tables/table1.xml', 'application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml')
+    )))),
+    @('_rels/.rels', $Utf8.GetBytes($PackageRels)),
+    @('xl/workbook.xml', $Utf8.GetBytes($d1Workbook)),
+    @('xl/_rels/workbook.xml.rels', $Utf8.GetBytes((New-Relationships @(
+        @('rId1', "$Rel/worksheet", 'worksheets/sheet1.xml'),
+        @('rId2', "$Rel/worksheet", 'worksheets/sheet2.xml'),
+        @('rId3', "$Rel/styles", 'styles.xml'),
+        @('rId4', "$Rel/sheetMetadata", 'metadata.xml')
+    )))),
+    @('xl/worksheets/sheet1.xml', $Utf8.GetBytes((Get-SheetXml $d1Data '<dimension ref="A1:F7"/>' '<tableParts count="1"><tablePart r:id="rId1"/></tableParts>'))),
+    @('xl/worksheets/_rels/sheet1.xml.rels', $Utf8.GetBytes((New-Relationships @(, @('rId1', "$Rel/table", '../tables/table1.xml'))))),
+    @('xl/worksheets/sheet2.xml', $Utf8.GetBytes((Get-SheetXml $d1Calc '<dimension ref="A1:W3"/>' ''))),
+    @('xl/styles.xml', $Utf8.GetBytes($d1Styles)),
+    @('xl/metadata.xml', $Utf8.GetBytes($d1Metadata)),
+    @('xl/tables/table1.xml', $Utf8.GetBytes($d1Table))
+))
