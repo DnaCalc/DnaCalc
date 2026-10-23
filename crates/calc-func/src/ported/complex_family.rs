@@ -69,9 +69,9 @@ fn parse_ascii_decimal_15(text: &str) -> Option<f64> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ParsedComplex {
-    re: f64,
-    im: f64,
-    suffix: Option<char>,
+    pub(crate) re: f64,
+    pub(crate) im: f64,
+    pub(crate) suffix: Option<char>,
 }
 impl ParsedComplex {
     pub(crate) const fn new(re: f64, im: f64, suffix: Option<char>) -> Self {

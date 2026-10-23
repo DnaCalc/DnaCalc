@@ -1,0 +1,258 @@
+//! The engineering family fragment ported from OxFunc (functions/ at 6fca3518): the radix
+//! conversions (BIN2DEC to OCT2HEX), the bit functions, the complex-number functions (COMPLEX and
+//! the IM functions), the Bessel functions, DELTA, GESTEP and CONVERT. The kernels are OxFunc's
+//! ([`crate::ported`]).
+//!
+//! The radix functions refuse a logical argument with #VALUE! and an empty one with #N/A, as
+//! OxFunc's engineering argument rule does, and check an explicit places argument before the
+//! number. A complex-number argument is a number, or text in the complex form (any other text is
+//! #NUM!); a logical is #VALUE! and a blank is 0.
+
+use super::kit::{fail, given, num, out, out_text, text, text_value, values};
+use crate::kernel::{Exit, Site, Step};
+use crate::ported::complex_family::{
+    ParsedComplex, format_complex_text, normalize_zero, parse_complex_text, suffix_from_operands,
+};
+use crate::ported::engineering_radix_family as radix;
+use crate::ported::{self as k};
+use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
+
+const CODE: u16 = 105;
+
+/// The radix functions' rule for the kinds they refuse: a logical is #VALUE!, an empty argument
+/// #N/A.
+fn radix_kind(a: &[CalcValue], index: usize) -> Step<()> {
+    match a[index].core() {
+        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
+        CoreValue::Missing => fail(WorksheetErrorCode::NA),
+        _ => Ok(()),
+    }
+}
+
+/// The optional places argument: checked (kind, number and range) before the number is read.
+fn places(site: &Site<'_>, a: &[CalcValue]) -> Step<Option<f64>> {
+    if a.len() > 1 && !a[1].is_missing() {
+        radix_kind(a, 1)?;
+        let p = num(site, a, 1)?;
+        radix::normalize_places(Some(p)).map_err(Exit::Error)?;
+        Ok(Some(p))
+    } else {
+        Ok(None)
+    }
+}
+
+fn from_decimal(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(f64, Option<f64>) -> Result<ExcelText, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let p = places(site, a)?;
+    radix_kind(a, 0)?;
+    let n = num(site, a, 0)?;
+    out_text(kernel(n, p))
+}
+
+fn to_decimal(site: &Site<'_>, a: &[CalcValue], kernel: fn(&str) -> Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+    radix_kind(a, 0)?;
+    let t = text(site, a, 0)?;
+    out(site, kernel(&t))
+}
+
+fn between(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(&str, Option<f64>) -> Result<ExcelText, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let p = places(site, a)?;
+    radix_kind(a, 0)?;
+    let t = text(site, a, 0)?;
+    out_text(kernel(&t, p))
+}
+
+/// A value as a complex number.
+fn complex_of(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<ParsedComplex> {
+    match value.core() {
+        CoreValue::Number(n) => Ok(ParsedComplex::new(*n, 0.0, None)),
+        CoreValue::Text(t) => match String::from_utf16(t.utf16_code_units()) {
+            Ok(text) => parse_complex_text(&text).ok_or(Exit::Error(WorksheetErrorCode::Num)),
+            Err(_) => Err(site.not_modelled(Some(index))),
+        },
+        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
+        CoreValue::Error(code) => fail(*code),
+        CoreValue::Empty | CoreValue::Missing => Ok(ParsedComplex::new(0.0, 0.0, None)),
+        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+    }
+}
+
+/// A complex-number result as its text, with the suffix the operands use.
+fn complex_text(value: Result<ParsedComplex, WorksheetErrorCode>, operands: &[ParsedComplex]) -> Step<CalcValue> {
+    let suffix = suffix_from_operands(operands).map_err(Exit::Error)?;
+    let value = value.map_err(Exit::Error)?;
+    let text = format_complex_text(value, suffix).map_err(Exit::Error)?;
+    Ok(text_value(&text))
+}
+
+fn unary_complex(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(ParsedComplex) -> Result<ParsedComplex, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let z = complex_of(site, 0, &a[0])?;
+    complex_text(kernel(z), &[z])
+}
+
+fn complex_number(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    kernel: fn(ParsedComplex) -> Result<f64, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let z = complex_of(site, 0, &a[0])?;
+    out(site, kernel(z).map(normalize_zero))
+}
+
+/// COMPLEX's real and imaginary coefficients: a number, numeric text, a blank as 0; a logical is
+/// #VALUE!.
+fn coefficient(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
+    match a[index].core() {
+        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
+        _ => num(site, a, index),
+    }
+}
+
+/// Every value of IMSUM's and IMPRODUCT's arguments as a complex number.
+fn complexes(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<Vec<ParsedComplex>> {
+    let mut found = Vec::new();
+    values(site, a, 0, a.len(), sv, &mut |_, value| {
+        found.push(complex_of(site, 0, value)?);
+        Ok(())
+    })?;
+    Ok(found)
+}
+
+fn bessel(site: &Site<'_>, a: &[CalcValue], kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+    let x = num(site, a, 0)?;
+    let n = num(site, a, 1)?;
+    out(site, kernel(x, n))
+}
+
+fn bits(site: &Site<'_>, a: &[CalcValue], kernel: fn(f64, f64) -> Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+    let x = num(site, a, 0)?;
+    let y = num(site, a, 1)?;
+    out(site, kernel(x, y))
+}
+
+ported_family! {
+    code: CODE;
+    1 bin2dec "BIN2DEC" (1, 1) [V "number"] |s, a, sv| { to_decimal(s, a, radix::bin2dec_kernel) }
+    2 bin2hex "BIN2HEX" (1, 2) [V "number", V "places"] |s, a, sv| { between(s, a, radix::bin2hex_kernel) }
+    3 bin2oct "BIN2OCT" (1, 2) [V "number", V "places"] |s, a, sv| { between(s, a, radix::bin2oct_kernel) }
+    4 dec2bin "DEC2BIN" (1, 2) [V "number", V "places"] |s, a, sv| { from_decimal(s, a, radix::dec2bin_kernel) }
+    5 dec2hex "DEC2HEX" (1, 2) [V "number", V "places"] |s, a, sv| { from_decimal(s, a, radix::dec2hex_kernel) }
+    6 dec2oct "DEC2OCT" (1, 2) [V "number", V "places"] |s, a, sv| { from_decimal(s, a, radix::dec2oct_kernel) }
+    7 hex2bin "HEX2BIN" (1, 2) [V "number", V "places"] |s, a, sv| { between(s, a, radix::hex2bin_kernel) }
+    8 hex2dec "HEX2DEC" (1, 1) [V "number"] |s, a, sv| { to_decimal(s, a, radix::hex2dec_kernel) }
+    9 hex2oct "HEX2OCT" (1, 2) [V "number", V "places"] |s, a, sv| { between(s, a, radix::hex2oct_kernel) }
+    10 oct2bin "OCT2BIN" (1, 2) [V "number", V "places"] |s, a, sv| { between(s, a, radix::oct2bin_kernel) }
+    11 oct2dec "OCT2DEC" (1, 1) [V "number"] |s, a, sv| { to_decimal(s, a, radix::oct2dec_kernel) }
+    12 oct2hex "OCT2HEX" (1, 2) [V "number", V "places"] |s, a, sv| { between(s, a, radix::oct2hex_kernel) }
+    20 bitand "BITAND" (2, 2) [V "number1", V "number2"] |s, a, sv| { bits(s, a, k::bitand_fn::bitand_kernel) }
+    21 bitor "BITOR" (2, 2) [V "number1", V "number2"] |s, a, sv| { bits(s, a, k::bitor_fn::bitor_kernel) }
+    22 bitxor "BITXOR" (2, 2) [V "number1", V "number2"] |s, a, sv| { bits(s, a, k::bitxor_fn::bitxor_kernel) }
+    23 bitlshift "BITLSHIFT" (2, 2) [V "number", V "shift_amount"] |s, a, sv| {
+        bits(s, a, k::bitlshift_fn::bitlshift_kernel)
+    }
+    24 bitrshift "BITRSHIFT" (2, 2) [V "number", V "shift_amount"] |s, a, sv| {
+        bits(s, a, k::bitrshift_fn::bitrshift_kernel)
+    }
+    30 complex "COMPLEX" (2, 3) [V "real_num", V "i_num", V "suffix"] |s, a, sv| {
+        let re = coefficient(s, a, 0)?;
+        let im = coefficient(s, a, 1)?;
+        let suffix = match a.get(2).map(CalcValue::core) {
+            None | Some(CoreValue::Missing | CoreValue::Empty) => 'i',
+            Some(CoreValue::Error(code)) => return fail(*code),
+            Some(CoreValue::Text(_)) => match text(s, a, 2)?.trim() {
+                "" | "i" => 'i',
+                "j" => 'j',
+                _ => return fail(WorksheetErrorCode::Value),
+            },
+            Some(_) => return fail(WorksheetErrorCode::Value),
+        };
+        let text = format_complex_text(ParsedComplex::new(re, im, None), suffix).map_err(Exit::Error)?;
+        Ok(text_value(&text))
+    }
+    31 imabs "IMABS" (1, 1) [V "inumber"] |s, a, sv| { complex_number(s, a, |z| Ok(z.abs())) }
+    32 imaginary "IMAGINARY" (1, 1) [V "inumber"] |s, a, sv| { complex_number(s, a, |z| Ok(z.im)) }
+    33 imargument "IMARGUMENT" (1, 1) [V "inumber"] |s, a, sv| { complex_number(s, a, |z| z.argument()) }
+    34 imreal "IMREAL" (1, 1) [V "inumber"] |s, a, sv| { complex_number(s, a, |z| Ok(z.re)) }
+    35 imconjugate "IMCONJUGATE" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.conj())) }
+    36 imcos "IMCOS" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.cos())) }
+    37 imcosh "IMCOSH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.cosh())) }
+    38 imcot "IMCOT" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.cot()) }
+    39 imcsc "IMCSC" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.csc()) }
+    40 imcsch "IMCSCH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.csch()) }
+    41 imexp "IMEXP" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.exp())) }
+    42 imln "IMLN" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.ln()) }
+    43 imlog10 "IMLOG10" (1, 1) [V "inumber"] |s, a, sv| {
+        unary_complex(s, a, |z| {
+            let ln = z.ln()?;
+            Ok(ParsedComplex::new(ln.re / 10.0_f64.ln(), ln.im / 10.0_f64.ln(), None))
+        })
+    }
+    44 imlog2 "IMLOG2" (1, 1) [V "inumber"] |s, a, sv| {
+        unary_complex(s, a, |z| {
+            let ln = z.ln()?;
+            Ok(ParsedComplex::new(ln.re / 2.0_f64.ln(), ln.im / 2.0_f64.ln(), None))
+        })
+    }
+    45 imsec "IMSEC" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.sec()) }
+    46 imsech "IMSECH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.sech()) }
+    47 imsin "IMSIN" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.sin())) }
+    48 imsinh "IMSINH" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.sinh())) }
+    49 imsqrt "IMSQRT" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| Ok(z.sqrt())) }
+    50 imtan "IMTAN" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.tan()) }
+    51 imdiv "IMDIV" (2, 2) [V "inumber1", V "inumber2"] |s, a, sv| {
+        let x = complex_of(s, 0, &a[0])?;
+        let y = complex_of(s, 1, &a[1])?;
+        complex_text(x.div(y), &[x, y])
+    }
+    52 impower "IMPOWER" (2, 2) [V "inumber", V "number"] |s, a, sv| {
+        let z = complex_of(s, 0, &a[0])?;
+        let n = coefficient(s, a, 1)?;
+        complex_text(z.power(n), &[z])
+    }
+    53 imsub "IMSUB" (2, 2) [V "inumber1", V "inumber2"] |s, a, sv| {
+        let x = complex_of(s, 0, &a[0])?;
+        let y = complex_of(s, 1, &a[1])?;
+        complex_text(Ok(x.sub(y)), &[x, y])
+    }
+    54 imsum "IMSUM" (1, 255) [R "inumber1", R "inumber2"] |s, a, sv| {
+        let zs = complexes(s, a, sv)?;
+        let sum = zs.iter().fold(ParsedComplex::new(0.0, 0.0, None), |acc, z| acc.add(*z));
+        complex_text(Ok(sum), &zs)
+    }
+    55 improduct "IMPRODUCT" (1, 255) [R "inumber1", R "inumber2"] |s, a, sv| {
+        let zs = complexes(s, a, sv)?;
+        let product = zs.iter().fold(ParsedComplex::new(1.0, 0.0, None), |acc, z| acc.mul(*z));
+        complex_text(Ok(product), &zs)
+    }
+    60 besseli "BESSELI" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::besseli_kernel) }
+    61 besselj "BESSELJ" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::besselj_kernel) }
+    62 besselk "BESSELK" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::besselk_kernel) }
+    63 bessely "BESSELY" (2, 2) [V "x", V "n"] |s, a, sv| { bessel(s, a, k::bessel_convert_family::bessely_kernel) }
+    70 delta "DELTA" (1, 2) [V "number1", V "number2"] |s, a, sv| {
+        let x = num(s, a, 0)?;
+        let y = if given(a, 1) { num(s, a, 1)? } else { 0.0 };
+        out(s, k::delta_fn::delta_kernel(x, y))
+    }
+    71 gestep "GESTEP" (1, 2) [V "number", V "step"] |s, a, sv| {
+        let x = num(s, a, 0)?;
+        let step = if given(a, 1) { num(s, a, 1)? } else { 0.0 };
+        out(s, k::gestep_fn::gestep_kernel(x, step))
+    }
+    72 convert "CONVERT" (3, 3) [V "number", V "from_unit", V "to_unit"] |s, a, sv| {
+        let x = num(s, a, 0)?;
+        let from = text(s, a, 1)?;
+        let to = text(s, a, 2)?;
+        out(s, k::misc_conversion_family::convert_kernel(x, &from, &to))
+    }
+}

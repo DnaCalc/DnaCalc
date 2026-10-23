@@ -69,6 +69,7 @@ pub(crate) mod percentile_common;
 pub(crate) mod percentrank_common;
 pub(crate) mod permut_fn;
 pub(crate) mod permutationa_fn;
+pub(crate) mod power_fn;
 pub(crate) mod phi_fn;
 pub(crate) mod radians;
 pub(crate) mod rank_common;

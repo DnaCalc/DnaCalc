@@ -12,7 +12,7 @@
 use super::aggregate::{self, Held, Origin};
 use super::{ArgumentDemand, CatalogueEntry, FunctionId, Kernel, Notation, Parameter, ParameterClass};
 use crate::call::{EagerKernel, EvalServices};
-use crate::coerce::{self, Stop};
+use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
     CalcArray, CalcValue, CallableArityShape, CoreValue, ExcelText, WorksheetErrorCode,
@@ -123,18 +123,6 @@ pub(super) fn opt(site: &Site<'_>, arguments: &[CalcValue], index: usize, defaul
     }
 }
 
-/// [`opt`], but an empty argument also takes `default`.
-pub(super) fn opt_m(
-    site: &Site<'_>,
-    arguments: &[CalcValue],
-    index: usize,
-    default: f64,
-) -> Step<f64> {
-    match arguments.get(index) {
-        Some(value) if !value.is_missing() => num(site, arguments, index),
-        _ => Ok(default),
-    }
-}
 
 /// Whether argument `index` was supplied and not left empty.
 pub(super) fn given(arguments: &[CalcValue], index: usize) -> bool {
@@ -353,7 +341,3 @@ pub(super) fn pairs(
     Ok(found)
 }
 
-/// A coercion stop as a step, attributed to argument `index`.
-pub(super) fn stop<T>(site: &Site<'_>, index: usize, stopped: Stop) -> Step<T> {
-    Err(site.stop(stopped, Some(index)))
-}
