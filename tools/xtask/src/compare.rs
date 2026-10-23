@@ -1157,11 +1157,9 @@ mod tests {
     /// text, so the cell is not modelled under NOT's owner (bead dc-vcs), not a missing function.
     #[test]
     fn a_kernel_refusal_is_not_modelled_under_its_owner() {
-        let calc = super::test_package::calc_sheet(
-            r#"<c r="C1" t="e"><f>NOT("1")</f><v>#VALUE!</v></c>"#,
-        );
-        let fixture =
-            super::test_package::package(&super::test_package::inputs_sheet(""), &calc);
+        let calc =
+            super::test_package::calc_sheet(r#"<c r="C1" t="e"><f>NOT("1")</f><v>#VALUE!</v></c>"#);
+        let fixture = super::test_package::package(&super::test_package::inputs_sheet(""), &calc);
         let capture = CaptureRecord::decode(
             br#"{"format": "dnacalc-capture-record", "version": 1, "case": "k", "source": "sha256:00", "acquisition": {"kind": "file_cache_replay"}, "environment": null, "sheets": [{"name": "Inputs", "visibility": "visible"}, {"name": "Calc", "visibility": "visible"}], "formulas": [{"sheet": "Calc", "row": 1, "column": 3, "kind": "ordinary"}], "observations": []}"#,
         )

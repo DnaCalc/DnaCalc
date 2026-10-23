@@ -320,7 +320,7 @@ fn every_cell_once(triage: &Value, capture: &Value, failures: &mut Vec<String>) 
     for cell in triage["cells"].as_array().unwrap() {
         let class = cell["class"].as_str().unwrap_or_default();
         if !CLASSES.contains(&class) || cell["key"].as_str().is_none_or(str::is_empty) {
-            failures.push(format!("a cell has no class of the nine or no key: {cell}"));
+            failures.push(format!("a cell has no class of the ten or no key: {cell}"));
         }
     }
     let counted: u64 = triage["classes"]

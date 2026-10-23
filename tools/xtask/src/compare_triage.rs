@@ -293,10 +293,12 @@ pub(crate) fn refusal_of(
                 let key = format!("Compile:Reference:{}", variant(error));
                 Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
             }
-            CompileError::NumberLiteral { .. } => {
-                Refusal::new(Class::Formula, "Compile:NumberLiteral", "Compile:NumberLiteral")
-                    .owned_by(NUMBER_LITERAL_OWNER)
-            }
+            CompileError::NumberLiteral { .. } => Refusal::new(
+                Class::Formula,
+                "Compile:NumberLiteral",
+                "Compile:NumberLiteral",
+            )
+            .owned_by(NUMBER_LITERAL_OWNER),
             other => {
                 let key = format!("Compile:{}", variant(other));
                 Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
@@ -1676,7 +1678,13 @@ mod tests {
             .collect();
         assert_eq!(
             owners,
-            [Some("owner-x"), Some("owner-x"), Some("owner-x"), Some(""), None]
+            [
+                Some("owner-x"),
+                Some("owner-x"),
+                Some("owner-x"),
+                Some(""),
+                None
+            ]
         );
         assert_eq!(
             triage.cell_json(&report, 1)["owner"],
