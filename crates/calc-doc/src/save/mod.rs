@@ -11,8 +11,10 @@
 //! view manifest ([`manifest`]) and adds or removes its blocks' locator names. [`write`] streams
 //! the plan to the sink entry by entry.
 
+mod array_metadata;
 mod author;
 mod diff;
+pub(crate) mod file_form;
 mod manifest;
 mod parts;
 mod reader;
@@ -171,6 +173,23 @@ pub enum SaveRefusal {
     /// A block the revision creates has the locator name `name`, which the workbook part `part`
     /// already holds as a workbook-scoped defined name, compared ignoring ASCII case.
     LocatorNameTaken { part: String, name: String },
+    /// A formula the revision sets in a cell (of the worksheet part `part`) has no file form
+    /// here ([`crate::FileFormError`]): its text is not readable, or it nests deeper than the
+    /// converter walks.
+    FormulaFileForm {
+        part: String,
+        row: u32,
+        column: u32,
+        error: crate::FileFormError,
+    },
+    /// The revision sets an error constant (in a cell of the worksheet part `part`) that Excel
+    /// does not hold in a cell ([`crate::EditError::ErrorConstant`]).
+    ErrorConstant {
+        part: String,
+        row: u32,
+        column: u32,
+        code: calc_doc_model::value::WorksheetErrorCode,
+    },
 }
 
 impl fmt::Display for SaveRefusal {
@@ -230,6 +249,24 @@ impl fmt::Display for SaveRefusal {
             Self::LocatorNameTaken { part, name } => write!(
                 f,
                 "{part}: the locator name {name:?} is already a defined name of the workbook"
+            ),
+            Self::ErrorConstant {
+                part,
+                row,
+                column,
+                code,
+            } => write!(
+                f,
+                "{part}: the error {code:?} set at row {row} column {column} is not a constant Excel holds in a cell"
+            ),
+            Self::FormulaFileForm {
+                part,
+                row,
+                column,
+                error,
+            } => write!(
+                f,
+                "{part}: the formula set at row {row} column {column} has no file form: {error:?}"
             ),
         }
     }

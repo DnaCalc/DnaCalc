@@ -37,6 +37,7 @@
 
 use super::SaveRefusal;
 use super::diff::SheetChanges;
+use super::file_form::FileForm;
 use super::reader::Reader;
 use super::strings::SharedStrings;
 use super::text::{RawTag, Splice, a1, number, xstring};
@@ -55,6 +56,10 @@ pub(super) struct Job<'a> {
     /// rewrite empties unless they are among the changes: the areas the array formulas of the
     /// loaded revision fill.
     pub(super) cleared: &'a [(u32, u32, u32, u32)],
+    /// The file form of each formula among the changes.
+    pub(super) forms: &'a BTreeMap<(u32, u32), FileForm>,
+    /// The `cm` a dynamic-array formula among the changes names; set when one is.
+    pub(super) dynamic_cm: Option<u32>,
     pub(super) loaded: &'a LoadedSheet,
     pub(super) model: &'a ModelRoot,
 }
@@ -319,10 +324,31 @@ impl<'j> Rewrite<'_, 'j> {
             CellInput::Logical(_) => Some("b"),
             CellInput::Error(_) => Some("e"),
         };
+        let form = match input {
+            CellInput::Formula(_) => Some(
+                self.job
+                    .forms
+                    .get(&(row, column))
+                    .expect("each formula among the changes has its file form"),
+            ),
+            _ => None,
+        };
+        // A dynamic-array formula's cell names its cell metadata.
+        let cm = form.filter(|form| form.dynamic).map(|_| {
+            self.job
+                .dynamic_cm
+                .expect("a save with a dynamic array has its cell metadata")
+                .to_string()
+        });
         let prefix = source.map_or(prefix, |tag| tag.prefix());
         match source {
             Some(tag) => out.extend(tag.rebuilt(
-                &[("r", Some(&at)), ("t", kind), ("cm", None), ("vm", None)],
+                &[
+                    ("r", Some(&at)),
+                    ("t", kind),
+                    ("cm", cm.as_deref()),
+                    ("vm", None),
+                ],
                 false,
             )),
             None => {
@@ -332,12 +358,21 @@ impl<'j> Rewrite<'_, 'j> {
                 if let Some(kind) = kind {
                     out.extend_from_slice(format!(" t=\"{kind}\"").as_bytes());
                 }
+                if let Some(cm) = &cm {
+                    out.extend_from_slice(format!(" cm=\"{cm}\"").as_bytes());
+                }
                 out.push(b'>');
             }
         }
-        if let CellInput::Formula(formula) = input {
-            start_tag(prefix, b"f", out);
-            xstring(formula.text().utf16_code_units(), out);
+        if let Some(form) = form {
+            if form.dynamic {
+                out.push(b'<');
+                out.extend_from_slice(prefix);
+                out.extend_from_slice(format!("f t=\"array\" ref=\"{at}\">").as_bytes());
+            } else {
+                start_tag(prefix, b"f", out);
+            }
+            xstring(&form.text, out);
             end_tag(prefix, b"f", out);
         } else {
             let value = match input {

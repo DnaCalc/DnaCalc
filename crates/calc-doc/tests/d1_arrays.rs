@@ -1,20 +1,21 @@
 //! dc-ndi (D1): dynamic-array and legacy array formulas open and save.
 //!
-//! The fixture `tests/fixtures/d1/excel_d1.xlsx` is what Excel 16 wrote for the workbook
-//! `make-d1-fixture.ps1` builds: dynamic arrays that spill (`Calc!A1:B3`, `D1:D5`, `F1:F3`), one
+//! The fixture `tests/fixtures/cdoc_m1_2/d1.saved.xlsx` is the package Excel 16.0.20430 saved,
+//! through `cargo xtask capture`'s adapter, from `d1.xlsx`, which the D1 section of
+//! `cdoc_m1_2/make-fixtures.ps1` writes: dynamic arrays that spill (`Calc!A1:B3`, `D1:D5`, `F1:F3`), one
 //! blocked by a value (`H1`, #SPILL!) and one with an empty result (`J1`, #CALC!), legacy array
 //! formulas (`L1:L3`, `N1`), and a name reference Excel stored as a dynamic array (`W1`).
 
 #![cfg(not(target_arch = "wasm32"))]
 
-mod d1_support;
+mod cdoc_m1_1_support;
 
 use calc_doc::model::value::{GridArea, WorksheetErrorCode};
 use calc_doc::model::{ArrayKind, CachedValue, CellInput, OpBatch, WorkbookOp};
 use calc_doc::{EditError, prepare_edit};
-use d1_support::*;
+use cdoc_m1_1_support::d1::*;
 
-const FIXTURE: &str = "excel_d1.xlsx";
+const FIXTURE: &str = "../cdoc_m1_2/d1.saved.xlsx";
 
 fn area(sheet: calc_doc::model::value::SheetId, a: &str, b: &str) -> GridArea {
     GridArea::new(at(sheet, a), at(sheet, b)).unwrap()
@@ -120,6 +121,10 @@ fn d1_arrays__untouched_save_is_byte_for_byte() {
     let saved = save_untouched(&bytes);
     assert_eq!(saved, bytes, "every entry copied as stored");
     keep_for_excel("d1_untouched.xlsx", &saved);
+    keep_for_excel(
+        "d1_repair_control.xlsx",
+        &repair_control(&saved, "xl/worksheets/sheet1.xml"),
+    );
     // A loaded workbook saved at its own loaded revision writes nothing anew either.
     let loaded = load(&bytes);
     let (same, receipt) = save_model(&loaded, loaded.model());
@@ -172,9 +177,9 @@ fn d1_arrays__edited_save_keeps_arrays_and_metadata() {
         assert!(!sheet_xml.contains(gone), "{gone} in {sheet_xml}");
     }
     assert!(sheet_xml.contains(r#"<c r="H2" t="s"><v>14</v></c>"#));
-    // 16 formula caches on Calc and the table's two totals on Data, plus the 13 cells the arrays
+    // 16 formula caches on Calc and the table's totals on Data, plus the 13 cells the arrays
     // fill beside their anchors.
-    assert_eq!(receipt.caches_dropped, 16 + 2 + 13, "{receipt:?}");
+    assert_eq!(receipt.caches_dropped, 16 + 1 + 13, "{receipt:?}");
     // The reloaded workbook holds the same arrays and the edited value.
     let reloaded = load(&saved);
     let again: Vec<_> = reloaded.model().definitions().arrays().copied().collect();

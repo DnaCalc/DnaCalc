@@ -53,6 +53,21 @@ pub enum EditError {
     /// (work package L2) owns. Setting a dynamic array's anchor replaces the array, and clearing
     /// any of its cells is admitted.
     ArrayPart { operation: usize, anchor: CellKey },
+    /// The operation at this index sets an error constant Excel cannot hold in a cell: one of the
+    /// newer errors (#SPILL!, #CALC!, #FIELD!, #BLOCKED!, #CONNECT!, #BUSY!, #GETTING_DATA).
+    /// Excel stores the newer errors only as formula results (with value metadata); typed as a
+    /// constant it keeps #SPILL! and the others as text and #GETTING_DATA as #N/A (measured,
+    /// tests/fixtures/d1/excel-errors.json), so a save could not write the cell faithfully.
+    ErrorConstant {
+        operation: usize,
+        code: calc_doc_model::value::WorksheetErrorCode,
+    },
+}
+
+/// Whether Excel holds `code` as a constant in a cell: the seven classic errors.
+pub(crate) fn error_constant_writable(code: calc_doc_model::value::WorksheetErrorCode) -> bool {
+    use calc_doc_model::value::WorksheetErrorCode::*;
+    matches!(code, Null | Div0 | Value | Ref | Name | Num | NA)
 }
 
 impl fmt::Display for EditError {
@@ -66,6 +81,10 @@ impl fmt::Display for EditError {
             Self::FormulaSyntax { operation, message } => write!(
                 f,
                 "operation {operation} sets a formula the parser reads with a diagnostic: {message}"
+            ),
+            Self::ErrorConstant { operation, code } => write!(
+                f,
+                "operation {operation} sets the error {code:?} as a constant, which Excel does not hold in a cell"
             ),
             Self::ArrayPart { operation, anchor } => write!(
                 f,
@@ -113,6 +132,17 @@ pub fn prepare_edit(model: &ModelRoot, batch: &OpBatch) -> Result<PreparedEdit, 
     check_arrays(model, batch)?;
     let edited = model.apply(batch).map_err(EditError::Model)?;
     for (operation, op) in batch.operations.iter().enumerate() {
+        if let WorkbookOp::SetCell {
+            input: CellInput::Error(code),
+            ..
+        } = op
+            && !error_constant_writable(*code)
+        {
+            return Err(EditError::ErrorConstant {
+                operation,
+                code: *code,
+            });
+        }
         let WorkbookOp::SetCell {
             input: CellInput::Formula(formula),
             ..
