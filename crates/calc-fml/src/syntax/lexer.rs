@@ -17,15 +17,28 @@ pub fn lex(input: &str) -> Vec<Token> {
         offset += ch.len_utf16();
     }
     offsets.push(offset);
+    let mut tokens: Vec<Token> = lex_chars(&chars)
+        .into_iter()
+        .map(|(kind, start, end)| {
+            Token::new(
+                kind,
+                chars[start..end].iter().collect::<String>(),
+                TextSpan::new(offsets[start], offsets[end] - offsets[start]),
+            )
+        })
+        .collect();
+    tokens.push(Token::new(
+        TokenKind::Eof,
+        String::new(),
+        TextSpan::new(offsets[chars.len()], 0),
+    ));
+    tokens
+}
 
-    let token_from = |kind: TokenKind, start: usize, end: usize| {
-        Token::new(
-            kind,
-            chars[start..end].iter().collect::<String>(),
-            TextSpan::new(offsets[start], offsets[end] - offsets[start]),
-        )
-    };
-
+/// The tokens of `chars` as [`lex`] makes them, each as its kind and the indexes of its first
+/// character and of the character after it, without the closing [`TokenKind::Eof`]: the lexer's
+/// one loop, which [`lex`] and a caller that needs no token texts (a formula's template) share.
+pub(crate) fn lex_chars(chars: &[char]) -> Vec<(TokenKind, usize, usize)> {
     let mut tokens = Vec::new();
     let mut index = 0;
     while index < chars.len() {
@@ -137,14 +150,8 @@ pub fn lex(input: &str) -> Vec<Token> {
             _ => TokenKind::Unknown,
         };
 
-        tokens.push(token_from(kind, start, index));
+        tokens.push((kind, start, index));
     }
-
-    tokens.push(Token::new(
-        TokenKind::Eof,
-        String::new(),
-        TextSpan::new(offsets[chars.len()], 0),
-    ));
     tokens
 }
 

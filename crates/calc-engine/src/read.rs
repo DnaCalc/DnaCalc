@@ -362,6 +362,13 @@ impl<'a> WorkbookReader<'a> {
         let view = self.view;
         let inputs = view.inputs;
         let definitions = inputs.definitions();
+        if view.spills.is_empty()
+            && view.state.spills.is_empty()
+            && definitions.arrays_meeting(area).next().is_none()
+            && definitions.unloaded_in(area).next().is_none()
+        {
+            return BTreeMap::new();
+        }
         let (first, width) = (area.first(), u64::from(area.column_count()));
         let mut candidates: BTreeSet<CellKey> = BTreeSet::new();
         let mut add = |spilled: GridArea| {
