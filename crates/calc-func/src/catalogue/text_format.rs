@@ -471,6 +471,91 @@ fn hyperlink(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     }
 }
 
+/// BAHTTEXT's words: the digits 0 to 9, the places from tens to hundred thousands, and the
+/// others, in Thai.
+const THAI_DIGITS: [&str; 10] = [
+    "\u{0e28}\u{0e39}\u{0e19}\u{0e22}\u{0e4c}",
+    "\u{0e2b}\u{0e19}\u{0e36}\u{0e48}\u{0e07}",
+    "\u{0e2a}\u{0e2d}\u{0e07}",
+    "\u{0e2a}\u{0e32}\u{0e21}",
+    "\u{0e2a}\u{0e35}\u{0e48}",
+    "\u{0e2b}\u{0e49}\u{0e32}",
+    "\u{0e2b}\u{0e01}",
+    "\u{0e40}\u{0e08}\u{0e47}\u{0e14}",
+    "\u{0e41}\u{0e1b}\u{0e14}",
+    "\u{0e40}\u{0e01}\u{0e49}\u{0e32}",
+];
+const THAI_PLACES: [&str; 6] = [
+    "",
+    "\u{0e2a}\u{0e34}\u{0e1a}",
+    "\u{0e23}\u{0e49}\u{0e2d}\u{0e22}",
+    "\u{0e1e}\u{0e31}\u{0e19}",
+    "\u{0e2b}\u{0e21}\u{0e37}\u{0e48}\u{0e19}",
+    "\u{0e41}\u{0e2a}\u{0e19}",
+];
+const THAI_MILLION: &str = "\u{0e25}\u{0e49}\u{0e32}\u{0e19}";
+const THAI_ET: &str = "\u{0e40}\u{0e2d}\u{0e47}\u{0e14}";
+const THAI_YI: &str = "\u{0e22}\u{0e35}\u{0e48}";
+const THAI_BAHT: &str = "\u{0e1a}\u{0e32}\u{0e17}";
+const THAI_EXACT: &str = "\u{0e16}\u{0e49}\u{0e27}\u{0e19}";
+const THAI_SATANG: &str = "\u{0e2a}\u{0e15}\u{0e32}\u{0e07}\u{0e04}\u{0e4c}";
+const THAI_MINUS: &str = "\u{0e25}\u{0e1a}";
+
+/// A whole number (decimal digits, no leading zero) in Thai words: groups of six digits joined by
+/// the word for a million; a one in the units after any other digit is "et", a two in the tens is
+/// "yi", and a one in the tens is the tens word alone.
+fn thai_number(digits: &str) -> String {
+    let bytes = digits.as_bytes();
+    let mut out = String::new();
+    let length = bytes.len();
+    for (at, &byte) in bytes.iter().enumerate() {
+        let digit = usize::from(byte - b'0');
+        let from_right = length - 1 - at;
+        let place = from_right % 6;
+        if digit != 0 {
+            match place {
+                0 if digit == 1 && at > 0 => out.push_str(THAI_ET),
+                1 if digit == 1 => {}
+                1 if digit == 2 => out.push_str(THAI_YI),
+                _ => out.push_str(THAI_DIGITS[digit]),
+            }
+            out.push_str(THAI_PLACES[place]);
+        }
+        if place == 0 && from_right > 0 {
+            out.push_str(THAI_MILLION);
+        }
+    }
+    out
+}
+
+/// BAHTTEXT: the number rounded to satang (two places, from its 15-digit reading, a half away
+/// from zero) in Thai words, as Excel gave on this machine for 17 numbers.
+fn bahttext(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let n = num(site, a, 0)?;
+    let (whole, fraction) = format::digits(n, 2);
+    let satang = fraction.trim_start_matches('0');
+    let negative = n < 0.0 && !(whole.is_empty() && satang.is_empty());
+    let mut out = String::new();
+    if negative {
+        out.push_str(THAI_MINUS);
+    }
+    if !whole.is_empty() {
+        out.push_str(&thai_number(&whole));
+        out.push_str(THAI_BAHT);
+    }
+    if satang.is_empty() {
+        if whole.is_empty() {
+            out.push_str(THAI_DIGITS[0]);
+            out.push_str(THAI_BAHT);
+        }
+        out.push_str(THAI_EXACT);
+    } else {
+        out.push_str(&thai_number(satang));
+        out.push_str(THAI_SATANG);
+    }
+    Ok(crate::catalogue::kit::text_value(&out))
+}
+
 ported_family! {
     code: CODE;
     1 value_fn "VALUE" (1, 1) [V "text"] |s, a, sv| { value(s, a) }
@@ -480,7 +565,7 @@ ported_family! {
     5 numbervalue_fn "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] |s, a, sv| { numbervalue(s, a) }
     6 valuetotext_fn "VALUETOTEXT" (1, 2) [V "value", V "format"] |s, a, sv| { valuetotext(s, a) }
     7 arraytotext_fn "ARRAYTOTEXT" (1, 2) [R "array", V "format"] |s, a, sv| { arraytotext(s, a, sv) }
-    8 bahttext_fn "BAHTTEXT" (1, 1) [V "number"] |s, a, sv| { refused(s) }
+    8 bahttext_fn "BAHTTEXT" (1, 1) [V "number"] |s, a, sv| { bahttext(s, a) }
     9 asc_fn "ASC" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
     10 dbcs_fn "DBCS" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
     12 phonetic_fn "PHONETIC" (1, 1) [F "reference"] |s, a, sv| { phonetic(s, a, sv) }
