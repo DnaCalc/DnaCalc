@@ -44,7 +44,7 @@ use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, ModelRoot};
 use calc_fml::reference::{
-    CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape,
+    CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape, template_key,
 };
 use calc_fml::{
     EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
@@ -56,6 +56,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 use std::ops::ControlFlow;
+use std::sync::Arc;
 
 /// How many waves one recalculation runs before it refuses the formulas whose spills have not
 /// settled.
@@ -503,19 +504,32 @@ fn bind(
             ArrayKind::Dynamic { .. } => (FormulaForm::Dynamic, ArrayRole::Spill),
         },
     };
+    // A formula whose template was compiled before (a copy of a filled or shared formula) is
+    // placed from that plan without being parsed; the plan is the one compiling it would give.
     let binding = match String::from_utf16(text.text().utf16_code_units()) {
         Err(_) => Binding::Refused(NotModeled::FormulaText),
-        Ok(source) => match compile_loaded_with(
-            &parse_formula(&source),
-            ReferenceNotation::A1,
-            anchor,
-            &SnapshotCatalog(inputs),
-            &mut state.plans,
-            form,
-        ) {
-            Ok(plan) => Binding::Placed(instantiate(&plan, anchor), role),
-            Err(error) => Binding::Refused(NotModeled::Compile(error)),
-        },
+        Ok(source) => {
+            let key = template_key(&source, anchor).map(|key| (at.sheet(), form, key));
+            match key.as_ref().and_then(|key| state.templates.get(key)) {
+                Some(plan) => Binding::Placed(instantiate(plan, anchor), role),
+                None => match compile_loaded_with(
+                    &parse_formula(&source),
+                    ReferenceNotation::A1,
+                    anchor,
+                    &SnapshotCatalog(inputs),
+                    &mut state.plans,
+                    form,
+                ) {
+                    Ok(plan) => {
+                        if let Some(key) = key {
+                            state.templates.insert(key, Arc::clone(&plan));
+                        }
+                        Binding::Placed(instantiate(&plan, anchor), role)
+                    }
+                    Err(error) => Binding::Refused(NotModeled::Compile(error)),
+                },
+            }
+        }
     };
     let prerequisites = match &binding {
         Binding::Placed(instance, _) => {

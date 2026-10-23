@@ -362,6 +362,13 @@ impl<'a> WorkbookReader<'a> {
         let view = self.view;
         let inputs = view.inputs;
         let definitions = inputs.definitions();
+        if view.spills.is_empty()
+            && view.state.spills.is_empty()
+            && definitions.arrays_meeting(area).next().is_none()
+            && definitions.unloaded_in(area).next().is_none()
+        {
+            return BTreeMap::new();
+        }
         let (first, width) = (area.first(), u64::from(area.column_count()));
         let mut candidates: BTreeSet<CellKey> = BTreeSet::new();
         let mut add = |spilled: GridArea| {
@@ -512,7 +519,10 @@ impl ReferenceReader for WorkbookReader<'_> {
 /// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
 impl HostFacts for WorkbookReader<'_> {
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
-        Some(matches!(self.view.inputs.cell(cell), Some(CellInput::Formula(_))))
+        Some(matches!(
+            self.view.inputs.cell(cell),
+            Some(CellInput::Formula(_))
+        ))
     }
 
     /// A formula's text as FORMULATEXT shows it: `=` and the formula. Text that spells a function
@@ -523,7 +533,10 @@ impl HostFacts for WorkbookReader<'_> {
             Some(CellInput::Formula(text)) => {
                 let text = String::from_utf16(text.text().utf16_code_units()).ok()?;
                 let lower = text.to_ascii_lowercase();
-                if ["_xlfn.", "_xlws.", "_xludf."].iter().any(|p| lower.contains(p)) {
+                if ["_xlfn.", "_xlws.", "_xludf."]
+                    .iter()
+                    .any(|p| lower.contains(p))
+                {
                     return None;
                 }
                 Some(Some(format!("={text}")))
@@ -533,7 +546,12 @@ impl HostFacts for WorkbookReader<'_> {
     }
 
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
-        let at = self.view.inputs.sheets().iter().position(|entry| entry.id() == sheet)?;
+        let at = self
+            .view
+            .inputs
+            .sheets()
+            .iter()
+            .position(|entry| entry.id() == sheet)?;
         u32::try_from(at + 1).ok()
     }
 
@@ -555,7 +573,12 @@ impl HostFacts for WorkbookReader<'_> {
     }
 
     fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
-        let entry = self.view.inputs.sheets().iter().find(|entry| entry.id() == sheet)?;
+        let entry = self
+            .view
+            .inputs
+            .sheets()
+            .iter()
+            .find(|entry| entry.id() == sheet)?;
         String::from_utf16(entry.name().text().utf16_code_units()).ok()
     }
 

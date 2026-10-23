@@ -16,6 +16,7 @@ mod token;
 mod tree;
 
 pub use lexer::lex;
+pub(crate) use lexer::lex_chars;
 pub use parser::parse_formula;
 pub use token::{SyntaxDiagnostic, SyntaxDiagnosticKind, TextSpan, Token, TokenKind, Trivia};
 pub use tree::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree};

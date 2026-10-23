@@ -6,10 +6,11 @@ use crate::recalc::{dirty_closure, live_anchor, published_areas};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
-use calc_fml::{CalcEnvironment, FormulaInstance, PlanCache};
+use calc_fml::{CalcEnvironment, CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
 use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
+use std::sync::Arc;
 
 /// One formula participant of the graph: its interned ID, the cell it anchors, and what it reads
 /// once its plan is bound. It holds no formula text and no value: the authored formula stays in
@@ -160,6 +161,12 @@ pub struct EngineState {
     pub(crate) spills: SpillIndex,
     /// The seed RAND, RANDBETWEEN and RANDARRAY draw from, mixed with each recalculation's tick.
     pub(crate) random_seed: u64,
+    /// The plan of each formula template compiled ([`calc_fml::reference::template_key`]), per
+    /// sheet and form, so a formula whose template was compiled is placed without parsing. Like
+    /// the plan cache's plans, they were compiled against the state's sheets and defined names,
+    /// which no edit the engine admits changes (sheet edits are refused, ceng-m4.1; the model
+    /// has no edit of a defined name).
+    pub(crate) templates: HashMap<(SheetId, FormulaForm, String), Arc<CompiledPlan>>,
     /// The environment every evaluation runs in: the workbook's date system, the host's locale
     /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and
     /// number-format functions.
@@ -190,6 +197,7 @@ impl EngineState {
             subtotal_cells: BTreeSet::new(),
             spills: SpillIndex::default(),
             random_seed: 0,
+            templates: HashMap::new(),
             environment: None,
         };
         for sheet in inputs.sheets() {

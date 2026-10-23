@@ -6,7 +6,7 @@
 
 use calc_doc_model::{Axis, ModelRoot, SheetEntry};
 use calc_value::{CellKey, GridArea, GridError, NodeId, SheetId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Whole rows or whole columns of one sheet: the positions `first` to `last`, both included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -222,26 +222,41 @@ impl Rect {
     }
 }
 
-/// Rows per block of the rectangle index.
-const ROW_BLOCK: u32 = 256;
-/// Columns per block of the rectangle index.
-const COLUMN_BLOCK: u32 = 64;
-/// A rectangle covering more blocks than this is kept in its sheet's wide list instead, so a
-/// whole-column or whole-sheet rectangle costs one entry, not thousands.
-const MAX_BLOCKS_PER_RECT: u64 = 64;
+/// How many levels the rectangle index has. Level `l` cuts each sheet into blocks of
+/// `16 * 4^l` rows by `4 * 4^l` columns; the last level's blocks (262,144 rows by 65,536 columns)
+/// are larger than a quarter of the grid, so every rectangle fits a level.
+const LEVELS: u8 = 8;
 
-/// The blocks a rectangle covers: block rows and block columns, both included.
-fn blocks(rect: Rect) -> (std::ops::RangeInclusive<u32>, std::ops::RangeInclusive<u32>) {
+/// The rows and columns of a block of `level`.
+const fn level_block(level: u8) -> (u32, u32) {
+    (16 << (2 * level as u32), 4 << (2 * level as u32))
+}
+
+/// The level a rectangle is filed at: the first whose blocks are at least as tall and as wide as
+/// it, so it meets at most two blocks down and two across.
+fn level_of(rect: Rect) -> u8 {
+    let (rows, columns) = (rect.bottom - rect.top + 1, rect.right - rect.left + 1);
+    (0..LEVELS)
+        .find(|level| {
+            let (block_rows, block_columns) = level_block(*level);
+            rows <= block_rows && columns <= block_columns
+        })
+        .unwrap_or(LEVELS - 1)
+}
+
+/// The key of the block of `level` that holds the cell at `row` and `column` of `sheet`.
+fn block_of(sheet: SheetId, level: u8, row: u32, column: u32) -> BlockKey {
+    let (block_rows, block_columns) = level_block(level);
     (
-        (rect.top - 1) / ROW_BLOCK..=(rect.bottom - 1) / ROW_BLOCK,
-        (rect.left - 1) / COLUMN_BLOCK..=(rect.right - 1) / COLUMN_BLOCK,
+        sheet,
+        level,
+        (row - 1) / block_rows,
+        (column - 1) / block_columns,
     )
 }
 
-fn block_count(rect: Rect) -> u64 {
-    let (rows, columns) = blocks(rect);
-    u64::from(rows.end() - rows.start() + 1) * u64::from(columns.end() - columns.start() + 1)
-}
+/// A block of the rectangle index: its sheet, level, block row and block column.
+type BlockKey = (SheetId, u8, u32, u32);
 
 /// One stored rectangle edge: the node that reads it and its rows and columns (the sheet is the
 /// key it is filed under).
@@ -269,14 +284,16 @@ struct SpanEdge {
 }
 
 /// The reverse indexes of the one graph: from an input to the nodes whose prerequisites read it.
-/// Cell edges are keyed by cell; rectangle edges are filed in fixed blocks of their sheet (or the
-/// sheet's wide list) and checked for containment; axis-value edges are kept per sheet and axis;
+/// Cell edges are keyed by cell; rectangle edges are filed in the blocks they meet at the level of
+/// blocks of their own size, with the nodes reading one rectangle kept together, and checked for
+/// containment (a cell's query looks in one block per level); axis-value edges are kept per sheet and axis;
 /// span edges are kept once each and resolved against the snapshot's sheet order.
 #[derive(Debug, Default)]
 pub(crate) struct ReverseIndex {
     cells: BTreeMap<CellKey, BTreeSet<NodeId>>,
-    rect_blocks: BTreeMap<(SheetId, u32, u32), BTreeSet<RectEdge>>,
-    wide_rects: BTreeMap<SheetId, BTreeSet<RectEdge>>,
+    /// Each block's rectangles, each with the nodes that read it. A rectangle is filed in every
+    /// block of its level it meets (at most four).
+    rect_blocks: HashMap<BlockKey, BTreeMap<Rect, BTreeSet<NodeId>>>,
     rects_by_sheet: BTreeMap<SheetId, BTreeSet<RectEdge>>,
     row_values: BTreeMap<SheetId, BTreeSet<AxisEdge>>,
     column_values: BTreeMap<SheetId, BTreeSet<AxisEdge>>,
@@ -308,13 +325,27 @@ impl ReverseIndex {
                 };
                 let sheet = area.sheet();
                 update(&mut self.rects_by_sheet, sheet, edge, insert);
-                if block_count(edge.rect) > MAX_BLOCKS_PER_RECT {
-                    update(&mut self.wide_rects, sheet, edge, insert);
-                } else {
-                    let (rows, columns) = blocks(edge.rect);
-                    for row in rows {
-                        for column in columns.clone() {
-                            update(&mut self.rect_blocks, (sheet, row, column), edge, insert);
+                let rect = edge.rect;
+                let level = level_of(rect);
+                let (first, last) = (
+                    block_of(sheet, level, rect.top, rect.left),
+                    block_of(sheet, level, rect.bottom, rect.right),
+                );
+                for block_row in first.2..=last.2 {
+                    for block_column in first.3..=last.3 {
+                        let key = (sheet, level, block_row, block_column);
+                        if insert {
+                            self.rect_blocks
+                                .entry(key)
+                                .or_default()
+                                .entry(rect)
+                                .or_default()
+                                .insert(node);
+                        } else if let Some(rects) = self.rect_blocks.get_mut(&key) {
+                            update(rects, rect, node, false);
+                            if rects.is_empty() {
+                                self.rect_blocks.remove(&key);
+                            }
                         }
                     }
                 }
@@ -358,15 +389,18 @@ impl ReverseIndex {
         if let Some(nodes) = self.cells.get(&at) {
             out.extend(nodes);
         }
-        let block = (sheet, (row - 1) / ROW_BLOCK, (column - 1) / COLUMN_BLOCK);
-        let filed = self.rect_blocks.get(&block).into_iter().flatten();
-        let wide = self.wide_rects.get(&sheet).into_iter().flatten();
-        out.extend(
-            filed
-                .chain(wide)
-                .filter(|edge| edge.rect.contains(row, column))
-                .map(|edge| edge.node),
-        );
+        if !self.rect_blocks.is_empty() {
+            for level in 0..LEVELS {
+                let Some(rects) = self.rect_blocks.get(&block_of(sheet, level, row, column)) else {
+                    continue;
+                };
+                for (rect, nodes) in rects {
+                    if rect.contains(row, column) {
+                        out.extend(nodes);
+                    }
+                }
+            }
+        }
         for (map, position) in [(&self.row_values, row), (&self.column_values, column)] {
             let edges = map.get(&sheet).into_iter().flatten();
             out.extend(

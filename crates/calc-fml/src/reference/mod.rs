@@ -28,6 +28,7 @@
 mod bind;
 mod notation;
 mod read;
+mod template;
 mod text;
 
 pub(crate) use bind::qualified_name;
@@ -35,6 +36,7 @@ pub use bind::{
     BindError, NameDefinition, NameScope, ReferenceCatalog, ReferenceSite, bind_references,
 };
 pub use read::{CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells};
+pub use template::template_key;
 pub(crate) use text::bind_text;
 
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode};
