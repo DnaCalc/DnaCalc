@@ -30,27 +30,36 @@
 //!   `R[1048575]C` in row 5 names row 4, and `R[-6]C1:R[-4]C2` in row 6 names A2:B1048576), while
 //!   an offset of the grid's size or more names no reference.
 //!
+//! Text that could be a defined name is looked up in the catalogue, from the formula's sheet or
+//! from the qualifier's: a name whose formula is one reference with absolute coordinates names
+//! that reference (Excel resolved `Rate` and `\x`, which the oracle workbook defines), and a name
+//! the workbook does not define names none (`NoSuchName`, `data!Foo`, `XFE1`; and `A1:B`, a range
+//! whose endpoint B is no name). A line feed after the text reads as a space (`A1` and a line
+//! feed is A1).
+//!
 //! Text that names no reference is [`TextReference::Invalid`], INDIRECT's #REF!: text of neither
 //! a reference's nor a defined name's form, a coordinate outside the grid that no name can spell
-//! (`$A$1048577`, `R0C1`, `1:1048577`), an unknown sheet. An unknown sheet leaves no trace: no area
-//! is resolved, so nothing records that the text would name a reference once that sheet exists
-//! (work package dc-mzk, whose absent-target case owns it). Text whose reference is not modelled is
-//! [`TextReference::NotModelled`]:
+//! (`$A$1048577`, `R0C1`, `1:1048577`), an unknown sheet, a name the workbook does not define. An
+//! unknown sheet leaves no trace: no area is resolved, so nothing records that the text would name
+//! a reference once that sheet exists (work package dc-mzk, whose absent-target case owns it).
+//! Text whose reference is not modelled is [`TextReference::NotModelled`]:
 //!
-//! - text that could be a defined name, which INDIRECT resolves when the workbook defines it
-//!   (Excel resolved `Rate` and `\x`, which the oracle workbook defines); names are not bound yet,
-//!   work package dc-mzk;
+//! - a defined name whose formula is not one absolute reference (a constant, a computed or a
+//!   relative reference), a range through a defined name, and a name when the catalogue carries
+//!   no names;
 //! - a qualifier naming another workbook (`[Book2]Sheet1!A1`, bead cfml-m3.5);
-//! - a line feed, which Excel read as a space after the text (`A1` and a line feed is A1), and
-//!   every control character but tab and carriage return, whose reading is not measured (bead
-//!   dc-ea6r);
+//! - a line feed other than after the text, and every control character but tab and carriage
+//!   return, whose reading is not measured (bead dc-ea6r);
 //! - an unquoted sheet name holding a tab or a carriage return (bead dc-ea6r), or a non-ASCII
 //!   character that is neither a letter nor `€` (work package dc-mzk), whose reading is not measured;
 //! - text that is not UTF-16 throughout.
 
 use super::bind::pair;
 use super::notation::{self, Spelled};
-use super::{AxisRef, FormulaAnchor, ReferenceCatalog, ReferenceNotation, ReferenceShape};
+use super::{
+    AxisRef, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog, ReferenceNotation,
+    ReferenceShape,
+};
 use calc_func::TextReference;
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
 
@@ -81,6 +90,24 @@ pub(crate) fn bind_text(
     let Ok(text) = String::from_utf16(text) else {
         return TextReference::NotModelled;
     };
+    // Excel 16.0.20430 read a line feed after the text as a space (`A1` and a line feed is A1,
+    // bead dc-51ka's oracle row); a line feed anywhere else is not measured.
+    let text = text.trim_end_matches([' ', '\n']);
+    bind_str(text, notation, anchor, catalog, 0)
+}
+
+/// How deep defined names may refer to other names in INDIRECT's text before the text is refused
+/// as not modelled.
+const MAX_NAME_DEPTH: usize = 16;
+
+/// [`bind_text`] of decoded text, `depth` names deep.
+fn bind_str(
+    text: &str,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    depth: usize,
+) -> TextReference {
     // A tab and a carriage return are characters no reference or name holds; a line feed and the
     // other control characters are not modelled (bead dc-ea6r).
     if text
@@ -98,6 +125,7 @@ pub(crate) fn bind_text(
         Ok(target) => target,
         Err(outcome) => return outcome,
     };
+    let qualified = qualifier.is_some();
     let sheet = match qualifier {
         None => anchor.sheet(),
         Some(name) => match catalog.sheet_named(&name) {
@@ -107,17 +135,114 @@ pub(crate) fn bind_text(
             None => return TextReference::Invalid,
         },
     };
+    let scope = if qualified {
+        NameScope::Sheet(sheet)
+    } else {
+        NameScope::Formula(anchor.sheet())
+    };
     match target {
         Target::Shape(shape) => TextReference::Area(placed(shape, sheet, anchor.cell())),
-        Target::Name => TextReference::NotModelled,
+        Target::Name(name) => bind_name(&name, scope, anchor, catalog, depth),
+        // A range whose endpoint could be a name names a reference only when that name does:
+        // with no such name defined it names none (`A1:B` is #REF!, Excel 16.0.20430, bead
+        // dc-51ka's oracle row); a range through a defined name is not modelled.
+        Target::NamedRange(names) => {
+            if names
+                .iter()
+                .all(|name| catalog.defined_name(name, scope) == NameDefinition::Unknown)
+            {
+                TextReference::Invalid
+            } else {
+                TextReference::NotModelled
+            }
+        }
     }
+}
+
+/// The reference the defined name `name`, looked up from `scope`, names, as INDIRECT reads it:
+/// none (#REF!) when the workbook defines no such name (Excel 16.0.20430: `NoSuchName`,
+/// `data!Foo` and `XFE1` are #REF!, bead dc-51ka's oracle rows), and the area its formula names
+/// when that formula is one reference with absolute coordinates, as a file stores a name's
+/// references (`Rate` and `\x` resolved). A name whose formula is anything else (a constant, a
+/// computed reference, a relative reference) is not modelled.
+fn bind_name(
+    name: &str,
+    scope: NameScope,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    depth: usize,
+) -> TextReference {
+    match catalog.defined_name(name, scope) {
+        NameDefinition::Unknown => TextReference::Invalid,
+        NameDefinition::NotModelled => TextReference::NotModelled,
+        NameDefinition::Formula(_) if depth >= MAX_NAME_DEPTH => TextReference::NotModelled,
+        NameDefinition::Formula(formula) => {
+            let text = formula.strip_prefix('=').unwrap_or(&formula);
+            if has_relative_coordinate(text) {
+                return TextReference::NotModelled;
+            }
+            match bind_str(text, ReferenceNotation::A1, anchor, catalog, depth + 1) {
+                TextReference::Area(area) => TextReference::Area(area),
+                _ => TextReference::NotModelled,
+            }
+        }
+    }
+}
+
+/// Whether a name's formula text holds an A1 cell coordinate, outside quotes, whose column or
+/// row lacks its `$`: a file stores such a reference relative to A1, and Excel reads it relative
+/// to the calling cell, which is not modelled here.
+fn has_relative_coordinate(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    let identifier = |c: char| c.is_alphanumeric() || matches!(c, '_' | '.' | '\\');
+    let mut quoted = false;
+    let mut at = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        if c == '\'' {
+            quoted = !quoted;
+            at += 1;
+            continue;
+        }
+        let starts = at == 0 || !(identifier(chars[at - 1]) || chars[at - 1] == '$');
+        if quoted || !starts || !(c == '$' || c.is_ascii_alphabetic()) {
+            at += 1;
+            continue;
+        }
+        let mut i = at;
+        let column_absolute = chars[i] == '$';
+        if column_absolute {
+            i += 1;
+        }
+        let letters = chars[i..]
+            .iter()
+            .take_while(|c| c.is_ascii_alphabetic())
+            .count();
+        i += letters;
+        let row_absolute = chars.get(i) == Some(&'$');
+        if row_absolute {
+            i += 1;
+        }
+        let digits = chars[i..].iter().take_while(|c| c.is_ascii_digit()).count();
+        i += digits;
+        let ends = chars
+            .get(i)
+            .is_none_or(|next| !(identifier(*next) || matches!(next, '(' | '!')));
+        if (1..=3).contains(&letters) && digits > 0 && ends && !(column_absolute && row_absolute) {
+            return true;
+        }
+        at = i.max(at + 1);
+    }
+    false
 }
 
 /// What the text after its qualifier names before its sheet is known.
 enum Target {
     Shape(ReferenceShape),
     /// Text that could be a defined name.
-    Name,
+    Name(String),
+    /// A range one or both of whose endpoints could be a defined name: those endpoints.
+    NamedRange(Vec<String>),
 }
 
 /// The text's sheet name, unquoted, when it has a qualifier, and the text after the qualifier,
@@ -226,11 +351,17 @@ fn target(
         (Some(first), Some(last)) if first.form() == last.form() => pair(first, last)
             .map(Target::Shape)
             .map_err(|_| TextReference::Invalid),
-        // `A1:B` and `A1:Rate` are ranges only if B or Rate name a cell, which is not known here.
+        // `A1:B` and `A1:Rate` are ranges only if B or Rate name a cell.
         _ if could_be_name(first, first_spelled, notation)
             || could_be_name(last, last_spelled, notation) =>
         {
-            Err(TextReference::NotModelled)
+            Ok(Target::NamedRange(
+                [(first, first_spelled), (last, last_spelled)]
+                    .into_iter()
+                    .filter(|(token, spelled)| could_be_name(token, *spelled, notation))
+                    .map(|(token, _)| token.to_owned())
+                    .collect(),
+            ))
         }
         _ => Err(TextReference::Invalid),
     }
@@ -243,7 +374,7 @@ fn could_be_name(token: &str, spelled: Option<Spelled>, notation: ReferenceNotat
         Some(Spelled::Cell(_) | Spelled::OutsideGrid(_)) => false,
         Some(Spelled::Row(_) | Spelled::Column(_)) if notation == ReferenceNotation::R1C1 => false,
         Some(Spelled::Row(_) | Spelled::Column(_)) | None => {
-            matches!(unspelled(token, notation), Ok(Target::Name))
+            matches!(unspelled(token, notation), Ok(Target::Name(_)))
         }
     }
 }
@@ -266,7 +397,7 @@ fn unspelled(token: &str, notation: ReferenceNotation) -> Result<Target, TextRef
     {
         return Err(TextReference::Invalid);
     }
-    Ok(Target::Name)
+    Ok(Target::Name(token.to_owned()))
 }
 
 /// Whether `token` has the characters of a defined name: a letter, `_` or `\` first, then
@@ -395,6 +526,9 @@ mod tests {
             ("a.b!A1", area(s[6], 1, 1, 1, 1)),
             ("'TRUE'!A1", area(s[7], 1, 1, 1, 1)),
             ("\u{e9}!A1", area(s[8], 1, 1, 1, 1)),
+            // A line feed after the text reads as a space (Excel 16.0.20430, bead dc-51ka).
+            ("A1\n", area(here, 1, 1, 1, 1)),
+            ("A1 \n", area(here, 1, 1, 1, 1)),
         ] {
             assert_eq!(bound(text, A1), expected, "{text:?}");
         }
@@ -493,7 +627,6 @@ mod tests {
             "\\x",
             "\\",
             "_a\\b",
-            "A1\n",
             "data!\nA1",
             "A1\u{1}",
             "A1\u{85}",
@@ -506,6 +639,66 @@ mod tests {
         }
         // An unknown sheet names no reference, whatever follows its qualifier.
         assert_eq!(bound("nosuch!Foo", A1), TextReference::Invalid);
+    }
+
+    /// A catalogue that also defines names: workbook-scoped `Rate` (an absolute cell of data), `\x`
+    /// (with a leading `=`), `Chain` (another name), `Rel` (a relative reference), `Const` (a
+    /// number), and data's own `Local`.
+    struct Named(Sheets);
+
+    impl ReferenceCatalog for Named {
+        fn sheet_named(&self, name: &str) -> Option<SheetId> {
+            self.0.sheet_named(name)
+        }
+
+        fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition {
+            let data = self.0.sheet_named("data").unwrap();
+            let formula = match (name.to_ascii_lowercase().as_str(), scope) {
+                ("local", NameScope::Sheet(sheet)) if sheet == data => "data!$B$2",
+                ("local", _) => return NameDefinition::Unknown,
+                (_, NameScope::Sheet(_)) => return NameDefinition::Unknown,
+                ("rate", _) => "data!$A$2",
+                ("\\x", _) => "=data!$A$3:$B$4",
+                ("chain", _) => "Rate",
+                ("rel", _) => "data!A1",
+                ("const", _) => "0.05",
+                _ => return NameDefinition::Unknown,
+            };
+            NameDefinition::Formula(formula.to_owned())
+        }
+    }
+
+    /// INDIRECT's text names a defined name: one whose formula is one absolute reference resolves
+    /// to it (Excel 16.0.20430 resolved `Rate` and `\x`, bead dc-51ka); a name the workbook does
+    /// not define, alone or as a range's endpoint, names no reference (`NoSuchName`, `data!Foo`,
+    /// `XFE1` and `A1:B` were #REF!); a relative or constant name is not modelled.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn names_in_text() {
+        let (sheets, s, anchor) = fixture();
+        let data = s[1];
+        let catalog = Named(sheets);
+        let bound = |text: &str| {
+            let units: Vec<u16> = text.encode_utf16().collect();
+            bind_text(&units, ReferenceNotation::A1, anchor, &catalog)
+        };
+        assert_eq!(bound("Rate"), area(data, 2, 1, 2, 1));
+        assert_eq!(bound("rate "), area(data, 2, 1, 2, 1));
+        assert_eq!(bound("\\x"), area(data, 3, 1, 4, 2));
+        assert_eq!(bound("Chain"), area(data, 2, 1, 2, 1));
+        assert_eq!(bound("data!Local"), area(data, 2, 2, 2, 2));
+        for text in ["NoSuchName", "data!Foo", "XFE1", "A1:B", "Local"] {
+            assert_eq!(bound(text), TextReference::Invalid, "{text:?}");
+        }
+        for text in ["Rel", "Const", "A1:Rate"] {
+            assert_eq!(bound(text), TextReference::NotModelled, "{text:?}");
+        }
+        assert!(has_relative_coordinate("data!A1"));
+        assert!(has_relative_coordinate("$A1"));
+        assert!(has_relative_coordinate("A$1"));
+        assert!(!has_relative_coordinate("data!$A$1:$B$2"));
+        assert!(!has_relative_coordinate("'Q2 A1'!$C$3"));
+        assert!(!has_relative_coordinate("Q2!$C$3"));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

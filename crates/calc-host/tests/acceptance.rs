@@ -418,6 +418,7 @@ fn chost_m1_1__atomic_prepare_failure() {
     let mut book = Book::open(HostOptions {
         numeric: NumericMode::Fast,
         formula_cell_budget: Some(6),
+        ..HostOptions::default()
     });
 
     // Before the first recalculation every cache is a file cache. A command with no edit is
@@ -1789,4 +1790,91 @@ fn dc_xrxb__unprefixed_file_spelling_gives_name() {
     for line in dc_xrxb_support::unprefixed_file_spelling_gives_name() {
         note!("{line}");
     }
+}
+
+/// dc-0k9 (L2): calculation modes. The package's `calcPr` declares `calcMode`; under the manual
+/// mode a step after an edit calculates nothing (the reached formulas project as stale) until
+/// `calculate` asks for a recalculation, as Excel's Calculate Now does; a host option overrides
+/// the declared mode; `autoNoTable` reads as automatic except tables. Hand-derived values: the
+/// package's A1 = 1.25, A2 = A1*1 and A3 = A2*2 once B1 = B1+1 (a cycle) is cleared.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__calculation_modes() {
+    use calc_host::{CalcMode, calculate};
+    let manual = || dc_hqcv_support::package(r#"<calcPr calcId="191029" calcMode="manual"/>"#);
+    let (mut host, sheet) = open_package(manual(), HostOptions::default());
+    assert_eq!(host.calc_mode(), CalcMode::Manual);
+    assert_eq!(
+        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Manual
+    );
+    let clear_b1 = |host: &mut HostState| {
+        let base = host.revision();
+        dispatch(
+            host,
+            HostCommand {
+                base,
+                edits: vec![CellEdit::Clear {
+                    area: GridArea::cell(cell(sheet, "B1")),
+                }],
+            },
+        )
+        .expect("the edit commits");
+    };
+    clear_b1(&mut host);
+    assert_eq!(
+        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Manual
+    );
+    calculate(&mut host);
+    assert!(matches!(
+        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Published(_)
+    ));
+    let a3 = |host: &HostState| described_a1_b3(host, sheet)[4].1.clone();
+    assert_eq!(a3(&host), "calculated 2.5 r1 t1 fast");
+
+    // An edit under the manual mode leaves A3 stale until the next Calculate Now: A1 = 2, A3 = 4.
+    let base = host.revision();
+    dispatch(
+        &mut host,
+        HostCommand {
+            base,
+            edits: vec![CellEdit::Set {
+                at: cell(sheet, "A1"),
+                input: CellInput::Number(FiniteNumber::new(2.0).unwrap()),
+            }],
+        },
+    )
+    .expect("the edit commits");
+    assert_eq!(
+        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Manual
+    );
+    assert!(a3(&host).starts_with("stale"), "{}", a3(&host));
+    calculate(&mut host);
+    step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved);
+    assert_eq!(a3(&host), "calculated 4 r2 t2 fast");
+
+    // The host's option overrides the package: automatic, so a step calculates at once.
+    let (mut host, _) = open_package(
+        manual(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            ..HostOptions::default()
+        },
+    );
+    assert_eq!(host.calc_mode(), CalcMode::Automatic);
+    clear_b1(&mut host);
+    assert!(matches!(
+        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Published(_)
+    ));
+    let (host, _) = open_package(
+        dc_hqcv_support::package(r#"<calcPr calcMode="autoNoTable"/>"#),
+        HostOptions::default(),
+    );
+    assert_eq!(host.calc_mode(), CalcMode::AutomaticExceptTables);
+    let (host, _) = open_package(dc_hqcv_support::package(""), HostOptions::default());
+    assert_eq!(host.calc_mode(), CalcMode::Automatic);
 }

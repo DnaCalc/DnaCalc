@@ -67,7 +67,7 @@ pub use cache::{CachedValue, FileCached, SourcePart};
 pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use definitions::{
-    ArrayFormula, ArrayKind, DefinedName, Definitions, NameScope, Table, UnloadedCell,
+    ArrayFormula, ArrayKind, DefinedName, Definitions, NameScope, RowHidden, Table, UnloadedCell,
 };
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use layout::{
