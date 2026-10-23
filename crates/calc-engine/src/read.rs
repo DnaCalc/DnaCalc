@@ -10,8 +10,8 @@
 
 use crate::result::{Calculation, FormulaResult};
 use crate::state::EngineState;
-use calc_doc_model::{CellInput, ModelRoot};
-use calc_fml::reference::{CellRun, ReferenceReader};
+use calc_doc_model::{CellInput, ModelRoot, NameScope};
+use calc_fml::reference::{CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader};
 use calc_fml::{EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog};
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -138,6 +138,45 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
             })
             .map(|sheet| sheet.id())
     }
+
+    /// The snapshot's defined name `name`, matched as sheet names are, from `scope`: the formula
+    /// sheet's own name first, then the workbook's; for a qualified name, the sheet's own. A name
+    /// the snapshot does not hold is unknown (#NAME?). A macro or VBA name, and a qualified name
+    /// that only the workbook holds, are not modelled.
+    fn defined_name(&self, name: &str, scope: FmlNameScope) -> NameDefinition {
+        let same = |held: &str| {
+            held == name
+                || held
+                    .chars()
+                    .flat_map(char::to_uppercase)
+                    .eq(name.chars().flat_map(char::to_uppercase))
+        };
+        let names = self.0.definitions().names();
+        let find = |wanted: NameScope| {
+            names
+                .iter()
+                .find(|defined| defined.scope == wanted && same(&defined.name))
+        };
+        let found = match scope {
+            FmlNameScope::Formula(sheet) => {
+                find(NameScope::Sheet(sheet)).or_else(|| find(NameScope::Workbook))
+            }
+            FmlNameScope::Sheet(sheet) => match find(NameScope::Sheet(sheet)) {
+                Some(defined) => Some(defined),
+                None if find(NameScope::Workbook).is_some() => {
+                    return NameDefinition::NotModelled;
+                }
+                None => None,
+            },
+        };
+        match found {
+            None => NameDefinition::Unknown,
+            Some(defined) if defined.function || defined.vb_procedure || defined.xlm => {
+                NameDefinition::NotModelled
+            }
+            Some(defined) => NameDefinition::Formula(defined.formula.clone()),
+        }
+    }
 }
 
 /// The engine's reader of the workbook's cells during one recalculation.
@@ -181,11 +220,14 @@ impl ReferenceReader for WorkbookReader<'_> {
             return;
         };
         let (first, width) = (area.first(), u64::from(area.column_count()));
+        let index_of = |at: CellKey| {
+            u64::from(at.row() - first.row()) * width + u64::from(at.column() - first.column())
+        };
+        let missing = not_available(inputs, area, index_of);
         let mut covered = 0u64;
         for (at, input) in occupied {
-            let index =
-                u64::from(at.row() - first.row()) * width + u64::from(at.column() - first.column());
-            if index > covered && sink(CellRun::Blank(index - covered)).is_break() {
+            let index = index_of(at);
+            if index > covered && gap(covered, index, &missing, sink).is_break() {
                 return;
             }
             covered = index + 1;
@@ -201,9 +243,60 @@ impl ReferenceReader for WorkbookReader<'_> {
             }
         }
         if total > covered {
-            let _ = sink(CellRun::Blank(total - covered));
+            let _ = gap(covered, total, &missing, sink);
         }
     }
+}
+
+/// The indexes, within `area` in row-major order, of the cells a calculation reads as not
+/// available though the model holds no input for them: the cells an array formula fills beside
+/// its anchor, and unloaded cells ([`calc_doc_model::Definitions::not_available`]). A cell that
+/// holds an input is read as that input instead, so an index here may also be an occupied cell's.
+fn not_available(
+    inputs: &ModelRoot,
+    area: GridArea,
+    index_of: impl Fn(CellKey) -> u64,
+) -> BTreeSet<u64> {
+    let definitions = inputs.definitions();
+    let mut missing = BTreeSet::new();
+    for array in definitions.arrays_meeting(area) {
+        let (a, b) = (array.area().first(), array.area().last());
+        let (first, last) = (area.first(), area.last());
+        for row in a.row().max(first.row())..=b.row().min(last.row()) {
+            for column in a.column().max(first.column())..=b.column().min(last.column()) {
+                let at = CellKey::new(area.sheet(), row, column).expect("a cell of the area");
+                if at != array.anchor() {
+                    missing.insert(index_of(at));
+                }
+            }
+        }
+    }
+    for (at, _) in definitions.unloaded_in(area) {
+        missing.insert(index_of(at));
+    }
+    missing
+}
+
+/// Reports the cells of indexes `from..to`, which hold no input: blank, except those `missing`
+/// holds, which are not available.
+fn gap(
+    from: u64,
+    to: u64,
+    missing: &BTreeSet<u64>,
+    sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+) -> ControlFlow<()> {
+    let mut at = from;
+    for &index in missing.range(from..to) {
+        if index > at {
+            sink(CellRun::Blank(index - at))?;
+        }
+        sink(CellRun::Missing(1))?;
+        at = index + 1;
+    }
+    if to > at {
+        sink(CellRun::Blank(to - at))?;
+    }
+    ControlFlow::Continue(())
 }
 
 /// The value of a literal input; `None` for a formula, whose value is its result.

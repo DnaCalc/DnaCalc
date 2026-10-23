@@ -1153,6 +1153,37 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    /// NOT("1") through the product route: the catalogue holds NOT and its kernel refuses the
+    /// text, so the cell is not modelled under NOT's owner (bead dc-vcs), not a missing function.
+    #[test]
+    fn a_kernel_refusal_is_not_modelled_under_its_owner() {
+        let calc =
+            super::test_package::calc_sheet(r#"<c r="C1" t="e"><f>NOT("1")</f><v>#VALUE!</v></c>"#);
+        let fixture = super::test_package::package(&super::test_package::inputs_sheet(""), &calc);
+        let capture = CaptureRecord::decode(
+            br#"{"format": "dnacalc-capture-record", "version": 1, "case": "k", "source": "sha256:00", "acquisition": {"kind": "file_cache_replay"}, "environment": null, "sheets": [{"name": "Inputs", "visibility": "visible"}, {"name": "Calc", "visibility": "visible"}], "formulas": [{"sheet": "Calc", "row": 1, "column": 3, "kind": "ordinary"}], "observations": []}"#,
+        )
+        .unwrap();
+        let run = run_workbook(&fixture, &capture, NumericMode::Fast).unwrap();
+        let Dna::Refused(refusal) = &run.dna[0] else {
+            panic!("Calc!C1 is {:?}", run.dna[0]);
+        };
+        assert_eq!(
+            (
+                refusal.class,
+                refusal.key.as_str(),
+                refusal.owner.as_str(),
+                refusal.refusal.as_str()
+            ),
+            (
+                Class::NotModelled,
+                "NOT",
+                "F2 dc-ip6",
+                "Evaluation:Function:NotImplemented"
+            )
+        );
+    }
+
     /// The keys of a refused package and of a failed recalculation name the typed error's variant.
     #[test]
     fn workbook_failures_are_keyed_by_their_variant() {

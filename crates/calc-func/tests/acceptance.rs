@@ -54,6 +54,8 @@ macro_rules! note {
     }};
 }
 
+mod dc_xrxb_support;
+
 // ---------------------------------------------------------------------------------------------
 // The counting allocator.
 
@@ -1044,10 +1046,11 @@ fn cfunc_m1_1__catalogue_consistency() {
             no_argument.push(target.id());
         } else {
             // ROW and COLUMN take an optional reference (their pages: ROW([reference]),
-            // COLUMN([reference])); every other entry that admits an argument requires one.
+            // COLUMN([reference])), and RANDARRAY optional dimensions (F1, dc-8dq); every other
+            // entry that admits an argument requires one.
             assert!(
-                arity.min >= 1 || ["ROW", "COLUMN"].contains(&target.spelling()),
-                "{target:?}: every entry that admits an argument but ROW and COLUMN requires one"
+                arity.min >= 1 || ["ROW", "COLUMN", "RANDARRAY"].contains(&target.spelling()),
+                "{target:?}: every entry that admits an argument but ROW, COLUMN and RANDARRAY requires one"
             );
             assert!(
                 target.parameter_class(arity.max - 1).is_some(),
@@ -1150,14 +1153,16 @@ fn cfunc_m1_1__catalogue_consistency() {
         [iff.id(), fallbacks[0], fallbacks[1], choose.id()],
         "only IF, IFERROR, IFNA and CHOOSE are lazy"
     );
-    let constants = [
-        surface(Notation::Call, "TRUE").id(),
-        surface(Notation::Call, "FALSE").id(),
-        surface(Notation::Call, "NA").id(),
-    ];
-    assert_eq!(
-        no_argument, constants,
-        "only TRUE, FALSE and NA (dc-nzpw) take no argument"
+    // F1 (dc-8dq) adds PI and RAND, and dc-nzpw NA, to the entries that take no argument.
+    let constants: BTreeSet<FunctionId> = ["TRUE", "FALSE", "NA", "PI", "RAND"]
+        .into_iter()
+        .filter_map(|name| catalogue.resolve_surface(Notation::Call, name).ok())
+        .map(|target| target.id())
+        .collect();
+    assert!(
+        no_argument.iter().all(|id| constants.contains(id))
+            && constants.iter().all(|id| no_argument.contains(id)),
+        "only TRUE, FALSE, NA, PI and RAND take no argument: {no_argument:?}"
     );
     note!(
         "ACCEPT-NOTE: {CASE}: {} catalogue IDs; the dispatch, name, help, arity and oracle views each enumerate the same {}; at the minimum arity {} entries compute ({:?}) and {} refuse under their own ID ({:?}); lazy entries {:?}; entries that take no argument {:?}",
@@ -1547,7 +1552,7 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 10] = [
+const GENERATED_WORKBOOKS: [&str; 11] = [
     "cdoc_jpha/oracle.xlsx",
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
@@ -1558,6 +1563,7 @@ const GENERATED_WORKBOOKS: [&str; 10] = [
     "dc_fwpz/oracle.xlsx",
     "dc_nzpw/oracle.xlsx",
     "dc_q9rb/oracle.xlsx",
+    "dc_xrxb/oracle.xlsx",
 ];
 
 /// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
@@ -22776,4 +22782,13 @@ fn dc_nzpw__excel_comparison() {
         info.dynamic,
         report.summary()
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-xrxb: the file prefix of each catalogued named function, against the package Excel saved.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_xrxb__prefix_metadata_matches_excel() {
+    dc_xrxb_support::prefix_metadata_matches_excel();
 }

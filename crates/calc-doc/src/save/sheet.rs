@@ -10,7 +10,14 @@
 //!   nothing here calculated it. An emptied cell keeps only its style (`<c r=".." s=".."/>`), or
 //!   is removed when it had none. A new cell goes into its row at its column, before the row's
 //!   `extLst` when it has one, and a new row between the rows around it.
-//! - Every formula cell loses its `<v>` and its `t`: once any cell of the workbook changed, no
+//! - A changed or emptied cell loses its cell and value metadata (`cm`, `vm`), which described
+//!   the formula or value it no longer holds.
+//! - The cells an array formula fills beside its anchor are emptied (keeping only their style,
+//!   or removed when they had none): what they hold is the cached result of the array, which a
+//!   save after an edit no longer trusts, and the cells of an array whose anchor the edit changed
+//!   no longer belong to any formula. Each that held a cached value is counted as a cache
+//!   dropped. A data table's cells are kept as the part wrote them.
+//! - Every formula cell loses its `<v>`, its `t` and its `vm`: once any cell of the workbook changed, no
 //!   cached result can be trusted without a dependency graph, and the workbook part is written
 //!   with `fullCalcOnLoad`, which asks the application that opens the package to recalculate
 //!   every formula. Each formula the edit did not change whose loaded record holds a cached result
@@ -44,6 +51,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// What one sheet's rewrite reads beside its part.
 pub(super) struct Job<'a> {
     pub(super) changes: &'a SheetChanges,
+    /// The areas, as (top, left, bottom, right), whose cells other than the top-left one the
+    /// rewrite empties unless they are among the changes: the areas the array formulas of the
+    /// loaded revision fill.
+    pub(super) cleared: &'a [(u32, u32, u32, u32)],
     pub(super) loaded: &'a LoadedSheet,
     pub(super) model: &'a ModelRoot,
 }
@@ -310,7 +321,10 @@ impl<'j> Rewrite<'_, 'j> {
         };
         let prefix = source.map_or(prefix, |tag| tag.prefix());
         match source {
-            Some(tag) => out.extend(tag.rebuilt(&[("r", Some(&at)), ("t", kind)], false)),
+            Some(tag) => out.extend(tag.rebuilt(
+                &[("r", Some(&at)), ("t", kind), ("cm", None), ("vm", None)],
+                false,
+            )),
             None => {
                 out.push(b'<');
                 out.extend_from_slice(prefix);
@@ -486,6 +500,16 @@ impl<'j> Rewrite<'_, 'j> {
         };
         let shared_string = element.attribute("t") == Some("s");
         let at = a1(row, column);
+        let cleared = change.is_none()
+            && self.job.cleared.iter().any(|&(top, left, bottom, right)| {
+                (top..=bottom).contains(&row)
+                    && (left..=right).contains(&column)
+                    && (row, column) != (top, left)
+            });
+        if cleared && self.job.loaded.value_cache(row, column).is_some() {
+            self.caches_dropped += 1;
+        }
+        let change = if cleared { Some(None) } else { change };
         match change {
             Some(Some(input)) => {
                 let mut bytes = Vec::new();
@@ -498,7 +522,10 @@ impl<'j> Rewrite<'_, 'j> {
             Some(None) => {
                 let bytes = if styled(element) {
                     self.bounds.add(row, column);
-                    tag.rebuilt(&[("r", Some(&at)), ("t", None)], true)
+                    tag.rebuilt(
+                        &[("r", Some(&at)), ("t", None), ("cm", None), ("vm", None)],
+                        true,
+                    )
                 } else {
                     Vec::new()
                 };
@@ -521,10 +548,20 @@ impl<'j> Rewrite<'_, 'j> {
                     }
                     return Ok(());
                 };
-                // A formula cell: its cache and its type go, and a cell of a group written as
-                // individual formulas gets its own text.
-                self.splice
-                    .replace(span, &tag.rebuilt(&[("r", Some(&at)), ("t", None)], false));
+                // A data table's cells are kept as the part wrote them.
+                if formula_read.attribute("t") == Some("dataTable") {
+                    if element.attribute("r").is_none() {
+                        self.splice
+                            .replace(span, &tag.rebuilt(&[("r", Some(&at))], tag.is_empty()));
+                    }
+                    return Ok(());
+                }
+                // A formula cell: its cache, its type and its value metadata go, and a cell of a
+                // group written as individual formulas gets its own text.
+                self.splice.replace(
+                    span,
+                    &tag.rebuilt(&[("r", Some(&at)), ("t", None), ("vm", None)], false),
+                );
                 if shared_string {
                     self.strings.removed += 1;
                 }

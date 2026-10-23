@@ -14,7 +14,7 @@ use calc_fml::reference::{
 };
 use calc_fml::{
     EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
-    ExecutedCall, FormulaInstance, compile, evaluate, instantiate, parse_formula,
+    ExecutedCall, FormulaInstance, compile_loaded, evaluate, instantiate, parse_formula,
 };
 use calc_value::{CellKey, GridArea, NodeId, NumericMode};
 use std::cell::RefCell;
@@ -349,7 +349,9 @@ pub(crate) fn live_anchor(state: &EngineState, node: NodeId) -> CellKey {
         .anchor()
 }
 
-/// Compiles and places the formula of `node`, anchored at `at`, and files its prerequisites.
+/// Compiles and places the formula of `node`, anchored at `at`, and files its prerequisites. The
+/// document holds a formula's text as a file stores it ([`FormulaText`]), so it is compiled as
+/// such ([`compile_loaded`]).
 fn bind(
     state: &mut EngineState,
     inputs: &ModelRoot,
@@ -358,9 +360,13 @@ fn bind(
     text: &FormulaText,
 ) {
     let anchor = FormulaAnchor::new(at);
+    let array = inputs.definitions().array(at).map(|array| array.kind());
     let binding = match String::from_utf16(text.text().utf16_code_units()) {
+        _ if array.is_some() => Binding::Refused(NotModeled::ArrayFormula(
+            array.expect("an array formula's kind"),
+        )),
         Err(_) => Binding::Refused(NotModeled::FormulaText),
-        Ok(source) => match compile(
+        Ok(source) => match compile_loaded(
             &parse_formula(&source),
             ReferenceNotation::A1,
             anchor,
@@ -612,7 +618,24 @@ fn evaluate_node(
         return Err(RecalcFailure::ReadFailed { formula, area });
     }
     if let Some(cell) = cells.unscheduled {
-        return Err(RecalcFailure::UnscheduledRead { formula, cell });
+        // A cell none of the formula's own references names was read through a reference the
+        // evaluation computed (OFFSET's): the schedule cannot order it, and dynamic dependencies
+        // are L2's (dc-0k9). The formula is refused rather than given the value read; a missed
+        // edge of a reference the formula holds still fails the recalculation.
+        let named = instance
+            .areas()
+            .iter()
+            .any(|area| area.is_ok_and(|area| area.contains(cell)));
+        if named {
+            return Err(RecalcFailure::UnscheduledRead { formula, cell });
+        }
+        return Ok(FormulaResult::NotModeled {
+            refusal: NotModeled::Evaluation(EvalFault::NotModelled {
+                construct: "a reference computed at evaluation to a formula cell this recalculation calculates later",
+                owner: "dc-0k9",
+            }),
+            calculation,
+        });
     }
     match outcome {
         Ok(value) => Ok(match NotModeled::publishable(value) {

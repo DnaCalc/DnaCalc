@@ -2,6 +2,7 @@
 //! skin layout.
 
 use crate::cells::{Bounds, CellPage, OccupiedCells, SheetPages, locate};
+use crate::definitions::{ArrayFormula, Definitions};
 use crate::input::CellInput;
 use crate::layout::{BlockId, LayoutError, SkinLayout, SkinLayoutEdit};
 use crate::op::{OpBatch, WorkbookOp};
@@ -69,6 +70,11 @@ pub enum ModelRootError {
     CellOnUnknownSheet(CellKey),
     /// This block's anchor lies on a sheet the root does not hold.
     BlockOnUnknownSheet(BlockId),
+    /// An array formula, table, sheet-scoped name or unloaded cell of the definitions lies on
+    /// this sheet, which the root does not hold.
+    DefinitionOnUnknownSheet(SheetId),
+    /// The array formula anchored at this cell has no formula input there.
+    ArrayWithoutFormula(CellKey),
 }
 
 impl fmt::Display for ModelRootError {
@@ -88,6 +94,16 @@ impl fmt::Display for ModelRootError {
             ModelRootError::BlockOnUnknownSheet(block) => write!(
                 f,
                 "the anchor of the block {block} lies on a sheet the root does not hold"
+            ),
+            ModelRootError::DefinitionOnUnknownSheet(sheet) => write!(
+                f,
+                "a definition lies on the sheet {sheet:?}, which the root does not hold"
+            ),
+            ModelRootError::ArrayWithoutFormula(at) => write!(
+                f,
+                "the array formula anchored at row {} column {} has no formula there",
+                at.row(),
+                at.column()
             ),
         }
     }
@@ -196,6 +212,7 @@ pub struct ModelRoot {
     /// The cells of the sheet at the same position of `sheets`.
     cells: Vec<SheetPages>,
     layout: Arc<SkinLayout>,
+    definitions: Arc<Definitions>,
     lineage: u64,
 }
 
@@ -205,6 +222,7 @@ impl PartialEq for ModelRoot {
             && self.sheets == other.sheets
             && self.cells == other.cells
             && self.layout == other.layout
+            && self.definitions == other.definitions
     }
 }
 
@@ -224,6 +242,7 @@ impl ModelRoot {
             sheets,
             cells,
             layout: Arc::default(),
+            definitions: Arc::default(),
             lineage: new_lineage(),
         }))
     }
@@ -288,8 +307,38 @@ impl ModelRoot {
             sheets,
             cells: pages,
             layout: Arc::new(layout),
+            definitions: Arc::default(),
             lineage: new_lineage(),
         }))
+    }
+
+    /// [`ModelRoot::with_layout`] with the workbook's [`Definitions`]: its array formulas,
+    /// defined names, tables and unloaded cells. Refused as [`ModelRoot::with_layout`] refuses,
+    /// when a definition lies on a sheet not among the sheets, and when an array formula's anchor
+    /// holds no formula among the cells.
+    pub fn with_definitions(
+        revision: AuthoredRevision,
+        sheets: Vec<SheetEntry>,
+        cells: impl IntoIterator<Item = (CellKey, CellInput)>,
+        layout: SkinLayout,
+        definitions: Definitions,
+    ) -> Result<Arc<ModelRoot>, ModelRootError> {
+        let root = Self::with_layout(revision, sheets, cells, layout)?;
+        if let Some(sheet) = definitions
+            .sheets()
+            .find(|sheet| root.sheet_by_id(*sheet).is_none())
+        {
+            return Err(ModelRootError::DefinitionOnUnknownSheet(sheet));
+        }
+        if let Some(array) = definitions
+            .arrays()
+            .find(|array| !matches!(root.cell(array.anchor()), Some(CellInput::Formula(_))))
+        {
+            return Err(ModelRootError::ArrayWithoutFormula(array.anchor()));
+        }
+        let mut root = Arc::try_unwrap(root).expect("a root just built has one owner");
+        root.definitions = Arc::new(definitions);
+        Ok(Arc::new(root))
     }
 
     pub fn revision(&self) -> AuthoredRevision {
@@ -312,6 +361,18 @@ impl ModelRoot {
     /// it was applied to, by pointer.
     pub fn layout(&self) -> &Arc<SkinLayout> {
         &self.layout
+    }
+
+    /// The workbook's array formulas, defined names, tables and unloaded cells. A root made by
+    /// [`ModelRoot::apply`] shares them with the root it was applied to, by pointer, unless the
+    /// batch set or cleared an array formula's anchor or an unloaded cell.
+    pub fn definitions(&self) -> &Arc<Definitions> {
+        &self.definitions
+    }
+
+    /// The array formula whose area holds `at`, its anchor included.
+    pub fn array_containing(&self, at: CellKey) -> Option<&ArrayFormula> {
+        self.definitions.array_containing(at)
     }
 
     pub fn sheet_by_key(&self, key: SheetKey) -> Option<&SheetEntry> {
@@ -406,9 +467,12 @@ impl ModelRoot {
         let mut touched: BTreeMap<(usize, u32, u32), BTreeMap<u16, CellInput>> = BTreeMap::new();
         // A working copy of the layout, made from this root's the first time an operation edits it.
         let mut layout: Option<SkinLayout> = None;
+        // The areas the batch's cell operations set or cleared.
+        let mut edited: Vec<GridArea> = Vec::new();
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetCell { at, input } => {
+                    edited.push(GridArea::cell(*at));
                     let sheet = self.position_of(operation, at.sheet())?;
                     let (page_row, page_column, place) = locate(*at);
                     touched
@@ -417,6 +481,7 @@ impl ModelRoot {
                         .insert(place, input.clone());
                 }
                 WorkbookOp::Clear { area } => {
+                    edited.push(*area);
                     let sheet = self.position_of(operation, area.sheet())?;
                     let (first, last) = (area.first(), area.last());
                     let bounds = Bounds {
@@ -472,11 +537,19 @@ impl ModelRoot {
             Some(layout) if layout != *self.layout => Arc::new(layout),
             _ => Arc::clone(&self.layout),
         };
+        let definitions = match self
+            .definitions
+            .after_edits(|at| edited.iter().any(|area| area.contains(at)))
+        {
+            Some(definitions) => Arc::new(definitions),
+            None => Arc::clone(&self.definitions),
+        };
         Ok(Arc::new(ModelRoot {
             revision,
             sheets: self.sheets.clone(),
             cells,
             layout,
+            definitions,
             lineage: self.lineage,
         }))
     }

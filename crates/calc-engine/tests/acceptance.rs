@@ -2130,7 +2130,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             // modelled (XLOOKUP's lookup array; dc-mzk): a typed refusal. (A range at the
             // formula's root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9
             // is #VALUE!.)
-            set(c(9, 1), formula("XLOOKUP(1,Data!A1:A2*1,Data!A1:A2)")),
+            set(c(9, 1), formula("_xlfn.XLOOKUP(1,Data!A1:A2*1,Data!A1:A2)")),
             set(c(1, 3), formula("A2*2")),
         ],
     );

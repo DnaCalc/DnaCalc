@@ -3,7 +3,10 @@
 //! write.
 
 use crate::load::FORMULA_MAX_UTF16_CODE_UNITS;
-use calc_doc_model::{ApplyError, CellInput, FormulaText, ModelRoot, OpBatch, WorkbookOp};
+use calc_doc_model::value::{CellKey, GridArea};
+use calc_doc_model::{
+    ApplyError, ArrayKind, CellInput, FormulaText, ModelRoot, OpBatch, WorkbookOp,
+};
 use std::fmt;
 use std::sync::Arc;
 
@@ -43,6 +46,13 @@ pub enum EditError {
     /// admitted; how Excel treats text the parser does not read is left to infra-m1.3's round
     /// trip.
     FormulaSyntax { operation: usize, message: String },
+    /// The operation at this index changes part of the array formula anchored at `anchor`: it
+    /// sets a cell the array fills beside its anchor, or it sets or clears some but not all of a
+    /// legacy array's cells. Excel refuses to change part of a legacy array; a value set into a
+    /// dynamic array's spill area blocks the spill (#SPILL!), which the engine's spill handling
+    /// (work package L2) owns. Setting a dynamic array's anchor replaces the array, and clearing
+    /// any of its cells is admitted.
+    ArrayPart { operation: usize, anchor: CellKey },
 }
 
 impl fmt::Display for EditError {
@@ -56,6 +66,12 @@ impl fmt::Display for EditError {
             Self::FormulaSyntax { operation, message } => write!(
                 f,
                 "operation {operation} sets a formula the parser reads with a diagnostic: {message}"
+            ),
+            Self::ArrayPart { operation, anchor } => write!(
+                f,
+                "operation {operation} changes part of the array formula anchored at row {} column {}",
+                anchor.row(),
+                anchor.column()
             ),
         }
     }
@@ -94,6 +110,7 @@ pub(crate) fn check_formula(formula: &FormulaText) -> Result<(), FormulaCheck> {
 /// Applies `batch` to `model` and checks every formula it sets ([`check_formula`]): the batch's
 /// next revision, or why it is refused.
 pub fn prepare_edit(model: &ModelRoot, batch: &OpBatch) -> Result<PreparedEdit, EditError> {
+    check_arrays(model, batch)?;
     let edited = model.apply(batch).map_err(EditError::Model)?;
     for (operation, op) in batch.operations.iter().enumerate() {
         let WorkbookOp::SetCell {
@@ -109,4 +126,35 @@ pub fn prepare_edit(model: &ModelRoot, batch: &OpBatch) -> Result<PreparedEdit, 
         })?;
     }
     Ok(PreparedEdit { model: edited })
+}
+
+/// Refuses an operation that changes part of an array formula ([`EditError::ArrayPart`]), judged
+/// against the arrays of `model`, the revision the batch applies to.
+fn check_arrays(model: &ModelRoot, batch: &OpBatch) -> Result<(), EditError> {
+    let definitions = model.definitions();
+    for (operation, op) in batch.operations.iter().enumerate() {
+        let area = match op {
+            WorkbookOp::SetCell { at, .. } => GridArea::cell(*at),
+            WorkbookOp::Clear { area } => *area,
+            _ => continue,
+        };
+        for array in definitions.arrays_meeting(area) {
+            let whole = array.area();
+            let covers = area.contains(whole.first()) && area.contains(whole.last());
+            let refused = match (op, array.kind()) {
+                (WorkbookOp::SetCell { at, .. }, ArrayKind::Dynamic { .. }) => {
+                    *at != array.anchor()
+                }
+                (_, ArrayKind::Legacy) => whole.cell_count() > 1 && !covers,
+                _ => false,
+            };
+            if refused {
+                return Err(EditError::ArrayPart {
+                    operation,
+                    anchor: array.anchor(),
+                });
+            }
+        }
+    }
+    Ok(())
 }

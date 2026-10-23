@@ -50,7 +50,11 @@ fn unknown_names_are_name_errors_and_unknown_catalogues_refuse() {
     let mut book = Book::new();
     assert_eq!(book.dynamic("=Missing"), e(W::Name));
     assert_eq!(book.dynamic("=IFERROR(Missing,2)"), n(2.0));
-    assert_eq!(book.dynamic("=ISERROR(NoSuchFunction(1))"), b(true));
+    // A call of a name no defined name holds could be a VBA or add-in function: refused.
+    assert!(matches!(
+        book.eval_in(FormulaForm::Dynamic, "=ISERROR(NoSuchFunction(1))", "Z100"),
+        Err(CompileError::UnknownFunction { .. })
+    ));
     // A catalogue that does not carry names: every name is refused, naming D1.
     book.knows_names = false;
     match book.eval_in(FormulaForm::Dynamic, "=TaxRate*2", "Z100") {

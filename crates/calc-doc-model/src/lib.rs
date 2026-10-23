@@ -29,6 +29,15 @@
 //!   [`calc_value::SheetId`], which travels on the wire as that sheet's [`SheetKey`];
 //!   [`SheetEdit::Insert`] names the sheet it adds by a new [`SheetKey`] alone, because the sheet's
 //!   ID is issued when the edit is applied.
+//! - Definitions: the workbook's [`ArrayFormula`]s (legacy and dynamic, each an anchor holding
+//!   the formula text and the area it fills), [`DefinedName`]s, [`Table`]s, and the
+//!   [`UnloadedCell`]s whose content the model does not represent, in one [`Definitions`]
+//!   ([`ModelRoot::definitions`], built by [`ModelRoot::with_definitions`]). A calculation reads
+//!   a cell an array fills (other than its anchor) and an unloaded cell as not available
+//!   ([`Definitions::not_available`]). [`ModelRoot::apply`] drops an array formula whose anchor a
+//!   batch sets or clears, and an unloaded cell it sets or clears.
+//! - Styles: a styles part's [`StyleTable`], document-only metadata the codec keeps beside the
+//!   model.
 //! - Document-only metadata: facts that are not calculation inputs: [`SheetVisibility`], and the
 //!   [`SkinLayout`] a root holds ([`ModelRoot::layout`]): the semantic [`Block`]s, each a stable
 //!   opaque [`BlockId`] over a visible backing cell or range reached through its [`LocatorName`],
@@ -44,17 +53,22 @@
 
 mod cache;
 mod cells;
+mod definitions;
 mod input;
 mod layout;
 mod op;
 mod revision;
 mod root;
 mod sheet;
+mod style;
 mod wire;
 
 pub use cache::{CachedValue, FileCached, SourcePart};
 pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
+pub use definitions::{
+    ArrayFormula, ArrayKind, DefinedName, Definitions, NameScope, Table, UnloadedCell,
+};
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use layout::{
     Block, BlockId, BlockKind, CanvasArea, LayoutError, LocatorName, Placement, PlacementId,
@@ -65,6 +79,11 @@ pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};
 pub use sheet::{
     SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetName, SheetNameError, SheetVisibility,
+};
+pub use style::{
+    Alignment, Border, BorderEdge, CellFormat, CellStyle, DifferentialFormat, Fill, Font,
+    NumberFormat, Protection, StyleColor, StyleTable, TableStyles, WorkbookColors,
+    builtin_number_format,
 };
 pub use wire::{
     BATCH_FORMAT, BATCH_VERSION, DecodeError, EncodeError, OpCapability, decode_batch,

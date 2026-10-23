@@ -11,12 +11,16 @@ portability = "portable"
 
 [dependencies]
 calc-value = { path = "../calc-value" }
+libm = "0.2"
 
 # The cfunc-m1.2 acceptance cases read the Excel capture of their oracle workbook through the one
 # verdict library's CaptureRecord and MissingCapture. Test-only: calc-verdict never depends on
 # calc-func, so the code under test is not part of its own judge.
 [dev-dependencies]
 calc-verdict = { path = "../../tools/calc-verdict" }
+# The dc-xrxb case reads the package Excel saved, whose parts Excel deflates, with the DEFLATE
+# decoder calc-doc already uses (pure Rust, so it builds for wasm32-unknown-unknown). Test-only.
+miniz_oxide = "=0.8.9"
 
 # The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which runs
 # only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the

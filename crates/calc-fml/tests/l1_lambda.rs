@@ -131,11 +131,17 @@ fn names_resolve_as_excel_resolves_them() {
         ),
         n(12.0)
     );
-    // A LET name is not in scope inside its own value: F there is an unknown name.
-    assert_eq!(
-        book.dynamic("=LET(F,LAMBDA(n,IF(n<=0,0,1+F(n-1))),F(5))"),
-        e(W::Name)
-    );
+    // A LET name is not in scope inside its own value: F there is the call of a name no defined
+    // name holds, which Excel gives #NAME? (OxFml's row) and which is refused here, since a VBA
+    // or add-in function of that name is not ruled out.
+    assert!(matches!(
+        book.eval_in(
+            FormulaForm::Dynamic,
+            "=LET(F,LAMBDA(n,IF(n<=0,0,1+F(n-1))),F(5))",
+            "Z100"
+        ),
+        Err(CompileError::UnknownFunction { .. })
+    ));
     assert_eq!(
         book.dynamic("=LET(f,LAMBDA(self,n,IF(n<=0,0,1+self(self,n-1))),f(f,3))"),
         n(3.0)
