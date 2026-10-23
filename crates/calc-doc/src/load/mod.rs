@@ -826,6 +826,7 @@ pub fn load(
             content_type: content_type.map(str::to_owned),
         });
     }
+    let macro_enabled = content_type.is_some_and(|content_type| content_type.contains("macroEnabled"));
     let WorkbookPart {
         sheets: declared,
         date_system,
@@ -954,8 +955,9 @@ pub fn load(
             (sheet, row, why)
         })
         .collect();
-    let definitions =
-        Definitions::new(arrays, names, tables, unloaded).with_hidden_rows(hidden_rows);
+    let definitions = Definitions::new(arrays, names, tables, unloaded)
+        .with_hidden_rows(hidden_rows)
+        .with_macro_enabled(macro_enabled);
     let entries = declared
         .into_iter()
         .zip(&issued)

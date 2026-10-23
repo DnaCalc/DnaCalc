@@ -372,8 +372,10 @@ mod arrays {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn legacy_formulas_refuse_unmeasured_places() {
         let mut book = data();
+        // XLOOKUP's lookup array, which this row used before, was measured by L3 (dc-m3u) and
+        // lifts (`acceptance/l3.rs`); CHISQ.TEST's actual range is not measured.
         let outcome = book
-            .eval_in(FormulaForm::Legacy, "=XLOOKUP(2,A1:A3*1,B1:B3)", "I2")
+            .eval_in(FormulaForm::Legacy, "=CHISQ.TEST(A1:A3*1,B1:B3)", "I2")
             .unwrap();
         assert!(
             matches!(outcome, Err(EvalFault::AreaAsValue { .. })),
@@ -618,13 +620,18 @@ mod names {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-    fn names_with_relative_references_are_refused() {
+    fn names_with_relative_references_read_from_the_formula_cell() {
+        // L3 (dc-m3u): a file stores a name's relative reference relative to A1, and Excel reads
+        // it from the cell of the formula that uses the name, wrapping around the grid's edge
+        // (Excel 16.0, 2026-10-23: LeftCell, `RC[-1]` stored as `Nm!XFD1`, is B3 in C3 and XFD1 in
+        // A1).
         let mut book = Book::new();
-        book.name("Left", "Sheet1!A1");
-        match book.eval_in(FormulaForm::Dynamic, "=Left", "Z100") {
-            Err(CompileError::Unsupported { owner, .. }) => assert_eq!(owner, "dc-mzk"),
-            other => panic!("{other:?}"),
-        }
+        book.number("Y100", 7.0).number("XFD1", 9.0).number("B3", 5.0);
+        book.name("Here", "Sheet1!A1").name("LeftCell", "Sheet1!XFD1");
+        assert_eq!(book.dynamic_at("=Here", "Y100"), n(7.0));
+        assert_eq!(book.dynamic_at("=LeftCell", "C3"), n(5.0));
+        assert_eq!(book.dynamic_at("=LeftCell", "A1"), n(9.0));
+        assert_eq!(book.dynamic_at("=SUM(LeftCell)", "Z100"), n(7.0));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

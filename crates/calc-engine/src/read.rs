@@ -13,7 +13,8 @@ use crate::spill::{Spill, SpillIndex};
 use crate::state::EngineState;
 use calc_doc_model::{CellInput, ModelRoot, NameScope, RowHidden};
 use calc_fml::reference::{
-    CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader, SpillExtent,
+    CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
+    TableLookup,
 };
 use calc_fml::{
     CalcEnvironment, EvalFault, EvaluationReport, ExecutedCall, HostFacts, ReferenceCatalog,
@@ -198,6 +199,63 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
             }
             Some(defined) => NameDefinition::Formula(defined.formula.clone()),
         }
+    }
+
+    /// The snapshot's table whose display name is `name`, matched as sheet names are (L3).
+    fn table(&self, name: &str) -> TableLookup {
+        let found = self.0.definitions().tables().iter().find(|table| {
+            table.display_name == name
+                || table
+                    .display_name
+                    .chars()
+                    .flat_map(char::to_uppercase)
+                    .eq(name.chars().flat_map(char::to_uppercase))
+        });
+        match found {
+            Some(table) => TableLookup::Found(table_info(table)),
+            None => TableLookup::Unknown,
+        }
+    }
+
+    /// The snapshot's table whose area holds `cell` (L3).
+    fn table_containing(&self, cell: CellKey) -> TableLookup {
+        match self
+            .0
+            .definitions()
+            .tables()
+            .iter()
+            .find(|table| table.area.contains(cell))
+        {
+            Some(table) => TableLookup::Found(table_info(table)),
+            None => TableLookup::Unknown,
+        }
+    }
+
+    /// The sheets from `first` to `last` in the snapshot's sheet order, both included (L3).
+    fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
+        let sheets = self.0.sheets();
+        let at = |id: SheetId| sheets.iter().position(|sheet| sheet.id() == id);
+        let (a, b) = (at(first)?, at(last)?);
+        let (from, to) = (a.min(b), a.max(b));
+        Some(sheets[from..=to].iter().map(|sheet| sheet.id()).collect())
+    }
+
+    /// A call of a name no function or defined name holds is #NAME? unless the workbook is
+    /// macro-enabled, whose VBA project may define the function.
+    fn unknown_calls_are_names(&self) -> bool {
+        !self.0.definitions().macro_enabled()
+    }
+}
+
+/// A document table as CalcFml's binding reads it.
+fn table_info(table: &calc_doc_model::Table) -> TableInfo {
+    TableInfo {
+        name: table.display_name.clone(),
+        sheet: table.sheet,
+        area: table.area,
+        header_rows: table.header_rows,
+        totals_rows: table.totals_rows,
+        columns: table.columns.clone(),
     }
 }
 

@@ -927,6 +927,14 @@ struct LoggingCatalog {
     /// Until a case adds one ([`LoggingCatalog::define`]) the catalogue carries no names, and
     /// every name is not modelled.
     names: Option<BTreeMap<(Option<SheetId>, String), String>>,
+    /// L3 (dc-m3u): the tables; until a case sets them the catalogue carries no tables.
+    tables: Option<Vec<calc_fml::reference::TableInfo>>,
+    /// L3 (dc-m3u): whether the catalogue lists the sheets of a 3-D reference, in the order of
+    /// `sheets`.
+    spans: bool,
+    /// L3 (dc-m3u): whether the workbook can hold no function of its own, so that a call of an
+    /// unknown name is #NAME?.
+    no_macros: bool,
 }
 
 impl LoggingCatalog {
@@ -939,6 +947,9 @@ impl LoggingCatalog {
                 .collect(),
             requests: RefCell::new(Vec::new()),
             names: None,
+            tables: None,
+            spans: false,
+            no_macros: false,
         }
     }
 
@@ -986,6 +997,50 @@ impl ReferenceCatalog for LoggingCatalog {
             Some(definition) => NameDefinition::Formula(definition.clone()),
             None => NameDefinition::Unknown,
         }
+    }
+
+    fn table(&self, name: &str) -> calc_fml::reference::TableLookup {
+        use calc_fml::reference::TableLookup;
+        match &self.tables {
+            None => TableLookup::NotModelled,
+            Some(tables) => tables
+                .iter()
+                .find(|table| table.name.to_uppercase() == name.to_uppercase())
+                .map_or(TableLookup::Unknown, |table| {
+                    TableLookup::Found(table.clone())
+                }),
+        }
+    }
+
+    fn table_containing(&self, cell: CellKey) -> calc_fml::reference::TableLookup {
+        use calc_fml::reference::TableLookup;
+        match &self.tables {
+            None => TableLookup::NotModelled,
+            Some(tables) => tables
+                .iter()
+                .find(|table| table.area.contains(cell))
+                .map_or(TableLookup::Unknown, |table| {
+                    TableLookup::Found(table.clone())
+                }),
+        }
+    }
+
+    fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
+        if !self.spans {
+            return None;
+        }
+        let at = |id: SheetId| self.sheets.iter().position(|(_, sheet)| *sheet == id);
+        let (a, b) = (at(first)?, at(last)?);
+        Some(
+            self.sheets[a.min(b)..=a.max(b)]
+                .iter()
+                .map(|(_, sheet)| *sheet)
+                .collect(),
+        )
+    }
+
+    fn unknown_calls_are_names(&self) -> bool {
+        self.no_macros
     }
 }
 
@@ -1613,11 +1668,13 @@ fn cfml_m1_2__provider_reads() {
     let bound = sites(formula, ReferenceNotation::A1, anchor, &catalog);
 
     // The catalogue was asked for sheets only, by the names the qualifiers spell, unquoted and
-    // as written: never for reference text, and not for the other workbook, the runs of sheets
-    // or the sheet-qualified name.
+    // as written: never for reference text, and not for the other workbook or the
+    // sheet-qualified name. L3 (dc-m3u): a run of sheets asks for its first and last sheet.
     assert_eq!(
         *catalog.requests.borrow(),
-        ["sheet2", "Q2 Data", "It's", "Sheet2", "Missing"]
+        [
+            "sheet2", "Q2 Data", "It's", "Sheet2", "Missing", "Sheet1", "Sheet3", "Sheet 1"
+        ]
     );
     assert_eq!(
         texts(&bound),
@@ -1649,8 +1706,13 @@ fn cfml_m1_2__provider_reads() {
                 name: "Missing".to_owned()
             }),
             Err(BindError::ExternalWorkbook),
-            Err(BindError::SheetSpan),
-            Err(BindError::SheetSpan),
+            // L3 (dc-m3u): neither run's last sheet is in this workbook.
+            Err(BindError::UnknownSheet {
+                name: "Sheet3".to_owned()
+            }),
+            Err(BindError::UnknownSheet {
+                name: "Sheet 1".to_owned()
+            }),
         ]
     );
 
@@ -1682,7 +1744,12 @@ fn cfml_m1_2__provider_reads() {
     // of sheets, is one refused site.
     for (formula, refused) in [
         ("=[B.xlsx]S!A1:[B.xlsx]S!B2", BindError::ExternalWorkbook),
-        ("=Sheet1:Sheet3!A1:Sheet3!B2", BindError::SheetSpan),
+        (
+            "=Sheet1:Sheet3!A1:Sheet3!B2",
+            BindError::UnknownSheet {
+                name: "Sheet3".to_owned(),
+            },
+        ),
     ] {
         assert_eq!(
             sites(formula, ReferenceNotation::A1, anchor, &catalog),
@@ -1690,6 +1757,8 @@ fn cfml_m1_2__provider_reads() {
             "{formula}"
         );
     }
+    // L3 (dc-m3u): the run of sheets asked for its two sheets.
+    let asked = asked + 2;
     // An array constant holds constants only: each reference inside one is refused, a qualified
     // one without asking the catalogue, and the constants and the name give no site.
     assert_eq!(
@@ -6232,3 +6301,11 @@ mod l1;
 
 #[path = "acceptance/f3.rs"]
 mod f3;
+
+// L3 (dc-m3u): structured references to tables, 3-D references, external references, names with
+// relative references, calls of unknown names and INDIRECT text naming a defined name, through
+// calc_fml::evaluate over the cfml-m1.3 fixtures (LoggingCatalog with tables and sheet spans,
+// RunReader). The cases are in `acceptance/l3.rs`.
+
+#[path = "acceptance/l3.rs"]
+mod l3;

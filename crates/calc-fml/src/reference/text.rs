@@ -93,17 +93,20 @@ pub(crate) fn bind_text(
     // Excel 16.0.20430 read a line feed after the text as a space (`A1` and a line feed is A1,
     // bead dc-51ka's oracle row); a line feed anywhere else is not measured.
     let text = text.trim_end_matches([' ', '\n']);
-    bind_str(text, notation, anchor, catalog, 0)
+    bind_str(text, notation, anchor, anchor, catalog, 0)
 }
 
 /// How deep defined names may refer to other names in INDIRECT's text before the text is refused
 /// as not modelled.
 const MAX_NAME_DEPTH: usize = 16;
 
-/// [`bind_text`] of decoded text, `depth` names deep.
+/// [`bind_text`] of decoded text, `depth` names deep, its relative coordinates spelled as offsets
+/// from `base` and placed from `anchor` (the two differ for a defined name's formula, which a file
+/// stores relative to A1).
 fn bind_str(
     text: &str,
     notation: ReferenceNotation,
+    base: FormulaAnchor,
     anchor: FormulaAnchor,
     catalog: &dyn ReferenceCatalog,
     depth: usize,
@@ -121,7 +124,7 @@ fn bind_str(
         Ok(split) => split,
         Err(outcome) => return outcome,
     };
-    let target = match target(rest, notation, anchor) {
+    let target = match target(rest, notation, base) {
         Ok(target) => target,
         Err(outcome) => return outcome,
     };
@@ -163,8 +166,12 @@ fn bind_str(
 /// none (#REF!) when the workbook defines no such name (Excel 16.0.20430: `NoSuchName`,
 /// `data!Foo` and `XFE1` are #REF!, bead dc-51ka's oracle rows), and the area its formula names
 /// when that formula is one reference with absolute coordinates, as a file stores a name's
-/// references (`Rate` and `\x` resolved). A name whose formula is anything else (a constant, a
-/// computed reference, a relative reference) is not modelled.
+/// references (`Rate` and `\x` resolved). A relative reference in the name is stored relative to
+/// A1 and read from the calling cell, wrapping around the grid's edge (L3, dc-m3u; Excel 16.0,
+/// 2026-10-23: `=INDIRECT("LeftCell")` in E3, LeftCell being `RC[-1]` stored as `Nm!XFD1`, reads
+/// D3). A name whose formula is a constant names none (`=INDIRECT("Konst")`, Konst being 5, is
+/// #REF!, the same measurement). A name whose formula is anything else (a computed reference) is
+/// not modelled.
 fn bind_name(
     name: &str,
     scope: NameScope,
@@ -178,14 +185,48 @@ fn bind_name(
         NameDefinition::Formula(_) if depth >= MAX_NAME_DEPTH => TextReference::NotModelled,
         NameDefinition::Formula(formula) => {
             let text = formula.strip_prefix('=').unwrap_or(&formula);
-            if has_relative_coordinate(text) {
-                return TextReference::NotModelled;
+            if is_constant(text) {
+                return TextReference::Invalid;
             }
-            match bind_str(text, ReferenceNotation::A1, anchor, catalog, depth + 1) {
+            let a1 = CellKey::new(anchor.sheet(), 1, 1).expect("A1 lies on the grid");
+            let base = if has_relative_coordinate(text) {
+                FormulaAnchor::new(a1)
+            } else {
+                anchor
+            };
+            match bind_str(text, ReferenceNotation::A1, base, anchor, catalog, depth + 1) {
                 TextReference::Area(area) => TextReference::Area(area),
                 _ => TextReference::NotModelled,
             }
         }
+    }
+}
+
+/// Whether a name's formula text is one constant: a number (signed or not), a text, TRUE or
+/// FALSE, an error or an array constant.
+fn is_constant(text: &str) -> bool {
+    use crate::syntax::SyntaxKind;
+    let tree = crate::parse_formula(&format!("={text}"));
+    if !tree.diagnostics().is_empty() {
+        return false;
+    }
+    let Some(expression) = tree.expression() else {
+        return false;
+    };
+    match expression.kind() {
+        SyntaxKind::NumberLiteralExpr
+        | SyntaxKind::StringLiteralExpr
+        | SyntaxKind::ErrorLiteralExpr
+        | SyntaxKind::ArrayLiteralExpr => true,
+        SyntaxKind::IdentifierExpr => {
+            let word = text.trim();
+            word.eq_ignore_ascii_case("TRUE") || word.eq_ignore_ascii_case("FALSE")
+        }
+        SyntaxKind::PrefixExpr => expression
+            .child_nodes()
+            .next()
+            .is_some_and(|operand| operand.kind() == SyntaxKind::NumberLiteralExpr),
+        _ => false,
     }
 }
 
@@ -671,7 +712,8 @@ mod tests {
     /// INDIRECT's text names a defined name: one whose formula is one absolute reference resolves
     /// to it (Excel 16.0.20430 resolved `Rate` and `\x`, bead dc-51ka); a name the workbook does
     /// not define, alone or as a range's endpoint, names no reference (`NoSuchName`, `data!Foo`,
-    /// `XFE1` and `A1:B` were #REF!); a relative or constant name is not modelled.
+    /// `XFE1` and `A1:B` were #REF!); a relative name is read from the calling cell and a constant
+    /// one names no reference (L3).
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn names_in_text() {
@@ -690,9 +732,11 @@ mod tests {
         for text in ["NoSuchName", "data!Foo", "XFE1", "A1:B", "Local"] {
             assert_eq!(bound(text), TextReference::Invalid, "{text:?}");
         }
-        for text in ["Rel", "Const", "A1:Rate"] {
-            assert_eq!(bound(text), TextReference::NotModelled, "{text:?}");
-        }
+        // L3 (dc-m3u): a relative name is read from the calling cell (D10 here), a constant
+        // names no reference (Excel 16.0, 2026-10-23: `=INDIRECT("Konst")` is #REF!).
+        assert_eq!(bound("Rel"), area(data, 10, 4, 10, 4));
+        assert_eq!(bound("Const"), TextReference::Invalid);
+        assert_eq!(bound("A1:Rate"), TextReference::NotModelled);
         assert!(has_relative_coordinate("data!A1"));
         assert!(has_relative_coordinate("$A1"));
         assert!(has_relative_coordinate("A$1"));
