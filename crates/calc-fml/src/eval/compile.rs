@@ -127,6 +127,19 @@ pub fn compile_loaded(
     )
 }
 
+/// [`compile_loaded`] in the form `form`: an array formula a file holds is compiled in the
+/// dynamic-array form, which lifts as an array formula does.
+pub fn compile_loaded_with(
+    tree: &SyntaxTree,
+    notation: ReferenceNotation,
+    anchor: FormulaAnchor,
+    catalog: &dyn ReferenceCatalog,
+    cache: &mut PlanCache,
+    form: FormulaForm,
+) -> Result<Arc<CompiledPlan>, CompileError> {
+    compile_as(tree, true, form, notation, anchor, catalog, cache)
+}
+
 /// Compiles the formula `tree`, as a user enters it, in the form `form`, its references read in
 /// `notation` and bound for a formula anchored at `anchor` through `catalog`, and returns the plan
 /// `cache` holds for its normal form.

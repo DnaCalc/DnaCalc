@@ -41,7 +41,7 @@ mod lift;
 mod refops;
 mod run;
 
-pub use compile::{CompileError, compile, compile_loaded, compile_with};
+pub use compile::{CompileError, compile, compile_loaded, compile_loaded_with, compile_with};
 pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
 
 use crate::reference::{

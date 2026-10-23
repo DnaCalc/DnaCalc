@@ -24,9 +24,10 @@ use calc_doc_model::value::{
     NumericMode, NumericTargetId, SheetId,
 };
 use calc_doc_model::{
-    AuthoredRevision, Axis, AxisChange, AxisEdit, CachedValue, CellInput, CellText, DefinedName,
-    Definitions, FileCached, FiniteNumber, FormulaText, ModelRoot, NameScope, OpBatch, SheetEdit,
-    SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayout, SourcePart, WorkbookOp,
+    ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, CachedValue, CellInput,
+    CellText, DefinedName, Definitions, FileCached, FiniteNumber, FormulaText, ModelRoot,
+    NameScope, OpBatch, SheetEdit, SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayout,
+    SourcePart, WorkbookOp,
 };
 use calc_engine::{
     AxisInterval, CacheWithoutFormula, EngineState, FormulaNode, FormulaResult, InputSeed,
@@ -3338,6 +3339,16 @@ fn l1_calculated(
     names: Vec<DefinedName>,
     sheets: (SheetId, SheetId),
 ) -> EngineState {
+    l1_calculated_with(cells, names, vec![], sheets)
+}
+
+/// [`l1_calculated`] with the array formulas `arrays`.
+fn l1_calculated_with(
+    cells: Vec<(CellKey, CellInput)>,
+    names: Vec<DefinedName>,
+    arrays: Vec<ArrayFormula>,
+    sheets: (SheetId, SheetId),
+) -> EngineState {
     let entries = vec![
         sheet_entry(sheets.0, 1, "Data"),
         sheet_entry(sheets.1, 2, "Calc"),
@@ -3347,7 +3358,7 @@ fn l1_calculated(
         entries,
         cells,
         SkinLayout::default(),
-        Definitions::new([], names, vec![], []),
+        Definitions::new(arrays, names, vec![], []),
     )
     .unwrap();
     let mut state = EngineState::new(&root);
@@ -3476,4 +3487,47 @@ fn dc_mzk__offset_into_a_later_formula_cell() {
         }) => assert_eq!(*owner, "dc-0k9"),
         other => panic!("{other:?}"),
     }
+}
+
+/// An array formula of one cell evaluates as an array formula: a legacy (Ctrl+Shift+Enter) one
+/// shows the first element of its result, a dynamic-array one its one value; one that fills more
+/// cells is refused as a spill. Hand-derived: Data!A1:A3 = 10, 20, 30, so SUM(A1:A3*{1;2;3}) is
+/// 140 and A1:A3*2 starts with 20.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_mzk__one_cell_array_formulas() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (d(1, 1), number(10.0)),
+        (d(2, 1), number(20.0)),
+        (d(3, 1), number(30.0)),
+        (c(1, 1), formula("SUM(Data!A1:A3*Data!A1:A3/10)")),
+        (c(2, 1), formula("Data!A1:A3*2")),
+        (c(3, 1), formula("SUM(Data!A1:A3*{1;2;3})")),
+        (c(5, 1), formula("Data!A1:A3*2")),
+    ];
+    let one = |at: CellKey, kind| ArrayFormula::new(GridArea::cell(at), kind);
+    let arrays = vec![
+        one(c(1, 1), ArrayKind::Legacy),
+        one(c(2, 1), ArrayKind::Legacy),
+        one(c(3, 1), ArrayKind::Dynamic { collapsed: false }),
+        ArrayFormula::new(
+            GridArea::new(c(5, 1), c(7, 1)).unwrap(),
+            ArrayKind::Dynamic { collapsed: false },
+        ),
+    ];
+    let state = l1_calculated_with(cells, vec![], arrays, (data, calc));
+    assert_eq!(l1_value(&state, c(1, 1)), CalcValue::number(140.0));
+    assert_eq!(l1_value(&state, c(2, 1)), CalcValue::number(20.0));
+    assert_eq!(l1_value(&state, c(3, 1)), CalcValue::number(140.0));
+    assert!(matches!(
+        state.result(c(5, 1)),
+        Some(FormulaResult::NotModeled {
+            refusal: NotModeled::ArrayFormula(_),
+            ..
+        })
+    ));
 }

@@ -8,15 +8,16 @@ use crate::graph::{AxisInterval, Prerequisite};
 use crate::read::{ObservedEvaluation, ReadObserver, SnapshotCatalog, WorkbookReader};
 use crate::result::{CalcTick, Calculation, FormulaResult, NotModeled, ValueChange, ValueDelta};
 use crate::state::{Binding, EngineState};
-use calc_doc_model::{AuthoredRevision, Axis, CellInput, FormulaText, ModelRoot};
+use calc_doc_model::{ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, ModelRoot};
 use calc_fml::reference::{
     CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape,
 };
 use calc_fml::{
     EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
-    ExecutedCall, FormulaInstance, compile_loaded, evaluate, instantiate, parse_formula,
+    ExecutedCall, FormulaForm, FormulaInstance, compile_loaded_with, evaluate, instantiate,
+    parse_formula,
 };
-use calc_value::{CellKey, GridArea, NodeId, NumericMode};
+use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -360,18 +361,26 @@ fn bind(
     text: &FormulaText,
 ) {
     let anchor = FormulaAnchor::new(at);
-    let array = inputs.definitions().array(at).map(|array| array.kind());
+    let array = inputs.definitions().array(at);
+    // An array formula of one cell evaluates as an array formula (CalcFml's dynamic-array form,
+    // which lifts); one that fills more cells is a spill, which is L2's (dc-0k9).
+    let form = match array {
+        Some(array) if array.area().cell_count() > 1 => None,
+        Some(_) => Some(FormulaForm::Dynamic),
+        None => Some(FormulaForm::Legacy),
+    };
     let binding = match String::from_utf16(text.text().utf16_code_units()) {
-        _ if array.is_some() => Binding::Refused(NotModeled::ArrayFormula(
-            array.expect("an array formula's kind"),
+        _ if form.is_none() => Binding::Refused(NotModeled::ArrayFormula(
+            array.expect("an array formula").kind(),
         )),
         Err(_) => Binding::Refused(NotModeled::FormulaText),
-        Ok(source) => match compile_loaded(
+        Ok(source) => match compile_loaded_with(
             &parse_formula(&source),
             ReferenceNotation::A1,
             anchor,
             &SnapshotCatalog(inputs),
             &mut state.plans,
+            form.expect("a form"),
         ) {
             Ok(plan) => Binding::Placed(instantiate(&plan, anchor)),
             Err(error) => Binding::Refused(NotModeled::Compile(error)),
@@ -637,6 +646,7 @@ fn evaluate_node(
             calculation,
         });
     }
+    let outcome = outcome.map(|value| one_cell_array_value(inputs, formula, value));
     match outcome {
         Ok(value) => Ok(match NotModeled::publishable(value) {
             Ok(value) => FormulaResult::Calculated { value, calculation },
@@ -653,5 +663,26 @@ fn evaluate_node(
             refusal: NotModeled::Evaluation(fault),
             calculation,
         }),
+    }
+}
+
+/// The value an array formula of one cell at `at` shows: the first element of an array result
+/// when it is a legacy (Ctrl+Shift+Enter) array formula, which shows one element per cell of its
+/// area, or when the array has one element; any other value as it is (a larger array of a
+/// dynamic-array formula is a spill, which publishing refuses).
+fn one_cell_array_value(inputs: &ModelRoot, at: CellKey, value: CalcValue) -> CalcValue {
+    let Some(array) = inputs.definitions().array(at) else {
+        return value;
+    };
+    let first = match value.as_array() {
+        Some(elements) if array.kind() == ArrayKind::Legacy || elements.cell_count() == 1 => {
+            elements.get(0, 0).cloned()
+        }
+        _ => None,
+    };
+    match first {
+        Some(element) if element.is_empty() => CalcValue::number(0.0),
+        Some(element) => element,
+        None => value,
     }
 }
