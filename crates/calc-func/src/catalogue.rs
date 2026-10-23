@@ -20,6 +20,7 @@ mod arithmetic;
 mod comparison;
 mod conditional;
 mod error_fallback;
+mod information;
 mod logical;
 mod lookup;
 mod rounding;
@@ -27,7 +28,7 @@ mod text;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 9] = [
+const FAMILIES: [&Family; 10] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -37,6 +38,7 @@ const FAMILIES: [&Family; 9] = [
     &conditional::FAMILY,
     &error_fallback::FAMILY,
     &lookup::FAMILY,
+    &information::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);

@@ -1,0 +1,341 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "dc-nzpw",
+  "written": "2026-10-21",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import) over .beads/issues.jsonl of master commit 92028f1 (sha256 77a3a3a239294bd368bcfa32bd72fa9ff9b777c3be410c254761a23fb18a8da4, unmodified in the working tree) on 2026-10-21: each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), case-insensitive substrings: ISFORMULA, host fact, array evaluation, implicit intersection, intersection, number-text, number text, LAMBDA, callable, BLOCKED, CONNECT, BUSY, ERROR.TYPE, FIELDVALUE, FILTER, SEQUENCE, spill, adapters (transcript target/accept/dc-nzpw/owner-search-r2.log; target/ is not committed). Each beads list below is drawn from these hits, read by title and text.",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/is_predicates_family.rs",
+      "blob": "5928a83f495e8222011e7caa582374d04efe21b8",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/is_predicates_family.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/iseven_fn.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/isnumber.rs",
+      "blob": "42418028dd29b8cf66c547167847257d48d5b7c9",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/isnumber.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/iseven_fn.rs",
+      "blob": "26a6353887073d479c482f04952aa8410b4cd526",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/iseven_fn.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": [],
+      "derivation": {
+        "of": "ISEVEN and ISODD: the truncation of the magnitude plus 1e-10, rounded once to binary64 (PARITY_TOLERANCE, crates/calc-func/src/catalogue/information.rs)",
+        "date": "2026-10-21",
+        "excel": "16.0, build 20430 (16.0.20430.20182)",
+        "files": [
+          "migration/ports/dc-nzpw/probe2.ps1",
+          "migration/ports/dc-nzpw/probe2.tsv",
+          "migration/ports/dc-nzpw/probe3.ps1",
+          "migration/ports/dc-nzpw/p3in.txt",
+          "migration/ports/dc-nzpw/probe3.tsv",
+          "migration/ports/dc-nzpw/fit.log",
+          "migration/ports/dc-nzpw/fit.ps1",
+          "migration/ports/dc-nzpw/fit.ps1.log",
+          "migration/ports/dc-nzpw/rerun.log"
+        ]
+      }
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/type_fn.rs",
+      "blob": "f18f80859f5b6db6fda23dab7eb4e920a3c50d61",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/type_fn.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/n_fn.rs",
+      "blob": "7b8d1bac51fe10e50624db717f87179171ee0920",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/n_fn.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/na_fn.rs",
+      "blob": "b4a724e86bb8ff75b4217ec4d1bee8efb9cbecd7",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/na_fn.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "ported": [
+        {
+          "symbol": "NA_META (Arity::exact(0)) and eval_na_surface",
+          "to": "crates/calc-func/src/catalogue/information.rs: the FAMILY entry NA (FunctionId 10.15, CallableArityShape::exact(0), no parameters) and the kernel na",
+          "changes": [
+            {
+              "change": "A call with an argument is refused by the catalogue's arity at the call interface with FunctionFault::ArityMismatch before the kernel runs; the pinned kernel returns #VALUE! for it.",
+              "reason": "Microsoft's NA page gives the syntax as NA( ) with no arguments, and Excel 16.0.20430.20182 refuses =NA(1) at formula entry (exception 0x800A03EC through Range.Formula; transcript target/accept/dc-nzpw/excel-entry-probe.log, target/ is not committed), so no worksheet result exists for it; every catalogue entry's arity is checked before its kernel (cfunc-m1.1)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/error_type_fn.rs",
+      "blob": "52aff45393508a31ce4b22c037ca23911c075782",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/error_type_fn.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/misc_switch_info_family.rs",
+      "blob": "7cb0ddb9f5adda7b11b175f68031e30214abbc16",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/misc_switch_info_family.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/surface_dispatch.rs",
+      "blob": "76520e4100ce8eaccecd0b4c180ef33a9754cb07",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/surface_dispatch.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/acos.rs",
+          "crates/oxfunc_core/src/functions/acot.rs",
+          "crates/oxfunc_core/src/functions/acoth.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/array_text_split_family.rs",
+          "crates/oxfunc_core/src/functions/asin.rs",
+          "crates/oxfunc_core/src/functions/atan.rs",
+          "crates/oxfunc_core/src/functions/atanh.rs",
+          "crates/oxfunc_core/src/functions/base_fn.rs",
+          "crates/oxfunc_core/src/functions/bessel_convert_family.rs",
+          "crates/oxfunc_core/src/functions/beta_gamma_stats_family.rs",
+          "crates/oxfunc_core/src/functions/bitand_fn.rs",
+          "crates/oxfunc_core/src/functions/bitlshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitor_fn.rs",
+          "crates/oxfunc_core/src/functions/bitrshift_fn.rs",
+          "crates/oxfunc_core/src/functions/bitxor_fn.rs",
+          "crates/oxfunc_core/src/functions/bond_core_family.rs",
+          "crates/oxfunc_core/src/functions/cashflow_rate_family.rs",
+          "crates/oxfunc_core/src/functions/chi_f_t_family.rs",
+          "crates/oxfunc_core/src/functions/combin.rs",
+          "crates/oxfunc_core/src/functions/combina.rs",
+          "crates/oxfunc_core/src/functions/complex_family.rs",
+          "crates/oxfunc_core/src/functions/cos.rs",
+          "crates/oxfunc_core/src/functions/cosh.rs",
+          "crates/oxfunc_core/src/functions/cot.rs",
+          "crates/oxfunc_core/src/functions/coth.rs",
+          "crates/oxfunc_core/src/functions/count.rs",
+          "crates/oxfunc_core/src/functions/counta.rs",
+          "crates/oxfunc_core/src/functions/countblank_fn.rs",
+          "crates/oxfunc_core/src/functions/csc.rs",
+          "crates/oxfunc_core/src/functions/csch.rs",
+          "crates/oxfunc_core/src/functions/cumulative_finance_family.rs",
+          "crates/oxfunc_core/src/functions/date_fn.rs",
+          "crates/oxfunc_core/src/functions/date_parts_family.rs",
+          "crates/oxfunc_core/src/functions/date_week_family.rs",
+          "crates/oxfunc_core/src/functions/depreciation_family.rs",
+          "crates/oxfunc_core/src/functions/devsq_fn.rs",
+          "crates/oxfunc_core/src/functions/discrete_dist_family.rs",
+          "crates/oxfunc_core/src/functions/engineering_radix_family.rs",
+          "crates/oxfunc_core/src/functions/exact_fn.rs",
+          "crates/oxfunc_core/src/functions/exp_fn.rs",
+          "crates/oxfunc_core/src/functions/fact.rs",
+          "crates/oxfunc_core/src/functions/financial_time_value_family.rs",
+          "crates/oxfunc_core/src/functions/fisher_fn.rs",
+          "crates/oxfunc_core/src/functions/gcd_fn.rs",
+          "crates/oxfunc_core/src/functions/harmean_fn.rs",
+          "crates/oxfunc_core/src/functions/if_fn.rs",
+          "crates/oxfunc_core/src/functions/iferror.rs",
+          "crates/oxfunc_core/src/functions/ifna_fn.rs",
+          "crates/oxfunc_core/src/functions/int_fn.rs",
+          "crates/oxfunc_core/src/functions/is_predicates_family.rs",
+          "crates/oxfunc_core/src/functions/iseven_fn.rs",
+          "crates/oxfunc_core/src/functions/lcm_fn.rs",
+          "crates/oxfunc_core/src/functions/ln_fn.rs",
+          "crates/oxfunc_core/src/functions/log10_fn.rs",
+          "crates/oxfunc_core/src/functions/log_fn.rs",
+          "crates/oxfunc_core/src/functions/matrix_family.rs",
+          "crates/oxfunc_core/src/functions/median_fn.rs",
+          "crates/oxfunc_core/src/functions/misc_conversion_family.rs",
+          "crates/oxfunc_core/src/functions/mod_fn.rs",
+          "crates/oxfunc_core/src/functions/mround.rs",
+          "crates/oxfunc_core/src/functions/normal_log_family.rs",
+          "crates/oxfunc_core/src/functions/not_fn.rs",
+          "crates/oxfunc_core/src/functions/odd_bond_family.rs",
+          "crates/oxfunc_core/src/functions/permut_fn.rs",
+          "crates/oxfunc_core/src/functions/permutationa_fn.rs",
+          "crates/oxfunc_core/src/functions/phi_fn.rs",
+          "crates/oxfunc_core/src/functions/power_fn.rs",
+          "crates/oxfunc_core/src/functions/quotient_fn.rs",
+          "crates/oxfunc_core/src/functions/radians.rs",
+          "crates/oxfunc_core/src/functions/reference_metadata_family.rs",
+          "crates/oxfunc_core/src/functions/regression_forecast_family.rs",
+          "crates/oxfunc_core/src/functions/round_fn.rs",
+          "crates/oxfunc_core/src/functions/rounddown_fn.rs",
+          "crates/oxfunc_core/src/functions/roundup_fn.rs",
+          "crates/oxfunc_core/src/functions/sec.rs",
+          "crates/oxfunc_core/src/functions/sech.rs",
+          "crates/oxfunc_core/src/functions/sin.rs",
+          "crates/oxfunc_core/src/functions/sinh.rs",
+          "crates/oxfunc_core/src/functions/special_dist_family.rs",
+          "crates/oxfunc_core/src/functions/sqrt_fn.rs",
+          "crates/oxfunc_core/src/functions/standardize_fn.rs",
+          "crates/oxfunc_core/src/functions/statistical_tests_family.rs",
+          "crates/oxfunc_core/src/functions/tan.rs",
+          "crates/oxfunc_core/src/functions/tanh.rs",
+          "crates/oxfunc_core/src/functions/text_b_compat_family.rs",
+          "crates/oxfunc_core/src/functions/text_slice_family.rs",
+          "crates/oxfunc_core/src/functions/trunc_fn.rs",
+          "crates/oxfunc_core/src/functions/valuetotext_fn.rs",
+          "crates/oxfunc_core/src/functions/web_text_xml_family.rs"
+        ]
+      },
+      "ported": []
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "ISFORMULA: whether a cell holds a formula, which the cell reader does not supply; every call is refused with NotImplemented naming argument 0"
+      ],
+      "beads": [
+        "cfunc-m3.18"
+      ]
+    },
+    {
+      "items": [
+        "an array given to ISBLANK, ISERR, ISERROR, ISNA, ISNUMBER, ISTEXT, ISNONTEXT, ISLOGICAL, ISEVEN, ISODD, N or ERROR.TYPE, which Excel loads in a legacy formula with @ and which array evaluation applies the function to in a dynamic-array formula; refused with NotImplemented naming argument 0"
+      ],
+      "beads": [
+        "cfml-m3.4"
+      ]
+    },
+    {
+      "items": [
+        "a range of several cells (one area) given to TYPE, which Excel loads in a legacy formula with @; its dynamic-array result is unknown; refused with NotImplemented naming argument 0"
+      ],
+      "beads": [
+        "cfml-m3.3",
+        "cfml-m3.4"
+      ]
+    },
+    {
+      "items": [
+        "number text given to ISEVEN or ISODD that Excel's number-text rules may read beyond the plain decimal form (a date or fraction such as 1/2, a currency amount such as $4); refused with NotImplemented naming argument 0 through calc-func's coercion"
+      ],
+      "beads": [
+        "cfml-m2.6"
+      ]
+    },
+    {
+      "items": [
+        "a callable value (LAMBDA) given to any entry of the family, and TYPE's compound data (128); refused with NotImplemented naming argument 0"
+      ],
+      "beads": [
+        "cfml-m2.3"
+      ]
+    },
+    {
+      "items": [
+        "ISBLANK, ISERR, ISERROR, ISNA, TYPE, N and ERROR.TYPE over #BLOCKED! and #CONNECT!, given directly or (TYPE and N) read from a cell; refused with NotImplemented naming argument 0"
+      ],
+      "beads": [
+        "dc-tt73"
+      ]
+    },
+    {
+      "items": [
+        "a range given to the value argument of ISBLANK, ISERR, ISERROR, ISNA, ISNUMBER, ISTEXT, ISNONTEXT, ISLOGICAL or ERROR.TYPE, which Excel loads in a legacy formula with @; the call interface refuses the reference with ReferenceArgument naming argument 0, and the caller intersects it before the call"
+      ],
+      "beads": [
+        "cfml-m3.3"
+      ]
+    },
+    {
+      "items": [
+        "#BUSY! as a raw value of the capture: Excel's CVErr code for it, 2051, is none the capture adapter's error_from_code holds"
+      ],
+      "beads": [
+        "dc-tt73"
+      ]
+    },
+    {
+      "items": [
+        "the source formulas of the oracle workbook's column F: FILTER (cfunc-m3.16), SEQUENCE and its spill (cfunc-m3.16, cfml-m3.4) and FIELDVALUE (cfunc-m3.19)"
+      ],
+      "beads": [
+        "cfunc-m3.16",
+        "cfml-m3.4",
+        "cfunc-m3.19"
+      ]
+    }
+  ],
+  "legacy_tests": [
+    {
+      "file": "OxFunc crates/oxfunc_core/src/functions/na_fn.rs",
+      "blob": "b4a724e86bb8ff75b4217ec4d1bee8efb9cbecd7",
+      "tests": []
+    }
+  ]
+}
