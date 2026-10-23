@@ -31,7 +31,7 @@ use crate::opc::Package;
 use crate::source::{PackageWrite, SinkError, SourceError};
 use crate::zip::crc32::{self, Crc32};
 use crate::zip::{self, CENTRAL_LOCAL_OFFSET_AT, Entry, Method};
-use calc_doc_model::value::CellKey;
+use calc_doc_model::value::{CellKey, GridArea};
 use calc_doc_model::{AuthoredRevision, CachedValue, ModelRoot};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -59,6 +59,9 @@ pub(crate) struct Edited {
     /// The values a caller calculated for the revision's formula cells, which the save writes as
     /// their cached values; `None` to save without them.
     values: Option<Arc<BTreeMap<CellKey, CachedValue>>>,
+    /// The area each array formula's result fills, by anchor
+    /// ([`crate::LoadedWorkbook::snapshot_with_results`]).
+    spills: Arc<BTreeMap<CellKey, GridArea>>,
 }
 
 impl DocumentSnapshot {
@@ -77,6 +80,7 @@ impl DocumentSnapshot {
         base: Arc<ModelRoot>,
         model: Arc<ModelRoot>,
         values: Option<Arc<BTreeMap<CellKey, CachedValue>>>,
+        spills: Arc<BTreeMap<CellKey, GridArea>>,
     ) -> Self {
         DocumentSnapshot {
             package,
@@ -87,6 +91,7 @@ impl DocumentSnapshot {
                 base,
                 model,
                 values,
+                spills,
             }),
         }
     }
@@ -516,10 +521,11 @@ pub struct SaveReceipt {
     /// ([`crate::LoadedWorkbook::snapshot_with_values`]).
     pub values_written: usize,
     /// The formula cells of a save with values written without a cached value, for Excel to
-    /// calculate when it opens the package (measured: Excel 16.0.20430 calculates a formula cell
-    /// without `<v>` on open, tests/fixtures/d1/excel-open.json): those the caller gave no value
-    /// for (a formula it refused) and those whose value Excel stores only with value metadata
-    /// (#SPILL!, #CALC!, #FIELD! and the other newer errors).
+    /// calculate when it opens the package (measured: Excel 16.0.20430 calculates an ordinary
+    /// formula cell without `<v>` on open, and an array formula without one only under
+    /// `fullCalcOnLoad`, which the save then sets, tests/fixtures/d1/excel-open.json): those the
+    /// caller gave no value for (a formula it refused) and those whose value is #BUSY!, whose
+    /// value metadata is not written.
     pub values_left_to_excel: usize,
     /// The bytes of the opened package that lie before its central directory in no entry's
     /// stored bytes (before the first entry, between entries or after the last), which the save

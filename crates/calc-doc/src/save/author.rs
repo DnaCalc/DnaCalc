@@ -3,7 +3,7 @@
 //! strings, the calculation chain and `calcPr`; for a changed skin layout, the view manifest and
 //! the workbook part's locator names.
 
-use super::array_metadata::{self, ArrayMetadata};
+use super::array_metadata;
 use super::diff::{SheetChanges, sheet_changes};
 use super::file_form::{FileForm, file_form};
 use super::manifest::{self, NewManifest};
@@ -19,9 +19,9 @@ use crate::load::sheet::collapsed;
 use crate::load::{self, LoadError, SHARED_STRINGS};
 use crate::opc::{Package, TargetMode};
 use crate::xml::XmlElement;
-use calc_doc_model::value::{CellKey, GridArea};
+use calc_doc_model::value::{CellKey, GridArea, WorksheetErrorCode};
 use calc_doc_model::{CachedValue, CellInput, DefinedName, SheetName};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 const CALC_CHAIN: &str =
@@ -192,7 +192,11 @@ fn file_forms(
 /// A part name beside the workbook part, `folder/<stem>.xml` or, when the package holds a part of
 /// that name, `folder/<stem><n>.xml`, and the relationship target that names it from the workbook
 /// part.
-fn new_part_name(package: &Package, workbook_part: &str, stem: &str) -> (String, String) {
+pub(super) fn new_part_name(
+    package: &Package,
+    workbook_part: &str,
+    stem: &str,
+) -> (String, String) {
     let folder = workbook_part.rsplit_once('/').map(|(folder, _)| folder);
     let mut suffix = String::new();
     for n in 1u32.. {
@@ -312,6 +316,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         base,
         model,
         values,
+        spills,
         ..
     } = edit;
     if !model.same_lineage(base) || model.sheets() != base.sheets() {
@@ -330,31 +335,11 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     }
     let mut chain = None;
     let mut new_strings = None;
-    let mut dynamic_cm = None;
-    let mut new_metadata: Option<((String, String), Vec<u8>)> = None;
+    let mut metadata = array_metadata::MetadataPlan::default();
+    // Whether an array formula is written without a value, which Excel does not calculate when it
+    // opens the package (measured, tests/fixtures/d1/excel-open.json: array-no-value).
+    let mut array_without_value = false;
     if cells_changed {
-        // The caller's values, by sheet and (row, column); a value for a cell without a formula
-        // is refused.
-        let mut sheet_values: Vec<Option<BTreeMap<(u32, u32), CachedValue>>> =
-            vec![values.as_ref().map(|_| BTreeMap::new()); sheets.len()];
-        if let Some(values) = values {
-            for (&at, value) in values.iter() {
-                let position = sheets.iter().position(|sheet| sheet.id() == at.sheet());
-                let Some(position) = position else {
-                    return Err(SaveRefusal::ForeignModel);
-                };
-                if !matches!(model.cell(at), Some(CellInput::Formula(_))) {
-                    return Err(SaveRefusal::ValueWithoutFormula {
-                        part: sheets[position].part().name().to_owned(),
-                        row: at.row(),
-                        column: at.column(),
-                    });
-                }
-                if let Some(map) = sheet_values[position].as_mut() {
-                    map.insert((at.row(), at.column()), value.clone());
-                }
-            }
-        }
         let mut forms = Vec::with_capacity(sheets.len());
         for (sheet, changes) in sheets.iter().zip(&changes) {
             if !changes.is_empty() {
@@ -367,21 +352,105 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 model.definitions().names(),
             )?);
         }
-        // The cell metadata an authored dynamic array names, found or made in the metadata part.
-        if forms.iter().flatten().any(|(_, form)| form.dynamic) {
-            match array_metadata::array_metadata(package, workbook_part)? {
-                ArrayMetadata::Present { cm } => dynamic_cm = Some(cm),
-                ArrayMetadata::Rewrite { cm, part, content } => {
-                    dynamic_cm = Some(cm);
-                    out.rewritten.insert(part, content);
+        // The spills the save writes, by sheet: each array formula's area, by anchor, as
+        // (top, left, bottom, right). An anchor written as an array formula (one of the model's
+        // array formulas, or an authored dynamic-array formula) takes its area as its `ref`; the
+        // spill of any other anchor is not written, and neither is that anchor's value.
+        let mut sheet_spills: Vec<BTreeMap<(u32, u32), (u32, u32, u32, u32)>> =
+            vec![BTreeMap::new(); sheets.len()];
+        let mut unwritten: BTreeSet<CellKey> = BTreeSet::new();
+        for (&anchor, area) in spills.iter() {
+            let Some(position) = sheets.iter().position(|sheet| sheet.id() == anchor.sheet())
+            else {
+                return Err(SaveRefusal::ForeignModel);
+            };
+            let array = model.definitions().array(anchor).is_some()
+                || forms[position]
+                    .get(&(anchor.row(), anchor.column()))
+                    .is_some_and(|form| form.dynamic);
+            let (first, last) = (area.first(), area.last());
+            if area.sheet() != anchor.sheet() || first != anchor {
+                return Err(SaveRefusal::ForeignModel);
+            }
+            if array {
+                sheet_spills[position].insert(
+                    (anchor.row(), anchor.column()),
+                    (first.row(), first.column(), last.row(), last.column()),
+                );
+            } else if area.cell_count() > 1 {
+                unwritten.insert(anchor);
+            }
+        }
+        // The caller's values, by sheet and (row, column). A value for a cell without a formula
+        // is refused unless the cell lies in a written spill beside its anchor.
+        let mut sheet_values: Vec<Option<BTreeMap<(u32, u32), CachedValue>>> =
+            vec![values.as_ref().map(|_| BTreeMap::new()); sheets.len()];
+        let mut errors: Vec<WorksheetErrorCode> = Vec::new();
+        if let Some(values) = values {
+            for (&at, value) in values.iter() {
+                let position = sheets.iter().position(|sheet| sheet.id() == at.sheet());
+                let Some(position) = position else {
+                    return Err(SaveRefusal::ForeignModel);
+                };
+                let in_spill = || {
+                    model.cell(at).is_none()
+                        && sheet_spills[position].iter().any(
+                            |(&anchor, &(top, left, bottom, right))| {
+                                anchor != (at.row(), at.column())
+                                    && (top..=bottom).contains(&at.row())
+                                    && (left..=right).contains(&at.column())
+                            },
+                        )
+                };
+                if !matches!(model.cell(at), Some(CellInput::Formula(_))) && !in_spill() {
+                    return Err(SaveRefusal::ValueWithoutFormula {
+                        part: sheets[position].part().name().to_owned(),
+                        row: at.row(),
+                        column: at.column(),
+                    });
                 }
-                ArrayMetadata::Create { content } => {
-                    dynamic_cm = Some(1);
-                    new_metadata =
-                        Some((new_part_name(package, workbook_part, "metadata"), content));
+                if unwritten.contains(&at) {
+                    continue;
+                }
+                if let CachedValue::Error(code) = value
+                    && !errors.contains(code)
+                {
+                    errors.push(*code);
+                }
+                if let Some(map) = sheet_values[position].as_mut() {
+                    map.insert((at.row(), at.column()), value.clone());
                 }
             }
         }
+        // The cell metadata an authored dynamic array names, and the value metadata of each
+        // newer error a value holds, found or made in the metadata part.
+        let dynamic = forms.iter().flatten().any(|(_, form)| form.dynamic);
+        let written = |position: usize, at: (u32, u32)| {
+            sheet_values[position]
+                .as_ref()
+                .and_then(|values| values.get(&at))
+                .is_some_and(|value| {
+                    !matches!(value, CachedValue::Error(code)
+                        if !crate::edit::error_constant_writable(*code)
+                            && array_metadata::rich_error_type(*code).is_none())
+                })
+        };
+        array_without_value = model.definitions().arrays().any(|array| {
+            let anchor = array.anchor();
+            sheets
+                .iter()
+                .position(|sheet| sheet.id() == anchor.sheet())
+                .is_some_and(|position| !written(position, (anchor.row(), anchor.column())))
+        }) || forms.iter().enumerate().any(|(position, forms)| {
+            forms
+                .iter()
+                .any(|(&at, form)| form.dynamic && !written(position, at))
+        });
+        metadata = array_metadata::plan(package, workbook_part, dynamic, &errors)?;
+        for (part, content) in std::mem::take(&mut metadata.rewritten) {
+            out.rewritten.insert(part, content);
+        }
+        let dynamic_cm = metadata.cm;
         // The areas the loaded array formulas of each sheet fill, whose cells beside the anchor
         // hold the arrays' cached results (or, for an array whose anchor changed, belong to no
         // formula any more).
@@ -434,13 +503,14 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         let strings_part = load::workbook_part_of(package, workbook_part, SHARED_STRINGS)
             .map_err(|error| load_refusal(workbook_part, error))?;
         let mut strings = SharedStrings::read(package, strings_part.as_deref())?;
-        for (((((sheet, changes), rewrite), cleared), forms), sheet_values) in sheets
+        for ((((((sheet, changes), rewrite), cleared), forms), sheet_values), spills) in sheets
             .iter()
             .zip(&changes)
             .zip(&rewritten)
             .zip(&cleared)
             .zip(&forms)
             .zip(&sheet_values)
+            .zip(&sheet_spills)
         {
             if !rewrite {
                 continue;
@@ -453,6 +523,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 forms,
                 dynamic_cm,
                 values: sheet_values.as_ref(),
+                spills,
+                error_vm: &metadata.vm,
                 loaded: sheet,
                 model,
             };
@@ -500,18 +572,21 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         }
     }
 
-    // fullCalcOnLoad: a save without the caller's values leaves out every cached result, as
-    // before; a save with them writes every formula cell's value or leaves it for Excel to
-    // calculate on open, so it asks for a full calculation only when the workbook keeps cached
-    // results it did not recalculate, a data table's.
+    // fullCalcOnLoad: a save writes every formula cell's value or leaves it without one. Excel
+    // calculates an ordinary formula without a value when it opens the package, with the
+    // calculation chain or without it, but not an array formula without one (measured,
+    // tests/fixtures/d1/excel-open.json: no-value, no-value-no-chain, no-values-no-chain and
+    // array-no-value). So a save asks for a full calculation only when it writes an array formula
+    // without a value, or when the workbook keeps cached results it did not recalculate, a data
+    // table's; a save without the caller's values asks for one only for the same reasons.
     let data_tables = model
         .definitions()
         .unloaded_cells()
         .any(|(_, why)| matches!(why, calc_doc_model::UnloadedCell::DataTable));
-    let full_calc = cells_changed && (values.is_none() || data_tables);
+    let full_calc = cells_changed && (data_tables || array_without_value);
     let no_names = NameChanges::default();
     let names = layout.as_ref().map_or(&no_names, |layout| &layout.names);
-    if cells_changed || !names.is_empty() {
+    if full_calc || !names.is_empty() {
         let workbook = read_part(package, workbook_part)?;
         out.rewritten.insert(
             workbook_part.clone(),
@@ -527,10 +602,10 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         relationships_added.push((SHARED_STRINGS, target.clone()));
         overrides.push((name.clone(), strings::CONTENT_TYPE));
     }
-    if let Some(((name, target), content)) = new_metadata {
-        relationships_added.push((array_metadata::RELATIONSHIP, target));
-        overrides.push((name.clone(), array_metadata::CONTENT_TYPE));
-        out.added.push((name, content));
+    for part in metadata.added {
+        relationships_added.push((part.relationship, part.target));
+        overrides.push((part.name.clone(), part.content_type));
+        out.added.push((part.name, part.content));
     }
     match layout.map(|layout| layout.manifest) {
         Some(ManifestChange::Rewrite { part, content }) => {

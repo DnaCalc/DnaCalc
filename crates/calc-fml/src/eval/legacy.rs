@@ -74,9 +74,12 @@ const AGGREGATE: &[(&str, &[usize])] = &[
     ("VLOOKUP", &[1]),
 ];
 
-/// The array parameters, by function: a range expression written there lifts.
+/// The array parameters, by function: a range expression written there lifts. FILTER's include
+/// is measured by the catalogue oracle's capture (F3 dc-728): `=_xlfn._xlws.FILTER(Data!A1:A3,
+/// Data!A1:A3>1)` entered as a legacy formula gives 5, the first of FILTER's rows {5;3}.
 const ARRAY: &[(&str, &[usize])] = &[
     ("COLUMNS", &[0]),
+    ("FILTER", &[1]),
     ("INDEX", &[0]),
     ("LOOKUP", &[1, 2]),
     ("ROWS", &[0]),

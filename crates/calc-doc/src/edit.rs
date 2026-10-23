@@ -46,12 +46,11 @@ pub enum EditError {
     /// admitted; how Excel treats text the parser does not read is left to infra-m1.3's round
     /// trip.
     FormulaSyntax { operation: usize, message: String },
-    /// The operation at this index changes part of the array formula anchored at `anchor`: it
-    /// sets a cell the array fills beside its anchor, or it sets or clears some but not all of a
-    /// legacy array's cells. Excel refuses to change part of a legacy array; a value set into a
-    /// dynamic array's spill area blocks the spill (#SPILL!), which the engine's spill handling
-    /// (work package L2) owns. Setting a dynamic array's anchor replaces the array, and clearing
-    /// any of its cells is admitted.
+    /// The operation at this index changes part of the legacy array formula anchored at
+    /// `anchor`: it sets or clears some but not all of the array's cells, which Excel refuses. A
+    /// value set into a dynamic array's spill area is admitted: it blocks the spill, and the
+    /// engine shows #SPILL! at the anchor. Setting a dynamic array's anchor replaces the array,
+    /// and clearing any of its cells is admitted.
     ArrayPart { operation: usize, anchor: CellKey },
     /// The operation at this index sets an error constant Excel cannot hold in a cell: one of the
     /// newer errors (#SPILL!, #CALC!, #FIELD!, #BLOCKED!, #CONNECT!, #BUSY!, #GETTING_DATA).
@@ -171,12 +170,9 @@ fn check_arrays(model: &ModelRoot, batch: &OpBatch) -> Result<(), EditError> {
         for array in definitions.arrays_meeting(area) {
             let whole = array.area();
             let covers = area.contains(whole.first()) && area.contains(whole.last());
-            let refused = match (op, array.kind()) {
-                (WorkbookOp::SetCell { at, .. }, ArrayKind::Dynamic { .. }) => {
-                    *at != array.anchor()
-                }
-                (_, ArrayKind::Legacy) => whole.cell_count() > 1 && !covers,
-                _ => false,
+            let refused = match array.kind() {
+                ArrayKind::Legacy => whole.cell_count() > 1 && !covers,
+                ArrayKind::Dynamic { .. } => false,
             };
             if refused {
                 return Err(EditError::ArrayPart {

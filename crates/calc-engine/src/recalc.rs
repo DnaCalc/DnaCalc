@@ -35,7 +35,8 @@
 use crate::graph::{AxisInterval, Prerequisite};
 use crate::random::RandomStream;
 use crate::read::{
-    NodeStanding, ObservedEvaluation, ReadObserver, RecalcView, SnapshotCatalog, WorkbookReader,
+    NodeStanding, ObservedEvaluation, Progress, ReadObserver, RecalcView, SnapshotCatalog,
+    WorkbookReader,
 };
 use crate::result::{
     CalcTick, Calculation, FormulaResult, NotModeled, SpillChange, ValueChange, ValueDelta,
@@ -44,7 +45,7 @@ use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, ModelRoot};
 use calc_fml::reference::{
-    CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape,
+    CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape, template_key,
 };
 use calc_fml::{
     EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
@@ -56,6 +57,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 use std::ops::ControlFlow;
+use std::sync::Arc;
 
 /// How many waves one recalculation runs before it refuses the formulas whose spills have not
 /// settled.
@@ -198,9 +200,8 @@ pub struct RecalcWork {
     /// The waiting nodes by the node they wait for, and each waiting node's awaited node.
     waiting: BTreeMap<NodeId, Vec<NodeId>>,
     waits_on: BTreeMap<NodeId, NodeId>,
-    scheduled: BTreeSet<NodeId>,
-    evaluated: BTreeSet<NodeId>,
-    staged: BTreeMap<NodeId, FormulaResult>,
+    /// Which nodes it calculates and has evaluated, and what it staged.
+    progress: Progress,
     /// The active spills of the anchors evaluated, and each evaluated anchor's filled area.
     spills: SpillIndex,
     filled: BTreeMap<NodeId, Option<GridArea>>,
@@ -226,7 +227,7 @@ impl RecalcWork {
     /// How many nodes it evaluates: those its first ordering scheduled, and those a later wave
     /// added.
     pub fn scheduled(&self) -> usize {
-        self.scheduled.len()
+        self.progress.scheduled()
     }
 
     fn remaining(&self) -> usize {
@@ -249,9 +250,7 @@ impl RecalcWork {
         RecalcView {
             inputs,
             state,
-            staged: &self.staged,
-            scheduled: &self.scheduled,
-            evaluated: &self.evaluated,
+            progress: &self.progress,
             spills: &self.spills,
         }
     }
@@ -319,6 +318,10 @@ pub fn begin_recalc(
         published_areas(state, inputs, node)
     })
     .map_err(|cells| StartError::Cycle { cells })?;
+    let mut progress = Progress::new(state.nodes.len());
+    for node in &order {
+        progress.schedule(*node);
+    }
     state.last_tick = state
         .last_tick
         .checked_add(1)
@@ -327,14 +330,12 @@ pub fn begin_recalc(
         revision,
         generation: state.generation,
         calculation: Calculation::new(revision, CalcTick::new(state.last_tick), mode),
-        scheduled: order.iter().copied().collect(),
+        progress,
         order,
         next: 0,
         ready: VecDeque::new(),
         waiting: BTreeMap::new(),
         waits_on: BTreeMap::new(),
-        evaluated: BTreeSet::new(),
-        staged: BTreeMap::new(),
         spills: SpillIndex::default(),
         filled: BTreeMap::new(),
         dynamic: BTreeMap::new(),
@@ -426,7 +427,7 @@ pub fn finish(state: &mut EngineState, work: RecalcWork) -> Result<ValueDelta, R
     }
     let mut changes: BTreeMap<CellKey, ValueChange> = BTreeMap::new();
     let mut spill_changes = Vec::new();
-    for (node, result) in work.staged {
+    for (node, result) in work.progress.into_staged() {
         let at = live_anchor(state, node);
         let before = state.spills.remove(at).map(|spill| spill.area());
         let after = work.spills.get(at).cloned();
@@ -503,19 +504,32 @@ fn bind(
             ArrayKind::Dynamic { .. } => (FormulaForm::Dynamic, ArrayRole::Spill),
         },
     };
+    // A formula whose template was compiled before (a copy of a filled or shared formula) is
+    // placed from that plan without being parsed; the plan is the one compiling it would give.
     let binding = match String::from_utf16(text.text().utf16_code_units()) {
         Err(_) => Binding::Refused(NotModeled::FormulaText),
-        Ok(source) => match compile_loaded_with(
-            &parse_formula(&source),
-            ReferenceNotation::A1,
-            anchor,
-            &SnapshotCatalog(inputs),
-            &mut state.plans,
-            form,
-        ) {
-            Ok(plan) => Binding::Placed(instantiate(&plan, anchor), role),
-            Err(error) => Binding::Refused(NotModeled::Compile(error)),
-        },
+        Ok(source) => {
+            let key = template_key(&source, anchor).map(|key| (at.sheet(), form, key));
+            match key.as_ref().and_then(|key| state.templates.get(key)) {
+                Some(plan) => Binding::Placed(instantiate(plan, anchor), role),
+                None => match compile_loaded_with(
+                    &parse_formula(&source),
+                    ReferenceNotation::A1,
+                    anchor,
+                    &SnapshotCatalog(inputs),
+                    &mut state.plans,
+                    form,
+                ) {
+                    Ok(plan) => {
+                        if let Some(key) = key {
+                            state.templates.insert(key, Arc::clone(&plan));
+                        }
+                        Binding::Placed(instantiate(&plan, anchor), role)
+                    }
+                    Err(error) => Binding::Refused(NotModeled::Compile(error)),
+                },
+            }
+        }
     };
     let prerequisites = match &binding {
         Binding::Placed(instance, _) => {
@@ -756,7 +770,7 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
         if work.next < work.order.len() {
             let node = work.order[work.next];
             work.next += 1;
-            if work.evaluated.contains(&node) || work.waits_on.contains_key(&node) {
+            if work.progress.is_evaluated(node) || work.waits_on.contains_key(&node) {
                 continue;
             }
             return Some(node);
@@ -798,8 +812,9 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     match ordered {
         Ok(order) => {
             for node in &order {
-                work.scheduled.insert(*node);
-                if work.evaluated.remove(node) {
+                let evaluated = work.progress.is_evaluated(*node);
+                work.progress.schedule(*node);
+                if evaluated {
                     let at = live_anchor(state, *node);
                     work.spills.remove(at);
                 }
@@ -813,7 +828,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
                 owner: "dc-0k9",
             });
             for node in roots {
-                work.scheduled.insert(node);
+                work.progress.schedule(node);
                 let done = refused(work, refusal.clone());
                 stage(state, inputs, work, node, done);
             }
@@ -886,8 +901,7 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
         work.spills.insert(spill);
     }
     work.filled.insert(node, after);
-    work.staged.insert(node, done.result);
-    work.evaluated.insert(node);
+    work.progress.stage(node, done.result);
     work.dynamic.insert(node, done.dynamic);
     if before != after {
         let mut readers = BTreeSet::new();
@@ -896,7 +910,7 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
         }
         readers.remove(&node);
         for reader in readers {
-            if work.evaluated.contains(&reader) || !work.scheduled.contains(&reader) {
+            if work.progress.is_evaluated(reader) || !work.progress.is_scheduled(reader) {
                 work.rewave.insert(reader);
             }
         }
@@ -1079,9 +1093,7 @@ fn evaluate_node(
     let view = RecalcView {
         inputs,
         state,
-        staged: &work.staged,
-        scheduled: &work.scheduled,
-        evaluated: &work.evaluated,
+        progress: &work.progress,
         spills: &work.spills,
     };
     let mut cells = WorkbookReader::new(view, &uncomputed);

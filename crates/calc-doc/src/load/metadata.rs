@@ -137,7 +137,7 @@ fn number(value: Option<&str>) -> Option<u32> {
 }
 
 /// The part a relationship of the workbook part whose type ends with `suffix` targets.
-fn related(package: &Package, workbook: &str, suffix: &str) -> Option<String> {
+pub(crate) fn related(package: &Package, workbook: &str, suffix: &str) -> Option<String> {
     package
         .relationships_of(Some(workbook))?
         .items()

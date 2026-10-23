@@ -208,7 +208,10 @@ fn is_name_error(value: &CalcValue) -> bool {
     matches!(value.core(), CoreValue::Error(WorksheetErrorCode::Name))
 }
 
-/// One row of the sheet: its function's spelling and the call without a prefix.
+/// One row of the sheet: its function's spelling and the call as column B writes it, without a
+/// prefix, or with `_xlws.` alone for a function a file stores with `_xlfn._xlws.` (FILTER, SORT):
+/// Excel refuses to open a package that writes such a function after `_xlfn.` alone (Excel 16.0
+/// on this machine, 2026-10-23), so its row writes `_xlfn._xlws.` in column A and `_xlws.` in B.
 struct Row {
     row: u32,
     function: String,
@@ -232,7 +235,8 @@ fn oracle_rows(workbook: &[u8]) -> Vec<Row> {
             &format!("_xlfn.{call}"),
             "row {row} of the oracle workbook"
         );
-        let function = call[..call.find('(').expect("a call")].to_owned();
+        let bare = call.strip_prefix("_xlws.").unwrap_or(call);
+        let function = bare[..bare.find('(').expect("a call")].to_owned();
         rows.push(Row {
             row,
             function,
@@ -421,10 +425,20 @@ pub fn prefix_metadata_matches_excel() {
         let at = row.row;
         let saved_a = saved.get(&format!("A{at}"));
         let saved_b = saved.get(&format!("B{at}"));
-        let expected_a = format!("{}{}", prefix.text(), row.call);
+        let unprefixed = row.call.strip_prefix("_xlws.").unwrap_or(&row.call);
+        if (prefix == FilePrefix::XlfnXlws) != (unprefixed.len() != row.call.len()) {
+            problems.push(format!(
+                "{name}: prefix {:?}, and its row writes {}",
+                prefix.text(),
+                row.call
+            ));
+            continue;
+        }
+        let expected_a = format!("{}{}", prefix.text(), unprefixed);
         let (expected_b, b_unknown) = match prefix {
             FilePrefix::Bare => (row.call.clone(), false),
             FilePrefix::Xlfn => (format!("_xludf.{}", row.call), true),
+            FilePrefix::XlfnXlws => (row.call.clone(), true),
         };
         let (raw_a, raw_b) = (raw(capture, at, 1), raw(capture, at, 2));
         if saved_a != Some(&expected_a) {
@@ -454,7 +468,7 @@ pub fn prefix_metadata_matches_excel() {
         }
         match prefix {
             FilePrefix::Bare => bare += 1,
-            FilePrefix::Xlfn => prefixed.push(name),
+            FilePrefix::Xlfn | FilePrefix::XlfnXlws => prefixed.push(name),
         }
     }
     let catalogued: Vec<&str> = named.iter().map(|target| target.spelling()).collect();
@@ -473,12 +487,12 @@ pub fn prefix_metadata_matches_excel() {
         problems.join("\n")
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: all {} catalogued named functions agree with the packages Excel saved: {bare} saved without a prefix in column A and as written in column B, with the same raw value in both; {} saved as _xlfn. and the call in column A and as _xludf. and the call in column B, whose raw value is #NAME?: {}",
+        "ACCEPT-NOTE: {CASE}: all {} catalogued named functions agree with the packages Excel saved: {bare} saved without a prefix in column A and as written in column B, with the same raw value in both; {} saved with their prefix (_xlfn. or _xlfn._xlws.) and the call in column A and as _xludf. and the call in column B, whose raw value is #NAME?: {}",
         named.len(),
         prefixed.len(),
         prefixed.join(", ")
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: every operator has no file prefix; no catalogued function is stored with _xlfn._xlws."
+        "ACCEPT-NOTE: {CASE}: every operator has no file prefix"
     );
 }

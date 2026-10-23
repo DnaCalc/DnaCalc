@@ -250,6 +250,7 @@ $FormulaSheets += , @('f2_rows', 'sheet-f2_rows.txt')
 # F3 dc-728: financial, dynamic-array and LAMBDA-helper functions.
 $PrefixSections += 'prefix-f3.txt'
 $FormulaSheets += , @('f3_financial', 'sheet-f3_financial.txt')
+$FormulaSheets += , @('f3_arrays', 'sheet-f3_arrays.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),

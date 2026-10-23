@@ -15900,19 +15900,19 @@ fn cfunc_m3_6__lookup_edges() {
 
     // The errors that neither a cell constant nor a formula literal can hold (Excel refuses to
     // open a workbook with #SPILL!, #FIELD! or #CALC! as a cell constant, and refuses each as a
-    // formula literal) come from source formulas in P and Q: FILTER, SEQUENCE and FIELDVALUE,
-    // which calc_func's catalogue does not have. The reader holds for each the error Excel gives
-    // it, so XMATCH(TRUE,P{k}:Q{k},1) over the 54 ordered pairs with one of them among the two
-    // errors is a row conditional on those errors, which the comparison checks against the
-    // capture, with each source cell's error.
-    for spelling in ["FILTER", "SEQUENCE", "FIELDVALUE"] {
-        assert!(
-            catalogue()
-                .resolve_surface(Notation::Call, spelling)
-                .is_err(),
-            "calc_func's catalogue has {spelling}"
-        );
-    }
+    // formula literal) come from source formulas in P and Q: FILTER, SEQUENCE and FIELDVALUE.
+    // calc_func's catalogue has no FIELDVALUE; it has FILTER and SEQUENCE since F3 (dc-728), but
+    // their errors here rest on the engine (SEQUENCE's spill blocked by R: #SPILL!), so this case
+    // evaluates none of the three. The reader holds for each the error Excel gives it, so
+    // XMATCH(TRUE,P{k}:Q{k},1) over the 54 ordered pairs with one of them among the two errors is
+    // a row conditional on those errors, which the comparison checks against the capture, with
+    // each source cell's error.
+    assert!(
+        catalogue()
+            .resolve_surface(Notation::Call, "FIELDVALUE")
+            .is_err(),
+        "calc_func's catalogue has FIELDVALUE"
+    );
     let sources = lookup_sources("lookup_edges");
     let conditional: Vec<u32> = rows
         .oracle

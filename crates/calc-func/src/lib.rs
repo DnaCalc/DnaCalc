@@ -31,7 +31,7 @@ mod ported;
 mod value_text;
 
 pub use call::{
-    CellReader, EvalServices, HostFacts, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
+    CallAbandoned, CallableInvoker, CellReader, EvalServices, HostFacts, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
     ReferenceText, SubtotalExclusions, TextReference, Unreadable, invoke,
 };
 pub use catalogue::{

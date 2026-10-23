@@ -38,6 +38,17 @@
 //!   [`FormulaResult`] is calculated (with its [`Calculation`]: revision, tick and numeric mode),
 //!   a file cache ([`EngineState::with_file_caches`]) that is never read or counted as calculated,
 //!   or a typed refusal ([`NotModeled`]).
+//! - Dynamic dependencies, spills and volatile functions (work package L2, dc-0k9): INDIRECT's
+//!   text is bound against the snapshot's sheets and names; a formula that reads a cell the
+//!   recalculation has yet to evaluate waits for it, and the areas an evaluation read beyond its
+//!   placed references are filed as dynamic prerequisites ([`FormulaNode::dynamic_prerequisites`]);
+//!   a dynamic-array formula spills ([`Spill`], [`EngineState::spill`], #SPILL! when blocked), a
+//!   legacy array formula fills its fixed area, and a change of a spill's area recalculates its
+//!   readers in a further wave; formulas that call a volatile function are calculated by every
+//!   recalculation; RAND draws from [`EngineState::random_seed`]; SUBTOTAL and AGGREGATE leave out
+//!   nested subtotals and the snapshot's hidden rows. A formula's template
+//!   ([`calc_fml::reference::template_key`]) lets the copies of a filled formula share one plan
+//!   without each being parsed.
 
 mod edit;
 mod graph;

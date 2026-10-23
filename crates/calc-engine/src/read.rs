@@ -208,15 +208,88 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
 pub(crate) struct RecalcView<'a> {
     pub(crate) inputs: &'a ModelRoot,
     pub(crate) state: &'a EngineState,
-    /// The results this recalculation has staged.
-    pub(crate) staged: &'a BTreeMap<NodeId, FormulaResult>,
-    /// The nodes this recalculation calculates.
-    pub(crate) scheduled: &'a BTreeSet<NodeId>,
-    /// The scheduled nodes whose staged result is current: evaluated in this recalculation and
-    /// not scheduled again since.
-    pub(crate) evaluated: &'a BTreeSet<NodeId>,
+    /// Which nodes this recalculation calculates and has evaluated, and what it staged.
+    pub(crate) progress: &'a Progress,
     /// The spills of the anchors this recalculation evaluated whose results fill cells.
     pub(crate) spills: &'a SpillIndex,
+}
+
+/// Where each node stands in one recalculation, by its ID's slot, which no node of the state
+/// shares while the recalculation runs: not calculated by it, calculated and not yet evaluated,
+/// or evaluated, with its staged result. A node evaluated in one wave and scheduled again in the
+/// next keeps its staged result until it is evaluated again.
+#[derive(Debug, Default)]
+pub(crate) struct Progress {
+    status: Vec<u8>,
+    staged: Vec<Option<(NodeId, FormulaResult)>>,
+    scheduled: usize,
+}
+
+const SCHEDULED: u8 = 1;
+const EVALUATED: u8 = 2;
+
+impl Progress {
+    pub(crate) fn new(slots: usize) -> Self {
+        Progress {
+            status: vec![0; slots],
+            staged: Vec::new(),
+            scheduled: 0,
+        }
+    }
+
+    fn slot(node: NodeId) -> usize {
+        node.slot() as usize
+    }
+
+    /// Schedules `node`, which then stands as not yet evaluated.
+    pub(crate) fn schedule(&mut self, node: NodeId) {
+        let slot = Self::slot(node);
+        if slot >= self.status.len() {
+            self.status.resize(slot + 1, 0);
+        }
+        if self.status[slot] == 0 {
+            self.scheduled += 1;
+        }
+        self.status[slot] = SCHEDULED;
+    }
+
+    pub(crate) fn is_scheduled(&self, node: NodeId) -> bool {
+        self.status
+            .get(Self::slot(node))
+            .is_some_and(|status| *status != 0)
+    }
+
+    pub(crate) fn is_evaluated(&self, node: NodeId) -> bool {
+        self.status.get(Self::slot(node)) == Some(&EVALUATED)
+    }
+
+    /// Stages `result` for the scheduled `node`, which then stands as evaluated.
+    pub(crate) fn stage(&mut self, node: NodeId, result: FormulaResult) {
+        let slot = Self::slot(node);
+        if slot >= self.staged.len() {
+            self.staged.resize_with(slot + 1, || None);
+        }
+        self.staged[slot] = Some((node, result));
+        self.status[slot] = EVALUATED;
+    }
+
+    /// The staged result of an evaluated node.
+    pub(crate) fn staged(&self, node: NodeId) -> Option<&FormulaResult> {
+        self.staged
+            .get(Self::slot(node))
+            .and_then(Option::as_ref)
+            .map(|(_, result)| result)
+    }
+
+    /// How many nodes are scheduled.
+    pub(crate) fn scheduled(&self) -> usize {
+        self.scheduled
+    }
+
+    /// Every staged result, with its node, in slot order.
+    pub(crate) fn into_staged(self) -> impl Iterator<Item = (NodeId, FormulaResult)> {
+        self.staged.into_iter().flatten()
+    }
 }
 
 /// Where a formula node's result stands for a recalculation in progress.
@@ -231,11 +304,10 @@ pub(crate) enum NodeStanding<'a> {
 
 impl<'a> RecalcView<'a> {
     pub(crate) fn standing(&self, node: NodeId) -> NodeStanding<'a> {
-        if self.scheduled.contains(&node) {
-            if self.evaluated.contains(&node) {
-                NodeStanding::Staged(&self.staged[&node])
-            } else {
-                NodeStanding::Pending
+        if self.progress.is_scheduled(node) {
+            match self.progress.staged(node) {
+                Some(result) if self.progress.is_evaluated(node) => NodeStanding::Staged(result),
+                _ => NodeStanding::Pending,
             }
         } else {
             let at = self.state.node(node).map(|record| record.anchor());
@@ -362,6 +434,13 @@ impl<'a> WorkbookReader<'a> {
         let view = self.view;
         let inputs = view.inputs;
         let definitions = inputs.definitions();
+        if view.spills.is_empty()
+            && view.state.spills.is_empty()
+            && definitions.arrays_meeting(area).next().is_none()
+            && definitions.unloaded_in(area).next().is_none()
+        {
+            return BTreeMap::new();
+        }
         let (first, width) = (area.first(), u64::from(area.column_count()));
         let mut candidates: BTreeSet<CellKey> = BTreeSet::new();
         let mut add = |spilled: GridArea| {
@@ -512,7 +591,10 @@ impl ReferenceReader for WorkbookReader<'_> {
 /// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
 impl HostFacts for WorkbookReader<'_> {
     fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
-        Some(matches!(self.view.inputs.cell(cell), Some(CellInput::Formula(_))))
+        Some(matches!(
+            self.view.inputs.cell(cell),
+            Some(CellInput::Formula(_))
+        ))
     }
 
     /// A formula's text as FORMULATEXT shows it: `=` and the formula. Text that spells a function
@@ -523,7 +605,10 @@ impl HostFacts for WorkbookReader<'_> {
             Some(CellInput::Formula(text)) => {
                 let text = String::from_utf16(text.text().utf16_code_units()).ok()?;
                 let lower = text.to_ascii_lowercase();
-                if ["_xlfn.", "_xlws.", "_xludf."].iter().any(|p| lower.contains(p)) {
+                if ["_xlfn.", "_xlws.", "_xludf."]
+                    .iter()
+                    .any(|p| lower.contains(p))
+                {
                     return None;
                 }
                 Some(Some(format!("={text}")))
@@ -533,7 +618,12 @@ impl HostFacts for WorkbookReader<'_> {
     }
 
     fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
-        let at = self.view.inputs.sheets().iter().position(|entry| entry.id() == sheet)?;
+        let at = self
+            .view
+            .inputs
+            .sheets()
+            .iter()
+            .position(|entry| entry.id() == sheet)?;
         u32::try_from(at + 1).ok()
     }
 
@@ -555,7 +645,12 @@ impl HostFacts for WorkbookReader<'_> {
     }
 
     fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
-        let entry = self.view.inputs.sheets().iter().find(|entry| entry.id() == sheet)?;
+        let entry = self
+            .view
+            .inputs
+            .sheets()
+            .iter()
+            .find(|entry| entry.id() == sheet)?;
         String::from_utf16(entry.name().text().utf16_code_units()).ok()
     }
 

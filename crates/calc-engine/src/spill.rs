@@ -208,6 +208,10 @@ pub(crate) struct SpillIndex {
 }
 
 impl SpillIndex {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.by_anchor.is_empty()
+    }
+
     pub(crate) fn get(&self, anchor: CellKey) -> Option<&Spill> {
         self.by_anchor.get(&anchor)
     }
@@ -267,6 +271,9 @@ impl SpillIndex {
 
     /// The spill whose area holds `at`, its anchor included.
     pub(crate) fn covering(&self, at: CellKey) -> Option<&Spill> {
+        if self.by_anchor.is_empty() {
+            return None;
+        }
         let block = (
             at.sheet(),
             (at.row() - 1) / ROW_BLOCK,
@@ -283,6 +290,9 @@ impl SpillIndex {
 
     /// The spills whose areas meet `area`, each once.
     pub(crate) fn meeting(&self, area: GridArea) -> Vec<&Spill> {
+        if self.by_anchor.is_empty() {
+            return Vec::new();
+        }
         let mut anchors: BTreeSet<CellKey> = BTreeSet::new();
         if block_count(area) > MAX_BLOCKS {
             let sheet = area.sheet();

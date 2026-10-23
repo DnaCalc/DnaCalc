@@ -1200,7 +1200,7 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
 fn unknown_on_load(spelling: &str, target: Target) -> bool {
     without_prefix(spelling, "_xlfn.").is_none()
         && match target.0.file_prefix() {
-            Some(FilePrefix::Xlfn) => true,
+            Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws) => true,
             Some(FilePrefix::Bare) | None => false,
         }
 }

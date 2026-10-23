@@ -379,20 +379,6 @@ pub(crate) fn refusal_of(
             "Result",
         )
         .owned_by(CALC_ENGINE),
-        NotModeled::ArrayFormula(kind) => {
-            let kind = if format!("{kind:?}").starts_with("Legacy") {
-                "legacy"
-            } else {
-                "dynamic"
-            };
-            Refusal::new(
-                Class::Engine,
-                format!("ArrayFormula:{kind} (L1, L2)"),
-                "ArrayFormula",
-            )
-            .about(format!("{kind} array formula, L1 and L2"))
-            .owned_by("L1 (dc-mzk) and L2: array evaluation and spills")
-        }
     }
 }
 

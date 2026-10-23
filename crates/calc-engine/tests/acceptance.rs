@@ -3640,6 +3640,8 @@ fn dc_0k9__indirect_through_the_engine() {
     // Data!A1 = 7: Calc!A5 = 21, Data!A2 = 14, so Calc!A1 = 21, Calc!A2 = 21, Calc!A3 = 22, and
     // the dynamic prerequisites order every formula after what it reads.
     let root = edit(&mut state, &root, vec![set(d(1, 1), number(7.0))]);
+    // Calc!A2 names no Data cell in its text: its dynamic prerequisite Data!A1:A2 makes it stale.
+    assert!(state.stale(&root).unwrap().contains(&c(2, 1)));
     let mut waits = Waits::default();
     recalc(&mut state, &root, &mut waits);
     assert_eq!(l1_value(&state, c(1, 1)), n(21.0));
