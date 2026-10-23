@@ -4,8 +4,18 @@
 //! text_delim_family.rs, text_compat_locale_family.rs (ASC and DBCS; Excel on Windows has no
 //! JIS), web_text_xml_family.rs and hyperlink_fn.rs. A call whose result is not modelled is refused as not modelled.
 
-use crate::kernel::{Site, Step};
-use crate::value::CalcValue;
+use super::kit::{fail, flag, grid, num, text_arg};
+use crate::call::EvalServices;
+use crate::ported::text_kernels as tk;
+use crate::ported::text_more::{self as k, Delimited, Side};
+use crate::value::{CalcArray, ExcelText};
+use crate::locale::LocaleProfileId;
+use crate::format::{self, Failure};
+use crate::locale::{CalcEnvironment, FormatProfile};
+use crate::coerce::{self, Numeric};
+use crate::kernel::{Exit, Site, Step};
+use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value_text::{self, ReadContext, Reading, Unread};
 
 const CODE: u16 = 202;
 
@@ -14,26 +24,476 @@ fn refused(site: &Site<'_>) -> Step<CalcValue> {
     Err(site.not_modelled(None))
 }
 
+/// Text argument `index` read as VALUE reads it under the call's locale profile
+/// ([`crate::value_text`]): #VALUE! for text the grammar does not read and for a value that is
+/// not text; an error is the result; refused without a profile.
+pub(super) fn read_value(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<Reading> {
+    match a[index].core() {
+        CoreValue::Text(text) => {
+            let environment = site.environment().ok_or_else(|| site.not_modelled(None))?;
+            let profile = environment
+                .profile
+                .as_ref()
+                .ok_or_else(|| site.not_modelled(None))?;
+            let context = ReadContext {
+                profile,
+                date_system: environment.date_system,
+                now: environment.now,
+            };
+            value_text::read(text.utf16_code_units(), &context).map_err(|unread| match unread {
+                Unread::Rejected => Exit::Error(WorksheetErrorCode::Value),
+                Unread::NotModelled => site.not_modelled(Some(index)),
+            })
+        }
+        CoreValue::Error(code) => fail(*code),
+        _ if a[index].callable_value().is_some() => Err(site.not_modelled(Some(index))),
+        _ => fail(WorksheetErrorCode::Value),
+    }
+}
+
+/// VALUE: a number as it is, a blank as 0, a logical #VALUE!, text read as number text, a date
+/// or a time.
+fn value(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    match a[0].core() {
+        CoreValue::Number(_) | CoreValue::Empty | CoreValue::Missing => {
+            site.number(site.number_argument(0, &a[0])?)
+        }
+        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
+        CoreValue::Text(_) => {
+            if let Ok(Numeric::Decimal(decimal)) = coerce::number(&a[0]) {
+                return site.number(site.argument(0, decimal.nearest())?);
+            }
+            let reading = read_value(site, a, 0)?;
+            site.number(reading.value())
+        }
+        _ => read_value(site, a, 0).and_then(|reading| site.number(reading.value())),
+    }
+}
+
+/// The call's environment and its locale profile, or the refusal of a call without them.
+fn profile<'m>(site: &Site<'m>) -> Step<(&'m CalcEnvironment, &'m FormatProfile)> {
+    let environment = site.environment().ok_or_else(|| site.not_modelled(None))?;
+    let profile = environment
+        .profile
+        .as_ref()
+        .ok_or_else(|| site.not_modelled(None))?;
+    Ok((environment, profile))
+}
+
+fn rendered(site: &Site<'_>, result: Result<String, Failure>) -> Step<CalcValue> {
+    match result {
+        Ok(text) => Ok(crate::catalogue::kit::text_value(&text)),
+        Err(Failure::Value) => fail(WorksheetErrorCode::Value),
+        Err(Failure::NotModelled) => Err(site.not_modelled(None)),
+    }
+}
+
+/// TEXT: a number (or text that reads as one) rendered with the code, other text through the
+/// code's text section.
+fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let (environment, profile) = profile(site)?;
+    let code = text_arg(site, a, 1)?.to_string_lossy();
+    let number = match a[0].core() {
+        CoreValue::Number(_) | CoreValue::Empty | CoreValue::Missing => {
+            site.number_argument(0, &a[0])?
+        }
+        CoreValue::Error(code) => return fail(*code),
+        CoreValue::Logical(_) | CoreValue::Text(_) => {
+            let as_number = if matches!(a[0].core(), CoreValue::Text(_)) {
+                match site.number_argument(0, &a[0]) {
+                    Ok(n) => Some(n),
+                    Err(Exit::Error(WorksheetErrorCode::Value)) => None,
+                    Err(other) => return Err(other),
+                }
+            } else {
+                None
+            };
+            match as_number {
+                Some(n) => n,
+                None => {
+                    let shown = text_arg(site, a, 0)?.to_string_lossy();
+                    return rendered(site, format::text_of_text(&shown, &code, profile));
+                }
+            }
+        }
+        _ => return Err(site.not_modelled(Some(0))),
+    };
+    rendered(
+        site,
+        format::text(profile, environment.date_system, number, &code),
+    )
+}
+
+/// The places of FIXED and DOLLAR: 2 when the call leaves them out; beyond 127 is #VALUE!.
+fn places(site: &Site<'_>, a: &[CalcValue]) -> Step<i32> {
+    if a.len() < 2 || a[1].is_missing() {
+        return Ok(2);
+    }
+    let places = num(site, a, 1)?.trunc();
+    if places > 127.0 {
+        return fail(WorksheetErrorCode::Value);
+    }
+    Ok(places.max(-400.0) as i32)
+}
+
+fn fixed(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let (_, profile) = profile(site)?;
+    let number = num(site, a, 0)?;
+    let places = places(site, a)?;
+    let no_commas = a.len() > 2 && flag(site, a, 2)?;
+    rendered(site, Ok(format::fixed(profile, number, places, no_commas)))
+}
+
+fn dollar(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let (_, profile) = profile(site)?;
+    let number = num(site, a, 0)?;
+    let places = places(site, a)?;
+    rendered(site, Ok(format::dollar(profile, number, places)))
+}
+
+/// An optional argument: `None` when the call does not reach it or leaves it empty.
+fn given(a: &[CalcValue], index: usize) -> bool {
+    a.get(index).is_some_and(|value| !value.is_missing())
+}
+
+/// A 0-or-1 flag argument (match modes, formats): another number is #VALUE!.
+fn binary_flag(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
+    if !given(a, index) {
+        return Ok(false);
+    }
+    let n = num(site, a, index)?;
+    if !n.is_finite() {
+        return fail(WorksheetErrorCode::Value);
+    }
+    match n.trunc() {
+        0.0 => Ok(false),
+        1.0 => Ok(true),
+        _ => fail(WorksheetErrorCode::Value),
+    }
+}
+
+/// The texts a delimiter argument gives: a single text, or each cell of an array or reference.
+fn delimiters(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    index: usize,
+    sv: &mut EvalServices<'_>,
+) -> Step<Vec<ExcelText>> {
+    let g = grid(site, a, index, sv)?;
+    let mut out = Vec::with_capacity(g.cells.len());
+    for value in &g.cells {
+        if matches!(value.core(), CoreValue::Array(_) | CoreValue::Reference(_)) {
+            return Err(site.not_modelled(Some(index)));
+        }
+        let units = site.argument(index, coerce::text(value))?;
+        out.push(ExcelText::from_utf16_code_units(units.into_owned()));
+    }
+    Ok(out)
+}
+
+fn text_delim(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, side: Side) -> Step<CalcValue> {
+    let text = text_arg(site, a, 0)?;
+    let delimiters = delimiters(site, a, 1, sv)?;
+    let instance = if given(a, 2) {
+        let n = num(site, a, 2)?;
+        if !n.is_finite() || n.trunc().abs() > 1e9 {
+            return fail(WorksheetErrorCode::Value);
+        }
+        n.trunc() as isize
+    } else {
+        1
+    };
+    let case_insensitive = binary_flag(site, a, 3)?;
+    let match_end = binary_flag(site, a, 4)?;
+    match k::delimited(side, &text, &delimiters, instance, case_insensitive, match_end) {
+        Delimited::Text(found) => Ok(CalcValue::text(found)),
+        Delimited::BadInstance => fail(WorksheetErrorCode::Value),
+        Delimited::NotFound if a.len() > 5 => Ok(if a[5].is_missing() {
+            CalcValue::error(WorksheetErrorCode::NA)
+        } else {
+            a[5].clone()
+        }),
+        Delimited::NotFound => fail(WorksheetErrorCode::NA),
+    }
+}
+
+/// An array result, or its single cell when it has one.
+fn array_or_cell(site: &Site<'_>, rows: Vec<Vec<CalcValue>>) -> Step<CalcValue> {
+    if rows.len() == 1 && rows[0].len() == 1 {
+        return Ok(rows.into_iter().next().unwrap().into_iter().next().unwrap());
+    }
+    CalcArray::from_rows(rows)
+        .map(CalcValue::array)
+        .ok_or_else(|| site.not_modelled(None))
+}
+
+fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    let text = text_arg(site, a, 0)?;
+    let columns = if a[1].is_missing() {
+        None
+    } else {
+        Some(delimiters(site, a, 1, sv)?)
+    };
+    let rows_by = if given(a, 2) {
+        Some(delimiters(site, a, 2, sv)?)
+    } else {
+        None
+    };
+    if columns.is_none() && rows_by.is_none() {
+        return fail(WorksheetErrorCode::Value);
+    }
+    let ignore_empty = binary_flag(site, a, 3)?;
+    let case_insensitive = binary_flag(site, a, 4)?;
+    let pad = match a.get(5) {
+        None => CalcValue::error(WorksheetErrorCode::NA),
+        Some(value) if value.is_missing() => CalcValue::error(WorksheetErrorCode::NA),
+        Some(value) if matches!(value.core(), CoreValue::Empty) => CalcValue::number(0.0),
+        Some(value) => value.clone(),
+    };
+    let mut row_texts = match &rows_by {
+        Some(d) => k::split(&text, d, ignore_empty, case_insensitive),
+        None => vec![text.clone()],
+    };
+    if row_texts.is_empty() {
+        row_texts.push(ExcelText::from_utf16_code_units(Vec::new()));
+    }
+    let mut rows: Vec<Vec<CalcValue>> = Vec::new();
+    for row in row_texts {
+        let mut cells = match &columns {
+            Some(d) => k::split(&row, d, ignore_empty, case_insensitive),
+            None => vec![row],
+        };
+        if cells.is_empty() {
+            cells.push(ExcelText::from_utf16_code_units(Vec::new()));
+        }
+        rows.push(cells.into_iter().map(CalcValue::text).collect());
+    }
+    let width = rows.iter().map(Vec::len).max().unwrap_or(1);
+    for row in &mut rows {
+        while row.len() < width {
+            row.push(pad.clone());
+        }
+    }
+    array_or_cell(site, rows)
+}
+
+/// A value's text as VALUETOTEXT and ARRAYTOTEXT write it, concise or strict (text quoted).
+fn value_text(site: &Site<'_>, index: usize, value: &CalcValue, strict: bool) -> Step<String> {
+    Ok(match value.core() {
+        CoreValue::Number(_) => {
+            String::from_utf16_lossy(&site.argument(index, coerce::text(value))?)
+        }
+        CoreValue::Text(t) if strict => format!("\"{}\"", t.to_string_lossy().replace('"', "\"\"")),
+        CoreValue::Text(t) => t.to_string_lossy(),
+        CoreValue::Logical(b) => if *b { "TRUE" } else { "FALSE" }.to_owned(),
+        CoreValue::Error(code) => k::error_literal(*code).to_owned(),
+        CoreValue::Empty | CoreValue::Missing => String::new(),
+        CoreValue::Array(_) | CoreValue::Reference(_) => return Err(site.not_modelled(Some(index))),
+    })
+}
+
+fn valuetotext(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let strict = binary_flag(site, a, 1)?;
+    let shown = value_text(site, 0, &a[0], strict)?;
+    Ok(crate::catalogue::kit::text_value(&shown))
+}
+
+fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    let strict = binary_flag(site, a, 1)?;
+    let g = grid(site, a, 0, sv)?;
+    let mut parts = Vec::with_capacity(g.cells.len());
+    for value in &g.cells {
+        parts.push(value_text(site, 0, value, strict)?);
+    }
+    let shown = if strict {
+        let rows: Vec<String> = parts.chunks(g.cols.max(1)).map(|row| row.join(",")).collect();
+        format!("{{{}}}", rows.join(";"))
+    } else {
+        parts.join(", ")
+    };
+    Ok(crate::catalogue::kit::text_value(&shown))
+}
+
+/// NUMBERVALUE: the separators default to the locale's.
+fn numbervalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let text = text_arg(site, a, 0)?;
+    let separator = |index: usize, default: &str| -> Step<Option<char>> {
+        let given_text;
+        let text = if given(a, index) {
+            given_text = text_arg(site, a, index)?.to_string_lossy();
+            given_text.as_str()
+        } else {
+            default
+        };
+        match text.chars().next() {
+            Some(c) => Ok(Some(c)),
+            None => fail(WorksheetErrorCode::Value),
+        }
+    };
+    let (decimal_default, group_default) = if given(a, 1) && given(a, 2) {
+        (".", ",")
+    } else {
+        let (_, profile) = profile(site)?;
+        (profile.decimal_separator, profile.thousands_separator)
+    };
+    let decimal = separator(1, decimal_default)?;
+    let group = separator(2, group_default)?;
+    out_number(site, k::numbervalue(&text, decimal, group))
+}
+
+fn out_number(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
+    match result {
+        Ok(n) => site.number(n),
+        Err(code) => fail(code),
+    }
+}
+
+/// The case sensitivity of the REGEX functions: 0 (the default) case-sensitive, 1 not.
+fn case_sensitive(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<bool> {
+    Ok(!binary_flag(site, a, index)?)
+}
+
+fn regex(
+    site: &Site<'_>,
+    text: &ExcelText,
+    pattern: &ExcelText,
+    case_sensitive: bool,
+    first_only: bool,
+) -> Step<(Vec<char>, Vec<(usize, usize)>)> {
+    if !tk::is_well_formed(text) || !tk::is_well_formed(pattern) {
+        return Err(site.not_modelled(None));
+    }
+    k::regex_matches(
+        &text.to_string_lossy(),
+        &pattern.to_string_lossy(),
+        case_sensitive,
+        first_only,
+    )
+    .map_err(|_| site.not_modelled(Some(1)))
+}
+
+fn regextest(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let text = text_arg(site, a, 0)?;
+    let pattern = text_arg(site, a, 1)?;
+    let sensitive = case_sensitive(site, a, 2)?;
+    let (_, found) = regex(site, &text, &pattern, sensitive, true)?;
+    Ok(CalcValue::logical(!found.is_empty()))
+}
+
+fn regexextract(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let text = text_arg(site, a, 0)?;
+    let pattern = text_arg(site, a, 1)?;
+    let mode = if given(a, 2) { num(site, a, 2)?.trunc() } else { 0.0 };
+    let sensitive = case_sensitive(site, a, 3)?;
+    let (chars, found) = regex(site, &text, &pattern, sensitive, mode == 0.0)?;
+    match (mode as i64, found.as_slice()) {
+        (_, []) if mode == 0.0 || mode == 1.0 => fail(WorksheetErrorCode::NA),
+        (0, [(start, end), ..]) | (1, [(start, end)]) => Ok(crate::catalogue::kit::text_value(
+            &chars[*start..*end].iter().collect::<String>(),
+        )),
+        // Several matches as an array, and capture groups (mode 2), are not modelled.
+        (0..=2, _) => Err(site.not_modelled(Some(2))),
+        _ => fail(WorksheetErrorCode::Value),
+    }
+}
+
+fn regexreplace(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let text = text_arg(site, a, 0)?;
+    let pattern = text_arg(site, a, 1)?;
+    let replacement = text_arg(site, a, 2)?.to_string_lossy();
+    if replacement.contains('$') || replacement.contains('\\') {
+        // Group references in the replacement are not modelled.
+        return Err(site.not_modelled(Some(2)));
+    }
+    let occurrence = if given(a, 3) { num(site, a, 3)?.trunc() } else { 0.0 };
+    let sensitive = case_sensitive(site, a, 4)?;
+    let (chars, found) = regex(site, &text, &pattern, sensitive, false)?;
+    let selected: Vec<(usize, usize)> = if occurrence == 0.0 {
+        found
+    } else if occurrence > 0.0 {
+        found.get(occurrence as usize - 1).copied().into_iter().collect()
+    } else {
+        let back = (-occurrence) as usize;
+        found
+            .len()
+            .checked_sub(back)
+            .and_then(|i| found.get(i).copied())
+            .into_iter()
+            .collect()
+    };
+    let mut out = String::new();
+    let mut cursor = 0;
+    for (start, end) in selected {
+        out.extend(chars[cursor..start].iter());
+        out.push_str(&replacement);
+        cursor = end;
+    }
+    out.extend(chars[cursor..].iter());
+    Ok(crate::catalogue::kit::text_value(&out))
+}
+
+/// ASC and DBCS change character widths only under a double-byte language; under every other
+/// profile Excel gives the text as it is (Excel: ASC("ＡＢＣ") is ＡＢＣ under en-ZA).
+fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let (_, profile) = profile(site)?;
+    if matches!(
+        profile.id,
+        LocaleProfileId::JaJp | LocaleProfileId::KoKr | LocaleProfileId::ZhCn
+    ) {
+        return Err(site.not_modelled(None));
+    }
+    Ok(CalcValue::text(text_arg(site, a, 0)?))
+}
+
+/// PHONETIC of a cell under a language with no phonetic guide: the cell's text; a blank cell is
+/// #N/A (Excel: PHONETIC of a blank cell is #N/A under en-ZA).
+fn phonetic(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    let (_, profile) = profile(site)?;
+    if matches!(profile.id, LocaleProfileId::JaJp) {
+        return Err(site.not_modelled(None));
+    }
+    let g = grid(site, a, 0, sv)?;
+    match g.cells.first().map(CalcValue::core) {
+        Some(CoreValue::Text(_)) if g.cells.len() == 1 => Ok(g.cells[0].clone()),
+        Some(CoreValue::Empty) | None if g.cells.len() == 1 => fail(WorksheetErrorCode::NA),
+        _ => Err(site.not_modelled(Some(0))),
+    }
+}
+
+/// HYPERLINK: the friendly name as it is, or the link location.
+fn hyperlink(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let location = text_arg(site, a, 0)?;
+    match a.get(1) {
+        Some(value) if !value.is_missing() => match value.core() {
+            CoreValue::Empty => Ok(CalcValue::number(0.0)),
+            CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(1))),
+            _ if value.callable_value().is_some() => Err(site.not_modelled(Some(1))),
+            _ => Ok(value.clone()),
+        },
+        _ => Ok(CalcValue::text(location)),
+    }
+}
+
 ported_family! {
     code: CODE;
-    1 value_fn "VALUE" (1, 1) [V "text"] |s, a, sv| { refused(s) }
-    2 text_fn "TEXT" (2, 2) [V "value", V "format_text"] |s, a, sv| { refused(s) }
-    3 fixed_fn "FIXED" (1, 3) [V "number", V "decimals", V "no_commas"] |s, a, sv| { refused(s) }
-    4 dollar_fn "DOLLAR" (1, 2) [V "number", V "decimals"] |s, a, sv| { refused(s) }
-    5 numbervalue_fn "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] |s, a, sv| { refused(s) }
-    6 valuetotext_fn "VALUETOTEXT" (1, 2) [V "value", V "format"] |s, a, sv| { refused(s) }
-    7 arraytotext_fn "ARRAYTOTEXT" (1, 2) [R "array", V "format"] |s, a, sv| { refused(s) }
+    1 value_fn "VALUE" (1, 1) [V "text"] |s, a, sv| { value(s, a) }
+    2 text_fn "TEXT" (2, 2) [V "value", V "format_text"] |s, a, sv| { text(s, a) }
+    3 fixed_fn "FIXED" (1, 3) [V "number", V "decimals", V "no_commas"] |s, a, sv| { fixed(s, a) }
+    4 dollar_fn "DOLLAR" (1, 2) [V "number", V "decimals"] |s, a, sv| { dollar(s, a) }
+    5 numbervalue_fn "NUMBERVALUE" (1, 3) [V "text", V "decimal_separator", V "group_separator"] |s, a, sv| { numbervalue(s, a) }
+    6 valuetotext_fn "VALUETOTEXT" (1, 2) [V "value", V "format"] |s, a, sv| { valuetotext(s, a) }
+    7 arraytotext_fn "ARRAYTOTEXT" (1, 2) [R "array", V "format"] |s, a, sv| { arraytotext(s, a, sv) }
     8 bahttext_fn "BAHTTEXT" (1, 1) [V "number"] |s, a, sv| { refused(s) }
-    9 asc_fn "ASC" (1, 1) [V "text"] |s, a, sv| { refused(s) }
-    10 dbcs_fn "DBCS" (1, 1) [V "text"] |s, a, sv| { refused(s) }
-    12 phonetic_fn "PHONETIC" (1, 1) [F "reference"] |s, a, sv| { refused(s) }
-    13 textbefore_fn "TEXTBEFORE" (2, 6) [V "text", V "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { refused(s) }
-    14 textafter_fn "TEXTAFTER" (2, 6) [V "text", V "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { refused(s) }
-    15 textsplit_fn "TEXTSPLIT" (2, 6) [V "text", V "col_delimiter", V "row_delimiter", V "ignore_empty", V "match_mode", V "pad_with"] |s, a, sv| { refused(s) }
-    16 regextest_fn "REGEXTEST" (2, 3) [V "text", V "pattern", V "case_sensitivity"] |s, a, sv| { refused(s) }
-    17 regexextract_fn "REGEXEXTRACT" (2, 4) [V "text", V "pattern", V "return_mode", V "case_sensitivity"] |s, a, sv| { refused(s) }
-    18 regexreplace_fn "REGEXREPLACE" (3, 5) [V "text", V "pattern", V "replacement", V "occurrence", V "case_sensitivity"] |s, a, sv| { refused(s) }
+    9 asc_fn "ASC" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
+    10 dbcs_fn "DBCS" (1, 1) [V "text"] |s, a, sv| { width_conversion(s, a) }
+    12 phonetic_fn "PHONETIC" (1, 1) [F "reference"] |s, a, sv| { phonetic(s, a, sv) }
+    13 textbefore_fn "TEXTBEFORE" (2, 6) [V "text", R "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::Before) }
+    14 textafter_fn "TEXTAFTER" (2, 6) [V "text", R "delimiter", V "instance_num", V "match_mode", V "match_end", V "if_not_found"] |s, a, sv| { text_delim(s, a, sv, Side::After) }
+    15 textsplit_fn "TEXTSPLIT" (2, 6) [V "text", R "col_delimiter", R "row_delimiter", V "ignore_empty", V "match_mode", V "pad_with"] |s, a, sv| { textsplit(s, a, sv) }
+    16 regextest_fn "REGEXTEST" (2, 3) [V "text", V "pattern", V "case_sensitivity"] |s, a, sv| { regextest(s, a) }
+    17 regexextract_fn "REGEXEXTRACT" (2, 4) [V "text", V "pattern", V "return_mode", V "case_sensitivity"] |s, a, sv| { regexextract(s, a) }
+    18 regexreplace_fn "REGEXREPLACE" (3, 5) [V "text", V "pattern", V "replacement", V "occurrence", V "case_sensitivity"] |s, a, sv| { regexreplace(s, a) }
     19 encodeurl_fn "ENCODEURL" (1, 1) [V "text"] |s, a, sv| { refused(s) }
     20 filterxml_fn "FILTERXML" (2, 2) [V "xml", V "xpath"] |s, a, sv| { refused(s) }
-    21 hyperlink_fn "HYPERLINK" (1, 2) [V "link_location", V "friendly_name"] |s, a, sv| { refused(s) }
+    21 hyperlink_fn "HYPERLINK" (1, 2) [V "link_location", V "friendly_name"] |s, a, sv| { hyperlink(s, a) }
 }

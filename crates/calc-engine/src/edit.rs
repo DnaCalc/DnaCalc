@@ -42,6 +42,15 @@ pub enum InputSeed<'r> {
         area: GridArea,
         dependents: Vec<NodeId>,
     },
+    /// The cells the published spill of the array formula at `anchor`, which the edit removes,
+    /// filled, when that is not the file's area of the array formula (which an `Area` seed
+    /// covers). Its dependents are the nodes reading a cell of `area`, which no longer reads as
+    /// the formula's result.
+    Spill {
+        anchor: CellKey,
+        area: GridArea,
+        dependents: Vec<NodeId>,
+    },
 }
 
 /// Why [`prepare_edit`] refused a batch. A refused batch stages and reserves nothing.
@@ -160,6 +169,10 @@ impl Drop for PreparedEngineChange<'_, '_> {
 ///   a cell it empties, and only those: a node that reads only cells of the area that were
 ///   already empty is not seeded by the clear. Clearing cells that are already empty seeds
 ///   nothing.
+/// - A cell whose array formula the batch sets or clears seeds the nodes that read a cell of the
+///   file's area of the array formula ([`InputSeed::Area`]) and, when the formula is removed, of
+///   the area its published spill fills ([`InputSeed::Spill`]): those cells no longer show its
+///   result.
 /// - Setting a sheet's visibility changes no calculation input and stages nothing, and neither
 ///   does a skin layout edit.
 /// - A structural edit is refused ([`PrepareError::StructuralEdit`]).
@@ -274,6 +287,40 @@ pub fn prepare_edit<'s, 'r>(
             seeds.push(InputSeed::Area {
                 area,
                 dependents: state.dependents_of_emptied(inputs, area, &empties, &leaving),
+            });
+        }
+    }
+
+    // An array formula the batch removes also fills, beside its anchor, the area of its published
+    // spill, which the engine decided and the file's area may not hold: the nodes reading those
+    // cells are seeded too (the file's area is seeded below).
+    for change in &kept {
+        let NodeChange::Removed { at, .. } = *change else {
+            continue;
+        };
+        let Some(area) = state.spills.get(at).map(|spill| spill.area()) else {
+            continue;
+        };
+        if inputs
+            .definitions()
+            .array(at)
+            .is_some_and(|array| array.area() == area)
+        {
+            continue;
+        }
+        let mut readers = BTreeSet::new();
+        state.index.dependents_of_area(inputs, area, &mut readers);
+        readers.remove(
+            &state
+                .node_at(at)
+                .expect("a removed node is live until it commits"),
+        );
+        let dependents: Vec<NodeId> = readers.difference(&leaving).copied().collect();
+        if !dependents.is_empty() {
+            seeds.push(InputSeed::Spill {
+                anchor: at,
+                area,
+                dependents,
             });
         }
     }
@@ -394,7 +441,9 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     }
     for seed in &change.seeds {
         match seed {
-            InputSeed::Cell { dependents, .. } | InputSeed::Area { dependents, .. } => {
+            InputSeed::Cell { dependents, .. }
+            | InputSeed::Area { dependents, .. }
+            | InputSeed::Spill { dependents, .. } => {
                 state.pending.extend(dependents.iter().copied());
             }
         }

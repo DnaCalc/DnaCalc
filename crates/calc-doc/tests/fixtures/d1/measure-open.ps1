@@ -15,7 +15,15 @@
 #   chain-missing    A5 = =A4+1 (cached 25) added, calcChain.xml unchanged (no A5 entry);
 #   chain-extra      calcChain.xml lists A1, which holds a constant;
 #   no-chain-new     A5 = =A4+1 (cached 25) added and calcChain.xml removed;
-#   old-calc-id      A2's <v> is 99 and calcPr's calcId is 124519 (an older Excel).
+#   old-calc-id      A2's <v> is 99 and calcPr's calcId is 124519 (an older Excel);
+# and, for dc-35p (D2), whose saves leave a formula without a value and remove the chain when the
+# set of formula cells changes:
+#   no-value-no-chain   A2 has no <v>, and calcChain.xml is removed;
+#   no-values-no-chain  no formula has a <v> (C1's spill is emptied), and calcChain.xml is removed;
+#   no-values-full      as no-values-no-chain, with fullCalcOnLoad="1" on calcPr;
+#   array-no-value      C1 (=A1:A2*2, a dynamic array spilling to C1:C2) has no <v> and C2 is
+#                       emptied, and calcChain.xml is removed.
+# The base also holds C1 = =A1:A2*2, entered as a dynamic array.
 # Each variant, and the base, is opened in a fresh Excel (automatic calculation, alerts off, a
 # normal load) and, without any calculation call, the script records whether it opened and the
 # Value2 of A2, A3, A4, A5, B1, B2 and B3. It stops only the Excel instances it started.
@@ -59,6 +67,7 @@ try {
     $sheet.Range('B1').Formula = '="t"&A1'
     $sheet.Range('B2').Formula = '=A1>0'
     $sheet.Range('B3').Formula = '=1/0'
+    $sheet.Range('C1').Formula2 = '=A1:A2*2'
     $book.SaveAs($base, 51)
     $book.Close($false)
 }
@@ -125,6 +134,21 @@ Set-Text $v 'xl/calcChain.xml' ((Get-Text $v 'xl/calcChain.xml').Replace('<calcC
 $v = Copy-Parts $parts; Add-A5 $v; Remove-Chain $v; $variants['no-chain-new'] = $v
 $v = Copy-Parts $parts; Set-A2Cache $v '<v>99</v>'
 Set-Text $v 'xl/workbook.xml' ([regex]::Replace((Get-Text $v 'xl/workbook.xml'), 'calcId="[0-9]+"', 'calcId="124519"')); $variants['old-calc-id'] = $v
+function Remove-Values($Parts) {
+    $sheet = Get-Text $Parts 'xl/worksheets/sheet1.xml'
+    $sheet = [regex]::Replace($sheet, '(</f>)<v>[^<]*</v>', '$1')
+    $sheet = [regex]::Replace($sheet, '<c r="C2"[^>]*>(<v>[^<]*</v>)?</c>|<c r="C2"[^>]*/>', '')
+    Set-Text $Parts 'xl/worksheets/sheet1.xml' $sheet
+}
+$v = Copy-Parts $parts; Set-A2Cache $v ''; Remove-Chain $v; $variants['no-value-no-chain'] = $v
+$v = Copy-Parts $parts; Remove-Values $v; Remove-Chain $v; $variants['no-values-no-chain'] = $v
+$v = Copy-Parts $parts; Remove-Values $v; Remove-Chain $v
+Set-Text $v 'xl/workbook.xml' ([regex]::Replace((Get-Text $v 'xl/workbook.xml'), '<calcPr ', '<calcPr fullCalcOnLoad="1" ')); $variants['no-values-full'] = $v
+$v = Copy-Parts $parts
+$sheet = Get-Text $v 'xl/worksheets/sheet1.xml'
+$sheet = [regex]::Replace($sheet, '(<c r="C1"[^>]*><f[^>]*>[^<]*</f>)<v>[^<]*</v>', '$1')
+$sheet = [regex]::Replace($sheet, '<c r="C2"[^>]*>(<v>[^<]*</v>)?</c>|<c r="C2"[^>]*/>', '')
+Set-Text $v 'xl/worksheets/sheet1.xml' $sheet; Remove-Chain $v; $variants['array-no-value'] = $v
 
 $rows = @()
 foreach ($name in $variants.Keys) {
@@ -138,7 +162,7 @@ foreach ($name in $variants.Keys) {
             [object[]]$arguments = @([string]$path, 0, $true, $missing, $missing, $missing, $true, $missing, $missing, $false, $false, $missing, $false, $false, 0)
             $book = [System.__ComObject].InvokeMember('Open', [System.Reflection.BindingFlags]::InvokeMethod, $null, $started[0].Workbooks, $arguments)
             $row.opened = $true
-            foreach ($address in 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3') {
+            foreach ($address in 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'C1', 'C2') {
                 $value = $book.Worksheets.Item(1).Range($address).Value2
                 $row.values[$address] = [string]$value
             }

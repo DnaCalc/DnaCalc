@@ -45,7 +45,8 @@
 //!   ([`LoadedWorkbook::snapshot`]). Every part the save does not rewrite is copied as its
 //!   stored bytes. A revision whose cells differ from the loaded ones rewrites each worksheet part
 //!   that holds a changed cell or a formula's cached result, appends new text to the shared
-//!   strings, sets `fullCalcOnLoad` on the workbook's `calcPr` and, when the set of formula cells
+//!   strings, sets `fullCalcOnLoad` on the workbook's `calcPr` when it writes an array formula
+//!   without a value or the workbook holds a data table and, when the set of formula cells
 //!   changed, removes the calculation chain. A revision whose skin layout differs from the loaded
 //!   one rewrites the view manifest from its own bytes, keeping every field version 1 does not
 //!   name, or adds one (its item, item properties, relationships and content types) to a package

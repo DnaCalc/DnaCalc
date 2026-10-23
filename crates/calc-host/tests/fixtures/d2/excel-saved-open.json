@@ -1,0 +1,353 @@
+﻿{
+    "excel":  "16.0 build 20430",
+    "rows":  [
+                 {
+                     "package":  "d2_m1_proof.xlsx",
+                     "opened":  true,
+                     "error":  null,
+                     "cells":  {
+                                   "Data!A1":  {
+                                                   "text":  "10",
+                                                   "value2":  "10",
+                                                   "formula":  "10"
+                                               },
+                                   "Calc!U1":  {
+                                                   "text":  "11",
+                                                   "value2":  "11",
+                                                   "formula":  "=Data!A1+1"
+                                               },
+                                   "Calc!U3":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=U2*3"
+                                               },
+                                   "Calc!Z1":  {
+                                                   "text":  "35",
+                                                   "value2":  "35",
+                                                   "formula":  "=U1+U3"
+                                               },
+                                   "Calc!Z2":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F1":  {
+                                                   "text":  "20",
+                                                   "value2":  "20",
+                                                   "formula":  "=Data!A1:A3*2"
+                                               },
+                                   "Calc!F2":  {
+                                                   "text":  "4",
+                                                   "value2":  "4",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F3":  {
+                                                   "text":  "6",
+                                                   "value2":  "6",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!L1":  {
+                                                   "text":  "100",
+                                                   "value2":  "100",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L2":  {
+                                                   "text":  "20",
+                                                   "value2":  "20",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L3":  {
+                                                   "text":  "30",
+                                                   "value2":  "30",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!A1":  {
+                                                   "text":  "1",
+                                                   "value2":  "1",
+                                                   "formula":  "=SEQUENCE(3,2)"
+                                               },
+                                   "Calc!B2":  {
+                                                   "text":  "4",
+                                                   "value2":  "4",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!H1":  {
+                                                   "text":  "#SPILL!",
+                                                   "value2":  "error -2146826243",
+                                                   "formula":  "=SEQUENCE(2)"
+                                               },
+                                   "Calc!J1":  {
+                                                   "text":  "#CALC!",
+                                                   "value2":  "error -2146826238",
+                                                   "formula":  "=FILTER(Data!A1:A5,Data!A1:A5\u003e100)"
+                                               },
+                                   "Calc!W1":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=HiddenTotal"
+                                               }
+                               }
+                 },
+                 {
+                     "package":  "d2_m1_proof.cached.xlsx",
+                     "opened":  true,
+                     "error":  null,
+                     "cells":  {
+                                   "Data!A1":  {
+                                                   "text":  "10",
+                                                   "value2":  "10",
+                                                   "formula":  "10"
+                                               },
+                                   "Calc!U1":  {
+                                                   "text":  "11",
+                                                   "value2":  "11",
+                                                   "formula":  "=Data!A1+1"
+                                               },
+                                   "Calc!U3":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=U2*3"
+                                               },
+                                   "Calc!Z1":  {
+                                                   "text":  "35",
+                                                   "value2":  "35",
+                                                   "formula":  "=U1+U3"
+                                               },
+                                   "Calc!Z2":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F1":  {
+                                                   "text":  "20",
+                                                   "value2":  "20",
+                                                   "formula":  "=Data!A1:A3*2"
+                                               },
+                                   "Calc!F2":  {
+                                                   "text":  "4",
+                                                   "value2":  "4",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F3":  {
+                                                   "text":  "6",
+                                                   "value2":  "6",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!L1":  {
+                                                   "text":  "100",
+                                                   "value2":  "100",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L2":  {
+                                                   "text":  "20",
+                                                   "value2":  "20",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L3":  {
+                                                   "text":  "30",
+                                                   "value2":  "30",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!A1":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  "=SEQUENCE(3,2)"
+                                               },
+                                   "Calc!B2":  {
+                                                   "text":  "0",
+                                                   "value2":  "0",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!H1":  {
+                                                   "text":  "#SPILL!",
+                                                   "value2":  "error -2146826243",
+                                                   "formula":  "=SEQUENCE(2)"
+                                               },
+                                   "Calc!J1":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  "=FILTER(Data!A1:A5,Data!A1:A5\u003e100)"
+                                               },
+                                   "Calc!W1":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=HiddenTotal"
+                                               }
+                               }
+                 },
+                 {
+                     "package":  "d2_m1_proof_spill.xlsx",
+                     "opened":  true,
+                     "error":  null,
+                     "cells":  {
+                                   "Data!A1":  {
+                                                   "text":  "10",
+                                                   "value2":  "10",
+                                                   "formula":  "10"
+                                               },
+                                   "Calc!U1":  {
+                                                   "text":  "11",
+                                                   "value2":  "11",
+                                                   "formula":  "=Data!A1+1"
+                                               },
+                                   "Calc!U3":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=U2*3"
+                                               },
+                                   "Calc!Z1":  {
+                                                   "text":  "35",
+                                                   "value2":  "35",
+                                                   "formula":  "=U1+U3"
+                                               },
+                                   "Calc!Z2":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F1":  {
+                                                   "text":  "#SPILL!",
+                                                   "value2":  "error -2146826243",
+                                                   "formula":  "=Data!A1:A3*2"
+                                               },
+                                   "Calc!F2":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F3":  {
+                                                   "text":  "x",
+                                                   "value2":  "x",
+                                                   "formula":  "x"
+                                               },
+                                   "Calc!L1":  {
+                                                   "text":  "100",
+                                                   "value2":  "100",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L2":  {
+                                                   "text":  "20",
+                                                   "value2":  "20",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L3":  {
+                                                   "text":  "30",
+                                                   "value2":  "30",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!A1":  {
+                                                   "text":  "1",
+                                                   "value2":  "1",
+                                                   "formula":  "=SEQUENCE(3,2)"
+                                               },
+                                   "Calc!B2":  {
+                                                   "text":  "4",
+                                                   "value2":  "4",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!H1":  {
+                                                   "text":  "#SPILL!",
+                                                   "value2":  "error -2146826243",
+                                                   "formula":  "=SEQUENCE(2)"
+                                               },
+                                   "Calc!J1":  {
+                                                   "text":  "#CALC!",
+                                                   "value2":  "error -2146826238",
+                                                   "formula":  "=FILTER(Data!A1:A5,Data!A1:A5\u003e100)"
+                                               },
+                                   "Calc!W1":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=HiddenTotal"
+                                               }
+                               }
+                 },
+                 {
+                     "package":  "d2_m1_proof_spill.cached.xlsx",
+                     "opened":  true,
+                     "error":  null,
+                     "cells":  {
+                                   "Data!A1":  {
+                                                   "text":  "10",
+                                                   "value2":  "10",
+                                                   "formula":  "10"
+                                               },
+                                   "Calc!U1":  {
+                                                   "text":  "11",
+                                                   "value2":  "11",
+                                                   "formula":  "=Data!A1+1"
+                                               },
+                                   "Calc!U3":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=U2*3"
+                                               },
+                                   "Calc!Z1":  {
+                                                   "text":  "35",
+                                                   "value2":  "35",
+                                                   "formula":  "=U1+U3"
+                                               },
+                                   "Calc!Z2":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F1":  {
+                                                   "text":  "#SPILL!",
+                                                   "value2":  "error -2146826243",
+                                                   "formula":  "=Data!A1:A3*2"
+                                               },
+                                   "Calc!F2":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!F3":  {
+                                                   "text":  "x",
+                                                   "value2":  "x",
+                                                   "formula":  "x"
+                                               },
+                                   "Calc!L1":  {
+                                                   "text":  "100",
+                                                   "value2":  "100",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L2":  {
+                                                   "text":  "20",
+                                                   "value2":  "20",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!L3":  {
+                                                   "text":  "30",
+                                                   "value2":  "30",
+                                                   "formula":  "=Data!A1:A3*10"
+                                               },
+                                   "Calc!A1":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  "=SEQUENCE(3,2)"
+                                               },
+                                   "Calc!B2":  {
+                                                   "text":  "0",
+                                                   "value2":  "0",
+                                                   "formula":  ""
+                                               },
+                                   "Calc!H1":  {
+                                                   "text":  "#SPILL!",
+                                                   "value2":  "error -2146826243",
+                                                   "formula":  "=SEQUENCE(2)"
+                                               },
+                                   "Calc!J1":  {
+                                                   "text":  "",
+                                                   "value2":  "",
+                                                   "formula":  "=FILTER(Data!A1:A5,Data!A1:A5\u003e100)"
+                                               },
+                                   "Calc!W1":  {
+                                                   "text":  "24",
+                                                   "value2":  "24",
+                                                   "formula":  "=HiddenTotal"
+                                               }
+                               }
+                 }
+             ]
+}

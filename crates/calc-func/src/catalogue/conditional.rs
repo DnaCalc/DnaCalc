@@ -33,9 +33,9 @@
 //! does not, blank cells included. Numbers compare by the comparison operators' rule and text by
 //! their text rule, so where that rule refuses (text holding a character beyond its collation's
 //! repertoire, and nearly equal numbers in the bands where Excel's rounding departs from the exact
-//! one) the cell's verdict is unknown; patterns match ASCII text ignoring ASCII case and are
-//! unknown on other text (dc-o4do owns Excel's matching there), except a pattern of * alone, which
-//! matches every text. The verdict is also unknown for a text longer
+//! one) the cell's verdict is unknown; patterns match text ignoring case character by character
+//! (the simple lower-case mapping, so ß matches no ss) and are unknown on text holding a
+//! character beyond the BMP, except a pattern of * alone, which matches every text. The verdict is also unknown for a text longer
 //! than 255 characters against a text criterion or a pattern, for text that coercion refuses
 //! against = a number, for text spelling TRUE or FALSE against a logical criterion, for text
 //! spelling the criterion's error literal (or any, against an ordering), and for an error added
@@ -677,7 +677,7 @@ fn used(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Used>> 
 
 /// A cell's verdict under a criterion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Match {
+pub(super) enum Match {
     Yes,
     No,
     /// Excel's verdict needs a rule that is not modelled.
@@ -699,7 +699,7 @@ impl Match {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Op {
+pub(super) enum Op {
     Equal,
     NotEqual,
     Less,
@@ -727,7 +727,7 @@ impl Op {
 
 /// One element of a pattern.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Token {
+pub(super) enum Token {
     /// This code unit, ASCII case ignored.
     Unit(u16),
     /// `?`: any one character.
@@ -738,7 +738,7 @@ enum Token {
 
 /// A criterion as read from its argument.
 #[derive(Debug)]
-enum Criterion {
+pub(super) enum Criterion {
     /// `""`: blank cells and empty text.
     BlankOrEmptyText,
     /// `=`: blank cells.
@@ -830,6 +830,47 @@ fn criterion(
         // An empty cell given as the criterion, and an omitted criterion, are the value 0.
         CoreValue::Empty | CoreValue::Missing => Ok(Criterion::Number(Op::Equal, 0.0)),
         CoreValue::Text(text) => criterion_text(site, index, text.utf16_code_units()),
+        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+    }
+}
+
+/// A criteria cell of a database function (DSUM and the others): a blank cell sets no condition
+/// (`None`); text with no operator that is neither a number nor a logical matches the cells
+/// whose text begins with it, as Microsoft's database function pages state; anything else is read
+/// as a criterion of the *IFS functions.
+pub(super) fn database_criterion(
+    site: &Site<'_>,
+    index: usize,
+    value: &CalcValue,
+) -> Step<Option<Criterion>> {
+    match value.core() {
+        CoreValue::Empty | CoreValue::Missing => Ok(None),
+        CoreValue::Text(text) if text.len_utf16_code_units() == 0 => Ok(None),
+        CoreValue::Text(text) => {
+            let units = text.utf16_code_units();
+            let written = [b'<', b'>', b'='].iter().any(|&b| units[0] == u16::from(b));
+            let criterion = criterion_text(site, index, units)?;
+            Ok(Some(match criterion {
+                Criterion::Text(Op::Equal, literal) if !written => {
+                    let mut tokens: Vec<Token> = literal.into_iter().map(Token::Unit).collect();
+                    tokens.push(Token::Run);
+                    Criterion::Pattern(Op::Equal, tokens)
+                }
+                Criterion::Pattern(Op::Equal, mut tokens) if !written => {
+                    if tokens.last() != Some(&Token::Run) {
+                        tokens.push(Token::Run);
+                    }
+                    Criterion::Pattern(Op::Equal, tokens)
+                }
+                other => other,
+            }))
+        }
+        CoreValue::Number(n) => Ok(Some(Criterion::Number(
+            Op::Equal,
+            site.argument(index, coerce::operand(*n))?,
+        ))),
+        CoreValue::Logical(b) => Ok(Some(Criterion::Logical(Op::Equal, *b))),
+        CoreValue::Error(code) => Err(Exit::Error(*code)),
         CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }
@@ -955,7 +996,7 @@ fn decided(step: Step<bool>) -> Step<Match> {
 impl Criterion {
     /// The verdict of a cell of the range at argument `index` holding `value` (Empty for a blank
     /// cell).
-    fn verdict(&self, site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Match> {
+    pub(super) fn verdict(&self, site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Match> {
         if let CoreValue::Number(n) = value.core() {
             site.argument(index, coerce::operand(*n))?;
         }
@@ -1051,13 +1092,13 @@ impl Criterion {
                             Match::Unknown
                         } else if tokens.iter().all(|token| *token == Token::Run) {
                             Match::Yes
-                        } else if units.iter().any(|&unit| unit >= 0x80)
-                            || tokens
-                                .iter()
-                                .any(|token| matches!(token, Token::Unit(unit) if *unit >= 0x80))
+                        } else if units.iter().any(|&unit| is_surrogate(unit))
+                            || tokens.iter().any(
+                                |token| matches!(token, Token::Unit(unit) if is_surrogate(*unit)),
+                            )
                         {
-                            // A pattern over text beyond ASCII: Excel's matching there is
-                            // dc-o4do's.
+                            // A pattern over text holding a character beyond the BMP: whether ?
+                            // takes one character or one code unit there is not modelled.
                             Match::Unknown
                         } else {
                             Match::of(wildcard(tokens, units))
@@ -1079,9 +1120,15 @@ fn equality(op: Op, equal: Match) -> Match {
     }
 }
 
-/// Whether ASCII `text` matches `pattern`, ASCII case ignored.
+fn is_surrogate(unit: u16) -> bool {
+    (0xD800..=0xDFFF).contains(&unit)
+}
+
+/// Whether `text` (no surrogates) matches `pattern`, case ignored character by character through
+/// the simple lower-case mapping: Excel 16.0.20430 matched é* to Élan, ασ* to ΑΣ and ǆ* to ǅemal,
+/// and matched neither *SSE to Straße nor nai* to naïve (read ad hoc on this machine, dc-ip6).
 fn wildcard(pattern: &[Token], text: &[u16]) -> bool {
-    let fold = |unit: u16| u8::try_from(unit).map_or(unit, |b| u16::from(b.to_ascii_uppercase()));
+    let fold = crate::ported::text_kernels::fold_unit;
     let (mut p, mut t) = (0, 0);
     // The last * met: its position in the pattern and the text position its run ends at.
     let mut star: Option<(usize, usize)> = None;

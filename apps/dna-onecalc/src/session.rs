@@ -320,9 +320,10 @@ impl Session {
         };
         let instance = instantiate(&plan, anchor);
         let mut reader = TracingReader::new(&self.fixture);
+        // The session's sheets are the workbook context INDIRECT's text is bound in.
         let outcome = evaluate(
             EvalFrame::new(&instance, &mut self.scratch),
-            &mut EvaluationServices::new(&self.numeric, &mut reader),
+            &mut EvaluationServices::new(&self.numeric, &mut reader).with_catalog(&self.fixture),
         );
         let reads = reader.into_reads();
         match outcome {

@@ -1,15 +1,31 @@
-//! The cell metadata an authored dynamic-array formula's cell names (`cm`): a `cellMetadata`
-//! record of the workbook's metadata part whose type is `XLDAPR` with
-//! `dynamicArrayProperties fDynamic="1" fCollapsed="0"`, the record Excel writes for a dynamic
-//! array. A package whose metadata part holds such a record keeps the part as it is and the
-//! formula names that record; one whose part holds none gets the record appended (a metadata type,
-//! a `futureMetadata` record and a `cellMetadata` record, each after the part's own); one without
-//! a metadata part gets one, with the part, its workbook relationship and its content type, as
-//! Excel writes it.
+//! The cell and value metadata a save writes (`xl/metadata.xml` and the rich value parts it
+//! leads to).
+//!
+//! - The cell metadata an authored dynamic-array formula's cell names (`cm`): a `cellMetadata`
+//!   record of the workbook's metadata part whose type is `XLDAPR` with
+//!   `dynamicArrayProperties fDynamic="1" fCollapsed="0"`, the record Excel writes for a dynamic
+//!   array. A package whose metadata part holds such a record keeps the part as it is and the
+//!   formula names that record; one whose part holds none gets the record appended (a metadata
+//!   type, a `futureMetadata` record and a `cellMetadata` record, each after the part's own); one
+//!   without a metadata part gets one, with the part, its workbook relationship and its content
+//!   type, as Excel writes it.
+//! - The value metadata a formula cell whose value is a newer error names (`vm`), as Excel writes
+//!   it (calc-doc's `tests/fixtures/cdoc_m1_2/d1.saved.xlsx`, saved by Excel 16.0 build 20430,
+//!   holds #SPILL! and #CALC! this way): a `valueMetadata` record of type `XLRICHVALUE` whose
+//!   `futureMetadata` record's `xlrd:rvb i` names a rich value of `rdrichvalue.xml`, whose
+//!   structure in `rdrichvaluestructure.xml` is an `_error` with the key `errorType`, the error's
+//!   `ERROR.TYPE` minus 1. Excel also writes a `subType` (and, for #SPILL!, the offsets of the
+//!   cell that blocks the spill); the engine does not report them, so the structure written here
+//!   holds `errorType` alone. Records are appended to the parts a package holds, and the parts
+//!   (with their relationships and content types) are added to a package without them, with
+//!   `rdRichValueTypes.xml` as Excel writes it.
 
 use super::SaveRefusal;
+use super::author::new_part_name;
 use crate::load::metadata::{self, CellMeta};
 use crate::opc::Package;
+use calc_doc_model::value::WorksheetErrorCode;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) const RELATIONSHIP: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata";
@@ -219,4 +235,371 @@ fn future_record() -> String {
         "<xda:dynamicArrayProperties ",
         &format!(r#"<xda:dynamicArrayProperties xmlns:xda="{DYNAMIC_ARRAY_NAMESPACE}" "#),
     )
+}
+
+const RICH_VALUE_TYPE: &str = r#"<metadataType name="XLRICHVALUE" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1"/>"#;
+const RICH_DATA_NAMESPACE: &str = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata";
+const ERROR_STRUCTURE: &str = r#"<s t="_error"><k n="errorType" t="i"/></s>"#;
+
+const RICH_VALUE_RELATIONSHIP: &str =
+    "http://schemas.microsoft.com/office/2017/06/relationships/rdRichValue";
+const RICH_VALUE_CONTENT_TYPE: &str = "application/vnd.ms-excel.rdrichvalue+xml";
+const STRUCTURE_RELATIONSHIP: &str =
+    "http://schemas.microsoft.com/office/2017/06/relationships/rdRichValueStructure";
+const STRUCTURE_CONTENT_TYPE: &str = "application/vnd.ms-excel.rdrichvaluestructure+xml";
+const TYPES_RELATIONSHIP: &str =
+    "http://schemas.microsoft.com/office/2017/06/relationships/rdRichValueTypes";
+const TYPES_CONTENT_TYPE: &str = "application/vnd.ms-excel.rdrichvaluetypes+xml";
+
+/// `rdRichValueTypes.xml` as Excel 16.0 build 20430 writes it for a workbook whose rich values are
+/// errors (`d1.saved.xlsx`).
+const TYPES_PART: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<rvTypesInfo xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata2" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x" xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><global><keyFlags><key name="_Self"><flag name="ExcludeFromFile" value="1"/><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_DisplayString"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_Flags"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_Format"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_SubLabel"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_Attribution"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_Icon"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_Display"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_CanonicalPropertyNames"><flag name="ExcludeFromCalcComparison" value="1"/></key><key name="_ClassificationId"><flag name="ExcludeFromCalcComparison" value="1"/></key></keyFlags></global></rvTypesInfo>"#;
+
+/// The `errorType` of an `_error` rich value for a newer error (`ERROR.TYPE` minus 1, the inverse
+/// of the loader's `error_of_type`); `None` for an error Excel holds without value metadata, and
+/// for #BUSY!, whose `errorType` is not known here.
+pub(super) fn rich_error_type(code: WorksheetErrorCode) -> Option<u32> {
+    use WorksheetErrorCode::*;
+    Some(match code {
+        GettingData => 7,
+        Spill => 8,
+        Connect => 9,
+        Blocked => 10,
+        Field => 12,
+        Calc => 13,
+        Null | Div0 | Value | Ref | Name | Num | NA | Busy => return None,
+    })
+}
+
+/// A part a save adds for its metadata, related from the workbook part.
+pub(super) struct NewPart {
+    pub(super) name: String,
+    pub(super) target: String,
+    pub(super) content: Vec<u8>,
+    pub(super) content_type: &'static str,
+    pub(super) relationship: &'static str,
+}
+
+/// The `cm` and `vm` indexes a save's cells name, and the parts it rewrites or adds for them.
+#[derive(Default)]
+pub(super) struct MetadataPlan {
+    pub(super) cm: Option<u32>,
+    /// The `vm` of each newer error's record, by the error's `errorType`.
+    pub(super) vm: BTreeMap<u32, u32>,
+    pub(super) rewritten: Vec<(String, Vec<u8>)>,
+    pub(super) added: Vec<NewPart>,
+}
+
+/// The 1-based index of the first `<child` start tag inside the element `parent` (whose start tag
+/// is the first `<parent` of `text`) for which `matches` holds of the tag's text.
+fn position_of(
+    text: &str,
+    parent: &str,
+    child: &str,
+    matches: impl Fn(&str) -> bool,
+) -> Option<usize> {
+    let open = start_tag(text, parent)?;
+    let close = format!("</{parent}>");
+    let body_end = open + text[open..].find(&close)?;
+    let mut from = open + parent.len() + 1;
+    let mut index = 0;
+    while let Some(found) = start_tag(&text[from..body_end], child) {
+        let at = from + found;
+        index += 1;
+        let end = at + text[at..].find('>').expect("a start tag ends");
+        if matches(&text[at..end]) {
+            return Some(index);
+        }
+        from = at + child.len() + 1;
+    }
+    None
+}
+
+/// The metadata a save needs: a `cm` for authored dynamic arrays when `dynamic`, and a `vm` for
+/// each error of `errors` that Excel holds with value metadata.
+pub(super) fn plan(
+    package: &Package,
+    workbook: &str,
+    dynamic: bool,
+    errors: &[WorksheetErrorCode],
+) -> Result<MetadataPlan, SaveRefusal> {
+    let errors: BTreeSet<u32> = errors
+        .iter()
+        .filter_map(|code| rich_error_type(*code))
+        .collect();
+    let mut out = MetadataPlan::default();
+    if !dynamic && errors.is_empty() {
+        return Ok(out);
+    }
+    // The metadata part, with the dynamic-array record when one is needed.
+    let existing = metadata::part(package, workbook);
+    let (part, mut text) = if dynamic {
+        match array_metadata(package, workbook)? {
+            ArrayMetadata::Present { cm } => {
+                out.cm = Some(cm);
+                let part = existing.expect("a present record lies in a metadata part");
+                let text = read_text(package, &part)?;
+                (Some(part), text)
+            }
+            ArrayMetadata::Rewrite { cm, part, content } => {
+                out.cm = Some(cm);
+                let text = String::from_utf8(content).expect("written as UTF-8");
+                (Some(part), text)
+            }
+            ArrayMetadata::Create { content } => {
+                out.cm = Some(1);
+                (None, String::from_utf8(content).expect("written as UTF-8"))
+            }
+        }
+    } else {
+        match existing {
+            Some(part) => {
+                let text = read_text(package, &part)?;
+                (Some(part), text)
+            }
+            None => (
+                None,
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"></metadata>"#
+                    .to_owned(),
+            ),
+        }
+    };
+    let part_name = part.clone().unwrap_or_else(|| "xl/metadata.xml".to_owned());
+    if !errors.is_empty() {
+        add_errors(package, workbook, &part_name, &mut text, &errors, &mut out)?;
+    }
+    match part {
+        Some(part) => {
+            let unchanged = package
+                .read_part(&part)
+                .is_ok_and(|bytes| bytes == text.as_bytes());
+            if !unchanged {
+                out.rewritten.push((part, text.into_bytes()));
+            }
+        }
+        None => {
+            let (name, target) = new_part_name(package, workbook, "metadata");
+            out.added.insert(
+                0,
+                NewPart {
+                    name,
+                    target,
+                    content: text.into_bytes(),
+                    content_type: CONTENT_TYPE,
+                    relationship: RELATIONSHIP,
+                },
+            );
+        }
+    }
+    Ok(out)
+}
+
+/// Appends to the metadata part's `text` (named `part`) and to the rich value parts one value
+/// metadata record for each of `errors`, recording each one's `vm` in `out`.
+fn add_errors(
+    package: &Package,
+    workbook: &str,
+    part: &str,
+    text: &mut String,
+    errors: &BTreeSet<u32>,
+    out: &mut MetadataPlan,
+) -> Result<(), SaveRefusal> {
+    // The rich value parts, read or new.
+    let rich_values = metadata::related(package, workbook, "/rdRichValue");
+    let structures = metadata::related(package, workbook, "/rdRichValueStructure");
+    let (mut values_text, mut structures_text) = match (&rich_values, &structures) {
+        (Some(values), Some(structures)) => {
+            (read_text(package, values)?, read_text(package, structures)?)
+        }
+        (None, None) => (
+            format!(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<rvData xmlns=\"{RICH_DATA_NAMESPACE}\" count=\"0\"></rvData>"
+            ),
+            format!(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<rvStructures xmlns=\"{RICH_DATA_NAMESPACE}\" count=\"0\"></rvStructures>"
+            ),
+        ),
+        _ => {
+            return Err(invalid(
+                workbook,
+                "a workbook with one of the rich value parts and not the other",
+            ));
+        }
+    };
+    let Some(rv_root) = start_tag(&values_text, "rvData") else {
+        return Err(invalid(
+            rich_values.as_deref().unwrap_or(workbook),
+            "a rich value part whose elements carry a namespace prefix, which this writer does not extend",
+        ));
+    };
+    let Some(s_root) = start_tag(&structures_text, "rvStructures") else {
+        return Err(invalid(
+            structures.as_deref().unwrap_or(workbook),
+            "a rich value structure part whose elements carry a namespace prefix, which this writer does not extend",
+        ));
+    };
+    // The structure: an `_error` holding errorType alone, found or appended (0-based `s`).
+    let structure = match position_of(&structures_text, "rvStructures", "s", |_| true)
+        .and_then(|_| structures_text.find(ERROR_STRUCTURE))
+    {
+        Some(at) => {
+            let mut index = 0;
+            let mut from = s_root + "<rvStructures".len();
+            while let Some(found) = start_tag(&structures_text[from..at], "s") {
+                index += 1;
+                from += found + 2;
+            }
+            index
+        }
+        None => {
+            let index = children(&structures_text, s_root, "rvStructures", "s");
+            append(
+                &mut structures_text,
+                s_root,
+                "rvStructures",
+                ERROR_STRUCTURE,
+            );
+            set_count(&mut structures_text, s_root, index + 1);
+            index
+        }
+    };
+    // The metadata type XLRICHVALUE, found or appended (1-based `t`).
+    let Some(root) = start_tag(text, "metadata") else {
+        return Err(invalid(
+            part,
+            "a metadata part whose elements carry a namespace prefix, which this writer does not extend",
+        ));
+    };
+    let types = match start_tag(text, "metadataTypes") {
+        Some(at) => at,
+        None => {
+            let insert = root + text[root..].find('>').expect("a start tag ends") + 1;
+            text.insert_str(insert, r#"<metadataTypes count="0"></metadataTypes>"#);
+            insert
+        }
+    };
+    let type_index = match position_of(text, "metadataTypes", "metadataType", |tag| {
+        tag.contains(r#"name="XLRICHVALUE""#)
+    }) {
+        Some(index) => index,
+        None => {
+            let index = children(text, types, "metadataTypes", "metadataType") + 1;
+            append(text, types, "metadataTypes", RICH_VALUE_TYPE);
+            set_count(text, types, index);
+            index
+        }
+    };
+    for &error_type in errors {
+        let rv = children(&values_text, rv_root, "rvData", "rv");
+        append(
+            &mut values_text,
+            rv_root,
+            "rvData",
+            &format!(r#"<rv s="{structure}"><v>{error_type}</v></rv>"#),
+        );
+        set_count(&mut values_text, rv_root, rv + 1);
+        let record = format!(
+            r#"<bk><extLst><ext uri="{{3e2802c4-a4d2-4d8b-9148-e3be6c30e623}}"><xlrd:rvb xmlns:xlrd="{RICH_DATA_NAMESPACE}" i="{rv}"/></ext></extLst></bk>"#
+        );
+        let future = match text.find(r#"<futureMetadata name="XLRICHVALUE""#) {
+            Some(at) => {
+                let index = children(text, at, "futureMetadata", "bk");
+                append(text, at, "futureMetadata", &record);
+                set_count(text, at, index + 1);
+                index
+            }
+            None => {
+                let block = format!(
+                    r#"<futureMetadata name="XLRICHVALUE" count="1">{record}</futureMetadata>"#
+                );
+                let at = start_tag(text, "cellMetadata")
+                    .or_else(|| start_tag(text, "valueMetadata"))
+                    .or_else(|| start_tag(text, "extLst"))
+                    .or_else(|| text.rfind("</metadata>"))
+                    .ok_or_else(|| invalid(part, "a metadata part without its end tag"))?;
+                text.insert_str(at, &block);
+                0
+            }
+        };
+        let value_record = format!(r#"<bk><rc t="{type_index}" v="{future}"/></bk>"#);
+        let vm = match start_tag(text, "valueMetadata") {
+            Some(at) => {
+                let index = children(text, at, "valueMetadata", "bk") + 1;
+                append(text, at, "valueMetadata", &value_record);
+                set_count(text, at, index);
+                index
+            }
+            None => {
+                // valueMetadata goes after the cell metadata and before the part's own extLst.
+                let after_types = types;
+                let at = start_tag(&text[after_types..], "extLst")
+                    .map(|at| after_types + at)
+                    .filter(|at| {
+                        start_tag(text, "futureMetadata").is_none_or(|future| *at > future)
+                    })
+                    .or_else(|| text.rfind("</metadata>"))
+                    .ok_or_else(|| invalid(part, "a metadata part without its end tag"))?;
+                text.insert_str(
+                    at,
+                    &format!(r#"<valueMetadata count="1">{value_record}</valueMetadata>"#),
+                );
+                1
+            }
+        };
+        out.vm
+            .insert(error_type, u32::try_from(vm).unwrap_or(u32::MAX));
+    }
+    match (rich_values, structures) {
+        (Some(values), Some(structures)) => {
+            out.rewritten.push((values, values_text.into_bytes()));
+            out.rewritten
+                .push((structures, structures_text.into_bytes()));
+        }
+        _ => {
+            for (stem, content, content_type, relationship) in [
+                (
+                    "richData/rdrichvalue",
+                    values_text.into_bytes(),
+                    RICH_VALUE_CONTENT_TYPE,
+                    RICH_VALUE_RELATIONSHIP,
+                ),
+                (
+                    "richData/rdrichvaluestructure",
+                    structures_text.into_bytes(),
+                    STRUCTURE_CONTENT_TYPE,
+                    STRUCTURE_RELATIONSHIP,
+                ),
+            ] {
+                let (name, target) = new_part_name(package, workbook, stem);
+                out.added.push(NewPart {
+                    name,
+                    target,
+                    content,
+                    content_type,
+                    relationship,
+                });
+            }
+            if metadata::related(package, workbook, "/rdRichValueTypes").is_none() {
+                let (name, target) = new_part_name(package, workbook, "richData/rdRichValueTypes");
+                out.added.push(NewPart {
+                    name,
+                    target,
+                    content: TYPES_PART.as_bytes().to_vec(),
+                    content_type: TYPES_CONTENT_TYPE,
+                    relationship: TYPES_RELATIONSHIP,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn read_text(package: &Package, part: &str) -> Result<String, SaveRefusal> {
+    let bytes = package.read_part(part).map_err(|error| SaveRefusal::Part {
+        part: part.to_owned(),
+        error,
+    })?;
+    String::from_utf8(bytes).map_err(|_| invalid(part, "a part that is not UTF-8"))
 }

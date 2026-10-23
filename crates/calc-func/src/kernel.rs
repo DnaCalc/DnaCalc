@@ -6,6 +6,8 @@ use crate::call::{EvalServices, FunctionFault};
 use crate::catalogue::FunctionId;
 use crate::coerce::{self, Numeric, Stop};
 use crate::decimal::ExactDecimal;
+use crate::locale::CalcEnvironment;
+use crate::value_text;
 use crate::value::{CalcValue, CoreValue, NumericMode, WorksheetErrorCode};
 
 /// Why a kernel stopped before its value.
@@ -25,6 +27,7 @@ pub(crate) type Step<T> = Result<T, Exit>;
 pub(crate) struct Site<'m> {
     id: FunctionId,
     mode: &'m NumericMode,
+    environment: Option<&'m CalcEnvironment>,
 }
 
 impl<'m> Site<'m> {
@@ -32,11 +35,17 @@ impl<'m> Site<'m> {
         Site {
             id,
             mode: services.numeric_mode(),
+            environment: services.environment(),
         }
     }
 
     pub(crate) fn id(&self) -> FunctionId {
         self.id
+    }
+
+    /// The call's environment, when the caller supplied one.
+    pub(crate) fn environment(&self) -> Option<&'m CalcEnvironment> {
+        self.environment
     }
 
     /// The call's result from a kernel's last step: a worksheet error that stopped it is the
@@ -73,13 +82,53 @@ impl<'m> Site<'m> {
 
     /// Argument `index` read through worksheet number coercion. Text that reads as a number is
     /// converted to its nearest binary64 here, an arithmetic site: the conversion rounds.
+    ///
+    /// Text that coercion's plain decimal form does not decide (a date, a time, a fraction, a
+    /// currency amount, grouped digits, a percentage, more than 15 significant digits) is read as
+    /// VALUE reads it ([`crate::value_text`]) when the call's environment holds a locale profile,
+    /// and refused as not modelled when it does not.
     pub(crate) fn number_argument(&self, index: usize, value: &CalcValue) -> Step<f64> {
-        match self.argument(index, coerce::number(value))? {
+        let numeric = match coerce::number(value) {
+            Err(Stop::NotModelled) => {
+                return match self.read_text(index, value)? {
+                    Some(n) => Ok(n),
+                    None => Err(self.not_modelled(Some(index))),
+                };
+            }
+            other => self.argument(index, other)?,
+        };
+        match numeric {
             Numeric::Number(n) => Ok(n),
             Numeric::Decimal(decimal) => {
                 self.rounding()?;
                 self.argument(index, decimal.nearest())
             }
+        }
+    }
+
+    /// Text read as VALUE reads it under the call's locale profile: `Some` number, #VALUE! when
+    /// the grammar does not read it, `None` when the call has no profile, and the refusal of text
+    /// whose reading is not modelled. Reading rounds once to binary64, an arithmetic site.
+    pub(crate) fn read_text(&self, index: usize, value: &CalcValue) -> Step<Option<f64>> {
+        let CoreValue::Text(text) = value.core() else {
+            return Ok(None);
+        };
+        let Some(environment) = self.environment else {
+            return Ok(None);
+        };
+        let Some(profile) = environment.profile.as_ref() else {
+            return Ok(None);
+        };
+        self.rounding()?;
+        let context = value_text::ReadContext {
+            profile,
+            date_system: environment.date_system,
+            now: environment.now,
+        };
+        match value_text::read(text.utf16_code_units(), &context) {
+            Ok(reading) => Ok(Some(reading.value())),
+            Err(value_text::Unread::Rejected) => Err(Exit::Error(WorksheetErrorCode::Value)),
+            Err(value_text::Unread::NotModelled) => Err(self.not_modelled(Some(index))),
         }
     }
 

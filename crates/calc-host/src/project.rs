@@ -324,9 +324,14 @@ fn formula_value(
 /// The value of a cell that holds no input: empty, unless the model reads it as not available
 /// ([`calc_doc_model::Definitions::not_available`]).
 ///
-/// - A cell an array formula fills beside its anchor projects the anchor's standing: what the
+/// - A cell the engine's published spill of an array formula fills beside its anchor
+///   ([`calc_engine::EngineState::spill_covering`]) projects the spilled value as calculated, with
+///   the anchor's calculation, while the anchor's result stands, and as stale with that value
+///   otherwise.
+/// - Another cell of the file's area of an array formula projects the anchor's standing: what the
 ///   file cached for the cell while the anchor's result is a file cache that stands, the anchor's
-///   refusal once the engine refused the anchor, and stale otherwise, with the cell's file cache.
+///   refusal once the engine refused the anchor, empty once the engine calculated the anchor (its
+///   result no longer fills the cell), and stale otherwise, with the cell's file cache.
 /// - An unloaded cell (a rich value, a data table's cell) projects what the file cached for it
 ///   while no edit has changed an input since open, and stale with that cache after one has.
 fn filled_value(
@@ -356,6 +361,28 @@ fn filled_value(
             cache => stale_cache(cache, StaleCause::FileCacheUnverified),
         };
     }
+    if let Some(spill) = host
+        .engine
+        .spill_covering(at)
+        .filter(|spill| spill.anchor() != at)
+        && let Some(FormulaResult::Calculated { calculation, .. }) =
+            host.engine.result(spill.anchor())
+    {
+        let value = spill.value_at(at).clone();
+        return if stale.binary_search(&spill.anchor()).is_ok() {
+            ProjectedValue::Stale(StaleValue {
+                last_value: Some(value),
+                last_calculation: Some(calculation.clone()),
+                file_cache: cache,
+                cause,
+            })
+        } else {
+            ProjectedValue::Calculated {
+                value,
+                calculation: calculation.clone(),
+            }
+        };
+    }
     let Some(array) = definitions
         .array_containing(at)
         .filter(|array| array.anchor() != at)
@@ -365,6 +392,7 @@ fn filled_value(
     let anchor = array.anchor();
     let anchor_stale = stale.binary_search(&anchor).is_ok();
     match host.engine.result(anchor) {
+        Some(FormulaResult::Calculated { .. }) if !anchor_stale => ProjectedValue::Empty,
         Some(FormulaResult::FileCached(_)) if file_cache_stands => match cache {
             Some(cache) => ProjectedValue::FileCached(cache),
             None => ProjectedValue::Empty,

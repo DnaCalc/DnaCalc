@@ -17,11 +17,18 @@
 //!   save after an edit no longer trusts, and the cells of an array whose anchor the edit changed
 //!   no longer belong to any formula. Each that held a cached value is counted as a cache
 //!   dropped. A data table's cells are kept as the part wrote them.
-//! - Every formula cell loses its `<v>`, its `t` and its `vm`: once any cell of the workbook changed, no
-//!   cached result can be trusted without a dependency graph, and the workbook part is written
-//!   with `fullCalcOnLoad`, which asks the application that opens the package to recalculate
-//!   every formula. Each formula the edit did not change whose loaded record holds a cached result
-//!   is counted as a cache dropped.
+//! - A save with values writes an array formula's result as Excel does: the anchor's `ref` is the
+//!   area the caller gives for it (its spill range, or the anchor alone), and each cell of that
+//!   area beside the anchor that the caller gives a value is written with that value alone
+//!   (`<c r=".."><v>..</v></c>`, keeping the cell's style), a new cell where the part held none.
+//! - A newer error (#SPILL!, #CALC! and the others) is written as Excel writes it: `t="e"`, the
+//!   `#VALUE!` fallback as `<v>`, and the `vm` of its value metadata record.
+//! - Every formula cell loses its `<v>`, its `t` and its `vm`, unless the caller gives it a value:
+//!   once any cell of the workbook changed, no cached result can be trusted without a dependency
+//!   graph. Excel calculates an ordinary formula without a value when it opens the package; for
+//!   an array formula without one the workbook part is written with `fullCalcOnLoad`
+//!   (`author.rs`). Each formula the edit did not change whose loaded record holds a cached
+//!   result, and that the caller gives no value, is counted as a cache dropped.
 //! - A shared formula group any of whose cells changed is written as individual formulas: each
 //!   remaining cell's `<f>` holds the text the model holds for it, moved from the master when the
 //!   package was loaded, without the group's `t`, `ref` and `si`. Every other group keeps its
@@ -63,6 +70,11 @@ pub(super) struct Job<'a> {
     /// The caller's values for the sheet's formula cells, which are written as their cached
     /// values; `None` for a save without values, which leaves every cached value out.
     pub(super) values: Option<&'a BTreeMap<(u32, u32), CachedValue>>,
+    /// The area each array formula's result fills, by anchor, as (top, left, bottom, right): its
+    /// `ref`, and the cells beside the anchor whose values are written.
+    pub(super) spills: &'a BTreeMap<(u32, u32), (u32, u32, u32, u32)>,
+    /// The `vm` of each newer error's value metadata record.
+    pub(super) error_vm: &'a BTreeMap<u32, u32>,
     pub(super) loaded: &'a LoadedSheet,
     pub(super) model: &'a ModelRoot,
 }
@@ -126,8 +138,32 @@ struct FormulaChild {
     element: (usize, usize),
 }
 
+/// What the rewrite writes at a cell.
+#[derive(Clone, Copy)]
+enum Change<'c> {
+    /// The cell holds this input.
+    Set(&'c CellInput),
+    /// The cell is emptied.
+    Emptied,
+    /// The cell shows a value of an array formula's result beside its anchor: the caller's value
+    /// for it.
+    Spilled,
+}
+
 /// A cell's changes, by column, of one row.
-type RowChanges<'c> = BTreeMap<u32, Option<&'c CellInput>>;
+type RowChanges<'c> = BTreeMap<u32, Change<'c>>;
+
+/// A cached value as written: its `t`, the text of its `<v>`, and its `vm`.
+type Cache = (Option<&'static str>, Vec<u8>, Option<u32>);
+
+/// The area (top, left, bottom, right) as a `ref`.
+fn area_text((top, left, bottom, right): (u32, u32, u32, u32)) -> String {
+    if (top, left) == (bottom, right) {
+        a1(top, left)
+    } else {
+        format!("{}:{}", a1(top, left), a1(bottom, right))
+    }
+}
 
 fn end_tag(prefix: &[u8], local: &[u8], out: &mut Vec<u8>) {
     out.extend_from_slice(b"</");
@@ -176,17 +212,21 @@ fn styled(element: &XmlElement) -> bool {
         .is_some_and(|style| collapsed(style).parse::<u32>() != Ok(0))
 }
 
-/// A value as a formula cell's cache: its `t` and the text of its `<v>`; `None` for a value Excel
-/// stores only with value metadata (a newer error), which is left for Excel to calculate.
-fn cache_xml(value: &CachedValue) -> Option<(Option<&'static str>, Vec<u8>)> {
+/// A value as a cell's cache: its `t`, the text of its `<v>` and its `vm`. A newer error is
+/// `t="e"`, the `#VALUE!` fallback Excel writes, and the `vm` of its value metadata record in
+/// `error_vm`; `None` for a newer error without one (#BUSY!), which is left for Excel to
+/// calculate.
+fn cache_xml(value: &CachedValue, error_vm: &BTreeMap<u32, u32>) -> Option<Cache> {
     Some(match value {
-        CachedValue::Number(number) => (None, super::text::number(number.get()).into_bytes()),
+        CachedValue::Number(number) => (None, super::text::number(number.get()).into_bytes(), None),
         CachedValue::Text(text) => {
             let mut out = Vec::new();
             xstring(text.text().utf16_code_units(), &mut out);
-            (Some("str"), out)
+            (Some("str"), out, None)
         }
-        CachedValue::Logical(logical) => (Some("b"), u8::from(*logical).to_string().into_bytes()),
+        CachedValue::Logical(logical) => {
+            (Some("b"), u8::from(*logical).to_string().into_bytes(), None)
+        }
         CachedValue::Error(code) if crate::edit::error_constant_writable(*code) => (
             Some("e"),
             ERRORS
@@ -194,8 +234,13 @@ fn cache_xml(value: &CachedValue) -> Option<(Option<&'static str>, Vec<u8>)> {
                 .find(|(_, known)| known == code)
                 .map(|(spelling, _)| spelling.as_bytes().to_vec())
                 .expect("every worksheet error has a spelling"),
+            None,
         ),
-        CachedValue::Error(_) => return None,
+        CachedValue::Error(code) => (
+            Some("e"),
+            b"#VALUE!".to_vec(),
+            Some(*error_vm.get(&super::array_metadata::rich_error_type(*code)?)?),
+        ),
     })
 }
 
@@ -203,9 +248,12 @@ impl<'j> Rewrite<'_, 'j> {
     /// The cached value a formula cell at `row` and `column` is written with, counted: the
     /// caller's value, or `None` (a save without values, a cell the caller gave none, or a value
     /// Excel stores only with value metadata).
-    fn formula_cache(&mut self, row: u32, column: u32) -> Option<(Option<&'static str>, Vec<u8>)> {
+    fn formula_cache(&mut self, row: u32, column: u32) -> Option<Cache> {
         let values = self.job.values?;
-        match values.get(&(row, column)).and_then(cache_xml) {
+        match values
+            .get(&(row, column))
+            .and_then(|value| cache_xml(value, self.job.error_vm))
+        {
             Some(cache) => {
                 self.values_written += 1;
                 Some(cache)
@@ -277,7 +325,27 @@ impl<'j> Rewrite<'_, 'j> {
         let changes = self.job.changes;
         let mut rows: BTreeMap<u32, RowChanges<'_>> = BTreeMap::new();
         for (&(row, column), input) in changes {
-            rows.entry(row).or_default().insert(column, input.as_ref());
+            let change = match input {
+                Some(input) => Change::Set(input),
+                None => Change::Emptied,
+            };
+            rows.entry(row).or_default().insert(column, change);
+        }
+        // The cells beside each written anchor that the caller gives a value.
+        if let Some(values) = self.job.values {
+            for (&anchor, &(top, left, bottom, right)) in self.job.spills {
+                for (&(row, column), _) in values.range((top, left)..=(bottom, right)) {
+                    if (left..=right).contains(&column)
+                        && (row, column) != anchor
+                        && !matches!(
+                            rows.get(&row).and_then(|cells| cells.get(&column)),
+                            Some(Change::Set(_))
+                        )
+                    {
+                        rows.entry(row).or_default().insert(column, Change::Spilled);
+                    }
+                }
+            }
         }
         let mut pending = rows.into_iter().peekable();
         let tag = RawTag::parse(&self.source()[span.0..span.1]);
@@ -343,31 +411,37 @@ impl<'j> Rewrite<'_, 'j> {
 
     /// Appends a row the part did not hold, with the cells set in it.
     fn new_row(&mut self, row: u32, cells: &RowChanges<'_>, prefix: &[u8], out: &mut Vec<u8>) {
-        if cells.values().all(Option::is_none) {
+        if cells
+            .values()
+            .all(|change| matches!(change, Change::Emptied))
+        {
             return;
         }
         out.push(b'<');
         out.extend_from_slice(prefix);
         out.extend_from_slice(format!("row r=\"{row}\">").as_bytes());
-        for (&column, input) in cells {
-            if let Some(input) = input {
-                self.new_cell(None, prefix, row, column, input, out);
-            }
+        for (&column, change) in cells {
+            self.new_cell(None, prefix, row, column, *change, out);
         }
         end_tag(prefix, b"row", out);
     }
 
-    /// Appends a cell holding `input`, its start tag rebuilt from `source` (the cell it replaces)
-    /// or new.
+    /// Appends a cell holding what `change` gives it (nothing for [`Change::Emptied`]), its start
+    /// tag rebuilt from `source` (the cell it replaces) or new.
     fn new_cell(
         &mut self,
         source: Option<&RawTag<'_>>,
         prefix: &[u8],
         row: u32,
         column: u32,
-        input: &CellInput,
+        change: Change<'_>,
         out: &mut Vec<u8>,
     ) {
+        let input = match change {
+            Change::Set(input) => input,
+            Change::Emptied => return,
+            Change::Spilled => return self.spilled_cell(source, prefix, row, column, out),
+        };
         let at = a1(row, column);
         let kind = match input {
             CellInput::Number(_) | CellInput::Formula(_) => None,
@@ -380,9 +454,12 @@ impl<'j> Rewrite<'_, 'j> {
             _ => None,
         };
         let kind = match &cache {
-            Some((cache_kind, _)) => *cache_kind,
+            Some((cache_kind, _, _)) => *cache_kind,
             None => kind,
         };
+        let vm = cache
+            .as_ref()
+            .and_then(|(_, _, vm)| vm.map(|vm| vm.to_string()));
         let form = match input {
             CellInput::Formula(_) => Some(
                 self.job
@@ -406,7 +483,7 @@ impl<'j> Rewrite<'_, 'j> {
                     ("r", Some(&at)),
                     ("t", kind),
                     ("cm", cm.as_deref()),
-                    ("vm", None),
+                    ("vm", vm.as_deref()),
                 ],
                 false,
             )),
@@ -420,20 +497,28 @@ impl<'j> Rewrite<'_, 'j> {
                 if let Some(cm) = &cm {
                     out.extend_from_slice(format!(" cm=\"{cm}\"").as_bytes());
                 }
+                if let Some(vm) = &vm {
+                    out.extend_from_slice(format!(" vm=\"{vm}\"").as_bytes());
+                }
                 out.push(b'>');
             }
         }
         if let Some(form) = form {
             if form.dynamic {
+                let reference = self
+                    .job
+                    .spills
+                    .get(&(row, column))
+                    .map_or_else(|| at.clone(), |area| area_text(*area));
                 out.push(b'<');
                 out.extend_from_slice(prefix);
-                out.extend_from_slice(format!("f t=\"array\" ref=\"{at}\">").as_bytes());
+                out.extend_from_slice(format!("f t=\"array\" ref=\"{reference}\">").as_bytes());
             } else {
                 start_tag(prefix, b"f", out);
             }
             xstring(&form.text, out);
             end_tag(prefix, b"f", out);
-            if let Some((_, text)) = &cache {
+            if let Some((_, text, _)) = &cache {
                 start_tag(prefix, b"v", out);
                 out.extend_from_slice(text);
                 end_tag(prefix, b"v", out);
@@ -463,6 +548,67 @@ impl<'j> Rewrite<'_, 'j> {
         self.bounds.add(row, column);
     }
 
+    /// Appends a cell an array formula's result fills beside its anchor: the caller's value alone,
+    /// its start tag rebuilt from `source` (keeping its style) or new.
+    fn spilled_cell(
+        &mut self,
+        source: Option<&RawTag<'_>>,
+        prefix: &[u8],
+        row: u32,
+        column: u32,
+        out: &mut Vec<u8>,
+    ) {
+        let Some((kind, text, vm)) = self
+            .job
+            .values
+            .and_then(|values| values.get(&(row, column)))
+            .and_then(|value| cache_xml(value, self.job.error_vm))
+        else {
+            // A value Excel holds only with value metadata the save has none for: the cell is
+            // left out, for Excel to fill when it calculates the anchor.
+            if let Some(tag) = source {
+                let at = a1(row, column);
+                out.extend(tag.rebuilt(
+                    &[("r", Some(&at)), ("t", None), ("cm", None), ("vm", None)],
+                    true,
+                ));
+                self.bounds.add(row, column);
+            }
+            return;
+        };
+        let at = a1(row, column);
+        let vm = vm.map(|vm| vm.to_string());
+        let prefix = source.map_or(prefix, |tag| tag.prefix());
+        match source {
+            Some(tag) => out.extend(tag.rebuilt(
+                &[
+                    ("r", Some(&at)),
+                    ("t", kind),
+                    ("cm", None),
+                    ("vm", vm.as_deref()),
+                ],
+                false,
+            )),
+            None => {
+                out.push(b'<');
+                out.extend_from_slice(prefix);
+                out.extend_from_slice(format!("c r=\"{at}\"").as_bytes());
+                if let Some(kind) = kind {
+                    out.extend_from_slice(format!(" t=\"{kind}\"").as_bytes());
+                }
+                if let Some(vm) = &vm {
+                    out.extend_from_slice(format!(" vm=\"{vm}\"").as_bytes());
+                }
+                out.push(b'>');
+            }
+        }
+        start_tag(prefix, b"v", out);
+        out.extend_from_slice(&text);
+        end_tag(prefix, b"v", out);
+        end_tag(prefix, b"c", out);
+        self.bounds.add(row, column);
+    }
+
     /// Rewrites one row of the part, whose start tag, read as `element`, is `tag` and spans
     /// `span`.
     fn row(
@@ -480,10 +626,8 @@ impl<'j> Rewrite<'_, 'j> {
         if tag.is_empty() {
             self.reader.expect()?;
             let mut added = Vec::new();
-            for (&column, input) in cells {
-                if let Some(input) = input {
-                    self.new_cell(None, &prefix, number, column, input, &mut added);
-                }
+            for (&column, change) in cells {
+                self.new_cell(None, &prefix, number, column, *change, &mut added);
             }
             if !added.is_empty() {
                 let mut bytes = tag.rebuilt(&changes, false);
@@ -518,26 +662,26 @@ impl<'j> Rewrite<'_, 'j> {
                             .invalid("a cell that is not after the cell before it"));
                     }
                     previous = column;
-                    while let Some((&new, input)) = pending.next_if(|(new, _)| **new < column) {
-                        if let Some(input) = input {
-                            let mut bytes = Vec::new();
-                            self.new_cell(None, &prefix, number, new, input, &mut bytes);
+                    while let Some((&new, change)) = pending.next_if(|(new, _)| **new < column) {
+                        let mut bytes = Vec::new();
+                        self.new_cell(None, &prefix, number, new, *change, &mut bytes);
+                        if !bytes.is_empty() {
                             self.splice.replace((span.0, span.0), &bytes);
                         }
                     }
                     let change = pending
                         .next_if(|(new, _)| **new == column)
-                        .map(|(_, input)| *input);
+                        .map(|(_, change)| *change);
                     self.cell(span, &element, &tag, number, column, change)?;
                 }
                 (XmlEvent::Start(_), (start, _)) => {
                     // A row holds its cells and then an `extLst` (CT_Row), so the cells still to
                     // add go before the first element that is not a cell. A cell after such an
                     // element must then lie after every cell added, or it is refused below.
-                    for (&column, input) in pending.by_ref() {
-                        if let Some(input) = input {
-                            let mut bytes = Vec::new();
-                            self.new_cell(None, &prefix, number, column, input, &mut bytes);
+                    for (&column, change) in pending.by_ref() {
+                        let mut bytes = Vec::new();
+                        self.new_cell(None, &prefix, number, column, *change, &mut bytes);
+                        if !bytes.is_empty() {
                             self.splice.replace((start, start), &bytes);
                         }
                         previous = previous.max(column);
@@ -547,10 +691,8 @@ impl<'j> Rewrite<'_, 'j> {
                 (XmlEvent::Text(_), _) => {}
                 (XmlEvent::End(_), (start, _)) => {
                     let mut bytes = Vec::new();
-                    for (&column, input) in pending {
-                        if let Some(input) = input {
-                            self.new_cell(None, &prefix, number, column, input, &mut bytes);
-                        }
+                    for (&column, change) in pending {
+                        self.new_cell(None, &prefix, number, column, *change, &mut bytes);
                     }
                     self.splice.replace((start, start), &bytes);
                     return Ok(());
@@ -560,8 +702,7 @@ impl<'j> Rewrite<'_, 'j> {
     }
 
     /// Rewrites one cell of the part, whose start tag, read as `element`, is `tag` and spans
-    /// `span`; `change` is its new input (`Some(None)` when it was emptied), `None` when it did
-    /// not change.
+    /// `span`; `change` is what it now holds, `None` when it did not change.
     fn cell(
         &mut self,
         span: (usize, usize),
@@ -569,7 +710,7 @@ impl<'j> Rewrite<'_, 'j> {
         tag: &RawTag<'_>,
         row: u32,
         column: u32,
-        change: Option<Option<&CellInput>>,
+        change: Option<Change<'_>>,
     ) -> Result<(), SaveRefusal> {
         // The cell's `<f>` and `<v>`, and where it ends.
         let mut formula: Option<FormulaChild> = None;
@@ -608,17 +749,21 @@ impl<'j> Rewrite<'_, 'j> {
         if cleared && self.job.loaded.value_cache(row, column).is_some() {
             self.caches_dropped += 1;
         }
-        let change = if cleared { Some(None) } else { change };
+        let change = if cleared {
+            Some(Change::Emptied)
+        } else {
+            change
+        };
         match change {
-            Some(Some(input)) => {
+            Some(change @ (Change::Set(_) | Change::Spilled)) => {
                 let mut bytes = Vec::new();
-                self.new_cell(Some(tag), b"", row, column, input, &mut bytes);
+                self.new_cell(Some(tag), b"", row, column, change, &mut bytes);
                 self.splice.replace((span.0, end), &bytes);
                 if shared_string {
                     self.strings.removed += 1;
                 }
             }
-            Some(None) => {
+            Some(Change::Emptied) => {
                 let bytes = if styled(element) {
                     self.bounds.add(row, column);
                     tag.rebuilt(
@@ -659,10 +804,16 @@ impl<'j> Rewrite<'_, 'j> {
                 // caller's value when the save has one), and a cell of a group written as
                 // individual formulas gets its own text.
                 let cache = self.formula_cache(row, column);
-                let kind = cache.as_ref().and_then(|(kind, _)| *kind);
+                let kind = cache.as_ref().and_then(|(kind, _, _)| *kind);
+                let vm = cache
+                    .as_ref()
+                    .and_then(|(_, _, vm)| vm.map(|vm| vm.to_string()));
                 self.splice.replace(
                     span,
-                    &tag.rebuilt(&[("r", Some(&at)), ("t", kind), ("vm", None)], false),
+                    &tag.rebuilt(
+                        &[("r", Some(&at)), ("t", kind), ("vm", vm.as_deref())],
+                        false,
+                    ),
                 );
                 if shared_string {
                     self.strings.removed += 1;
@@ -674,6 +825,16 @@ impl<'j> Rewrite<'_, 'j> {
                     .and_then(|si| collapsed(si).parse::<u32>().ok())
                     .filter(|_| formula_read.attribute("t") == Some("shared"));
                 let mut edits: Vec<((usize, usize), Vec<u8>)> = Vec::new();
+                // An array formula's `ref` is the area its result fills now.
+                if formula_read.attribute("t") == Some("array")
+                    && let Some(area) = self.job.spills.get(&(row, column))
+                {
+                    let reference = area_text(*area);
+                    edits.push((
+                        formula_tag,
+                        formula_raw.rebuilt(&[("ref", Some(&reference))], formula_raw.is_empty()),
+                    ));
+                }
                 if let Some(group) = group
                     && self.unshared.contains(&group)
                 {
@@ -697,7 +858,7 @@ impl<'j> Rewrite<'_, 'j> {
                     .formula(row, column)
                     .and_then(|record| record.cache())
                     .is_some();
-                let new_value = cache.map(|(_, text)| {
+                let new_value = cache.map(|(_, text, _)| {
                     let prefix = formula_raw.prefix();
                     let mut bytes = Vec::new();
                     start_tag(prefix, b"v", &mut bytes);

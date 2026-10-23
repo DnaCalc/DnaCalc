@@ -111,7 +111,9 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
     let mut host = open(&fixture());
     let calc = sheet(&host, "Calc");
     recalculate(&mut host);
-    // The rest of the workbook calculates; a spilling array is refused per cell.
+    // The rest of the workbook calculates. The array at A1:B3 is SEQUENCE(3,2), which the
+    // catalogue does not hold yet (F3, dc-728): its anchor is refused, and the cells it fills read
+    // as not available.
     assert_eq!(
         calculated(&host, at(calc, "U1")),
         Some(CalcValue::number(2.0))
@@ -123,7 +125,7 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
     assert!(matches!(
         value(&host, at(calc, "A1")),
         ProjectedValue::NotModeled {
-            refusal: NotModeled::ArrayFormula(_),
+            refusal: NotModeled::Compile(_) | NotModeled::Evaluation(_),
             ..
         }
     ));
@@ -149,7 +151,7 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
     assert!(receipt.values_written > 0, "{receipt:?}");
     let xml = part_text(&saved, "xl/worksheets/sheet2.xml");
     // Calculated cells carry the engine's values, a text with t="str"; the refused anchor has
-    // none, for Excel to calculate on open, and no full calculation is asked for.
+    // none, which Excel calculates on open because a full calculation is asked for (below).
     assert!(
         xml.contains(r#"<c r="U3"><f>U2*3</f><v>24</v></c>"#),
         "{xml}"
@@ -162,7 +164,10 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
         xml.contains(r#"<c r="A1" cm="1"><f t="array" ref="A1:B3">_xlfn.SEQUENCE(3,2)</f></c>"#),
         "{xml}"
     );
-    assert!(!part_text(&saved, "xl/workbook.xml").contains("fullCalcOnLoad"));
+    // The refused arrays (SEQUENCE, SORT and FILTER wait on F3, dc-728) are saved without a
+    // value, which Excel does not calculate on open (calc-doc's tests/fixtures/d1/
+    // excel-open.json, array-no-value), so a full calculation is asked for.
+    assert!(part_text(&saved, "xl/workbook.xml").contains(r#"fullCalcOnLoad="1""#));
     let reopened = open(&saved);
     assert!(matches!(
         value(&reopened, at(sheet(&reopened, "Calc"), "U3")),
@@ -595,9 +600,12 @@ fn d2_session__the_intent_log_replays() {
 
 /// The M1 proof: a workbook Excel saved is opened, edited (values on two sheets and formulas),
 /// one edit is undone, the workbook recalculates, and the save is reopened: every formula cell
-/// the session calculated is saved with its value and reads back as that file cache, and the
-/// reopened workbook recalculates to the same values. With `DNACALC_D2_SAVE_DIR` set, the saved
-/// package is also written there for a capture in Excel.
+/// the session calculated, and every cell an array's result fills, is saved with its value and
+/// reads back as that file cache, and the reopened workbook recalculates to the same values. The
+/// arrays are saved as Excel saves them: a dynamic array's spill with its range and the spilled
+/// values alone, a legacy array's area filled, and, once a value blocks the spill, #SPILL! with
+/// its value metadata. With `DNACALC_D2_SAVE_DIR` set, both saved packages are also written there
+/// for a capture in Excel.
 #[test]
 fn d2_m1_proof__open_edit_undo_recalculate_save_reopen() {
     let mut session = session(&fixture());
@@ -620,22 +628,83 @@ fn d2_m1_proof__open_edit_undo_recalculate_save_reopen() {
         session_calculated(&session, at_(calc, "Z1")),
         Some(CalcValue::number(35.0))
     );
+    // F1 is the dynamic array Data!A1:A3*2 over F1:F3, L1 the legacy array Data!A1:A3*10.
+    assert_eq!(
+        session_calculated(&session, at_(calc, "F2")),
+        Some(CalcValue::number(4.0))
+    );
 
+    let saved = save_and_check_reopen(&session, &[data, calc], "d2_m1_proof.xlsx");
+    let xml = part_text(&saved, "xl/worksheets/sheet2.xml");
+    for expected in [
+        r#"<c r="F1" cm="1"><f t="array" ref="F1:F3">Data!A1:A3*2</f><v>20</v></c>"#,
+        r#"<c r="F2"><v>4</v></c>"#,
+        r#"<c r="F3"><v>6</v></c>"#,
+        r#"<c r="L1"><f t="array" ref="L1:L3">Data!A1:A3*10</f><v>100</v></c>"#,
+        r#"<c r="L2"><v>20</v></c>"#,
+        r#"<c r="L3"><v>30</v></c>"#,
+    ] {
+        assert!(xml.contains(expected), "{expected} in {xml}");
+    }
+
+    // A value in F1's spill range blocks it: F1 shows #SPILL!, saved with its rich error.
+    enter(&mut session, at_(calc, "F3"), "x");
+    assert_eq!(
+        session_calculated(&session, at_(calc, "F1")),
+        Some(CalcValue::error(
+            calc_host::value::WorksheetErrorCode::Spill
+        ))
+    );
+    let blocked = save_and_check_reopen(&session, &[data, calc], "d2_m1_proof_spill.xlsx");
+    let xml = part_text(&blocked, "xl/worksheets/sheet2.xml");
+    // The cell's attributes in any order: from the start tag that holds r="F1" to its end.
+    let f1_at = xml.find(r#" r="F1""#).expect("F1");
+    let f1 = &xml[xml[..f1_at].rfind("<c ").expect("F1's start tag")..];
+    let f1 = &f1[..f1.find("</c>").expect("F1 ends")];
+    for expected in [
+        r#"t="e""#,
+        r#"cm="1""#,
+        r#"vm="3""#,
+        r#"<f t="array" ref="F1">Data!A1:A3*2</f><v>#VALUE!</v>"#,
+    ] {
+        assert!(f1.contains(expected), "{expected} in {f1}");
+    }
+    let metadata = part_text(&blocked, "xl/metadata.xml");
+    assert!(
+        metadata.contains(r#"<valueMetadata count="3">"#),
+        "{metadata}"
+    );
+}
+
+/// Saves the session, reopens the saved package and checks every cell of the sheets' first 12
+/// rows and 26 columns: the inputs are the session's, each value the session calculated reads
+/// back as that file cache, and the reopened workbook recalculates to the same values. Returns
+/// the saved package, also written to `DNACALC_D2_SAVE_DIR` as `name` when that is set.
+fn save_and_check_reopen(session: &HostSession, sheets: &[SheetId], name: &str) -> Vec<u8> {
     let mut saved = Vec::new();
     let receipt = session
         .save(&SavePolicy::default(), &mut saved)
         .expect("saved");
     assert!(receipt.values_written > 0, "{receipt:?}");
-    assert!(!part_text(&saved, "xl/workbook.xml").contains("fullCalcOnLoad"));
-
-    // Every cell of both sheets' used ranges, as the session projects it and as the reopened
-    // package does, before and after the reopened workbook recalculates.
+    // The fixture's refused arrays (SEQUENCE, SORT and FILTER wait on F3, dc-728) are saved
+    // without a value, which Excel does not calculate on open, so a full calculation is asked
+    // for (calc-doc's tests/fixtures/d1/excel-open.json, array-no-value).
+    assert!(part_text(&saved, "xl/workbook.xml").contains(r#"fullCalcOnLoad="1""#));
     let mut reopened = open(&saved);
     let mut cells = Vec::new();
     let mut reopened_cells = Vec::new();
-    for (sheet_id, name) in [(data, "Data"), (calc, "Calc")] {
-        let reopened_sheet = sheet(&reopened, name);
-        for row in 1..=7 {
+    for &sheet_id in sheets {
+        let name = session
+            .host()
+            .sheets()
+            .iter()
+            .find(|entry| entry.id() == sheet_id)
+            .unwrap()
+            .name()
+            .text()
+            .to_string_lossy();
+        let reopened_sheet = sheet(&reopened, &name);
+        for row in 1..=12 {
             for column in 1..=26 {
                 cells.push(CellKey::new(sheet_id, row, column).unwrap());
                 reopened_cells.push(CellKey::new(reopened_sheet, row, column).unwrap());
@@ -671,15 +740,18 @@ fn d2_m1_proof__open_edit_undo_recalculate_save_reopen() {
             other => panic!("{:?} reopened as {other:?}", edited.at()),
         }
         match recalculated.value() {
-            ProjectedValue::Calculated { value: again, .. } => assert_eq!(again, value),
+            ProjectedValue::Calculated { value: again, .. } => {
+                assert_eq!(again, value, "{:?}", edited.at())
+            }
             other => panic!("{:?} recalculated as {other:?}", edited.at()),
         }
     }
     assert!(compared >= 9, "{compared} calculated cells compared");
     if let Ok(dir) = std::env::var("DNACALC_D2_SAVE_DIR") {
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(std::path::Path::new(&dir).join("d2_m1_proof.xlsx"), &saved).unwrap();
+        std::fs::write(std::path::Path::new(&dir).join(name), &saved).unwrap();
     }
+    saved
 }
 
 /// The cached value a calculated scalar is saved as.

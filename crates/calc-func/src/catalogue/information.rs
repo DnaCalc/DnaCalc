@@ -25,8 +25,9 @@
 //! to give #BLOCKED! or #CONNECT! runs offline, and Excel refuses to enter either as a literal, so
 //! no capture measures these rows.
 //!
-//! ISFORMULA needs to know whether a cell holds a formula, which the cell reader does not supply;
-//! every call is refused as not modelled until a host fact reaches the kernel (cfunc-m3.18).
+//! ISFORMULA asks the host whether the reference's first cell holds a formula
+//! ([`crate::HostFacts::is_formula`]); a call whose services hold no host, or whose host cannot
+//! say, is refused as not modelled.
 
 use super::aggregate::{read_reference, reader};
 use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
@@ -247,12 +248,24 @@ fn isref(
     Site::finish(step)
 }
 
-/// ISFORMULA: refused as not modelled for every reference (cfunc-m3.18); see the module
-/// documentation. The call interface refuses any other argument at admission, as Excel refuses
+/// ISFORMULA: whether the reference's first cell holds a formula, as the host says; see the
+/// module documentation. The call interface refuses any other argument at admission, as Excel refuses
 /// such a formula at entry.
-fn isformula(_: &[CalcValue], services: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
+fn isformula(
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISFORMULA, services);
-    Site::finish(Err(site.not_modelled(Some(0))))
+    let cell = match arguments[0].core() {
+        CoreValue::Reference(reference) => reference.areas()[0].first(),
+        _ => return Site::finish(Err(site.not_modelled(Some(0)))),
+    };
+    let known = services.host().and_then(|host| host.is_formula(cell));
+    Site::finish(
+        known
+            .map(CalcValue::logical)
+            .ok_or_else(|| site.not_modelled(Some(0))),
+    )
 }
 
 /// ISEVEN: whether the number, truncated toward zero, is even.

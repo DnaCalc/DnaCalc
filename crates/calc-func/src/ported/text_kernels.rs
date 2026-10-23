@@ -193,7 +193,7 @@ pub(crate) fn nonnegative(n: f64) -> Result<usize, WorksheetErrorCode> {
 
 /// A UTF-16 unit with its case folded for SEARCH: the simple lower-case mapping of a unit that is
 /// a whole character and maps to one character of one unit; any other unit as it is.
-fn fold_unit(unit: u16) -> u16 {
+pub(crate) fn fold_unit(unit: u16) -> u16 {
     if unit < 0x80 {
         return if (b'A' as u16..=b'Z' as u16).contains(&unit) {
             unit + 32

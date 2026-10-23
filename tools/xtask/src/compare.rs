@@ -275,6 +275,14 @@ impl ReadObserver for Instrument<'_> {
         self.calls.push(call);
     }
 
+    /// The evaluation was discarded to wait for a cell: what it called and read is forgotten, so
+    /// a retained difference shows only the evaluation that was published.
+    fn deferred(&mut self, formula: CellKey, _cell: CellKey) {
+        if self.current == Some(formula) {
+            self.clear();
+        }
+    }
+
     fn evaluated(&mut self, evaluation: ObservedEvaluation<'_>) {
         let at = evaluation.formula();
         let calculation = evaluation.calculation();

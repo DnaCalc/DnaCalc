@@ -2,6 +2,7 @@
 //! [`CellRun`]s, and [`read_cells`] asks it for one area and checks that the runs account for
 //! every cell exactly once.
 
+use calc_func::SubtotalExclusions;
 use calc_func::value::{CalcValue, CellKey, GridArea};
 use std::ops::ControlFlow;
 
@@ -20,6 +21,15 @@ pub trait ReferenceReader {
     fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
         let _ = anchor;
         SpillExtent::NotModelled
+    }
+
+    /// What SUBTOTAL and AGGREGATE leave out of `area` (calc-func's
+    /// [`calc_func::CellReader::subtotal_exclusions`]): the cells holding a SUBTOTAL or AGGREGATE
+    /// formula and the hidden and filtered rows. The default, `None`, says the reader cannot
+    /// tell, and those functions refuse a reference rather than count cells Excel leaves out.
+    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
+        let _ = area;
+        None
     }
 }
 

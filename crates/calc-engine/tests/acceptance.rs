@@ -153,9 +153,9 @@ fn seed_dependents(seeds: &[InputSeed<'_>]) -> Vec<Vec<NodeId>> {
     seeds
         .iter()
         .map(|seed| match seed {
-            InputSeed::Cell { dependents, .. } | InputSeed::Area { dependents, .. } => {
-                dependents.clone()
-            }
+            InputSeed::Cell { dependents, .. }
+            | InputSeed::Area { dependents, .. }
+            | InputSeed::Spill { dependents, .. } => dependents.clone(),
         })
         .collect()
 }
@@ -166,7 +166,9 @@ fn cell_seed_map(seeds: &[InputSeed<'_>]) -> BTreeMap<CellKey, Vec<NodeId>> {
         .iter()
         .map(|seed| match seed {
             InputSeed::Cell { at, dependents, .. } => (*at, dependents.clone()),
-            InputSeed::Area { area, .. } => panic!("unexpected area seed {area:?}"),
+            InputSeed::Area { area, .. } | InputSeed::Spill { area, .. } => {
+                panic!("unexpected area seed {area:?}")
+            }
         })
         .collect()
 }
@@ -212,6 +214,7 @@ fn clear_readers(
         .map(|seed| match seed {
             InputSeed::Area { area, dependents } => (*area, dependents.clone()),
             InputSeed::Cell { at, .. } => panic!("unexpected cell seed {at:?}"),
+            InputSeed::Spill { anchor, .. } => panic!("unexpected spill seed {anchor:?}"),
         })
         .collect();
     assert_eq!(found.len(), areas.len(), "a probed area emptied no cell");
@@ -3462,37 +3465,10 @@ fn dc_mzk__l1_through_the_engine() {
     }
 }
 
-/// OFFSET into a formula cell the schedule orders later: the engine cannot order a reference the
-/// evaluation computed (L2 owns dynamic dependencies), so that formula is refused and every other
-/// formula still calculates.
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-fn dc_mzk__offset_into_a_later_formula_cell() {
-    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
-    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
-    let c = |row, column| CellKey::new(calc, row, column).unwrap();
-    let cells = vec![
-        // Calc!A1 reads Calc!B1 and, through OFFSET, Calc!A5, which comes later in the schedule.
-        (c(1, 1), formula("OFFSET(B1,4,-1)")),
-        (c(2, 1), formula("1+1")),
-        (c(5, 1), formula("2*3")),
-    ];
-    let state = l1_calculated(cells, vec![], (data, calc));
-    assert_eq!(l1_value(&state, c(2, 1)), CalcValue::number(2.0));
-    assert_eq!(l1_value(&state, c(5, 1)), CalcValue::number(6.0));
-    match state.result(c(1, 1)) {
-        Some(FormulaResult::NotModeled {
-            refusal: NotModeled::Evaluation(EvalFault::NotModelled { owner, .. }),
-            ..
-        }) => assert_eq!(*owner, "dc-0k9"),
-        other => panic!("{other:?}"),
-    }
-}
-
 /// An array formula of one cell evaluates as an array formula: a legacy (Ctrl+Shift+Enter) one
-/// shows the first element of its result, a dynamic-array one its one value; one that fills more
-/// cells is refused as a spill. Hand-derived: Data!A1:A3 = 10, 20, 30, so SUM(A1:A3*{1;2;3}) is
-/// 140 and A1:A3*2 starts with 20.
+/// shows the first element of its result, a dynamic-array one its one value; one whose result has
+/// more values spills them (L2). Hand-derived: Data!A1:A3 = 10, 20, 30, so SUM(A1:A3*{1;2;3}) is
+/// 140 and A1:A3*2 is 20, 40, 60.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_mzk__one_cell_array_formulas() {
@@ -3523,11 +3499,420 @@ fn dc_mzk__one_cell_array_formulas() {
     assert_eq!(l1_value(&state, c(1, 1)), CalcValue::number(140.0));
     assert_eq!(l1_value(&state, c(2, 1)), CalcValue::number(20.0));
     assert_eq!(l1_value(&state, c(3, 1)), CalcValue::number(140.0));
-    assert!(matches!(
-        state.result(c(5, 1)),
+    assert_eq!(l1_value(&state, c(5, 1)), CalcValue::number(20.0));
+    let spill = state.spill(c(5, 1)).expect("a spill");
+    assert_eq!(spill.area(), GridArea::new(c(5, 1), c(7, 1)).unwrap());
+    assert_eq!(spill.value_at(c(7, 1)), &CalcValue::number(60.0));
+}
+
+// ---------------------------------------------------------------------------------------------
+// L2 (dc-0k9): dynamic dependencies (INDIRECT and OFFSET), spills and `#`, volatile functions and
+// random numbers, recalculated through begin_recalc, step and finish on the one graph. Every
+// expected value is derived by hand from the literals and the formula texts; the spill rules
+// follow Excel 16.0 as measured through COM on 2026-10-23 (cited at each case).
+
+/// A two-sheet workbook (Data, Calc) at `revision` with `cells` and the array formulas `arrays`.
+fn l2_root(
+    revision: u64,
+    sheets: (SheetId, SheetId),
+    cells: Vec<(CellKey, CellInput)>,
+    arrays: Vec<ArrayFormula>,
+) -> Arc<ModelRoot> {
+    ModelRoot::with_definitions(
+        AuthoredRevision::new(revision),
+        vec![
+            sheet_entry(sheets.0, 1, "Data"),
+            sheet_entry(sheets.1, 2, "Calc"),
+        ],
+        cells,
+        SkinLayout::default(),
+        Definitions::new(arrays, vec![], vec![], []),
+    )
+    .unwrap()
+}
+
+/// A dynamic-array formula's file area: its anchor alone, as a formula entered in Excel 365 whose
+/// result has not spilled is saved.
+fn l2_dynamic(at: CellKey) -> ArrayFormula {
+    ArrayFormula::new(GridArea::cell(at), ArrayKind::Dynamic { collapsed: false })
+}
+
+/// Records which formulas waited for a cell, and how many outcomes the evaluator reported for
+/// each formula.
+#[derive(Default)]
+struct Waits {
+    deferred: Vec<(CellKey, CellKey)>,
+    evaluated: BTreeMap<CellKey, usize>,
+}
+
+impl ReadObserver for Waits {
+    fn observe(&mut self, _: CellKey, _: GridArea, _: u64, _: CellRun<'_>) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn evaluated(&mut self, evaluation: ObservedEvaluation<'_>) {
+        *self.evaluated.entry(evaluation.formula()).or_default() += 1;
+    }
+
+    fn deferred(&mut self, formula: CellKey, cell: CellKey) {
+        self.deferred.push((formula, cell));
+    }
+}
+
+/// The refusal's owner of a formula cell's not-modelled result.
+fn l2_refusal_owner(state: &EngineState, at: CellKey) -> &'static str {
+    match state.result(at) {
         Some(FormulaResult::NotModeled {
-            refusal: NotModeled::ArrayFormula(_),
+            refusal: NotModeled::Evaluation(EvalFault::NotModelled { owner, .. }),
+            ..
+        }) => owner,
+        other => panic!("{at:?}: {other:?}"),
+    }
+}
+
+fn l2_error(code: calc_doc_model::value::WorksheetErrorCode) -> CalcValue {
+    CalcValue::error(code)
+}
+
+/// INDIRECT is bound against the workbook's sheets and recalculated through the engine. A formula
+/// whose INDIRECT reads a formula cell ordered after it waits for that cell, and so does a formula
+/// that reads the waiting one; the discarded attempts are not reported as evaluated. The areas
+/// INDIRECT read become dynamic prerequisites, so the next recalculation orders each formula after
+/// the cells it read and nothing waits.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__indirect_through_the_engine() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (d(1, 1), number(5.0)),
+        (d(2, 1), formula("A1*2")),
+        (c(1, 2), number(5.0)),
+        // Calc!A5 is ordered after Calc!A1, which reads it through INDIRECT: 5*3.
+        (c(1, 1), formula("INDIRECT(\"A\"&B1)")),
+        // Data!A1:A2 = 5, 10.
+        (c(2, 1), formula("SUM(INDIRECT(\"Data!A1:A2\"))")),
+        // Reads Calc!A1, which waits: 15+1.
+        (c(3, 1), formula("A1+1")),
+        // A sheet the workbook does not hold: #REF!.
+        (c(4, 1), formula("INDIRECT(\"Nowhere!A1\")")),
+        (c(5, 1), formula("Data!A1*3")),
+    ];
+    let root = l2_root(0, (data, calc), cells, vec![]);
+    let mut state = EngineState::new(&root);
+    let mut waits = Waits::default();
+    recalc(&mut state, &root, &mut waits);
+    let n = CalcValue::number;
+    assert_eq!(l1_value(&state, c(1, 1)), n(15.0));
+    assert_eq!(l1_value(&state, c(2, 1)), n(15.0));
+    assert_eq!(l1_value(&state, c(3, 1)), n(16.0));
+    assert_eq!(
+        l1_value(&state, c(4, 1)),
+        l2_error(calc_doc_model::value::WorksheetErrorCode::Ref)
+    );
+    assert_eq!(
+        waits.deferred,
+        [(c(1, 1), c(5, 1)), (c(3, 1), c(1, 1))],
+        "Calc!A1 waits for Calc!A5, Calc!A3 for Calc!A1"
+    );
+    assert!(
+        waits.evaluated.values().all(|count| *count == 1),
+        "{:?}",
+        waits.evaluated
+    );
+    let dynamic = |state: &EngineState, at| {
+        state
+            .node(state.node_at(at).unwrap())
+            .unwrap()
+            .dynamic_prerequisites()
+            .to_vec()
+    };
+    assert_eq!(dynamic(&state, c(1, 1)), [Prerequisite::Cell(c(5, 1))]);
+    assert_eq!(
+        dynamic(&state, c(2, 1)),
+        [Prerequisite::Area(GridArea::new(d(1, 1), d(2, 1)).unwrap())]
+    );
+    assert!(state.is_volatile(state.node_at(c(1, 1)).unwrap()));
+    assert!(!state.is_volatile(state.node_at(c(5, 1)).unwrap()));
+
+    // Data!A1 = 7: Calc!A5 = 21, Data!A2 = 14, so Calc!A1 = 21, Calc!A2 = 21, Calc!A3 = 22, and
+    // the dynamic prerequisites order every formula after what it reads.
+    let root = edit(&mut state, &root, vec![set(d(1, 1), number(7.0))]);
+    let mut waits = Waits::default();
+    recalc(&mut state, &root, &mut waits);
+    assert_eq!(l1_value(&state, c(1, 1)), n(21.0));
+    assert_eq!(l1_value(&state, c(2, 1)), n(21.0));
+    assert_eq!(l1_value(&state, c(3, 1)), n(22.0));
+    assert_eq!(waits.deferred, []);
+}
+
+/// OFFSET into a formula cell the schedule orders later: the formula waits for it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__offset_into_a_later_formula_cell() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        // Calc!A1 reads Calc!B1 and, through OFFSET, Calc!A5 = 2*3.
+        (c(1, 1), formula("OFFSET(B1,4,-1)")),
+        (c(2, 1), formula("1+1")),
+        (c(5, 1), formula("2*3")),
+    ];
+    let state = l1_calculated(cells, vec![], (data, calc));
+    assert_eq!(l1_value(&state, c(2, 1)), CalcValue::number(2.0));
+    assert_eq!(l1_value(&state, c(5, 1)), CalcValue::number(6.0));
+    assert_eq!(l1_value(&state, c(1, 1)), CalcValue::number(6.0));
+}
+
+/// Two formulas that read each other only through INDIRECT are a circular reference the order
+/// cannot see: the one that would wait on itself is refused (circular references are L3's), the
+/// other reads it as a cell the reader cannot supply, and the recalculation completes.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__circular_through_indirect() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (c(1, 1), formula("INDIRECT(\"A2\")")),
+        (c(2, 1), formula("INDIRECT(\"A1\")+1")),
+        (c(3, 1), formula("1+2")),
+    ];
+    let state = l1_calculated(cells, vec![], (data, calc));
+    assert_eq!(l2_refusal_owner(&state, c(2, 1)), "dc-m3u");
+    assert!(matches!(
+        state.result(c(1, 1)),
+        Some(FormulaResult::NotModeled {
+            refusal: NotModeled::Evaluation(EvalFault::MissingInput { .. }),
             ..
         })
     ));
+    assert_eq!(l1_value(&state, c(3, 1)), CalcValue::number(3.0));
+}
+
+/// A dynamic-array formula spills from its anchor; a formula that read a cell of the spill before
+/// the anchor was evaluated is calculated again in a further wave; `#` reads the spilled range;
+/// a value in the way gives #SPILL! and clearing it lets the result spill; a spill that grows
+/// reaches the formulas reading the cells it gained; and clearing the anchor reaches the formulas
+/// that read its old area.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__spills() {
+    use calc_doc_model::value::WorksheetErrorCode;
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (d(1, 1), number(10.0)),
+        (d(2, 1), number(20.0)),
+        (d(3, 1), number(30.0)),
+        (d(4, 1), number(40.0)),
+        (d(1, 2), number(3.0)),
+        // Spills Calc!B5:B7 = 20, 40, 60.
+        (c(5, 2), formula("OFFSET(Data!A1,0,0,Data!B1,1)*2")),
+        // Evaluated before Calc!B5 (row 1), so in a second wave: 60+1.
+        (c(1, 1), formula("B7+1")),
+        // Calc!B8 is blank until the spill grows: 0+5.
+        (c(2, 1), formula("B8+5")),
+        (c(1, 4), formula("SUM(B5#)")),
+        (c(1, 5), formula("ROWS(B5#)")),
+        // Blocked by Calc!F2: #SPILL!.
+        (c(1, 6), formula("{1;2;3}")),
+        (c(2, 6), number(9.0)),
+    ];
+    let arrays = vec![l2_dynamic(c(5, 2)), l2_dynamic(c(1, 6))];
+    let root = l2_root(0, (data, calc), cells, arrays);
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let n = CalcValue::number;
+    assert_eq!(l1_value(&state, c(5, 2)), n(20.0));
+    let spill = state.spill(c(5, 2)).expect("Calc!B5 spills");
+    assert_eq!(spill.area(), GridArea::new(c(5, 2), c(7, 2)).unwrap());
+    assert_eq!(spill.value_at(c(6, 2)), &n(40.0));
+    assert_eq!(
+        state.spill_covering(c(7, 2)).map(|s| s.anchor()),
+        Some(c(5, 2))
+    );
+    assert_eq!(l1_value(&state, c(1, 1)), n(61.0));
+    assert_eq!(l1_value(&state, c(2, 1)), n(5.0));
+    assert_eq!(l1_value(&state, c(1, 4)), n(120.0));
+    assert_eq!(l1_value(&state, c(1, 5)), n(3.0));
+    assert_eq!(
+        l1_value(&state, c(1, 6)),
+        l2_error(WorksheetErrorCode::Spill)
+    );
+    assert_eq!(state.spill(c(1, 6)), None);
+
+    // Data!B1 = 4 and Calc!F2 cleared: Calc!B5:B8 = 20, 40, 60, 80, so Calc!A2 = 85, the sum is
+    // 200 and the rows 4; Calc!F1 spills 1, 2, 3.
+    let root = edit(
+        &mut state,
+        &root,
+        vec![set(d(1, 2), number(4.0)), clear(GridArea::cell(c(2, 6)))],
+    );
+    let delta = recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(2, 1)), n(85.0));
+    assert_eq!(l1_value(&state, c(1, 4)), n(200.0));
+    assert_eq!(l1_value(&state, c(1, 5)), n(4.0));
+    assert_eq!(l1_value(&state, c(1, 6)), n(1.0));
+    assert_eq!(
+        state.spill(c(1, 6)).map(|s| s.value_at(c(3, 6)).clone()),
+        Some(n(3.0))
+    );
+    assert_eq!(
+        delta
+            .spill_changes()
+            .iter()
+            .map(|change| (change.anchor, change.after.map(|a| a.cell_count())))
+            .collect::<Vec<_>>(),
+        [(c(1, 6), Some(3)), (c(5, 2), Some(4))]
+    );
+
+    // A value entered into the spill blocks it, and its readers see the blank cells: Calc!B5 is
+    // #SPILL!, Calc!A1 = 0+1, Calc!A2 = 0+5.
+    let root = edit(&mut state, &root, vec![set(c(7, 2), number(1.0))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(
+        l1_value(&state, c(5, 2)),
+        l2_error(WorksheetErrorCode::Spill)
+    );
+    assert_eq!(l1_value(&state, c(1, 1)), n(2.0));
+    assert_eq!(l1_value(&state, c(2, 1)), n(5.0));
+
+    // Removing the blocking value and then the anchor itself: the formulas that read its old area
+    // are stale at once and read blank cells after the recalculation, and `#` on an empty cell is
+    // #REF!.
+    let root = edit(&mut state, &root, vec![clear(GridArea::cell(c(7, 2)))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(1, 1)), n(61.0));
+    let root = edit(&mut state, &root, vec![clear(GridArea::cell(c(5, 2)))]);
+    let stale = state.stale(&root).unwrap();
+    assert!(
+        stale.contains(&c(1, 1)) && stale.contains(&c(2, 1)),
+        "{stale:?}"
+    );
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(state.spill(c(5, 2)), None);
+    assert_eq!(l1_value(&state, c(1, 1)), n(1.0));
+    assert_eq!(l1_value(&state, c(2, 1)), n(5.0));
+    assert_eq!(l1_value(&state, c(1, 4)), l2_error(WorksheetErrorCode::Ref));
+}
+
+/// Two spills that would overlap: the one whose file area already holds the cells fills them and
+/// the other shows #SPILL!, whichever is evaluated first. Excel 16.0 (COM, 2026-10-23): with
+/// `={1,2,3}` entered in E2 and then `={7;8;9}` in F1, F1 is #SPILL!; with `={7;8;9}` in J1 and
+/// then `={1,2,3}` in I2, I2 is #SPILL!; a full rebuild keeps both. Excel saves a blocked anchor's
+/// area as the anchor alone.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__spill_precedence() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let dynamic = |first, last| {
+        ArrayFormula::new(
+            GridArea::new(first, last).unwrap(),
+            ArrayKind::Dynamic { collapsed: false },
+        )
+    };
+    let cells = vec![
+        (c(2, 5), formula("{1,2,3}")),
+        (c(1, 6), formula("{7;8;9}")),
+        (c(1, 10), formula("{7;8;9}")),
+        (c(2, 9), formula("{1,2,3}")),
+    ];
+    let arrays = vec![
+        dynamic(c(2, 5), c(2, 7)),
+        dynamic(c(1, 6), c(1, 6)),
+        dynamic(c(1, 10), c(3, 10)),
+        dynamic(c(2, 9), c(2, 9)),
+    ];
+    let root = l2_root(0, (data, calc), cells, arrays);
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let spill_error = l2_error(calc_doc_model::value::WorksheetErrorCode::Spill);
+    assert_eq!(l1_value(&state, c(2, 5)), CalcValue::number(1.0));
+    assert_eq!(l1_value(&state, c(1, 6)), spill_error);
+    assert_eq!(l1_value(&state, c(1, 10)), CalcValue::number(7.0));
+    assert_eq!(l1_value(&state, c(2, 9)), spill_error);
+    assert_eq!(
+        state.spill_covering(c(2, 6)).map(|s| s.anchor()),
+        Some(c(2, 5))
+    );
+}
+
+/// A legacy (Ctrl+Shift+Enter) array formula fills its fixed area: one row repeats down the rows
+/// and a cell past the result shows #N/A (Excel 16.0, COM, 2026-10-23: `={1,2}` over L1:N2 shows
+/// 2 in M2 and #N/A in N2). A formula reading the area reads the filled values.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__legacy_array_fill() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (c(1, 12), formula("{1,2}")),
+        // 1+2+1+2.
+        (c(4, 1), formula("SUM(L1:M2)")),
+    ];
+    let arrays = vec![ArrayFormula::new(
+        GridArea::new(c(1, 12), c(2, 14)).unwrap(),
+        ArrayKind::Legacy,
+    )];
+    let root = l2_root(0, (data, calc), cells, arrays);
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let fill = state.spill(c(1, 12)).expect("a fill");
+    assert!(fill.is_fixed());
+    assert_eq!(fill.value_at(c(2, 13)), &CalcValue::number(2.0));
+    assert_eq!(
+        fill.value_at(c(2, 14)),
+        &l2_error(calc_doc_model::value::WorksheetErrorCode::NA)
+    );
+    assert_eq!(l1_value(&state, c(4, 1)), CalcValue::number(6.0));
+}
+
+/// A formula that calls a volatile function, and every formula that reads it, is calculated by
+/// every recalculation; another formula only when what it reads changes. RAND draws from the
+/// state's seed, the recalculation's tick and the formula's cell: a number in [0, 1) that a new
+/// recalculation draws again, and that two states with one seed draw alike.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__volatile_and_random() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (c(1, 1), formula("RAND()")),
+        (c(2, 1), formula("A1*0+1")),
+        (c(3, 1), formula("1+1")),
+        (c(4, 1), formula("RANDBETWEEN(1,6)")),
+    ];
+    let root = l2_root(0, (data, calc), cells, vec![]);
+    let mut state = EngineState::new(&root);
+    state.set_random_seed(42);
+    recalc(&mut state, &root, &mut Unobserved);
+    let first = l1_value(&state, c(1, 1)).as_number().expect("a number");
+    assert!((0.0..1.0).contains(&first));
+    let die = l1_value(&state, c(4, 1)).as_number().expect("a number");
+    assert!(die.fract() == 0.0 && (1.0..=6.0).contains(&die));
+
+    let mut twin = EngineState::new(&root);
+    twin.set_random_seed(42);
+    recalc(&mut twin, &root, &mut Unobserved);
+    assert_eq!(l1_value(&twin, c(1, 1)), CalcValue::number(first));
+
+    // An edit no formula reads: the volatile formulas and their reader are calculated again.
+    let root = edit(&mut state, &root, vec![set(d(9, 9), number(1.0))]);
+    let delta = recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(
+        delta_cells(&delta),
+        [(c(1, 1), true), (c(2, 1), true), (c(4, 1), true)]
+    );
+    assert_ne!(l1_value(&state, c(1, 1)), CalcValue::number(first));
 }

@@ -1089,9 +1089,15 @@ impl FormatProfile {
                 _ => return None,
             })
         }
+        // A format code reads the separators the host uses (Excel on this machine, en-ZA with a
+        // space as the group separator, read `#,##0` with `,` as a literal).
+        let (decimal, thousands) = (known(decimal)?, known(thousands)?);
         Some(FormatProfile {
-            decimal_separator: known(decimal)?,
-            thousands_separator: known(thousands)?,
+            decimal_separator: decimal,
+            thousands_separator: thousands,
+            format_code_decimal_token: decimal,
+            format_code_group_token: thousands,
+            format_code_token_policy: FormatCodeTokenPolicy::LocalizedExcel,
             ..self
         })
     }

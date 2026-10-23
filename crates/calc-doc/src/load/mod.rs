@@ -338,22 +338,45 @@ impl LoadedWorkbook {
             Arc::clone(&self.model),
             Arc::clone(model),
             None,
+            Arc::default(),
         )
     }
 
     /// [`LoadedWorkbook::snapshot`] with the values a caller calculated for `model`'s formula
     /// cells, which a save of a revision that differs from the loaded one writes as their cached
-    /// values (`<v>`, with `t` for a text, a logical or an error). A formula cell without a value
-    /// here (one the caller refused), and one whose value is a newer error Excel stores only with
-    /// value metadata, is written without a cached value, which Excel calculates when it opens
-    /// the package; such a save sets `fullCalcOnLoad` only when the workbook holds a data table,
-    /// whose cached results it keeps. A save of the loaded revision itself copies the package as
-    /// opened, values or not. [`crate::prepare_save`] refuses a value for a cell that holds no
-    /// formula ([`SaveRefusal::ValueWithoutFormula`]).
+    /// values (`<v>`, with `t` for a text, a logical or an error). A newer error (#SPILL!, #CALC!
+    /// and the others but #BUSY!) is written as Excel writes it: `t="e"`, the `#VALUE!` fallback
+    /// as `<v>`, and value metadata (`vm`) naming an `_error` rich value with its `errorType`. A
+    /// formula cell without a value here (one the caller refused), and one whose value is #BUSY!,
+    /// is written without a cached value. Excel calculates an ordinary formula without one when
+    /// it opens the package, but not an array formula, so such a save sets `fullCalcOnLoad` when
+    /// it writes an array formula without a value, and when the workbook holds a data table,
+    /// whose cached results it keeps (tests/fixtures/d1/excel-open.json). A save of the loaded
+    /// revision itself copies the package as opened, values or not.
+    /// [`crate::prepare_save`] refuses a value for a cell that holds no formula
+    /// ([`SaveRefusal::ValueWithoutFormula`]).
     pub fn snapshot_with_values(
         &self,
         model: &Arc<ModelRoot>,
         values: BTreeMap<CellKey, calc_doc_model::CachedValue>,
+    ) -> DocumentSnapshot {
+        self.snapshot_with_results(model, values, BTreeMap::new())
+    }
+
+    /// [`LoadedWorkbook::snapshot_with_values`] with the area each array formula's result fills,
+    /// by anchor (`spills`): the anchor alone for a result that fills nothing beside it (a single
+    /// value, or #SPILL!), the spill range of a dynamic array's result, or a legacy array's fixed
+    /// area. An array formula's anchor is written with that area as its `ref`, and `values` may
+    /// then hold a value for each cell of the area beside the anchor, which is written as Excel
+    /// writes a spilled cell: the value alone, no formula. The spill of an anchor the save does
+    /// not write as an array formula (a formula Excel saved as an ordinary one) is not written:
+    /// its anchor is left without a cached value, for Excel to calculate on open, and its cells
+    /// beside the anchor are not written.
+    pub fn snapshot_with_results(
+        &self,
+        model: &Arc<ModelRoot>,
+        values: BTreeMap<CellKey, calc_doc_model::CachedValue>,
+        spills: BTreeMap<CellKey, calc_doc_model::value::GridArea>,
     ) -> DocumentSnapshot {
         DocumentSnapshot::edited(
             Arc::clone(&self.package),
@@ -363,6 +386,7 @@ impl LoadedWorkbook {
             Arc::clone(&self.model),
             Arc::clone(model),
             Some(Arc::new(values)),
+            Arc::new(spills),
         )
     }
 }

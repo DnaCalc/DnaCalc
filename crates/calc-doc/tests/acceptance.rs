@@ -7090,8 +7090,9 @@ fn cdoc_m1_3__formula_authoring() {
         names_in_stored_order(&input),
         "the entries keep the order they were stored in"
     );
+    // The workbook part is not among them: a save asks for no full calculation (dc-35p), so its
+    // calcPr stays as it was.
     let rewritten: BTreeSet<&str> = [
-        "xl/workbook.xml",
         "xl/worksheets/sheet1.xml",
         "xl/worksheets/sheet2.xml",
         "xl/sharedStrings.xml",
@@ -7354,25 +7355,15 @@ fn cdoc_m1_3__formula_authoring() {
     );
     assert_eq!(sst_after.attribute("uniqueCount"), Some("6"));
 
-    // The workbook part: fullCalcOnLoad on its calcPr, every other byte kept.
+    // The workbook part: byte for byte, with no fullCalcOnLoad: every formula is saved without a
+    // value, which Excel calculates when it opens the package (tests/fixtures/d1/excel-open.json).
     let source_workbook = m1_3_content(&input, M1_2_CELLS, "xl/workbook.xml");
     let saved_workbook = m1_3_content(&output, &out, "xl/workbook.xml");
-    let (book_before, book_after) = (parse_xml(&source_workbook), parse_xml(&saved_workbook));
-    let (calc_before, calc_after) = (
-        book_before.child("calcPr").unwrap(),
-        book_after.child("calcPr").unwrap(),
-    );
-    assert_eq!(calc_before.attribute("fullCalcOnLoad"), None);
-    assert_eq!(calc_after.attribute("fullCalcOnLoad"), Some("1"));
+    assert_eq!(saved_workbook, source_workbook);
+    let book_after = parse_xml(&saved_workbook);
+    let calc_after = book_after.child("calcPr").unwrap();
+    assert_eq!(calc_after.attribute("fullCalcOnLoad"), None);
     assert_eq!(calc_after.attribute("calcId"), Some("191029"));
-    assert_eq!(
-        &saved_workbook[..calc_after.span.0],
-        &source_workbook[..calc_before.span.0]
-    );
-    assert_eq!(
-        &saved_workbook[calc_after.span.1..],
-        &source_workbook[calc_before.span.1..]
-    );
 
     // The other sheet, untouched by the edit, loses its formula's cached result only.
     let saved_second = m1_3_content(&output, &out, "xl/worksheets/sheet1.xml");
@@ -7512,8 +7503,9 @@ fn cdoc_m1_3__formula_authoring() {
         ],
         "the chain is gone and the shared strings part is added last"
     );
-    assert_eq!(added_receipt.entries_copied, 1);
-    assert_eq!(added_receipt.parts_written, 5);
+    // The workbook part is copied: no calcPr is added (dc-35p).
+    assert_eq!(added_receipt.entries_copied, 2);
+    assert_eq!(added_receipt.parts_written, 4);
     assert_eq!(
         preserved_fields(added_zip.entry("_rels/.rels"), &added_out),
         preserved_fields(numbers_zip.entry("_rels/.rels"), &numbers)
@@ -7598,12 +7590,8 @@ fn cdoc_m1_3__formula_authoring() {
     let book = parse_xml(&m1_3_content(&added_zip, &added_out, "xl/workbook.xml"));
     assert_eq!(
         book.elements().map(|e| e.name.clone()).collect::<Vec<_>>(),
-        ["workbookPr", "sheets", "definedNames", "calcPr", "extLst"],
-        "a calcPr is added where the schema places it"
-    );
-    assert_eq!(
-        book.child("calcPr").unwrap().attributes,
-        [("fullCalcOnLoad".to_owned(), "1".to_owned())]
+        ["workbookPr", "sheets", "definedNames", "extLst"],
+        "no calcPr is added: the save asks for no full calculation"
     );
     let numbers_xml = m1_3_content(&added_zip, &added_out, "xl/worksheets/sheet1.xml");
     let numbers_root = parse_xml(&numbers_xml);
@@ -7770,10 +7758,10 @@ fn cdoc_m1_3__formula_authoring() {
         "formulas were added, so the chain is gone"
     );
     // Each rewritten part keeps its byte order mark and its declaration, and each but the shared
-    // strings, whose counts change, its document element's start tag.
+    // strings, whose counts change, its document element's start tag. The workbook part is not
+    // rewritten (it is compared byte for byte below).
     for name in [
         "[Content_Types].xml",
-        "xl/workbook.xml",
         "xl/_rels/workbook.xml.rels",
         "xl/worksheets/sheet1.xml",
         "xl/sharedStrings.xml",
@@ -7799,24 +7787,13 @@ fn cdoc_m1_3__formula_authoring() {
         m1_3_content(&shaped_zip, &shaped, "xl/workbook.xml"),
         m1_3_content(&shaped_out_zip, &shaped_out, "xl/workbook.xml"),
     );
-    let (shaped_calc_before, shaped_calc_after) = (
-        parse_xml(&source_book).child("calcPr").unwrap().clone(),
-        parse_xml(&saved_book).child("calcPr").unwrap().clone(),
+    assert_eq!(
+        saved_book, source_book,
+        "the workbook part is kept byte for byte"
     );
     assert_eq!(
-        shaped_calc_after.attributes,
-        [
-            ("fullCalcOnLoad".to_owned(), "1".to_owned()),
-            ("calcId".to_owned(), "191029".to_owned())
-        ]
-    );
-    assert_eq!(
-        &saved_book[..shaped_calc_after.span.0],
-        &source_book[..shaped_calc_before.span.0]
-    );
-    assert_eq!(
-        &saved_book[shaped_calc_after.span.1..],
-        &source_book[shaped_calc_before.span.1..]
+        parse_xml(&saved_book).child("calcPr").unwrap().attributes,
+        [("calcId".to_owned(), "191029".to_owned())]
     );
     let shaped_types = parse_xml(&m1_3_content(
         &shaped_out_zip,
@@ -8018,7 +7995,7 @@ fn cdoc_m1_3__formula_authoring() {
     assert_eq!(m1_3_cells(reloaded_ext.model()), m1_3_cells(&ext_model));
 
     note!(
-        "ACCEPT-NOTE: {CASE}: cells.xlsx edited at revision 1 (formula SUM(A6:A10)*2 into the absent J3, a formula in a new row 11, texts, a value, a formula, a shared-group member, a logical and an error set, B1:C1 and C2 cleared) saved to {} bytes: the case's own reader finds J3 as <c r=\"J3\"><f>{new_formula}</f></c> with no <v>, rows 1-12 and 14 in order, the dimension A1:K14 equal to the cells' area, 2 strings appended to 4 held ones, calcPr fullCalcOnLoad=\"1\" beside calcId, {kept_formulas} other formulas with their <f> kept and their <v> dropped, {kept_values} other cells byte for byte, and {} untouched parts byte for byte ({:?}); reloaded, the model equals the edited revision",
+        "ACCEPT-NOTE: {CASE}: cells.xlsx edited at revision 1 (formula SUM(A6:A10)*2 into the absent J3, a formula in a new row 11, texts, a value, a formula, a shared-group member, a logical and an error set, B1:C1 and C2 cleared) saved to {} bytes: the case's own reader finds J3 as <c r=\"J3\"><f>{new_formula}</f></c> with no <v>, rows 1-12 and 14 in order, the dimension A1:K14 equal to the cells' area, 2 strings appended to 4 held ones, the workbook part byte for byte (no fullCalcOnLoad), {kept_formulas} other formulas with their <f> kept and their <v> dropped, {kept_values} other cells byte for byte, and {} untouched parts byte for byte ({:?}); reloaded, the model equals the edited revision",
         out.len(),
         untouched.len(),
         untouched
@@ -8040,7 +8017,7 @@ fn cdoc_m1_3__formula_authoring() {
         "ACCEPT-NOTE: {CASE}: extlst.xlsx (row 1 and the sst each end in an extLst): B1 = \"b\" and C1 = A1&B1 added; the case's own reader finds row 1's children c A1, c B1, c C1, extLst and the sst's si \"a\", si \"b\", extLst, both extLst elements byte for byte; reloaded, the model equals the edited revision"
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: shaped.xlsx (test-built; a byte order mark added to the content types, workbook, its rels, the sheet Shaped and the shared strings; mc:Ignorable, xr:uid and x14ac:dyDescent on the sheet; a second sheet with <sheetData/>): both sheets edited and saved to {} bytes; each rewritten part keeps its mark, declaration and root start tag, calcPr gets fullCalcOnLoad=\"1\" beside calcId, rows keep x14ac:dyDescent and lose spans, the empty sheetData holds rows 2 and 4, the chain is dropped; reloaded, the model equals the edited revision",
+        "ACCEPT-NOTE: {CASE}: shaped.xlsx (test-built; a byte order mark added to the content types, workbook, its rels, the sheet Shaped and the shared strings; mc:Ignorable, xr:uid and x14ac:dyDescent on the sheet; a second sheet with <sheetData/>): both sheets edited and saved to {} bytes; each rewritten part keeps its mark, declaration and root start tag, the workbook part is kept byte for byte (no fullCalcOnLoad), rows keep x14ac:dyDescent and lose spans, the empty sheetData holds rows 2 and 4, the chain is dropped; reloaded, the model equals the edited revision",
         shaped_out.len()
     );
 }
@@ -8476,7 +8453,9 @@ fn cdoc_m1_3__save_refusal() {
         }
     );
 
-    // A workbook part with two calcPr elements, which the loader does not read.
+    // A workbook part with two calcPr elements, which the loader does not read: a cell edit asks
+    // for no full calculation (dc-35p), so the save copies the part as written instead of
+    // refusing to rewrite it.
     let two_calc = m1_3_package(
         r#"<sheets><sheet name="One" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="1"/><calcPr calcId="2"/>"#,
         &[("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml")],
@@ -8490,18 +8469,11 @@ fn cdoc_m1_3__save_refusal() {
     let loaded_two = m1_2_load(&two_calc, &mut ids).expect("the package loads");
     let first = loaded_two.model().sheets()[0].id();
     let two_model = m1_3_edit(loaded_two.model(), vec![set(first, 1, 1, number(2.0))]);
-    let invalid = m1_3_refused(
-        &loaded_two.snapshot(&two_model),
-        &default,
-        &two_model,
-        &m1_3_cells(&two_model),
-    );
+    let (two_saved, _) = m1_3_save(&loaded_two.snapshot(&two_model));
     assert_eq!(
-        invalid,
-        SaveRefusal::InvalidPart {
-            part: "xl/workbook.xml".to_owned(),
-            detail: "a workbook with two calcPr elements".to_owned()
-        }
+        m1_3_content(&parse_zip(&two_saved), &two_saved, "xl/workbook.xml"),
+        m1_3_content(&parse_zip(&two_calc), &two_calc, "xl/workbook.xml"),
+        "the workbook part with two calcPr elements is copied as written"
     );
 
     // Since dc-ndi, array formulas, cell metadata (cm) and rich values (vm) load (the d1_* test
@@ -8540,7 +8512,7 @@ fn cdoc_m1_3__save_refusal() {
     }
 
     note!(
-        "ACCEPT-NOTE: {CASE}: each refusal of prepare_save wrote no byte to the route's sink, and the snapshot held the caller's revision itself (its revision and cells held unchanged by type, an immutable Arc): {part}; {foreign} (another load's model, with other sheet IDs and with equal ones); {too_large}; {over_refusal} and {open_refusal}, each for a revision ModelRoot::apply made of a batch prepare_edit refuses; {edit_in_table}, and the same for the totals row B4; two sheets of one part; {invalid}"
+        "ACCEPT-NOTE: {CASE}: each refusal of prepare_save wrote no byte to the route's sink, and the snapshot held the caller's revision itself (its revision and cells held unchanged by type, an immutable Arc): {part}; {foreign} (another load's model, with other sheet IDs and with equal ones); {too_large}; {over_refusal} and {open_refusal}, each for a revision ModelRoot::apply made of a batch prepare_edit refuses; {edit_in_table}, and the same for the totals row B4; two sheets of one part; a workbook part with two calcPr elements, copied as written"
     );
     note!(
         "ACCEPT-NOTE: {CASE}: write checks every entry it copies before its first byte: {copied_error} (a copied entry changed after opening, which prepare_save does not read) and {short_error} (a source cut short in a copied entry) each left the sink empty; the test's own sources then held the opened bytes with only the test's change"
@@ -9249,7 +9221,7 @@ fn cdoc_m2_1__manifest_roundtrip() {
     );
 
     // The workbook part: the source's names as it wrote them, a hidden workbook-scoped locator for
-    // each block referring to its visible backing cell or range, and calcPr set to recalculate.
+    // each block referring to its visible backing cell or range, and calcPr as written.
     let workbook = m1_3_content(&zip, &saved, "xl/workbook.xml");
     let source_workbook = m1_3_content(&source, M2_1_NOTEBOOK, "xl/workbook.xml");
     let names = m2_1_defined_names(&workbook);
@@ -9299,7 +9271,11 @@ fn cdoc_m2_1__manifest_roundtrip() {
         .child("calcPr")
         .and_then(|c| c.attribute("fullCalcOnLoad"))
         .map(str::to_owned);
-    assert_eq!(calc_pr.as_deref(), Some("1"));
+    assert_eq!(
+        calc_pr.as_deref(),
+        None,
+        "a save asks for no full calculation"
+    );
 
     // The formula and the prose are ordinary cells of the backing sheet.
     let sheet = m1_3_content(&zip, &saved, "xl/worksheets/sheet1.xml");
@@ -9531,8 +9507,8 @@ fn cdoc_m2_1__manifest_roundtrip() {
         "definedNames as written"
     );
     assert_eq!(
-        v1_cell_receipt.parts_written, 3,
-        "the edited sheet, the sheet whose caches are dropped, and the workbook part's calcPr"
+        v1_cell_receipt.parts_written, 2,
+        "the edited sheet and the sheet whose caches are dropped; the workbook part is copied"
     );
     let v1_cell_reopened = m2_1_load(&v1_cell_saved);
     assert_eq!(
@@ -10262,9 +10238,9 @@ fn cdoc_m2_1__manifest_roundtrip() {
         "ACCEPT-NOTE: {CASE}: a workbook part without definedNames got one before calcPr holding the new block's hidden locator, every other byte as written; removing that block removed the element, leaving the source's workbook part byte for byte"
     );
 
-    // The save reads the workbook part's definedNames for every rewrite of the part, so a part
-    // with two definedNames elements, which loads, is refused even for a cell-only save, before
-    // any byte is written.
+    // The save reads the workbook part's definedNames for every rewrite of the part. A cell-only
+    // save does not rewrite the part (it asks for no full calculation, dc-35p), so a part with two
+    // definedNames elements, which loads, is copied as written.
     let doubled = m2_1_built(
         r#"<definedNames><definedName name="One">Numbers!$A$1</definedName></definedNames><definedNames><definedName name="Two">Numbers!$A$1</definedName></definedNames>"#,
         None,
@@ -10281,20 +10257,18 @@ fn cdoc_m2_1__manifest_roundtrip() {
             number(2.0),
         )],
     );
-    let (doubled_refused, sink) = m1_3_route(
-        &doubled_loaded.snapshot(&doubled_edit),
-        &SavePolicy::default(),
+    let (doubled_saved, _) = m1_3_save(&doubled_loaded.snapshot(&doubled_edit));
+    assert_eq!(
+        m1_3_content(
+            &parse_zip(&doubled_saved),
+            &doubled_saved,
+            "xl/workbook.xml"
+        ),
+        m1_3_content(&parse_zip(&doubled), &doubled, "xl/workbook.xml"),
+        "the workbook part with two definedNames elements is copied as written"
     );
-    match doubled_refused {
-        Err(SaveRefusal::InvalidPart { part, detail }) => {
-            assert_eq!(part, "xl/workbook.xml");
-            assert!(detail.contains("two definedNames elements"), "{detail}");
-        }
-        other => panic!("the refusal {other:?}"),
-    }
-    assert!(sink.is_empty(), "a refused save writes no byte");
     note!(
-        "ACCEPT-NOTE: {CASE}: a workbook part with two definedNames elements loaded, and a cell-only save of it was refused with SaveRefusal::InvalidPart before any byte was written (a behaviour change of the cell save path, recorded in the migration record)"
+        "ACCEPT-NOTE: {CASE}: a workbook part with two definedNames elements loaded, and a cell-only save of it copied the part as written (the cell save path no longer rewrites the workbook part, dc-35p)"
     );
 
     // A manifest with a namespace prefix, comments between children, and unknown children between
@@ -10777,8 +10751,8 @@ fn cdoc_m2_1__unknown_version() {
         "definedNames as written"
     );
     assert_eq!(
-        receipt.parts_written, 3,
-        "the edited sheet, the sheet whose caches are dropped, and the workbook part's calcPr"
+        receipt.parts_written, 2,
+        "the edited sheet and the sheet whose caches are dropped; the workbook part is copied"
     );
     let reopened = m2_1_load(&saved);
     assert_eq!(reopened.layout_warnings(), v2.layout_warnings());

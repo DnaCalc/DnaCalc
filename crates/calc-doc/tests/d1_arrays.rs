@@ -218,6 +218,9 @@ fn d1_arrays__edited_save_keeps_arrays_and_metadata() {
     );
     // The calculation chain stays: the set of formula cells and arrays did not change.
     assert!(part(&saved, "xl/calcChain.xml").is_some());
+    // Every formula is saved without a value. Excel calculates an ordinary formula without one
+    // when it opens the package, but not an array formula (tests/fixtures/d1/excel-open.json), so
+    // a full calculation is asked for.
     assert!(part_text(&saved, "xl/workbook.xml").contains(r#"fullCalcOnLoad="1""#));
 }
 
@@ -275,16 +278,8 @@ fn d1_arrays__part_of_an_array_is_refused() {
         )
         .map(|_| ())
     };
-    // A value into a dynamic array's spill area, any cell of a legacy array, part of a legacy
-    // array cleared.
+    // Any cell of a legacy array set, part of a legacy array cleared.
     for (op, anchor) in [
-        (
-            WorkbookOp::SetCell {
-                at: at(calc, "B2"),
-                input: number(1.0),
-            },
-            "A1",
-        ),
         (
             WorkbookOp::SetCell {
                 at: at(calc, "L1"),
@@ -307,9 +302,14 @@ fn d1_arrays__part_of_an_array_is_refused() {
             })
         );
     }
-    // Clearing cells a dynamic array fills, or a whole legacy array, and replacing a dynamic
-    // array's anchor or a single-cell legacy array, are admitted.
+    // Clearing cells a dynamic array fills, or a whole legacy array, replacing a dynamic array's
+    // anchor or a single-cell legacy array, and a value into a dynamic array's spill area (which
+    // blocks the spill: the engine shows #SPILL!, dc-35p), are admitted.
     for op in [
+        WorkbookOp::SetCell {
+            at: at(calc, "B2"),
+            input: number(1.0),
+        },
         WorkbookOp::Clear {
             area: area(calc, "B1", "B3"),
         },

@@ -3,7 +3,7 @@
 
 use calc_doc_model::{ArrayKind, AuthoredRevision, FileCached};
 use calc_fml::{CompileError, EvalFault};
-use calc_value::{CalcValue, CellKey, CoreValue, NodeId, NumericMode, NumericTargetId};
+use calc_value::{CalcValue, CellKey, CoreValue, GridArea, NodeId, NumericMode, NumericTargetId};
 use std::fmt;
 
 /// The identity of one recalculation: the engine state issues the next tick each time a
@@ -163,6 +163,16 @@ pub enum ValueChange {
     Removed { at: CellKey, node: NodeId },
 }
 
+/// A change to the cells an array formula's result fills beside its anchor, which a finished
+/// recalculation published: the area its published spill filled before and fills after (`None`
+/// when it filled or fills only its anchor, was blocked, or was refused).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpillChange {
+    pub anchor: CellKey,
+    pub before: Option<GridArea>,
+    pub after: Option<GridArea>,
+}
+
 /// What one finished recalculation published, in the order of the cells (sheet ID, then row,
 /// then column).
 #[derive(Clone, Debug, PartialEq)]
@@ -170,6 +180,7 @@ pub struct ValueDelta {
     revision: AuthoredRevision,
     tick: CalcTick,
     changes: Vec<ValueChange>,
+    spill_changes: Vec<SpillChange>,
 }
 
 impl ValueDelta {
@@ -182,7 +193,21 @@ impl ValueDelta {
             revision,
             tick,
             changes,
+            spill_changes: Vec::new(),
         }
+    }
+
+    pub(crate) fn with_spill_changes(self, spill_changes: Vec<SpillChange>) -> Self {
+        ValueDelta {
+            spill_changes,
+            ..self
+        }
+    }
+
+    /// The anchors whose published spill areas changed, in anchor order. A cell a spill gained or
+    /// lost changed its value though it holds no formula.
+    pub fn spill_changes(&self) -> &[SpillChange] {
+        &self.spill_changes
     }
 
     /// The authored revision the recalculation calculated.
