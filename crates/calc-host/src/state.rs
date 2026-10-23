@@ -8,6 +8,7 @@ use calc_doc::{
 use calc_doc_model::value::{CellKey, IdAllocator, NumericMode, SheetId};
 use calc_doc_model::{AuthoredRevision, ModelRoot, SheetEntry};
 use calc_engine::{CacheWithoutFormula, EngineState, RecalcWork};
+use calc_fml::{CalcEnvironment, DateSystem as FmlDateSystem, FormatProfile};
 use std::fmt;
 use std::sync::Arc;
 
@@ -25,6 +26,9 @@ pub struct HostOptions {
     /// The calculation mode [`crate::step`] follows; `None` follows the mode the package's
     /// `calcPr` declares ([`HostState::calc_mode`]).
     pub calc_mode: Option<CalcMode>,
+    /// The host's locale profile (decimal and group separators, currency, date order), which
+    /// TEXT, VALUE, FIXED, DOLLAR and number text read as a number use. `None` refuses them.
+    pub locale: Option<FormatProfile>,
 }
 
 /// The calculation context a host's recalculations apply ([`HostState::recalc_context`]), which
@@ -136,7 +140,15 @@ impl HostState {
                 Some((at, cache.clone()))
             })
         });
-        let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        let mut engine =
+            EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        // The 1900 date system whatever the package declares ([`RecalcContext`]), the options'
+        // locale profile, and no clock: NOW, TODAY and a date read without a year are refused.
+        engine.set_environment(Some(CalcEnvironment {
+            date_system: FmlDateSystem::System1900,
+            profile: options.locale,
+            now: None,
+        }));
         Ok(HostState {
             loaded,
             model,

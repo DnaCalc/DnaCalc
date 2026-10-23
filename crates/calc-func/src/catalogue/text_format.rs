@@ -71,7 +71,7 @@ fn value(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 }
 
 /// The call's environment and its locale profile, or the refusal of a call without them.
-fn profile<'m>(site: &Site<'m>) -> Step<(&'m CalcEnvironment, &'m FormatProfile)> {
+fn profile<'a>(site: &'a Site<'_>) -> Step<(&'a CalcEnvironment, &'a FormatProfile)> {
     let environment = site.environment().ok_or_else(|| site.not_modelled(None))?;
     let profile = environment
         .profile
@@ -445,19 +445,16 @@ fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     Ok(CalcValue::text(text_arg(site, a, 0)?))
 }
 
-/// PHONETIC of a cell under a language with no phonetic guide: the cell's text; a blank cell is
-/// #N/A (Excel: PHONETIC of a blank cell is #N/A under en-ZA).
+/// PHONETIC under a language with no phonetic guide is #N/A, for a text cell and a blank one
+/// alike (Excel under en-ZA: PHONETIC of a blank cell, and of a cell holding x in the catalogue
+/// oracle's capture). Under Japanese it is not modelled.
 fn phonetic(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let (_, profile) = profile(site)?;
     if matches!(profile.id, LocaleProfileId::JaJp) {
         return Err(site.not_modelled(None));
     }
-    let g = grid(site, a, 0, sv)?;
-    match g.cells.first().map(CalcValue::core) {
-        Some(CoreValue::Text(_)) if g.cells.len() == 1 => Ok(g.cells[0].clone()),
-        Some(CoreValue::Empty) | None if g.cells.len() == 1 => fail(WorksheetErrorCode::NA),
-        _ => Err(site.not_modelled(Some(0))),
-    }
+    let _ = (a, sv);
+    fail(WorksheetErrorCode::NA)
 }
 
 /// HYPERLINK: the friendly name as it is, or the link location.
