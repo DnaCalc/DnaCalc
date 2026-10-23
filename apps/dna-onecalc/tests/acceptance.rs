@@ -11,7 +11,7 @@
 //! examples' A1 text; expected values are derived by hand from Excel's documented operators and
 //! functions and are not compared with Excel here (cfunc-m1.2's oracle capture is that evidence).
 //! Two expectations are the implementation's current answer, not Excel's value, and are labelled
-//! so: `=A1^0.5` is refused by calc-func as not modelled, and a cell with no input stops the
+//! so: `=A1*1E-300*1E-10` (a product below the normal range) is refused by calc-func as not modelled, and a cell with no input stops the
 //! calculation where Excel would read a blank.
 //!
 //! `onecalc_m1_1__dependency_gate` reads `cargo metadata` itself, for every triple the
@@ -238,10 +238,11 @@ const EXAMPLES: &[Example] = &[
     Example {
         name: "a call calc-func does not model (the implementation's answer)",
         inputs: ONE_CELL,
-        formula: "=A1^0.5",
+        // A product below the normal range (1.5E-310), which calc-func refuses.
+        formula: "=A1*1E-300*1E-10",
         result: "not calculated",
         diagnostics: &[Line::Is(
-            "function fault in the ^ operator: Excel's result is not modelled for this call",
+            "function fault in the * operator: Excel's result is not modelled for this call",
         )],
         reads: &[READ_A1],
     },
@@ -472,10 +473,10 @@ fn controller_part() -> usize {
                     },
                 })]
             ),
-            "=A1^0.5" => {
+            "=A1*1E-300*1E-10" => {
                 let power = catalogue()
-                    .resolve_surface(Notation::Infix, "^")
-                    .expect("the catalogue holds ^");
+                    .resolve_surface(Notation::Infix, "*")
+                    .expect("the catalogue holds *");
                 assert_eq!(
                     calculation.diagnostics,
                     [Diagnostic::Eval(EvalFault::Function(
@@ -858,7 +859,7 @@ mod browser {
 fn onecalc_m1_1__reference_without_engine() {
     let examples = controller_part();
     note!(
-        "ACCEPT-NOTE: onecalc_m1_1__reference_without_engine: {examples} examples calculated through dna_onecalc::Session (calc_fml::compile, instantiate and evaluate over the session's sheets and inputs); each result, diagnostic and read compared with hand-derived values; the refusal of =A1^0.5 and the missing-input stops are the implementation's answers, not Excel's values; not compared with Excel here"
+        "ACCEPT-NOTE: onecalc_m1_1__reference_without_engine: {examples} examples calculated through dna_onecalc::Session (calc_fml::compile, instantiate and evaluate over the session's sheets and inputs); each result, diagnostic and read compared with hand-derived values; the refusal of =A1*1E-300*1E-10 and the missing-input stops are the implementation's answers, not Excel's values; not compared with Excel here"
     );
 }
 
@@ -868,7 +869,7 @@ async fn onecalc_m1_1__reference_without_engine() {
     let examples = controller_part();
     let shown = browser::surface_part().await;
     note!(
-        "ACCEPT-NOTE: onecalc_m1_1__reference_without_engine: {examples} examples calculated through dna_onecalc::Session, and {shown} entered in the mounted surface through dispatched input, change and click events and read back from its DOM; each result, diagnostic and read compared with hand-derived values; the refusal of =A1^0.5 and the missing-input stops are the implementation's answers, not Excel's values; not compared with Excel here"
+        "ACCEPT-NOTE: onecalc_m1_1__reference_without_engine: {examples} examples calculated through dna_onecalc::Session, and {shown} entered in the mounted surface through dispatched input, change and click events and read back from its DOM; each result, diagnostic and read compared with hand-derived values; the refusal of =A1*1E-300*1E-10 and the missing-input stops are the implementation's answers, not Excel's values; not compared with Excel here"
     );
 }
 

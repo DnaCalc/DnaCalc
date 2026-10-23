@@ -1,0 +1,2 @@
+ISOMITTED(1)
+OFFSET(Data!A1,1,0)

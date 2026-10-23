@@ -9,7 +9,8 @@
 //! select is never evaluated.
 
 use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
-use crate::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode};
+use crate::locale::CalcEnvironment;
+use crate::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode, SheetId};
 use std::fmt;
 use std::ops::ControlFlow;
 
@@ -91,6 +92,53 @@ pub enum TextReference {
     NotModelled,
 }
 
+/// Facts about the workbook and its cells that only the host holds, which CELL, INFO, ISFORMULA,
+/// FORMULATEXT, SHEET and SHEETS read (ported from OxFunc's `host_info.rs` HostInfoProvider, at
+/// 6fca3518). Every method has a default that supplies nothing, and a call that needs a fact the
+/// host does not supply is refused as not modelled.
+pub trait HostFacts {
+    /// The cell whose formula is being evaluated.
+    fn caller(&mut self) -> Option<CellKey> {
+        None
+    }
+
+    /// Whether `cell` holds a formula.
+    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
+        let _ = cell;
+        None
+    }
+
+    /// The formula `cell` holds, as Excel shows it (with its leading `=`), `Some(None)` when it
+    /// holds none.
+    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
+        let _ = cell;
+        None
+    }
+
+    /// The one-based position of `sheet` among the workbook's sheets.
+    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
+        let _ = sheet;
+        None
+    }
+
+    /// The sheet named `name` (any case).
+    fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
+        let _ = name;
+        None
+    }
+
+    /// The name of `sheet`.
+    fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
+        let _ = sheet;
+        None
+    }
+
+    /// How many sheets the workbook holds.
+    fn sheet_count(&mut self) -> Option<u32> {
+        None
+    }
+}
+
 /// The services a call runs with, owned by the caller: the numeric policy, which every
 /// arithmetic site reads instead of assuming one, the typed reader of reference arguments, and
 /// the resolution of reference text.
@@ -99,6 +147,8 @@ pub struct EvalServices<'s> {
     cells: Option<&'s mut dyn CellReader>,
     random: Option<&'s mut dyn RandomSource>,
     reference_text: Option<&'s mut dyn ReferenceText>,
+    environment: Option<&'s CalcEnvironment>,
+    host: Option<&'s mut dyn HostFacts>,
 }
 
 impl<'s> EvalServices<'s> {
@@ -110,6 +160,8 @@ impl<'s> EvalServices<'s> {
             cells: None,
             random: None,
             reference_text: None,
+            environment: None,
+            host: None,
         }
     }
 
@@ -120,6 +172,8 @@ impl<'s> EvalServices<'s> {
             cells: Some(cells),
             random: None,
             reference_text: None,
+            environment: None,
+            host: None,
         }
     }
 
@@ -136,6 +190,28 @@ impl<'s> EvalServices<'s> {
     pub fn with_random(mut self, random: &'s mut dyn RandomSource) -> Self {
         self.random = Some(random);
         self
+    }
+
+    /// These services in `environment`: the date system, locale profile and clock that the
+    /// date, time and number-format kernels read. Without one those kernels are refused as not
+    /// modelled.
+    pub fn with_environment(mut self, environment: &'s CalcEnvironment) -> Self {
+        self.environment = Some(environment);
+        self
+    }
+
+    /// These services with `host` as the source of the host's facts ([`HostFacts`]).
+    pub fn with_host(mut self, host: &'s mut dyn HostFacts) -> Self {
+        self.host = Some(host);
+        self
+    }
+
+    pub(crate) fn environment(&self) -> Option<&'s CalcEnvironment> {
+        self.environment
+    }
+
+    pub(crate) fn host(&mut self) -> Option<&mut (dyn HostFacts + 's)> {
+        self.host.as_deref_mut()
     }
 
     pub fn numeric_mode(&self) -> &'s NumericMode {
@@ -162,6 +238,8 @@ impl fmt::Debug for EvalServices<'_> {
             .field("cells", &self.cells.is_some())
             .field("random", &self.random.is_some())
             .field("reference_text", &self.reference_text.is_some())
+            .field("environment", &self.environment)
+            .field("host", &self.host.is_some())
             .finish()
     }
 }

@@ -30,6 +30,10 @@
 //!   or a formula), a value the engine calculated that still stands, a typed refusal, or a stale
 //!   value.
 //!
+//! [`save`] writes the current revision through calc-doc's save, with each standing calculated
+//! formula value as its cached value and every other formula cell left for Excel to calculate on
+//! open.
+//!
 //! [`HostState::recalc_context`] reports the calculation context every recalculation applies
 //! ([`RecalcContext`]), which a comparison names as its run's context, apart from what the
 //! package declares ([`HostState::declared_date1904`]).
@@ -41,6 +45,7 @@
 mod command;
 mod project;
 mod recalc;
+mod save;
 mod state;
 
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
@@ -49,10 +54,12 @@ pub use project::{
     StaleValue, project,
 };
 pub use recalc::{HostProgress, RecalcFailed, step};
+pub use save::{SaveFailed, save};
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
 pub use calc_doc::{
     CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
+    PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
 };
 pub use calc_doc_model::value;
 pub use calc_doc_model::{

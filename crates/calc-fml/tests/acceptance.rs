@@ -2195,9 +2195,6 @@ fn cfml_m1_3__reuse_plan() {
     // Sheet1!A2 is 10, Sheet1!B1 is -1, Sheet1!A4 holds "t", Sheet2!A1 holds "b" and Sheet2!B2
     // is 25.
     let a1_to_a3 = area_of(s1, "A1", "A3");
-    let power = catalogue()
-        .resolve_surface(Notation::Infix, "^")
-        .expect("the catalogue holds ^");
     let table: Vec<(&str, Expected, Expected)> = vec![
         (
             "=1+2*3",
@@ -2238,14 +2235,11 @@ fn cfml_m1_3__reuse_plan() {
             (Ok(CalcValue::number(0.0)), vec![one_cell(s1, "A4")]),
             (Ok(text_value("t")), vec![one_cell(s1, "A4")]),
         ),
-        // calc-func does not model 5^0.5 and refuses it; -1^0.5 is #NUM!.
+        // calc-func computes 5^0.5 by its power kernel (F1, dc-8dq); -1^0.5 is #NUM!.
         (
             "=B1^0.5",
             (
-                Err(EvalFault::Function(FunctionFault::NotImplemented {
-                    id: power.id(),
-                    argument: None,
-                })),
+                Ok(CalcValue::number(2.23606797749979)),
                 vec![one_cell(s1, "B1")],
             ),
             (
@@ -4053,8 +4047,8 @@ fn dc_ibp2__error_fallback() {
     }
 
     // The fallback is evaluated only on a caught error: the reader is asked for its areas, and
-    // the calls it holds run, only then. `2^0.5` is refused by calc-func (NotImplemented), so a
-    // fallback holding it would end the evaluation in a fault had it run.
+    // the calls it holds run, only then. A fallback of `2^0.5` (which calc-func computes since
+    // F1, dc-8dq) would show its call had it run.
     let by_formula = |formula: &str| -> &OracleRun {
         run.iter()
             .find(|row| row.formula == formula)
@@ -4125,15 +4119,16 @@ fn dc_ibp2__error_fallback() {
         (Ok(CalcValue::number(2.0)), book.areas(&["A1", "B7"]))
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: the reader logs and the observer show each fallback evaluated only on a caught error: {} rows checked area by area and call by call (a fallback of 2^0.5, which calc-func refuses, and of A1:A2, which the evaluator refuses where one value is needed, never runs); =IFNA(A2,B7), not an oracle row and not compared with Excel, gives #DIV/0! (hand-derived) reading A2 alone, so IFNA passes a non-#N/A error on without reading its fallback; one plan of =IFERROR(A1,B7) reads A1 alone while A1 is 5 and A1 then B7 while A1 is #N/A",
+        "ACCEPT-NOTE: {CASE}: the reader logs and the observer show each fallback evaluated only on a caught error: {} rows checked area by area and call by call (a fallback of 2^0.5, and of A1:A2, which the evaluator refuses where one value is needed, never runs); =IFNA(A2,B7), not an oracle row and not compared with Excel, gives #DIV/0! (hand-derived) reading A2 alone, so IFNA passes a non-#N/A error on without reading its fallback; one plan of =IFERROR(A1,B7) reads A1 alone while A1 is 5 and A1 then B7 while A1 is #N/A",
         lazy.len()
     );
 
     // Rows not compared with Excel: errors read from cells the oracle workbook does not hold, typed
     // refusals, and faults, each with the areas read.
+    // A product below the normal range, which calc-func refuses as not modelled.
     let caret = catalogue()
-        .resolve_surface(Notation::Infix, "^")
-        .expect("^")
+        .resolve_surface(Notation::Infix, "*")
+        .expect("*")
         .id();
     let at = book.anchor(100);
     for (index, code) in ELSEWHERE_ERRORS.iter().enumerate() {
@@ -4172,7 +4167,7 @@ fn dc_ibp2__error_fallback() {
         (unread.outcome, unread.reads),
         (Ok(CalcValue::number(1.0)), vec![])
     );
-    let refused = book.evaluate("=IFERROR(2^0.5,A1)", at);
+    let refused = book.evaluate("=IFERROR(1E-300*1E-10,A1)", at);
     assert!(
         matches!(
             &refused.outcome,
@@ -4186,7 +4181,7 @@ fn dc_ibp2__error_fallback() {
         vec![],
         "a refused value: the fallback is not read"
     );
-    assert_eq!(refused.log.calls, ["Infix ^", "Call IFERROR"]);
+    assert_eq!(refused.log.calls, ["Infix *", "Call IFERROR"]);
     // A legacy formula intersects a range at IFERROR's and IFNA's value parameters with its own
     // row, 100 here, which the ranges do not reach: #VALUE!, which IFERROR catches and IFNA
     // passes on. Excel 16.0 writes these as `=IFERROR(@A1:A2,0)` and `=SUM(IFERROR(@A1:A3,0))`

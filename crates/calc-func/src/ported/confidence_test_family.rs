@@ -36,8 +36,9 @@ pub fn z_test_kernel(
     // Live Excel 16.0 b20326: Z.TEST(array,x) with omitted sigma is
     // NORMSDIST((x-AVERAGE)/(STDEV.S/SQRT(n))), not 1-NORMSDIST((mean-x)/se)
     // and not STDEV.P. The two NORMSDIST complements are not bit-identical.
-    let se = sigma / (values.len() as f64).sqrt();
-    let z = (x - mean) / se;
+    // F1 (dc-8dq): (x - mean) * sqrt(n) / sigma, as Excel's Z.TEST gives Z.TEST({1,5,3},2) (the
+    // catalogue oracle's capture); dividing by sigma/sqrt(n) is one ulp away there.
+    let z = (x - mean) * (values.len() as f64).sqrt() / sigma;
     crate::ported::normal_log_family::norm_s_dist_kernel(z, true)
 }
 

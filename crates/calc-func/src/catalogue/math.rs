@@ -4,9 +4,7 @@
 //! squares, SERIESSUM and the matrix functions. The numeric kernels are OxFunc's, in
 //! [`crate::ported`]; arguments are read by worksheet coercion ([`super::kit`]).
 //!
-//! POWER shares the `^` operator's rule ([`super::arithmetic::raise`]) where that rule decides a
-//! power, and computes the powers it refuses by OxFunc's Excel power kernel
-//! (functions/power_fn.rs).
+//! POWER is the `^` operator's rule ([`super::arithmetic::raise`]).
 
 use super::kit::{Grid, fail, given, grid, num, out, out_matrix, out_text, text, values};
 use crate::kernel::{Exit, Site, Step};
@@ -106,14 +104,7 @@ ported_family! {
     31 power "POWER" (2, 2) [V "number", V "power"] |s, a, sv| {
         let x = num(s, a, 0)?;
         let y = num(s, a, 1)?;
-        match super::arithmetic::raise(s, x, y) {
-            // The powers `^` refuses, for want of a pinned power algorithm, POWER computes by
-            // OxFunc's Excel power kernel.
-            Err(Exit::Fault(crate::call::FunctionFault::NotImplemented { .. })) => {
-                out(s, k::power_fn::power_kernel(x, y))
-            }
-            raised => s.number(raised?),
-        }
+        s.number(super::arithmetic::raise(s, x, y)?)
     }
     32 fact "FACT" (1, 1) [V "number"] |s, a, sv| { unary(s, a, k::fact::fact_kernel) }
     33 factdouble "FACTDOUBLE" (1, 1) [V "number"] |s, a, sv| {

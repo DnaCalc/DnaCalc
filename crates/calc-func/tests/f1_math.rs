@@ -89,8 +89,7 @@ fn power_shares_the_operator_rule() {
     error(call("POWER", vec![n(0.0), n(0.0)]), Num);
     error(call("POWER", vec![n(0.0), n(-1.0)]), Div0);
     error(call("POWER", vec![n(-8.0), n(0.5)]), Num);
-    // The powers `^` refuses for want of a pinned power algorithm, POWER computes by OxFunc's
-    // power kernel.
+    // The powers that need a power algorithm, `^` and POWER compute by OxFunc's power kernel.
     exact(call("POWER", vec![n(2.0), n(3.0)]), 8.0);
     exact(call("POWER", vec![n(2.0), n(0.5)]), std::f64::consts::SQRT_2);
     exact(call("POWER", vec![n(-8.0), n(3.0)]), -512.0);

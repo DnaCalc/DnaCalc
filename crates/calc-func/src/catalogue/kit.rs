@@ -155,6 +155,13 @@ pub(super) fn text(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> St
     String::from_utf16(&units).map_err(|_| site.not_modelled(Some(index)))
 }
 
+/// Argument `index` as Excel text (UTF-16 code units, any), through worksheet text coercion: for
+/// the ported text kernels, which read [`ExcelText`] rather than Rust strings.
+pub(super) fn text_arg(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<ExcelText> {
+    let units = site.argument(index, coerce::text(&arguments[index]))?;
+    Ok(ExcelText::from_utf16_code_units(units.into_owned()))
+}
+
 /// A ported kernel's number result: its worksheet error, or the number published by the number
 /// rule (non-finite is #NUM!, a subnormal is refused).
 pub(super) fn out(site: &Site<'_>, result: Result<f64, WorksheetErrorCode>) -> Step<CalcValue> {
