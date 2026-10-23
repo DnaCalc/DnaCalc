@@ -6,14 +6,15 @@
 # <directory>/cfunc_m3_4/oracle.xlsx, <directory>/cfunc_m3_5/oracle.xlsx,
 # <directory>/dc_q9rb/oracle.xlsx, <directory>/cfunc_m3_6/oracle.xlsx,
 # <directory>/dc_e00t/oracle.xlsx, <directory>/dc_fwpz/oracle.xlsx,
-# <directory>/cdoc_jpha/oracle.xlsx and <directory>/dc_nzpw/oracle.xlsx. Run with this directory
-# as -OutDir it rewrites the committed fixtures; the acceptance cases cfunc_m1_2__mixed_operands,
-# cfunc_m3_2__rounding_boundaries, cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes,
-# cfunc_m3_5__criteria_semantics, dc_q9rb__number_text_for_concatenation,
-# cfunc_m3_6__reference_result, cfunc_m3_6__lookup_edges, dc_e00t__digit_labels_as_text,
-# dc_fwpz__logical_functions, cdoc_jpha__text_and_number_comparison and
-# dc_nzpw__information_functions run it into a fresh directory on Windows and compare its output
-# with the committed workbooks byte for byte. cdoc_jpha/oracle.xlsx is written from
+# <directory>/cdoc_jpha/oracle.xlsx, <directory>/dc_nzpw/oracle.xlsx and
+# <directory>/dc_xrxb/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
+# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
+# cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes, cfunc_m3_5__criteria_semantics,
+# dc_q9rb__number_text_for_concatenation, cfunc_m3_6__reference_result,
+# cfunc_m3_6__lookup_edges, dc_e00t__digit_labels_as_text, dc_fwpz__logical_functions,
+# cdoc_jpha__text_and_number_comparison, dc_nzpw__information_functions and
+# dc_xrxb__prefix_metadata_matches_excel run it into a fresh directory on Windows and compare its
+# output with the committed workbooks byte for byte. cdoc_jpha/oracle.xlsx is written from
 # cdoc_jpha/rows.txt beside this script, which the case reads too.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
@@ -26,14 +27,15 @@
 # dc_e00t/oracle.xlsx the one an Excel capture of dc-e00t's digit-label rows reads,
 # dc_fwpz/oracle.xlsx the one an Excel capture of dc-fwpz's logical rows reads,
 # cdoc_jpha/oracle.xlsx the one an Excel capture of cdoc-jpha's comparison rows reads, and
-# dc_nzpw/oracle.xlsx the one an Excel capture of dc-nzpw's information-function rows reads. Each
-# has one sheet per case, named after the case: the cells the case's rows read, as the case's test
-# sheet holds them, and in column D one formula per oracle row, from row 1, in the order the case
-# runs its rows. Each case checks that its sheet holds exactly those formulas and cells; the sheet
-# lookup_edges of cfunc_m3_6/oracle.xlsx and the sheet information_functions of
-# dc_nzpw/oracle.xlsx also hold source formulas, each a dynamic-array formula over its one cell,
-# and dc_e00t's workbook also has a sheet value_readings of Excel's VALUE over its generated texts,
-# which no row computes (see its section). No formula cell carries a cache: Excel calculates them.
+# dc_nzpw/oracle.xlsx the one an Excel capture of dc-nzpw's information-function rows reads (its
+# own section describes dc_xrxb/oracle.xlsx). Each of these has one sheet per case, named after
+# the case: the cells the case's rows read, as the case's test sheet holds them, and in column D
+# one formula per oracle row, from row 1, in the order the case runs its rows. Each case checks
+# that its sheet holds exactly those formulas and cells; the sheet lookup_edges of
+# cfunc_m3_6/oracle.xlsx and the sheet information_functions of dc_nzpw/oracle.xlsx also hold
+# source formulas, each a dynamic-array formula over its one cell, and dc_e00t's workbook also has
+# a sheet value_readings of Excel's VALUE over its generated texts, which no row computes (see its
+# section). No formula cell carries a cache: Excel calculates them.
 #
 # The package is a minimal SpreadsheetML package written as text: every part is UTF-8 XML, stored
 # (ZIP method 0, no compression) with the timestamp 1980-01-01 00:00 and no extra fields, by the
@@ -1874,3 +1876,143 @@ foreach ($row in $informationDynamicRows) {
 Write-Workbook (Join-Path $OutDir 'dc_nzpw/oracle.xlsx') @(
     , @('information_functions', $informationSheet)
 ) -DynamicArrays
+
+# --- dc_xrxb/oracle.xlsx ------------------------------------------------------------------------
+
+# dc_xrxb/oracle.xlsx is the workbook the Excel capture of bead dc-xrxb reads (`cargo xtask capture
+# --fixture crates/calc-func/tests/fixtures/dc_xrxb/oracle.xlsx --case
+# dc_xrxb__prefix_metadata_matches_excel ...`), which also keeps the package Excel saves from it.
+# Every formula is written exactly as given here: nothing adds a prefix.
+# Sheet Data: the constant cells the formulas read (A1:A3 the numbers 1, 5 and 3; B1:B3 the texts
+# x, y and x; C1 #N/A; E1:E3 the numbers 1, 2 and 3; D1:D2 blank).
+# Sheet prefix_metadata: one row per named function calc-func catalogues, in name order, each with
+# one call of it over literals and Data's cells: in column A the call written with the prefix
+# _xlfn., which Excel reads as the function whichever prefix it stores the function with, so the
+# package Excel saves spells it as Excel stores it; in column B the same call without a prefix,
+# which Excel's load reads as an unknown name when it stores the function with a prefix.
+# Sheet file_spelling: in column D, one formula per row from row 1, the rows of
+# dc_xrxb__unprefixed_file_spelling_gives_name (calc-host): calls of functions Excel stores with
+# the prefix _xlfn., written with and without it, inside other calls and with arguments the
+# function itself refuses.
+$prefixInputs = @(
+    (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
+    (New-Text 'B1' 'x'), (New-Text 'B2' 'y'), (New-Text 'B3' 'x'),
+    (New-Error 'C1' '#N/A'),
+    (New-Number 'E1' '1'), (New-Number 'E2' '2'), (New-Number 'E3' '3')
+)
+$prefixCalls = @(
+    'ABS(-2)',
+    'AND(TRUE,Data!A1>0)',
+    'AREAS(Data!A1:A3)',
+    'AVERAGE(Data!A1:A3)',
+    'AVERAGEA(Data!A1:A3)',
+    'AVERAGEIF(Data!B1:B3,"x",Data!A1:A3)',
+    'AVERAGEIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'CEILING(2.5,1)',
+    'CHOOSE(2,"a","b")',
+    'COLUMN(Data!C1)',
+    'COLUMNS(Data!A1:C1)',
+    'COUNT(Data!A1:A3)',
+    'COUNTA(Data!A1:B3)',
+    'COUNTBLANK(Data!D1:D2)',
+    'COUNTIF(Data!B1:B3,"x")',
+    'COUNTIFS(Data!B1:B3,"x",Data!A1:A3,">1")',
+    'ERROR.TYPE(Data!C1)',
+    'EVEN(3)',
+    'FALSE()',
+    'FLOOR(2.5,1)',
+    'HLOOKUP(1,Data!A1:B1,1,FALSE)',
+    'IF(TRUE,1,2)',
+    'IFERROR(1/0,2)',
+    'IFNA(Data!C1,2)',
+    'INDEX(Data!A1:A3,2)',
+    'INDIRECT("Data!A2")',
+    'INT(2.5)',
+    'ISBLANK(Data!D1)',
+    'ISERR(Data!C1)',
+    'ISERROR(Data!C1)',
+    'ISEVEN(4)',
+    'ISFORMULA(Data!A1)',
+    'ISLOGICAL(TRUE)',
+    'ISNA(Data!C1)',
+    'ISNONTEXT(Data!B1)',
+    'ISNUMBER(Data!A1)',
+    'ISODD(3)',
+    'ISREF(Data!A1)',
+    'ISTEXT(Data!B1)',
+    'LOOKUP(2,Data!E1:E3)',
+    'MATCH(5,Data!A1:A3,0)',
+    'MAX(Data!A1:A3)',
+    'MAXA(Data!A1:A3)',
+    'MAXIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'MIN(Data!A1:A3)',
+    'MINA(Data!A1:A3)',
+    'MINIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'MOD(7,3)',
+    'MROUND(7,2)',
+    'N(Data!A2)',
+    'NA()',
+    'NOT(FALSE)',
+    'ODD(2)',
+    'OR(FALSE,Data!A1>0)',
+    'PRODUCT(Data!A1:A3)',
+    'QUOTIENT(7,2)',
+    'ROUND(2.5,0)',
+    'ROUNDDOWN(2.5,0)',
+    'ROUNDUP(2.1,0)',
+    'ROW(Data!A3)',
+    'ROWS(Data!A1:A3)',
+    'SIGN(-2)',
+    'SUM(Data!A1:A3)',
+    'SUMIF(Data!B1:B3,"x",Data!A1:A3)',
+    'SUMIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'SUMPRODUCT(Data!A1:A3,Data!E1:E3)',
+    'SUMSQ(Data!A1:A3)',
+    'TRUE()',
+    'TRUNC(2.7)',
+    'TYPE(Data!B1)',
+    'VLOOKUP(5,Data!A1:B3,2,FALSE)',
+    'XLOOKUP(5,Data!A1:A3,Data!B1:B3)',
+    'XMATCH(5,Data!A1:A3)',
+    'XOR(TRUE,FALSE)'
+)
+$fileSpellingFormulas = @(
+    'MAXIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'IFNA(Data!C1,7)',
+    '_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,"x")',
+    '_xlfn.IFNA(Data!C1,7)',
+    'MINIFS(Data!A1:A3,Data!B1:B3,"x")',
+    '_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'maxifs(Data!A1:A3,Data!B1:B3,"x")',
+    'IFERROR(MAXIFS(Data!A1:A3,Data!B1:B3,"x"),"caught")',
+    'IF(Data!A1>0,"taken",MAXIFS(Data!A1:A3,Data!B1:B3,"x"))',
+    'IF(Data!A1>0,MAXIFS(Data!A1:A3,Data!B1:B3,"x"),"other")',
+    '1+MAXIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'MAXIFS(Data!A1:A3)',
+    'MAXIFS(1/0,Data!B1:B3,"x")',
+    '_xlfn.IFNA(MAXIFS(Data!A1:A3,Data!B1:B3,"x"),"na")',
+    'IFERROR(IFNA(Data!C1,7),"caught")',
+    'SUM(Data!A1:A3)+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'SUM(Data!A1:A3)+MINIFS(Data!A1:A3,Data!B1:B3,"x")',
+    'XLOOKUP(5,Data!A1:A3,Data!B1:B3)',
+    '_xlfn.XLOOKUP(5,Data!A1:A3,Data!B1:B3)'
+)
+
+# The sheet prefix_metadata: row n holds call n of $Calls, with the prefix _xlfn. in column A and
+# without it in column B.
+function New-PrefixSheet($Calls) {
+    $text = $Decl + '<worksheet xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><sheetData>'
+    $number = 0
+    foreach ($call in $Calls) {
+        $number += 1
+        $text += '<row r="' + $number + '"><c r="A' + $number + '"><f>_xlfn.' + (Get-Escaped $call) + '</f></c>' +
+            '<c r="B' + $number + '"><f>' + (Get-Escaped $call) + '</f></c></row>'
+    }
+    return $text + '</sheetData></worksheet>'
+}
+
+Write-Workbook (Join-Path $OutDir 'dc_xrxb/oracle.xlsx') @(
+    @('Data', (New-OracleSheet $prefixInputs @())),
+    @('prefix_metadata', (New-PrefixSheet $prefixCalls)),
+    @('file_spelling', (New-OracleSheet @() $fileSpellingFormulas))
+)

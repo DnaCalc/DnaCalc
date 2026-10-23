@@ -108,6 +108,12 @@ impl<'m> Site<'m> {
         }
     }
 
+    /// The arithmetic site of a kernel that computes in binary64 as a whole (the ported numeric
+    /// kernels): it rounds under Fast and is refused under Exact, like every other site.
+    pub(crate) fn binary64(&self) -> Step<()> {
+        self.rounding()
+    }
+
     pub(crate) fn add(&self, a: f64, b: f64) -> Step<f64> {
         self.rounding()?;
         Ok(a + b)

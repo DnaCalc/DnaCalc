@@ -36,7 +36,7 @@ mod cells;
 mod compile;
 mod run;
 
-pub use compile::{CompileError, compile};
+pub use compile::{CompileError, compile, compile_loaded};
 pub use run::{EvalFault, evaluate};
 
 use crate::reference::{

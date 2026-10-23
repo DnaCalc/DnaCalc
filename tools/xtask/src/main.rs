@@ -44,6 +44,13 @@
 //! its file-cache replay (`capture.rs`). It needs Excel on Windows; on the owner's machine any
 //! agent may run it (AGENTS.md, Excel on this machine).
 //!
+//! `cargo xtask corpus [<dir>] [--oracle] [--out <dir>] [--cache <dir>] [--import
+//! <capture.json>]... [--no-capture] [--timeout <s>]` compares every workbook of a folder, and with
+//! `--oracle` the oracle workbooks committed here, with Excel: each captured once and cached
+//! outside the repository by workbook hash and Excel build, compared by a release `cargo xtask
+//! compare` process, and summarised in `summary.md` and `summary.json` with the failures grouped
+//! by root cause across the corpus (`corpus.rs`, `corpus_summary.rs`).
+//!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
 
@@ -65,10 +72,15 @@ mod ci;
 mod ci_audit;
 mod compare;
 mod compare_triage;
+// The corpus command takes captures through calc-oracle-excel, like the capture command.
+#[cfg(not(target_arch = "wasm32"))]
+mod corpus;
+mod corpus_summary;
 mod evidence;
 mod evidence_labels;
 mod legacy;
 mod manifest;
+mod owners;
 mod rust_source;
 mod text;
 mod verdict;
@@ -88,6 +100,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "compare" => compare::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "capture" => capture::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "corpus" => corpus::run(rest),
         _ => {
             #[allow(unused_mut)]
             let mut usages = vec![
@@ -101,6 +115,8 @@ fn main() -> ExitCode {
             ];
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(capture::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(corpus::USAGE);
             eprintln!(
                 "xtask: unknown or missing command {args:?}\n{}",
                 usages.join("\n")

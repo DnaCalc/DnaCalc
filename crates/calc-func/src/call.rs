@@ -36,6 +36,33 @@ pub trait CellReader {
         area: GridArea,
         visit: &mut dyn FnMut(CellKey, &CalcValue) -> ControlFlow<()>,
     ) -> Result<(), Unreadable>;
+
+    /// What SUBTOTAL and AGGREGATE leave out of `area`: the cells holding a SUBTOTAL or
+    /// AGGREGATE formula, and the rows that are hidden or filtered out. `None`, the default, when
+    /// the reader cannot say; those functions then refuse a reference argument as not modelled
+    /// rather than count cells Excel would leave out.
+    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
+        let _ = area;
+        None
+    }
+}
+
+/// The cells of an area that SUBTOTAL and AGGREGATE leave out, as a [`CellReader`] reports them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SubtotalExclusions {
+    /// The cells whose formula is a SUBTOTAL or AGGREGATE call.
+    pub nested_subtotals: Vec<CellKey>,
+    /// The rows hidden by hand (SUBTOTAL's function numbers 101 to 111 leave them out).
+    pub hidden_rows: Vec<u32>,
+    /// The rows a filter hides (every function number leaves them out).
+    pub filtered_rows: Vec<u32>,
+}
+
+/// A source of uniform random numbers for RAND, RANDBETWEEN and RANDARRAY, which the caller
+/// supplies with the services. Without one those functions are refused as not modelled.
+pub trait RandomSource {
+    /// A number in [0, 1).
+    fn next_unit(&mut self) -> f64;
 }
 
 /// A [`CellReader`]'s refusal to supply the values of an area.
@@ -70,6 +97,7 @@ pub enum TextReference {
 pub struct EvalServices<'s> {
     numeric: &'s NumericMode,
     cells: Option<&'s mut dyn CellReader>,
+    random: Option<&'s mut dyn RandomSource>,
     reference_text: Option<&'s mut dyn ReferenceText>,
 }
 
@@ -80,6 +108,7 @@ impl<'s> EvalServices<'s> {
         EvalServices {
             numeric,
             cells: None,
+            random: None,
             reference_text: None,
         }
     }
@@ -89,6 +118,7 @@ impl<'s> EvalServices<'s> {
         EvalServices {
             numeric,
             cells: Some(cells),
+            random: None,
             reference_text: None,
         }
     }
@@ -102,12 +132,22 @@ impl<'s> EvalServices<'s> {
         }
     }
 
+    /// These services with `random` as the source of RAND, RANDBETWEEN and RANDARRAY.
+    pub fn with_random(mut self, random: &'s mut dyn RandomSource) -> Self {
+        self.random = Some(random);
+        self
+    }
+
     pub fn numeric_mode(&self) -> &'s NumericMode {
         self.numeric
     }
 
     pub(crate) fn cells(&mut self) -> Option<&mut (dyn CellReader + 's)> {
         self.cells.as_deref_mut()
+    }
+
+    pub(crate) fn random(&mut self) -> Option<&mut (dyn RandomSource + 's)> {
+        self.random.as_deref_mut()
     }
 
     pub(crate) fn reference_text(&mut self) -> Option<&mut (dyn ReferenceText + 's)> {
@@ -120,6 +160,7 @@ impl fmt::Debug for EvalServices<'_> {
         f.debug_struct("EvalServices")
             .field("numeric", self.numeric)
             .field("cells", &self.cells.is_some())
+            .field("random", &self.random.is_some())
             .field("reference_text", &self.reference_text.is_some())
             .finish()
     }

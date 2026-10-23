@@ -284,12 +284,13 @@ fn triaged(triage: &Value) -> Vec<String> {
 }
 
 /// The classes `triage.json` may give a cell.
-const CLASSES: [&str; 9] = [
+const CLASSES: [&str; 10] = [
     "matched",
     "kernel-value",
     "kernel-bits",
     "formula",
     "function-missing",
+    "not-modelled",
     "engine",
     "context",
     "doc",
@@ -297,7 +298,7 @@ const CLASSES: [&str; 9] = [
 ];
 
 /// Checks that `triage` lists every formula cell of `capture`'s inventory exactly once, each with
-/// one of the nine classes and a key, and that its class counts add up to the inventory.
+/// one of the ten classes and a key, and that its class counts add up to the inventory.
 fn every_cell_once(triage: &Value, capture: &Value, failures: &mut Vec<String>) {
     let inventory: Vec<String> = capture["formulas"]
         .as_array()
@@ -319,7 +320,7 @@ fn every_cell_once(triage: &Value, capture: &Value, failures: &mut Vec<String>) 
     for cell in triage["cells"].as_array().unwrap() {
         let class = cell["class"].as_str().unwrap_or_default();
         if !CLASSES.contains(&class) || cell["key"].as_str().is_none_or(str::is_empty) {
-            failures.push(format!("a cell has no class of the nine or no key: {cell}"));
+            failures.push(format!("a cell has no class of the ten or no key: {cell}"));
         }
     }
     let counted: u64 = triage["classes"]

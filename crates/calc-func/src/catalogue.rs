@@ -15,6 +15,9 @@ use crate::value::CallableArityShape;
 use std::cmp::Ordering;
 use std::fmt;
 
+#[macro_use]
+mod kit;
+
 mod aggregate;
 mod arithmetic;
 mod comparison;
@@ -23,13 +26,14 @@ mod error_fallback;
 mod information;
 mod logical;
 mod lookup;
+mod math;
 mod reference_text;
 mod rounding;
 mod text;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 11] = [
+const FAMILIES: [&Family; 12] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -41,6 +45,7 @@ const FAMILIES: [&Family; 11] = [
     &lookup::FAMILY,
     &information::FAMILY,
     &reference_text::FAMILY,
+    &math::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);
