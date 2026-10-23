@@ -6,7 +6,7 @@ use crate::recalc::{dirty_closure, live_anchor, published_areas};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
-use calc_fml::{CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
+use calc_fml::{CalcEnvironment, CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
 use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
@@ -167,6 +167,10 @@ pub struct EngineState {
     /// which no edit the engine admits changes (sheet edits are refused, ceng-m4.1; the model
     /// has no edit of a defined name).
     pub(crate) templates: HashMap<(SheetId, FormulaForm, String), Arc<CompiledPlan>>,
+    /// The environment every evaluation runs in: the workbook's date system, the host's locale
+    /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and
+    /// number-format functions.
+    pub(crate) environment: Option<CalcEnvironment>,
 }
 
 impl EngineState {
@@ -194,6 +198,7 @@ impl EngineState {
             spills: SpillIndex::default(),
             random_seed: 0,
             templates: HashMap::new(),
+            environment: None,
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -337,6 +342,22 @@ impl EngineState {
     /// [`EngineState::random_seed`]).
     pub fn set_random_seed(&mut self, seed: u64) {
         self.random_seed = seed;
+    }
+
+    /// The environment every evaluation runs in (see [`EngineState::set_environment`]).
+    pub fn environment(&self) -> Option<&CalcEnvironment> {
+        self.environment.as_ref()
+    }
+
+    /// Sets the environment every evaluation runs in: the workbook's date system, the host's
+    /// locale profile and clock. A change makes every formula node pending, since any result may
+    /// read it.
+    pub fn set_environment(&mut self, environment: Option<CalcEnvironment>) {
+        if self.environment != environment {
+            self.environment = environment;
+            let nodes: Vec<NodeId> = self.by_anchor.values().copied().collect();
+            self.pending.extend(nodes);
+        }
     }
 
     /// Replaces the dynamic prerequisites of a live node and files them in the graph.

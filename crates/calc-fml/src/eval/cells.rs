@@ -8,9 +8,10 @@
 use super::run::EvalFault;
 use crate::reference::{CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells};
 use calc_func::value::{
-    ArrayShape, CalcArray, CalcValue, CellKey, GridArea, ReferenceLike, WorksheetErrorCode,
+    ArrayShape, CalcArray, CalcValue, CellKey, GridArea, ReferenceLike, SheetId, WorksheetErrorCode,
 };
-use calc_func::{CellReader, SubtotalExclusions, Unreadable};
+use calc_func::locale::CalcEnvironment;
+use calc_func::{CellReader, HostFacts, SubtotalExclusions, Unreadable};
 use std::cell::{Cell, RefCell};
 use std::ops::ControlFlow;
 
@@ -214,6 +215,46 @@ impl CellReader for ReaderCells<'_, '_> {
 
     fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
         self.shared.reader.borrow_mut().subtotal_exclusions(area)
+    }
+
+    fn environment(&self) -> Option<CalcEnvironment> {
+        self.shared.reader.borrow().environment()
+    }
+
+    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
+        Some(self)
+    }
+}
+
+/// The caller's host facts, each asked of its reader while the shared reader is borrowed for that
+/// one question.
+impl HostFacts for ReaderCells<'_, '_> {
+    fn caller(&mut self) -> Option<CellKey> {
+        self.shared.reader.borrow_mut().host_facts()?.caller()
+    }
+
+    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
+        self.shared.reader.borrow_mut().host_facts()?.is_formula(cell)
+    }
+
+    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
+        self.shared.reader.borrow_mut().host_facts()?.formula_text(cell)
+    }
+
+    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
+        self.shared.reader.borrow_mut().host_facts()?.sheet_index(sheet)
+    }
+
+    fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
+        self.shared.reader.borrow_mut().host_facts()?.sheet_named(name)
+    }
+
+    fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
+        self.shared.reader.borrow_mut().host_facts()?.sheet_name(sheet)
+    }
+
+    fn sheet_count(&mut self) -> Option<u32> {
+        self.shared.reader.borrow_mut().host_facts()?.sheet_count()
     }
 }
 

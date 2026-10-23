@@ -16,8 +16,8 @@ use calc_fml::reference::{
     CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader, SpillExtent,
 };
 use calc_fml::{
-    EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog, ResolvedReference,
-    SubtotalExclusions,
+    CalcEnvironment, EvalFault, EvaluationReport, ExecutedCall, HostFacts, ReferenceCatalog,
+    ResolvedReference, SubtotalExclusions,
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId};
 use std::cell::Cell;
@@ -504,6 +504,86 @@ impl ReferenceReader for WorkbookReader<'_> {
             },
             _ => SpillExtent::NotModelled,
         }
+    }
+
+    fn environment(&self) -> Option<CalcEnvironment> {
+        self.view.state.environment
+    }
+
+    fn host_facts(&mut self) -> Option<&mut dyn HostFacts> {
+        Some(self)
+    }
+}
+
+/// The workbook's facts an evaluation may ask about (calc-func's HostFacts): which cells hold
+/// formulas and their text, and the sheets. The formula being evaluated is the caller's to say.
+impl HostFacts for WorkbookReader<'_> {
+    fn is_formula(&mut self, cell: CellKey) -> Option<bool> {
+        Some(matches!(
+            self.view.inputs.cell(cell),
+            Some(CellInput::Formula(_))
+        ))
+    }
+
+    /// A formula's text as FORMULATEXT shows it: `=` and the formula. Text that spells a function
+    /// with a file prefix (`_xlfn.`, `_xlws.`, `_xludf.`), which Excel shows without it, is not
+    /// modelled.
+    fn formula_text(&mut self, cell: CellKey) -> Option<Option<String>> {
+        match self.view.inputs.cell(cell) {
+            Some(CellInput::Formula(text)) => {
+                let text = String::from_utf16(text.text().utf16_code_units()).ok()?;
+                let lower = text.to_ascii_lowercase();
+                if ["_xlfn.", "_xlws.", "_xludf."]
+                    .iter()
+                    .any(|p| lower.contains(p))
+                {
+                    return None;
+                }
+                Some(Some(format!("={text}")))
+            }
+            _ => Some(None),
+        }
+    }
+
+    fn sheet_index(&mut self, sheet: SheetId) -> Option<u32> {
+        let at = self
+            .view
+            .inputs
+            .sheets()
+            .iter()
+            .position(|entry| entry.id() == sheet)?;
+        u32::try_from(at + 1).ok()
+    }
+
+    fn sheet_named(&mut self, name: &str) -> Option<SheetId> {
+        let wanted: Vec<u16> = name.encode_utf16().collect();
+        let fold = |units: &[u16]| -> Vec<u16> {
+            units
+                .iter()
+                .map(|&u| u8::try_from(u).map_or(u, |b| u16::from(b.to_ascii_uppercase())))
+                .collect()
+        };
+        let wanted = fold(&wanted);
+        self.view
+            .inputs
+            .sheets()
+            .iter()
+            .find(|entry| fold(entry.name().text().utf16_code_units()) == wanted)
+            .map(|entry| entry.id())
+    }
+
+    fn sheet_name(&mut self, sheet: SheetId) -> Option<String> {
+        let entry = self
+            .view
+            .inputs
+            .sheets()
+            .iter()
+            .find(|entry| entry.id() == sheet)?;
+        String::from_utf16(entry.name().text().utf16_code_units()).ok()
+    }
+
+    fn sheet_count(&mut self) -> Option<u32> {
+        u32::try_from(self.view.inputs.sheets().len()).ok()
     }
 }
 

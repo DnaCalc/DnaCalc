@@ -27,7 +27,7 @@ pub(crate) type Step<T> = Result<T, Exit>;
 pub(crate) struct Site<'m> {
     id: FunctionId,
     mode: &'m NumericMode,
-    environment: Option<&'m CalcEnvironment>,
+    environment: Option<CalcEnvironment>,
 }
 
 impl<'m> Site<'m> {
@@ -44,8 +44,8 @@ impl<'m> Site<'m> {
     }
 
     /// The call's environment, when the caller supplied one.
-    pub(crate) fn environment(&self) -> Option<&'m CalcEnvironment> {
-        self.environment
+    pub(crate) fn environment(&self) -> Option<&CalcEnvironment> {
+        self.environment.as_ref()
     }
 
     /// The call's result from a kernel's last step: a worksheet error that stopped it is the
@@ -113,7 +113,7 @@ impl<'m> Site<'m> {
         let CoreValue::Text(text) = value.core() else {
             return Ok(None);
         };
-        let Some(environment) = self.environment else {
+        let Some(environment) = self.environment.as_ref() else {
             return Ok(None);
         };
         let Some(profile) = environment.profile.as_ref() else {

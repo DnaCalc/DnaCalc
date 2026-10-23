@@ -71,3 +71,4 @@ pub use calc_engine::{
     RecalcFailure, StartError, Unobserved, ValueChange, ValueDelta, WorkBudget,
 };
 pub use calc_fml::reference::CellRun;
+pub use calc_fml::FormatProfile;

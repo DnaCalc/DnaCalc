@@ -446,6 +446,22 @@ fn cached_value(value: &CachedValue) -> CalcValue {
     }
 }
 
+/// The locale profile of the Excel that took `capture`: its user culture with the decimal and
+/// group separators it recorded, which the host's TEXT, VALUE and number text read with.
+/// `None` when the capture records no culture or separators the profile table cannot hold.
+fn capture_locale(capture: &CaptureRecord) -> Option<calc_host::FormatProfile> {
+    let environment = capture.environment.as_ref()?;
+    let setting = |name: &str| {
+        environment
+            .settings
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.as_str())
+    };
+    calc_host::FormatProfile::for_culture(setting("user_culture")?)?
+        .with_separators(setting("decimal_separator")?, setting("thousands_separator")?)
+}
+
 /// The run of the workbook in `fixture` for `capture`: open, step, project.
 fn run_workbook(
     fixture: &[u8],
@@ -468,6 +484,7 @@ fn run_workbook(
             // The capture's Excel recalculates every formula (CalculateFullRebuild) whatever mode
             // the package declares, so the comparison calculates under the automatic mode too.
             calc_mode: Some(CalcMode::Automatic),
+            locale: capture_locale(capture),
         },
     );
     let open_time = started.elapsed();

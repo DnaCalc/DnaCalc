@@ -26,9 +26,11 @@
 //!   `am`, `pm`, any case) follows a space and needs an hour from 0 to 12. A time may come
 //!   before or after a date.
 //!
-//! Text this grammar does not read is #VALUE!. Text holding a character beyond ASCII, a date
-//! without a year when the call has no clock, and number text in another locale's date order
-//! (which no read measured) are refused as not modelled.
+//! Text this grammar does not read is #VALUE!, text holding a letter or symbol beyond ASCII
+//! included (2016–17 Winter, with an en dash, is #VALUE! in dc_e00t's capture). Text holding a
+//! digit of another script or a space beyond ASCII, text read under a profile whose separators or
+//! currency lie beyond ASCII, a date without a year when the call has no clock, and number text
+//! in another locale's date order (which no read measured) are refused as not modelled.
 
 use crate::locale::{DateComponentOrder, DateSystem, FormatProfile};
 use crate::ported::date_kernels::{OFFSET_1904, days_in_month, ymd_1900};
@@ -70,11 +72,29 @@ impl Reading {
 /// Reads `text` (UTF-16 code units).
 pub(crate) fn read(units: &[u16], context: &ReadContext<'_>) -> Result<Reading, Unread> {
     let mut text = String::with_capacity(units.len());
-    for &unit in units {
-        match u8::try_from(unit) {
-            Ok(byte) if byte.is_ascii() => text.push(char::from(byte)),
-            _ => return Err(Unread::NotModelled),
+    let ascii_profile = [
+        context.profile.decimal_separator,
+        context.profile.thousands_separator,
+        context.profile.currency_symbol,
+    ]
+    .iter()
+    .all(|s| s.is_ascii());
+    let mut beyond = false;
+    for decoded in char::decode_utf16(units.iter().copied()) {
+        match decoded {
+            Ok(c) if c.is_ascii() => text.push(c),
+            // A digit of another script, a space other than ASCII's, or a profile whose
+            // separators or currency lie beyond ASCII: what Excel reads is not modelled.
+            Ok(c) if c.is_numeric() || c.is_whitespace() || !ascii_profile => {
+                return Err(Unread::NotModelled);
+            }
+            // Any other character beyond ASCII is in no number, date or time form.
+            Ok(_) => beyond = true,
+            Err(_) => return Err(Unread::NotModelled),
         }
+    }
+    if beyond {
+        return Err(Unread::Rejected);
     }
     let text = text.trim_matches(' ');
     if text.is_empty() {
@@ -498,11 +518,14 @@ fn date_of(tokens: &[Token], context: &ReadContext<'_>) -> Result<i64, Unread> {
                     if context.profile.short_date_order != DateComponentOrder::Ymd {
                         return Err(Unread::NotModelled);
                     }
-                    let year = this_year(context)?;
-                    if valid_day(year, a.0, b.0) {
-                        serial_1900(year, a.0, b.0)
-                    } else if valid_day(year, b.0, a.0) {
-                        serial_1900(year, b.0, a.0)
+                    // Month and day, or day and month, of the clock's year (2024, a leap year,
+                    // stands in to test them when there is no clock); else year and month.
+                    let year = this_year(context);
+                    let test_year = *year.as_ref().unwrap_or(&2024);
+                    if valid_day(test_year, a.0, b.0) {
+                        serial_1900(year?, a.0, b.0)
+                    } else if valid_day(test_year, b.0, a.0) {
+                        serial_1900(year?, b.0, a.0)
                     } else if (1..=12).contains(&b.0) {
                         serial_1900(full_year(a.0, a.1), b.0, 1)
                     } else {
@@ -540,9 +563,10 @@ fn date_of(tokens: &[Token], context: &ReadContext<'_>) -> Result<i64, Unread> {
                     if separators[0] == Some(',') {
                         return Err(Unread::Rejected);
                     }
-                    let year = this_year(context)?;
-                    if n.1 <= 2 && valid_day(year, month, n.0) {
-                        serial_1900(year, month, n.0)
+                    let year = this_year(context);
+                    let test_year = *year.as_ref().unwrap_or(&2024);
+                    if n.1 <= 2 && valid_day(test_year, month, n.0) {
+                        serial_1900(year?, month, n.0)
                     } else {
                         serial_1900(full_year(n.0, n.1), month, 1)
                     }
@@ -793,7 +817,17 @@ mod tests {
             date_system: DateSystem::System1900,
             now: None,
         };
-        let units: Vec<u16> = "1 jan".encode_utf16().collect();
-        assert_eq!(read(&units, &context), Err(Unread::NotModelled));
+        let read_text = |text: &str| {
+            read(&text.encode_utf16().collect::<Vec<_>>(), &context).map(Reading::value)
+        };
+        assert_eq!(read_text("1 jan"), Err(Unread::NotModelled));
+        assert_eq!(read_text("1/2"), Err(Unread::NotModelled));
+        // Forms that need no year are read without a clock.
+        assert_eq!(read_text("jan 2020"), Ok(43831.0));
+        assert_eq!(read_text("2016-17"), Err(Unread::Rejected));
+        assert_eq!(read_text("2020/12"), Ok(44166.0));
+        // Excel: "2016\u{2013}17 Winter"+0 is #VALUE! (dc_e00t's capture).
+        assert_eq!(read_text("2016\u{2013}17 Winter"), Err(Unread::Rejected));
+        assert_eq!(read_text("1\u{00A0}234"), Err(Unread::NotModelled));
     }
 }
