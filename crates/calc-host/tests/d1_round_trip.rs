@@ -193,3 +193,36 @@ fn d1_round_trip__readers_of_a_removed_array_recalculate() {
         Some(CalcValue::number(1.0))
     );
 }
+
+/// The M1 round trip on a workbook from outside the repository, run when
+/// `DNACALC_D1_ROUND_TRIP` names `<input.xlsx>|<sheet>|<cell>|<number>|<output.xlsx>`: open, set the
+/// cell to the number, recalculate, save with the calculated values. The saved file is then
+/// captured in Excel (`cargo xtask capture`) and compared (`cargo xtask compare`) outside this
+/// test. Without the variable it prints that it did not run.
+#[test]
+fn d1_round_trip__external_workbook() {
+    let Ok(spec) = std::env::var("DNACALC_D1_ROUND_TRIP") else {
+        println!(
+            "ACCEPT-NOT-RUN: d1_round_trip__external_workbook: DNACALC_D1_ROUND_TRIP is not set"
+        );
+        return;
+    };
+    let parts: Vec<&str> = spec.split('|').collect();
+    let [input, sheet_name, cell, number_text, output] = parts[..] else {
+        panic!("DNACALC_D1_ROUND_TRIP needs five |-separated fields");
+    };
+    let mut host = open(&std::fs::read(input).expect("the input workbook"));
+    let target = at(sheet(&host, sheet_name), cell);
+    edit(
+        &mut host,
+        vec![CellEdit::Set {
+            at: target,
+            input: number(number_text.parse().expect("a number")),
+        }],
+    );
+    recalculate(&mut host);
+    let mut saved = Vec::new();
+    let receipt = save(&host, &SavePolicy::default(), &mut saved).expect("saved");
+    std::fs::write(output, &saved).expect("written");
+    println!("ACCEPT-NOTE: d1_round_trip__external_workbook: {receipt:?}");
+}
