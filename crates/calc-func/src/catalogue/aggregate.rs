@@ -526,7 +526,7 @@ fn times(site: &Site<'_>, a: f64, b: f64) -> Step<f64> {
 
 /// Where a value an aggregate reads comes from.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Origin {
+pub(super) enum Origin {
     /// A direct argument.
     Direct,
     /// A cell of a reference argument or an element of an array argument.
@@ -535,7 +535,7 @@ enum Origin {
 
 /// How an aggregate reads the values that a reference or an array holds.
 #[derive(Clone, Copy)]
-enum Held {
+pub(super) enum Held {
     /// Numbers only: text, logicals and blank cells are skipped.
     Numbers,
     /// The A-suffixed rule: text is 0, TRUE is 1 and FALSE is 0; blank cells are skipped.
@@ -545,7 +545,7 @@ enum Held {
 /// The number that `value`, of argument `index`, gives an aggregate that reads held values by
 /// `held`, or `None` when the value is skipped. A direct argument goes through worksheet number
 /// coercion, which converts text that reads as a number at an arithmetic site.
-fn number_of(
+pub(super) fn number_of(
     site: &Site<'_>,
     held: Held,
     index: usize,
@@ -567,7 +567,7 @@ fn number_of(
 }
 
 /// Calls `take` with every number the arguments give, in the reading order.
-fn each_number(
+pub(super) fn each_number(
     site: &Site<'_>,
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -588,7 +588,7 @@ fn each_number(
 /// Calls `visit` with every value of the arguments in the reading order: a direct argument as
 /// itself, and each value a reference or an array holds. Stops at the first step that is not
 /// `Ok`.
-fn each_value(
+pub(super) fn each_value(
     site: &Site<'_>,
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,

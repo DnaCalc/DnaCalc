@@ -95,7 +95,7 @@ fn operands(site: &Site<'_>, arguments: &[CalcValue]) -> Step<(f64, f64)> {
 /// negative power is #DIV/0!; 0 to the power 0 and a negative base to a non-integer power are
 /// #NUM!) and the exponents whose result is exact or a single rounding (0, 1, 2 and -1, a base of
 /// 0, 1 or -1). Every other power needs a pinned power implementation, which is not modelled.
-fn raise(site: &Site<'_>, x: f64, y: f64) -> Step<f64> {
+pub(super) fn raise(site: &Site<'_>, x: f64, y: f64) -> Step<f64> {
     if x == 0.0 {
         return if y == 0.0 {
             Err(Exit::Error(WorksheetErrorCode::Num))

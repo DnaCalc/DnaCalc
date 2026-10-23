@@ -11,6 +11,7 @@ portability = "portable"
 
 [dependencies]
 calc-value = { path = "../calc-value" }
+libm = "0.2"
 
 # The cfunc-m1.2 acceptance cases read the Excel capture of their oracle workbook through the one
 # verdict library's CaptureRecord and MissingCapture. Test-only: calc-verdict never depends on

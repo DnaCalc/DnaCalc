@@ -21,10 +21,11 @@ mod decimal;
 mod kernel;
 mod number_text;
 mod number_words;
+mod ported;
 
 pub use call::{
-    CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, Unreadable,
-    invoke,
+    CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
+    SubtotalExclusions, Unreadable, invoke,
 };
 pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
