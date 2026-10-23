@@ -2,7 +2,7 @@
   "format": "dnacalc-capture-record",
   "version": 2,
   "case": "f1__prefix_metadata",
-  "source": "sha256:e6ab43c64562c2bd7f1a2a3147328766228f6e5e2e749b714fbe464c562c2093",
+  "source": "sha256:be7610a5d5b93c08775986ab1dd319c20cdbb302703ae4dd89a1a1b678b45c12",
   "acquisition": {
     "kind": "live_capture"
   },
@@ -61,10 +61,10 @@
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:aa3871252ce77b95ee115cf0d47c14d777df2d748ea0a5af05a3e20ad03e98af; repository 26505b864083e8d10db8f8b9557774be8d55c8e2+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:aa3871252ce77b95ee115cf0d47c14d777df2d748ea0a5af05a3e20ad03e98af; repository 229a45eb7deb15c5c0606fed427597b3c7591207+dirty",
     "packages": {
-      "input": "sha256:e6ab43c64562c2bd7f1a2a3147328766228f6e5e2e749b714fbe464c562c2093",
-      "output": "sha256:3f8edb4af837de51a65c56b08d94f6f7c15de9ce121213414bd3497f9890ef89"
+      "input": "sha256:be7610a5d5b93c08775986ab1dd319c20cdbb302703ae4dd89a1a1b678b45c12",
+      "output": "sha256:6b7592a271e93c7243ebd26ec40340f1dce43c549dabaa03ea8d9aa8e24764e4"
     },
     "failures": []
   },
@@ -560,7 +560,11 @@
     {"sheet":"prefix_metadata","row":243,"column":1,"kind":"ordinary","formula":"=Z.TEST(Data!A1:A3,2)"},
     {"sheet":"prefix_metadata","row":243,"column":2,"kind":"ordinary","formula":"=@Z.TEST(Data!A1:A3,2)"},
     {"sheet":"prefix_metadata","row":244,"column":1,"kind":"ordinary","formula":"=ZTEST(Data!A1:A3,2)"},
-    {"sheet":"prefix_metadata","row":244,"column":2,"kind":"ordinary","formula":"=ZTEST(Data!A1:A3,2)"}
+    {"sheet":"prefix_metadata","row":244,"column":2,"kind":"ordinary","formula":"=ZTEST(Data!A1:A3,2)"},
+    {"sheet":"prefix_metadata","row":245,"column":1,"kind":"ordinary","formula":"=ISOMITTED(1)"},
+    {"sheet":"prefix_metadata","row":245,"column":2,"kind":"ordinary","formula":"=@ISOMITTED(1)"},
+    {"sheet":"prefix_metadata","row":246,"column":1,"kind":"ordinary","formula":"=OFFSET(Data!A1,1,0)"},
+    {"sheet":"prefix_metadata","row":246,"column":2,"kind":"ordinary","formula":"=OFFSET(Data!A1,1,0)"}
   ],
   "shared_ranges": [],
   "observations": [
@@ -1051,7 +1055,11 @@
     {"sheet":"prefix_metadata","row":243,"column":1,"excel_raw":{"number":"3fc8bc06ccf600b4"}},
     {"sheet":"prefix_metadata","row":243,"column":2,"excel_raw":{"error":"name"}},
     {"sheet":"prefix_metadata","row":244,"column":1,"excel_raw":{"number":"3fc8bc06ccf600b4"}},
-    {"sheet":"prefix_metadata","row":244,"column":2,"excel_raw":{"number":"3fc8bc06ccf600b4"}}
+    {"sheet":"prefix_metadata","row":244,"column":2,"excel_raw":{"number":"3fc8bc06ccf600b4"}},
+    {"sheet":"prefix_metadata","row":245,"column":1,"excel_raw":{"logical":false}},
+    {"sheet":"prefix_metadata","row":245,"column":2,"excel_raw":{"error":"name"}},
+    {"sheet":"prefix_metadata","row":246,"column":1,"excel_raw":{"number":"4014000000000000"}},
+    {"sheet":"prefix_metadata","row":246,"column":2,"excel_raw":{"number":"4014000000000000"}}
   ],
   "saved": [
     {"sheet":"prefix_metadata","row":1,"column":1,"excel_saved_cache":{"t":"n","v":"1.0471975511965976"}},
@@ -1541,7 +1549,11 @@
     {"sheet":"prefix_metadata","row":243,"column":1,"excel_saved_cache":{"t":"n","v":"0.1932381153856163"}},
     {"sheet":"prefix_metadata","row":243,"column":2,"excel_saved_cache":{"t":"e","v":"#NAME?"}},
     {"sheet":"prefix_metadata","row":244,"column":1,"excel_saved_cache":{"t":"n","v":"0.1932381153856163"}},
-    {"sheet":"prefix_metadata","row":244,"column":2,"excel_saved_cache":{"t":"n","v":"0.1932381153856163"}}
+    {"sheet":"prefix_metadata","row":244,"column":2,"excel_saved_cache":{"t":"n","v":"0.1932381153856163"}},
+    {"sheet":"prefix_metadata","row":245,"column":1,"excel_saved_cache":{"t":"b","v":"0"}},
+    {"sheet":"prefix_metadata","row":245,"column":2,"excel_saved_cache":{"t":"e","v":"#NAME?"}},
+    {"sheet":"prefix_metadata","row":246,"column":1,"excel_saved_cache":{"t":"n","v":"5"}},
+    {"sheet":"prefix_metadata","row":246,"column":2,"excel_saved_cache":{"t":"n","v":"5"}}
   ],
   "reopened": [
     {"sheet":"prefix_metadata","row":1,"column":1,"excel_raw":{"number":"3ff0c152382d7365"}},
@@ -2031,6 +2043,10 @@
     {"sheet":"prefix_metadata","row":243,"column":1,"excel_raw":{"number":"3fc8bc06ccf600b4"}},
     {"sheet":"prefix_metadata","row":243,"column":2,"excel_raw":{"error":"name"}},
     {"sheet":"prefix_metadata","row":244,"column":1,"excel_raw":{"number":"3fc8bc06ccf600b4"}},
-    {"sheet":"prefix_metadata","row":244,"column":2,"excel_raw":{"number":"3fc8bc06ccf600b4"}}
+    {"sheet":"prefix_metadata","row":244,"column":2,"excel_raw":{"number":"3fc8bc06ccf600b4"}},
+    {"sheet":"prefix_metadata","row":245,"column":1,"excel_raw":{"logical":false}},
+    {"sheet":"prefix_metadata","row":245,"column":2,"excel_raw":{"error":"name"}},
+    {"sheet":"prefix_metadata","row":246,"column":1,"excel_raw":{"number":"4014000000000000"}},
+    {"sheet":"prefix_metadata","row":246,"column":2,"excel_raw":{"number":"4014000000000000"}}
   ]
 }

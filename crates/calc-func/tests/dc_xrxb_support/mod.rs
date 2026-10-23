@@ -44,7 +44,7 @@ struct Oracle {
     command: &'static str,
 }
 
-const ORACLES: [Oracle; 3] = [
+const ORACLES: [Oracle; 2] = [
     Oracle {
         name: "dc_xrxb",
         case: CASE,
@@ -60,14 +60,6 @@ const ORACLES: [Oracle; 3] = [
         capture: include_bytes!("../captures/f1_prefix/oracle.capture.json"),
         saved: include_bytes!("../captures/f1_prefix/oracle.saved.xlsx"),
         command: "cargo xtask capture --fixture crates/calc-func/tests/fixtures/f1_prefix/oracle.xlsx --case f1__prefix_metadata --out crates/calc-func/tests/captures/f1_prefix/oracle.capture.json --work-dir <dir>",
-    },
-    Oracle {
-        name: "l1_prefix",
-        case: "l1__prefix_metadata",
-        workbook: include_bytes!("../fixtures/l1_prefix/oracle.xlsx"),
-        capture: include_bytes!("../captures/l1_prefix/oracle.capture.json"),
-        saved: include_bytes!("../captures/l1_prefix/oracle.saved.xlsx"),
-        command: "cargo xtask capture --fixture crates/calc-func/tests/fixtures/l1_prefix/oracle.xlsx --case l1__prefix_metadata --out crates/calc-func/tests/captures/l1_prefix/oracle.capture.json --work-dir <dir>",
     },
 ];
 
@@ -257,30 +249,13 @@ fn oracle_rows(workbook: &[u8]) -> Vec<Row> {
 /// F1's generator, run into a fresh directory: the workbook it writes.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
 fn f1_generated() -> Vec<u8> {
-    generated_by("make-f1-fixtures.ps1", "f1_prefix")
-}
-
-/// L1's generator (dc-mzk: OFFSET and ISOMITTED), run into a fresh directory: the workbook it
-/// writes.
-#[cfg(all(windows, not(target_arch = "wasm32")))]
-fn l1_generated() -> Vec<u8> {
-    generated_by("make-l1-fixtures.ps1", "l1_prefix")
-}
-
-/// The generator `script` of tests/fixtures, run into a fresh directory: the workbook it writes
-/// below `directory`.
-#[cfg(all(windows, not(target_arch = "wasm32")))]
-fn generated_by(script: &str, directory: &str) -> Vec<u8> {
     use std::path::Path;
     use std::process::{Command, Stdio};
     let generator = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fixtures")
-        .join(script);
-    let out = std::env::temp_dir().join(format!(
-        "calc-func-{directory}-fixtures-{}",
-        std::process::id()
-    ));
+        .join("make-f1-fixtures.ps1");
+    let out = std::env::temp_dir().join(format!("calc-func-f1-fixtures-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
     let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
     let powershell = Path::new(&system_root)
@@ -305,12 +280,12 @@ fn generated_by(script: &str, directory: &str) -> Vec<u8> {
         .expect("Windows PowerShell starts");
     assert!(
         ran.status.success(),
-        "the generator {script} failed ({:?}):\n{}\n{}",
+        "the F1 generator failed ({:?}):\n{}\n{}",
         ran.status,
         String::from_utf8_lossy(&ran.stdout),
         String::from_utf8_lossy(&ran.stderr)
     );
-    let bytes = std::fs::read(out.join(directory).join("oracle.xlsx")).expect("the workbook");
+    let bytes = std::fs::read(out.join("f1_prefix").join("oracle.xlsx")).expect("the F1 workbook");
     let _ = std::fs::remove_dir_all(&out);
     bytes
 }
@@ -319,10 +294,7 @@ fn generated_by(script: &str, directory: &str) -> Vec<u8> {
 /// worker, with no failure, naming the saved package kept beside it.
 fn checked_capture(oracle: &Oracle) -> CaptureRecord {
     let capture = CaptureRecord::decode(oracle.capture).unwrap_or_else(|e| {
-        panic!(
-            "the capture record does not decode ({}): {e}",
-            oracle.command
-        )
+        panic!("the capture record does not decode ({}): {e}", oracle.command)
     });
     assert_eq!(capture.case, oracle.case);
     assert_eq!(capture.acquisition, Acquisition::LiveCapture);
@@ -387,10 +359,6 @@ pub fn prefix_metadata_matches_excel() {
         assert!(
             f1_generated() == ORACLES[1].workbook,
             "the committed f1_prefix/oracle.xlsx differs from make-f1-fixtures.ps1's output"
-        );
-        assert!(
-            l1_generated() == ORACLES[2].workbook,
-            "the committed l1_prefix/oracle.xlsx differs from make-l1-fixtures.ps1's output"
         );
         note!(
             "ACCEPT-NOTE: {CASE}: the committed generators wrote {} workbooks and f1_prefix/oracle.xlsx; dc_xrxb/oracle.xlsx (sha256 {}) and f1_prefix/oracle.xlsx (sha256 {}) equal the committed fixtures byte for byte",

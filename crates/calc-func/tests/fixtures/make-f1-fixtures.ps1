@@ -221,7 +221,8 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
 
 # Sheet Data: the constant cells the formulas read (A1:A3 the numbers 1, 5 and 3; B1:B3 the texts
 # x, y and x; C1 #N/A; E1:E3 the numbers 1, 2 and 3).
-# Sheet prefix_metadata: one row per named function F1 catalogues, in name order, each with one
+# Sheet prefix_metadata: one row per named function F1 catalogues, in name order, then each later
+# package's section (L1: OFFSET and ISOMITTED), each with one
 # call of it over literals and Data's cells: in column A the call written with the prefix _xlfn.,
 # in column B the same call without a prefix.
 $prefixInputs = @(
@@ -230,8 +231,9 @@ $prefixInputs = @(
     (New-Error 'C1' '#N/A'),
     (New-Number 'E1' '1'), (New-Number 'E2' '2'), (New-Number 'E3' '3')
 )
+# calls.txt keeps each package's calls in a section of its own, headed by a line starting with #.
 $prefixCalls = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'f1_prefix/calls.txt') |
-    Where-Object { $_ -ne '' }
+    Where-Object { $_ -ne '' -and -not $_.StartsWith('#') }
 
 # The sheet prefix_metadata: row n holds call n of $Calls, with the prefix _xlfn. in column A and
 # without it in column B.

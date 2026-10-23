@@ -93,8 +93,8 @@
 
 use calc_fml::parse_formula;
 use calc_fml::reference::{
-    AxisRef, BindError, CellRef, CellRun, FormulaAnchor, PlacementError, ReferenceNotation,
-    ReferenceOperand, ReferenceShape, SheetTarget,
+    AxisRef, BindError, CellRef, CellRun, FormulaAnchor, NameDefinition, NameScope, PlacementError,
+    ReferenceNotation, ReferenceOperand, ReferenceShape, SheetTarget, SpillExtent,
 };
 use calc_fml::syntax::{
     SyntaxChild, SyntaxDiagnosticKind, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token,
@@ -923,6 +923,10 @@ fn anchor_at(sheet: SheetId, address: &str) -> FormulaAnchor {
 struct LoggingCatalog {
     sheets: Vec<(&'static str, SheetId)>,
     requests: RefCell<Vec<String>>,
+    /// L1 (dc-mzk): the defined names, by sheet (`None` for the workbook's) and upper-case name.
+    /// Until a case adds one ([`LoggingCatalog::define`]) the catalogue carries no names, and
+    /// every name is not modelled.
+    names: Option<BTreeMap<(Option<SheetId>, String), String>>,
 }
 
 impl LoggingCatalog {
@@ -934,7 +938,17 @@ impl LoggingCatalog {
                 .map(|name| (*name, ids.issue().expect("a sheet id")))
                 .collect(),
             requests: RefCell::new(Vec::new()),
+            names: None,
         }
+    }
+
+    /// L1 (dc-mzk): defines `name` as `definition`, on `sheet` or, for `None`, the workbook.
+    fn define(&mut self, sheet: Option<&str>, name: &str, definition: &str) -> &mut Self {
+        let sheet = sheet.map(|sheet| self.id(sheet));
+        self.names
+            .get_or_insert_with(BTreeMap::new)
+            .insert((sheet, name.to_uppercase()), definition.to_owned());
+        self
     }
 
     fn id(&self, name: &str) -> SheetId {
@@ -953,6 +967,25 @@ impl ReferenceCatalog for LoggingCatalog {
             .iter()
             .find(|(known, _)| known.to_lowercase() == name.to_lowercase())
             .map(|(_, id)| *id)
+    }
+
+    /// L1 (dc-mzk): a formula's sheet's own name, else the workbook's; a qualified name, the
+    /// sheet's own.
+    fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition {
+        let Some(names) = &self.names else {
+            return NameDefinition::NotModelled;
+        };
+        let key = name.to_uppercase();
+        let found = match scope {
+            NameScope::Formula(sheet) => names
+                .get(&(Some(sheet), key.clone()))
+                .or_else(|| names.get(&(None, key))),
+            NameScope::Sheet(sheet) => names.get(&(Some(sheet), key)),
+        };
+        match found {
+            Some(definition) => NameDefinition::Formula(definition.clone()),
+            None => NameDefinition::Unknown,
+        }
     }
 }
 
@@ -2026,6 +2059,9 @@ struct RunReader {
     requests: Vec<GridArea>,
     /// Each run of values reported: the area asked for, the run's first cell and its values.
     value_runs: Vec<(GridArea, CellKey, Vec<CalcValue>)>,
+    /// L1 (dc-mzk): the range spilled from each anchor; with `None` the reader does not know
+    /// spills.
+    spills: Option<BTreeMap<CellKey, GridArea>>,
 }
 
 impl RunReader {
@@ -2039,6 +2075,16 @@ impl RunReader {
 }
 
 impl ReferenceReader for RunReader {
+    /// L1 (dc-mzk): the spill a case recorded at `anchor`.
+    fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
+        match &self.spills {
+            None => SpillExtent::NotModelled,
+            Some(spills) => spills
+                .get(&anchor)
+                .map_or(SpillExtent::None, |area| SpillExtent::Area(*area)),
+        }
+    }
+
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         self.requests.push(area);
         let first = area.first();
@@ -6168,3 +6214,11 @@ fn dc_51ka__indirect_text_references() {
 fn dc_51ka__excel_comparison() {
     dc_51ka::excel_comparison();
 }
+
+// ---------------------------------------------------------------------------------------------
+// L1 (dc-mzk): arrays and lifting, the reference operators, `@`, `#` and OFFSET, defined names,
+// LET and LAMBDA, through calc_fml::evaluate over the cfml-m1.3 fixtures (LoggingCatalog with
+// defined names, RunReader with spills). The cases are in `acceptance/l1.rs`.
+
+#[path = "acceptance/l1.rs"]
+mod l1;
