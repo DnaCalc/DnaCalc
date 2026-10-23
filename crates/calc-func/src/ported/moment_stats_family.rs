@@ -65,7 +65,9 @@ pub(crate) fn skew_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
         })
         .sum::<f64>();
     let n = n as f64;
-    Ok(n * standardized_sum / ((n - 1.0) * (n - 2.0)))
+    // F1 (dc-8dq): the factor n/((n-1)(n-2)) first, then times the sum, as Excel's SKEW gives
+    // SKEW(1,2,3,5) (the catalogue oracle's capture); n*sum/((n-1)(n-2)) is one ulp above it.
+    Ok(n / ((n - 1.0) * (n - 2.0)) * standardized_sum)
 }
 
 pub(crate) fn skew_p_kernel(values: &[f64]) -> Result<f64, WorksheetErrorCode> {

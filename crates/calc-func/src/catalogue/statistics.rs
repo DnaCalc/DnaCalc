@@ -214,8 +214,17 @@ ported_family! {
         if values.is_empty() || values.iter().any(|v| *v <= 0.0) {
             return fail(WorksheetErrorCode::Num);
         }
-        let ln = values.iter().map(|v| v.ln()).sum::<f64>();
-        s.number((ln / values.len() as f64).exp())
+        // The product to the power 1/n, by a correctly rounded pow, as Excel gives GEOMEAN(1,5,3)
+        // (the catalogue oracle's capture); exp of the mean logarithm is one ulp above it. A
+        // product beyond binary64's range falls back to the mean logarithm (not measured).
+        let n = values.len() as f64;
+        let product = values.iter().product::<f64>();
+        if product.is_normal() {
+            s.number(libm::pow(product, 1.0 / n))
+        } else {
+            let ln = values.iter().map(|v| v.ln()).sum::<f64>();
+            s.number((ln / n).exp())
+        }
     }
     4 harmean "HARMEAN" (1, 255) [R "number1", R "number2"] |s, a, sv| {
         direct_first(s, a)?;
