@@ -5,13 +5,15 @@
 # writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx,
 # <directory>/cfunc_m3_4/oracle.xlsx, <directory>/cfunc_m3_5/oracle.xlsx,
 # <directory>/dc_q9rb/oracle.xlsx, <directory>/cfunc_m3_6/oracle.xlsx,
-# <directory>/dc_e00t/oracle.xlsx and <directory>/dc_fwpz/oracle.xlsx. Run with this directory as
-# -OutDir it rewrites the committed fixtures; the acceptance cases cfunc_m1_2__mixed_operands,
-# cfunc_m3_2__rounding_boundaries, cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes,
-# cfunc_m3_5__criteria_semantics, dc_q9rb__number_text_for_concatenation,
-# cfunc_m3_6__reference_result, cfunc_m3_6__lookup_edges, dc_e00t__digit_labels_as_text and
-# dc_fwpz__logical_functions run it into a fresh directory on Windows and compare its output with
-# the committed workbooks byte for byte.
+# <directory>/dc_e00t/oracle.xlsx, <directory>/dc_fwpz/oracle.xlsx and
+# <directory>/cdoc_jpha/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
+# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
+# cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes, cfunc_m3_5__criteria_semantics,
+# dc_q9rb__number_text_for_concatenation, cfunc_m3_6__reference_result,
+# cfunc_m3_6__lookup_edges, dc_e00t__digit_labels_as_text, dc_fwpz__logical_functions and
+# cdoc_jpha__text_and_number_comparison run it into a fresh directory on Windows and compare its
+# output with the committed workbooks byte for byte. cdoc_jpha/oracle.xlsx is written from
+# cdoc_jpha/rows.txt beside this script, which the case reads too.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
 # (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`),
@@ -20,8 +22,9 @@
 # cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads,
 # dc_q9rb/oracle.xlsx the one an Excel capture of dc-q9rb's number-text rows reads,
 # cfunc_m3_6/oracle.xlsx the one an Excel capture of cfunc-m3.6's lookup rows reads,
-# dc_e00t/oracle.xlsx the one an Excel capture of dc-e00t's digit-label rows reads, and
-# dc_fwpz/oracle.xlsx the one an Excel capture of dc-fwpz's logical rows reads. Each has one
+# dc_e00t/oracle.xlsx the one an Excel capture of dc-e00t's digit-label rows reads,
+# dc_fwpz/oracle.xlsx the one an Excel capture of dc-fwpz's logical rows reads, and
+# cdoc_jpha/oracle.xlsx the one an Excel capture of cdoc-jpha's comparison rows reads. Each has one
 # sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
 # holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
 # its rows. Each case checks that its sheet holds exactly those formulas and cells; the sheet
@@ -1609,4 +1612,123 @@ $logicalFormulas = @(
 
 Write-Workbook (Join-Path $OutDir 'dc_fwpz/oracle.xlsx') @(
     , @('logical_functions', (New-OracleSheet $logicalInputs @($logicalFormulas | ForEach-Object { Get-LogicalStored $_ })))
+)
+
+# --- cdoc_jpha/oracle.xlsx ----------------------------------------------------------------------
+
+# Sheet text_and_number_comparison: the rows of cdoc_jpha__text_and_number_comparison, read from
+# cdoc_jpha/rows.txt beside this script, whose header states its line kinds: the formulas in its
+# order, the two numbers of each N line in columns A and B of the first of its four rows, and the
+# constants of its C lines in columns C and E.
+
+# A text of rows.txt: \XXXX is the UTF-16 code unit XXXX, \{N} repeats the code unit after it N
+# times, and any other character is itself.
+function Get-JphaText([string]$Spec) {
+    $text = New-Object System.Text.StringBuilder
+    $i = 0
+    while ($i -lt $Spec.Length) {
+        $count = 1
+        if ($Spec[$i] -ceq [char]'\' -and $i + 1 -lt $Spec.Length -and $Spec[$i + 1] -ceq [char]'{') {
+            $close = $Spec.IndexOf('}', $i)
+            $count = [int]$Spec.Substring($i + 2, $close - $i - 2)
+            $i = $close + 1
+        }
+        if ($Spec[$i] -ceq [char]'\') {
+            $unit = [char][Convert]::ToInt32($Spec.Substring($i + 1, 4), 16)
+            $i += 5
+        } else {
+            $unit = $Spec[$i]
+            $i += 1
+        }
+        [void]$text.Append($unit, $count)
+    }
+    return $text.ToString()
+}
+
+# Whether a formula writes the character with this code inside a text literal: printable ASCII and
+# every character from U+00A0 on, except the no-break, soft hyphen and other spaces and invisible
+# characters and the combining diacritical marks, which it writes through UNICHAR.
+function Test-JphaLiteral([int]$Code) {
+    if ($Code -ge 0x20 -and $Code -le 0x7E) { return $true }
+    if ($Code -lt 0xA0) { return $false }
+    if (@(0xA0, 0xAD, 0x2002, 0x2003, 0x2007, 0x2009, 0x202F, 0x2060, 0xFEFF) -contains $Code) { return $false }
+    if ($Code -ge 0x200B -and $Code -le 0x200F) { return $false }
+    if ($Code -ge 0x300 -and $Code -le 0x36F) { return $false }
+    return $true
+}
+
+# A text as a formula writes it: each run of literal characters as a text literal, each other
+# character as CHAR (below U+0080) or UNICHAR of its code, joined by & in parentheses when there is
+# more than one part.
+function Get-JphaExpression([string]$Text) {
+    $parts = New-Object System.Collections.ArrayList
+    $run = New-Object System.Text.StringBuilder
+    foreach ($unit in $Text.ToCharArray()) {
+        $code = [int]$unit
+        if (Test-JphaLiteral $code) {
+            [void]$run.Append($unit)
+        } else {
+            if ($run.Length -gt 0) {
+                [void]$parts.Add('"' + $run.ToString().Replace('"', '""') + '"')
+                [void]$run.Clear()
+            }
+            if ($code -lt 0x80) { [void]$parts.Add("CHAR($code)") } else { [void]$parts.Add("UNICHAR($code)") }
+        }
+    }
+    if ($run.Length -gt 0 -or $parts.Count -eq 0) { [void]$parts.Add('"' + $run.ToString().Replace('"', '""') + '"') }
+    if ($parts.Count -eq 1) { return [string]$parts[0] }
+    return '(' + ($parts -join '&') + ')'
+}
+
+$jphaInputs = New-Object System.Collections.ArrayList
+$jphaFormulas = New-Object System.Collections.ArrayList
+foreach ($line in [System.IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'cdoc_jpha/rows.txt'))) {
+    if ($line.Length -eq 0 -or $line.StartsWith('#')) { continue }
+    $f = $line.Split('|')
+    switch -CaseSensitive ($f[0]) {
+        't' {
+            [void]$jphaFormulas.Add((Get-JphaExpression (Get-JphaText $f[2])) + $f[1] + (Get-JphaExpression (Get-JphaText $f[3])))
+        }
+        'f' { [void]$jphaFormulas.Add($f[2] + $f[1] + $f[3]) }
+        'N' {
+            $row = $jphaFormulas.Count + 1
+            [void]$jphaInputs.Add((New-Number "A$row" $f[1]))
+            [void]$jphaInputs.Add((New-Number "B$row" $f[2]))
+            foreach ($formula in @("A$row=B$row", "A$row<B$row", "+A$row", "+B$row")) { [void]$jphaFormulas.Add($formula) }
+        }
+        'C' {
+            if ($f[2].StartsWith('n:')) {
+                [void]$jphaInputs.Add((New-Number $f[1] $f[2].Substring(2)))
+            } else {
+                [void]$jphaInputs.Add((New-Text $f[1] (Get-JphaText $f[2])))
+            }
+        }
+        'c' { [void]$jphaFormulas.Add($f[2] + $f[1] + $f[3]) }
+        'COUNTIF' {
+            $criterion = $f[2].Substring(2)
+            if ($f[2].StartsWith('t:')) { $criterion = Get-JphaExpression (Get-JphaText $criterion) }
+            [void]$jphaFormulas.Add('COUNTIF(' + $f[1] + ',' + $criterion + ')')
+        }
+        'L' {
+            $key = $f[2].Substring(2)
+            if ($f[2].StartsWith('t:')) { $key = Get-JphaExpression (Get-JphaText $key) }
+            $array = $f[3]
+            if ($array.StartsWith('{')) {
+                $literal = Get-JphaExpression (Get-JphaText $array.Substring(1, $array.Length - 2))
+                if (-not $literal.StartsWith('"')) { throw "cdoc_jpha/rows.txt: an array constant holds a character no literal holds: $line" }
+                $array = '{' + $literal + '}'
+            }
+            $call = $f[1] + '(' + $key + ',' + $array
+            if ($f[4].Length -gt 0) { $call += ',' + $f[4] }
+            [void]$jphaFormulas.Add($call + ')')
+        }
+        default { throw "cdoc_jpha/rows.txt: a line of no known kind: $line" }
+    }
+}
+
+# UNICHAR, XMATCH and XLOOKUP came after the file format's first version, so a file writes them
+# with the _xlfn. prefix, without which Excel does not recognize them.
+$jphaStored = @($jphaFormulas | ForEach-Object { $_.Replace('UNICHAR(', '_xlfn.UNICHAR(').Replace('XMATCH(', '_xlfn.XMATCH(').Replace('XLOOKUP(', '_xlfn.XLOOKUP(') })
+Write-Workbook (Join-Path $OutDir 'cdoc_jpha/oracle.xlsx') @(
+    , @('text_and_number_comparison', (New-OracleSheet $jphaInputs $jphaStored))
 )
