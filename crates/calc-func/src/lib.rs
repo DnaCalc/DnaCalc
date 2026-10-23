@@ -23,8 +23,8 @@ mod number_text;
 mod number_words;
 
 pub use call::{
-    CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, Unreadable,
-    invoke,
+    CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, ReferenceText,
+    TextReference, Unreadable, invoke,
 };
 pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
