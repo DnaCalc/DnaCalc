@@ -20,7 +20,7 @@ use crate::load::{self, LoadError, SHARED_STRINGS};
 use crate::opc::{Package, TargetMode};
 use crate::xml::XmlElement;
 use calc_doc_model::value::{CellKey, GridArea};
-use calc_doc_model::{CellInput, DefinedName, SheetName};
+use calc_doc_model::{CachedValue, CellInput, DefinedName, SheetName};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -43,6 +43,10 @@ pub(super) struct Changes {
     pub(super) caches_dropped: usize,
     /// The worksheet parts rewritten that hold no changed cell, only to leave out cached results.
     pub(super) sheets_rewritten_for_caches: usize,
+    /// The formula cells written with a caller's value.
+    pub(super) values_written: usize,
+    /// The formula cells of a save with values written without a cached value.
+    pub(super) values_left_to_excel: usize,
 }
 
 fn load_refusal(part: &str, error: LoadError) -> SaveRefusal {
@@ -307,6 +311,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         sheets,
         base,
         model,
+        values,
         ..
     } = edit;
     if !model.same_lineage(base) || model.sheets() != base.sheets() {
@@ -328,6 +333,28 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     let mut dynamic_cm = None;
     let mut new_metadata: Option<((String, String), Vec<u8>)> = None;
     if cells_changed {
+        // The caller's values, by sheet and (row, column); a value for a cell without a formula
+        // is refused.
+        let mut sheet_values: Vec<Option<BTreeMap<(u32, u32), CachedValue>>> =
+            vec![values.as_ref().map(|_| BTreeMap::new()); sheets.len()];
+        if let Some(values) = values {
+            for (&at, value) in values.iter() {
+                let position = sheets.iter().position(|sheet| sheet.id() == at.sheet());
+                let Some(position) = position else {
+                    return Err(SaveRefusal::ForeignModel);
+                };
+                if !matches!(model.cell(at), Some(CellInput::Formula(_))) {
+                    return Err(SaveRefusal::ValueWithoutFormula {
+                        part: sheets[position].part().name().to_owned(),
+                        row: at.row(),
+                        column: at.column(),
+                    });
+                }
+                if let Some(map) = sheet_values[position].as_mut() {
+                    map.insert((at.row(), at.column()), value.clone());
+                }
+            }
+        }
         let mut forms = Vec::with_capacity(sheets.len());
         for (sheet, changes) in sheets.iter().zip(&changes) {
             if !changes.is_empty() {
@@ -380,11 +407,17 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             .zip(&changes)
             .zip(&cleared)
             .map(|((sheet, changes), cleared)| {
+                let formulas = model
+                    .sheet_cells(sheet.id())
+                    .into_iter()
+                    .flatten()
+                    .any(|(_, input)| matches!(input, CellInput::Formula(_)));
                 !changes.is_empty()
                     || !cleared.is_empty()
                     || sheet
                         .formulas()
                         .any(|(_, _, record)| record.cache().is_some())
+                    || (values.is_some() && formulas)
             })
             .collect();
         for (index, sheet) in sheets.iter().enumerate() {
@@ -401,12 +434,13 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         let strings_part = load::workbook_part_of(package, workbook_part, SHARED_STRINGS)
             .map_err(|error| load_refusal(workbook_part, error))?;
         let mut strings = SharedStrings::read(package, strings_part.as_deref())?;
-        for ((((sheet, changes), rewrite), cleared), forms) in sheets
+        for (((((sheet, changes), rewrite), cleared), forms), sheet_values) in sheets
             .iter()
             .zip(&changes)
             .zip(&rewritten)
             .zip(&cleared)
             .zip(&forms)
+            .zip(&sheet_values)
         {
             if !rewrite {
                 continue;
@@ -418,12 +452,15 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 cleared,
                 forms,
                 dynamic_cm,
+                values: sheet_values.as_ref(),
                 loaded: sheet,
                 model,
             };
             let rewritten = sheet::rewrite(&xml, &job, &mut strings)?;
             out.rewritten.insert(name.to_owned(), rewritten.bytes);
             out.caches_dropped += rewritten.caches_dropped;
+            out.values_written += rewritten.values_written;
+            out.values_left_to_excel += rewritten.values_left_to_excel;
             if changes.is_empty() {
                 out.sheets_rewritten_for_caches += 1;
             }
@@ -463,13 +500,22 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         }
     }
 
+    // fullCalcOnLoad: a save without the caller's values leaves out every cached result, as
+    // before; a save with them writes every formula cell's value or leaves it for Excel to
+    // calculate on open, so it asks for a full calculation only when the workbook keeps cached
+    // results it did not recalculate, a data table's.
+    let data_tables = model
+        .definitions()
+        .unloaded_cells()
+        .any(|(_, why)| matches!(why, calc_doc_model::UnloadedCell::DataTable));
+    let full_calc = cells_changed && (values.is_none() || data_tables);
     let no_names = NameChanges::default();
     let names = layout.as_ref().map_or(&no_names, |layout| &layout.names);
     if cells_changed || !names.is_empty() {
         let workbook = read_part(package, workbook_part)?;
         out.rewritten.insert(
             workbook_part.clone(),
-            parts::workbook(&workbook, cells_changed, names)?,
+            parts::workbook(&workbook, full_calc, names)?,
         );
     }
 

@@ -278,6 +278,30 @@ pub fn prepare_edit<'s, 'r>(
         }
     }
 
+    // An array formula whose anchor the batch sets or clears is gone after it (the model drops
+    // it), so the cells it filled beside its anchor, which read as not available, read as what
+    // they hold from then on: the nodes reading them are seeded like readers of emptied cells.
+    for array in inputs.definitions().arrays() {
+        if !after.contains_key(&array.anchor()) {
+            continue;
+        }
+        let area = array.area();
+        let filled: Vec<CellKey> = (area.first().row()..=area.last().row())
+            .flat_map(|row| {
+                (area.first().column()..=area.last().column())
+                    .map(move |column| CellKey::new(area.sheet(), row, column))
+            })
+            .filter_map(Result::ok)
+            .filter(|at| *at != array.anchor())
+            .collect();
+        if !filled.is_empty() {
+            seeds.push(InputSeed::Area {
+                area,
+                dependents: state.dependents_of_emptied(inputs, area, &filled, &leaving),
+            });
+        }
+    }
+
     let mut node_changes: Vec<NodeChange> = adding
         .into_iter()
         .map(|at| NodeChange::Added {

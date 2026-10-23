@@ -337,6 +337,32 @@ impl LoadedWorkbook {
             self.manifest.clone(),
             Arc::clone(&self.model),
             Arc::clone(model),
+            None,
+        )
+    }
+
+    /// [`LoadedWorkbook::snapshot`] with the values a caller calculated for `model`'s formula
+    /// cells, which a save of a revision that differs from the loaded one writes as their cached
+    /// values (`<v>`, with `t` for a text, a logical or an error). A formula cell without a value
+    /// here (one the caller refused), and one whose value is a newer error Excel stores only with
+    /// value metadata, is written without a cached value, which Excel calculates when it opens
+    /// the package; such a save sets `fullCalcOnLoad` only when the workbook holds a data table,
+    /// whose cached results it keeps. A save of the loaded revision itself copies the package as
+    /// opened, values or not. [`crate::prepare_save`] refuses a value for a cell that holds no
+    /// formula ([`SaveRefusal::ValueWithoutFormula`]).
+    pub fn snapshot_with_values(
+        &self,
+        model: &Arc<ModelRoot>,
+        values: BTreeMap<CellKey, calc_doc_model::CachedValue>,
+    ) -> DocumentSnapshot {
+        DocumentSnapshot::edited(
+            Arc::clone(&self.package),
+            self.workbook_part.clone(),
+            Arc::clone(&self.sheets),
+            self.manifest.clone(),
+            Arc::clone(&self.model),
+            Arc::clone(model),
+            Some(Arc::new(values)),
         )
     }
 }

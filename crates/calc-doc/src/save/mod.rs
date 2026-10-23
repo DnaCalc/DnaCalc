@@ -31,7 +31,8 @@ use crate::opc::Package;
 use crate::source::{PackageWrite, SinkError, SourceError};
 use crate::zip::crc32::{self, Crc32};
 use crate::zip::{self, CENTRAL_LOCAL_OFFSET_AT, Entry, Method};
-use calc_doc_model::{AuthoredRevision, ModelRoot};
+use calc_doc_model::value::CellKey;
+use calc_doc_model::{AuthoredRevision, CachedValue, ModelRoot};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
@@ -55,6 +56,9 @@ pub(crate) struct Edited {
     base: Arc<ModelRoot>,
     /// The revision to save.
     model: Arc<ModelRoot>,
+    /// The values a caller calculated for the revision's formula cells, which the save writes as
+    /// their cached values; `None` to save without them.
+    values: Option<Arc<BTreeMap<CellKey, CachedValue>>>,
 }
 
 impl DocumentSnapshot {
@@ -72,6 +76,7 @@ impl DocumentSnapshot {
         manifest: ManifestState,
         base: Arc<ModelRoot>,
         model: Arc<ModelRoot>,
+        values: Option<Arc<BTreeMap<CellKey, CachedValue>>>,
     ) -> Self {
         DocumentSnapshot {
             package,
@@ -81,6 +86,7 @@ impl DocumentSnapshot {
                 manifest,
                 base,
                 model,
+                values,
             }),
         }
     }
@@ -173,6 +179,9 @@ pub enum SaveRefusal {
     /// A block the revision creates has the locator name `name`, which the workbook part `part`
     /// already holds as a workbook-scoped defined name, compared ignoring ASCII case.
     LocatorNameTaken { part: String, name: String },
+    /// A value given to save as a cached result (of the worksheet part `part`) is for a cell the
+    /// revision holds no formula in.
+    ValueWithoutFormula { part: String, row: u32, column: u32 },
     /// A formula the revision sets in a cell (of the worksheet part `part`) has no file form
     /// here ([`crate::FileFormError`]): its text is not readable, or it nests deeper than the
     /// converter walks.
@@ -245,6 +254,10 @@ impl fmt::Display for SaveRefusal {
             Self::LayoutNotWritable { part } => write!(
                 f,
                 "the layout changed, but the view manifest {part:?} was not read and would be overwritten"
+            ),
+            Self::ValueWithoutFormula { part, row, column } => write!(
+                f,
+                "{part}: a calculated value was given for row {row} column {column}, which holds no formula"
             ),
             Self::LocatorNameTaken { part, name } => write!(
                 f,
@@ -467,6 +480,8 @@ pub struct SavePlan {
     revision: Option<AuthoredRevision>,
     caches_dropped: usize,
     sheets_rewritten_for_caches: usize,
+    values_written: usize,
+    values_left_to_excel: usize,
 }
 
 impl SavePlan {
@@ -494,9 +509,18 @@ pub struct SaveReceipt {
     /// known to be current. A counted broadening; engine-computed caches, which a save could
     /// write, are cdoc-m6.5's and chost-m1.1's.
     pub caches_dropped: usize,
-    /// The worksheet parts rewritten that hold no changed cell, only to leave out their formulas'
-    /// cached results.
+    /// The worksheet parts rewritten that hold no changed cell, only to leave out or replace
+    /// their formulas' cached results.
     pub sheets_rewritten_for_caches: usize,
+    /// The formula cells written with a value the caller calculated as their cached result
+    /// ([`crate::LoadedWorkbook::snapshot_with_values`]).
+    pub values_written: usize,
+    /// The formula cells of a save with values written without a cached value, for Excel to
+    /// calculate when it opens the package (measured: Excel 16.0.20430 calculates a formula cell
+    /// without `<v>` on open, tests/fixtures/d1/excel-open.json): those the caller gave no value
+    /// for (a formula it refused) and those whose value Excel stores only with value metadata
+    /// (#SPILL!, #CALC!, #FIELD! and the other newer errors).
+    pub values_left_to_excel: usize,
     /// The bytes of the opened package that lie before its central directory in no entry's
     /// stored bytes (before the first entry, between entries or after the last), which the save
     /// did not write: it writes each entry's stored bytes, not the bytes around them. No entry
@@ -637,6 +661,8 @@ pub fn prepare_save(
         revision: snapshot.edit.as_ref().map(|edit| edit.model.revision()),
         caches_dropped: changes.caches_dropped,
         sheets_rewritten_for_caches: changes.sheets_rewritten_for_caches,
+        values_written: changes.values_written,
+        values_left_to_excel: changes.values_left_to_excel,
     })
 }
 
@@ -744,6 +770,8 @@ pub fn write(plan: SavePlan, out: &mut dyn PackageWrite) -> Result<SaveReceipt, 
         revision: plan.revision,
         caches_dropped: plan.caches_dropped,
         sheets_rewritten_for_caches: plan.sheets_rewritten_for_caches,
+        values_written: plan.values_written,
+        values_left_to_excel: plan.values_left_to_excel,
         gap_bytes_dropped: archive.unreferenced_bytes,
     })
 }
