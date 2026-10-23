@@ -1503,12 +1503,11 @@ fn cfunc_m1_1__unknown_function() {
 //
 // Each row names the bead that owns the Excel behaviour it shows. A row of cfunc-m1.2 computes a
 // value, and the Excel comparison must find it equal to Excel's. A row whose behaviour another
-// bead owns (text collation and nearly equal numbers, the near-zero adjustment of a formula's
-// final + or -, ^ beyond the powers computed here, number text read by locale rules, an array
-// condition in a legacy formula, subnormal results, number text read by COUNT and by COUNTIF's
-// criteria) is run and asserted the same way, whether calc-func computes it or refuses it, and is
-// published to the comparison as not modeled, with its owner: it is counted as not modeled and
-// never as matched.
+// bead owns (the near-zero adjustment of a formula's final + or -, ^ beyond the powers computed
+// here, number text read by locale rules, an array condition in a legacy formula, subnormal
+// results, number text read by COUNT and by COUNTIF's criteria) is run and asserted the same
+// way, whether calc-func computes it or refuses it, and is published to the comparison as not
+// modeled, with its owner: it is counted as not modeled and never as matched.
 //
 // The Excel comparison goes through the one capture route and the one verdict path.
 // `tests/fixtures/cfunc_m1_2/oracle.xlsx`, written by the committed generator
@@ -1546,7 +1545,8 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 8] = [
+const GENERATED_WORKBOOKS: [&str; 9] = [
+    "cdoc_jpha/oracle.xlsx",
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
     "cfunc_m3_4/oracle.xlsx",
@@ -1878,14 +1878,10 @@ impl Owner {
     }
 }
 
-/// Text ordering and case-insensitive text equality.
+/// Wildcard criteria over text beyond ASCII, which calc_func's pattern matching refuses.
 const COLLATION: Owner = Owner {
-    bead: "cdoc-jpha",
-    behaviour: "Excel's text collation",
-};
-const NEAR_EQUAL: Owner = Owner {
-    bead: "cdoc-jpha",
-    behaviour: "Excel's comparison of nearly equal numbers",
+    bead: "dc-o4do",
+    behaviour: "wildcard criteria over text beyond ASCII, as Excel matches them",
 };
 const NEAR_ZERO: Owner = Owner {
     bead: "dc-r4ci",
@@ -2313,13 +2309,14 @@ fn worksheet_cells(xml: &str) -> BTreeMap<(u32, u32), FixtureCell> {
 
 /// A formula as SpreadsheetML stores it: a function added to Excel after the file format's first
 /// version is written with the `_xlfn.` prefix, which Excel requires to recognize it in a file
-/// (MAXIFS, MINIFS, XOR and IFNA among the functions these fixtures call). XOR and IFNA are
+/// (MAXIFS, MINIFS, UNICHAR, XOR and IFNA among the functions these fixtures call). XOR and IFNA are
 /// matched as whole names, so a longer name that ends in one, such as BITXOR, keeps its own
 /// spelling.
 fn stored_formula(formula: &str) -> String {
     let mut stored = formula
         .replace("MAXIFS(", "_xlfn.MAXIFS(")
-        .replace("MINIFS(", "_xlfn.MINIFS(");
+        .replace("MINIFS(", "_xlfn.MINIFS(")
+        .replace("UNICHAR(", "_xlfn.UNICHAR(");
     for name in ["XOR(", "IFNA("] {
         let mut prefixed = String::with_capacity(stored.len());
         let mut from = 0;
@@ -3222,9 +3219,10 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     );
 
     // Comparison coerces nothing: numbers order before text and text before logicals, a blank
-    // compares as the other operand's empty value, and text compares ignoring case. Text
-    // ordering, case-insensitive equality and nearly equal numbers follow Excel's collation and
-    // comparison rules, which another bead owns.
+    // compares as the other operand's empty value, and text compares ignoring case. Text ordering,
+    // case-insensitive equality and nearly equal numbers follow Excel's collation and comparison
+    // rule (cdoc-jpha's, measured by its own oracle workbook); these rows' values are those of this
+    // workbook's capture.
     row!(r, s, EQ, [txt("1"), num("1")], L(false));
     row!(r, s, NE, [cell(s, "A1"), num("2")], L(true));
     row!(r, s, LT, [num("1"), txt("a")], L(true));
@@ -3236,58 +3234,43 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [logical(false), num("9.99999999999999E+307")],
         L(true)
     );
-    owned_by!(r, s, COLLATION, EQ, [txt("a"), txt("A")], L(true));
+    row!(r, s, EQ, [txt("a"), txt("A")], L(true));
     row!(r, s, EQ, [cell(s, "A5"), num("0")], L(true));
     row!(r, s, EQ, [cell(s, "A5"), txt("")], L(true));
     row!(r, s, EQ, [cell(s, "A5"), logical(false)], L(true));
     row!(r, s, EQ, [cell(s, "A5"), cell(s, "A6")], L(true));
     row!(r, s, LT, [cell(s, "A5"), num("1")], L(true));
-    owned_by!(r, s, COLLATION, LT, [txt("abc"), txt("abd")], L(true));
-    owned_by!(r, s, COLLATION, GT, [txt("B"), txt("a")], L(true));
-    owned_by!(r, s, COLLATION, LT, [txt("a1"), txt("aa")], L(true));
-    owned_by!(r, s, COLLATION, LT, [txt("10"), txt("9")], L(true));
-    owned_by!(r, s, COLLATION, LT, [txt(""), txt("a")], L(true));
-    owned_by!(r, s, COLLATION, LE, [txt("a"), txt("A")], L(true));
+    row!(r, s, LT, [txt("abc"), txt("abd")], L(true));
+    row!(r, s, GT, [txt("B"), txt("a")], L(true));
+    row!(r, s, LT, [txt("a1"), txt("aa")], L(true));
+    row!(r, s, LT, [txt("10"), txt("9")], L(true));
+    row!(r, s, LT, [txt(""), txt("a")], L(true));
+    row!(r, s, LE, [txt("a"), txt("A")], L(true));
     row!(r, s, GE, [num("1"), num("1")], L(true));
     row!(r, s, LE, [num("1"), num("0")], L(false));
     row!(r, s, GT, [logical(true), logical(false)], L(true));
     row!(r, s, EQ, [txt("\u{e9}"), txt("\u{e9}")], L(true));
     row!(r, s, EQ, [num("1"), num("2")], L(false));
-    // Nearly equal numbers and text that needs Excel's collation are refused.
-    owned_by!(
+    // Nearly equal numbers are equal when their 15-digit roundings are, and text compares with
+    // Excel's collation, in which a hyphen weighs after the letters.
+    row!(
         r,
         s,
-        NEAR_EQUAL,
         EQ,
         [arg("0.1+0.2", CalcValue::number(0.1 + 0.2)), num("0.3")],
-        Refused(None)
+        L(true)
     );
-    owned_by!(
+    row!(r, s, EQ, [txt("\u{e9}"), txt("\u{c9}")], L(true));
+    row!(r, s, LT, [txt("a-b"), txt("ab")], L(false));
+    row!(r, s, LT, [txt("apple pie"), txt("banana")], L(true));
+    row!(r, s, LT, [txt("a"), txt("B")], L(true));
+    row!(r, s, EQ, [txt("A"), txt("a")], L(true));
+    row!(
         r,
         s,
-        COLLATION,
-        EQ,
-        [txt("\u{e9}"), txt("\u{c9}")],
-        Refused(None)
-    );
-    owned_by!(r, s, COLLATION, LT, [txt("a-b"), txt("ab")], Refused(None));
-    owned_by!(
-        r,
-        s,
-        COLLATION,
-        LT,
-        [txt("apple pie"), txt("banana")],
-        Refused(None)
-    );
-    owned_by!(r, s, COLLATION, LT, [txt("a"), txt("B")], L(true));
-    owned_by!(r, s, COLLATION, EQ, [txt("A"), txt("a")], L(true));
-    owned_by!(
-        r,
-        s,
-        NEAR_EQUAL,
         EQ,
         [arg("1+1E-15", CalcValue::number(1.0 + 1e-15)), num("1")],
-        Refused(None)
+        L(true)
     );
 
     // Concatenation: logicals as TRUE and FALSE, a blank as empty text, a number as its text
@@ -8950,7 +8933,6 @@ const MATCHED_ERROR: &str =
 const DIGIT_LABEL_CRITERION: &str = "a criterion holding a word that no number text holds, such as the label Q1 or 2016-17 Winter, is no number (dc-e00t's rule, from its measurement of the words Excel reads inside number text, compared with its Excel capture in dc_e00t__excel_comparison), so it asks for that text, which a text criterion matches ignoring case (the COUNTIF page); no cell of A1:A16 holds it";
 const DIGIT_LABEL_CELL: &str = "the label 2016-17 Winter in the range holds a word that no number text holds, so it is no number (dc-e00t's rule, compared with its Excel capture in dc_e00t__excel_comparison) and does not meet = 2016";
 const NUMBER_TEXT_FORMS: &str = "a criterion that Excel's number-text rules may read as a number, such as the fraction or date 1/2, is not modelled; owned by cfml-m2.6";
-const COLLATION_TEXT: &str = "text compared beyond the comparison operators' modelled rule needs Excel's collation; owned by cdoc-jpha";
 
 // ---------------------------------------------------------------------------------------------
 // cfunc_m3_5__criteria_semantics
@@ -9300,18 +9282,18 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         Choice("<>* matches every cell that holds no text: 5, 10, TRUE, the blank A8, #N/A and 0")
     );
 
-    // COUNTIF: refused criteria and cells, and the label Q1, which is a text criterion.
+    // COUNTIF: an ordering through the comparison operators' collation, then refused criteria
+    // and cells, and the label Q1, which is a text criterion.
     cnd!(
         r,
         s,
         "COUNTIF",
         [a(s), txt("<b")],
-        Refused(Some(0)),
-        Unsupported(
-            "\"Apple Pie\" ordered against b needs a space ordered; owned by cdoc-jpha (Excel's collation)"
+        N(9.0),
+        Measured(
+            "an ordering criterion orders text as the comparison operators do, by cdoc-jpha's collation (measured in Excel and compared with its capture in cdoc_jpha__excel_comparison): \"Apple Pie\", whose space weighs before the letters, is below b with eight other cells of A1:A16"
         )
     );
-    owned(r, COLLATION);
     cnd!(
         r,
         s,
@@ -9404,10 +9386,11 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "COUNTIF",
         [reference(s, &["A23"]), txt("CAF\u{c9}")],
-        Refused(Some(0)),
-        Unsupported(COLLATION_TEXT)
+        N(1.0),
+        Measured(
+            "text equality ignores case beyond ASCII too, as the comparison operators' equality does by cdoc-jpha's collation (measured in Excel and compared with its capture in cdoc_jpha__excel_comparison): caf\u{e9} meets CAF\u{c9}"
+        )
     );
-    owned(r, COLLATION);
     cnd!(
         r,
         s,
@@ -9423,7 +9406,7 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [reference(s, &["A22:A23"]), txt("caf*")],
         Refused(Some(0)),
         Unsupported(
-            "a pattern matched against text beyond ASCII needs Excel's collation; owned by cdoc-jpha"
+            "a pattern matched against text beyond ASCII needs Excel's matching of such text; owned by dc-o4do"
         )
     );
     owned(r, COLLATION);
@@ -9432,12 +9415,11 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "COUNTIF",
         [reference(s, &["A24"]), num("0.3")],
-        Refused(Some(0)),
-        Unsupported(
-            "0.30000000000000004 and 0.3 lie within a relative 1e-13; Excel's comparison of nearly equal numbers is owned by cdoc-jpha"
+        N(1.0),
+        Measured(
+            "a number criterion meets a number with the same 15-digit rounding, as the comparison operators do by cdoc-jpha's rule (measured in Excel and compared with its capture in cdoc_jpha__excel_comparison): 0.30000000000000004 meets 0.3"
         )
     );
-    owned(r, NEAR_EQUAL);
     cnd!(
         r,
         s,
@@ -14403,15 +14385,15 @@ fn lookup_edges_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         refused(Some(0)),
         N(3.0)
     );
-    // Refused: Excel's results here belong to other beads.
-    lk_refused!(
+    // A text order through cdoc-jpha's collation, in which a hyphen weighs after the letters.
+    lk!(
         r,
         s,
-        COLLATION,
         "MATCH",
         [txt("a-b"), rf(s, "B1:B2"), num("1")],
-        refused(None)
+        er(NA)
     );
+    // Refused: Excel's results here belong to other beads.
     lk_refused!(
         r,
         s,
@@ -14814,14 +14796,12 @@ fn lookup_edges_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [txt("Abc"), arr("{\"abc\",\"zzz\"}")],
         n(1.0)
     );
-    lk_refused_shows!(
+    lk!(
         r,
         s,
-        COLLATION,
         "XMATCH",
         [txt("\u{c4}bc"), arr("{\"\u{e4}BC\",\"zzz\"}")],
-        refused(None),
-        N(1.0)
+        n(1.0)
     );
     lk!(r, s, "XMATCH", [num("1"), arr("{\"1\"}")], er(NA));
     lk!(r, s, "XMATCH", [num("1"), arr("{1}"), num("9")], er(Value));
@@ -15848,7 +15828,8 @@ fn cfunc_m3_6__lookup_edges() {
     // Through the call interface alone (no row of the workbook): the formula's own cell, which
     // ROW() and COLUMN() need, is not among the services (dc-ebla); regex matching (match_mode 3,
     // cfunc-m3.20), an array index_num (cfml-m3.4) and a read past LOOKUP's result reference
-    // (dc-1mc8) are refused; so is a text order calc_func's comparison cannot decide (cdoc-jpha),
+    // (dc-1mc8) are refused; so is a text comparison calc_func's comparison cannot decide (text
+    // beyond the repertoire of cdoc-jpha's collation, whose replacement cfml-m2.6 owns),
     // and an order between #BUSY!, #BLOCKED! or #CONNECT! and another error, which no formula on
     // this machine gives offline (dc-tt73).
     let refusals: [(&str, Vec<CalcValue>, Option<usize>); 7] = [
@@ -15883,7 +15864,7 @@ fn cfunc_m3_6__lookup_edges() {
         (
             "XMATCH",
             vec![
-                text_value("b c"),
+                text_value("\u{3b1}"),
                 reference(s, &["B1:B6"]).value,
                 CalcValue::number(-1.0),
             ],
@@ -15923,7 +15904,7 @@ fn cfunc_m3_6__lookup_edges() {
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; cfunc-m3.20), CHOOSE({{1}},\"a\") (lifted; cfml-m3.4), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"b c\",B1:B6,-1) (a text order calc_func's comparison cannot decide; cdoc-jpha), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-tt73)",
+        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; cfunc-m3.20), CHOOSE({{1}},\"a\") (lifted; cfml-m3.4), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"\u{3b1}\",B1:B6,-1) (text beyond the repertoire of calc_func's collation; cfml-m2.6), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-tt73)",
         CALLER_OWNER.bead,
         CALLER_OWNER.behaviour,
         READ_PAST_OWNER.bead,
@@ -18972,6 +18953,861 @@ fn dc_fwpz__excel_comparison() {
     assert_eq!(observed, all, "a raw value of Excel's for every row");
     note!(
         "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of {LOGICAL_WORKBOOK_PATH}: {} (every computed row matched, every refused row not modeled with its owner); the whole workbook: {}",
+        environment.target.excel_build(),
+        sheet_verdicts(&comparison.report, &rows),
+        comparison.report.summary()
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// cdoc-jpha: the comparison operators order and equate text with Excel's collation and compare
+// nearly equal numbers by Excel's rule, through calc_func::invoke on their catalogue targets; the
+// lookups that ask for an exact match equate text the same way, MATCH, VLOOKUP and HLOOKUP (and
+// XMATCH and XLOOKUP in wildcard mode) asking for the same length too.
+//
+// `tests/fixtures/cdoc_jpha/rows.txt` lists the rows, one line per row or per group of rows, with
+// the value Excel gives for each: its raw value for the row's cell in the committed capture
+// `tests/captures/cdoc_jpha/oracle.capture.json` ([`COLLATION_CAPTURED`]). The committed generator
+// `tests/fixtures/make-fixtures.ps1` writes `tests/fixtures/cdoc_jpha/oracle.xlsx` from the same
+// file: each row's formula in column D of the sheet text_and_number_comparison, in order, beside
+// the cells the rows read. `cargo xtask capture --fixture
+// crates/calc-func/tests/fixtures/cdoc_jpha/oracle.xlsx --case cdoc_jpha__excel_comparison --out
+// crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json` wrote Excel's capture.
+//
+// cdoc_jpha__text_and_number_comparison runs every row through calc_func::invoke under Fast and
+// asserts the value the file states, and the same call under Exact; it checks that the sheet
+// holds exactly the rows' formulas and cells and, on Windows, that the generator writes the
+// committed workbook. cdoc_jpha__excel_comparison publishes the rows' results and their recorded
+// invoke calls to calc_verdict::judge against the capture, and asserts that every computed row
+// matches, that every refused row is not modelled with its owner, and that the value each row
+// states is Excel's raw value on the report.
+//
+// A text no formula literal holds (a control character, an invisible or a combining character, a
+// space beyond ASCII) is written through CHAR or UNICHAR, joined with & to the rest of the text.
+// calc_func's catalogue has neither function, and the case does not compute the & either: it
+// supplies the operand's text (the character of each code), as cfunc-m1.2's computed operands are
+// supplied, so for such a row only the comparison or lookup is computed through calc_func::invoke.
+// The operands 0.1+0.2 and 1+1E-15 are computed through calc_func::invoke of +. Each pair of
+// numbers is held in columns A and B, and the rows =+A and =+B show the numbers Excel loaded.
+
+/// The oracle workbook of cdoc-jpha, as committed.
+const COLLATION_WORKBOOK: &[u8] = include_bytes!("fixtures/cdoc_jpha/oracle.xlsx");
+const COLLATION_WORKBOOK_PATH: &str = "crates/calc-func/tests/fixtures/cdoc_jpha/oracle.xlsx";
+/// The rows, as the generator reads them.
+const COLLATION_ROWS: &str = include_str!("fixtures/cdoc_jpha/rows.txt");
+/// Excel's capture of the workbook.
+const COLLATION_CAPTURE: &[u8] = include_bytes!("captures/cdoc_jpha/oracle.capture.json");
+/// The case the capture is recorded under.
+const COLLATION_CAPTURE_CASE: &str = "cdoc_jpha__excel_comparison";
+/// How the value each row states was obtained. The comparison case asserts the capture's build,
+/// locale and separators as [`CAPTURED_SETTINGS`] and [`CAPTURED_BUILD`] state them.
+const COLLATION_CAPTURED: &str = "Excel's raw value for this cell in the committed capture crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json, which cdoc_jpha__excel_comparison asserts through calc_verdict::judge's report (Excel 16.0.20430.20182 on the owner's Windows machine under Windows locale en-ZA, user culture en-ZA; no other locale was measured)";
+/// The one formula Excel reads back other than as written, beside the XLOOKUP calls it reads
+/// back with @: it writes the literal 1E-15 out.
+const REWRITTEN_FORMULA: (&str, &str) = ("=1+1E-15=1", "=1+0.000000000000001=1");
+
+/// Text beyond the collation's repertoire, which the comparison refuses.
+const BEYOND_REPERTOIRE: Owner = Owner {
+    bead: "cfml-m2.6",
+    behaviour: "Excel's collation of characters beyond calc_func's collation repertoire (locale services)",
+};
+
+/// Nearly equal numbers in the bands where Excel's rounding departs from the exact one, which the
+/// comparison refuses.
+const NUMBER_BANDS: Owner = Owner {
+    bead: "dc-n8n7",
+    behaviour: "Excel's near-equality of numbers in the bands cdoc-jpha refuses",
+};
+
+/// What a cdoc-jpha row states Excel gives, or that calc_func refuses it.
+#[derive(Clone, Debug)]
+enum Captured {
+    Logical(bool),
+    Number(f64),
+    Error(WorksheetErrorCode),
+    /// A text, as its UTF-16 code units.
+    Text(Vec<u16>),
+    /// Refused as not modelled (text beyond the repertoire), naming this argument; Excel's value
+    /// is on the report.
+    Refused(Option<usize>),
+}
+
+impl Captured {
+    fn read(field: &str) -> Captured {
+        match field {
+            "T" => Captured::Logical(true),
+            "F" => Captured::Logical(false),
+            "#N/A" => Captured::Error(WorksheetErrorCode::NA),
+            "R" => Captured::Refused(None),
+            "R0" => Captured::Refused(Some(0)),
+            "R1" => Captured::Refused(Some(1)),
+            _ => match field.strip_prefix("s:") {
+                Some(spec) => Captured::Text(collation_text(spec)),
+                None => Captured::Number(
+                    field
+                        .parse()
+                        .expect("a number, T, F, #N/A, s:text, R, R0 or R1"),
+                ),
+            },
+        }
+    }
+
+    fn expect(&self) -> Expect {
+        match self {
+            Captured::Logical(b) => L(*b),
+            Captured::Number(n) => N(*n),
+            Captured::Error(code) => E(*code),
+            Captured::Text(units) => Expect::Units(units.clone()),
+            Captured::Refused(argument) => Refused(*argument),
+        }
+    }
+
+    /// The value Excel gives, for a row calc_func computes.
+    fn value(&self) -> Option<CalcValue> {
+        match self {
+            Captured::Logical(b) => Some(CalcValue::logical(*b)),
+            Captured::Number(n) => Some(CalcValue::number(*n)),
+            Captured::Error(code) => Some(CalcValue::error(*code)),
+            Captured::Text(units) => Some(CalcValue::text(ExcelText::from_utf16_code_units(
+                units.clone(),
+            ))),
+            Captured::Refused(_) => None,
+        }
+    }
+}
+
+/// A text of rows.txt: `\XXXX` is the UTF-16 code unit XXXX, `\{N}` repeats the code unit after it
+/// N times, and any other character is itself.
+fn collation_text(spec: &str) -> Vec<u16> {
+    let bytes = spec.as_bytes();
+    let mut units = Vec::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        let mut count = 1;
+        if bytes[at] == b'\\' && bytes.get(at + 1) == Some(&b'{') {
+            let close = at + spec[at..].find('}').expect("a closed repeat");
+            count = spec[at + 2..close].parse().expect("a repeat count");
+            at = close + 1;
+        }
+        let unit = if bytes[at] == b'\\' {
+            at += 5;
+            u16::from_str_radix(&spec[at - 4..at], 16).expect("four hex digits")
+        } else {
+            at += 1;
+            u16::from(bytes[at - 1])
+        };
+        units.extend(std::iter::repeat_n(unit, count));
+    }
+    units
+}
+
+/// Whether a formula writes this code unit inside a text literal (the generator's rule): printable
+/// ASCII and every code unit from U+00A0 on, except the no-break, soft hyphen and other spaces and
+/// invisible characters and the combining diacritical marks.
+fn collation_literal(unit: u16) -> bool {
+    (0x20..=0x7E).contains(&unit)
+        || (unit >= 0xA0
+            && ![
+                0x00A0, 0x00AD, 0x2002, 0x2003, 0x2007, 0x2009, 0x202F, 0x2060, 0xFEFF,
+            ]
+            .contains(&unit)
+            && !(0x200B..=0x200F).contains(&unit)
+            && !(0x0300..=0x036F).contains(&unit))
+}
+
+/// A text as an operand: as the formula writes it (text literals, and CHAR or UNICHAR for the
+/// other code units, joined by & in parentheses when there is more than one part) and as calc_func
+/// is given it.
+fn collation_text_arg(units: &[u16]) -> Arg {
+    let mut parts = Vec::new();
+    let mut run: Vec<u16> = Vec::new();
+    let literal = |run: &[u16]| {
+        format!(
+            "\"{}\"",
+            String::from_utf16(run)
+                .expect("UTF-16")
+                .replace('"', "\"\"")
+        )
+    };
+    for &unit in units {
+        if collation_literal(unit) {
+            run.push(unit);
+        } else {
+            if !run.is_empty() {
+                parts.push(literal(&run));
+                run.clear();
+            }
+            parts.push(if unit < 0x80 {
+                format!("CHAR({unit})")
+            } else {
+                format!("UNICHAR({unit})")
+            });
+        }
+    }
+    if !run.is_empty() || parts.is_empty() {
+        parts.push(literal(&run));
+    }
+    let excel = match parts.as_slice() {
+        [one] => one.clone(),
+        _ => format!("({})", parts.join("&")),
+    };
+    arg(
+        &excel,
+        CalcValue::text(ExcelText::from_utf16_code_units(units.to_vec())),
+    )
+}
+
+/// A number operand written as a formula expression: a literal, or two literals joined by +, which
+/// calc_func::invoke of + computes under Fast.
+fn collation_number_arg(excel: &str) -> Arg {
+    match excel.split_once('+') {
+        None => num(excel),
+        Some((a, b)) => {
+            let mut given = Recorded::new(vec![
+                CalcValue::number(a.parse().expect("a number literal")),
+                CalcValue::number(b.parse().expect("a number literal")),
+            ]);
+            let value = run(surface(PLUS.0, PLUS.1), &mut given, &NumericMode::Fast)
+                .unwrap_or_else(|fault| panic!("{excel} through calc_func::invoke: {fault:?}"));
+            arg(excel, value)
+        }
+    }
+}
+
+/// The lines of rows.txt that are not comments, each split at `|`, with the number of the section
+/// (the comment `# <n>. ...`) it falls in.
+fn collation_lines() -> Vec<(u32, Vec<&'static str>)> {
+    let mut section = 0;
+    let mut lines = Vec::new();
+    for line in COLLATION_ROWS.lines() {
+        if let Some(comment) = line.strip_prefix("# ") {
+            if let Some((number, _)) = comment.split_once(". ")
+                && let Ok(number) = number.parse()
+            {
+                section = number;
+            }
+            continue;
+        }
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        lines.push((section, line.split('|').collect()));
+    }
+    lines
+}
+
+/// The test sheet of the cdoc-jpha rows: the two numbers of each pair of section 9 in columns A
+/// and B of the first of its four rows, and the constants of column C.
+fn collation_sheet() -> TestSheet {
+    let mut cells: Vec<(String, String, CalcValue)> = Vec::new();
+    let mut row = 0u32;
+    for (_, fields) in collation_lines() {
+        match fields[0] {
+            "t" | "f" | "c" | "COUNTIF" | "L" => row += 1,
+            "N" => {
+                for (column, written) in [("A", fields[1]), ("B", fields[2])] {
+                    let value: f64 = written.parse().expect("a decimal");
+                    cells.push((
+                        format!("{column}{}", row + 1),
+                        written.to_owned(),
+                        CalcValue::number(value),
+                    ));
+                }
+                row += 4;
+            }
+            "C" => {
+                let (entry, value) = match fields[2].strip_prefix("n:") {
+                    Some(written) => (
+                        written.to_owned(),
+                        CalcValue::number(written.parse().expect("a decimal")),
+                    ),
+                    None => {
+                        let units = collation_text(fields[2]);
+                        let entry = if units.len() > 24 {
+                            format!("text of {} UTF-16 code units", units.len())
+                        } else {
+                            format!("text {:?}", String::from_utf16(&units).expect("UTF-16"))
+                        };
+                        (
+                            entry,
+                            CalcValue::text(ExcelText::from_utf16_code_units(units)),
+                        )
+                    }
+                };
+                cells.push((fields[1].to_owned(), entry, value));
+            }
+            other => panic!("rows.txt: a line of no known kind {other:?}"),
+        }
+    }
+    let held: Vec<(&str, &str, CalcValue)> = cells
+        .iter()
+        .map(|(address, entry, value)| (address.as_str(), entry.as_str(), value.clone()))
+        .collect();
+    TestSheet::new(&held)
+}
+
+/// The cdoc-jpha rows, with the value each states Excel gives and the section each falls in, in
+/// row order.
+struct CollationRows {
+    rows: Rows,
+    captured: Vec<Captured>,
+    sections: Vec<u32>,
+    /// Rows whose call under NumericMode::Exact is refused with ExactUnavailable.
+    exact_refused: usize,
+}
+
+/// The sections whose rows each print a note; the others print a count.
+const LOUD_SECTIONS: [u32; 8] = [1, 4, 5, 7, 8, 9, 10, 11];
+
+/// Runs one cdoc-jpha row: `surface` on `args` through calc_func::invoke under Fast, asserted to
+/// give what `captured` states (for a refused row a refusal as not modelled, owned by
+/// [`BEYOND_REPERTOIRE`]). The same call under Exact gives the same outcome, or is refused with
+/// ExactUnavailable when it compares two different numbers or adds; a row comparing two texts has
+/// the same outcome under both. Records the call and the row with the next cell of column D.
+fn collation_check(
+    run: &mut CollationRows,
+    sheet: &mut TestSheet,
+    section: u32,
+    surface_of: (Notation, &str),
+    args: &[Arg],
+    captured: Captured,
+) {
+    let expect = captured.expect();
+    let (formula, _, result, tick) =
+        call_and_assert(sheet, &NumericMode::Fast, surface_of, args, &expect);
+    let target = surface(surface_of.0, surface_of.1);
+    let exact = exact_mode();
+    let mut given = Recorded::new(args.iter().map(|a| a.value.clone()).collect());
+    let under_exact = invoke(
+        target,
+        &mut given,
+        &mut EvalServices::with_cells(&exact, sheet),
+        &mut FunctionCallScratch::new(),
+    );
+    let same = match (&under_exact, &result) {
+        (Ok(e), Ok(f)) => identical(e, f),
+        (Err(e), Err(f)) => e == f,
+        _ => false,
+    };
+    let texts_only = args.iter().all(|a| a.value.as_text().is_some());
+    if !same {
+        assert!(
+            !texts_only && under_exact == Err(FunctionFault::ExactUnavailable { id: target.id() }),
+            "{formula} under Exact gives {under_exact:?}, under Fast {result:?}"
+        );
+        run.exact_refused += 1;
+    }
+    let owner = match captured {
+        Captured::Refused(_) => Some(BEYOND_REPERTOIRE),
+        _ => None,
+    };
+    let rows = &mut run.rows;
+    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
+    if !rows.quiet && LOUD_SECTIONS.contains(&section) {
+        let reads: Vec<&str> = args
+            .iter()
+            .flat_map(|a| a.reads.iter().map(String::as_str))
+            .collect();
+        let cells = if reads.is_empty() {
+            String::new()
+        } else {
+            format!(" with {}", reads.join(", "))
+        };
+        let shown = match captured {
+            Captured::Refused(_) => format!(
+                "refused as not modelled ({}), the same under Exact; Excel's value is on the comparison's report",
+                BEYOND_REPERTOIRE.feature()
+            ),
+            _ if same => format!("{} as captured, the same under Exact", expect.shown()),
+            _ => format!(
+                "{} as captured; under Exact refused with ExactUnavailable",
+                expect.shown()
+            ),
+        };
+        note!(
+            "ACCEPT-NOTE: {}: oracle {}!{} {formula}{cells} -> {shown}",
+            rows.case,
+            rows.sheet,
+            encode_a1(row, FORMULA_COLUMN)
+        );
+    }
+    rows.calls.push(Call { row, tick });
+    rows.oracle.push(OracleRow {
+        row,
+        formula,
+        outcome: result,
+        choice: None,
+        owner,
+        tick,
+    });
+    run.captured.push(captured);
+    run.sections.push(section);
+}
+
+/// The rows of cdoc_jpha__text_and_number_comparison, run through calc_func::invoke on `s`, in the
+/// order the oracle workbook's sheet holds their formulas.
+fn collation_rows(s: &mut TestSheet, quiet: bool) -> CollationRows {
+    const CASE: &str = "cdoc_jpha__text_and_number_comparison";
+    let mut run = CollationRows {
+        rows: Rows::new(CASE, "text_and_number_comparison", quiet),
+        captured: Vec::new(),
+        sections: Vec::new(),
+        exact_refused: 0,
+    };
+    let infix = |op: &'static str| (Notation::Infix, op);
+    for (section, fields) in collation_lines() {
+        let op = || -> &'static str {
+            match fields[1] {
+                "=" => "=",
+                "<>" => "<>",
+                "<" => "<",
+                "<=" => "<=",
+                ">" => ">",
+                ">=" => ">=",
+                other => panic!("rows.txt: no comparison operator {other:?}"),
+            }
+        };
+        match fields[0] {
+            "t" => {
+                let args = [
+                    collation_text_arg(&collation_text(fields[2])),
+                    collation_text_arg(&collation_text(fields[3])),
+                ];
+                let captured = Captured::read(fields[4]);
+                collation_check(&mut run, s, section, infix(op()), &args, captured);
+            }
+            "f" => {
+                let args = [
+                    collation_number_arg(fields[2]),
+                    collation_number_arg(fields[3]),
+                ];
+                let captured = Captured::read(fields[4]);
+                collation_check(&mut run, s, section, infix(op()), &args, captured);
+            }
+            "c" => {
+                let args = [cell(s, fields[2]), cell(s, fields[3])];
+                let captured = Captured::read(fields[4]);
+                collation_check(&mut run, s, section, infix(op()), &args, captured);
+            }
+            "N" => {
+                let first = u32::try_from(run.rows.oracle.len() + 1).expect("a row number");
+                let (a, b) = (format!("A{first}"), format!("B{first}"));
+                let pair = [cell(s, &a), cell(s, &b)];
+                for (target, captured) in [(EQ, fields[3]), (LT, fields[4])] {
+                    collation_check(
+                        &mut run,
+                        s,
+                        section,
+                        target,
+                        &pair,
+                        Captured::read(captured),
+                    );
+                }
+                for (operand, written) in [(&a, fields[1]), (&b, fields[2])] {
+                    let args = [cell(s, operand)];
+                    let captured = Captured::read(written);
+                    collation_check(&mut run, s, section, UNARY_PLUS, &args, captured);
+                }
+            }
+            "C" => {}
+            "COUNTIF" => {
+                let criterion = match fields[2].split_once(':') {
+                    Some(("t", spec)) => collation_text_arg(&collation_text(spec)),
+                    Some(("n", literal)) => num(literal),
+                    _ => panic!("rows.txt: a criterion of no known kind {:?}", fields[2]),
+                };
+                let ranges: Vec<&str> = vec![fields[1]];
+                let args = [reference(s, &ranges), criterion];
+                let captured = Captured::read(fields[3]);
+                collation_check(&mut run, s, section, COUNTIF, &args, captured);
+            }
+            "L" => {
+                let key = match fields[2].split_once(':') {
+                    Some(("t", spec)) => collation_text_arg(&collation_text(spec)),
+                    Some(("n", written)) => collation_number_arg(written),
+                    _ => panic!("rows.txt: a key of no known kind {:?}", fields[2]),
+                };
+                let array = match fields[3]
+                    .strip_prefix('{')
+                    .and_then(|inner| inner.strip_suffix('}'))
+                {
+                    Some(spec) => {
+                        let element = collation_text_arg(&collation_text(spec));
+                        assert!(
+                            element.excel.starts_with('"'),
+                            "rows.txt: an array constant of literal text"
+                        );
+                        array_arg(&format!("{{{}}}", element.excel), vec![vec![element.value]])
+                    }
+                    None => reference(s, &[fields[3]]),
+                };
+                let mut args = vec![key, array];
+                if !fields[4].is_empty() {
+                    for more in fields[4].split(',') {
+                        args.push(match more {
+                            "" => omitted(),
+                            "TRUE" => logical(true),
+                            "FALSE" => logical(false),
+                            _ => match more.strip_prefix('{').and_then(|n| n.strip_suffix('}')) {
+                                Some(number) => array_arg(
+                                    more,
+                                    vec![vec![CalcValue::number(
+                                        number.parse().expect("a number"),
+                                    )]],
+                                ),
+                                None => num(more),
+                            },
+                        });
+                    }
+                }
+                let captured = Captured::read(fields[5]);
+                collation_check(
+                    &mut run,
+                    s,
+                    section,
+                    (Notation::Call, fields[1]),
+                    &args,
+                    captured,
+                );
+            }
+            other => panic!("rows.txt: a line of no known kind {other:?}"),
+        }
+    }
+    run
+}
+
+/// Asserts that comparing `a` and `b` by = and by < is refused as not modelled, naming no
+/// argument (owned by [`NUMBER_BANDS`]), and returns how many calls that was.
+fn collation_refuses(a: f64, b: f64) -> usize {
+    for target in [EQ, LT] {
+        let target = surface(target.0, target.1);
+        let mut given = Recorded::new(vec![CalcValue::number(a), CalcValue::number(b)]);
+        assert_eq!(
+            run(target, &mut given, &NumericMode::Fast),
+            Err(FunctionFault::NotImplemented {
+                id: target.id(),
+                argument: None
+            }),
+            "{a:?} and {b:?}"
+        );
+    }
+    2
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_jpha__text_and_number_comparison() {
+    const CASE: &str = "cdoc_jpha__text_and_number_comparison";
+    let mut sheet = collation_sheet();
+    let collated = collation_rows(&mut sheet, false);
+    let rows = &collated.rows;
+    assert!(
+        rows.oracle
+            .iter()
+            .all(|row| row.owner.is_some() == row.outcome.is_err()),
+        "a refused row names its owner, a computed row none"
+    );
+
+    // Each section's rows, counted, with how many state TRUE.
+    let mut sections: BTreeMap<u32, (usize, usize)> = BTreeMap::new();
+    for (section, captured) in collated.sections.iter().zip(&collated.captured) {
+        let entry = sections.entry(*section).or_default();
+        entry.0 += 1;
+        if matches!(captured, Captured::Logical(true)) {
+            entry.1 += 1;
+        }
+    }
+    let counted: Vec<String> = sections
+        .iter()
+        .map(|(section, (all, true_rows))| {
+            format!("section {section}: {all} rows ({true_rows} stating TRUE)")
+        })
+        .collect();
+    note!(
+        "ACCEPT-NOTE: {CASE}: rows by section of tests/fixtures/cdoc_jpha/rows.txt (1 cfunc-m1.2's 14 comparison kinds, 2 every character of the repertoire in Excel's order, 3 the level probes of each step of that order, 4 ligatures, 5 the first pass, special characters, spaces, punctuation and labels, 6 random pairs, 7 long texts, 8 text beyond the repertoire, 9 numbers, 10 COUNTIF criteria, 11 lookups' equality; the rows of sections 2, 3 and 6 are counted here, the others noted one by one above): {}",
+        counted.join(", ")
+    );
+
+    // The operands the case supplies rather than computes: text written through CHAR or UNICHAR.
+    let computed: Vec<&OracleRow> = rows
+        .oracle
+        .iter()
+        .filter(|row| row.outcome.is_ok())
+        .collect();
+    let through_char: Vec<&&OracleRow> = computed
+        .iter()
+        .filter(|row| row.formula.contains("CHAR("))
+        .collect();
+    let joined = through_char
+        .iter()
+        .filter(|row| row.formula.contains('&'))
+        .count();
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} of the {} computed rows write an operand through CHAR or UNICHAR ({joined} of them joining it to other text with &), which calc_func's catalogue does not have: for these the case supplies the operand's text (the character of each code) and only the comparison or lookup is computed through calc_func::invoke, as cfunc-m1.2's computed operands are supplied",
+        through_char.len(),
+        computed.len()
+    );
+
+    // The oracle workbook: its sheet holds exactly the rows' formulas (XMATCH and XLOOKUP with
+    // the file's _xlfn. prefix) and cells, and the committed workbook is its generator's output.
+    assert_workbook_sheet(
+        COLLATION_WORKBOOK,
+        COLLATION_WORKBOOK_PATH,
+        &stored_formulas(rows),
+        &sheet,
+    );
+    #[cfg(all(windows, not(target_arch = "wasm32")))]
+    {
+        let generated = generated_fixtures();
+        let names: Vec<&str> = generated.keys().map(String::as_str).collect();
+        assert_eq!(
+            names, GENERATED_WORKBOOKS,
+            "the generator writes the oracle workbooks and nothing else"
+        );
+        let regenerated = &generated["cdoc_jpha/oracle.xlsx"];
+        assert!(
+            regenerated.as_slice() == COLLATION_WORKBOOK,
+            "the committed cdoc-jpha oracle workbook is not the generator's output (sha256 {} committed, {} generated)",
+            sha256_hex(COLLATION_WORKBOOK),
+            sha256_hex(regenerated)
+        );
+        note!(
+            "ACCEPT-NOTE: {CASE}: crates/calc-func/tests/fixtures/make-fixtures.ps1, run now under Windows PowerShell, wrote the committed cdoc-jpha oracle workbook byte for byte ({} bytes) from tests/fixtures/cdoc_jpha/rows.txt",
+            regenerated.len()
+        );
+    }
+    #[cfg(not(all(windows, not(target_arch = "wasm32"))))]
+    {
+        note!(
+            "ACCEPT-NOTE: {CASE}: the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only"
+        );
+    }
+
+    // Through the call interface alone, numbers where Excel's own rounding departs from the exact
+    // one: these comparisons are refused, and numbers far apart there still order by value.
+    let top = f64::from_bits(0x7FE0_0000_0000_0000);
+    let after = |x: f64, ulps: u64| f64::from_bits(x.to_bits() + ulps);
+    let mut refused = 0;
+    refused += collation_refuses(top, after(top, 3));
+    refused += collation_refuses(f64::MAX, f64::MAX.next_down());
+    refused += collation_refuses(1e-146, after(1e-146, 10));
+    refused += collation_refuses(1.001e-146, after(1.001e-146, 1));
+    refused += collation_refuses(1e-292, after(1e-292, 10));
+    refused += collation_refuses(9.531725029864735e200, 9.53172502986473e200);
+    refused += collation_refuses(9.531725029864735e200, 9.53172502986474e200);
+    for (a, b, less) in [
+        (f64::MAX, 1.0, false),
+        (1e-146, 1e-145, true),
+        (-f64::MAX, top, true),
+    ] {
+        let mut given = Recorded::new(vec![CalcValue::number(a), CalcValue::number(b)]);
+        assert_eq!(
+            run(surface(LT.0, LT.1), &mut given, &NumericMode::Fast),
+            Ok(CalcValue::logical(less)),
+            "{a:?} < {b:?}"
+        );
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: through the call interface alone (no oracle row, not compared with Excel here): {refused} calls comparing nearly equal numbers where Excel's rounding departs from the exact one are refused as not modelled, naming no argument, owned by {}: in binary64's top binade (2^1023 and 3 ulps above it; the largest number and the one below it), from 1E-146 (and 10 ulps above it; 1.001E-146) and from 1E-292, and 9.531725029864735E+200 against either 15-digit neighbour, which lies a relative 2^-64.5 below a 16th-digit tie (the band within a relative 2^-59 of a tie); numbers far apart there order by value. The departures were read in Excel COM sessions while this bead was built, not in the committed capture",
+        NUMBER_BANDS.feature()
+    );
+
+    // Text holding U+0000 (which CHAR(0) and UNICHAR(0) do not give: both are #VALUE! in Excel) is
+    // beyond the repertoire: refused, naming the operand that holds it. calc_func's comparison
+    // before this bead equated ASCII texts, U+0000 included, ignoring ASCII case.
+    let nul = |text: &str| CalcValue::text(ExcelText::from_interop_assignment(text));
+    let mut narrowed = 0;
+    for (target, a, b, argument) in [
+        (EQ, "a\u{0}", "a", 0),
+        (EQ, "A", "a\u{0}", 1),
+        (LT, "a\u{0}b", "A\u{0}B", 0),
+    ] {
+        let target = surface(target.0, target.1);
+        let mut given = Recorded::new(vec![nul(a), nul(b)]);
+        assert_eq!(
+            run(target, &mut given, &NumericMode::Fast),
+            Err(FunctionFault::NotImplemented {
+                id: target.id(),
+                argument: Some(argument)
+            }),
+            "{a:?} and {b:?}"
+        );
+        narrowed += 1;
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: through the call interface alone (not compared with Excel): {narrowed} comparisons of text holding U+0000 (which neither CHAR(0) nor UNICHAR(0) gives) are refused as not modelled, naming the operand that holds it, owned by {}; before this bead calc_func's comparison computed such ASCII pairs, so this is a narrowing, counted here",
+        BEYOND_REPERTOIRE.feature()
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: {} rows through calc_func::invoke: {} computed, each equal to {COLLATION_CAPTURED}; {} refused as not modelled ({}); under NumericMode::Exact {} rows comparing two different numbers or adding are refused with ExactUnavailable and every other row gives its Fast outcome",
+        rows.oracle.len(),
+        rows.oracle.len() - rows.refused(),
+        rows.refused(),
+        BEYOND_REPERTOIRE.feature(),
+        collated.exact_refused
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn cdoc_jpha__excel_comparison() {
+    const CASE: &str = "cdoc_jpha__excel_comparison";
+    let CollationRows { rows, captured, .. } = collation_rows(&mut collation_sheet(), true);
+    let (results, evaluations) = published_in(COLLATION_WORKBOOK, COLLATION_CAPTURE_CASE, &[&rows]);
+    assert_eq!(
+        (results.results.len(), evaluations.evaluations.len()),
+        (rows.oracle.len(), rows.oracle.len()),
+        "a result and an evaluation for each row"
+    );
+    let not_modelled = results
+        .results
+        .iter()
+        .filter(|result| matches!(result.provenance, Provenance::NotModeled { .. }))
+        .count();
+    assert_eq!(
+        not_modelled,
+        rows.refused(),
+        "every refused row is published as not modelled, and only those"
+    );
+    let capture = CaptureRecord::decode(COLLATION_CAPTURE).expect("the committed capture decodes");
+    assert_eq!(capture.case, COLLATION_CAPTURE_CASE);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    let session = capture
+        .session
+        .as_ref()
+        .expect("the committed capture is a version 2 record");
+    let workbook = format!("sha256:{}", sha256_hex(COLLATION_WORKBOOK));
+    assert_eq!(
+        capture.source, workbook,
+        "the capture's source is not the oracle workbook as committed"
+    );
+    assert_eq!(
+        session.input_package, workbook,
+        "the capture's input package is not the oracle workbook as committed"
+    );
+    let worker = format!("worker sha256:{}", sha256_hex(CAPTURE_WORKER));
+    assert!(
+        session.tool.split("; ").any(|part| part == worker),
+        "the capture-tool revision {:?} does not name the committed worker ({worker})",
+        session.tool
+    );
+    let isolation: Vec<_> = session.failures_at(STAGE_ISOLATION).collect();
+    assert!(
+        isolation.is_empty(),
+        "the committed capture records isolation failures: {isolation:?}"
+    );
+    let environment = capture
+        .environment
+        .as_ref()
+        .expect("the capture records Excel's environment");
+    let comparison = judged(&capture, &results, &evaluations, &rows)
+        .unwrap_or_else(|refusal| panic!("calc_verdict::judge refuses the capture: {refusal}"));
+    assert!(
+        comparison.problems.is_empty(),
+        "{} problems on the verdict on Excel {}'s capture ({}):\n{}",
+        comparison.problems.len(),
+        environment.target.excel_build(),
+        comparison.report.summary(),
+        comparison.problems.join("\n")
+    );
+
+    // The value each row states is the raw value the report carries for the row's cell.
+    let observed: BTreeMap<u32, &Observation> = comparison
+        .report
+        .cells
+        .iter()
+        .filter(|cell| {
+            cell.formula.cell.sheet() == rows.sheet && cell.formula.cell.column() == FORMULA_COLUMN
+        })
+        .filter_map(|cell| Some((cell.formula.cell.row(), cell.observation.as_ref()?)))
+        .collect();
+    assert_eq!(observed.len(), rows.oracle.len(), "an observation per row");
+    let mut refused_values = Vec::new();
+    for (row, stated) in rows.oracle.iter().zip(&captured) {
+        let at = format!("{}!{}", rows.sheet, encode_a1(row.row, FORMULA_COLUMN));
+        let Some(Observation::ExcelRaw(value)) = observed.get(&row.row) else {
+            panic!("{at}: the report carries no raw value of Excel's");
+        };
+        match stated.value() {
+            Some(expected) => assert!(
+                identical(value, &expected),
+                "{at} {}: the row states {}, the capture holds {}",
+                row.formula,
+                shown_value(&expected),
+                shown_value(value)
+            ),
+            None => refused_values.push(format!("{at} {} {}", row.formula, shown_value(value))),
+        }
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: every computed row's stated value is Excel's raw value for its cell on the report; the {} refused rows' values in Excel: {}",
+        refused_values.len(),
+        refused_values.join("; ")
+    );
+
+    // Excel read every formula back as written, but for the one whose literal it writes out and
+    // the XLOOKUP calls, which it reads back with the implicit-intersection operator @: the file
+    // stores every formula without dynamic-array metadata.
+    let mut rewritten = Vec::new();
+    let mut intersected = 0;
+    for row in &rows.oracle {
+        let read_back = capture
+            .formulas
+            .iter()
+            .find(|formula| {
+                formula.cell.sheet() == rows.sheet
+                    && (formula.cell.row(), formula.cell.column()) == (row.row, FORMULA_COLUMN)
+            })
+            .and_then(|formula| formula.formula.as_deref());
+        if read_back == Some(row.formula.as_str()) {
+            continue;
+        }
+        if let Some(call) = row.formula.strip_prefix("=XLOOKUP(") {
+            assert_eq!(
+                read_back,
+                Some(format!("=@XLOOKUP({call}").as_str()),
+                "Excel's formula of row {}",
+                row.row
+            );
+            intersected += 1;
+            continue;
+        }
+        assert_eq!(
+            (row.formula.as_str(), read_back),
+            (REWRITTEN_FORMULA.0, Some(REWRITTEN_FORMULA.1)),
+            "Excel's formula of row {}",
+            row.row
+        );
+        rewritten.push(row.row);
+    }
+    assert_eq!(rewritten.len(), 1, "the one rewritten formula");
+
+    // What the label of the rows' values states of the capture.
+    let setting = |name: &str| {
+        environment
+            .settings
+            .iter()
+            .find(|(setting, _)| setting == name)
+            .map(|(_, value)| value.as_str())
+    };
+    assert_eq!(environment.target.excel_build(), CAPTURED_BUILD);
+    for (name, value) in CAPTURED_SETTINGS {
+        assert_eq!(setting(name), Some(value), "the capture's setting {name}");
+    }
+    note!(
+        "ACCEPT-NOTE: {CASE}: the capture was taken by Excel {} under {}; Excel read every formula back as written but row {} ({} reads back as {}) and the {intersected} XLOOKUP formulas, each read back with the implicit-intersection operator @ (=@XLOOKUP(...))",
+        environment.target.excel_build(),
+        CAPTURED_SETTINGS
+            .iter()
+            .map(|(name, value)| format!("{name} {value:?}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        encode_a1(rewritten[0], FORMULA_COLUMN),
+        REWRITTEN_FORMULA.0,
+        REWRITTEN_FORMULA.1
+    );
+    note!(
+        "ACCEPT-NOTE: {CASE}: Excel comparison through calc_verdict::judge against Excel {}'s capture of the oracle workbook: {} (every computed row matched, every refused row not modeled with its owner); the whole workbook: {}",
         environment.target.excel_build(),
         sheet_verdicts(&comparison.report, &rows),
         comparison.report.summary()

@@ -5,21 +5,31 @@
 //! TRUE). A blank operand (Empty, or Missing) compares as the empty value of the other operand's
 //! kind (0, empty text or FALSE), and two blanks are equal.
 //!
-//! Two numbers order by value. Equal numbers are equal without any rounding. Two different numbers
-//! are first tested for near-equality, which is an arithmetic site: it rounds a difference and a
-//! product under the call's numeric mode, so under Exact, which has no implementation, the
-//! comparison is refused with ExactUnavailable. Under Fast two different numbers within a relative
-//! 1e-13 of each other are refused: Excel compares some nearly equal numbers as equal, by a rule
-//! that is not modelled.
+//! Two numbers compare as Excel compares them: each is rounded to 15 significant digits, a tie at
+//! the 16th digit away from zero, and two numbers with the same rounding are equal (0.1+0.2 equals
+//! 0.3, and 1+1E-15 equals 1); otherwise they order by value. Equal numbers are equal without any
+//! rounding. Two different numbers are first tested for nearness, which is an arithmetic site: it
+//! rounds a difference and a product under the call's numeric mode, so under Exact, which has no
+//! implementation, the comparison is refused with ExactUnavailable. Under Fast, numbers farther
+//! apart than any two with the same rounding order by value, and nearer ones by their roundings,
+//! each found exactly from the number's decimal value. Where Excel's own rounding departs from the
+//! exact one, a comparison that the departure could decide is refused as not modelled, naming no
+//! argument (bead dc-n8n7 owns Excel's rule there): a number within a relative 2^-59 of a
+//! 16th-digit tie but not on it, a number of binary64's top binade (from 2^1023), and a number
+//! from 1E-146 or 1E-292 to a relative 2^-8 above it.
 //!
-//! Text compares ignoring case: texts with the same code units are equal, two ASCII texts are
-//! equal when they are equal ignoring ASCII case, and two texts of ASCII letters and digits order
-//! with digits before letters and a prefix first. Any other text comparison needs Excel's
-//! collation, which is not modelled, and is refused.
+//! Two texts compare as [`collation::compare`] states: ignoring case, with Excel's collation under
+//! the Windows locale en-ZA for spaces, punctuation and the letters of Latin-1 and Latin
+//! Extended-A. Texts with the same code units are equal. Text holding a character beyond the
+//! collation's repertoire is refused as not modelled, naming the operand that holds the first one
+//! ([`Beyond`]), unless the texts are the same.
+
+mod collation;
 
 use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
+use crate::decimal::{ExactDecimal, Natural};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{CalcValue, CoreValue};
 use std::cmp::Ordering;
@@ -53,16 +63,42 @@ pub(super) const FAMILY: Family = Family {
     ],
 };
 
-/// The relative distance within which two different numbers are refused, because Excel may
-/// compare them as equal. Excel's rule for nearly equal numbers, and with it the true width of this
-/// band, belongs to cdoc-jpha, which replaces the refusal with the rule the capture shows.
-const NEAR: f64 = 1e-13;
+/// The share of the larger magnitude beyond which two numbers' differences are too wide for them
+/// to have the same 15-digit rounding: two such roundings lie within 1E-14 of it, and the margin
+/// covers the rounding of the difference and of the product.
+const APART: f64 = 2e-14;
+
+/// Significant digits of the rounding.
+const DIGITS: usize = 15;
+
+/// The smallest magnitude of binary64's top binade, 2^1023.
+const TOP_BINADE: f64 = f64::from_bits(0x7FE0_0000_0000_0000);
+
+/// The magnitudes Excel rounds one digit finer than their own: from 1E-146 and 1E-292 (each less a
+/// relative 2^-28 of margin) to a relative 2^-8 above each.
+const FINER: [(f64, f64); 2] = [
+    (9.999999962747096e-147, 1.00390625e-146),
+    (9.999999962747096e-293, 1.00390625e-292),
+];
+
+/// A number within a relative 2^-NEAR_TIE_BITS of a 16th-digit tie, but not on it, may be rounded
+/// by Excel to either side of it.
+const NEAR_TIE_BITS: u32 = 59;
 
 /// What a comparison asks of two texts: whether they are equal, or how they order.
 #[derive(Clone, Copy)]
 pub(super) enum Want {
     Equality,
     Order,
+}
+
+/// Why [`texts`] does not decide two texts: `operand` (0 for the first, 1 for the second) holds a
+/// character beyond the collation's repertoire, the first one met. Excel's collation of such
+/// characters belongs to locale services, and bead cfml-m2.6 owns its replacement; the comparison
+/// operators refuse the pair as not modelled, naming that operand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Beyond {
+    pub(super) operand: usize,
 }
 
 fn equal(
@@ -190,7 +226,7 @@ fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering>
     match (left, right) {
         (Operand::Number(a), Operand::Number(b)) => numbers(site, a, b),
         (Operand::Text(a), Operand::Text(b)) => {
-            texts(a, b, want).ok_or_else(|| site.not_modelled(None))
+            texts(a, b, want).map_err(|beyond| site.not_modelled(Some(beyond.operand)))
         }
         (Operand::Logical(a), Operand::Logical(b)) => Ok(a.cmp(&b)),
         (a, b) => Ok(a.kind().cmp(&b.kind())),
@@ -198,56 +234,183 @@ fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Step<Ordering>
 }
 
 /// The order of two finite numbers. Equal numbers need no rounding. For different numbers the
-/// near-equality test computes their difference and the band [`NEAR`] around the larger magnitude
-/// at the call's arithmetic sites, which round under its numeric mode; a pair within the band is
-/// refused as not modelled.
+/// nearness test computes their difference and [`APART`] of the larger magnitude at the call's
+/// arithmetic sites, which round under its numeric mode. Numbers farther apart order by value;
+/// nearer ones by their 15-digit roundings, refused ([`in_band`]) where Excel's rounding may
+/// depart from the exact one and the departure could decide the comparison.
 pub(super) fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
     if a == b {
         return Ok(Ordering::Equal);
     }
     let difference = site.subtract(a, b)?.abs();
-    let band = site.multiply(a.abs().max(b.abs()), NEAR)?;
-    if difference <= band {
-        return Err(site.not_modelled(None));
+    let apart = site.multiply(a.abs().max(b.abs()), APART)?;
+    if difference > apart || a.is_sign_negative() != b.is_sign_negative() {
+        return Ok(a.total_cmp(&b));
     }
-    Ok(a.total_cmp(&b))
+    let (Some(x), Some(y)) = (Roundings::of(a.abs()), Roundings::of(b.abs())) else {
+        return Err(in_band(site));
+    };
+    match (x.other, y.other) {
+        (None, None) if x.nearest == y.nearest => Ok(Ordering::Equal),
+        (None, None) => Ok(a.total_cmp(&b)),
+        _ if x.disjoint(&y) => Ok(a.total_cmp(&b)),
+        _ => Err(in_band(site)),
+    }
 }
 
-/// The order of two texts, or `None` when it needs Excel's collation. For [`Want::Equality`] any
-/// unequal pair is `Less`.
-pub(super) fn texts(a: &[u16], b: &[u16], want: Want) -> Option<Ordering> {
-    if a == b {
-        return Some(Ordering::Equal);
+/// The refusal of two nearly equal numbers in a band where Excel's rounding departs from the
+/// exact one (a near tie of [`NEAR_TIE_BITS`], [`TOP_BINADE`], [`FINER`]): not modelled, naming no
+/// argument, since the pair decides it. Bead dc-n8n7 owns Excel's rule in these bands.
+fn in_band(site: &Site<'_>) -> Exit {
+    site.not_modelled(None)
+}
+
+/// A magnitude rounded to [`DIGITS`] significant digits: the digits as an integer of exactly that
+/// many digits (0 for zero), and the exponent of the leading digit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Rounded {
+    digits: u64,
+    exponent: i32,
+}
+
+impl Rounded {
+    /// The next rounding up: one more in the last digit, carrying into a new leading digit.
+    fn up(self) -> Rounded {
+        let digits = self.digits + 1;
+        if digits == 1_000_000_000_000_000 {
+            Rounded {
+                digits: 100_000_000_000_000,
+                exponent: self.exponent + 1,
+            }
+        } else {
+            Rounded { digits, ..self }
+        }
     }
-    match want {
-        Want::Equality => {
-            let ascii = |text: &[u16]| text.iter().all(|&unit| unit < 0x80);
-            (ascii(a) && ascii(b)).then(|| {
-                let folded = |text: &[u16]| {
-                    text.iter()
-                        .map(|&unit| (unit as u8).to_ascii_uppercase())
-                        .collect::<Vec<u8>>()
-                };
-                if folded(a) == folded(b) {
-                    Ordering::Equal
-                } else {
-                    Ordering::Less
-                }
-            })
+}
+
+/// How Excel rounds a magnitude: the nearest rounding (a tie away from zero) and, for a magnitude
+/// near a 16th-digit tie but not on it, the rounding on the tie's other side, which Excel may give.
+#[derive(Clone, Copy, Debug)]
+struct Roundings {
+    nearest: Rounded,
+    other: Option<Rounded>,
+}
+
+impl Roundings {
+    /// The roundings of a finite magnitude, or `None` where Excel rounds it one digit finer
+    /// ([`FINER`]) or by a rule not modelled ([`TOP_BINADE`]).
+    fn of(magnitude: f64) -> Option<Roundings> {
+        if magnitude >= TOP_BINADE
+            || FINER
+                .iter()
+                .any(|&(low, high)| (low..=high).contains(&magnitude))
+        {
+            return None;
         }
-        Want::Order => {
-            let ranks = |text: &[u16]| -> Option<Vec<u8>> {
-                text.iter()
-                    .map(|&unit| match u8::try_from(unit).ok()? {
-                        digit @ b'0'..=b'9' => Some(digit - b'0'),
-                        letter if letter.is_ascii_alphabetic() => {
-                            Some(10 + (letter.to_ascii_uppercase() - b'A'))
-                        }
-                        _ => None,
-                    })
-                    .collect()
+        if magnitude == 0.0 {
+            let zero = Rounded {
+                digits: 0,
+                exponent: 0,
             };
-            Some(ranks(a)?.cmp(&ranks(b)?))
+            return Some(Roundings {
+                nearest: zero,
+                other: None,
+            });
         }
+        let exact = ExactDecimal::binary(magnitude);
+        let all = exact.coefficient.digits();
+        let length = all.len();
+        let exponent = i32::try_from(length).expect("a digit count") - 1 + exact.exponent;
+        let kept = &all[..length.min(DIGITS)];
+        let digits = kept.parse::<u64>().expect("decimal digits")
+            * 10u64.pow(u32::try_from(DIGITS - kept.len()).expect("a digit count"));
+        let down = Rounded { digits, exponent };
+        if length <= DIGITS {
+            return Some(Roundings {
+                nearest: down,
+                other: None,
+            });
+        }
+        // With r the dropped part of the m dropped digits, the tie is at r = 10^m / 2: the number
+        // rounds up from it, and is near it when |2r - 10^m| * 2^(NEAR_TIE_BITS - 1) is below the
+        // coefficient.
+        let dropped = u32::try_from(length - DIGITS).expect("a digit count");
+        let power = Natural::pow10(dropped);
+        let (_, remainder) = exact.coefficient.div_rem(&power);
+        let mut twice = remainder.clone();
+        twice.add(&remainder);
+        let up = twice >= power;
+        let distance = if up {
+            twice.subtract(&power);
+            twice
+        } else {
+            let mut gap = power.clone();
+            gap.subtract(&twice);
+            gap
+        };
+        let near = !distance.is_zero()
+            && distance.times(&Natural::from_u64(1u64 << (NEAR_TIE_BITS - 1))) < exact.coefficient;
+        let (nearest, other) = if up {
+            (down.up(), down)
+        } else {
+            (down, down.up())
+        };
+        Some(Roundings {
+            nearest,
+            other: near.then_some(other),
+        })
+    }
+
+    /// Whether no rounding of `self` is a rounding of `other`.
+    fn disjoint(&self, other: &Roundings) -> bool {
+        let of = |r: &Roundings| [Some(r.nearest), r.other];
+        of(self)
+            .iter()
+            .flatten()
+            .all(|x| !of(other).iter().flatten().any(|y| x == y))
+    }
+}
+
+/// The order of two texts as the comparison operators give it, or [`Beyond`] when either holds a
+/// character beyond the collation's repertoire and they are not the same. For [`Want::Equality`]
+/// any unequal pair is `Less`.
+pub(super) fn texts(a: &[u16], b: &[u16], want: Want) -> Result<Ordering, Beyond> {
+    if a == b {
+        return Ok(Ordering::Equal);
+    }
+    let ordering = collation::compare(a, b)?;
+    Ok(match want {
+        Want::Equality if ordering.is_ne() => Ordering::Less,
+        Want::Equality | Want::Order => ordering,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rounded(digits: u64, exponent: i32) -> Rounded {
+        Rounded { digits, exponent }
+    }
+
+    #[test]
+    fn roundings_follow_the_exact_decimal_value() {
+        let of = |x: f64| Roundings::of(x).expect("a modelled magnitude");
+        let one = of(1.0);
+        assert_eq!(
+            (one.nearest, one.other),
+            (rounded(100_000_000_000_000, 0), None)
+        );
+        // 0.1 + 0.2 is 0.3000000000000000444..., 0.3 is 0.2999999999999999888...
+        assert_eq!(of(0.1 + 0.2).nearest, of(0.3).nearest);
+        // 999999999999999.5 is an exact tie: away from zero, carrying into a new digit.
+        let tie = of(999_999_999_999_999.5);
+        assert_eq!(
+            (tie.nearest, tie.other),
+            (rounded(100_000_000_000_000, 15), None)
+        );
+        assert!(Roundings::of(f64::MAX).is_none());
+        assert!(Roundings::of(1.0001e-146).is_none());
+        assert!(Roundings::of(1.01e-146).is_some());
     }
 }

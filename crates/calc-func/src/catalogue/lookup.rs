@@ -9,17 +9,20 @@
 //!
 //! Matching sees a value as one of five kinds: a number, text, a logical, an error or blank. Two
 //! values match only when they are of one kind and equal: numbers by their exact binary64 value
-//! (no near-equality), logicals by value, and text through calc_func's comparison, which compares
-//! ignoring case and refuses where it cannot decide. Text that reads as a number is text: "2"
-//! never matches 2. A text lookup value longer than 255 UTF-16 code units is #VALUE! for MATCH,
-//! VLOOKUP, HLOOKUP and LOOKUP.
+//! (no near-equality), logicals by value, and text as calc_func's comparison operators equate it,
+//! ignoring case, refused where that comparison cannot decide. Text that reads as a number is
+//! text: "2" never matches 2. A text lookup value longer than 255 UTF-16 code units is #VALUE! for
+//! MATCH, VLOOKUP, HLOOKUP and LOOKUP.
 //!
 //! MATCH with match_type 0, VLOOKUP and HLOOKUP in exact mode and XMATCH and XLOOKUP with
 //! match_mode 2 read a text lookup value that holds `*`, `?` or `~` as a pattern: `*` matches any
 //! run of characters, `?` one character, and `~` takes the next character literally (a `~` at the
-//! end is dropped); a pattern matches text cells only. The MATCH family (MATCH, VLOOKUP, HLOOKUP,
-//! LOOKUP) reads a blank or omitted lookup value as the number 0; XMATCH and XLOOKUP read it as
-//! blank, which matches blank cells.
+//! end is dropped); a pattern matches text cells only. These searches match a text lookup value
+//! that holds none only to an equal text cell of the same length in UTF-16 code units: there ss
+//! does not match U+00DF, nor does a text match itself with a soft hyphen added, while XMATCH and
+//! XLOOKUP in exact mode, and the approximate searches, take such texts as equal. The MATCH family
+//! (MATCH, VLOOKUP, HLOOKUP, LOOKUP) reads a blank or omitted lookup value as the number 0; XMATCH
+//! and XLOOKUP read it as blank, which matches blank cells.
 //!
 //! The approximate searches follow the results Excel gives on unsorted data, not only on sorted
 //! data:
@@ -311,7 +314,7 @@ fn equal(site: &Site<'_>, a: Item<'_>, b: Item<'_>) -> Step<bool> {
         (Item::Number(x), Item::Number(y)) => Ok(x == y),
         (Item::Text(x), Item::Text(y)) => comparison::texts(x, y, Want::Equality)
             .map(Ordering::is_eq)
-            .ok_or_else(|| site.not_modelled(None)),
+            .map_err(|_| site.not_modelled(None)),
         (Item::Logical(x), Item::Logical(y)) => Ok(x == y),
         (Item::Error(x), Item::Error(y)) => Ok(x == y),
         (Item::Blank, Item::Blank) => Ok(true),
@@ -348,7 +351,7 @@ fn order(site: &Site<'_>, a: Item<'_>, b: Item<'_>) -> Step<Ordering> {
     match (a, b) {
         (Item::Number(x), Item::Number(y)) => Ok(unsigned_zero(x).total_cmp(&unsigned_zero(y))),
         (Item::Text(x), Item::Text(y)) => {
-            comparison::texts(x, y, Want::Order).ok_or_else(|| site.not_modelled(None))
+            comparison::texts(x, y, Want::Order).map_err(|_| site.not_modelled(None))
         }
         (Item::Logical(x), Item::Logical(y)) => Ok(x.cmp(&y)),
         (Item::Error(x), Item::Error(y)) if x == y => Ok(Ordering::Equal),
@@ -449,16 +452,20 @@ fn matches(site: &Site<'_>, pattern: &[Token], text: &[u16]) -> Step<bool> {
 /// What an exact search compares each cell with: the lookup value, or the pattern it holds.
 enum Target<'k> {
     Value(Item<'k>),
+    /// A text lookup value without wildcards in a search that reads them: equal text of the same
+    /// length.
+    SameLength(&'k [u16]),
     Pattern(Vec<Token>),
 }
 
 impl<'k> Target<'k> {
-    /// The target of an exact search for `key`; `wildcards` reads a text key as a pattern.
+    /// The target of an exact search for `key`; `wildcards` reads a text key as a pattern, or
+    /// asks for text of its length when it holds none.
     fn new(key: Item<'k>, wildcards: bool) -> Self {
         match key {
             Item::Text(units) if wildcards => match pattern(units) {
                 Some(tokens) => Target::Pattern(tokens),
-                None => Target::Value(key),
+                None => Target::SameLength(units),
             },
             _ => Target::Value(key),
         }
@@ -467,6 +474,11 @@ impl<'k> Target<'k> {
     fn hits(&self, site: &Site<'_>, cell: Item<'_>) -> Step<bool> {
         match (self, cell) {
             (Target::Value(key), cell) => equal(site, *key, cell),
+            // Equality first: text the comparison cannot decide is refused whatever its length.
+            (Target::SameLength(key), Item::Text(text)) => {
+                Ok(equal(site, Item::Text(key), cell)? && key.len() == text.len())
+            }
+            (Target::SameLength(_), _) => Ok(false),
             (Target::Pattern(tokens), Item::Text(text)) => matches(site, tokens, text),
             (Target::Pattern(_), _) => Ok(false),
         }
