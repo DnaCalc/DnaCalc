@@ -20,7 +20,8 @@ mod tests {
     #[test]
     fn exp_overflow_maps_to_num() {
         assert_eq!(
-            ExcelRealPolicy::FINITE.publish(1000.0, exp_kernel(1000.0)),
+            ExcelRealPolicy::FINITE
+                .publish(1000.0, exp_kernel(1000.0)),
             Err(WorksheetErrorCode::Num)
         );
         assert_eq!(

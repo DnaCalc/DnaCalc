@@ -1797,8 +1797,7 @@ fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
             } else {
                 t = 1.0 + bratio_gam1(apb);
             }
-            bp = crate::ported::excel_numeric::excel_exp(z) * (a0 / a) * (1.0 + bratio_gam1(b0m))
-                / t;
+            bp = crate::ported::excel_numeric::excel_exp(z) * (a0 / a) * (1.0 + bratio_gam1(b0m)) / t;
         } else {
             bp = x.powf(a);
             if bp == 0.0 {
@@ -1924,10 +1923,7 @@ fn bratio_brcomp(a: f64, b: f64, x: f64, y: f64) -> f64 {
             bratio_rlog1(e)
         };
         let z = crate::ported::excel_numeric::excel_exp(-(a * u + b * v));
-        return CONST
-            * (b * x0).sqrt()
-            * z
-            * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
+        return CONST * (b * x0).sqrt() * z * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
     }
 
     let lnx;
@@ -2023,10 +2019,7 @@ fn bratio_brcmp1(mu: i32, a: f64, b: f64, x: f64, y: f64) -> f64 {
             bratio_rlog1(e)
         };
         let z = bratio_esum(mu, -(a * u + b * v));
-        return CONST
-            * (b * x0).sqrt()
-            * z
-            * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
+        return CONST * (b * x0).sqrt() * z * crate::ported::excel_numeric::excel_exp(-bratio_bcorr(a, b));
     }
 
     let lnx;

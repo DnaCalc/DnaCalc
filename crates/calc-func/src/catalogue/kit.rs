@@ -10,11 +10,9 @@
 //! arithmetic site, so a call under the Exact numeric mode is refused, as for every other kernel.
 
 use super::aggregate::{self, Held, Origin};
-use super::{
-    ArgumentDemand, CatalogueEntry, FunctionId, Kernel, Notation, Parameter, ParameterClass,
-};
+use super::{ArgumentDemand, CatalogueEntry, FunctionId, Kernel, Notation, Parameter, ParameterClass};
 use crate::call::{EagerKernel, EvalServices};
-use crate::coerce::{self, Stop};
+use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
     CalcArray, CalcValue, CallableArityShape, CoreValue, ExcelText, WorksheetErrorCode,
@@ -98,11 +96,7 @@ macro_rules! ported_family {
 }
 
 /// Refuses an array given to a value parameter: the call would lift over its elements.
-pub(super) fn scalars(
-    site: &Site<'_>,
-    arguments: &[CalcValue],
-    parameters: &[Parameter],
-) -> Step<()> {
+pub(super) fn scalars(site: &Site<'_>, arguments: &[CalcValue], parameters: &[Parameter]) -> Step<()> {
     let last = parameters.len().saturating_sub(1);
     for (index, argument) in arguments.iter().enumerate() {
         if matches!(argument.core(), CoreValue::Array(_))
@@ -121,12 +115,7 @@ pub(super) fn num(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Ste
 
 /// Argument `index` as a number, or `default` when the call does not reach it. An argument the
 /// call leaves empty (`f(1,)`) is read as 0, as coercion reads it.
-pub(super) fn opt(
-    site: &Site<'_>,
-    arguments: &[CalcValue],
-    index: usize,
-    default: f64,
-) -> Step<f64> {
+pub(super) fn opt(site: &Site<'_>, arguments: &[CalcValue], index: usize, default: f64) -> Step<f64> {
     if index < arguments.len() {
         num(site, arguments, index)
     } else {
@@ -134,24 +123,10 @@ pub(super) fn opt(
     }
 }
 
-/// [`opt`], but an empty argument also takes `default`.
-pub(super) fn opt_m(
-    site: &Site<'_>,
-    arguments: &[CalcValue],
-    index: usize,
-    default: f64,
-) -> Step<f64> {
-    match arguments.get(index) {
-        Some(value) if !value.is_missing() => num(site, arguments, index),
-        _ => Ok(default),
-    }
-}
 
 /// Whether argument `index` was supplied and not left empty.
 pub(super) fn given(arguments: &[CalcValue], index: usize) -> bool {
-    arguments
-        .get(index)
-        .is_some_and(|value| !value.is_missing())
+    arguments.get(index).is_some_and(|value| !value.is_missing())
 }
 
 /// Argument `index` as a logical, through worksheet logical coercion.
@@ -252,12 +227,9 @@ pub(super) fn values(
     services: &mut EvalServices<'_>,
     visit: &mut dyn FnMut(bool, &CalcValue) -> Step<()>,
 ) -> Step<()> {
-    aggregate::each_value(
-        site,
-        &arguments[from..to],
-        services,
-        &mut |_, origin, value| visit(origin == Origin::Held, value),
-    )
+    aggregate::each_value(site, &arguments[from..to], services, &mut |_, origin, value| {
+        visit(origin == Origin::Held, value)
+    })
 }
 
 /// The most cells [`grid`] reads into memory; a larger area is refused as not modelled.
@@ -292,18 +264,12 @@ pub(super) fn grid(
             let first = area.first();
             let mut cells = vec![CalcValue::empty(); rows * cols];
             let cells_reader = aggregate::reader(site, services, index)?;
-            aggregate::read_reference(
-                site,
-                cells_reader,
-                reference,
-                index,
-                &mut |_, key, value| {
-                    let at = (key.row() - first.row()) as usize * cols
-                        + (key.column() - first.column()) as usize;
-                    cells[at] = value.clone();
-                    Ok(())
-                },
-            )?;
+            aggregate::read_reference(site, cells_reader, reference, index, &mut |_, key, value| {
+                let at = (key.row() - first.row()) as usize * cols
+                    + (key.column() - first.column()) as usize;
+                cells[at] = value.clone();
+                Ok(())
+            })?;
             Ok(Grid {
                 rows,
                 cols,
@@ -375,7 +341,3 @@ pub(super) fn pairs(
     Ok(found)
 }
 
-/// A coercion stop as a step, attributed to argument `index`.
-pub(super) fn stop<T>(site: &Site<'_>, index: usize, stopped: Stop) -> Step<T> {
-    Err(site.stop(stopped, Some(index)))
-}

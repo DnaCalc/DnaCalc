@@ -39,7 +39,8 @@ mod tests {
     #[test]
     fn cosh_overflow_maps_to_num() {
         assert_eq!(
-            ExcelRealPolicy::FINITE.publish(-24230.0, cosh_kernel(-24230.0)),
+            ExcelRealPolicy::FINITE
+                .publish(-24230.0, cosh_kernel(-24230.0)),
             Err(WorksheetErrorCode::Num)
         );
         assert_eq!(

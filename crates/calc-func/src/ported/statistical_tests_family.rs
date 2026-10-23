@@ -1,6 +1,6 @@
+use crate::value::WorksheetErrorCode;
 use crate::ported::chi_f_t_family::{chisq_dist_rt_kernel, f_dist_rt_kernel};
 use crate::ported::special_math_common::bratio;
-use crate::value::WorksheetErrorCode;
 
 fn sample_mean(values: &[f64]) -> Result<f64, WorksheetErrorCode> {
     if values.is_empty() {
@@ -73,10 +73,7 @@ pub(crate) fn f_test_kernel(array1: &[f64], array2: &[f64]) -> Result<f64, Works
     Ok((2.0 * f_dist_rt_kernel(ratio, df1, df2)?).min(1.0))
 }
 
-pub(crate) fn t_test_paired_kernel(
-    pairs: &[(f64, f64)],
-    tails: i32,
-) -> Result<f64, WorksheetErrorCode> {
+pub(crate) fn t_test_paired_kernel(pairs: &[(f64, f64)], tails: i32) -> Result<f64, WorksheetErrorCode> {
     if pairs.len() < 2 {
         return Err(WorksheetErrorCode::Div0);
     }

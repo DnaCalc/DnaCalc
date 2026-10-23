@@ -34,8 +34,7 @@ mod tests {
     fn asinh_kernel_matches_worksheet_ln_identity() {
         for x in [0.0_f64, 1e-10, 0.5, 1.0, -1.0, 2.0, 10.0] {
             let a = x.abs();
-            let expect =
-                x.signum() * crate::ported::excel_numeric::excel_log(a + (a * a + 1.0).sqrt());
+            let expect = x.signum() * crate::ported::excel_numeric::excel_log(a + (a * a + 1.0).sqrt());
             assert_eq!(
                 asinh_kernel(x).unwrap().to_bits(),
                 expect.to_bits(),

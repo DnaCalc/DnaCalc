@@ -1,3 +1,5 @@
+#![allow(clippy::excessive_precision)]
+
 //! F1 (dc-8dq): the math and trigonometry functions ported from OxFunc, called through
 //! `calc_func::invoke` as the formula evaluator calls them. The expected values are Excel's
 //! documented results and the seed rows of OxFunc's tests (OxFunc 6fca3518, functions/).
@@ -17,11 +19,7 @@ fn circular_functions() {
     // Excel's circular functions give #NUM! from 2^27 on.
     error(call("SIN", vec![n(134_217_728.0)]), Num);
     error(call("COS", vec![n(-134_217_728.0)]), Num);
-    close(
-        call("SIN", vec![n(134_217_727.0)]),
-        (134_217_727.0f64).sin(),
-        1e-9,
-    );
+    close(call("SIN", vec![n(134_217_727.0)]), (134_217_727.0f64).sin(), 1e-9);
     close(call("COT", vec![n(1.0)]), 1.0 / 1.0f64.tan(), 1e-15);
     error(call("COT", vec![n(0.0)]), Div0);
     close(call("SEC", vec![n(1.0)]), 1.0 / 1.0f64.cos(), 1e-15);
@@ -31,9 +29,9 @@ fn circular_functions() {
 
 #[test]
 fn inverse_circular_functions() {
-    close(call("ASIN", vec![n(0.5)]), 0.5235987755982989, 1e-15);
+    close(call("ASIN", vec![n(0.5)]), PI / 6.0, 1e-15);
     error(call("ASIN", vec![n(2.0)]), Num);
-    close(call("ACOS", vec![n(0.5)]), 1.0471975511965979, 1e-15);
+    close(call("ACOS", vec![n(0.5)]), PI / 3.0, 1e-15);
     error(call("ACOS", vec![n(-1.5)]), Num);
     close(call("ATAN", vec![n(1.0)]), PI / 4.0, 1e-15);
     close(call("ATAN2", vec![n(1.0), n(1.0)]), PI / 4.0, 1e-15);
@@ -91,8 +89,12 @@ fn power_shares_the_operator_rule() {
     error(call("POWER", vec![n(0.0), n(0.0)]), Num);
     error(call("POWER", vec![n(0.0), n(-1.0)]), Div0);
     error(call("POWER", vec![n(-8.0), n(0.5)]), Num);
-    // `^` refuses the powers that need a pinned power algorithm, and so does POWER.
-    refused(call("POWER", vec![n(2.0), n(0.5)]));
+    // The powers `^` refuses for want of a pinned power algorithm, POWER computes by OxFunc's
+    // power kernel.
+    exact(call("POWER", vec![n(2.0), n(3.0)]), 8.0);
+    exact(call("POWER", vec![n(2.0), n(0.5)]), std::f64::consts::SQRT_2);
+    exact(call("POWER", vec![n(-8.0), n(3.0)]), -512.0);
+    exact(call("POWER", vec![n(10.0), n(-2.0)]), 0.01);
 }
 
 #[test]
@@ -108,10 +110,7 @@ fn factorials_and_combinatorics() {
     exact(call("PERMUT", vec![n(10.0), n(3.0)]), 720.0);
     exact(call("PERMUTATIONA", vec![n(3.0), n(2.0)]), 9.0);
     // Excel's own result, as OxFunc's machine witness rows pin it.
-    exact(
-        call("MULTINOMIAL", vec![n(2.0), n(3.0), n(4.0)]),
-        1259.9999999999991,
-    );
+    exact(call("MULTINOMIAL", vec![n(2.0), n(3.0), n(4.0)]), 1_259.999_999_999_999);
     error(call("MULTINOMIAL", vec![n(-1.0)]), Num);
 }
 
@@ -150,10 +149,7 @@ fn numeral_systems() {
 #[test]
 fn series_and_paired_sums() {
     exact(
-        call(
-            "SERIESSUM",
-            vec![n(2.0), n(0.0), n(1.0), arr(vec![vec![1.0, 2.0, 3.0]])],
-        ),
+        call("SERIESSUM", vec![n(2.0), n(0.0), n(1.0), arr(vec![vec![1.0, 2.0, 3.0]])]),
         17.0,
     );
     let x = arr(vec![vec![2.0, 3.0]]);
@@ -166,38 +162,19 @@ fn series_and_paired_sums() {
 
 #[test]
 fn matrix_functions() {
-    close(
-        call("MDETERM", vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]])]),
-        -2.0,
-        1e-15,
-    );
-    let (rows, cols, cells) = array(call(
-        "MINVERSE",
-        vec![arr(vec![vec![4.0, 7.0], vec![2.0, 6.0]])],
-    ));
+    close(call("MDETERM", vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]])]), -2.0, 1e-15);
+    let (rows, cols, cells) = array(call("MINVERSE", vec![arr(vec![vec![4.0, 7.0], vec![2.0, 6.0]])]));
     assert_eq!((rows, cols), (2, 2));
     for (got, want) in cells.iter().zip([0.6, -0.7, -0.2, 0.4]) {
         assert!((got - want).abs() < 1e-15, "{got} vs {want}");
     }
-    error(
-        call("MINVERSE", vec![arr(vec![vec![1.0, 2.0], vec![2.0, 4.0]])]),
-        Num,
-    );
+    error(call("MINVERSE", vec![arr(vec![vec![1.0, 2.0], vec![2.0, 4.0]])]), Num);
     let (rows, cols, cells) = array(call(
         "MMULT",
-        vec![
-            arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]),
-            arr(vec![vec![5.0], vec![6.0]]),
-        ],
+        vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]]), arr(vec![vec![5.0], vec![6.0]])],
     ));
     assert_eq!((rows, cols, cells), (2, 1, vec![17.0, 39.0]));
-    error(
-        call(
-            "MMULT",
-            vec![arr(vec![vec![1.0, 2.0]]), arr(vec![vec![1.0, 2.0]])],
-        ),
-        Value,
-    );
+    error(call("MMULT", vec![arr(vec![vec![1.0, 2.0]]), arr(vec![vec![1.0, 2.0]])]), Value);
     let (rows, cols, cells) = array(call("MUNIT", vec![n(2.0)]));
     assert_eq!((rows, cols, cells), (2, 2, vec![1.0, 0.0, 0.0, 1.0]));
     error(call("MUNIT", vec![n(0.0)]), Value);

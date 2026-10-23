@@ -67,7 +67,9 @@ pub fn chisq_dist_kernel(
         // Routes df=1/2 through the landed ERF/EXPON gamma specials.
         crate::ported::beta_gamma_stats_family::gamma_dist_kernel(x, k / 2.0, 2.0, true).map_err(
             |e| match e {
-                code => code,
+                code => {
+                    code
+                }
                 _ => WorksheetErrorCode::Value,
             },
         )
@@ -232,10 +234,7 @@ fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
         // Live Excel 16.0 b20326: T.DIST(x,2,FALSE)=POWER(2+x*x,-1.5) 15/15.
         // 1/EXP(1.5*LN) is 15/15 in Excel but only 10/15 via spilled excel_exp/log.
         // excel_pow_chain is 15/15 including |x|=4,8.
-        return Ok(crate::ported::excel_numeric::excel_pow_chain(
-            2.0 + x * x,
-            -1.5,
-        ));
+        return Ok(crate::ported::excel_numeric::excel_pow_chain(2.0 + x * x, -1.5));
     }
     let numerator = gamma((v + 1.0) / 2.0);
     let denominator = (v * std::f64::consts::PI).sqrt()
@@ -361,7 +360,8 @@ mod tests {
             assert_eq!(rt.to_bits(), exp.to_bits(), "df=2 rt x={x}");
             let cdf = chisq_dist_kernel(x, 2.0, true).unwrap();
             let expon =
-                crate::ported::discrete_dist_family::expon_dist_kernel(x / 2.0, 1.0, true).unwrap();
+                crate::ported::discrete_dist_family::expon_dist_kernel(x / 2.0, 1.0, true)
+                    .unwrap();
             assert_eq!(cdf.to_bits(), expon.to_bits(), "df=2 cdf x={x}");
         }
     }

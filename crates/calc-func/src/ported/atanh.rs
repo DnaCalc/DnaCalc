@@ -68,8 +68,7 @@ mod tests {
         // tiny *normal* input is the canonical discriminator: the ratio rounds
         // to 1 and collapses to zero, while Excel's cubic body preserves the
         // input. Subnormals are a separate DAZ lane pinned below.
-        let candidate =
-            |x: f64| 0.5 * crate::ported::excel_numeric::excel_log((1.0 + x) / (1.0 - x));
+        let candidate = |x: f64| 0.5 * crate::ported::excel_numeric::excel_log((1.0 + x) / (1.0 - x));
         let tiny = f64::from_bits(0x01a5_6e1f_c2f8_f359); // 1e-300
         assert_eq!(candidate(tiny).to_bits(), 0.0_f64.to_bits());
         assert_eq!(atanh_kernel(tiny).unwrap().to_bits(), tiny.to_bits());

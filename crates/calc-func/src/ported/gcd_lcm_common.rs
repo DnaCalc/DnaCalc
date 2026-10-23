@@ -32,6 +32,7 @@ pub fn lcm_int(a: i64, b: i64) -> Result<i64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
+
     #[test]
     fn gcd_and_lcm_basic_lanes() {
         assert_eq!(gcd_int(24, 36), 12);

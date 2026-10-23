@@ -2,14 +2,7 @@
 //! the OxFunc surface layer (argument preparation, references, lifting) removed: the catalogue's
 //! family fragments read and coerce the arguments and call these kernels.
 
-#![allow(
-    dead_code,
-    unused_imports,
-    unused_variables,
-    unreachable_patterns,
-    private_interfaces,
-    clippy::all
-)]
+#![allow(dead_code, unused_imports, unused_variables, unreachable_patterns, private_interfaces, clippy::all)]
 
 pub(crate) mod acos;
 pub(crate) mod acosh;
@@ -49,7 +42,6 @@ pub(crate) mod degrees;
 pub(crate) mod delta_fn;
 pub(crate) mod discrete_dist_family;
 pub(crate) mod engineering_radix_family;
-pub(crate) mod excel_numeric;
 pub(crate) mod excel_numeric_compare;
 pub(crate) mod exp_fn;
 pub(crate) mod fact;
@@ -77,6 +69,7 @@ pub(crate) mod percentile_common;
 pub(crate) mod percentrank_common;
 pub(crate) mod permut_fn;
 pub(crate) mod permutationa_fn;
+pub(crate) mod power_fn;
 pub(crate) mod phi_fn;
 pub(crate) mod radians;
 pub(crate) mod rank_common;
@@ -98,3 +91,4 @@ pub(crate) mod sumproduct_family;
 pub(crate) mod tan;
 pub(crate) mod tanh;
 pub(crate) mod variance_common;
+pub(crate) mod excel_numeric;

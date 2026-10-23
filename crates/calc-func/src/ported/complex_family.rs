@@ -21,10 +21,7 @@ fn parse_ascii_decimal_15(text: &str) -> Option<f64> {
             let magnitude = exponent.bytes().fold(0_i64, |n, b| {
                 n.saturating_mul(10).saturating_add((b - b'0') as i64)
             });
-            (
-                &text[..index],
-                if negative { -magnitude } else { magnitude },
-            )
+            (&text[..index], if negative { -magnitude } else { magnitude })
         }
         None => (text, 0),
     };
@@ -72,9 +69,9 @@ fn parse_ascii_decimal_15(text: &str) -> Option<f64> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ParsedComplex {
-    re: f64,
-    im: f64,
-    suffix: Option<char>,
+    pub(crate) re: f64,
+    pub(crate) im: f64,
+    pub(crate) suffix: Option<char>,
 }
 impl ParsedComplex {
     pub(crate) const fn new(re: f64, im: f64, suffix: Option<char>) -> Self {
@@ -144,19 +141,9 @@ impl ParsedComplex {
         }
         let base = crate::ported::excel_numeric::excel_atan_reduced(ratio);
         let result = if re < 0.0 {
-            if im < 0.0 {
-                base - std::f64::consts::PI
-            } else {
-                base + std::f64::consts::PI
-            }
-        } else {
-            base
-        };
-        Ok(if result.abs() < f64::MIN_POSITIVE {
-            0.0
-        } else {
-            result
-        })
+            if im < 0.0 { base - std::f64::consts::PI } else { base + std::f64::consts::PI }
+        } else { base };
+        Ok(if result.abs() < f64::MIN_POSITIVE { 0.0 } else { result })
     }
     pub(crate) fn exp(self) -> Self {
         let s = self.re.exp();
@@ -283,6 +270,7 @@ impl ParsedComplex {
     }
 }
 
+
 pub(crate) fn normalize_zero(n: f64) -> f64 {
     if n == 0.0 { 0.0 } else { n }
 }
@@ -385,10 +373,7 @@ pub(crate) fn complex_circular_parts(real: f64) -> (f64, f64) {
     if real.abs() >= 134_217_728.0 {
         (f64::NAN, f64::NAN)
     } else {
-        (
-            crate::ported::excel_numeric::excel_sin(real),
-            crate::ported::excel_numeric::excel_cos(real),
-        )
+        (crate::ported::excel_numeric::excel_sin(real), crate::ported::excel_numeric::excel_cos(real))
     }
 }
 
@@ -398,20 +383,11 @@ pub(crate) fn parse_real_number(text: &str) -> Option<f64> {
         return None;
     }
     let negative = trimmed.starts_with('-');
-    let unsigned = trimmed
-        .strip_prefix(['+', '-'])
-        .unwrap_or(trimmed)
-        .trim_matches(' ');
+    let unsigned = trimmed.strip_prefix(['+', '-']).unwrap_or(trimmed).trim_matches(' ');
     let parsed = parse_ascii_decimal_15(unsigned)?;
     // Complex coefficient strings have their own grammar. Only decimal lexeme
     // conversion is shared with numeric argument coercion; decorations are not.
-    Some(if parsed < f64::MIN_POSITIVE {
-        0.0
-    } else if negative {
-        -parsed
-    } else {
-        parsed
-    })
+    Some(if parsed < f64::MIN_POSITIVE { 0.0 } else if negative { -parsed } else { parsed })
 }
 pub(crate) fn find_real_imag_split(body: &str) -> Option<usize> {
     let bytes = body.as_bytes();
@@ -455,6 +431,8 @@ pub(crate) fn parse_complex_text(raw: &str) -> Option<ParsedComplex> {
     }
     parse_real_number(text).map(|re| ParsedComplex::new(re, 0.0, None))
 }
+
+
 
 pub(crate) fn suffix_from_operands(values: &[ParsedComplex]) -> Result<char, WorksheetErrorCode> {
     let mut suffix = None;

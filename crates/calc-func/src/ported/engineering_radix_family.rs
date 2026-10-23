@@ -1,5 +1,5 @@
-use crate::ported::base_fn::base_kernel;
 use crate::value::ExcelText;
+use crate::ported::base_fn::base_kernel;
 use crate::value::WorksheetErrorCode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,7 +70,7 @@ fn parse_radix_text(text: &str, source: RadixSpec) -> Result<i64, WorksheetError
     Ok(raw as i64)
 }
 
-fn normalize_places(places: Option<f64>) -> Result<Option<usize>, WorksheetErrorCode> {
+pub(crate) fn normalize_places(places: Option<f64>) -> Result<Option<usize>, WorksheetErrorCode> {
     match places {
         None => Ok(None),
         Some(raw) => {

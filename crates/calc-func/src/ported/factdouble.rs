@@ -1,10 +1,11 @@
-use crate::ported::factorial_common::{double_factorial_of_int, trunc_nonnegative_or_minus_one};
 use crate::ported::real_policy::ExcelRealPolicy;
+use crate::ported::factorial_common::{double_factorial_of_int, trunc_nonnegative_or_minus_one};
 use crate::value::WorksheetErrorCode;
 
 pub fn factdouble_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     let truncated = trunc_nonnegative_or_minus_one(n)?;
-    ExcelRealPolicy::FINITE.publish(n, double_factorial_of_int(truncated))
+    ExcelRealPolicy::FINITE
+        .publish(n, double_factorial_of_int(truncated))
 }
 
 #[cfg(test)]

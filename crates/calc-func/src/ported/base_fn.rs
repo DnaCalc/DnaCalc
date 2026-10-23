@@ -22,8 +22,7 @@ pub fn base_kernel(
 ) -> Result<ExcelText, WorksheetErrorCode> {
     // Value2 captures on Excel 20430/CV2: sign and 2^53 admission precede
     // truncation, while the optional length is truncated within 0..255.
-    if !number.is_finite()
-        || !(0.0..9_007_199_254_740_992.0).contains(&number)
+    if !number.is_finite() || !(0.0..9_007_199_254_740_992.0).contains(&number)
         || !radix.is_finite()
         || min_length.is_some_and(|n| !n.is_finite() || n < 0.0)
     {

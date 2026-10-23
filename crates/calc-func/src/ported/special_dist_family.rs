@@ -1,5 +1,5 @@
-use crate::ported::normal_dist_common::erf_approx;
 use crate::value::WorksheetErrorCode;
+use crate::ported::normal_dist_common::erf_approx;
 
 const LANCZOS_G: f64 = 7.0;
 const LANCZOS_COEFFS: [f64; 9] = [

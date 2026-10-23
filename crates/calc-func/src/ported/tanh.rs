@@ -12,7 +12,10 @@ pub fn tanh_kernel(n: f64) -> f64 {
     } else {
         crate::ported::cosh::cosh_kernel(n)
     };
-    crate::ported::excel_numeric::excel_x87_div(crate::ported::sinh::sinh_kernel(n), denominator)
+    crate::ported::excel_numeric::excel_x87_div(
+        crate::ported::sinh::sinh_kernel(n),
+        denominator,
+    )
 }
 
 #[cfg(test)]

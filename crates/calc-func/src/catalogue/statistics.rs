@@ -1,0 +1,498 @@
+//! The descriptive statistics family fragment ported from OxFunc (functions/ at 6fca3518):
+//! deviations and means, the order statistics (MEDIAN, MODE, LARGE, SMALL, RANK, PERCENTILE,
+//! QUARTILE, PERCENTRANK), variances and standard deviations, the paired statistics (COVAR,
+//! CORREL, SLOPE, INTERCEPT, STEYX, FORECAST and the like), the moments, TRIMMEAN, STANDARDIZE,
+//! FISHER, PROB, FREQUENCY, and LINEST, LOGEST, TREND and GROWTH. The numeric kernels are OxFunc's ([`crate::ported`]).
+//!
+//! The lists are read by the aggregate family's rule ([`super::aggregate`]): a direct argument
+//! through number coercion, a held value (a cell of a reference, an element of an array) as a
+//! number only, text, logicals and blank cells skipped; the A-suffixed functions read held text
+//! as 0 and held logicals as 1 and 0. The paired statistics skip a position where either list
+//! holds no number, and lists of different sizes are #N/A.
+
+use super::aggregate::Held;
+use super::kit::{fail, given, grid, num, numbers, opt, out, out_matrix, pairs};
+use crate::call::EvalServices;
+use crate::kernel::{Exit, Site, Step};
+use crate::ported::paired_stats_common::{self as paired, CovarianceDivisor};
+use crate::ported::percentrank_common::{PercentRankMode, percentrank};
+use crate::ported::rank_common::{RankOrder, rank_avg, rank_eq};
+use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, variance_from_values};
+use crate::ported::{self as k};
+use crate::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
+use std::collections::BTreeMap;
+
+const CODE: u16 = 103;
+
+/// Every argument's numbers by the aggregate rule `held`.
+fn all(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, held: Held) -> Step<Vec<f64>> {
+    numbers(site, a, 0, a.len(), sv, held)
+}
+
+/// Argument `index`'s numbers by the aggregate rule for numbers.
+fn list(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<Vec<f64>> {
+    numbers(site, a, index, index + 1, sv, Held::Numbers)
+}
+
+/// Reads the direct arguments through number coercion first, so that their error comes before
+/// any held error, as MEDIAN, DEVSQ and HARMEAN order them.
+fn direct_first(site: &Site<'_>, a: &[CalcValue]) -> Step<()> {
+    for (index, argument) in a.iter().enumerate() {
+        if !matches!(argument.core(), CoreValue::Reference(_) | CoreValue::Array(_)) {
+            site.number_argument(index, argument)?;
+        }
+    }
+    Ok(())
+}
+
+fn sorted(mut values: Vec<f64>) -> Vec<f64> {
+    values.sort_by(f64::total_cmp);
+    values
+}
+
+/// The k-th largest (`largest`) or smallest number of argument 0.
+fn nth(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, largest: bool) -> Step<CalcValue> {
+    let values = list(site, a, 0, sv)?;
+    let k = num(site, a, 1)?.trunc();
+    if k < 1.0 || k > values.len() as f64 {
+        return fail(WorksheetErrorCode::Num);
+    }
+    let mut values = sorted(values);
+    if largest {
+        values.reverse();
+    }
+    site.number(values[k as usize - 1])
+}
+
+/// RANK's number: a number as it is, an error as itself, anything else #N/A.
+fn rank_number(a: &[CalcValue]) -> Step<f64> {
+    match a[0].core() {
+        CoreValue::Number(n) => Ok(*n),
+        CoreValue::Error(code) => fail(*code),
+        _ => fail(WorksheetErrorCode::NA),
+    }
+}
+
+fn rank(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, average: bool) -> Step<CalcValue> {
+    let number = rank_number(a)?;
+    let values = list(site, a, 1, sv)?;
+    let order = if given(a, 2) && num(site, a, 2)?.trunc() != 0.0 {
+        RankOrder::Ascending
+    } else {
+        RankOrder::Descending
+    };
+    let r = if average {
+        rank_avg(number, &values, order)
+    } else {
+        rank_eq(number, &values, order)
+    };
+    out(site, r)
+}
+
+fn percentile(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, exclusive: bool) -> Step<CalcValue> {
+    let mut values = list(site, a, 0, sv)?;
+    let p = num(site, a, 1)?;
+    out(
+        site,
+        if exclusive {
+            k::percentile_common::percentile_exc_kernel(&mut values, p)
+        } else {
+            k::percentile_common::percentile_inc_kernel(&mut values, p)
+        },
+    )
+}
+
+fn quartile(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, exclusive: bool) -> Step<CalcValue> {
+    let mut values = list(site, a, 0, sv)?;
+    let q = num(site, a, 1)?.trunc();
+    let admitted = if exclusive { 1.0..=3.0 } else { 0.0..=4.0 };
+    if !admitted.contains(&q) {
+        return fail(WorksheetErrorCode::Num);
+    }
+    out(
+        site,
+        if exclusive {
+            k::percentile_common::percentile_exc_kernel(&mut values, q / 4.0)
+        } else {
+            k::percentile_common::percentile_inc_kernel(&mut values, q / 4.0)
+        },
+    )
+}
+
+fn percent_rank(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, mode: PercentRankMode) -> Step<CalcValue> {
+    let mut values = list(site, a, 0, sv)?;
+    let x = num(site, a, 1)?;
+    let significance = opt(site, a, 2, 3.0)?.trunc() as i64;
+    out(site, percentrank(&mut values, x, significance, mode))
+}
+
+fn variance(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, held: Held, divisor: VarianceDivisor, root: bool) -> Step<CalcValue> {
+    let values = all(site, a, sv, held)?;
+    out(
+        site,
+        if root {
+            stdev_from_values(&values, divisor)
+        } else {
+            variance_from_values(&values, divisor)
+        },
+    )
+}
+
+/// The most frequent numbers, each with its count, in order of first appearance.
+fn modes(values: &[f64]) -> Vec<f64> {
+    let mut counts: BTreeMap<u64, (usize, usize)> = BTreeMap::new();
+    for (position, value) in values.iter().enumerate() {
+        let key = (if *value == 0.0 { 0.0 } else { *value }).to_bits();
+        counts.entry(key).or_insert((position, 0)).1 += 1;
+    }
+    let best = counts.values().map(|(_, c)| *c).max().unwrap_or(0);
+    if best < 2 {
+        return Vec::new();
+    }
+    let mut found: Vec<(usize, f64)> = counts
+        .iter()
+        .filter(|(_, (_, c))| *c == best)
+        .map(|(key, (first, _))| (*first, f64::from_bits(*key)))
+        .collect();
+    found.sort_by_key(|(first, _)| *first);
+    found.into_iter().map(|(_, v)| v).collect()
+}
+
+/// FORECAST's line through the pairs (x, y), evaluated at `x`.
+fn forecast(site: &Site<'_>, x: f64, pairs: &[(f64, f64)]) -> Step<CalcValue> {
+    let n = pairs.len();
+    if n == 0 {
+        return fail(WorksheetErrorCode::Div0);
+    }
+    let nf = n as f64;
+    let mean_x = pairs.iter().map(|(x, _)| *x).sum::<f64>() / nf;
+    let mean_y = pairs.iter().map(|(_, y)| *y).sum::<f64>() / nf;
+    let (mut num, mut den) = (0.0, 0.0);
+    for (xv, yv) in pairs {
+        let dx = xv - mean_x;
+        num += dx * (yv - mean_y);
+        den += dx * dx;
+    }
+    if den == 0.0 {
+        return fail(WorksheetErrorCode::Div0);
+    }
+    let b = num / den;
+    let a = mean_y - b * mean_x;
+    site.number(a + b * x)
+}
+
+ported_family! {
+    code: CODE;
+    1 avedev "AVEDEV" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        let values = all(s, a, sv, Held::Numbers)?;
+        if values.is_empty() {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        let avedev = values.iter().map(|v| (v - mean).abs()).sum::<f64>() / values.len() as f64;
+        s.number(avedev)
+    }
+    2 devsq "DEVSQ" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        direct_first(s, a)?;
+        let values = all(s, a, sv, Held::Numbers)?;
+        if values.is_empty() {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        let devsq = values
+            .iter()
+            .map(|v| {
+                let delta = v - mean;
+                let square = k::excel_numeric::excel_x87_mul(delta, delta);
+                if square < f64::MIN_POSITIVE { 0.0 } else { square }
+            })
+            .sum::<f64>();
+        s.number(devsq)
+    }
+    3 geomean "GEOMEAN" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        let values = all(s, a, sv, Held::Numbers)?;
+        if values.is_empty() || values.iter().any(|v| *v <= 0.0) {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let ln = values.iter().map(|v| v.ln()).sum::<f64>();
+        s.number((ln / values.len() as f64).exp())
+    }
+    4 harmean "HARMEAN" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        direct_first(s, a)?;
+        let values = all(s, a, sv, Held::Numbers)?;
+        let mut reciprocal_sum = 0.0;
+        for v in &values {
+            if *v <= 0.0 {
+                return fail(WorksheetErrorCode::Num);
+            }
+            reciprocal_sum = k::excel_numeric::excel_x87_add(
+                reciprocal_sum,
+                k::excel_numeric::excel_x87_recip(*v),
+            );
+        }
+        if values.is_empty() {
+            return fail(WorksheetErrorCode::NA);
+        }
+        if !reciprocal_sum.is_finite() {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let average = k::excel_numeric::excel_x87_div(reciprocal_sum, values.len() as f64);
+        s.number(k::excel_numeric::excel_x87_recip(average))
+    }
+    5 median "MEDIAN" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        direct_first(s, a)?;
+        let values = sorted(all(s, a, sv, Held::Numbers)?);
+        if values.is_empty() {
+            return fail(WorksheetErrorCode::Num);
+        }
+        let mid = values.len() / 2;
+        let result = if values.len() % 2 == 1 {
+            values[mid]
+        } else {
+            let half = (values[mid] - values[mid - 1]) / 2.0;
+            values[mid - 1] + if half < f64::MIN_POSITIVE { 0.0 } else { half }
+        };
+        s.number(result)
+    }
+    6 mode "MODE" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        match modes(&all(s, a, sv, Held::Numbers)?).first() {
+            Some(m) => s.number(*m),
+            None => fail(WorksheetErrorCode::NA),
+        }
+    }
+    7 mode_sngl "MODE.SNGL" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        match modes(&all(s, a, sv, Held::Numbers)?).first() {
+            Some(m) => s.number(*m),
+            None => fail(WorksheetErrorCode::NA),
+        }
+    }
+    8 mode_mult "MODE.MULT" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        let found = modes(&all(s, a, sv, Held::Numbers)?);
+        if found.is_empty() {
+            return fail(WorksheetErrorCode::NA);
+        }
+        let rows: Vec<Vec<f64>> = found.into_iter().map(|m| vec![m]).collect();
+        out_matrix(s, &rows)
+    }
+    9 large "LARGE" (2, 2) [R "array", V "k"] |s, a, sv| { nth(s, a, sv, true) }
+    10 small "SMALL" (2, 2) [R "array", V "k"] |s, a, sv| { nth(s, a, sv, false) }
+    11 rank_legacy "RANK" (2, 3) [V "number", F "ref", V "order"] |s, a, sv| { rank(s, a, sv, false) }
+    12 rank_eq_fn "RANK.EQ" (2, 3) [V "number", F "ref", V "order"] |s, a, sv| { rank(s, a, sv, false) }
+    13 rank_avg_fn "RANK.AVG" (2, 3) [V "number", F "ref", V "order"] |s, a, sv| { rank(s, a, sv, true) }
+    14 percentile_legacy "PERCENTILE" (2, 2) [R "array", V "k"] |s, a, sv| { percentile(s, a, sv, false) }
+    15 percentile_inc "PERCENTILE.INC" (2, 2) [R "array", V "k"] |s, a, sv| { percentile(s, a, sv, false) }
+    16 percentile_exc "PERCENTILE.EXC" (2, 2) [R "array", V "k"] |s, a, sv| { percentile(s, a, sv, true) }
+    17 quartile_legacy "QUARTILE" (2, 2) [R "array", V "quart"] |s, a, sv| { quartile(s, a, sv, false) }
+    18 quartile_inc "QUARTILE.INC" (2, 2) [R "array", V "quart"] |s, a, sv| { quartile(s, a, sv, false) }
+    19 quartile_exc "QUARTILE.EXC" (2, 2) [R "array", V "quart"] |s, a, sv| { quartile(s, a, sv, true) }
+    20 percentrank_legacy "PERCENTRANK" (2, 3) [R "array", V "x", V "significance"] |s, a, sv| {
+        percent_rank(s, a, sv, PercentRankMode::Inclusive)
+    }
+    21 percentrank_inc "PERCENTRANK.INC" (2, 3) [R "array", V "x", V "significance"] |s, a, sv| {
+        percent_rank(s, a, sv, PercentRankMode::Inclusive)
+    }
+    22 percentrank_exc "PERCENTRANK.EXC" (2, 3) [R "array", V "x", V "significance"] |s, a, sv| {
+        percent_rank(s, a, sv, PercentRankMode::Exclusive)
+    }
+    23 stdev "STDEV" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, true)
+    }
+    24 stdev_s "STDEV.S" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, true)
+    }
+    25 stdev_p "STDEV.P" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, true)
+    }
+    26 stdeva "STDEVA" (1, 255) [R "value1", R "value2"] |s, a, sv| {
+        variance(s, a, sv, Held::Values, VarianceDivisor::Sample, true)
+    }
+    27 stdevp "STDEVP" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, true)
+    }
+    28 stdevpa "STDEVPA" (1, 255) [R "value1", R "value2"] |s, a, sv| {
+        variance(s, a, sv, Held::Values, VarianceDivisor::Population, true)
+    }
+    29 var "VAR" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, false)
+    }
+    30 var_s "VAR.S" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Sample, false)
+    }
+    31 var_p "VAR.P" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, false)
+    }
+    32 vara "VARA" (1, 255) [R "value1", R "value2"] |s, a, sv| {
+        variance(s, a, sv, Held::Values, VarianceDivisor::Sample, false)
+    }
+    33 varp "VARP" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        variance(s, a, sv, Held::Numbers, VarianceDivisor::Population, false)
+    }
+    34 varpa "VARPA" (1, 255) [R "value1", R "value2"] |s, a, sv| {
+        variance(s, a, sv, Held::Values, VarianceDivisor::Population, false)
+    }
+    35 covar "COVAR" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, sv)?, CovarianceDivisor::Population))
+    }
+    36 covariance_p "COVARIANCE.P" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, sv)?, CovarianceDivisor::Population))
+    }
+    37 covariance_s "COVARIANCE.S" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+        out(s, paired::covariance_from_pairs(&pairs(s, a, 0, 1, sv)?, CovarianceDivisor::Sample))
+    }
+    38 correl "CORREL" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, sv)?))
+    }
+    39 pearson "PEARSON" (2, 2) [R "array1", R "array2"] |s, a, sv| {
+        out(s, paired::correlation_from_pairs(&pairs(s, a, 0, 1, sv)?))
+    }
+    40 rsq "RSQ" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
+        out(s, paired::rsq_from_pairs(&pairs(s, a, 0, 1, sv)?))
+    }
+    41 slope "SLOPE" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
+        out(s, paired::slope_from_pairs(&pairs(s, a, 1, 0, sv)?))
+    }
+    42 intercept "INTERCEPT" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
+        out(s, paired::intercept_from_pairs(&pairs(s, a, 1, 0, sv)?))
+    }
+    43 steyx "STEYX" (2, 2) [R "known_ys", R "known_xs"] |s, a, sv| {
+        out(s, k::moment_stats_family::steyx_kernel(&pairs(s, a, 1, 0, sv)?))
+    }
+    44 forecast_legacy "FORECAST" (3, 3) [V "x", R "known_ys", R "known_xs"] |s, a, sv| {
+        let x = num(s, a, 0)?;
+        forecast(s, x, &pairs(s, a, 2, 1, sv)?)
+    }
+    45 forecast_linear "FORECAST.LINEAR" (3, 3) [V "x", R "known_ys", R "known_xs"] |s, a, sv| {
+        let x = num(s, a, 0)?;
+        forecast(s, x, &pairs(s, a, 2, 1, sv)?)
+    }
+    46 kurt "KURT" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        out(s, k::moment_stats_family::kurt_kernel(&all(s, a, sv, Held::Numbers)?))
+    }
+    47 skew "SKEW" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        out(s, k::moment_stats_family::skew_kernel(&all(s, a, sv, Held::Numbers)?))
+    }
+    48 skew_p "SKEW.P" (1, 255) [R "number1", R "number2"] |s, a, sv| {
+        out(s, k::moment_stats_family::skew_p_kernel(&all(s, a, sv, Held::Numbers)?))
+    }
+    49 trimmean "TRIMMEAN" (2, 2) [R "array", V "percent"] |s, a, sv| {
+        let mut values = list(s, a, 0, sv)?;
+        let percent = num(s, a, 1)?;
+        out(s, k::moment_stats_family::trimmean_kernel(&mut values, percent))
+    }
+    50 standardize "STANDARDIZE" (3, 3) [V "x", V "mean", V "standard_dev"] |s, a, sv| {
+        let (x, mean, sd) = (num(s, a, 0)?, num(s, a, 1)?, num(s, a, 2)?);
+        out(s, k::standardize_fn::standardize_kernel(x, mean, sd))
+    }
+    51 fisher "FISHER" (1, 1) [V "x"] |s, a, sv| {
+        out(s, k::fisher_fn::fisher_kernel(num(s, a, 0)?))
+    }
+    52 fisherinv "FISHERINV" (1, 1) [V "y"] |s, a, sv| {
+        out(s, k::fisherinv_fn::fisherinv_kernel(num(s, a, 0)?))
+    }
+    53 prob "PROB" (3, 4) [R "x_range", R "prob_range", V "lower_limit", V "upper_limit"] |s, a, sv| {
+        let xs = strict_numbers(s, a, 0, sv)?;
+        let ps = strict_numbers(s, a, 1, sv)?;
+        let lower = num(s, a, 2)?;
+        let upper = if given(a, 3) { Some(num(s, a, 3)?) } else { None };
+        out(s, k::lookup_prob_frequency_family::prob_kernel(&xs, &ps, lower, upper))
+    }
+    54 frequency "FREQUENCY" (2, 2) [R "data_array", R "bins_array"] |s, a, sv| {
+        let data = list(s, a, 0, sv)?;
+        let bins = list(s, a, 1, sv)?;
+        out_matrix(s, &frequency_counts(&data, &bins))
+    }
+    55 trend "TREND" (1, 4) [R "known_ys", R "known_xs", R "new_xs", V "const"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_trend_surface)
+    }
+    56 growth "GROWTH" (1, 4) [R "known_ys", R "known_xs", R "new_xs", V "const"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_growth_surface)
+    }
+    57 linest "LINEST" (1, 4) [R "known_ys", R "known_xs", V "const", V "stats"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_linest_surface)
+    }
+    58 logest "LOGEST" (1, 4) [R "known_ys", R "known_xs", V "const", V "stats"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_logest_surface)
+    }
+}
+
+/// LINEST, LOGEST, TREND and GROWTH: OxFunc's evaluation over the arguments with each reference
+/// read into an array (a blank cell is Empty, which those functions refuse with #VALUE!), its
+/// number results published by the number rule.
+fn regression(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    evaluate: fn(&[CalcValue]) -> Result<CalcValue, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let mut read = Vec::with_capacity(a.len());
+    for (index, argument) in a.iter().enumerate() {
+        read.push(match argument.core() {
+            CoreValue::Reference(_) => {
+                let g = grid(site, a, index, sv)?;
+                let rows: Vec<Vec<CalcValue>> =
+                    g.cells.chunks(g.cols).map(<[CalcValue]>::to_vec).collect();
+                CalcValue::array(
+                    CalcArray::from_rows(rows).ok_or_else(|| site.not_modelled(Some(index)))?,
+                )
+            }
+            _ => argument.clone(),
+        });
+    }
+    let result = evaluate(&read).map_err(Exit::Error)?;
+    match result.core() {
+        CoreValue::Number(n) => site.number(*n),
+        CoreValue::Array(array) => {
+            let mut rows = Vec::with_capacity(array.shape().rows);
+            for r in 0..array.shape().rows {
+                let mut row = Vec::with_capacity(array.shape().cols);
+                for cell in array.row_slice(r).unwrap_or(&[]) {
+                    row.push(match cell.core() {
+                        CoreValue::Number(n) => match site.number(*n) {
+                            Ok(v) => v,
+                            Err(Exit::Error(code)) => CalcValue::error(code),
+                            Err(fault) => return Err(fault),
+                        },
+                        _ => cell.clone(),
+                    });
+                }
+                rows.push(row);
+            }
+            CalcArray::from_rows(rows)
+                .map(CalcValue::array)
+                .ok_or_else(|| site.not_modelled(None))
+        }
+        _ => Ok(result),
+    }
+}
+
+/// PROB's lists: every cell must hold a number (an error cell is the result, anything else
+/// #VALUE!).
+fn strict_numbers(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<Vec<f64>> {
+    let g = grid(site, a, index, sv)?;
+    let mut found = Vec::with_capacity(g.cells.len());
+    for cell in &g.cells {
+        match cell.core() {
+            CoreValue::Number(n) => found.push(*n),
+            CoreValue::Error(code) => return fail(*code),
+            _ => return fail(WorksheetErrorCode::Value),
+        }
+    }
+    Ok(found)
+}
+
+/// FREQUENCY's counts, one per bin in the bins' order and one more for the numbers above every
+/// bin: a bin counts the numbers above the next smaller bin and at most itself; a repeated bin
+/// counts in its first place and 0 in the others.
+fn frequency_counts(data: &[f64], bins: &[f64]) -> Vec<Vec<f64>> {
+    let mut counts = vec![0.0; bins.len() + 1];
+    for value in data {
+        let mut best: Option<usize> = None;
+        for (index, bin) in bins.iter().enumerate() {
+            if value <= bin && best.is_none_or(|b| *bin < bins[b]) {
+                best = Some(index);
+            }
+        }
+        counts[best.unwrap_or(bins.len())] += 1.0;
+    }
+    counts.into_iter().map(|c| vec![c]).collect()
+}

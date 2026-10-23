@@ -1,5 +1,5 @@
-use crate::ported::factorial_common::trunc_nonnegative;
 use crate::ported::real_policy::ExcelRealPolicy;
+use crate::ported::factorial_common::trunc_nonnegative;
 use crate::value::WorksheetErrorCode;
 
 fn fact_reverse_product(n: i64) -> f64 {
@@ -24,7 +24,8 @@ pub fn fact_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
         return Err(WorksheetErrorCode::Num);
     }
     let truncated = trunc_nonnegative(n)?;
-    ExcelRealPolicy::FINITE.publish(n, fact_reverse_product(truncated))
+    ExcelRealPolicy::FINITE
+        .publish(n, fact_reverse_product(truncated))
 }
 
 #[cfg(test)]
@@ -44,10 +45,7 @@ mod tests {
         assert_eq!(fact_kernel(5.9), Ok(120.0));
         assert_eq!(fact_kernel(-1.0), Err(WorksheetErrorCode::Num));
         assert_eq!(fact_kernel(-0.1), Err(WorksheetErrorCode::Num));
-        assert_eq!(
-            fact_kernel(-f64::MIN_POSITIVE),
-            Err(WorksheetErrorCode::Num)
-        );
+        assert_eq!(fact_kernel(-f64::MIN_POSITIVE), Err(WorksheetErrorCode::Num));
         assert_eq!(fact_kernel(-0.0), Ok(1.0));
     }
 

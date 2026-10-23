@@ -210,11 +210,7 @@ pub fn close(result: Result<CalcValue, FunctionFault>, expected: f64, rel: f64) 
 #[track_caller]
 pub fn exact(result: Result<CalcValue, FunctionFault>, expected: f64) {
     let got = number(result);
-    assert_eq!(
-        got.to_bits(),
-        expected.to_bits(),
-        "got {got:e}, expected {expected:e}"
-    );
+    assert_eq!(got.to_bits(), expected.to_bits(), "got {got:e}, expected {expected:e}");
 }
 
 /// Asserts the call computed this worksheet error.

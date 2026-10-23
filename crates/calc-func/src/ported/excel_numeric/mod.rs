@@ -19,6 +19,7 @@ mod x87;
 mod gammaln;
 pub(crate) use gammaln::gammaln_excel;
 
+
 const EXP_TABLE_BITS: u32 = 7;
 const N_EXP: u64 = 1 << EXP_TABLE_BITS; // 128
 const LOG_TABLE_BITS: u32 = 7;
@@ -346,26 +347,18 @@ pub(crate) fn excel_x87_recip(x: f64) -> f64 {
 /// a separate validation axis.
 pub(crate) fn excel_atan(x: f64) -> f64 {
     #[cfg(target_arch = "x86_64")]
-    {
-        x87::atan(x)
-    }
+    { x87::atan(x) }
     #[cfg(not(target_arch = "x86_64"))]
-    {
-        x.atan()
-    }
+    { x.atan() }
 }
 
 /// Magnitude-reduced ATAN graph characterized by W111 live observations.
 /// The non-x86-64 fallback remains a separately unvalidated arithmetic target.
 pub(crate) fn excel_atan_reduced(x: f64) -> f64 {
     #[cfg(target_arch = "x86_64")]
-    {
-        x87::atan_reduced(x)
-    }
+    { x87::atan_reduced(x) }
     #[cfg(not(target_arch = "x86_64"))]
-    {
-        x.atan()
-    }
+    { x.atan() }
 }
 
 // Restricted historical implementation removed (dc-96l.7).
@@ -387,9 +380,7 @@ pub(crate) fn excel_sqrt_staged(x: f64) -> f64 {
         ext_to_f64(&ext_sqrt(&ext_from_f64(x), CW_PC64_RN), CW_PC64_RN)
     }
     #[cfg(not(target_arch = "x86_64"))]
-    {
-        x.sqrt()
-    }
+    { x.sqrt() }
 }
 
 #[cfg(test)]

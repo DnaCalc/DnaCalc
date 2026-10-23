@@ -1,7 +1,4 @@
-use crate::ported::normal_dist_common::{
-    FRAC_1_SQRT_2_BITS, GAM1_HALF_H_BITS, GAUSS_TINY_MAX_BITS, erf_approx, phi_kernel,
-    stored_normal_z,
-};
+use crate::ported::normal_dist_common::{erf_approx, phi_kernel, stored_normal_z, FRAC_1_SQRT_2_BITS, GAM1_HALF_H_BITS, GAUSS_TINY_MAX_BITS};
 use crate::ported::special_dist_family::erfc_precise_kernel;
 use crate::value::WorksheetErrorCode;
 
@@ -69,8 +66,7 @@ pub fn identified_std_normal_cdf(x: f64) -> f64 {
     if x == 0.0 {
         return 0.5;
     }
-    let z =
-        crate::ported::excel_numeric::excel_x87_mul(x.abs(), f64::from_bits(FRAC_1_SQRT_2_BITS));
+    let z = crate::ported::excel_numeric::excel_x87_mul(x.abs(), f64::from_bits(FRAC_1_SQRT_2_BITS));
     let q = match erfc_precise_kernel(z) {
         Ok(value) => value,
         Err(_) => return f64::NAN,
@@ -179,7 +175,11 @@ fn inverse_standard_normal_as241_tail(p: f64) -> f64 {
         numerator / denominator
     };
 
-    if q < 0.0 { -x } else { x }
+    if q < 0.0 {
+        -x
+    } else {
+        x
+    }
 }
 
 fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
@@ -271,9 +271,7 @@ pub fn norm_dist_kernel(
         // subtract and divide at RN64 then store binary64; divide the unflushed
         // exponential by sigma before multiplying the normal constant. Calling
         // worksheet PHI first loses both scale ordering and tiny intermediates.
-        use crate::ported::excel_numeric::{
-            excel_exp, excel_x87_div, excel_x87_mul, excel_x87_sub,
-        };
+        use crate::ported::excel_numeric::{excel_exp, excel_x87_div, excel_x87_mul, excel_x87_sub};
         let z = excel_x87_div(excel_x87_sub(x, mean), sigma);
         let square = excel_x87_mul(z, z);
         if !square.is_finite() {

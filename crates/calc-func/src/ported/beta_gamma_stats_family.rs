@@ -1,7 +1,5 @@
-use crate::ported::special_math_common::{
-    bisect_inverse, ln_gamma, regularized_beta, regularized_gamma_p,
-};
 use crate::value::WorksheetErrorCode;
+use crate::ported::special_math_common::{bisect_inverse, ln_gamma, regularized_beta, regularized_gamma_p};
 
 fn bool_flag(value: f64) -> bool {
     value != 0.0

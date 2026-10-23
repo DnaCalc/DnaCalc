@@ -18,7 +18,8 @@ mod tests {
     #[test]
     fn degrees_overflow_maps_to_num() {
         assert_eq!(
-            ExcelRealPolicy::FINITE.publish(1e307, degrees_kernel(1e307)),
+            ExcelRealPolicy::FINITE
+                .publish(1e307, degrees_kernel(1e307)),
             Err(WorksheetErrorCode::Num)
         );
         assert_eq!(
