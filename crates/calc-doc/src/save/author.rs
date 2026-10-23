@@ -297,13 +297,33 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 check_tables(package, sheet.part().name(), changes)?;
             }
         }
-        // A sheet is rewritten when one of its cells changed or one of its formulas has a cached
-        // result, which a save after an edit no longer trusts.
+        // The areas the loaded array formulas of each sheet fill, whose cells beside the anchor
+        // hold the arrays' cached results (or, for an array whose anchor changed, belong to no
+        // formula any more).
+        let cleared: Vec<Vec<(u32, u32, u32, u32)>> = sheets
+            .iter()
+            .map(|sheet| {
+                base.definitions()
+                    .arrays()
+                    .filter(|array| array.anchor().sheet() == sheet.id())
+                    .map(|array| {
+                        let (first, last) = (array.area().first(), array.area().last());
+                        (first.row(), first.column(), last.row(), last.column())
+                    })
+                    .filter(|(top, left, bottom, right)| (top, left) != (bottom, right))
+                    .collect()
+            })
+            .collect();
+        // A sheet is rewritten when one of its cells changed, one of its formulas has a cached
+        // result, or an array formula fills cells of it: a save after an edit no longer trusts
+        // a cached result.
         let rewritten: Vec<bool> = sheets
             .iter()
             .zip(&changes)
-            .map(|(sheet, changes)| {
+            .zip(&cleared)
+            .map(|((sheet, changes), cleared)| {
                 !changes.is_empty()
+                    || !cleared.is_empty()
                     || sheet
                         .formulas()
                         .any(|(_, _, record)| record.cache().is_some())
@@ -323,7 +343,9 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         let strings_part = load::workbook_part_of(package, workbook_part, SHARED_STRINGS)
             .map_err(|error| load_refusal(workbook_part, error))?;
         let mut strings = SharedStrings::read(package, strings_part.as_deref())?;
-        for ((sheet, changes), rewrite) in sheets.iter().zip(&changes).zip(&rewritten) {
+        for (((sheet, changes), rewrite), cleared) in
+            sheets.iter().zip(&changes).zip(&rewritten).zip(&cleared)
+        {
             if !rewrite {
                 continue;
             }
@@ -331,6 +353,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             let xml = read_part(package, name)?;
             let job = Job {
                 changes,
+                cleared,
                 loaded: sheet,
                 model,
             };
@@ -355,7 +378,9 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 was != is
             })
         });
-        if formulas_changed {
+        // The chain also marks array formulas' anchors, so it goes when the arrays changed too.
+        let arrays_changed = base.definitions().arrays().ne(model.definitions().arrays());
+        if formulas_changed || arrays_changed {
             chain = load::workbook_part_of(package, workbook_part, CALC_CHAIN)
                 .map_err(|error| load_refusal(workbook_part, error))?;
         }

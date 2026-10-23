@@ -1,7 +1,7 @@
 //! The published generation: each formula cell's result with its provenance, and the value delta
 //! a finished recalculation publishes.
 
-use calc_doc_model::{AuthoredRevision, FileCached};
+use calc_doc_model::{ArrayKind, AuthoredRevision, FileCached};
 use calc_fml::{CompileError, EvalFault};
 use calc_value::{CalcValue, CellKey, CoreValue, NodeId, NumericMode, NumericTargetId};
 use std::fmt;
@@ -77,6 +77,10 @@ pub enum NotModeled {
     /// ceng-m3.4's), a callable, a reference, an empty or omitted value, or a number that is not
     /// finite.
     Result(CalcValue),
+    /// The formula is an array formula (legacy or dynamic, [`calc_doc_model::ArrayKind`]), whose
+    /// array evaluation (work package L1) and spill (work package L2) are not modelled: it is not
+    /// evaluated. The cells it fills beside its anchor read as not available.
+    ArrayFormula(ArrayKind),
 }
 
 impl NotModeled {
@@ -109,6 +113,10 @@ impl fmt::Display for NotModeled {
             NotModeled::Result(value) => {
                 write!(f, "it evaluated to a value no cell holds here: {value:?}")
             }
+            NotModeled::ArrayFormula(kind) => write!(
+                f,
+                "it is an array formula ({kind:?}), whose array evaluation and spill are not modelled (work packages L1 and L2)"
+            ),
         }
     }
 }

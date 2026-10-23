@@ -6343,12 +6343,12 @@ fn cdoc_m1_2__authored_vs_cache() {
     // What load does not read, each refused with its typed variant.
     let refused_cells: [(&str, &str, u32, u32, CellError); 6] = [
         (
-            "an array formula",
-            r#"<row r="1"><c r="A1"><f t="array" ref="A1">1+1</f><v>2</v></c></row>"#,
+            "a formula of a kind SpreadsheetML does not define",
+            r#"<row r="1"><c r="A1"><f t="future" ref="A1">1+1</f><v>2</v></c></row>"#,
             1,
             1,
             CellError::UnsupportedFormula {
-                kind: "array".to_owned(),
+                kind: "future".to_owned(),
             },
         ),
         (
@@ -8504,27 +8504,14 @@ fn cdoc_m1_3__save_refusal() {
         }
     );
 
-    // Array formulas, cell metadata (cm) and rich values (vm) never reach a save: calc_doc::load
-    // refuses a sheet that holds any of them, so no loaded workbook holds one.
-    for (what, cell_xml, expected) in [
-        (
-            "an array formula",
-            r#"<c r="A1"><f t="array" ref="A1">1+1</f><v>2</v></c>"#,
-            CellError::UnsupportedFormula {
-                kind: "array".to_owned(),
-            },
-        ),
-        (
-            "cell metadata",
-            r#"<c r="A1" cm="1"><v>1</v></c>"#,
-            CellError::UnsupportedMetadata,
-        ),
-        (
-            "a rich value",
-            r#"<c r="A1" vm="1"><v>1</v></c>"#,
-            CellError::UnsupportedMetadata,
-        ),
-    ] {
+    // Since dc-ndi, array formulas, cell metadata (cm) and rich values (vm) load (the d1_* test
+    // files cover them); an array formula whose cm resolves to no dynamic-array properties (here,
+    // a workbook without a metadata part) is still refused at load.
+    for (what, cell_xml, expected) in [(
+        "an array formula whose cm resolves to nothing",
+        r#"<c r="A1" cm="1"><f t="array" ref="A1">1+1</f><v>2</v></c>"#,
+        CellError::UnsupportedMetadata,
+    )] {
         let package = m1_3_package(
             r#"<sheets><sheet name="One" sheetId="1" r:id="rId1"/></sheets>"#,
             &[("rId1", WORKSHEET_RELATIONSHIP, "worksheets/sheet1.xml")],
@@ -8563,7 +8550,7 @@ fn cdoc_m1_3__save_refusal() {
         retried.len()
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: array formulas, cell metadata (cm) and rich values (vm) are refused at load, not at save: calc_doc::load refused a sheet holding each with LoadError::Cell (UnsupportedFormula array, UnsupportedMetadata, UnsupportedMetadata), so no loaded workbook holding one reaches prepare_save"
+        "ACCEPT-NOTE: {CASE}: an array formula whose cell metadata resolves to no dynamic-array properties is refused at load with LoadError::Cell (UnsupportedMetadata); arrays, cm and vm that resolve load and save (dc-ndi's d1_* tests)"
     );
 }
 

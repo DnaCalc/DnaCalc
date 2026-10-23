@@ -3,6 +3,7 @@
 //! is skipped here; a save copies the part's bytes as they were stored.
 
 use super::error::{CellError, LoadError};
+use super::metadata::{CellMeta, Metadata, ValueMeta};
 use super::strings::{decode, string_item};
 use super::{
     Events, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, MAIN_NAMESPACE, SharedFormula, address,
@@ -14,16 +15,18 @@ use calc_doc_model::value::{
     CellKey, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode,
 };
 use calc_doc_model::{
-    CachedValue, CellInput, CellText, FileCached, FiniteNumber, FormulaText, SourcePart,
+    ArrayFormula, ArrayKind, CachedValue, CellInput, CellText, FileCached, FiniteNumber,
+    FormulaText, SourcePart, UnloadedCell,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// What every sheet's cells are read against: the workbook's shared strings and the number of
-/// its cell formats.
+/// What every sheet's cells are read against: the workbook's shared strings, the number of its
+/// cell formats, and its cell and value metadata.
 pub(super) struct Context<'a> {
     pub(super) shared_strings: &'a [ExcelText],
     pub(super) cell_formats: u32,
+    pub(super) metadata: &'a Metadata,
 }
 
 /// One sheet's cells as read: the inputs for the model and the records kept beside it.
@@ -32,6 +35,21 @@ pub(super) struct SheetLoad {
     pub(super) inputs: Vec<(CellKey, CellInput)>,
     pub(super) styles: BTreeMap<(u32, u32), u32>,
     pub(super) formulas: BTreeMap<(u32, u32), FormulaRecord>,
+    /// The sheet's array formulas.
+    pub(super) arrays: Vec<ArrayFormula>,
+    /// The cells the model holds no input for, with why.
+    pub(super) unloaded: Vec<(CellKey, UnloadedCell)>,
+    /// What the file cached for cells the model holds no input for: the cells an array formula
+    /// fills beside its anchor, and unloaded cells.
+    pub(super) value_caches: BTreeMap<(u32, u32), FileCached>,
+}
+
+/// An area some of whose cells are still to be read, whose cells are not inputs: what an array
+/// formula fills beside its anchor, or a data table's results.
+struct Filled {
+    /// (top, left, bottom, right)
+    area: (u32, u32, u32, u32),
+    data_table: bool,
 }
 
 /// The spelling of each worksheet error in a cell's `<v>`, matched exactly.
@@ -91,9 +109,50 @@ struct Sheet<'a> {
     load: SheetLoad,
     groups: BTreeMap<u32, Group>,
     members: Vec<Member>,
+    /// The areas whose cells, beside the anchor, are filled rather than authored.
+    filled: Vec<Filled>,
 }
 
 impl Sheet<'_> {
+    /// Whether the cell at `row` and `column` lies in a filled area other than at its anchor,
+    /// and whether that area is a data table's.
+    fn filled_at(&mut self, row: u32, column: u32) -> Option<bool> {
+        self.filled.retain(|filled| filled.area.2 >= row);
+        self.filled
+            .iter()
+            .find(|filled| {
+                let (top, left, bottom, right) = filled.area;
+                (top..=bottom).contains(&row)
+                    && (left..=right).contains(&column)
+                    && (row, column) != (top, left)
+            })
+            .map(|filled| filled.data_table)
+    }
+
+    /// A cell's cached value as its `<v>` and `vm` give it: a `vm` naming a rich error gives
+    /// that error (the `<v>` holds only Excel's `#VALUE!` fallback); one naming any other rich
+    /// value, or one that does not resolve, gives the inner `Err` with why, since the `<v>` is
+    /// not the cell's value.
+    fn cached(
+        &self,
+        kind: Option<&str>,
+        text: &str,
+        vm: Option<u32>,
+    ) -> Result<Result<CachedValue, UnloadedCell>, CellError> {
+        let Some(vm) = vm else {
+            return self.value(kind, text).map(Ok);
+        };
+        Ok(match self.context.metadata.value(vm) {
+            ValueMeta::Error(code) => Ok(CachedValue::Error(code)),
+            ValueMeta::UnknownErrorType { error_type } => Err(UnloadedCell::RichValue {
+                structure: format!("_error with errorType {error_type}"),
+            }),
+            ValueMeta::OtherRichValue { structure } => Err(UnloadedCell::RichValue { structure }),
+            ValueMeta::Unresolved { reason } => {
+                Err(UnloadedCell::UnresolvedValueMetadata { reason })
+            }
+        })
+    }
     fn key(&self, row: u32, column: u32) -> CellKey {
         CellKey::new(self.id, row, column).expect("a cell the loader checked lies inside the grid")
     }
@@ -234,9 +293,15 @@ impl Sheet<'_> {
         if cell_row != row || column <= previous {
             return Err(fail(CellError::OutOfOrder));
         }
-        if element.attribute("cm").is_some() || element.attribute("vm").is_some() {
-            return Err(fail(CellError::UnsupportedMetadata));
-        }
+        let index = |name: &str| match element.attribute(name) {
+            None => Ok(None),
+            Some(text) => collapsed(text).parse::<u32>().map(Some).map_err(|_| {
+                fail(CellError::Malformed {
+                    detail: "a cell whose cm or vm is not a count",
+                })
+            }),
+        };
+        let (cm, vm) = (index("cm")?, index("vm")?);
         let style = match element.attribute("s") {
             None => 0,
             Some(text) => collapsed(text)
@@ -303,6 +368,37 @@ impl Sheet<'_> {
             self.load.styles.insert((row, column), style);
         }
         let kind = kind.as_deref();
+        if let Some(data_table) = self.filled_at(row, column) {
+            if formula.is_some() {
+                return Err(fail(CellError::Malformed {
+                    detail: "a formula inside the area an array formula or data table fills",
+                }));
+            }
+            let cache = match (value, inline) {
+                (_, Some(units)) => Some(Ok(CachedValue::Text(self.text(units).map_err(fail)?))),
+                (Some(text), None)
+                    if matches!(kind, None | Some("n")) && collapsed(&text).is_empty() =>
+                {
+                    None
+                }
+                (Some(text), None) => Some(self.cached(kind, &text, vm).map_err(fail)?),
+                (None, None) => None,
+            };
+            let key = self.key(row, column);
+            match cache {
+                Some(Ok(value)) => {
+                    let cache = FileCached::new(value, Arc::clone(&self.part));
+                    self.load.value_caches.insert((row, column), cache);
+                    if data_table {
+                        self.load.unloaded.push((key, UnloadedCell::DataTable));
+                    }
+                }
+                Some(Err(why)) => self.load.unloaded.push((key, why)),
+                None if data_table => self.load.unloaded.push((key, UnloadedCell::DataTable)),
+                None => {}
+            }
+            return Ok(column);
+        }
         if let Some(formula) = formula {
             if matches!(kind, Some("inlineStr")) || inline.is_some() {
                 return Err(fail(CellError::Malformed {
@@ -316,10 +412,13 @@ impl Sheet<'_> {
                 Some(text) if matches!(kind, None | Some("n")) && collapsed(text).is_empty() => {
                     None
                 }
-                Some(text) => Some(self.value(kind, text).map_err(fail)?),
+                // A rich value other than an error is not a result the model holds, so the
+                // formula then has no cache.
+                Some(text) => self.cached(kind, text, vm).map_err(fail)?.ok(),
                 None => None,
             };
-            self.formula(row, column, formula, cache).map_err(fail)?;
+            self.formula(row, column, formula, cache, cm)
+                .map_err(fail)?;
             return Ok(column);
         }
         let input = match (kind, value, inline) {
@@ -347,12 +446,23 @@ impl Sheet<'_> {
                     detail: "a shared string, logical or error cell without a value",
                 }));
             }
-            (kind, Some(text), None) => Some(match self.value(kind, &text).map_err(fail)? {
-                CachedValue::Number(number) => CellInput::Number(number),
-                CachedValue::Text(text) => CellInput::Text(text),
-                CachedValue::Logical(logical) => CellInput::Logical(logical),
-                CachedValue::Error(code) => CellInput::Error(code),
-            }),
+            (kind, Some(text), None) => match self.cached(kind, &text, vm).map_err(fail)? {
+                Ok(CachedValue::Number(number)) => Some(CellInput::Number(number)),
+                Ok(CachedValue::Text(text)) => Some(CellInput::Text(text)),
+                Ok(CachedValue::Logical(logical)) => Some(CellInput::Logical(logical)),
+                Ok(CachedValue::Error(code)) => Some(CellInput::Error(code)),
+                Err(why) => {
+                    // A rich value the model does not represent: the cell is unloaded, and its
+                    // fallback `<v>` is kept as what the file cached for it.
+                    if let Ok(fallback) = self.value(kind, &text) {
+                        let cache = FileCached::new(fallback, Arc::clone(&self.part));
+                        self.load.value_caches.insert((row, column), cache);
+                    }
+                    let key = self.key(row, column);
+                    self.load.unloaded.push((key, why));
+                    None
+                }
+            },
         };
         if let Some(input) = input {
             let key = self.key(row, column);
@@ -369,8 +479,58 @@ impl Sheet<'_> {
         column: u32,
         formula: Formula,
         cache: Option<CachedValue>,
+        cm: Option<u32>,
     ) -> Result<(), CellError> {
         match formula.kind.as_deref() {
+            Some(kind @ ("array" | "dataTable")) => {
+                let detail = |detail| CellError::ArrayFormula { detail };
+                let area = formula
+                    .area
+                    .as_deref()
+                    .ok_or(detail("an array or data table formula without a ref"))?;
+                let area = address::area(area).ok_or(detail("a ref that is not an area"))?;
+                if (area.0, area.1) != (row, column) {
+                    return Err(detail("a ref that does not start at the formula's cell"));
+                }
+                let (top, left, bottom, right) = area;
+                let key = self.key(row, column);
+                if kind == "dataTable" {
+                    self.load.unloaded.push((key, UnloadedCell::DataTable));
+                    if let Some(cache) = cache {
+                        let cache = FileCached::new(cache, Arc::clone(&self.part));
+                        self.load.value_caches.insert((row, column), cache);
+                    }
+                    self.filled.push(Filled {
+                        area,
+                        data_table: true,
+                    });
+                    return Ok(());
+                }
+                let kind = match cm.map(|cm| self.context.metadata.cell(cm)) {
+                    None | Some(CellMeta::DynamicArray { dynamic: false, .. }) => ArrayKind::Legacy,
+                    Some(CellMeta::DynamicArray {
+                        dynamic: true,
+                        collapsed,
+                    }) => ArrayKind::Dynamic { collapsed },
+                    Some(CellMeta::Other { .. } | CellMeta::Unresolved { .. }) => {
+                        return Err(CellError::UnsupportedMetadata);
+                    }
+                };
+                let input = Self::formula_input(&formula.text)?;
+                self.load.inputs.push((key, input));
+                self.load.arrays.push(ArrayFormula::new(
+                    GridArea::new(key, self.key(bottom, right)).expect("two corners on one sheet"),
+                    kind,
+                ));
+                if (top, left) != (bottom, right) {
+                    self.filled.push(Filled {
+                        area,
+                        data_table: false,
+                    });
+                }
+                self.record(row, column, None, cache);
+                Ok(())
+            }
             None | Some("normal") => {
                 let input = Self::formula_input(&formula.text)?;
                 let key = self.key(row, column);
@@ -551,9 +711,13 @@ pub(super) fn load_sheet(
             inputs: Vec::new(),
             styles: BTreeMap::new(),
             formulas: BTreeMap::new(),
+            arrays: Vec::new(),
+            unloaded: Vec::new(),
+            value_caches: BTreeMap::new(),
         },
         groups: BTreeMap::new(),
         members: Vec::new(),
+        filled: Vec::new(),
     };
     let mut sheet_data = false;
     loop {

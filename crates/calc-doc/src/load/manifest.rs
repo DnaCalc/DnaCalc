@@ -338,6 +338,12 @@ pub(crate) struct DefinedName {
     pub(crate) sheet_scoped: bool,
     pub(crate) hidden: bool,
     pub(crate) text: String,
+    /// `localSheetId`, when it is a number: the 0-based position of the sheet in workbook order.
+    pub(crate) local_sheet: Option<u32>,
+    pub(crate) comment: Option<String>,
+    pub(crate) function: bool,
+    pub(crate) vb_procedure: bool,
+    pub(crate) xlm: bool,
 }
 
 /// Whether `name` has a locator's form: `_dna.block.` followed by 32 hex digits, compared ignoring

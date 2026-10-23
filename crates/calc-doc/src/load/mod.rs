@@ -26,9 +26,12 @@
 pub(crate) mod address;
 mod error;
 pub(crate) mod manifest;
+pub(crate) mod metadata;
 pub(crate) mod sheet;
 mod shift;
 pub(crate) mod strings;
+mod styles;
+pub(crate) mod tables;
 
 pub use error::{CellError, LoadError};
 pub use manifest::LayoutWarning;
@@ -40,8 +43,8 @@ use crate::save::{DocumentSnapshot, SaveRefusal};
 use crate::xml::{XmlElement, XmlEvent, XmlPart, XmlReader};
 use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId};
 use calc_doc_model::{
-    AuthoredRevision, FileCached, LocatorName, ModelRoot, SheetEntry, SheetKey, SheetName,
-    SheetVisibility, SkinLayoutEdit, SourcePart, WorkbookOp,
+    AuthoredRevision, Definitions, FileCached, LocatorName, ModelRoot, NameScope, SheetEntry,
+    SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, StyleTable, WorkbookOp,
 };
 use manifest::{DefinedName, ManifestState};
 use std::collections::{BTreeMap, BTreeSet};
@@ -83,9 +86,24 @@ pub struct LoadedSheet {
     part: Arc<SourcePart>,
     styles: BTreeMap<(u32, u32), u32>,
     formulas: BTreeMap<(u32, u32), FormulaRecord>,
+    value_caches: BTreeMap<(u32, u32), FileCached>,
 }
 
 impl LoadedSheet {
+    /// What the file cached for the cell at `row` and `column` when the model holds no input for
+    /// it: a cell an array formula fills beside its anchor, or an unloaded cell
+    /// ([`calc_doc_model::Definitions`]). Nothing here calculated it.
+    pub fn value_cache(&self, row: u32, column: u32) -> Option<&FileCached> {
+        self.value_caches.get(&(row, column))
+    }
+
+    /// Every such cache, as (row, column, cache), in row-major order.
+    pub fn value_caches(&self) -> impl Iterator<Item = (u32, u32, &FileCached)> + '_ {
+        self.value_caches
+            .iter()
+            .map(|(&(row, column), cache)| (row, column, cache))
+    }
+
     /// The sheet's ID in the model.
     pub fn id(&self) -> SheetId {
         self.id
@@ -192,6 +210,7 @@ pub struct LoadedWorkbook {
     workbook_part: String,
     sheets: Arc<[LoadedSheet]>,
     cell_formats: u32,
+    styles: Arc<StyleTable>,
     date_system: DateSystem,
     defined_names_not_loaded: usize,
     manifest: ManifestState,
@@ -225,14 +244,22 @@ impl LoadedWorkbook {
         self.cell_formats
     }
 
+    /// The style table the styles part declares; empty without a styles part. A cell's style
+    /// index ([`LoadedSheet::style`]) names one of its cell formats.
+    pub fn styles(&self) -> &Arc<StyleTable> {
+        &self.styles
+    }
+
     /// The date system the workbook part names.
     pub fn date_system(&self) -> DateSystem {
         self.date_system
     }
 
     /// The number of defined names (`definedName` elements) the workbook part holds that are not
-    /// loaded: every one but the locators that became a block's anchor, so all of them for a
-    /// workbook whose DNA view manifest is absent or was not read.
+    /// a block's locator: every one but the locators that became a block's anchor, so all of them
+    /// for a workbook whose DNA view manifest is absent or was not read. Each of these is in the
+    /// model's definitions ([`calc_doc_model::Definitions::names`]) unless its `localSheetId`
+    /// names no sheet.
     pub fn defined_names_not_loaded(&self) -> usize {
         self.defined_names_not_loaded
     }
@@ -520,6 +547,13 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                             name: name.attribute("name").unwrap_or_default().to_owned(),
                             sheet_scoped: name.attribute("localSheetId").is_some(),
                             hidden: manifest::is_true(name.attribute("hidden")),
+                            local_sheet: name
+                                .attribute("localSheetId")
+                                .and_then(|text| sheet::collapsed(text).parse().ok()),
+                            comment: name.attribute("comment").map(str::to_owned),
+                            function: manifest::is_true(name.attribute("function")),
+                            vb_procedure: manifest::is_true(name.attribute("vbProcedure")),
+                            xlm: manifest::is_true(name.attribute("xlm")),
                             text: defined_name_text(&mut events)?,
                         });
                     }
@@ -620,41 +654,6 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     })
 }
 
-/// The number of cell formats in the styles part.
-fn cell_formats(package: &Package, part: &str) -> Result<u32, LoadError> {
-    let xml = read_xml(package, part)?;
-    let mut events = Events::new(&xml);
-    events.root(
-        MAIN_NAMESPACE,
-        "styleSheet",
-        "the document element is not a SpreadsheetML styleSheet",
-    )?;
-    let mut count = 0u32;
-    loop {
-        match events.next()? {
-            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "cellXfs") => loop {
-                match events.next()? {
-                    Some(XmlEvent::Start(xf)) => {
-                        if xf.name.is(MAIN_NAMESPACE, "xf") {
-                            count += 1;
-                        }
-                        events.skip()?;
-                    }
-                    Some(XmlEvent::Text(_)) => {}
-                    Some(XmlEvent::End(_)) => break,
-                    None => return Err(events.invalid("the part ends inside cellXfs")),
-                }
-            },
-            Some(XmlEvent::Start(_)) => events.skip()?,
-            Some(XmlEvent::Text(_)) => {}
-            Some(XmlEvent::End(_)) => break,
-            None => return Err(events.invalid("the part ends inside styleSheet")),
-        }
-    }
-    events.end()?;
-    Ok(count)
-}
-
 /// The single part the workbook part's relationships give of type `kind`, if any.
 pub(crate) fn workbook_part_of(
     package: &Package,
@@ -752,10 +751,12 @@ pub fn load(
         Some(part) => strings::shared_strings(package, &part)?,
         None => Vec::new(),
     };
-    let cell_formats = match workbook_part_of(package, &workbook, STYLES)? {
-        Some(part) => cell_formats(package, &part)?,
-        None => 0,
+    let styles = match workbook_part_of(package, &workbook, STYLES)? {
+        Some(part) => styles::read_styles(package, &part)?,
+        None => StyleTable::default(),
     };
+    let cell_formats = u32::try_from(styles.cell_formats.len()).unwrap_or(u32::MAX);
+    let metadata = metadata::read(package, &workbook)?;
 
     let mut issued = Vec::with_capacity(declared.len());
     let release = |ids: &mut IdAllocator<SheetId>, issued: &[SheetId]| {
@@ -775,19 +776,27 @@ pub fn load(
     let context = sheet::Context {
         shared_strings: &shared_strings,
         cell_formats,
+        metadata: &metadata,
     };
     let mut cells = Vec::new();
     let mut sheets = Vec::with_capacity(declared.len());
+    let (mut arrays, mut unloaded, mut tables) = (Vec::new(), Vec::new(), Vec::new());
     for (declared, &id) in declared.iter().zip(&issued) {
-        match sheet::load_sheet(package, &context, id, &declared.part) {
-            Ok(loaded) => {
+        let loaded = sheet::load_sheet(package, &context, id, &declared.part)
+            .and_then(|loaded| Ok((loaded, tables::read_tables(package, &declared.part, id)?)));
+        match loaded {
+            Ok((loaded, sheet_tables)) => {
                 cells.extend(loaded.inputs);
+                arrays.extend(loaded.arrays);
+                unloaded.extend(loaded.unloaded);
+                tables.extend(sheet_tables);
                 sheets.push(LoadedSheet {
                     id,
                     relationship: declared.relationship.clone(),
                     part: loaded.part,
                     styles: loaded.styles,
                     formulas: loaded.formulas,
+                    value_caches: loaded.value_caches,
                 });
             }
             Err(error) => {
@@ -802,6 +811,38 @@ pub fn load(
         .map(|(declared, &id)| (id, &declared.name))
         .collect();
     let layout = manifest::load_layout(package, &named, &defined_names);
+    // Every defined name but a block's locator, which the layout holds, and one whose
+    // localSheetId names no sheet.
+    let is_locator = |name: &DefinedName| {
+        !name.sheet_scoped
+            && layout
+                .layout
+                .blocks()
+                .iter()
+                .any(|block| block.anchor().is_some() && block.locator().is(&name.name))
+    };
+    let names = defined_names
+        .iter()
+        .filter(|name| !is_locator(name))
+        .filter_map(|name| {
+            let scope = match name.local_sheet {
+                None if !name.sheet_scoped => NameScope::Workbook,
+                None => return None,
+                Some(position) => NameScope::Sheet(*issued.get(position as usize)?),
+            };
+            Some(calc_doc_model::DefinedName {
+                name: name.name.clone(),
+                scope,
+                formula: name.text.clone(),
+                hidden: name.hidden,
+                comment: name.comment.clone(),
+                function: name.function,
+                vb_procedure: name.vb_procedure,
+                xlm: name.xlm,
+            })
+        })
+        .collect();
+    let definitions = Definitions::new(arrays, names, tables, unloaded);
     let entries = declared
         .into_iter()
         .zip(&issued)
@@ -809,16 +850,23 @@ pub fn load(
             SheetEntry::new(id, declared.key, declared.name, declared.visibility)
         })
         .collect();
-    let model = ModelRoot::with_layout(AuthoredRevision::INITIAL, entries, cells, layout.layout)
-        .expect(
-            "the IDs are distinct, the keys were checked, and each cell and anchor lies on a sheet of the load",
-        );
+    let model = ModelRoot::with_definitions(
+        AuthoredRevision::INITIAL,
+        entries,
+        cells,
+        layout.layout,
+        definitions,
+    )
+    .expect(
+        "the IDs are distinct, the keys were checked, each cell, anchor and definition lies on a sheet of the load, and each array anchor holds its formula",
+    );
     Ok(LoadedWorkbook {
         package: Arc::clone(document.package_arc()),
         model,
         workbook_part: workbook,
         sheets: sheets.into(),
         cell_formats,
+        styles: Arc::new(styles),
         date_system,
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
         manifest: layout.state,

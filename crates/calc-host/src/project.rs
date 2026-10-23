@@ -213,7 +213,7 @@ pub fn project(
         .map(|&at| {
             let input = host.model.cell(at).cloned();
             let value = match &input {
-                None => ProjectedValue::Empty,
+                None => filled_value(host, at, &stale, cause),
                 Some(CellInput::Number(number)) => {
                     ProjectedValue::Literal(CalcValue::number(number.get()))
                 }
@@ -309,5 +309,65 @@ fn formula_value(
         // A formula cell without a published result was added since the last publication, so it
         // is pending.
         None => stale(None, None),
+    }
+}
+
+/// The value of a cell that holds no input: empty, unless the model reads it as not available
+/// ([`calc_doc_model::Definitions::not_available`]).
+///
+/// - A cell an array formula fills beside its anchor projects the anchor's standing: what the
+///   file cached for the cell while the anchor's result is a file cache that stands, the anchor's
+///   refusal once the engine refused the anchor, and stale otherwise, with the cell's file cache.
+/// - An unloaded cell (a rich value, a data table's cell) projects what the file cached for it
+///   while no edit has changed an input since open, and stale with that cache after one has.
+fn filled_value(
+    host: &HostState,
+    at: CellKey,
+    stale: &[CellKey],
+    cause: StaleCause,
+) -> ProjectedValue {
+    let cache = host
+        .loaded
+        .sheet(at.sheet())
+        .and_then(|sheet| sheet.value_cache(at.row(), at.column()))
+        .cloned();
+    let file_cache_stands = !host.inputs_changed_since_open;
+    let stale_cache = |cache: Option<FileCached>, cause| {
+        ProjectedValue::Stale(StaleValue {
+            last_value: None,
+            last_calculation: None,
+            file_cache: cache,
+            cause,
+        })
+    };
+    let definitions = host.model.definitions();
+    if definitions.unloaded(at).is_some() {
+        return match cache {
+            Some(cache) if file_cache_stands => ProjectedValue::FileCached(cache),
+            cache => stale_cache(cache, StaleCause::FileCacheUnverified),
+        };
+    }
+    let Some(array) = definitions
+        .array_containing(at)
+        .filter(|array| array.anchor() != at)
+    else {
+        return ProjectedValue::Empty;
+    };
+    let anchor = array.anchor();
+    let anchor_stale = stale.binary_search(&anchor).is_ok();
+    match host.engine.result(anchor) {
+        Some(FormulaResult::FileCached(_)) if file_cache_stands => match cache {
+            Some(cache) => ProjectedValue::FileCached(cache),
+            None => ProjectedValue::Empty,
+        },
+        Some(FormulaResult::FileCached(_)) => stale_cache(cache, StaleCause::FileCacheUnverified),
+        Some(FormulaResult::NotModeled {
+            refusal,
+            calculation,
+        }) if !anchor_stale => ProjectedValue::NotModeled {
+            refusal: refusal.clone(),
+            calculation: calculation.clone(),
+        },
+        _ => stale_cache(cache, cause),
     }
 }
