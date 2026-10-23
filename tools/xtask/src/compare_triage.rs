@@ -23,10 +23,18 @@
 //! - `formula`: CalcFml refused the formula (compile, a reference, a final sum near zero, an area
 //!   used as a value, a call-interface fault), keyed by the typed refusal; or the formula's value
 //!   differs from the observation with no function call at all.
-//! - `function-missing`: the catalogue holds no entry of that spelling, or its kernel does not
-//!   model the call (`NotImplemented`, `ExactUnavailable`, `MissingReturned`); the key is the
-//!   function's spelling, prefixed `ExactUnavailable:` or `MissingReturned:` for the two refusals
-//!   of a function the catalogue holds.
+//! - `function-missing`: the catalogue holds no entry of that spelling, or under Exact a catalogued
+//!   function has no arithmetic (`ExactUnavailable`) or its kernel returned an omitted argument
+//!   (`MissingReturned`); the key is the function's spelling, prefixed `ExactUnavailable:` or
+//!   `MissingReturned:` for the two refusals of a function the catalogue holds.
+//! - `not-modelled`: the catalogue holds the function and its kernel refuses the call
+//!   (`NotImplemented`); the key is the function's spelling. The function is there; this call's
+//!   Excel result is not modelled yet.
+//!
+//! Every refusal carries the work package that owns it (`owner` in `triage.json`): the bead the
+//! refusal names (CalcFml's `Unsupported` construct), the package whose scope holds the function
+//! it names (`owners.rs`), or, when neither names one, the library that refused. A cell reading a
+//! root takes the root's owner with its class and key.
 //! - `engine`: CalcEngine published no calculated value it could stand behind (a value no cell
 //!   holds here, a stale or file-cached value after a successful recalculation, a calculated claim
 //!   the evaluation record does not prove), or the recalculation as a whole failed.
@@ -52,6 +60,7 @@
 //! differing cells are indexed by sheet and column, so a read of a whole column costs one ordered
 //! lookup per column holding a differing cell, not one per cell of the column.
 
+use crate::owners::function_owner;
 use calc_engine::NotModeled;
 use calc_fml::{CompileError, EvalFault};
 use calc_func::{FunctionFault, FunctionId, catalogue};
@@ -83,6 +92,7 @@ pub(crate) enum Class {
     KernelBits,
     Formula,
     FunctionMissing,
+    NotModelled,
     Engine,
     Context,
     Doc,
@@ -90,12 +100,13 @@ pub(crate) enum Class {
 }
 
 impl Class {
-    pub(crate) const ALL: [Class; 9] = [
+    pub(crate) const ALL: [Class; 10] = [
         Class::Matched,
         Class::KernelValue,
         Class::KernelBits,
         Class::Formula,
         Class::FunctionMissing,
+        Class::NotModelled,
         Class::Engine,
         Class::Context,
         Class::Doc,
@@ -109,6 +120,7 @@ impl Class {
             Class::KernelBits => "kernel-bits",
             Class::Formula => "formula",
             Class::FunctionMissing => "function-missing",
+            Class::NotModelled => "not-modelled",
             Class::Engine => "engine",
             Class::Context => "context",
             Class::Doc => "doc",
@@ -166,6 +178,10 @@ pub(crate) struct Refusal {
     /// provenance in `report.json`. Unlike the key, it never depends on the capture's inventory.
     pub(crate) feature: String,
     pub(crate) reads: Option<CellAddress>,
+    /// The work package that owns what is refused: the bead the refusal itself names, the package
+    /// whose scope holds the function it names (`owners.rs`), or the library that refused when
+    /// neither names one.
+    pub(crate) owner: String,
 }
 
 impl Refusal {
@@ -177,7 +193,19 @@ impl Refusal {
             feature: refusal.clone(),
             refusal,
             reads: None,
+            owner: String::new(),
         }
+    }
+
+    /// The refusal owned by `owner`.
+    fn owned_by(mut self, owner: impl Into<String>) -> Refusal {
+        self.owner = owner.into();
+        self
+    }
+
+    /// The refusal owned by the package whose scope holds the function `spelling`.
+    fn owned_by_function(self, spelling: &str) -> Refusal {
+        self.owned_by(function_owner(spelling))
     }
 
     /// The refusal with what it concerns named in its feature.
@@ -223,14 +251,24 @@ fn value_kind(value: &CalcValue) -> &'static str {
     }
 }
 
-/// The class and key of the engine's typed refusal `refusal`, with `address` naming a cell for
-/// CalcFml's `MissingInput`.
+/// The owner of a refusal no bead and no function names: the library that refused.
+const CALC_FML: &str = "no package named (calc-fml refused)";
+const CALC_ENGINE: &str = "no package named (calc-engine refused)";
+
+/// The owner CalcFml's documentation gives `CompileError::NumberLiteral`, which the variant does
+/// not carry.
+const NUMBER_LITERAL_OWNER: &str = "cfml-m2.6";
+
+/// The class, key and owner of the engine's typed refusal `refusal`, with `address` naming a cell
+/// for CalcFml's `MissingInput`.
 pub(crate) fn refusal_of(
     refusal: &NotModeled,
     address: &dyn Fn(CellKey) -> Option<CellAddress>,
 ) -> Refusal {
     match refusal {
-        NotModeled::FormulaText => Refusal::new(Class::Formula, "FormulaText", "FormulaText"),
+        NotModeled::FormulaText => {
+            Refusal::new(Class::Formula, "FormulaText", "FormulaText").owned_by(CALC_ENGINE)
+        }
         NotModeled::Compile(error) => match error {
             CompileError::UnknownFunction { spelling, .. } => {
                 let spelling = spelling.to_ascii_uppercase();
@@ -239,6 +277,7 @@ pub(crate) fn refusal_of(
                     spelling.clone(),
                     "Compile:UnknownFunction",
                 )
+                .owned_by_function(&spelling)
                 .about(spelling)
             }
             CompileError::Unsupported {
@@ -248,14 +287,19 @@ pub(crate) fn refusal_of(
                 format!("Compile:Unsupported:{construct} ({owner})"),
                 "Compile:Unsupported",
             )
+            .owned_by(*owner)
             .about(format!("{construct}, {owner}")),
             CompileError::Reference { error, .. } => {
                 let key = format!("Compile:Reference:{}", variant(error));
-                Refusal::new(Class::Formula, key.clone(), key)
+                Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
+            }
+            CompileError::NumberLiteral { .. } => {
+                Refusal::new(Class::Formula, "Compile:NumberLiteral", "Compile:NumberLiteral")
+                    .owned_by(NUMBER_LITERAL_OWNER)
             }
             other => {
                 let key = format!("Compile:{}", variant(other));
-                Refusal::new(Class::Formula, key.clone(), key)
+                Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
             }
         },
         NotModeled::Evaluation(fault) => match fault {
@@ -274,16 +318,27 @@ pub(crate) fn refusal_of(
                         "reads a formula cell outside the capture's inventory",
                         "Evaluation:MissingInput",
                     )
+                    .owned_by("no package (the capture's inventory)")
                     .about(read)
                 }
             }
             EvalFault::Function(fault) => match fault {
-                FunctionFault::NotImplemented { id, .. } => Refusal::new(
-                    Class::FunctionMissing,
-                    spelling(*id),
-                    "Evaluation:Function:NotImplemented",
-                )
-                .about(spelling(*id)),
+                // The catalogue holds the function and its kernel refuses this call: not
+                // modelled, under the package that owns the function, never a missing function.
+                FunctionFault::NotImplemented { id, argument } => {
+                    let name = spelling(*id);
+                    let about = match argument {
+                        Some(index) => format!("{name}, argument {}", index + 1),
+                        None => name.clone(),
+                    };
+                    Refusal::new(
+                        Class::NotModelled,
+                        name.clone(),
+                        "Evaluation:Function:NotImplemented",
+                    )
+                    .owned_by_function(&name)
+                    .about(about)
+                }
                 // Keyed apart from a missing function: the catalogue holds the function, and the
                 // run's Exact numeric mode has no arithmetic for it yet.
                 FunctionFault::ExactUnavailable { id } => Refusal::new(
@@ -291,33 +346,37 @@ pub(crate) fn refusal_of(
                     format!("ExactUnavailable:{}", spelling(*id)),
                     "Evaluation:Function:ExactUnavailable",
                 )
+                .owned_by_function(&spelling(*id))
                 .about(spelling(*id)),
                 FunctionFault::MissingReturned { id } => Refusal::new(
                     Class::FunctionMissing,
                     format!("MissingReturned:{}", spelling(*id)),
                     "Evaluation:Function:MissingReturned",
                 )
+                .owned_by_function(&spelling(*id))
                 .about(spelling(*id)),
                 other => {
                     let key = format!("Evaluation:Function:{}", variant(other));
-                    Refusal::new(Class::Formula, key.clone(), key)
+                    Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
                 }
             },
             EvalFault::ReadContract(_) => Refusal::new(
                 Class::Engine,
                 "Evaluation:ReadContract",
                 "Evaluation:ReadContract",
-            ),
+            )
+            .owned_by(CALC_ENGINE),
             other => {
                 let key = format!("Evaluation:{}", variant(other));
-                Refusal::new(Class::Formula, key.clone(), key)
+                Refusal::new(Class::Formula, key.clone(), key).owned_by(CALC_FML)
             }
         },
         NotModeled::Result(value) => Refusal::new(
             Class::Engine,
             format!("Result:{}", value_kind(value)),
             "Result",
-        ),
+        )
+        .owned_by(CALC_ENGINE),
     }
 }
 
@@ -504,6 +563,8 @@ pub(crate) struct CellTriage {
     pub(crate) blocks: u64,
     pub(crate) detail: Option<String>,
     pub(crate) difference: Option<Difference>,
+    /// For a refused root and the cells reading it, the refusal's owner ([`Refusal::owner`]).
+    pub(crate) owner: Option<String>,
 }
 
 impl CellTriage {
@@ -516,6 +577,7 @@ impl CellTriage {
             blocks: 0,
             detail: None,
             difference: None,
+            owner: None,
         }
     }
 
@@ -729,8 +791,11 @@ fn own_triage(
                 if let Some(parent) = refusal.reads.as_ref().and_then(|reads| index.get(reads)) {
                     return Some(Err(*parent));
                 }
-                CellTriage::root(refusal.class, refusal.key.clone())
-                    .with_detail(format!("{}: {diagnostic}", refusal.refusal))
+                CellTriage {
+                    owner: Some(refusal.owner.clone()),
+                    ..CellTriage::root(refusal.class, refusal.key.clone())
+                        .with_detail(format!("{}: {diagnostic}", refusal.refusal))
+                }
             }
             _ => CellTriage::root(Class::Engine, "not modelled").with_detail(diagnostic.clone()),
         },
@@ -895,9 +960,13 @@ pub(crate) fn triage(
         let read_at = &report.cells[read].formula.cell;
         cells[i] = Some(match root_of[i] {
             Some(root) => {
-                let (class, key) = {
+                let (class, key, owner) = {
                     let root_triage = cells[root].as_ref().expect("a root is decided first");
-                    (root_triage.class, root_triage.key.clone())
+                    (
+                        root_triage.class,
+                        root_triage.key.clone(),
+                        root_triage.owner.clone(),
+                    )
                 };
                 if let Some(root_triage) = cells[root].as_mut() {
                     root_triage.blocks += 1;
@@ -912,6 +981,7 @@ pub(crate) fn triage(
                 CellTriage {
                     root: Some(root),
                     difference,
+                    owner,
                     ..CellTriage::new(class, key, Some(Role::ReadsRoot)).with_detail(format!(
                         "reads {}!{}, whose root is {}!{}{own}",
                         read_at.sheet(),
@@ -943,6 +1013,8 @@ pub(crate) struct KeyCount {
     pub(crate) roots: Vec<usize>,
     pub(crate) blocked: u64,
     pub(crate) workbook: u64,
+    /// The owner of the key's refusal, when its cells carry one.
+    pub(crate) owner: Option<String>,
 }
 
 impl KeyCount {
@@ -970,6 +1042,9 @@ impl Triage {
                 continue;
             }
             let entry = keys.entry((cell.class, cell.key.clone())).or_default();
+            if entry.owner.is_none() {
+                entry.owner.clone_from(&cell.owner);
+            }
             match cell.role {
                 Some(Role::Root) | None => entry.roots.push(i),
                 Some(Role::ReadsRoot) => entry.blocked += 1,
@@ -1066,7 +1141,7 @@ impl Triage {
                     .collect();
                 let more = count.roots.len().saturating_sub(SUMMARY_ROOTS);
                 lines.push(format!(
-                    "  {} {key}: {}, blocking {}: {}{}",
+                    "  {} {key}: {}, blocking {}: {}{}{}",
                     class.name(),
                     counted(count.roots.len() as u64, "root", "roots"),
                     counted(count.blocked, "cell", "cells"),
@@ -1075,7 +1150,12 @@ impl Triage {
                         format!(" and {more} more")
                     } else {
                         String::new()
-                    }
+                    },
+                    count
+                        .owner
+                        .as_ref()
+                        .map(|owner| format!("; owner {owner}"))
+                        .unwrap_or_default()
                 ));
             }
             if not_modeled.len() > SUMMARY_KEYS {
@@ -1116,6 +1196,7 @@ impl Triage {
                 json!({
                     "class": class.name(),
                     "key": key,
+                    "owner": count.owner,
                     "roots": count.roots.len(),
                     "reading_a_root": count.blocked,
                     "workbook": count.workbook,
@@ -1162,6 +1243,9 @@ impl Triage {
         map.insert("verdict".to_owned(), json!(verdict.verdict.name()));
         map.insert("class".to_owned(), json!(cell.class.name()));
         map.insert("key".to_owned(), json!(cell.key));
+        if let Some(owner) = &cell.owner {
+            map.insert("owner".to_owned(), json!(owner));
+        }
         if let Some(role) = cell.role {
             map.insert("role".to_owned(), json!(role.name()));
         }
@@ -1547,7 +1631,8 @@ mod tests {
                 (5, 1, calculated(), Some(number(1.0))),
             ],
         );
-        let unknown = Refusal::new(Class::FunctionMissing, "NOSUCH", "Compile:UnknownFunction");
+        let unknown = Refusal::new(Class::FunctionMissing, "NOSUCH", "Compile:UnknownFunction")
+            .owned_by("owner-x");
         let reading = |cell: Option<CellAddress>| Refusal {
             reads: cell,
             ..Refusal::new(
@@ -1581,7 +1666,21 @@ mod tests {
         );
         assert_eq!(
             lines[3],
-            "  function-missing NOSUCH: 1 root, blocking 2 cells: S!A1 blocks 2"
+            "  function-missing NOSUCH: 1 root, blocking 2 cells: S!A1 blocks 2; owner owner-x"
+        );
+        // The cells reading the root take its owner with its class and key.
+        let owners: Vec<Option<&str>> = triage
+            .cells
+            .iter()
+            .map(|cell| cell.owner.as_deref())
+            .collect();
+        assert_eq!(
+            owners,
+            [Some("owner-x"), Some("owner-x"), Some("owner-x"), Some(""), None]
+        );
+        assert_eq!(
+            triage.cell_json(&report, 1)["owner"],
+            serde_json::json!("owner-x")
         );
 
         let failure = WorkbookFailure {
@@ -1730,13 +1829,21 @@ mod tests {
         names.insert(sheet, "S".to_owned());
         let address = |key: CellKey| address_of(&names, key);
         let span = TextSpan::new(0, 3);
-        let sum = catalogue()
-            .targets()
-            .find(|target| target.spelling() == "SUM")
-            .unwrap()
-            .id();
-        let cases: Vec<(NotModeled, Class, &str)> = vec![
-            (NotModeled::FormulaText, Class::Formula, "FormulaText"),
+        let id_of = |name: &str| {
+            catalogue()
+                .targets()
+                .find(|target| target.spelling() == name)
+                .unwrap()
+                .id()
+        };
+        let (sum, not) = (id_of("SUM"), id_of("NOT"));
+        let cases: Vec<(NotModeled, Class, &str, &str)> = vec![
+            (
+                NotModeled::FormulaText,
+                Class::Formula,
+                "FormulaText",
+                CALC_ENGINE,
+            ),
             (
                 NotModeled::Compile(CompileError::UnknownFunction {
                     span,
@@ -1744,19 +1851,41 @@ mod tests {
                 }),
                 Class::FunctionMissing,
                 "NOSUCH",
+                crate::owners::UNASSIGNED,
+            ),
+            (
+                NotModeled::Compile(CompileError::UnknownFunction {
+                    span,
+                    spelling: "_xlfn.XLookup".to_owned(),
+                }),
+                Class::FunctionMissing,
+                "_XLFN.XLOOKUP",
+                "F2 dc-ip6",
+            ),
+            (
+                NotModeled::Compile(CompileError::Unsupported {
+                    span,
+                    construct: "a defined name",
+                    owner: "cfml-m3.1",
+                }),
+                Class::Formula,
+                "Compile:Unsupported:a defined name (cfml-m3.1)",
+                "cfml-m3.1",
             ),
             (
                 NotModeled::Compile(CompileError::NumberLiteral { span }),
                 Class::Formula,
                 "Compile:NumberLiteral",
+                NUMBER_LITERAL_OWNER,
             ),
             (
                 NotModeled::Evaluation(EvalFault::Function(FunctionFault::NotImplemented {
                     id: sum,
                     argument: None,
                 })),
-                Class::FunctionMissing,
+                Class::NotModelled,
                 "SUM",
+                "F1 dc-8dq",
             ),
             (
                 NotModeled::Evaluation(EvalFault::Function(FunctionFault::ArityMismatch {
@@ -1765,27 +1894,54 @@ mod tests {
                 })),
                 Class::Formula,
                 "Evaluation:Function:ArityMismatch",
+                CALC_FML,
             ),
             (
                 NotModeled::Evaluation(EvalFault::NearZeroFinalSum { result: 1e-17 }),
                 Class::Formula,
                 "Evaluation:NearZeroFinalSum",
+                CALC_FML,
             ),
             (
                 NotModeled::Result(CalcValue::empty()),
                 Class::Engine,
                 "Result:empty",
+                CALC_ENGINE,
             ),
         ];
-        for (refusal, class, key) in cases {
+        for (refusal, class, key, owner) in cases {
             let triaged = refusal_of(&refusal, &address);
             assert_eq!(
-                (triaged.class, triaged.key.as_str()),
-                (class, key),
+                (triaged.class, triaged.key.as_str(), triaged.owner.as_str()),
+                (class, key, owner),
                 "{refusal:?}"
             );
             assert_eq!(triaged.reads, None);
         }
+        // NOT("1"): the catalogue holds NOT and its kernel refuses text it does not model. That
+        // is not modelled under NOT's owner, never a missing function.
+        let refused_not = refusal_of(
+            &NotModeled::Evaluation(EvalFault::Function(FunctionFault::NotImplemented {
+                id: not,
+                argument: Some(0),
+            })),
+            &address,
+        );
+        assert_eq!(
+            (
+                refused_not.class,
+                refused_not.key.as_str(),
+                refused_not.owner.as_str(),
+                refused_not.feature.as_str()
+            ),
+            (
+                Class::NotModelled,
+                "NOT",
+                "F2 dc-ip6",
+                "Evaluation:Function:NotImplemented (NOT, argument 1)"
+            )
+        );
+        assert_eq!(Class::NotModelled.name(), "not-modelled");
         let missing = refusal_of(
             &NotModeled::Evaluation(EvalFault::MissingInput {
                 cell: CellKey::new(sheet, 4, 2).unwrap(),

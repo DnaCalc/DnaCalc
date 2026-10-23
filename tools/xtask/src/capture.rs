@@ -42,7 +42,9 @@ use crate::accept::utc_now;
 use calc_oracle_excel::{
     CalculationMode, CalculationPolicy, CaptureError, CaptureOutcome, CaptureRequest, capture,
 };
-use calc_verdict::{CaptureRecord, STAGE_ISOLATION, VerdictPolicy, file_cache_replay};
+use calc_verdict::{
+    CaptureRecord, STAGE_ISOLATION, VerdictPolicy, VerdictReport, file_cache_replay,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -159,7 +161,7 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
 
 /// The repository's commit, with `+dirty` when the tree has changes, or `None` when git cannot
 /// tell.
-fn repository_revision() -> Option<String> {
+pub(crate) fn repository_revision() -> Option<String> {
     let here = Path::new(".");
     let head = crate::cargo::git(here, &["rev-parse", "HEAD"]).ok()?;
     let status = crate::cargo::git(here, &["status", "--porcelain"]).ok()?;
@@ -237,6 +239,29 @@ fn run_code(raw: &[String]) -> u8 {
     }
 }
 
+/// The verdict of a capture's file-cache replay when the capture is accepted, or why it is
+/// refused: its session carries an isolation failure, or the verdict refuses the replay of the
+/// record as written and read back, as every platform reads it. `cargo xtask corpus` accepts a
+/// capture by the same rule.
+pub(crate) fn accepted(outcome: &CaptureOutcome) -> Result<VerdictReport, String> {
+    let isolation = outcome
+        .record
+        .session
+        .as_ref()
+        .map_or(0, |s| s.failures_at(STAGE_ISOLATION).count());
+    if isolation > 0 {
+        return Err(format!(
+            "the capture records {isolation} isolation failure(s)"
+        ));
+    }
+    CaptureRecord::decode(outcome.encoded.as_bytes())
+        .map_err(|e| format!("the written record does not decode: {e}"))
+        .and_then(|record| {
+            file_cache_replay(&record, &VerdictPolicy::default())
+                .map_err(|e| format!("the verdict refuses its file-cache replay: {e}"))
+        })
+}
+
 /// What becomes of a capture taken: its record is kept as `capture.json` in `work_dir`; it is
 /// refused ([`EXIT_REFUSED`]) when its session carries an isolation failure or the verdict refuses
 /// its file-cache replay; otherwise the record goes to `--out` and, with `--verdict`, the replay's
@@ -277,22 +302,7 @@ fn finish(args: &Args, outcome: &CaptureOutcome, work_dir: &Path) -> u8 {
     } else {
         "the record is not written"
     };
-    let isolation = session.map_or(0, |s| s.failures_at(STAGE_ISOLATION).count());
-    if isolation > 0 {
-        eprintln!(
-            "xtask capture: refused: the capture records {isolation} isolation failure(s), so {not_written} to the paths given; the record is kept at {}",
-            kept.display()
-        );
-        return EXIT_REFUSED;
-    }
-    // The replay is of the record as written and read back, as every platform reads it.
-    let report = CaptureRecord::decode(outcome.encoded.as_bytes())
-        .map_err(|e| format!("the written record does not decode: {e}"))
-        .and_then(|record| {
-            file_cache_replay(&record, &VerdictPolicy::default())
-                .map_err(|e| format!("the verdict refuses its file-cache replay: {e}"))
-        });
-    let report = match report {
+    let report = match accepted(outcome) {
         Ok(report) => report,
         Err(e) => {
             eprintln!(
