@@ -4,13 +4,14 @@
 #
 # writes <directory>/cfunc_m1_2/oracle.xlsx, <directory>/cfunc_m3_2/oracle.xlsx,
 # <directory>/cfunc_m3_4/oracle.xlsx, <directory>/cfunc_m3_5/oracle.xlsx,
-# <directory>/dc_q9rb/oracle.xlsx, <directory>/cfunc_m3_6/oracle.xlsx and
-# <directory>/dc_e00t/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
-# fixtures; the acceptance cases cfunc_m1_2__mixed_operands, cfunc_m3_2__rounding_boundaries,
-# cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes, cfunc_m3_5__criteria_semantics,
-# dc_q9rb__number_text_for_concatenation, cfunc_m3_6__reference_result,
-# cfunc_m3_6__lookup_edges and dc_e00t__digit_labels_as_text run it into a fresh directory on
-# Windows and compare its output with the committed workbooks byte for byte.
+# <directory>/dc_q9rb/oracle.xlsx, <directory>/cfunc_m3_6/oracle.xlsx,
+# <directory>/dc_e00t/oracle.xlsx and <directory>/dc_fwpz/oracle.xlsx. Run with this directory as
+# -OutDir it rewrites the committed fixtures; the acceptance cases cfunc_m1_2__mixed_operands,
+# cfunc_m3_2__rounding_boundaries, cfunc_m3_2__large_integers, cfunc_m3_4__argument_classes,
+# cfunc_m3_5__criteria_semantics, dc_q9rb__number_text_for_concatenation,
+# cfunc_m3_6__reference_result, cfunc_m3_6__lookup_edges, dc_e00t__digit_labels_as_text and
+# dc_fwpz__logical_functions run it into a fresh directory on Windows and compare its output with
+# the committed workbooks byte for byte.
 #
 # cfunc_m1_2/oracle.xlsx is the workbook the owner's Excel capture of cfunc-m1.2 reads
 # (`cargo xtask capture --fixture crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx ...`),
@@ -18,8 +19,9 @@
 # cfunc_m3_4/oracle.xlsx the one an Excel capture of cfunc-m3.4's aggregate rows reads,
 # cfunc_m3_5/oracle.xlsx the one an Excel capture of cfunc-m3.5's conditional rows reads,
 # dc_q9rb/oracle.xlsx the one an Excel capture of dc-q9rb's number-text rows reads,
-# cfunc_m3_6/oracle.xlsx the one an Excel capture of cfunc-m3.6's lookup rows reads, and
-# dc_e00t/oracle.xlsx the one an Excel capture of dc-e00t's digit-label rows reads. Each has one
+# cfunc_m3_6/oracle.xlsx the one an Excel capture of cfunc-m3.6's lookup rows reads,
+# dc_e00t/oracle.xlsx the one an Excel capture of dc-e00t's digit-label rows reads, and
+# dc_fwpz/oracle.xlsx the one an Excel capture of dc-fwpz's logical rows reads. Each has one
 # sheet per case, named after the case: the cells the case's rows read, as the case's test sheet
 # holds them, and in column D one formula per oracle row, from row 1, in the order the case runs
 # its rows. Each case checks that its sheet holds exactly those formulas and cells; the sheet
@@ -1525,4 +1527,86 @@ foreach ($word in $labelWords) {
 Write-Workbook (Join-Path $OutDir 'dc_e00t/oracle.xlsx') @(
     @('digit_labels_as_text', (New-OracleSheet $labelInputs $labelFormulas)),
     @('value_readings', (New-OracleSheet @() $valueFormulas))
+)
+
+# --- dc_fwpz/oracle.xlsx ------------------------------------------------------------------------
+
+# XOR and IFNA came after the file format's first version, so a file writes them with the _xlfn.
+# prefix, without which Excel does not recognize them. No formula of this sheet calls a function
+# whose name ends in XOR or IFNA, such as BITXOR.
+function Get-LogicalStored([string]$Formula) {
+    return $Formula.Replace('XOR(', '_xlfn.XOR(').Replace('IFNA(', '_xlfn.IFNA(')
+}
+
+# TRUE spelled in fullwidth letters (U+FF34 U+FF32 U+FF35 U+FF25).
+$fullwidthTrue = [string][char]0xFF34 + [string][char]0xFF32 + [string][char]0xFF35 + [string][char]0xFF25
+
+# Sheet logical_functions: the cells of dc_fwpz__logical_functions' test sheet (A1:A10 one value
+# of each kind AND, OR and XOR tell apart, A7 blank and A8 empty text; B1:B4 two errors and two
+# logicals; A12:B13 a number, a logical and two errors, one in each corner off the diagonal; C1:C4
+# text and a blank cell, no logical, and C1048576 TRUE, the only logical of column C), and its
+# oracle rows' formulas in its order.
+$logicalInputs = @(
+    (New-Logical 'A1' $true),
+    (New-Logical 'A2' $false),
+    (New-Number 'A3' '1'),
+    (New-Number 'A4' '0'),
+    (New-Text 'A5' 'TRUE'),
+    (New-Text 'A6' 'x'),
+    (New-Text 'A8' ''),
+    (New-Number 'A9' '-2.5'),
+    (New-Text 'A10' 'FALSE'),
+    (New-Number 'A12' '1'),
+    (New-Error 'A13' '#REF!'),
+    (New-Error 'B1' '#DIV/0!'),
+    (New-Error 'B2' '#N/A'),
+    (New-Logical 'B3' $true),
+    (New-Logical 'B4' $false),
+    (New-Error 'B12' '#NUM!'),
+    (New-Logical 'B13' $true),
+    (New-Text 'C1' 'abc'),
+    (New-Text 'C3' 'TRUE'),
+    (New-Text 'C4' '1'),
+    (New-Logical 'C1048576' $true)
+)
+# 255 arguments, the most AND and OR take (their pages), and 254, the most XOR takes (Microsoft's XOR
+# page gives 1 to 254 conditions).
+$manyTrue = (@('TRUE') * 255) -join ','
+$manyFalse = (@('FALSE') * 255) -join ','
+$xorTrue = (@('TRUE') * 254) -join ','
+$logicalFormulas = @(
+    'TRUE()', 'FALSE()',
+    'AND(TRUE,TRUE)', 'AND(TRUE,FALSE)', 'AND(1,2)', 'AND(1,0)', 'AND(-2.5)', 'AND("TRUE",TRUE)',
+    'AND("false",TRUE)', 'AND(TRUE,"x")', 'AND("x")', 'AND(TRUE,"1")', 'AND(TRUE,"0")',
+    'AND(TRUE,"")', 'AND(TRUE,)', 'AND(,)', 'AND(FALSE,#N/A)', 'AND(#N/A,#DIV/0!)',
+    'AND(#DIV/0!,#N/A)', 'AND("x",#N/A)', 'AND(A1:A10)', 'AND(A3,A9)', 'AND(A5:A8)', 'AND(C1:C4)',
+    'AND(C:C)', 'AND(A1,A5)', 'AND(A10,TRUE)', 'AND({TRUE,FALSE})', 'AND({1,2,"x"})',
+    'AND({"TRUE"})', 'AND(B1:B4)', 'AND(B3:B4,B2)', 'AND(B2,#DIV/0!)', 'AND(#DIV/0!,B2)',
+    'AND({TRUE,#N/A},#DIV/0!)', 'AND({TRUE,#DIV/0!},B2)', 'AND(B2,{TRUE,#DIV/0!})',
+    'AND(B2,"x",#DIV/0!)', 'AND((A1:A2,B3:B4))', 'AND({TRUE,#N/A,#DIV/0!})',
+    'AND({TRUE,#N/A;#DIV/0!,TRUE})', 'AND(FALSE,{TRUE,#N/A})', 'AND(A7)', ('AND(' + $manyTrue + ')'),
+    'OR(FALSE,FALSE)', 'OR(FALSE,TRUE)', 'OR(0,0)', 'OR(0,-2.5)', 'OR(FALSE,"TRUE")', 'OR(FALSE,"x")',
+    'OR(FALSE,"1")', 'OR(FALSE,"")', 'OR(FALSE," TRUE")', ('OR(FALSE,"' + $fullwidthTrue + '")'),
+    'OR(FALSE,"#N/A")', 'OR("x","y")', 'OR(FALSE,)', 'OR(,)', 'OR(TRUE,#N/A)', 'OR(B1,#N/A)',
+    'OR(A1:A10)', 'OR(A2,A4)', 'OR(A5:A8)', 'OR(C:C)', 'OR({FALSE,0,"TRUE"})', 'OR(B3:B4,B1)',
+    'OR(A6,FALSE)', 'OR(A12:B13)', ('OR(' + $manyFalse + ')'),
+    'XOR(TRUE,FALSE)', 'XOR(TRUE,TRUE)', 'XOR(TRUE,TRUE,TRUE)', 'XOR(FALSE,FALSE)', 'XOR(1,2)',
+    'XOR(A1:A10)', 'XOR(A5:A8)', 'XOR({TRUE,TRUE},TRUE)', 'XOR(TRUE,"x")', 'XOR("x")',
+    'XOR(TRUE,#N/A)', 'XOR(B1,B2)', 'XOR(B2,#DIV/0!)', 'XOR(C:C)', 'XOR(TRUE,)',
+    ('XOR(' + $xorTrue + ')'),
+    'NOT(TRUE)', 'NOT(FALSE)', 'NOT(0)', 'NOT(-2.5)', 'NOT("TRUE")', 'NOT("false")', 'NOT("x")',
+    'NOT("")', 'NOT(#N/A)', 'NOT(A7)', 'NOT(A5)', 'NOT(A6)', 'NOT(A8)', 'NOT(B1)', 'NOT(A3)',
+    'NOT({TRUE,FALSE})', 'NOT("1")',
+    # Digit text alone, and two arrays.
+    'AND("1")', 'AND({FALSE,TRUE,TRUE},{TRUE,TRUE,TRUE})',
+    # A7's blank value given directly: IFNA and IFERROR take values and return a blank cell's value
+    # as it is.
+    'AND(TRUE,IFNA(A7,0))', 'AND(IFNA(A7,0))', 'AND(TRUE,IFERROR(A7,FALSE))',
+    'OR(FALSE,IFERROR(A7,FALSE))', 'OR(IFERROR(A7,FALSE))', 'OR(IFNA(A7,0))',
+    'XOR(TRUE,IFNA(A7,0))', 'XOR(IFNA(A7,0))', 'XOR(IFERROR(A7,FALSE))',
+    'NOT(IFNA(A7,0))', 'NOT(IFERROR(A7,FALSE))'
+)
+
+Write-Workbook (Join-Path $OutDir 'dc_fwpz/oracle.xlsx') @(
+    , @('logical_functions', (New-OracleSheet $logicalInputs @($logicalFormulas | ForEach-Object { Get-LogicalStored $_ })))
 )

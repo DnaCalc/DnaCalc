@@ -1,0 +1,455 @@
+{
+  "format": "dnacalc-port-record/1",
+  "bead": "dc-fwpz",
+  "written": "2026-10-21",
+  "not_ported_search": "The tracker, searched with br 0.1.34 in JSONL-only mode (--no-db --no-auto-flush --no-auto-import): each term once as 'br search <term> -a --limit 0' (titles and descriptions) and once as 'br list --notes-contains <term> -a --limit 0' (notes), case-insensitive substrings, on 2026-10-21 over .beads/issues.jsonl of commit 8d53388e0e2c4a1a193b78fe7914bfdbaa4e50c8 (sha256 9c2ccd91bcf9b744d8d58c0c20bfb9143f1bfee9c74cd4d1ad60caa4a014a458, unmodified in the working tree): FunctionMeta, array lifting, lift, _xlfn, number-text, XOR, array evaluation, number text, legacy array, locale (transcript target/accept/dc-fwpz/owner-search.log; target/ is not committed). Each beads list below is drawn from the hits of the terms its basis names, read by title. Round 2: the terms callable, LAMBDA and subnormal, searched the same way on 2026-10-21 over .beads/issues.jsonl of commit 3662bb05829bf52f9e9142232766963676a5b809 (sha256 e78b1d7993092e1eae2d5f35baff890cee97cb10b103e6d0e08f1dabc4df10b4, unmodified in the working tree; transcript target/accept/dc-fwpz/r2/owner-search.log).",
+  "sources": [
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/and_fn.rs",
+      "blob": "5e85f62c7be90f072b7828df2fd9976a056aedf3",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/and_fn.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported only against clean replacements of every module its calls_quarantined list names, none of which was read: coercion.rs is replaced by calc-func's coerce.rs (cfunc-m1.2, written fresh; coerce::operand reads a number), adapters.rs by read_reference and reader in crates/calc-func/src/catalogue/aggregate.rs (cfunc-m3.4, written fresh) and the two passes of tally in crates/calc-func/src/catalogue/logical.rs, and aggregate_common.rs (and_argument_truth) by direct, held and spelled_logical in logical.rs, written fresh from Microsoft's AND, OR and XOR pages and Excel's capture of the dc-fwpz oracle workbook.",
+      "ported": [
+        {
+          "symbol": "AND_META (arity 1 to 255)",
+          "to": "crates/calc-func/src/catalogue/logical.rs FAMILY: the AND entry (FunctionId 5.2, parameters logical1 and logical2 repeating, values or references, eager)",
+          "changes": []
+        },
+        {
+          "symbol": "eval_and_surface",
+          "to": "crates/calc-func/src/catalogue/logical.rs and, decide, tally",
+          "changes": [
+            {
+              "change": "An error given directly is the result before any error a reference or an array holds: tally reads the direct arguments first, in argument order, then the references and arrays in argument order. The pinned function returns the first error in argument order across all arguments.",
+              "reason": "Excel's capture of the dc-fwpz oracle workbook: =AND(B2,#DIV/0!) with #N/A in B2 is #DIV/0!, =AND({TRUE,#N/A},#DIV/0!) is #DIV/0!, =AND(B2,\"x\",#DIV/0!) is #DIV/0!, while =AND({TRUE,#DIV/0!},B2) is #DIV/0! and =AND(B2,{TRUE,#DIV/0!}) is #N/A (rows D33 to D38 of sheet logical_functions, matched in dc_fwpz__excel_comparison)."
+            },
+            {
+              "change": "An omitted argument and a blank cell's value given directly (the empty value, which IFNA and IFERROR return for a blank cell) are each read as a FALSE that counts as a logical; a callable (directly or held in an array), a number that is no worksheet value (NaN, an infinity or a subnormal, directly or held) and an array or a reference held inside an array are refused as FunctionFault::NotImplemented naming the argument. The pinned function leaves these to the quarantined adapters, which were not read.",
+              "reason": "Excel's capture: =AND(TRUE,) and =AND(,) are FALSE (rows D15 and D16), and with A7 blank =AND(TRUE,IFNA(A7,0)), =AND(IFNA(A7,0)) and =AND(TRUE,IFERROR(A7,FALSE)) are FALSE (rows D105 to D107; each inner call runs through calc_func::invoke and gives the empty value, which reaches AND directly, as on the calc-fml route, where IFNA and IFERROR take values). A non-finite number is no worksheet value (coerce::operand refuses it for every kernel). The refusals are asserted through the call interface in dc_fwpz__logical_functions, and no oracle row measures them; the subnormal number, the callable and the array or reference held inside an array are listed under not_ported with the beads that own them."
+            },
+            {
+              "change": "A call outside the arity ends in FunctionFault::ArityMismatch before any argument is asked for (calc_func::invoke); AndEvalError and map_and_error_to_ws, which gave #VALUE!, are not ported.",
+              "reason": "Excel does not accept such a formula, so no worksheet value exists for it; the call interface reports it as a fault, as for every catalogue entry since cfunc-m1.1."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/or_fn.rs",
+      "blob": "d7eb16b4b1f49915c25b12d48e6885bdbc1ad8c8",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/or_fn.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported against the same clean replacements as and_fn.rs, none of the quarantined modules read.",
+      "ported": [
+        {
+          "symbol": "OR_META (arity 1 to 255)",
+          "to": "crates/calc-func/src/catalogue/logical.rs FAMILY: the OR entry (FunctionId 5.3)",
+          "changes": []
+        },
+        {
+          "symbol": "eval_or_surface",
+          "to": "crates/calc-func/src/catalogue/logical.rs or, decide, tally",
+          "changes": [
+            {
+              "change": "As for eval_and_surface: a direct error before any held error, an omitted argument and a blank cell's value given directly each a FALSE, the same refusals, and ArityMismatch outside the arity.",
+              "reason": "Excel's capture: =OR(B1,#N/A) with #DIV/0! in B1 is #N/A (row D60); =OR(FALSE,) and =OR(,) are FALSE (rows D57 and D58); with A7 blank, =OR(FALSE,IFERROR(A7,FALSE)), =OR(IFERROR(A7,FALSE)) and =OR(IFNA(A7,0)) are FALSE (rows D108 to D110)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/xor_fn.rs",
+      "blob": "bdf3d738a8094aae9a0861df0d5bc6094bd871bb",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/xor_fn.rs",
+        "exit": 6,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs",
+          "crates/oxfunc_core/src/functions/aggregate_common.rs"
+        ]
+      },
+      "read": "Read at its pinned blob (lookup exit 6) and ported against the same clean replacements as and_fn.rs, none of the quarantined modules read.",
+      "ported": [
+        {
+          "symbol": "XOR_META",
+          "to": "crates/calc-func/src/catalogue/logical.rs FAMILY: the XOR entry (FunctionId 5.4)",
+          "changes": [
+            {
+              "change": "XOR takes 1 to 254 arguments; the pinned metadata says 1 to 255.",
+              "reason": "Microsoft's XOR page gives 1 to 254 conditions; the committed workbook's 254-argument row D85 is matched in dc_fwpz__excel_comparison."
+            }
+          ]
+        },
+        {
+          "symbol": "eval_xor_surface",
+          "to": "crates/calc-func/src/catalogue/logical.rs xor, decide, tally",
+          "changes": [
+            {
+              "change": "As for eval_and_surface: a direct error before any held error, an omitted argument and a blank cell's value given directly each a FALSE, the same refusals, and ArityMismatch outside the arity.",
+              "reason": "Excel's capture: =XOR(B2,#DIV/0!) is #DIV/0! (row D82); =XOR(TRUE,) is TRUE (row D84); with A7 blank, =XOR(TRUE,IFNA(A7,0)) is TRUE and =XOR(IFNA(A7,0)) and =XOR(IFERROR(A7,FALSE)) are FALSE (rows D111 to D113)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/not_fn.rs",
+      "blob": "3a2863956a47d58abd05897440328f5477f765fa",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/not_fn.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/coercion.rs",
+          "crates/oxfunc_core/src/functions/adapters.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved, tainted commit ffcb9a7728195f359bdb54a1e97af0a07c8f816e). Nothing of it is ported. NOT is written fresh in crates/calc-func/src/catalogue/logical.rs (not) from Microsoft's NOT page and Excel's capture: one value parameter, read by coerce::logical as IF reads its condition, an array argument and a callable refused as not modelled; with A7 blank, =NOT(IFNA(A7,0)) and =NOT(IFERROR(A7,FALSE)) are TRUE (rows D114 and D115).",
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/tests/w111_not_live_replay.rs",
+      "blob": "4e2c21794d4d0e9a2fa9fed25f2f4e6294e0a8e7",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/tests/w111_not_live_replay.rs",
+        "exit": 5,
+        "calls_quarantined": [
+          "crates/oxfunc_core/src/functions/surface_dispatch.rs"
+        ]
+      },
+      "read": "Not read (lookup exit 5: numeric provenance unresolved, a tainted commit and includes of unresolved evidence files). Nothing of it is ported and none of its expectations is used.",
+      "ported": []
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/true_fn.rs",
+      "blob": "17869eb1564887ec7032b6ddc256898c61365cbf",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/true_fn.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0).",
+      "ported": [
+        {
+          "symbol": "TRUE_META (arity exactly 0), eval_true_surface",
+          "to": "crates/calc-func/src/catalogue/logical.rs FAMILY: the TRUE entry (FunctionId 5.6, no parameter, eager) and true_value",
+          "changes": [
+            {
+              "change": "A call with an argument ends in FunctionFault::ArityMismatch at the call interface; the pinned function returns #VALUE!.",
+              "reason": "Excel does not accept TRUE with an argument, so no worksheet value exists for it; calc_func::invoke checks every entry's arity before its kernel."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "OxFunc",
+      "commit": "6fca351872616a352848a3dea2e182662834ea57",
+      "path": "crates/oxfunc_core/src/functions/false_fn.rs",
+      "blob": "7fa532b782bae04b342c5b66508f2df70af6f636",
+      "lookup": {
+        "command": "cargo xtask pin-sources --lookup OxFunc/crates/oxfunc_core/src/functions/false_fn.rs",
+        "exit": 0,
+        "calls_quarantined": []
+      },
+      "read": "Read at its pinned blob (lookup exit 0).",
+      "ported": [
+        {
+          "symbol": "FALSE_META (arity exactly 0), eval_false_surface",
+          "to": "crates/calc-func/src/catalogue/logical.rs FAMILY: the FALSE entry (FunctionId 5.7) and false_value",
+          "changes": [
+            {
+              "change": "A call with an argument ends in FunctionFault::ArityMismatch at the call interface; the pinned function returns #VALUE!.",
+              "reason": "As for TRUE."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "not_ported": [
+    {
+      "items": [
+        "FunctionMeta's determinism, volatility, host-interaction, thread-safety, coercion-lift, kernel-signature and FEC-dependency classes of AND, OR, XOR, TRUE and FALSE"
+      ],
+      "beads": [
+        "cfunc-m3.22",
+        "cfunc-m3.25"
+      ],
+      "basis": "FunctionMeta: cfunc-m3.22 (Declare numerical sensitivity and generate backend routing) and cfunc-m3.25 (Audit complete catalogue migration and generated outputs); the other hits (cfml-m2.4, cfunc-m1.1, cfunc-m1.2, cfunc-m7.2, onecalc-m6.1) cite it for lazy forms, the first catalogue, coercion, tolerances and function exploration."
+    },
+    {
+      "items": [
+        "NOT over an array argument, which Excel lifts over its elements in a dynamic-array formula and reduces to its first element in a legacy one (=NOT(@{TRUE,FALSE}))"
+      ],
+      "beads": [
+        "cfml-m3.4"
+      ],
+      "basis": "array evaluation and legacy array: cfml-m3.4 (Preserve array evaluation and legacy array contexts); the other hits of legacy array (cdoc-m3.3, infra-m3.2) encode or prove formulas, and array lifting and lift hit no bead that evaluates arrays."
+    },
+    {
+      "items": [
+        "NOT of text that holds a digit (=NOT(\"1\") is #VALUE! in Excel), which coerce::logical refuses as not modelled"
+      ],
+      "beads": [
+        "cfml-m2.6"
+      ],
+      "basis": "locale and number-text: cfml-m2.6 (Own number-format parsing and numeric text policy), whose behaviour the refused row names as its owner, as cfunc-m1.2's row IF(\"1\",1,2) does; dc-e00t (closed) changed coerce.rs's digit-text rule and leaves text that can be a number, such as \"1\", refused."
+    },
+    {
+      "items": [
+        "XOR written in its package form _xlfn.XOR when a workbook is saved"
+      ],
+      "beads": [
+        "dc-552j"
+      ],
+      "basis": "_xlfn: dc-552j (Write formula prefixes and newer error values the way Excel saves them); dc-besk resolves the prefix on load and dc-xrxb handles a file's unprefixed spelling."
+    },
+    {
+      "items": [
+        "A callable (a LAMBDA, whose worksheet-visible core is #CALC!) given to AND, OR, XOR or NOT, directly or held in an array, which the kernels refuse as not modelled"
+      ],
+      "beads": [
+        "cfml-m2.3"
+      ],
+      "basis": "callable and LAMBDA: cfml-m2.3 (Compile LET LAMBDA closures and invocation), under which dc-ibp2 refuses a callable value of IFERROR and IFNA; the other hits port callable array helpers (cfunc-m3.17), arrays (cfml-m3.4), names (cfml-m3.1), UDFs (cfml-m4.3, cfunc-m4.1), the value model (cfunc-m0.1), editing and display (chost-m3.3, dnacalc-m2.6, dnacalc-m3.1, onecalc-m2.1, onecalc-m8.1), persistence and capture matrices (infra-m2.1, infra-m3.3, infra-m7.2, cdoc-m3.1) or other work (cfml-m2.4, cfml-m2.5, cfunc-m7.2, dc-0oyu, dc-2mlz, dc-4r8u, dc-8abf, dc-lgqh)."
+    },
+    {
+      "items": [
+        "A subnormal number given to AND, OR, XOR or NOT, directly or held in an array, which coerce::operand refuses as not modelled"
+      ],
+      "beads": [
+        "cfunc-m3.23"
+      ],
+      "basis": "subnormal: cfunc-m3.23 (Implement the deterministic portable Fast backend), which coerce.rs names as the owner of subnormal numbers; dc-q9rb gives a number's text and cdoc-m0.1 defines authored operations."
+    },
+    {
+      "items": [
+        "An array or a reference held inside an array given to AND, OR or XOR, which the kernels refuse as not modelled"
+      ],
+      "beads": [
+        "cfml-m3.4"
+      ],
+      "basis": "array evaluation: cfml-m3.4 (Preserve array evaluation and legacy array contexts), the bead the round-1 search found for arrays; no oracle row measures an array that holds an array or a reference."
+    }
+  ],
+  "legacy_tests": [
+    {
+      "file": "OxFunc crates/oxfunc_core/src/functions/and_fn.rs (its #[cfg(test)] module)",
+      "blob": "5e85f62c7be90f072b7828df2fd9976a056aedf3",
+      "tests": [
+        {
+          "test": "eval_and_returns_false_when_any_arg_is_zero",
+          "disposition": "kept",
+          "carried_by": "dc_fwpz__logical_functions row AND(1,0) = FALSE"
+        },
+        {
+          "test": "eval_and_ignores_reference_text_and_empty_cells",
+          "disposition": "kept",
+          "carried_by": "rows AND(A1,A5) = TRUE, AND(A10,TRUE) = TRUE and AND(C:C) = TRUE"
+        },
+        {
+          "test": "eval_and_direct_text_is_value_error",
+          "disposition": "kept",
+          "carried_by": "row AND(\"1\") = #VALUE! (row D103), the legacy test's own input; digit text given directly is skipped, as rows AND(TRUE,\"1\") = TRUE and OR(FALSE,\"1\") = FALSE show"
+        },
+        {
+          "test": "eval_and_coerces_direct_logical_spellings",
+          "disposition": "kept",
+          "carried_by": "rows AND(\"TRUE\",TRUE) = TRUE and AND(\"false\",TRUE) = FALSE"
+        },
+        {
+          "test": "eval_and_ignores_direct_text_that_is_not_a_logical_spelling",
+          "disposition": "kept",
+          "carried_by": "rows AND(TRUE,\"x\"), AND(TRUE,\"0\") and AND(TRUE,\"\") = TRUE, OR(FALSE,\" TRUE\") = FALSE"
+        },
+        {
+          "test": "eval_and_returns_value_when_only_ignored_direct_text_is_given",
+          "disposition": "kept",
+          "carried_by": "rows AND(\"x\") and OR(\"x\",\"y\") = #VALUE!"
+        },
+        {
+          "test": "eval_and_still_ignores_a_logical_spelling_inside_an_array_or_reference",
+          "disposition": "kept",
+          "carried_by": "rows AND({\"TRUE\"}) = #VALUE!, AND(A1,A5) = TRUE and AND(A10,TRUE) = TRUE"
+        },
+        {
+          "test": "eval_and_direct_text_never_masks_an_error",
+          "disposition": "kept",
+          "carried_by": "row AND(\"x\",#N/A) = #N/A; the test's other input, AND(\"FALSE\",NA()) (a spelled logical before an error), has no oracle row and is uncovered"
+        },
+        {
+          "test": "eval_and_returns_value_when_all_inputs_are_ignored",
+          "disposition": "kept",
+          "carried_by": "rows AND(A5:A8) and AND(C1:C4) = #VALUE!"
+        },
+        {
+          "test": "ftc_0907_single_direct_true_array_scalarizes_to_true",
+          "disposition": "kept",
+          "carried_by": "row AND({1,2,\"x\"}) = TRUE"
+        },
+        {
+          "test": "ftc_0907_single_direct_mixed_array_scalarizes_to_false",
+          "disposition": "kept",
+          "carried_by": "row AND({TRUE,FALSE}) = FALSE"
+        },
+        {
+          "test": "ftc_1032_multi_arg_direct_arrays_scalarize_to_false",
+          "disposition": "kept",
+          "carried_by": "row AND({FALSE,TRUE,TRUE},{TRUE,TRUE,TRUE}) = FALSE (row D104), the legacy test's own two arrays"
+        },
+        {
+          "test": "eval_and_surfaces_an_error_after_the_deciding_false",
+          "disposition": "kept",
+          "carried_by": "rows AND(FALSE,#N/A) = #N/A and AND(B3:B4,B2) = #N/A"
+        },
+        {
+          "test": "eval_and_first_error_in_argument_order_wins_after_the_deciding_false",
+          "disposition": "kept",
+          "carried_by": "rows AND(#N/A,#DIV/0!) = #N/A and AND(#DIV/0!,#N/A) = #DIV/0!; among direct errors the first in argument order wins, while a direct error wins over an earlier reference's error (AND(B2,#DIV/0!) = #DIV/0!), which no legacy test covers"
+        },
+        {
+          "test": "eval_and_scans_an_array_argument_past_the_deciding_false_for_errors",
+          "disposition": "kept",
+          "carried_by": "rows AND({TRUE,#N/A,#DIV/0!}) = #N/A and AND(FALSE,{TRUE,#N/A}) = #N/A"
+        },
+        {
+          "test": "eval_and_still_returns_false_when_later_arguments_are_not_errors",
+          "disposition": "kept",
+          "carried_by": "row AND(A1:A10) = FALSE (FALSE in A2, then numbers and text)"
+        }
+      ]
+    },
+    {
+      "file": "OxFunc crates/oxfunc_core/src/functions/or_fn.rs (its #[cfg(test)] module)",
+      "blob": "d7eb16b4b1f49915c25b12d48e6885bdbc1ad8c8",
+      "tests": [
+        {
+          "test": "eval_or_returns_true_when_any_arg_is_true",
+          "disposition": "kept",
+          "carried_by": "row OR(0,-2.5) = TRUE"
+        },
+        {
+          "test": "eval_or_ignores_reference_text_and_empty_cells",
+          "disposition": "kept",
+          "carried_by": "rows OR(A6,FALSE) = FALSE and OR(C:C) = TRUE"
+        },
+        {
+          "test": "eval_or_direct_text_is_value_error",
+          "disposition": "kept",
+          "carried_by": "row OR(\"x\",\"y\") = #VALUE!"
+        },
+        {
+          "test": "eval_or_coerces_direct_logical_spellings",
+          "disposition": "kept",
+          "carried_by": "row OR(FALSE,\"TRUE\") = TRUE"
+        },
+        {
+          "test": "eval_or_ignores_direct_text_that_is_not_a_logical_spelling",
+          "disposition": "kept",
+          "carried_by": "rows OR(FALSE,\"x\"), OR(FALSE,\"1\"), OR(FALSE,\"\") and OR(FALSE,\" TRUE\") = FALSE"
+        },
+        {
+          "test": "eval_or_returns_value_when_only_ignored_direct_text_is_given",
+          "disposition": "kept",
+          "carried_by": "row OR(\"x\",\"y\") = #VALUE!"
+        },
+        {
+          "test": "eval_or_still_ignores_a_logical_spelling_inside_an_array_or_reference",
+          "disposition": "kept",
+          "carried_by": "rows OR({FALSE,0,\"TRUE\"}) = FALSE and OR(A5:A8) = #VALUE!"
+        },
+        {
+          "test": "eval_or_direct_text_never_masks_an_error",
+          "disposition": "kept",
+          "carried_by": "row AND(\"x\",#N/A) = #N/A, an AND row; no OR row carries it, and OR(\"x\",NA()) is uncovered"
+        },
+        {
+          "test": "eval_or_returns_value_when_all_inputs_are_ignored",
+          "disposition": "kept",
+          "carried_by": "row OR(A5:A8) = #VALUE!"
+        },
+        {
+          "test": "eval_or_surfaces_an_error_after_the_deciding_true",
+          "disposition": "kept",
+          "carried_by": "row OR(TRUE,#N/A) = #N/A"
+        },
+        {
+          "test": "eval_or_first_error_in_argument_order_wins_after_the_deciding_true",
+          "disposition": "kept",
+          "carried_by": "rows OR(B3:B4,B1) = #DIV/0! and, for direct errors, AND(#N/A,#DIV/0!) and AND(#DIV/0!,#N/A)"
+        },
+        {
+          "test": "eval_or_scans_an_array_argument_past_the_deciding_true_for_errors",
+          "disposition": "kept",
+          "carried_by": "row OR(A12:B13) = #NUM! (a range read row by row) and AND({TRUE,#N/A,#DIV/0!}) = #N/A"
+        },
+        {
+          "test": "eval_or_still_returns_true_when_later_arguments_are_not_errors",
+          "disposition": "kept",
+          "carried_by": "row OR(A1:A10) = TRUE"
+        }
+      ]
+    },
+    {
+      "file": "OxFunc crates/oxfunc_core/src/functions/xor_fn.rs (its #[cfg(test)] module)",
+      "blob": "bdf3d738a8094aae9a0861df0d5bc6094bd871bb",
+      "tests": [
+        {
+          "test": "eval_xor_returns_parity_of_true_values",
+          "disposition": "kept",
+          "carried_by": "rows XOR(TRUE,TRUE) = FALSE and XOR(TRUE,TRUE,TRUE) = TRUE"
+        },
+        {
+          "test": "eval_xor_ignores_reference_text_and_empty_cells",
+          "disposition": "kept",
+          "carried_by": "rows XOR(A1:A10) = TRUE and XOR(C:C) = TRUE"
+        },
+        {
+          "test": "eval_xor_direct_text_is_value_error",
+          "disposition": "kept",
+          "carried_by": "row XOR(\"x\") = #VALUE!"
+        },
+        {
+          "test": "eval_xor_coerces_direct_logical_spellings_and_ignores_other_direct_text",
+          "disposition": "kept",
+          "carried_by": "row XOR(TRUE,\"x\") = TRUE, and for the spellings and digit text the AND and OR rows; the rule is shared by AND, OR and XOR"
+        },
+        {
+          "test": "eval_xor_returns_value_when_all_inputs_are_ignored",
+          "disposition": "kept",
+          "carried_by": "row XOR(A5:A8) = #VALUE!"
+        }
+      ]
+    }
+  ]
+}
