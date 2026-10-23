@@ -11039,3 +11039,31 @@ fn cdoc_m2_1__unknown_version() {
             .join(", ")
     );
 }
+
+/// dc-0k9 (L2): the rows `<row hidden="1">` marks load as hidden rows of the model, which SUBTOTAL
+/// and AGGREGATE read through the engine; a sheet with no filter range holds them as hidden by
+/// hand.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__hidden_rows_load() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let loaded = m1_2_load(
+        &m1_2_one_sheet(
+            r#"<row r="1"><c r="A1"><v>1</v></c></row><row r="2" hidden="1"><c r="A2"><v>2</v></c></row><row r="4" hidden="true"/><row r="5" hidden="0"><c r="A5"><v>5</v></c></row>"#,
+        ),
+        &mut ids,
+    )
+    .expect("the package loads");
+    let model = loaded.model();
+    let sheet = model.sheets()[0].id();
+    assert_eq!(
+        model
+            .definitions()
+            .hidden_rows(sheet, 1, 10)
+            .collect::<Vec<_>>(),
+        [
+            (2, calc_doc::model::RowHidden::Manual),
+            (4, calc_doc::model::RowHidden::Manual)
+        ]
+    );
+}

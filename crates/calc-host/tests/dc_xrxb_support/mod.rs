@@ -188,7 +188,7 @@ pub fn unprefixed_file_spelling_gives_name() -> Vec<String> {
     loop {
         match step(&mut host, WorkBudget::UNLIMITED, &mut evaluations) {
             HostProgress::Calculating { .. } => {}
-            HostProgress::Published(_) | HostProgress::Current => break,
+            HostProgress::Published(_) | HostProgress::Current | HostProgress::Manual => break,
             HostProgress::Failed(failure) => panic!("the recalculation failed: {failure}"),
         }
     }

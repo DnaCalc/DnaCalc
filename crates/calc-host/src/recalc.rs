@@ -2,6 +2,7 @@
 //! edit's transaction (plan 3.3): a committed edit stays whatever the recalculation does.
 
 use crate::state::HostState;
+use calc_doc::CalcMode;
 use calc_engine::{
     ReadObserver, RecalcFailure, RecalcProgress, StartError, ValueDelta, WorkBudget,
 };
@@ -40,6 +41,10 @@ pub enum HostProgress {
     /// The published generation calculated the current revision and no formula is pending:
     /// nothing was done.
     Current,
+    /// The workbook calculates manually ([`crate::CalcMode::Manual`]) and no recalculation was
+    /// asked for ([`calculate`]): nothing was done, and the formulas an edit reached project as
+    /// stale.
+    Manual,
     /// A recalculation of the current revision is in progress with `remaining` formulas to
     /// evaluate; the next step continues it.
     Calculating { remaining: usize },
@@ -67,8 +72,14 @@ pub fn step(
         Some(work) => work,
         None => {
             let current = host.model.revision();
-            if host.published == Some(current) && host.engine.pending().next().is_none() {
-                return HostProgress::Current;
+            let requested = std::mem::take(&mut host.calculate_requested);
+            if !requested {
+                if host.calc_mode() == CalcMode::Manual {
+                    return HostProgress::Manual;
+                }
+                if host.published == Some(current) && host.engine.pending().next().is_none() {
+                    return HostProgress::Current;
+                }
             }
             match calc_engine::begin_recalc(
                 &mut host.engine,
@@ -96,6 +107,14 @@ pub fn step(
             }
         }
     }
+}
+
+/// Asks for a recalculation, as Excel's Calculate Now (F9) does: the next [`step`] begins one
+/// whatever the calculation mode, and even when nothing is pending, so that it calculates the
+/// pending formulas, the formulas that call a volatile function and every formula that reads
+/// them. A recalculation already in progress continues; the one asked for begins after it.
+pub fn calculate(host: &mut HostState) {
+    host.calculate_requested = true;
 }
 
 fn failed(host: &mut HostState, failure: RecalcFailed) -> HostProgress {

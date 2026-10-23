@@ -3916,3 +3916,46 @@ fn dc_0k9__volatile_and_random() {
     );
     assert_ne!(l1_value(&state, c(1, 1)), CalcValue::number(first));
 }
+
+/// SUBTOTAL and AGGREGATE read through the engine leave out the cells holding a SUBTOTAL or
+/// AGGREGATE formula and the rows the snapshot holds hidden: function numbers 1 to 11 keep rows
+/// hidden by hand, 101 to 111 leave them out, and every number leaves out rows a filter hides.
+/// Data!A1:A4 = 1, 2, 3, 4 with row 2 hidden by hand and row 3 by a filter, and Data!A5 a
+/// SUBTOTAL: SUBTOTAL(9) is 1+2+4, SUBTOTAL(109) is 1+4, and AGGREGATE(9,3) (hidden rows,
+/// errors and nested subtotals left out) is 1+4.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_0k9__subtotal_and_aggregate() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (d(1, 1), number(1.0)),
+        (d(2, 1), number(2.0)),
+        (d(3, 1), number(3.0)),
+        (d(4, 1), number(4.0)),
+        (d(5, 1), formula("SUBTOTAL(9,A1:A4)")),
+        (c(1, 1), formula("SUBTOTAL(9,Data!A1:A5)")),
+        (c(2, 1), formula("SUBTOTAL(109,Data!A1:A5)")),
+        (c(3, 1), formula("_xlfn.AGGREGATE(9,3,Data!A1:A5)")),
+    ];
+    let root = ModelRoot::with_definitions(
+        AuthoredRevision::new(0),
+        vec![sheet_entry(data, 1, "Data"), sheet_entry(calc, 2, "Calc")],
+        cells,
+        SkinLayout::default(),
+        Definitions::new(vec![], vec![], vec![], []).with_hidden_rows([
+            (data, 2, calc_doc_model::RowHidden::Manual),
+            (data, 3, calc_doc_model::RowHidden::Filtered),
+        ]),
+    )
+    .unwrap();
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let n = CalcValue::number;
+    assert_eq!(l1_value(&state, d(5, 1)), n(7.0));
+    assert_eq!(l1_value(&state, c(1, 1)), n(7.0));
+    assert_eq!(l1_value(&state, c(2, 1)), n(5.0));
+    assert_eq!(l1_value(&state, c(3, 1)), n(5.0));
+}

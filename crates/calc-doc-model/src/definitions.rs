@@ -113,13 +113,26 @@ pub enum UnloadedCell {
     DataTable,
 }
 
-/// A workbook's [`ArrayFormula`]s, [`DefinedName`]s, [`Table`]s and [`UnloadedCell`]s.
+/// Why a row is hidden.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RowHidden {
+    /// Hidden by hand: SUBTOTAL's function numbers 101 to 111 and AGGREGATE's options leave it
+    /// out.
+    Manual,
+    /// Hidden by a filter (a row of a sheet's or a table's filter range): every SUBTOTAL function
+    /// number leaves it out.
+    Filtered,
+}
+
+/// A workbook's [`ArrayFormula`]s, [`DefinedName`]s, [`Table`]s and [`UnloadedCell`]s, and its
+/// hidden rows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Definitions {
     arrays: BTreeMap<CellKey, ArrayFormula>,
     names: Vec<DefinedName>,
     tables: Vec<Table>,
     unloaded: BTreeMap<CellKey, UnloadedCell>,
+    hidden_rows: BTreeMap<(SheetId, u32), RowHidden>,
 }
 
 impl Definitions {
@@ -137,7 +150,34 @@ impl Definitions {
             names,
             tables,
             unloaded: unloaded.into_iter().collect(),
+            hidden_rows: BTreeMap::new(),
         }
+    }
+
+    /// These definitions with `rows` hidden: each a sheet, a row (1-based) and why it is hidden.
+    /// A row not listed is visible. The rows are authored facts, read from the file's `<row
+    /// hidden="1">`; structural edits do not move them yet (L3, dc-m3u).
+    pub fn with_hidden_rows(
+        mut self,
+        rows: impl IntoIterator<Item = (SheetId, u32, RowHidden)>,
+    ) -> Self {
+        self.hidden_rows = rows
+            .into_iter()
+            .map(|(sheet, row, why)| ((sheet, row), why))
+            .collect();
+        self
+    }
+
+    /// The hidden rows of `sheet` from `first` to `last` (both included), in order, with why.
+    pub fn hidden_rows(
+        &self,
+        sheet: SheetId,
+        first: u32,
+        last: u32,
+    ) -> impl Iterator<Item = (u32, RowHidden)> + '_ {
+        self.hidden_rows
+            .range((sheet, first)..=(sheet, last))
+            .map(|((_, row), why)| (*row, *why))
     }
 
     /// Whether nothing is defined.
@@ -146,6 +186,7 @@ impl Definitions {
             && self.names.is_empty()
             && self.tables.is_empty()
             && self.unloaded.is_empty()
+            && self.hidden_rows.is_empty()
     }
 
     /// Every array formula, by anchor, in cell order.
@@ -228,6 +269,7 @@ impl Definitions {
             .map(|at| at.sheet())
             .chain(self.unloaded.keys().map(|at| at.sheet()))
             .chain(self.tables.iter().map(|table| table.sheet))
+            .chain(self.hidden_rows.keys().map(|(sheet, _)| *sheet))
             .chain(self.names.iter().filter_map(|name| match name.scope {
                 NameScope::Sheet(sheet) => Some(sheet),
                 NameScope::Workbook => None,

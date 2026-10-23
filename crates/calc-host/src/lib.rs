@@ -53,12 +53,12 @@ pub use project::{
     ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,
     StaleValue, project,
 };
-pub use recalc::{HostProgress, RecalcFailed, step};
+pub use recalc::{HostProgress, RecalcFailed, calculate, step};
 pub use save::{SaveFailed, save};
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
 pub use calc_doc::{
-    CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
+    CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
 };
 pub use calc_doc_model::value;

@@ -11,11 +11,14 @@
 use crate::result::{Calculation, FormulaResult};
 use crate::spill::{Spill, SpillIndex};
 use crate::state::EngineState;
-use calc_doc_model::{CellInput, ModelRoot, NameScope};
+use calc_doc_model::{CellInput, ModelRoot, NameScope, RowHidden};
 use calc_fml::reference::{
     CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader, SpillExtent,
 };
-use calc_fml::{EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog, ResolvedReference};
+use calc_fml::{
+    EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog, ResolvedReference,
+    SubtotalExclusions,
+};
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId};
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -439,6 +442,34 @@ impl ReferenceReader for WorkbookReader<'_> {
         if total > covered {
             let _ = gap(covered, total, &overlays, sink);
         }
+    }
+
+    /// What SUBTOTAL and AGGREGATE leave out of `area`: the cells whose bound formula calls
+    /// SUBTOTAL or AGGREGATE, and the rows the snapshot holds hidden, by hand or by a filter
+    /// ([`calc_doc_model::Definitions::hidden_rows`]); a row the snapshot does not list is visible.
+    fn subtotal_exclusions(&mut self, area: GridArea) -> Option<SubtotalExclusions> {
+        let view = self.view;
+        let mut exclusions = SubtotalExclusions {
+            nested_subtotals: view
+                .state
+                .subtotal_cells
+                .range(area.first()..=area.last())
+                .copied()
+                .filter(|at| area.contains(*at))
+                .collect(),
+            ..SubtotalExclusions::default()
+        };
+        for (row, why) in view.inputs.definitions().hidden_rows(
+            area.sheet(),
+            area.first().row(),
+            area.last().row(),
+        ) {
+            match why {
+                RowHidden::Manual => exclusions.hidden_rows.push(row),
+                RowHidden::Filtered => exclusions.filtered_rows.push(row),
+            }
+        }
+        Some(exclusions)
     }
 
     fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {

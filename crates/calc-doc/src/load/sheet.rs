@@ -42,6 +42,10 @@ pub(super) struct SheetLoad {
     /// What the file cached for cells the model holds no input for: the cells an array formula
     /// fills beside its anchor, and unloaded cells.
     pub(super) value_caches: BTreeMap<(u32, u32), FileCached>,
+    /// The rows `<row hidden="1">` marks hidden, in order.
+    pub(super) hidden_rows: Vec<u32>,
+    /// The sheet's `<autoFilter ref>` range, (top, left, bottom, right).
+    pub(super) auto_filter: Option<(u32, u32, u32, u32)>,
 }
 
 /// An area some of whose cells are still to be read, whose cells are not inputs: what an array
@@ -658,6 +662,9 @@ impl Sheet<'_> {
                 return Err(events.invalid("a row that is not after the row before it"));
             }
             previous_row = number;
+            if super::manifest::is_true(row.attribute("hidden")) {
+                self.load.hidden_rows.push(number);
+            }
             let mut previous_column = 0u32;
             loop {
                 match events.next()? {
@@ -714,6 +721,8 @@ pub(super) fn load_sheet(
             arrays: Vec::new(),
             unloaded: Vec::new(),
             value_caches: BTreeMap::new(),
+            hidden_rows: Vec::new(),
+            auto_filter: None,
         },
         groups: BTreeMap::new(),
         members: Vec::new(),
@@ -728,6 +737,10 @@ pub(super) fn load_sheet(
                 }
                 sheet_data = true;
                 sheet.sheet_data(&mut events)?;
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "autoFilter") => {
+                sheet.load.auto_filter = element.attribute("ref").and_then(address::area);
+                events.skip()?;
             }
             Some(XmlEvent::Start(_)) => events.skip()?,
             Some(XmlEvent::Text(text)) if text.trim().is_empty() => {}

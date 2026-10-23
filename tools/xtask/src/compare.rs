@@ -65,7 +65,7 @@ use calc_engine::ObservedEvaluation;
 use calc_fml::ExecutedCall;
 use calc_host::value::{CalcValue, CellKey, GridArea, NumericMode, NumericTargetId, SheetId};
 use calc_host::{
-    CachedValue, CellRun, HostOptions, HostProgress, HostState, LoadError, MemorySource,
+    CachedValue, CalcMode, CellRun, HostOptions, HostProgress, HostState, LoadError, MemorySource,
     OpenFailure, OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest, ReadObserver,
     RecalcContext, RecalcFailed, WorkBudget, project, step,
 };
@@ -347,9 +347,10 @@ fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<Wor
                 message: format!("the recalculation published nothing: {failure}"),
             })
         }
-        HostProgress::Current | HostProgress::Published(_) | HostProgress::Calculating { .. } => {
-            None
-        }
+        HostProgress::Current
+        | HostProgress::Manual
+        | HostProgress::Published(_)
+        | HostProgress::Calculating { .. } => None,
     }
 }
 
@@ -464,6 +465,9 @@ fn run_workbook(
         HostOptions {
             numeric: numeric.clone(),
             formula_cell_budget: None,
+            // The capture's Excel recalculates every formula (CalculateFullRebuild) whatever mode
+            // the package declares, so the comparison calculates under the automatic mode too.
+            calc_mode: Some(CalcMode::Automatic),
         },
     );
     let open_time = started.elapsed();
