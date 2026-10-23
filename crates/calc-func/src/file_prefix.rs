@@ -33,7 +33,7 @@ impl FilePrefix {
 /// below, since the lookup is a binary search), with the prefix a file writes before it. No
 /// catalogued function is stored with `_xlfn._xlws.`, the prefix Excel writes before FILTER and
 /// SORT, so there is no variant for it.
-const FILE_PREFIXES: [(&str, FilePrefix); 314] = [
+const FILE_PREFIXES: [(&str, FilePrefix); 318] = [
     ("ABS", FilePrefix::Bare),
     ("ACOS", FilePrefix::Bare),
     ("ACOSH", FilePrefix::Bare),
@@ -157,6 +157,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 314] = [
     ("GCD", FilePrefix::Bare),
     ("GEOMEAN", FilePrefix::Bare),
     ("GESTEP", FilePrefix::Bare),
+    ("GROWTH", FilePrefix::Bare),
     ("HARMEAN", FilePrefix::Bare),
     ("HEX2BIN", FilePrefix::Bare),
     ("HEX2DEC", FilePrefix::Bare),
@@ -212,9 +213,11 @@ const FILE_PREFIXES: [(&str, FilePrefix); 314] = [
     ("KURT", FilePrefix::Bare),
     ("LARGE", FilePrefix::Bare),
     ("LCM", FilePrefix::Bare),
+    ("LINEST", FilePrefix::Bare),
     ("LN", FilePrefix::Bare),
     ("LOG", FilePrefix::Bare),
     ("LOG10", FilePrefix::Bare),
+    ("LOGEST", FilePrefix::Bare),
     ("LOGINV", FilePrefix::Bare),
     ("LOGNORM.DIST", FilePrefix::Xlfn),
     ("LOGNORM.INV", FilePrefix::Xlfn),
@@ -329,6 +332,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 314] = [
     ("TANH", FilePrefix::Bare),
     ("TDIST", FilePrefix::Bare),
     ("TINV", FilePrefix::Bare),
+    ("TREND", FilePrefix::Bare),
     ("TRIMMEAN", FilePrefix::Bare),
     ("TRUE", FilePrefix::Bare),
     ("TRUNC", FilePrefix::Bare),

@@ -2,7 +2,7 @@
 //! deviations and means, the order statistics (MEDIAN, MODE, LARGE, SMALL, RANK, PERCENTILE,
 //! QUARTILE, PERCENTRANK), variances and standard deviations, the paired statistics (COVAR,
 //! CORREL, SLOPE, INTERCEPT, STEYX, FORECAST and the like), the moments, TRIMMEAN, STANDARDIZE,
-//! FISHER, PROB and FREQUENCY. The numeric kernels are OxFunc's ([`crate::ported`]).
+//! FISHER, PROB, FREQUENCY, and LINEST, LOGEST, TREND and GROWTH. The numeric kernels are OxFunc's ([`crate::ported`]).
 //!
 //! The lists are read by the aggregate family's rule ([`super::aggregate`]): a direct argument
 //! through number coercion, a held value (a cell of a reference, an element of an array) as a
@@ -13,13 +13,13 @@
 use super::aggregate::Held;
 use super::kit::{fail, given, grid, num, numbers, opt, out, out_matrix, pairs};
 use crate::call::EvalServices;
-use crate::kernel::{Site, Step};
+use crate::kernel::{Exit, Site, Step};
 use crate::ported::paired_stats_common::{self as paired, CovarianceDivisor};
 use crate::ported::percentrank_common::{PercentRankMode, percentrank};
 use crate::ported::rank_common::{RankOrder, rank_avg, rank_eq};
 use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, variance_from_values};
 use crate::ported::{self as k};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
 use std::collections::BTreeMap;
 
 const CODE: u16 = 103;
@@ -400,6 +400,68 @@ ported_family! {
         let data = list(s, a, 0, sv)?;
         let bins = list(s, a, 1, sv)?;
         out_matrix(s, &frequency_counts(&data, &bins))
+    }
+    55 trend "TREND" (1, 4) [R "known_ys", R "known_xs", R "new_xs", V "const"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_trend_surface)
+    }
+    56 growth "GROWTH" (1, 4) [R "known_ys", R "known_xs", R "new_xs", V "const"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_growth_surface)
+    }
+    57 linest "LINEST" (1, 4) [R "known_ys", R "known_xs", V "const", V "stats"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_linest_surface)
+    }
+    58 logest "LOGEST" (1, 4) [R "known_ys", R "known_xs", V "const", V "stats"] |s, a, sv| {
+        regression(s, a, sv, k::regression_forecast_family::eval_logest_surface)
+    }
+}
+
+/// LINEST, LOGEST, TREND and GROWTH: OxFunc's evaluation over the arguments with each reference
+/// read into an array (a blank cell is Empty, which those functions refuse with #VALUE!), its
+/// number results published by the number rule.
+fn regression(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    evaluate: fn(&[CalcValue]) -> Result<CalcValue, WorksheetErrorCode>,
+) -> Step<CalcValue> {
+    let mut read = Vec::with_capacity(a.len());
+    for (index, argument) in a.iter().enumerate() {
+        read.push(match argument.core() {
+            CoreValue::Reference(_) => {
+                let g = grid(site, a, index, sv)?;
+                let rows: Vec<Vec<CalcValue>> =
+                    g.cells.chunks(g.cols).map(<[CalcValue]>::to_vec).collect();
+                CalcValue::array(
+                    CalcArray::from_rows(rows).ok_or_else(|| site.not_modelled(Some(index)))?,
+                )
+            }
+            _ => argument.clone(),
+        });
+    }
+    let result = evaluate(&read).map_err(Exit::Error)?;
+    match result.core() {
+        CoreValue::Number(n) => site.number(*n),
+        CoreValue::Array(array) => {
+            let mut rows = Vec::with_capacity(array.shape().rows);
+            for r in 0..array.shape().rows {
+                let mut row = Vec::with_capacity(array.shape().cols);
+                for cell in array.row_slice(r).unwrap_or(&[]) {
+                    row.push(match cell.core() {
+                        CoreValue::Number(n) => match site.number(*n) {
+                            Ok(v) => v,
+                            Err(Exit::Error(code)) => CalcValue::error(code),
+                            Err(fault) => return Err(fault),
+                        },
+                        _ => cell.clone(),
+                    });
+                }
+                rows.push(row);
+            }
+            CalcArray::from_rows(rows)
+                .map(CalcValue::array)
+                .ok_or_else(|| site.not_modelled(None))
+        }
+        _ => Ok(result),
     }
 }
 

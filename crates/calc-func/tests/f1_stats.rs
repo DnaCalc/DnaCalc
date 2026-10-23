@@ -124,6 +124,20 @@ fn prob_and_frequency() {
 }
 
 #[test]
+fn regressions() {
+    let y = arr(vec![vec![1.0], vec![2.0], vec![3.0]]);
+    let x = arr(vec![vec![1.0], vec![2.0], vec![3.0]]);
+    let (rows, cols, cells) = array(call("LINEST", vec![y.clone(), x.clone()]));
+    assert_eq!((rows, cols), (1, 2));
+    assert!((cells[0] - 1.0).abs() < 1e-14 && cells[1].abs() < 1e-14, "{cells:?}");
+    close(call("TREND", vec![y, x.clone(), n(4.0)]), 4.0, 1e-14);
+    let g = arr(vec![vec![2.0], vec![4.0], vec![8.0]]);
+    close(call("GROWTH", vec![g.clone(), x.clone(), n(4.0)]), 16.0, 1e-13);
+    let (_, _, cells) = array(call("LOGEST", vec![g, x]));
+    assert!((cells[0] - 2.0).abs() < 1e-13 && (cells[1] - 1.0).abs() < 1e-13, "{cells:?}");
+}
+
+#[test]
 fn distributions_match_excel_examples() {
     close(call("NORM.S.DIST", vec![n(1.0), b(true)]), 0.8413447460685429, 1e-12);
     close(call("NORMSDIST", vec![n(1.0)]), 0.8413447460685429, 1e-12);
