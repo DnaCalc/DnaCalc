@@ -414,12 +414,8 @@ fn rows(_book: &Book) -> Vec<Row> {
         // The legacy formula intersects the range with its own row, which A1:B2 does not reach
         // (Excel writes it `=@INDIRECT("A1:B2")`; dc-mzk).
         row("=INDIRECT(\"A1:B2\")", e(W::Value), M),
-        not_modelled(
-            "=INDIRECT(\"A1\",\"1\")",
-            refused(1),
-            "a1 as text holding a digit, which worksheet coercion refuses as possible number text",
-            "cfml-m2.6",
-        ),
+        // a1 as digit text is no logical: #VALUE! (dc-ip6).
+        row("=INDIRECT(\"A1\",\"1\")", e(W::Value), M),
         not_modelled(
             "=SUM(INDIRECT(\"A1:B\"))",
             refused(0),

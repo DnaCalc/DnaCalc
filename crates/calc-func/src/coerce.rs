@@ -152,19 +152,16 @@ pub(crate) fn operand(n: f64) -> Result<f64, Stop> {
 
 /// The value as a logical: a number is TRUE unless it is 0, a logical as it is, Empty and
 /// Missing as FALSE, the text TRUE or FALSE in any ASCII case as that logical, an error as
-/// itself. Other text is #VALUE! unless it holds a digit and may be number text (it holds no word
-/// that [`number_words`] rules out), which is refused as not modelled.
+/// itself. Other text is #VALUE!, digit text included: Excel reads no number from text in a
+/// logical position (NOT("1") and IF("1",1,2) are #VALUE! in the captures of dc_fwpz and
+/// cfunc_m1_2, and IF over the date label 2020/01/02 in dc_e00t's; OxFunc's
+/// `parse_excel_logical_text` records the same rule).
 pub(crate) fn logical(value: &CalcValue) -> Result<bool, Stop> {
     match value.core() {
         CoreValue::Number(n) => operand(*n).map(|n| n != 0.0),
         CoreValue::Logical(b) => Ok(*b),
         CoreValue::Text(text) => match spelled_logical(text) {
             Some(logical) => Ok(logical),
-            None if holds_digit(text)
-                && !number_words::cannot_be_number(text.utf16_code_units()) =>
-            {
-                Err(Stop::NotModelled)
-            }
             None => Err(Stop::Error(WorksheetErrorCode::Value)),
         },
         CoreValue::Empty | CoreValue::Missing => Ok(false),

@@ -18,10 +18,12 @@
 //! `=ISEVEN()`, `=TYPE()` and such calls with nothing between the parentheses at entry, so no Excel
 //! result exists for one. A number that is not finite is no worksheet value and is refused.
 //!
-//! Excel's results of ISBLANK, ISERR, ISERROR, ISNA, TYPE, N and ERROR.TYPE over #BLOCKED! and
-//! #CONNECT! are unknown: no formula known to give either error runs offline, and Excel refuses to
-//! open a workbook that holds either as a cell constant. Each such call is refused as not modelled
-//! (dc-tt73).
+//! #BLOCKED!, #CONNECT! and #BUSY! are read like every other worksheet error: ISERROR and ISERR are
+//! TRUE, ISNA and ISBLANK FALSE, TYPE 16, and N gives the error. ERROR.TYPE gives 10 for #CONNECT!
+//! and 11 for #BLOCKED!, the numbers in the sequence Microsoft's ERROR.TYPE documentation continues
+//! from #SPILL! (9) to #FIELD! (13) and #CALC! (14), which the capture measures. No formula known
+//! to give #BLOCKED! or #CONNECT! runs offline, and Excel refuses to enter either as a literal, so
+//! no capture measures these rows.
 //!
 //! ISFORMULA needs to know whether a cell holds a formula, which the cell reader does not supply;
 //! every call is refused as not modelled until a host fact reaches the kernel (cfunc-m3.18).
@@ -120,16 +122,10 @@ fn scalar<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<&'v CoreValue> {
     }
 }
 
-/// The argument's worksheet value as [`scalar`] reads it, or the refusal of #BLOCKED! and
-/// #CONNECT!, over which the results of ISBLANK, ISERR, ISERROR, ISNA, TYPE and N are unknown (see
-/// the module documentation).
+/// The argument's worksheet value as [`scalar`] reads it; #BLOCKED! and #CONNECT! are errors like
+/// any other (see the module documentation).
 fn known<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<&'v CoreValue> {
-    match scalar(site, value)? {
-        CoreValue::Error(WorksheetErrorCode::Blocked | WorksheetErrorCode::Connect) => {
-            Err(site.not_modelled(Some(0)))
-        }
-        core => Ok(core),
-    }
+    scalar(site, value)
 }
 
 /// How a kernel reads its argument's value: [`scalar`] or [`known`].
@@ -411,8 +407,8 @@ fn error_type(
                 W::Field => 13.0,
                 W::Calc => 14.0,
                 W::Busy => 0.0,
-                // Unknown: refused until dc-tt73 measures these errors in Excel.
-                W::Blocked | W::Connect => return Err(site.not_modelled(Some(0))),
+                W::Connect => 10.0,
+                W::Blocked => 11.0,
             },
             _ => return Err(Exit::Error(W::NA)),
         };
