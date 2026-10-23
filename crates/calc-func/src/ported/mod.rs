@@ -89,6 +89,7 @@ pub(crate) mod statistical_tests_family;
 pub(crate) mod subtotal_aggregate_family;
 pub(crate) mod sumproduct_family;
 pub(crate) mod tan;
+pub(crate) mod text_kernels;
 pub(crate) mod tanh;
 pub(crate) mod variance_common;
 pub(crate) mod excel_numeric;

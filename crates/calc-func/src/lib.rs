@@ -21,12 +21,13 @@ mod coerce;
 mod decimal;
 mod file_prefix;
 mod kernel;
+pub mod locale;
 mod number_text;
 mod number_words;
 mod ported;
 
 pub use call::{
-    CellReader, EvalServices, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
+    CellReader, EvalServices, HostFacts, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
     ReferenceText, SubtotalExclusions, TextReference, Unreadable, invoke,
 };
 pub use catalogue::{

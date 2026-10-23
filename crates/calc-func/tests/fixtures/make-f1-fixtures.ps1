@@ -222,7 +222,8 @@ function Write-Workbook([string]$Path, $Sheets, [switch]$DynamicArrays) {
 # Sheet Data: the constant cells the formulas read (A1:A3 the numbers 1, 5 and 3; B1:B3 the texts
 # x, y and x; C1 #N/A; E1:E3 the numbers 1, 2 and 3).
 # Sheet prefix_metadata: one row per named function F1 catalogues, in name order, then each later
-# package's section (L1: OFFSET and ISOMITTED), each with one
+# package's section (L1: OFFSET and ISOMITTED; F2: text, dates, information, lookup, database,
+# web and cube), each with one
 # call of it over literals and Data's cells: in column A the call written with the prefix _xlfn.,
 # in column B the same call without a prefix.
 $prefixInputs = @(

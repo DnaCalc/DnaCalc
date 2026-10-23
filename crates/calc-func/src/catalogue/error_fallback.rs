@@ -57,9 +57,9 @@ pub(super) const FAMILY: Family = Family {
 
 /// IFERROR catches every worksheet error. Microsoft's page lists seven (#N/A, #VALUE!, #REF!,
 /// #DIV/0!, #NUM!, #NAME? and #NULL!); Excel 16.0.20430.20182 catches #GETTING_DATA, #CALC!,
-/// #SPILL! and #FIELD! too (bead dc-ibp2's capture). For #BLOCKED!, #CONNECT! and #BUSY! catching
-/// is unmeasured (bead dc-tt73): the functions that give them in Excel are external-data routes
-/// the capture refuses.
+/// #SPILL! and #FIELD! too (bead dc-ibp2's capture). It catches #BLOCKED!, #CONNECT! and #BUSY!
+/// as well, which no capture measures: the functions that give them in Excel are external-data
+/// routes the capture refuses.
 fn iferror_selected(
     arguments: &mut LazyArguments<'_>,
     services: &mut EvalServices<'_>,
