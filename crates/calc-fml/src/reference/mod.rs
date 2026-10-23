@@ -17,6 +17,9 @@
 //! its typed coordinates and receives row-major [`CellRun`]s that borrow stored values and keep
 //! blank cells apart from cells the reader cannot supply.
 //!
+//! Reference text that a formula computes, as INDIRECT reads it, is bound for the evaluator with
+//! the same spelling, ordering and catalogue, under INDIRECT's own grammar (the `text` module).
+//!
 //! The catalogue and the reader are the only ways in to workbook state, and neither receives
 //! reference text: the catalogue is asked for a sheet by name, the reader for a [`GridArea`].
 //! Anything that holds sheets and cells can implement them, a calculation engine or a small
@@ -25,9 +28,11 @@
 mod bind;
 mod notation;
 mod read;
+mod text;
 
 pub use bind::{BindError, ReferenceCatalog, ReferenceSite, bind_references};
 pub use read::{CellRun, ReadContractError, ReferenceReader, read_cells};
+pub(crate) use text::bind_text;
 
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode};
 

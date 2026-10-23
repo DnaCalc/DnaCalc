@@ -19,12 +19,15 @@
 use super::cells::{ReaderCells, SharedReader};
 use super::{
     EvalFrame, EvaluationObserver, EvaluationReport, EvaluationServices, ExecutedCall,
-    FormulaInstance, Instruction, Target,
+    FormulaInstance, Instruction, ResolvedReference, Target,
 };
-use crate::reference::ReadContractError;
+use crate::reference::{
+    FormulaAnchor, ReadContractError, ReferenceCatalog, ReferenceNotation, bind_text,
+};
 use calc_func::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode, WorksheetErrorCode};
 use calc_func::{
-    EvalServices, FunctionCallScratch, FunctionFault, ParameterClass, PreparedArguments, invoke,
+    EvalServices, FunctionCallScratch, FunctionFault, ParameterClass, PreparedArguments,
+    ReferenceText, TextReference, invoke,
 };
 
 /// Why an evaluation produced no value. Each is a refusal to calculate, never a worksheet value:
@@ -90,6 +93,7 @@ pub fn evaluate(
         calls: &mut scratch.calls,
         numeric: services.numeric,
         reader: &reader,
+        catalog: services.catalog,
         // Reborrowed for this evaluation only: the coercion shortens the observer's lifetime to
         // the run's, which `Option::as_deref_mut` cannot.
         observer: match services.observer.as_mut() {
@@ -125,6 +129,8 @@ struct Run<'a, 'r> {
     calls: &'a mut Vec<FunctionCallScratch>,
     numeric: &'a NumericMode,
     reader: &'a SharedReader<'r>,
+    /// The workbook context INDIRECT's text is bound in, when the caller gave one.
+    catalog: Option<&'a dyn ReferenceCatalog>,
     observer: Option<&'a mut dyn EvaluationObserver>,
 }
 
@@ -220,9 +226,17 @@ impl Run<'_, '_> {
         }
         let mut scratch = self.calls.pop().unwrap_or_default();
         self.reader.clear_refusal();
+        let mut text = self.catalog.map(|catalog| TextBinding {
+            catalog,
+            anchor: self.instance.anchor,
+            resolved: Vec::new(),
+        });
         let result = {
             let mut cells = ReaderCells::new(self.reader);
             let mut services = EvalServices::with_cells(self.numeric, &mut cells);
+            if let Some(text) = text.as_mut() {
+                services = services.with_reference_text(text);
+            }
             invoke(
                 target.0,
                 &mut Evaluated(&self.stack[start..]),
@@ -231,6 +245,9 @@ impl Run<'_, '_> {
             )
         };
         self.calls.push(scratch);
+        for area in text.map(|text| text.resolved).unwrap_or_default() {
+            self.show_resolved(target, area);
+        }
         self.show_call(target, synthetic);
         let value = result.map_err(|fault| self.function_fault(fault))?;
         if !retain {
@@ -283,6 +300,16 @@ impl Run<'_, '_> {
         }
     }
 
+    /// Shows the observer, when there is one, that `target` resolved reference text to `area`.
+    fn show_resolved(&mut self, target: Target, area: GridArea) {
+        if let Some(observer) = self.observer.as_deref_mut() {
+            observer.resolved(ResolvedReference {
+                target: target.0,
+                area,
+            });
+        }
+    }
+
     /// A call's fault, with the reader's refusal when the kernel could not read a reference.
     fn function_fault(&self, fault: FunctionFault) -> EvalFault {
         let refusal = self.reader.take_refusal();
@@ -317,6 +344,30 @@ impl Run<'_, '_> {
         }
         self.stack.push(value);
         Ok(())
+    }
+}
+
+/// Reference text bound for one eager call, INDIRECT's, in the evaluated formula's workbook
+/// context, with every area it resolved kept for the observer. A lazy call is given none: no lazy
+/// entry resolves reference text, and its arguments' own calls are given their own.
+struct TextBinding<'c> {
+    catalog: &'c dyn ReferenceCatalog,
+    anchor: FormulaAnchor,
+    resolved: Vec<GridArea>,
+}
+
+impl ReferenceText for TextBinding<'_> {
+    fn resolve(&mut self, text: &[u16], a1: bool) -> TextReference {
+        let notation = if a1 {
+            ReferenceNotation::A1
+        } else {
+            ReferenceNotation::R1C1
+        };
+        let bound = bind_text(text, notation, self.anchor, self.catalog);
+        if let TextReference::Area(area) = bound {
+            self.resolved.push(area);
+        }
+        bound
     }
 }
 

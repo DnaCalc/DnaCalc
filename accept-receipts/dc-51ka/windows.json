@@ -1,0 +1,1284 @@
+{
+  "architecture": [
+    {
+      "check": "dependencies",
+      "details": {
+        "by_target": {
+          "wasm32-unknown-unknown": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-pc-windows-msvc": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          },
+          "x86_64-unknown-linux-gnu": {
+            "workspace_closures": {
+              "calc-doc": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-doc-model": [
+                "calc-value"
+              ],
+              "calc-engine": [
+                "calc-doc-model",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-fml": [
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-func": [
+                "calc-value"
+              ],
+              "calc-host": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "calc-oracle-excel": [
+                "calc-value",
+                "calc-verdict"
+              ],
+              "calc-platform-desktop": [],
+              "calc-value": [],
+              "calc-verdict": [
+                "calc-value"
+              ],
+              "dna-calc": [],
+              "dna-onecalc": [
+                "calc-fml",
+                "calc-func",
+                "calc-value"
+              ],
+              "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
+                "calc-oracle-excel",
+                "calc-value",
+                "calc-verdict"
+              ]
+            }
+          }
+        },
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "7 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown"
+    },
+    {
+      "check": "os-imports",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": {
+          "calc-doc": 26,
+          "calc-doc-model": 13,
+          "calc-engine": 7,
+          "calc-fml": 16,
+          "calc-func": 20,
+          "calc-host": 5,
+          "calc-value": 5,
+          "calc-verdict": 11,
+          "dna-calc": 1,
+          "dna-onecalc": 5
+        },
+        "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
+        "targets": [
+          "x86_64-pc-windows-msvc",
+          "x86_64-unknown-linux-gnu",
+          "wasm32-unknown-unknown"
+        ]
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "109 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+    },
+    {
+      "check": "wasm-refusal",
+      "details": {
+        "calc-oracle-excel": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-oracle-excel",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/dc-51ka/windows/arch/wasm-refusal-calc-oracle-excel.log",
+          "refusal": "calc-oracle-excel is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "calc-platform-desktop": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "calc-platform-desktop",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/dc-51ka/windows/arch/wasm-refusal-calc-platform-desktop.log",
+          "refusal": "calc-platform-desktop is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        },
+        "xtask": {
+          "argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "check",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--message-format=json",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "clean_argv": [
+            "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+            "clean",
+            "-p",
+            "xtask",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--locked",
+            "--target-dir",
+            "target/xtask-accept"
+          ],
+          "exit_code": 101,
+          "log": "target/accept/dc-51ka/windows/arch/wasm-refusal-xtask.log",
+          "refusal": "xtask is native-only and must not be built for wasm32; portable and browser builds exclude it"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "3 native-only packages (calc-platform-desktop, calc-oracle-excel, xtask) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!"
+    },
+    {
+      "check": "tree-reference-tokens",
+      "details": {
+        "build_script_files_scanned": 0,
+        "files_scanned": 109,
+        "phrases": [
+          "tree reference",
+          "tree ref",
+          "reference profile",
+          "profile id",
+          "reference system provider",
+          "host reference"
+        ],
+        "scope": "identifiers, string literals and doc comments in the non-test code of every portable package's lib and bin targets and build script (build.rs), as parsed; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside its scope by design; include!, include_str! and include_bytes! are not followed, so any use of them fails this check"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "109 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+    },
+    {
+      "check": "seams",
+      "details": {
+        "packages": {
+          "calc-doc": {
+            "entries": 99,
+            "entries_reach_unproven": 99,
+            "pub_enum_variants": 97,
+            "pub_traits": 2
+          },
+          "calc-doc-model": {
+            "entries": 90,
+            "entries_reach_unproven": 90,
+            "pub_enum_variants": 90,
+            "pub_traits": 0
+          },
+          "calc-engine": {
+            "entries": 36,
+            "entries_reach_unproven": 36,
+            "pub_enum_variants": 35,
+            "pub_traits": 1
+          },
+          "calc-fml": {
+            "entries": 101,
+            "entries_reach_unproven": 101,
+            "pub_enum_variants": 98,
+            "pub_traits": 3
+          },
+          "calc-func": {
+            "entries": 25,
+            "entries_reach_unproven": 25,
+            "pub_enum_variants": 22,
+            "pub_traits": 3
+          },
+          "calc-host": {
+            "entries": 25,
+            "entries_reach_unproven": 25,
+            "pub_enum_variants": 25,
+            "pub_traits": 0
+          },
+          "calc-value": {
+            "entries": 32,
+            "entries_reach_unproven": 32,
+            "pub_enum_variants": 31,
+            "pub_traits": 1
+          },
+          "calc-verdict": {
+            "entries": 55,
+            "entries_reach_unproven": 55,
+            "pub_enum_variants": 55,
+            "pub_traits": 0
+          },
+          "dna-calc": {
+            "entries": 0,
+            "entries_reach_unproven": 0,
+            "pub_enum_variants": 0,
+            "pub_traits": 0
+          },
+          "dna-onecalc": {
+            "entries": 13,
+            "entries_reach_unproven": 13,
+            "pub_enum_variants": 13,
+            "pub_traits": 0
+          }
+        },
+        "reach": {
+          "entries_reach_unproven": 476,
+          "owner": "dc-pz3u",
+          "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "10 portable packages declare 466 pub enum variants and 10 pub traits; their seams.json files list 476 entries, 476 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+    },
+    {
+      "check": "word-scan",
+      "details": {
+        "baseline_owner": "dc-0nvp",
+        "baseline_recorded": "2026-10-14",
+        "commits": {
+          "e24e1e355d92950513eee0bd91722729ef6bbb12": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "excluded_identifiers": [
+          {
+            "identifier_hex": "696e6672615f6d305f355f5f71756172616e74696e655f67617465",
+            "masked": {
+              "commit_messages": 1,
+              "files": 5,
+              "tracker_records": 9
+            },
+            "reason": "acceptance case name of infra-m0.5, a fixed identity"
+          },
+          {
+            "identifier_hex": "696e6672615f6d375f315f5f6c6963656e73655f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 0
+            },
+            "reason": "acceptance case name of infra-m7.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "6f6e6563616c635f6d315f315f5f646570656e64656e63795f67617465",
+            "masked": {
+              "commit_messages": 0,
+              "files": 3,
+              "tracker_records": 2
+            },
+            "reason": "acceptance case name of onecalc-m1.1, a fixed identity"
+          },
+          {
+            "identifier_hex": "646e6163616c632d617263682d6761746573",
+            "masked": {
+              "commit_messages": 0,
+              "files": 2,
+              "tracker_records": 0
+            },
+            "reason": "directory name of a crate in the read-only legacy repository DnaTreeCalc, cited as a path"
+          }
+        ],
+        "files": {
+          "docs/plan/BEAD_DETAILS.md": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/BEAD_GRAPH.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md": {
+            "baseline": 7,
+            "count": 7
+          },
+          "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md": {
+            "baseline": 2,
+            "count": 2
+          },
+          "docs/plan/beads.br.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/beads.plan.jsonl": {
+            "baseline": 14,
+            "count": 14
+          },
+          "docs/plan/build_plan.py": {
+            "baseline": 13,
+            "count": 13
+          },
+          "docs/plan/coverage.json": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/topological-order.md": {
+            "baseline": 1,
+            "count": 1
+          },
+          "docs/plan/validate_plan.py": {
+            "baseline": 1,
+            "count": 1
+          }
+        },
+        "forms": 5,
+        "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
+        "scanned": {
+          "commit_messages": 251,
+          "files": 20,
+          "tracker_records": 72
+        },
+        "tracker": {
+          "ceng-m7.1": {
+            "baseline": 1,
+            "count": 0
+          },
+          "cfunc-m3.24": {
+            "baseline": 1,
+            "count": 0
+          },
+          "infra-m0.3": {
+            "baseline": 3,
+            "count": 3
+          },
+          "infra-m3.20": {
+            "baseline": 1,
+            "count": 0
+          },
+          "infra-m3.21": {
+            "baseline": 1,
+            "count": 0
+          },
+          "infra-m3.22": {
+            "baseline": 1,
+            "count": 0
+          },
+          "infra-m3.23": {
+            "baseline": 1,
+            "count": 0
+          },
+          "infra-m3.24": {
+            "baseline": 1,
+            "count": 0
+          },
+          "infra-m7.5": {
+            "baseline": 1,
+            "count": 0
+          },
+          "infra-m8.2": {
+            "baseline": 2,
+            "count": 0
+          },
+          "onecalc-m2.1": {
+            "baseline": 1,
+            "count": 0
+          }
+        }
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "68 occurrences in 10 of 20 files, 3 in 1 of 72 tracker records, 1 in 1 of 251 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+    },
+    {
+      "check": "numeric-provenance",
+      "details": {
+        "admitted_by_recomputation": 478,
+        "admitted_with_calls_quarantined": 165,
+        "allowlist": "migration/release-source-allowlist.json",
+        "allowlist_entries": 478,
+        "cross_repository_crate_edges": 61,
+        "dispositions": "migration/numeric-provenance.json",
+        "edges_into_files_not_pinned": {
+          "OxFunc": 2,
+          "elsewhere": 197
+        },
+        "edges_owner": "dc-4uy4",
+        "gaps": [
+          {
+            "owner": "dc-4uy4",
+            "what": "cross-repository edges (recorded at crate level, for example OxFunc crate oxfunc_core in OxFml's eval/mod.rs), run-time loads (recorded by repository) and the edges into files that are not pinned inputs (2 in OxFunc and 197 elsewhere when the ruling was made; the manifest summary counts them as edges_into_files_not_pinned) are not resolved to files"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the inputs the content rule leaves unresolved by class (citation sweep matches, changes by a listed tainted commit, includes of tainted or unresolved files), among them the test files the record leaves out, and the x87 ground-truth table entry, are not cleared file by file"
+          },
+          {
+            "owner": "dc-0huc",
+            "what": "the witness selections under migration/witnesses/ were made by a one-off script (target/accept/infra-m0.5/round2/select_witnesses.py), not by a repository command"
+          },
+          {
+            "owner": "dc-1c6a",
+            "what": "the include macros the pin cannot read (5 inputs: the four OxFunc tests w111_distribution_numeric_live_replay.rs, w111_integer_live_replay.rs, w111_numeric_publication_live_replay.rs and w111_radix_live_replay.rs, and tools/xll-addin/oxfunc_xll/src/lib.rs) are not resolved; summary.resolution_skipped counts the 5"
+          },
+          {
+            "owner": "dc-ime9",
+            "what": "a cleared entry does not lift the pin's quarantine of an excel_numeric path, and the infra-m0.5 acceptance case asserts today's outcome for the seven excel_numeric files, the research-x87 packages and the production replays (tools/xtask/tests/acceptance/infra_m0_5.rs)"
+          },
+          {
+            "owner": "dc-x3oi",
+            "what": "catalogue tests are not classified by where their expected values came from: the content rule catches a test only when a listed tainted commit changed it, it includes a tainted or unresolved file, or its text matches the citation sweep"
+          },
+          {
+            "owner": "dc-4546",
+            "what": "the licenses of the glibc-2.29 port (mod.rs exp_portable, log_portable and the kernels built on them; tables.rs; gen_tables.py), of the fdlibm and SPECFUN constants gammaln.rs cites, and OxDoc's missing license file are not reviewed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the w111-broad-20260929 evidence files are unresolved as one class (w111-broad-evidence), and the production replays are tainted as one class, not file by file"
+          },
+          {
+            "owner": "dc-43vt",
+            "what": "the files of the research-x87 tool packages are tainted as one class (x87-research-packages), not file by file"
+          },
+          {
+            "owner": "dc-jtlu",
+            "what": "cargo xtask pin-sources --lookup exit codes 5 (left out of the release source allowlist for its numeric provenance) and 6 (admitted only with its calls_quarantined list) are not yet part of a reviewed exit-code scheme"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "the retention extended-numeric/numeric-outcomes.json has no write time, so the order of the retention and the freeze steps is not established (the commits review's retention_ordering, established false); witness independence rests on hash continuity instead"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "no raw-capture hash exists between the last extended capture (2026-09-29T12:57:54Z) and the snapshot-1735 report (17:34:45Z)"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "retain_numeric_campaign.py imports subprocess and what it runs was not checked (its code was not reviewed under the reading rule), so the record's earlier statement that it builds and runs nothing is not confirmed"
+          },
+          {
+            "owner": "dc-z5ay",
+            "what": "that CellRefBatch.psm1 blob 55085b4d is the one that ran rests on the extended run's source_status alone; no last-write time is recorded for it"
+          },
+          {
+            "owner": "dc-2203",
+            "what": "the 24 commits the commits review gives unresolved need file-by-file review of the files they changed"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "status.review.dispositions_hash was recorded by the dc-m33w implementer, not by a reviewer"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the hash-continuity check of cargo xtask accept trusts the hash_continuity record a witness declares; only the infra-m0.5 acceptance case reads the hashes from the pinned blobs"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "a witness_chain entry cleared on its file's own acquisition for a file that holds expected bits (since dc-m33w's round 3 only such entries, for the five answer captures and the retention, change a provenance) takes precedence over every class (tag in tools/xtask/src/provenance.rs), wider than the precedence change of dc-m33w; it must be narrowed before dc-1c6a pins w111-broad answer or retention files"
+          },
+          {
+            "owner": "dc-qfqa",
+            "what": "the numeric-provenance check of cargo xtask accept reads the tainted-commit rule's sets from the manifest without running git, so only the infra-m0.5 acceptance case, which recomputes them from git, catches a coordinated edit of the record, the manifest's sets and the hash"
+          }
+        ],
+        "inputs_by_entry": {
+          "calls-quarantined": 176,
+          "citation-sweep": 51,
+          "crt-citing-callers": 13,
+          "excel-numeric-gammaln": 1,
+          "excel-numeric-gen-tables": 1,
+          "excel-numeric-ground-truth": 1,
+          "excel-numeric-mod": 1,
+          "excel-numeric-research": 1,
+          "excel-numeric-tables": 1,
+          "include-of-quarantined": 34,
+          "odd-bond-family": 1,
+          "production-replay": 5,
+          "tainted-commit": 929,
+          "unread-include": 5,
+          "w111-broad-evidence": 234,
+          "w111-distribution-judgements": 8,
+          "x87": 1,
+          "x87-research-packages": 911
+        },
+        "inputs_with_cross_repository_crate_edges": 44,
+        "inputs_with_run_time_loads": 25,
+        "manifest": "migration/source-manifest.json",
+        "owned_entries": [
+          {
+            "disposition": "rule",
+            "entry": "calls-quarantined",
+            "inputs": 176,
+            "owner": "dc-4uy4",
+            "replacement": "every crate-level entry ('<Repo> crate <name>') and every '<Repo> run-time loads' entry resolved to the pinned files it reaches, and the edges into files that are not pinned inputs followed"
+          },
+          {
+            "disposition": "rule",
+            "entry": "citation-sweep",
+            "inputs": 51,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each matched file: tainted where the line cites the tainted chains, cleared only on positive evidence that it does not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "include-of-quarantined",
+            "inputs": 34,
+            "owner": "dc-2203",
+            "replacement": "nothing while the included file stays tainted or unresolved; a clearance of the included file lifts it"
+          },
+          {
+            "disposition": "rule",
+            "entry": "tainted-commit",
+            "inputs": 929,
+            "owner": "dc-2203",
+            "replacement": "a file-level disposition with quoted evidence for each changed file: tainted where the change carried tainted material, cleared only on positive evidence that it did not"
+          },
+          {
+            "disposition": "rule",
+            "entry": "unread-include",
+            "inputs": 5,
+            "owner": "dc-1c6a",
+            "replacement": "the included paths resolved and pinned, after which the include rule applies to them"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 tables the owner accepts; the probe file itself is not pinned, so a fresh implementation takes the tables from glibc-2.29's published source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-gen-tables",
+            "inputs": 1,
+            "owner": "dc-4546",
+            "replacement": "a license disposition for the glibc-2.29 origin the owner accepts; the generator is never a port source"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "excel-numeric-ground-truth",
+            "inputs": 1,
+            "owner": "dc-2203",
+            "replacement": "a reviewed disposition of the table with its acquisition established, or its exclusion confirmed; it is never a witness without fresh acquisition records"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "x87-research-packages",
+            "inputs": 911,
+            "owner": "dc-43vt",
+            "replacement": "a disposition per file: tainted where it calls or embeds a quarantined chain or its outputs, cleared only on positive evidence that it does neither, unresolved otherwise"
+          },
+          {
+            "disposition": "tainted",
+            "entry": "production-replay",
+            "inputs": 5,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record (each pinned replay confirmed tainted or shown otherwise); the actual values are never witnesses"
+          },
+          {
+            "disposition": "unresolved",
+            "entry": "w111-broad-evidence",
+            "inputs": 234,
+            "owner": "dc-z5ay",
+            "replacement": "a disposition per file from its own acquisition record: cleared for a black-box Excel capture with recorded settings, tainted for values computed through a quarantined chain, unresolved otherwise"
+          }
+        ],
+        "retained_witnesses": 5,
+        "tainted_commit_rule": {
+          "identification": 64,
+          "listed": 72,
+          "message-sweep": 18,
+          "review": 63,
+          "rule_found_recorded": 70
+        },
+        "test_files_tainted_or_unresolved": 51,
+        "trusted_facts": "the manifest's code_refs and content_facts (citation sweep matches and touched-by-commit lists) are trusted as recorded, and the calls_quarantined lists and the include rule rest on code_refs; the infra-m0.5 acceptance case recomputes the citation sweep and the touched-by-commit lists from git",
+        "witness_bytes": 55933,
+        "witness_chain_entries": [
+          {
+            "blob": "cc10a9ec20dc660db03e711570f55fd00500dcfe",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-exp",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-exp.json"
+          },
+          {
+            "blob": "5356055d00edbc8b92ba6daf87248216c3636d6f",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-ln",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-ln.json"
+          },
+          {
+            "blob": "6cb89b0cf250aecdee667fdd0d5932f9b1dfa218",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-log10",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-log10.json"
+          },
+          {
+            "blob": "d9e8978e54d425957c14bf1b002275f83fedc22e",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-power",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-power.json"
+          },
+          {
+            "blob": "cea92ab3d0c956941b6d702d7d05977a256cdc5d",
+            "cleared_as": "acquisition",
+            "id": "chain-answers-atan",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/snapshot-wrap-1952/inputs/extended/answers-atan.json"
+          },
+          {
+            "blob": "3e6b81e2aac4e72b6b94cf9c78ad00c9196ebb30",
+            "cleared_as": "acquisition",
+            "id": "chain-retention",
+            "lifts_tainted_commit_rule": true,
+            "path": "docs/function-lane/evidence/w111-broad-20260929/extended-numeric/numeric-outcomes.json"
+          },
+          {
+            "blob": "91b96b93671c2b575fafb4a1c0d1ba5d6a1c8dc8",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-retention-writer",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/retain_numeric_campaign.py"
+          },
+          {
+            "blob": "9fc3d4aec25b59e38f6d0635ac6bf87ccd95dde7",
+            "cleared_as": "acquisition",
+            "id": "chain-runner",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/Run-W109BulkBatch.ps1"
+          },
+          {
+            "blob": "55085b4d0381076dcfae90087ec35e75703c08e4",
+            "cleared_as": "acquisition",
+            "id": "chain-cellrefbatch",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/CellRefBatch.psm1"
+          },
+          {
+            "blob": "a08fb1161821d0c05afc69c9a776ef436b4f0ea5",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-oracle-cache",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/OracleCache.psm1"
+          },
+          {
+            "blob": "0e727499af37570fb48d8f1f88b0fed6278017c4",
+            "cleared_as": "acquisition",
+            "id": "chain-driver",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/run_numeric_campaign.py"
+          },
+          {
+            "blob": "54fda4264d59d415e82f300069c77fbc5620ff9a",
+            "cleared_as": "acquisition",
+            "id": "chain-input-generator",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_extended_numeric_20260929.py"
+          },
+          {
+            "blob": "331556e5ef0dd6b1e7e2056497684f3d93fcc6f1",
+            "cleared_as": "acquisition",
+            "id": "chain-corpus-helpers",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/gen_w111_broad_20260929.py"
+          },
+          {
+            "blob": "4ebb3188a3f3192bf14e2e4f20491570d22d344a",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-snapshot",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/snapshot_numeric_20260929.py"
+          },
+          {
+            "blob": "5274a745d0b68b28f8163a5291b6946c60f6f588",
+            "cleared_as": "supplied_no_bits",
+            "id": "chain-freeze",
+            "lifts_tainted_commit_rule": false,
+            "path": "smart-fuzzer/tools/w111/freeze_campaign_snapshot_20260929.py"
+          }
+        ],
+        "witnesses": "migration/witnesses"
+      },
+      "findings": [],
+      "passed": true,
+      "summary": "tainted-commit list follows its stated rule (72 listed: 64 by the identification grep, 18 by the citation sweep of the message, 63 tied to the pass by a review; the manifest records 70 commits the rule finds at the pin); 15 reviewed witness_chain entries; release source allowlist 478 entries (478 admitted by the provenance recomputed from migration/numeric-provenance.json and the manifest's code_refs and content_facts, 165 of them only with a calls_quarantined list, 0 missing); 0 manifest inputs with stale numeric provenance; review record present, matching its review file and covering every cleared entry; 5 retained witness selections (55933 bytes), 0 witness findings; entries and rules with their owners: calls-quarantined (rule) on 176 inputs, owner dc-4uy4; citation-sweep (rule) on 51 inputs, owner dc-2203; include-of-quarantined (rule) on 34 inputs, owner dc-2203; tainted-commit (rule) on 929 inputs, owner dc-2203; unread-include (rule) on 5 inputs, owner dc-1c6a; excel-numeric-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-gen-tables (unresolved) on 1 inputs, owner dc-4546; excel-numeric-ground-truth (unresolved) on 1 inputs, owner dc-2203; x87-research-packages (tainted) on 911 inputs, owner dc-43vt; production-replay (tainted) on 5 inputs, owner dc-z5ay; w111-broad-evidence (unresolved) on 234 inputs, owner dc-z5ay; edges counted for the calls_quarantined owner dc-4uy4: 61 cross-repository crate edges in 44 inputs, 25 inputs with run-time loads, and 199 edges into files that are not pinned inputs (2 in OxFunc, 197 elsewhere); 51 files under a tests directory are tainted or unresolved; gaps owned by dc-4uy4, dc-2203, dc-0huc, dc-1c6a, dc-ime9, dc-x3oi, dc-4546, dc-z5ay, dc-43vt, dc-jtlu, dc-z5ay, dc-z5ay, dc-z5ay, dc-z5ay, dc-2203, dc-qfqa, dc-qfqa, dc-qfqa, dc-qfqa"
+    }
+  ],
+  "bead": "dc-51ka",
+  "cargo_target_dir": "target/xtask-accept",
+  "cases": [
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--",
+        "--exact",
+        "dc_51ka__indirect_text_references",
+        "--nocapture"
+      ],
+      "case": "dc_51ka__indirect_text_references",
+      "duration_s": 1.666,
+      "exit_code": 0,
+      "log": "target/accept/dc-51ka/windows/dc_51ka__indirect_text_references.log",
+      "notes": [
+        "183 oracle rows evaluated through parse_formula, compile, instantiate and evaluate with the catalogue of the workbook's 42 sheets: 9 documented (Microsoft's INDIRECT page), 164 measured (Excel's value, judged against the committed capture in dc_51ka__excel_comparison), 10 not modelled; every row's reads lie inside the areas its plan places or INDIRECT resolved",
+        "documented: =INDIRECT(\"A1\") (ref_text is read in A1 style when a1 is omitted)",
+        "documented: =INDIRECT(A5) (an analogue of the page's example =INDIRECT(A2), A2 holding the text B2, which gives B2's value: here A5 holds the text A1)",
+        "documented: =INDIRECT(\"B\"&1) (an analogue of the page's example =INDIRECT(\"B\"&A5), which joins B to the number in A5 to name a cell of column B: here the number is the literal 1)",
+        "documented: =INDIRECT(\"$A$1048577\") (a reference outside the row limit 1,048,576 or the column limit XFD gives #REF!)",
+        "documented: =INDIRECT(\"$XFE$1\") (a reference outside the row limit 1,048,576 or the column limit XFD gives #REF!)",
+        "documented: =INDIRECT(\"R1C1\",FALSE) (ref_text is read in R1C1 style when a1 is FALSE)",
+        "documented: =INDIRECT(\"A1\",FALSE) (text that is not a valid cell reference gives #REF!)",
+        "documented: =INDIRECT(\"R1C1\") (text that is not a valid cell reference gives #REF!)",
+        "documented: =INDIRECT(\"R0C1\",FALSE) (text that is not a valid cell reference gives #REF!)",
+        "not modelled: D159 =INDIRECT(\"\\x\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): a defined name of the workbook, which Excel resolves; names are not bound, bead cfml-m3.3",
+        "not modelled: D175 =INDIRECT(\"NoSuchName\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): the text could be a defined name, which INDIRECT resolves when the workbook defines it; names are not bound, bead cfml-m3.3",
+        "not modelled: D176 =INDIRECT(\"data!Foo\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): the text could be a defined name, which INDIRECT resolves when the workbook defines it; names are not bound, bead cfml-m3.3",
+        "not modelled: D177 =INDIRECT(\"XFE1\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): the text could be a defined name, which INDIRECT resolves when the workbook defines it; names are not bound, bead cfml-m3.3",
+        "not modelled: D178 =INDIRECT(\"Rate\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): a defined name of the workbook, which Excel resolves; names are not bound, bead cfml-m3.3",
+        "not modelled: D179 =INDIRECT(\"[Book1]data!A1\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): a qualifier naming another workbook, which INDIRECT resolves when that workbook is open, bead cfml-m3.5",
+        "not modelled: D180 =INDIRECT(\"A1:B2\") refused (Err(AreaAsValue { area: GridArea { sheet: SheetId { slot: 0, generation: 0 }, top: 1, left: 1, bottom: 2, right: 2 } })): a range where the formula needs one value: the legacy formula's implicit intersection, bead cfml-m3.3",
+        "not modelled: D181 =INDIRECT(\"A1\",\"1\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(1) }))): a1 as text holding a digit, which worksheet coercion refuses as possible number text, bead cfml-m2.6",
+        "not modelled: D182 =SUM(INDIRECT(\"A1:B\")) refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): a range whose end could be a defined name (B), which is not bound, bead cfml-m3.3",
+        "not modelled: D183 =INDIRECT(\"A1\\n\") refused (Err(Function(NotImplemented { id: FunctionId(11.1), argument: Some(0) }))): a line feed in the text, which Excel reads as a space after the text, bead dc-ea6r",
+        "the observer is shown each area INDIRECT resolved, as INDIRECT returns: 17 rows checked area by area against A1 addresses decoded by the case (the Ofgem shape =INDEX(INDIRECT(A3&\"!$B$2:$D$4\"),MATCH(\"Total_q\",INDIRECT(A3&\"!$A$2:$A$4\"),0),MATCH(\"y\",INDIRECT(A3&\"!$B$1:$D$1\"),0)) resolves bench!B2:D4, bench!A2:A4 and bench!B1:D1, while its plan places only indirect!A3, three times); text that names no reference and a refused text resolve nothing",
+        "one plan of =INDIRECT(A3&\"!B2\"), not an oracle row: with A3 holding bench it gives 1.25 and resolves bench!B2, with A3 holding data it gives 1 and resolves data!B2 (hand-derived from the reader's cells)",
+        "without EvaluationServices::with_catalog, =INDIRECT(\"A1\")+1 is refused (NotImplemented of INDIRECT, argument 0) once INDIRECT's call runs, and nothing is resolved",
+        "crates/calc-fml/tests/fixtures/dc_51ka/oracle.xlsx (sha256 7a7fd9aa13bb8310d82e17977b434006b6ab41c1abd1591baf1129b4e76b34a1) holds exactly the 183 rows' formulas in column D of the sheet indirect in row order and the 84 constant cells the reader holds, on its 42 sheets, and the defined names [(\"Rate\", \"indirect!$A$2\"), (\"\\\\x\", \"indirect!$B$1\")]",
+        "the committed generator tests/fixtures/make-fixtures.ps1, run into a new directory under the target directory's temporary directory, wrote 3 workbooks (dc_51ka/oracle.xlsx, dc_ibp2/oracle.xlsx, dc_l10u/oracle.xlsx), each equal to the committed fixture at its path byte for byte, this case's among them",
+        "what this case does not show: calc-engine and DNA OneCalc do not give calc_fml::evaluate a catalogue yet, so INDIRECT through them is refused as not modelled (dc-dumd); the engine is not shown the areas INDIRECT resolves and does not re-dirty a formula when a cell inside one changes (dc-dumd for INDIRECT, ceng-m3.3 for dynamic reads in general); text naming a sheet the workbook lacks gives #REF! and resolves no area, so nothing records the dependency and creating that sheet later re-dirties nothing (cfml-m3.3, whose case cfml_m3_3__absent_target owns it); the catalogue declares no volatility, so INDIRECT is not marked volatile (cfunc-m4.1, whose volatility declaration owns it); OFFSET and the reference operators (cfml-m3.3) are not covered"
+      ],
+      "outcome": "passed",
+      "package": "calc-fml",
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1.44s"
+    },
+    {
+      "argv": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "--locked",
+        "--target-dir",
+        "target/xtask-accept",
+        "--",
+        "--exact",
+        "dc_51ka__excel_comparison",
+        "--nocapture"
+      ],
+      "case": "dc_51ka__excel_comparison",
+      "duration_s": 0.379,
+      "exit_code": 0,
+      "log": "target/accept/dc-51ka/windows/dc_51ka__excel_comparison.log",
+      "notes": [
+        "against captures made by the case from calc_fml's own values (not Excel's), calc_verdict::judge counts 173 rows calculated and matched and 10 not modelled; with the Ofgem-shape row observed as 12.3457 it reports that row alone, mismatched",
+        "the committed capture (cargo xtask capture --fixture crates/calc-fml/tests/fixtures/dc_51ka/oracle.xlsx --case dc_51ka__indirect_text_references --out crates/calc-fml/tests/captures/dc_51ka/oracle.capture.json), taken by Excel 16.0.20430.20182: through calc_verdict::judge, calculated 173 of 183 formula cells, matched 173 of 173, mismatched 0, not modeled 10; 149 rows Excel reports with its implicit-intersection @ (dc_51ka__indirect_text_references: calculated 173 of 183 formula cells; matched 173 of 173 calculated, mismatched 0, not run 0; of the 173 compared, strict-bit certified 0, uncertified 173 (no_exact_target 173); not calculated: unproven 0, stale 0, file-cached 0, not modeled 10, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 183 evaluator calls (evaluation record version 2, 0 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture)",
+        "not modelled, not compared: D159 =INDIRECT(\"\\x\"): Excel gives 30.0",
+        "not modelled, not compared: D175 =INDIRECT(\"NoSuchName\"): Excel gives #Ref",
+        "not modelled, not compared: D176 =INDIRECT(\"data!Foo\"): Excel gives #Ref",
+        "not modelled, not compared: D177 =INDIRECT(\"XFE1\"): Excel gives #Ref",
+        "not modelled, not compared: D178 =INDIRECT(\"Rate\"): Excel gives 20.0",
+        "not modelled, not compared: D179 =INDIRECT(\"[Book1]data!A1\"): Excel gives #Ref",
+        "not modelled, not compared: D180 =INDIRECT(\"A1:B2\"): Excel gives #Value",
+        "not modelled, not compared: D181 =INDIRECT(\"A1\",\"1\"): Excel gives #Value",
+        "not modelled, not compared: D182 =SUM(INDIRECT(\"A1:B\")): Excel gives #Ref",
+        "not modelled, not compared: D183 =INDIRECT(\"A1\\n\"): Excel gives 10.0",
+        "COM add-ins connected during the capture: Some(1)"
+      ],
+      "outcome": "passed",
+      "package": "calc-fml",
+      "reason": null,
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.09s"
+    }
+  ],
+  "command": [
+    "cargo",
+    "xtask",
+    "accept",
+    "--id",
+    "dc-51ka",
+    "--platform",
+    "windows",
+    "--require-all"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "dc_51ka",
+        "--",
+        "--nocapture"
+      ],
+      "duration_s": 17.542,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 1.30s"
+      ],
+      "log": "target/accept/dc-51ka/windows/command-1.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--test",
+        "acceptance",
+        "dc_51ka",
+        "--",
+        "--nocapture"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-fml",
+        "--lib"
+      ],
+      "duration_s": 3.261,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+      ],
+      "log": "target/accept/dc-51ka/windows/command-2.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-fml",
+        "--lib"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "calc-func",
+        "--lib"
+      ],
+      "duration_s": 3.047,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": 0,
+      "libtest_result_lines": [
+        "test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "log": "target/accept/dc-51ka/windows/command-3.log",
+      "outcome": "passed",
+      "reason": null,
+      "started": [
+        "<rustup>/toolchains/1.94.1-x86_64-pc-windows-msvc/bin/cargo.exe",
+        "test",
+        "-p",
+        "calc-func",
+        "--lib"
+      ]
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "dc-51ka",
+        "--platform",
+        "windows",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    },
+    {
+      "argv": [
+        "cargo",
+        "xtask",
+        "accept",
+        "--id",
+        "dc-51ka",
+        "--platform",
+        "wasm",
+        "--require-all"
+      ],
+      "duration_s": 0.0,
+      "environment": {
+        "CARGO_TARGET_DIR": "target/xtask-accept"
+      },
+      "exit_code": null,
+      "libtest_result_lines": [],
+      "log": null,
+      "outcome": "skipped",
+      "reason": "the command is this runner itself; it is run on its own",
+      "started": null
+    }
+  ],
+  "committed_copy": "accept-receipts/dc-51ka/windows.json",
+  "counts": {
+    "architecture_checks": 7,
+    "architecture_checks_passed": 7,
+    "commands_failed": 0,
+    "commands_not_run": 0,
+    "commands_registered": 5,
+    "commands_run": 3,
+    "commands_skipped": 2,
+    "failed": 0,
+    "ignored": 0,
+    "missing": 0,
+    "not_run": 0,
+    "passed": 2,
+    "selected": 2
+  },
+  "duration_s": 48.523,
+  "exit_code": 0,
+  "format": "dnacalc-accept-receipt/4",
+  "host": {
+    "arch": "x86_64",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "git": {
+      "branch": "master",
+      "dirty": true,
+      "dirty_paths": [
+        {
+          "blob": "77f74f70bca57e8c1abce9d964d87c4c691b36a6",
+          "path": "crates/calc-fml/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "67de17061455fea59bdd308196f1501acb189873",
+          "path": "crates/calc-fml/src/eval/mod.rs",
+          "status": "M"
+        },
+        {
+          "blob": "93ab9d3b74e644c0c9b6f1b4dd3d14f88f5f6733",
+          "path": "crates/calc-fml/src/eval/run.rs",
+          "status": "M"
+        },
+        {
+          "blob": "24923e1228370ab2b27a499c7548205d23f3c819",
+          "path": "crates/calc-fml/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "ece374040f34e1fa7f659d24c9caccff85a81e91",
+          "path": "crates/calc-fml/src/reference/bind.rs",
+          "status": "M"
+        },
+        {
+          "blob": "613effcedd10dd697cd3b39a5acb817c5aa2f118",
+          "path": "crates/calc-fml/src/reference/mod.rs",
+          "status": "M"
+        },
+        {
+          "blob": "7c8d16f014042ade637ba70562101924a512b4ef",
+          "path": "crates/calc-fml/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "cecefd8f767009b6f44431596aeae4bd339acb76",
+          "path": "crates/calc-fml/tests/fixtures/make-fixtures.ps1",
+          "status": "M"
+        },
+        {
+          "blob": "9f7d683d3a2e91740661042106d030584ba4b6f8",
+          "path": "crates/calc-func/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "3e1be1d199dad504a24f6823bef029c8f7792d66",
+          "path": "crates/calc-func/src/call.rs",
+          "status": "M"
+        },
+        {
+          "blob": "ec7ee8219e420699d14921db8f5d819790404030",
+          "path": "crates/calc-func/src/catalogue.rs",
+          "status": "M"
+        },
+        {
+          "blob": "8b0fcf72ed47d114b36d2338f48b14c075b19a46",
+          "path": "crates/calc-func/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "77df762debcea245a62ccd378274d06cb43bb5dd",
+          "path": "accept-receipts/dc-51ka/wasm.json",
+          "status": "??"
+        },
+        {
+          "blob": "dc2a280ec79434cc7e91354b039fbc72b0d7e904",
+          "path": "crates/calc-fml/src/reference/text.rs",
+          "status": "??"
+        },
+        {
+          "blob": "826d6eb36b1e2646f4b99bef75658523099dace0",
+          "path": "crates/calc-fml/tests/acceptance/dc_51ka.rs",
+          "status": "??"
+        },
+        {
+          "blob": "958e045ac18ac9ca7bc4e15176b13136e7d44e6c",
+          "path": "crates/calc-fml/tests/captures/dc_51ka/oracle.capture.json",
+          "status": "??"
+        },
+        {
+          "blob": "a292a462545bdcdf983a2c45320ecd24b6d5b6a9",
+          "path": "crates/calc-fml/tests/fixtures/dc_51ka/oracle.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "8cfc604b295f5e9a324a8ec54956bdcbe80be985",
+          "path": "crates/calc-func/src/catalogue/reference_text.rs",
+          "status": "??"
+        },
+        {
+          "blob": "95bd7ead08e54c55dae7fb33776890e784a67ca8",
+          "path": "migration/ports/dc-51ka.json",
+          "status": "??"
+        }
+      ],
+      "head": "3dcf3357a37e0c54d4ff0beb04ea90408798fe69",
+      "receipt_paths_left_out": [
+        "accept-receipts/dc-51ka/windows.json"
+      ]
+    },
+    "legacy_root": {
+      "exists": true,
+      "from": "default: the workspace root's parent directory",
+      "path": ".."
+    },
+    "os": "windows",
+    "platform_matches_host": true,
+    "platform_mismatch": null,
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "rustc_host": "x86_64-pc-windows-msvc"
+  },
+  "manifests": {
+    "errors": [],
+    "files": [
+      "crates/calc-value/acceptance.json",
+      "crates/calc-func/acceptance.json",
+      "tools/calc-verdict/acceptance.json",
+      "crates/calc-fml/acceptance.json",
+      "crates/calc-doc-model/acceptance.json",
+      "crates/calc-doc/acceptance.json",
+      "crates/calc-engine/acceptance.json",
+      "crates/calc-host/acceptance.json",
+      "apps/dna-onecalc/acceptance.json",
+      "apps/dna-calc/acceptance.json",
+      "platform/calc-platform-desktop/acceptance.json",
+      "platform/calc-oracle-excel/acceptance.json",
+      "tools/xtask/acceptance.json"
+    ]
+  },
+  "paths": "relative to the workspace root; <rustup>, <cargo-home>, <home> and <temp> stand for directories outside it, and host.legacy_root.path is .. for the workspace root's parent or <legacy-root> for a directory elsewhere",
+  "platform": "windows",
+  "problems": [],
+  "receipt": "target/accept/dc-51ka/windows/receipt.json",
+  "require_all": true,
+  "result": "passed",
+  "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
+  "started_utc": "2026-10-23T11:10:18Z"
+}

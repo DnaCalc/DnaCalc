@@ -3,6 +3,10 @@
   "seams": [
     {"item": "call::PreparedArguments", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "invoke"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "call::CellReader", "callers": [{"file": "crates/calc-func/src/catalogue/aggregate.rs", "fn": "read_reference"}], "case": "cfunc_m3_4__argument_classes"},
+    {"item": "call::ReferenceText", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "EvalServices::with_reference_text"}, {"file": "crates/calc-func/src/call.rs", "fn": "EvalServices::reference_text"}], "case": "dc_51ka__indirect_text_references"},
+    {"item": "call::TextReference::Area", "callers": [{"file": "crates/calc-func/src/catalogue/reference_text.rs", "fn": "resolved"}, {"file": "crates/calc-fml/src/reference/text.rs", "fn": "bind_text"}], "case": "dc_51ka__indirect_text_references"},
+    {"item": "call::TextReference::Invalid", "callers": [{"file": "crates/calc-func/src/catalogue/reference_text.rs", "fn": "resolved"}, {"file": "crates/calc-fml/src/reference/text.rs", "fn": "bind_text"}], "case": "dc_51ka__indirect_text_references"},
+    {"item": "call::TextReference::NotModelled", "callers": [{"file": "crates/calc-func/src/catalogue/reference_text.rs", "fn": "resolved"}, {"file": "crates/calc-fml/src/reference/text.rs", "fn": "bind_text"}], "case": "dc_51ka__indirect_text_references"},
     {"item": "call::FunctionFault::ArityMismatch", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "invoke"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "call::FunctionFault::ReferenceArgument", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "admit_argument"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "call::FunctionFault::ReferenceRequired", "callers": [{"file": "crates/calc-func/src/call.rs", "fn": "admit_argument"}], "case": "cfunc_m1_1__catalogue_consistency"},
