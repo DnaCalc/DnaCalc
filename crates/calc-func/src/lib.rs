@@ -8,7 +8,8 @@
 //! The catalogue ([`catalogue`]) is generated at compile time from per-family fragments, each
 //! entry with an explicit stable [`FunctionId`]. A caller resolves an ID or a surface to a
 //! [`FunctionCallTarget`], reads its metadata (arity, parameter classes, [`ArgumentDemand`],
-//! signature help, oracle formula) and runs it with [`invoke`], supplying the arguments through
+//! signature help, oracle formula, the [`FilePrefix`] a file writes before a named function) and
+//! runs it with [`invoke`], supplying the arguments through
 //! [`PreparedArguments`] and owning the [`EvalServices`] (the numeric mode and a [`CellReader`]
 //! for reference arguments) and the [`FunctionCallScratch`].
 
@@ -18,6 +19,7 @@ mod call;
 mod catalogue;
 mod coerce;
 mod decimal;
+mod file_prefix;
 mod kernel;
 mod number_text;
 mod number_words;
@@ -30,3 +32,4 @@ pub use catalogue::{
     ArgumentDemand, Catalogue, FunctionCallTarget, FunctionId, HelpParameter, Notation,
     ParameterClass, RegistrationError, SignatureHelp, catalogue,
 };
+pub use file_prefix::FilePrefix;

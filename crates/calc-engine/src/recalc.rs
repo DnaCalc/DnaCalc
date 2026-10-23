@@ -14,7 +14,7 @@ use calc_fml::reference::{
 };
 use calc_fml::{
     EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
-    ExecutedCall, FormulaInstance, compile, evaluate, instantiate, parse_formula,
+    ExecutedCall, FormulaInstance, compile_loaded, evaluate, instantiate, parse_formula,
 };
 use calc_value::{CellKey, GridArea, NodeId, NumericMode};
 use std::cell::RefCell;
@@ -349,7 +349,9 @@ pub(crate) fn live_anchor(state: &EngineState, node: NodeId) -> CellKey {
         .anchor()
 }
 
-/// Compiles and places the formula of `node`, anchored at `at`, and files its prerequisites.
+/// Compiles and places the formula of `node`, anchored at `at`, and files its prerequisites. The
+/// document holds a formula's text as a file stores it ([`FormulaText`]), so it is compiled as
+/// such ([`compile_loaded`]).
 fn bind(
     state: &mut EngineState,
     inputs: &ModelRoot,
@@ -360,7 +362,7 @@ fn bind(
     let anchor = FormulaAnchor::new(at);
     let binding = match String::from_utf16(text.text().utf16_code_units()) {
         Err(_) => Binding::Refused(NotModeled::FormulaText),
-        Ok(source) => match compile(
+        Ok(source) => match compile_loaded(
             &parse_formula(&source),
             ReferenceNotation::A1,
             anchor,

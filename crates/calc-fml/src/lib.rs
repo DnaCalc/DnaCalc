@@ -11,7 +11,8 @@
 //! through [`read_cells`].
 //!
 //! [`eval`] compiles and evaluates formulas: [`compile`] turns a parsed formula into a shared,
-//! immutable [`CompiledPlan`] held by the caller's [`PlanCache`], [`instantiate`] places a plan at
+//! immutable [`CompiledPlan`] held by the caller's [`PlanCache`] ([`compile_loaded`] for a formula's
+//! text as a file stores it), [`instantiate`] places a plan at
 //! an anchor, and [`evaluate`] runs the instance in a per-call [`EvalFrame`] over the caller's
 //! [`EvalScratch`], with every operator and function run by `calc_func::invoke` and every cell read
 //! through the caller's [`ReferenceReader`]. An [`EvaluationObserver`] the caller attaches is shown
@@ -34,7 +35,7 @@ pub mod syntax;
 pub use eval::{
     CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
     EvaluationReport, EvaluationServices, ExecutedCall, FormulaInstance, PlanCache,
-    ResolvedReference, compile, evaluate, instantiate,
+    ResolvedReference, compile, compile_loaded, evaluate, instantiate,
 };
 pub use reference::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 pub use syntax::parse_formula;

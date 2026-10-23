@@ -83,7 +83,10 @@ pub(crate) fn bind_text(
     };
     // A tab and a carriage return are characters no reference or name holds; a line feed and the
     // other control characters are not modelled (bead dc-ea6r).
-    if text.chars().any(|c| c.is_control() && c != '\t' && c != '\r') {
+    if text
+        .chars()
+        .any(|c| c.is_control() && c != '\t' && c != '\r')
+    {
         return TextReference::NotModelled;
     }
     let text = text.trim_end_matches(' ');

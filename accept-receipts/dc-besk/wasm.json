@@ -52,6 +52,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-value",
                 "calc-verdict"
               ]
@@ -105,6 +111,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -159,6 +171,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -185,7 +203,7 @@
           "calc-doc-model": 13,
           "calc-engine": 7,
           "calc-fml": 15,
-          "calc-func": 14,
+          "calc-func": 18,
           "calc-host": 5,
           "calc-value": 5,
           "calc-verdict": 11,
@@ -201,7 +219,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "102 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "106 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -299,7 +317,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 102,
+        "files_scanned": 106,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -312,7 +330,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "102 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "106 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
@@ -343,9 +361,9 @@
             "pub_traits": 3
           },
           "calc-func": {
-            "entries": 20,
-            "entries_reach_unproven": 20,
-            "pub_enum_variants": 18,
+            "entries": 23,
+            "entries_reach_unproven": 23,
+            "pub_enum_variants": 21,
             "pub_traits": 2
           },
           "calc-host": {
@@ -380,14 +398,14 @@
           }
         },
         "reach": {
-          "entries_reach_unproven": 471,
+          "entries_reach_unproven": 474,
           "owner": "dc-pz3u",
           "what": "the manifest half only: each listed caller exists in non-test source and names the item, and the listed case is registered; that the case executes the caller is not yet proven"
         }
       },
       "findings": [],
       "passed": true,
-      "summary": "10 portable packages declare 462 pub enum variants and 9 pub traits; their seams.json files list 471 entries, 471 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
+      "summary": "10 portable packages declare 465 pub enum variants and 9 pub traits; their seams.json files list 474 entries, 474 of them with reach unproven (the case reaching the caller is owned by dc-pz3u)"
     },
     {
       "check": "word-scan",
@@ -483,9 +501,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 195,
+          "commit_messages": 238,
           "files": 20,
-          "tracker_records": 365
+          "tracker_records": 378
         },
         "tracker": {
           "ceng-m7.1": {
@@ -536,7 +554,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 365 tracker records, 1 in 1 of 195 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 378 tracker records, 1 in 1 of 238 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -899,7 +917,7 @@
           ],
           "browser": "chromium",
           "case": "dc_besk__prefixed_calls_evaluate@chromium",
-          "duration_s": 4.922,
+          "duration_s": 4.19,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -934,17 +952,17 @@
             "=_xlfn.SUM(A1:A3) gives the number 9, =SUM(A1:A3) gives the number 9, on one shared plan",
             "=_xlfn.IF(A2,\"big\",\"small\") gives the text \"big\", =IF(A2,\"big\",\"small\") gives the text \"big\", on one shared plan",
             "=_xlfn.MAXIFS(A1:A3,B1:B3,\"x\")*10+_xlfn.MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, =MAXIFS(A1:A3,B1:B3,\"x\")*10+MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, on one shared plan",
-            "=_xlfn.IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 10 }, spelling: \"_xlfn.IFNA\" }, =IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 4 }, spelling: \"IFNA\" }",
+            "=_xlfn.IFNA(C1,7) gives the number 7, =IFNA(C1,7) gives the number 7, on one shared plan",
             "=_xlfn.MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 25 }, supplied: 2 }, =MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 19 }, supplied: 2 }",
-            "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
-            "11 prefixed formulas evaluated through calc_fml::evaluate, each on the plan of its unprefixed spelling; IFNA catalogued: false; every expected value derived by hand from the functions' documented rules",
-            "counted divergence, owned by bead dc-xrxb: compile reads =MAXIFS(A1:A3,B1:B3,\"x\") as MAXIFS whether the text came from a file or from a cell entry, while a file that spells MAXIFS or IFNA without its prefix loads in Excel 16.0 as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input"
+            "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written, by calc_fml::compile_loaded and calc_fml::compile alike: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
+            "12 prefixed formulas compiled by calc_fml::compile_loaded and evaluated through calc_fml::evaluate, each on the plan calc_fml::compile gives its unprefixed spelling; every expected value derived by hand from the functions' documented rules",
+            "=MAXIFS(A1:A3,B1:B3,\"x\") and =IFNA(C1,7) as a file stores them, through calc_fml::compile_loaded, give #NAME?; entered, through calc_fml::compile, they give 3 and 7"
           ],
           "outcome": "passed",
           "package": "calc-fml",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 7 filtered out; finished in 0.06s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:65416/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 11 filtered out; finished in 0.04s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:58521/`"
         },
         {
           "argv": [
@@ -966,7 +984,7 @@
           ],
           "browser": "firefox",
           "case": "dc_besk__prefixed_calls_evaluate@firefox",
-          "duration_s": 10.53,
+          "duration_s": 7.596,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1001,21 +1019,21 @@
             "=_xlfn.SUM(A1:A3) gives the number 9, =SUM(A1:A3) gives the number 9, on one shared plan",
             "=_xlfn.IF(A2,\"big\",\"small\") gives the text \"big\", =IF(A2,\"big\",\"small\") gives the text \"big\", on one shared plan",
             "=_xlfn.MAXIFS(A1:A3,B1:B3,\"x\")*10+_xlfn.MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, =MAXIFS(A1:A3,B1:B3,\"x\")*10+MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, on one shared plan",
-            "=_xlfn.IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 10 }, spelling: \"_xlfn.IFNA\" }, =IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 4 }, spelling: \"IFNA\" }",
+            "=_xlfn.IFNA(C1,7) gives the number 7, =IFNA(C1,7) gives the number 7, on one shared plan",
             "=_xlfn.MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 25 }, supplied: 2 }, =MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 19 }, supplied: 2 }",
-            "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
-            "11 prefixed formulas evaluated through calc_fml::evaluate, each on the plan of its unprefixed spelling; IFNA catalogued: false; every expected value derived by hand from the functions' documented rules",
-            "counted divergence, owned by bead dc-xrxb: compile reads =MAXIFS(A1:A3,B1:B3,\"x\") as MAXIFS whether the text came from a file or from a cell entry, while a file that spells MAXIFS or IFNA without its prefix loads in Excel 16.0 as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input"
+            "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written, by calc_fml::compile_loaded and calc_fml::compile alike: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
+            "12 prefixed formulas compiled by calc_fml::compile_loaded and evaluated through calc_fml::evaluate, each on the plan calc_fml::compile gives its unprefixed spelling; every expected value derived by hand from the functions' documented rules",
+            "=MAXIFS(A1:A3,B1:B3,\"x\") and =IFNA(C1,7) as a file stores them, through calc_fml::compile_loaded, give #NAME?; entered, through calc_fml::compile, they give 3 and 7"
           ],
           "outcome": "passed",
           "package": "calc-fml",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 7 filtered out; finished in 0.02s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:62505/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 11 filtered out; finished in 0.02s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:63003/`"
         }
       ],
       "case": "dc_besk__prefixed_calls_evaluate",
-      "duration_s": 15.453,
+      "duration_s": 11.786,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1030,11 +1048,11 @@
         "=_xlfn.SUM(A1:A3) gives the number 9, =SUM(A1:A3) gives the number 9, on one shared plan",
         "=_xlfn.IF(A2,\"big\",\"small\") gives the text \"big\", =IF(A2,\"big\",\"small\") gives the text \"big\", on one shared plan",
         "=_xlfn.MAXIFS(A1:A3,B1:B3,\"x\")*10+_xlfn.MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, =MAXIFS(A1:A3,B1:B3,\"x\")*10+MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, on one shared plan",
-        "=_xlfn.IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 10 }, spelling: \"_xlfn.IFNA\" }, =IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 4 }, spelling: \"IFNA\" }",
+        "=_xlfn.IFNA(C1,7) gives the number 7, =IFNA(C1,7) gives the number 7, on one shared plan",
         "=_xlfn.MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 25 }, supplied: 2 }, =MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 19 }, supplied: 2 }",
-        "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
-        "11 prefixed formulas evaluated through calc_fml::evaluate, each on the plan of its unprefixed spelling; IFNA catalogued: false; every expected value derived by hand from the functions' documented rules",
-        "counted divergence, owned by bead dc-xrxb: compile reads =MAXIFS(A1:A3,B1:B3,\"x\") as MAXIFS whether the text came from a file or from a cell entry, while a file that spells MAXIFS or IFNA without its prefix loads in Excel 16.0 as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input",
+        "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written, by calc_fml::compile_loaded and calc_fml::compile alike: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
+        "12 prefixed formulas compiled by calc_fml::compile_loaded and evaluated through calc_fml::evaluate, each on the plan calc_fml::compile gives its unprefixed spelling; every expected value derived by hand from the functions' documented rules",
+        "=MAXIFS(A1:A3,B1:B3,\"x\") and =IFNA(C1,7) as a file stores them, through calc_fml::compile_loaded, give #NAME?; entered, through calc_fml::compile, they give 3 and 7",
         "=_xlfn.MAXIFS(A1:A3,B1:B3,\"x\") gives the number 3, =MAXIFS(A1:A3,B1:B3,\"x\") gives the number 3, on one shared plan",
         "=_xlfn.MINIFS(A1:A3,B1:B3,\"x\") gives the number 1, =MINIFS(A1:A3,B1:B3,\"x\") gives the number 1, on one shared plan",
         "=_xlfn._xlws.MAXIFS(A1:A3,B1:B3,\"x\") gives the number 3, =MAXIFS(A1:A3,B1:B3,\"x\") gives the number 3, on one shared plan",
@@ -1046,11 +1064,11 @@
         "=_xlfn.SUM(A1:A3) gives the number 9, =SUM(A1:A3) gives the number 9, on one shared plan",
         "=_xlfn.IF(A2,\"big\",\"small\") gives the text \"big\", =IF(A2,\"big\",\"small\") gives the text \"big\", on one shared plan",
         "=_xlfn.MAXIFS(A1:A3,B1:B3,\"x\")*10+_xlfn.MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, =MAXIFS(A1:A3,B1:B3,\"x\")*10+MINIFS(A1:A3,B1:B3,\"x\") gives the number 31, on one shared plan",
-        "=_xlfn.IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 10 }, spelling: \"_xlfn.IFNA\" }, =IFNA(C1,7) gives the refusal UnknownFunction { span: TextSpan { start: 1, len: 4 }, spelling: \"IFNA\" }",
+        "=_xlfn.IFNA(C1,7) gives the number 7, =IFNA(C1,7) gives the number 7, on one shared plan",
         "=_xlfn.MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 25 }, supplied: 2 }, =MAXIFS(A1:A3,B1:B3) gives the refusal Arity { span: TextSpan { start: 1, len: 19 }, supplied: 2 }",
-        "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
-        "11 prefixed formulas evaluated through calc_fml::evaluate, each on the plan of its unprefixed spelling; IFNA catalogued: false; every expected value derived by hand from the functions' documented rules",
-        "counted divergence, owned by bead dc-xrxb: compile reads =MAXIFS(A1:A3,B1:B3,\"x\") as MAXIFS whether the text came from a file or from a cell entry, while a file that spells MAXIFS or IFNA without its prefix loads in Excel 16.0 as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input"
+        "6 formulas refused as CompileError::UnknownFunction at the name, with its spelling as written, by calc_fml::compile_loaded and calc_fml::compile alike: =_xlfn.NOSUCHFUNCTION(A1) =_xlws.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlws._xlfn.MAXIFS(A1:A3,B1:B3,\"x\") =_xlfn._xlws.NOSUCHFUNCTION(A1) =1+_xlfn.NOSUCHFUNCTION(A1)",
+        "12 prefixed formulas compiled by calc_fml::compile_loaded and evaluated through calc_fml::evaluate, each on the plan calc_fml::compile gives its unprefixed spelling; every expected value derived by hand from the functions' documented rules",
+        "=MAXIFS(A1:A3,B1:B3,\"x\") and =IFNA(C1,7) as a file stores them, through calc_fml::compile_loaded, give #NAME?; entered, through calc_fml::compile, they give 3 and 7"
       ],
       "outcome": "passed",
       "package": "calc-fml",
@@ -1096,7 +1114,7 @@
           ],
           "browser": "chromium",
           "case": "dc_besk__loaded_package_calculates@chromium",
-          "duration_s": 9.001,
+          "duration_s": 6.334,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -1120,17 +1138,17 @@
           "exit_code": 0,
           "log": "target/accept/dc-besk/wasm/dc_besk__loaded_package_calculates@chromium.log",
           "notes": [
-            "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; IFNA catalogued: false; every expected value derived by hand",
-            "14 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
-            "6 rows refused: =_xlfn.IFNA(Data!C1,7) refused as UnknownFunction _xlfn.IFNA; =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS; =IFNA(Data!C1,7) refused as UnknownFunction IFNA",
-            "counted divergence, owned by bead dc-xrxb: =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") calculated from the file's text without a prefix, which Excel 16.0 loads as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input",
-            "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4"
+            "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; every expected value derived by hand",
+            "16 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
+            "4 rows refused: =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS",
+            "=MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") and =IFNA(Data!C1,7), which write without its prefix a function a file stores with _xlfn., calculated #NAME? as Excel 16.0's load reads them (bead dc-xrxb)",
+            "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4"
           ],
           "outcome": "passed",
           "package": "calc-host",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 3 filtered out; finished in 0.16s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:65369/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 4 filtered out; finished in 0.11s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:63026/`"
         },
         {
           "argv": [
@@ -1152,7 +1170,7 @@
           ],
           "browser": "firefox",
           "case": "dc_besk__loaded_package_calculates@firefox",
-          "duration_s": 14.748,
+          "duration_s": 9.534,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1176,34 +1194,34 @@
           "exit_code": 0,
           "log": "target/accept/dc-besk/wasm/dc_besk__loaded_package_calculates@firefox.log",
           "notes": [
-            "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; IFNA catalogued: false; every expected value derived by hand",
-            "14 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
-            "6 rows refused: =_xlfn.IFNA(Data!C1,7) refused as UnknownFunction _xlfn.IFNA; =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS; =IFNA(Data!C1,7) refused as UnknownFunction IFNA",
-            "counted divergence, owned by bead dc-xrxb: =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") calculated from the file's text without a prefix, which Excel 16.0 loads as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input",
-            "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4"
+            "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; every expected value derived by hand",
+            "16 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
+            "4 rows refused: =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS",
+            "=MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") and =IFNA(Data!C1,7), which write without its prefix a function a file stores with _xlfn., calculated #NAME? as Excel 16.0's load reads them (bead dc-xrxb)",
+            "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4"
           ],
           "outcome": "passed",
           "package": "calc-host",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 3 filtered out; finished in 0.08s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:60162/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 4 filtered out; finished in 0.08s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:63970/`"
         }
       ],
       "case": "dc_besk__loaded_package_calculates",
-      "duration_s": 23.749,
+      "duration_s": 15.868,
       "exit_code": 0,
       "log": null,
       "notes": [
-        "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; IFNA catalogued: false; every expected value derived by hand",
-        "14 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
-        "6 rows refused: =_xlfn.IFNA(Data!C1,7) refused as UnknownFunction _xlfn.IFNA; =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS; =IFNA(Data!C1,7) refused as UnknownFunction IFNA",
-        "counted divergence, owned by bead dc-xrxb: =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") calculated from the file's text without a prefix, which Excel 16.0 loads as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input",
-        "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4",
-        "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; IFNA catalogued: false; every expected value derived by hand",
-        "14 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
-        "6 rows refused: =_xlfn.IFNA(Data!C1,7) refused as UnknownFunction _xlfn.IFNA; =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS; =IFNA(Data!C1,7) refused as UnknownFunction IFNA",
-        "counted divergence, owned by bead dc-xrxb: =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") calculated from the file's text without a prefix, which Excel 16.0 loads as an unknown name (#NAME?); dc-xrxb gives compile the file prefix of each catalogued function and a load-origin input",
-        "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4"
+        "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; every expected value derived by hand",
+        "16 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
+        "4 rows refused: =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS",
+        "=MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") and =IFNA(Data!C1,7), which write without its prefix a function a file stores with _xlfn., calculated #NAME? as Excel 16.0's load reads them (bead dc-xrxb)",
+        "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4",
+        "a generated package (CRC-32 28b16be1, 4742 bytes) opened through HostState::open and recalculated through calc_host::step; every row keeps its file text and every file cache was replaced by the recalculation; every expected value derived by hand",
+        "16 rows calculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 31; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn.SUM(Data!A1:A3) gives 9; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 3",
+        "4 rows refused: =_xlfn.NOSUCHFUNCTION(Data!A1) refused as UnknownFunction _xlfn.NOSUCHFUNCTION; =_xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws.MAXIFS; =_xlfn._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlfn._xlfn.MAXIFS; =_xlws._xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") refused as UnknownFunction _xlws._xlfn.MAXIFS",
+        "=MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") and =IFNA(Data!C1,7), which write without its prefix a function a file stores with _xlfn., calculated #NAME? as Excel 16.0's load reads them (bead dc-xrxb)",
+        "Data!A3 set to 4 through calc_doc::prepare_edit and saved through calc_doc::prepare_save and calc_doc::write (4572 bytes); the rewritten Calc part holds all 20 <f> texts as loaded (16 of them starting with the _xlfn. prefix in some ASCII case); the saved package reopened through HostState::open and recalculated: =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 1; =_xlfn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\")*10+_xlfn.MINIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 41; =_xlfn.IFNA(Data!C1,7) gives 7; =_xlfn._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.maxifs(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn.SUM(Data!A1:A3) gives 10; =_xlfn.IF(Data!A2,\"big\",\"small\") gives \"big\"; =MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives Name; =IFNA(Data!C1,7) gives Name; =_XlFn.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xlfn._XLWS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_XLFN._xlws.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4; =_xLfN._xLwS.MAXIFS(Data!A1:A3,Data!B1:B3,\"x\") gives 4"
       ],
       "outcome": "passed",
       "package": "calc-host",
@@ -1230,13 +1248,13 @@
         "calc-fml",
         "--lib"
       ],
-      "duration_s": 0.247,
+      "duration_s": 0.249,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+        "test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/dc-besk/wasm/command-1.log",
       "outcome": "passed",
@@ -1332,7 +1350,7 @@
     "passed": 2,
     "selected": 2
   },
-  "duration_s": 77.478,
+  "duration_s": 49.537,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -1343,50 +1361,123 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "84f9357b30eceb82bef9c768488305e6372df1c8",
-          "path": "crates/calc-fml/acceptance.json",
+          "blob": "054b81cd3c39a8d275a82048c2b449306ec5b511",
+          "path": "Cargo.lock",
           "status": "M"
         },
         {
-          "blob": "f7fdbfeb1041a7a3cdcb8fb4ecc609853720fbff",
+          "blob": "bf352a4e4620358f5b6350581b761255d3c03167",
+          "path": "crates/calc-engine/src/recalc.rs",
+          "status": "M"
+        },
+        {
+          "blob": "39c8da2c5fc6c2b28ef5223896bb5ab137129bf9",
           "path": "crates/calc-fml/seams.json",
           "status": "M"
         },
         {
-          "blob": "c939b23e235d0a042adef59bfbae99763ef3919f",
+          "blob": "2a267717a30a084808687af2360e3e2978ec4d1d",
           "path": "crates/calc-fml/src/eval/compile.rs",
           "status": "M"
         },
         {
-          "blob": "8a32b7d060e2751317e38667ad0f1789e4518e27",
+          "blob": "4a84ad57eba0b5ebdcbf91af88fe72026c36a1e7",
+          "path": "crates/calc-fml/src/eval/mod.rs",
+          "status": "M"
+        },
+        {
+          "blob": "cb6b54734c77cb042fccd2a065f0aa7c46ba91fd",
+          "path": "crates/calc-fml/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "dfaccc55d42b31a7c5e05eb1e2833e3cf815ae58",
           "path": "crates/calc-fml/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "d2b42547168384fe2b80d6c8c83991044ab319f7",
+          "blob": "962e323c313c8d2a142184da070ddc770df88d68",
+          "path": "crates/calc-func/Cargo.toml",
+          "status": "M"
+        },
+        {
+          "blob": "a480a5564a97c7d45fef55a3b5121c82998d9097",
+          "path": "crates/calc-func/acceptance.json",
+          "status": "M"
+        },
+        {
+          "blob": "5259bc114078dc6fe3cbd240d64ee374ebc81fe7",
+          "path": "crates/calc-func/seams.json",
+          "status": "M"
+        },
+        {
+          "blob": "ff1a06316f89bed69c92d2ec4bb0fcfd5cd3f472",
+          "path": "crates/calc-func/src/lib.rs",
+          "status": "M"
+        },
+        {
+          "blob": "15667bd8482f5598a45bd4e9b86ab9e033783e21",
+          "path": "crates/calc-func/tests/acceptance.rs",
+          "status": "M"
+        },
+        {
+          "blob": "e51dc5fd8ae3a0bf5adb10be7330ea432e10add8",
+          "path": "crates/calc-func/tests/fixtures/make-fixtures.ps1",
+          "status": "M"
+        },
+        {
+          "blob": "34fa50e3fdc8eaf39d6d9d4071757536becb1746",
           "path": "crates/calc-host/acceptance.json",
           "status": "M"
         },
         {
-          "blob": "9ad27a4a7d1671a7a2c3dfbe0a4e0d2c94c6031f",
+          "blob": "d2561aa5ab513bcc03b2b2c820d7999c1e53bb57",
           "path": "crates/calc-host/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "18f6f2f12785ad5d1bdac66bf24ab8264fad41fd",
-          "path": "accept-receipts/dc-besk/windows.json",
+          "blob": "ce6e270afc59c3b402c891315496ccb6a72a536d",
+          "path": "accept-receipts/dc-xrxb/wasm.json",
           "status": "??"
         },
         {
-          "blob": "267f7b5ba3f3e62cdc88672003d2b6ac21460f23",
-          "path": "crates/calc-host/tests/dc_besk_support/mod.rs",
+          "blob": "0d9bf51712e558c4fbfcb000d48290a9b95265c8",
+          "path": "accept-receipts/dc-xrxb/windows.json",
+          "status": "??"
+        },
+        {
+          "blob": "1fc8d7dfe19646a953600ce424f91ef7b3019eb2",
+          "path": "crates/calc-func/src/file_prefix.rs",
+          "status": "??"
+        },
+        {
+          "blob": "9c588c650ababc76c1d4cbe24c3d240a5ec897a4",
+          "path": "crates/calc-func/tests/captures/dc_xrxb/oracle.capture.json",
+          "status": "??"
+        },
+        {
+          "blob": "49b4fee92a61904df4181d3a20defba16a774eaf",
+          "path": "crates/calc-func/tests/captures/dc_xrxb/oracle.saved.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "64565ce64e0b0ddc6b6781a1caa06de4f3fa5807",
+          "path": "crates/calc-func/tests/dc_xrxb_support/mod.rs",
+          "status": "??"
+        },
+        {
+          "blob": "1f2aa3475782d03817ae4e90e7db9bfb1f012bb8",
+          "path": "crates/calc-func/tests/fixtures/dc_xrxb/oracle.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "b28a39b772a3bf0c78d5618a9b2ba47af4b6cbc2",
+          "path": "crates/calc-host/tests/dc_xrxb_support/mod.rs",
           "status": "??"
         }
       ],
-      "head": "8309cf7312571e0f12ce573939eff7fcf9476ab5",
-      "receipt_paths_left_out": [
-        "accept-receipts/dc-besk/wasm.json"
-      ]
+      "head": "018a30912c38acce616c78c647ca58ddb26ea00a",
+      "receipt_paths_left_out": []
     },
     "legacy_root": {
       "exists": true,
@@ -1424,5 +1515,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-21T14:33:00Z"
+  "started_utc": "2026-10-21T18:42:04Z"
 }

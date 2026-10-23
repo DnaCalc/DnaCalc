@@ -180,6 +180,7 @@ version = "0.1.0"
 dependencies = [
  "calc-value",
  "calc-verdict",
+ "miniz_oxide",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

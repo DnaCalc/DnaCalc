@@ -36,8 +36,8 @@ const REVISION: u64 = 0;
 /// a<mark>b of [`MARKED`] and the seven of [`WIDE`].
 const SHEETS: [&str; 42] = [
     "indirect", "data", "bench", "Q2 Data", "It's", "a-b", "1x", "A1", "a.b", ".x", "TRUE",
-    "FALSE", "a_b", "\u{e9}", "a(b", "a)b", "a+b", "a&b", "a,b", "a%b", "a#b", "a$b", "a{b",
-    "a~b", "a^b", "a=b", "a!b", "a;b", "a\"b", "a<b", "a>b", "a@b", "a`b", "a|b", "a}b", "\u{df}",
+    "FALSE", "a_b", "\u{e9}", "a(b", "a)b", "a+b", "a&b", "a,b", "a%b", "a#b", "a$b", "a{b", "a~b",
+    "a^b", "a=b", "a!b", "a;b", "a\"b", "a<b", "a>b", "a@b", "a`b", "a|b", "a}b", "\u{df}",
     "\u{d8}", "\u{f1}", "\u{3a9}", "\u{416}", "\u{4e2d}", "\u{20ac}",
 ];
 

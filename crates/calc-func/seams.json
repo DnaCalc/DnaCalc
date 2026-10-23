@@ -25,6 +25,8 @@
     {"item": "catalogue::ArgumentDemand::BranchOnCondition", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "ArgumentDemand::is_lazy"}], "case": "cfunc_m1_1__catalogue_consistency"},
     {"item": "catalogue::ArgumentDemand::FallbackOnError", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "ArgumentDemand::is_lazy"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "carries_final_sum"}], "case": "dc_ibp2__error_fallback"},
     {"item": "catalogue::RegistrationError::UnknownId", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "Catalogue::resolve"}], "case": "cfunc_m1_1__unknown_function"},
-    {"item": "catalogue::RegistrationError::UnknownSurface", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "Catalogue::resolve_surface"}], "case": "cfunc_m1_1__unknown_function"}
+    {"item": "catalogue::RegistrationError::UnknownSurface", "callers": [{"file": "crates/calc-func/src/catalogue.rs", "fn": "Catalogue::resolve_surface"}], "case": "cfunc_m1_1__unknown_function"},
+    {"item": "file_prefix::FilePrefix::Bare", "callers": [{"file": "crates/calc-func/src/file_prefix.rs", "fn": "FilePrefix::text"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "unknown_on_load"}], "case": "dc_xrxb__prefix_metadata_matches_excel"},
+    {"item": "file_prefix::FilePrefix::Xlfn", "callers": [{"file": "crates/calc-func/src/file_prefix.rs", "fn": "FilePrefix::text"}, {"file": "crates/calc-fml/src/eval/compile.rs", "fn": "unknown_on_load"}], "case": "dc_xrxb__prefix_metadata_matches_excel"}
   ]
 }

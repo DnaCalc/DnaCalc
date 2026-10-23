@@ -49,6 +49,23 @@
       "platforms": {
         "dc_besk__loaded_package_calculates": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "dc-xrxb",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-fml", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-xrxb", "--platform", "wasm", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-besk", "--platform", "windows", "--require-all"]
+      ],
+      "cases": [
+        "dc_xrxb__unprefixed_file_spelling_gives_name"
+      ],
+      "platforms": {
+        "dc_xrxb__unprefixed_file_spelling_gives_name": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

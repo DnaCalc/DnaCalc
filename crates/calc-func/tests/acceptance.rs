@@ -54,6 +54,8 @@ macro_rules! note {
     }};
 }
 
+mod dc_xrxb_support;
+
 // ---------------------------------------------------------------------------------------------
 // The counting allocator.
 
@@ -1547,7 +1549,7 @@ const FORMULA_COLUMN: u32 = 4;
 /// Every workbook the committed generator `tests/fixtures/make-fixtures.ps1` writes, by its path
 /// under `tests/fixtures`, in path order.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 10] = [
+const GENERATED_WORKBOOKS: [&str; 11] = [
     "cdoc_jpha/oracle.xlsx",
     "cfunc_m1_2/oracle.xlsx",
     "cfunc_m3_2/oracle.xlsx",
@@ -1558,6 +1560,7 @@ const GENERATED_WORKBOOKS: [&str; 10] = [
     "dc_fwpz/oracle.xlsx",
     "dc_nzpw/oracle.xlsx",
     "dc_q9rb/oracle.xlsx",
+    "dc_xrxb/oracle.xlsx",
 ];
 
 /// A worksheet the test holds and calc-func reads through `CellReader`. Every area asked for and
@@ -22776,4 +22779,13 @@ fn dc_nzpw__excel_comparison() {
         info.dynamic,
         report.summary()
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-xrxb: the file prefix of each catalogued named function, against the package Excel saved.
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_xrxb__prefix_metadata_matches_excel() {
+    dc_xrxb_support::prefix_metadata_matches_excel();
 }
