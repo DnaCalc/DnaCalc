@@ -1,0 +1,147 @@
+{
+  "events": [
+    {
+      "WorkbookHeader": {
+        "calc_mode": "Automatic",
+        "date_system": "Date1900",
+        "schema": "oxdoc.document_event.v1"
+      }
+    },
+    {
+      "StringTable": [
+        {
+          "text": "styled text"
+        }
+      ]
+    },
+    {
+      "SheetBegin": {
+        "name": "C1",
+        "sheet_id": 1
+      }
+    },
+    {
+      "CellChunk": {
+        "cells": [
+          [
+            0,
+            {
+              "Number": 42.0
+            }
+          ],
+          [
+            1,
+            {
+              "SharedText": 0
+            }
+          ],
+          [
+            2,
+            {
+              "Number": 43.0
+            }
+          ],
+          [
+            3,
+            {
+              "Number": 44.0
+            }
+          ]
+        ],
+        "row_band": 0
+      }
+    },
+    {
+      "SheetEnd": {
+        "sheet_id": 1
+      }
+    }
+  ],
+  "ledger": {
+    "entries": [
+      {
+        "disposition": {
+          "Projected": {
+            "loss": null,
+            "status": "Direct"
+          }
+        },
+        "subject": "xl/workbook.xml"
+      },
+      {
+        "disposition": {
+          "Projected": {
+            "loss": null,
+            "status": "Direct"
+          }
+        },
+        "subject": "xl/sharedStrings.xml"
+      },
+      {
+        "disposition": {
+          "Projected": {
+            "loss": null,
+            "status": "Direct"
+          }
+        },
+        "subject": "xl/worksheets/sheet1.xml"
+      },
+      {
+        "disposition": {
+          "Projected": {
+            "loss": {
+              "UnsupportedFeature": "values-only projection reports opaque part presence; source bytes are retained only by XlsxPackageSession"
+            },
+            "status": "Derived"
+          }
+        },
+        "subject": "customXml/item1.xml"
+      },
+      {
+        "disposition": {
+          "Projected": {
+            "loss": {
+              "UnsupportedFeature": "values-only projection reports opaque part presence; source bytes are retained only by XlsxPackageSession"
+            },
+            "status": "Derived"
+          }
+        },
+        "subject": "xl/drawings/drawing1.xml"
+      },
+      {
+        "disposition": {
+          "Projected": {
+            "loss": {
+              "UnsupportedFeature": "values-only projection reports opaque part presence; source bytes are retained only by XlsxPackageSession"
+            },
+            "status": "Derived"
+          }
+        },
+        "subject": "xl/pivotCache/pivotCacheDefinition1.xml"
+      },
+      {
+        "disposition": {
+          "Projected": {
+            "loss": {
+              "UnsupportedFeature": "values-only projection reports opaque part presence; source bytes are retained only by XlsxPackageSession"
+            },
+            "status": "Derived"
+          }
+        },
+        "subject": "xl/pivotTables/pivotTable1.xml"
+      },
+      {
+        "disposition": {
+          "Projected": {
+            "loss": {
+              "UnsupportedFeature": "values-only projection reports opaque part presence; source bytes are retained only by XlsxPackageSession"
+            },
+            "status": "Derived"
+          }
+        },
+        "subject": "xl/vbaProject.bin"
+      }
+    ]
+  },
+  "schema": "oxdoc.document_event.v1"
+}

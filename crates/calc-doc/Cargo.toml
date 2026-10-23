@@ -30,6 +30,9 @@ miniz_oxide = "=0.8.9"
 # fixtures' bytes with text written in the test without parsing them.
 [dev-dependencies]
 serde_json = "=1.0.154"
+# dc-ndi's d1_file_form test checks calc-func's file-prefix metadata against the prefixes the save
+# writes, so the two agree for every catalogued function.
+calc-func = { path = "../calc-func" }
 
 # The acceptance cases run in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117, which runs
 # only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67 is the

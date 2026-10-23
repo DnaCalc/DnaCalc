@@ -242,6 +242,8 @@ $FormulaSheets = @()
 # F1 dc-8dq: math, statistics and engineering; the ^ and POWER edge cases.
 $PrefixSections += 'prefix-f1.txt'
 $FormulaSheets += , @('f1_power', 'sheet-f1_power.txt')
+# L1 dc-mzk: OFFSET and ISOMITTED.
+$PrefixSections += 'prefix-l1.txt'
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
@@ -250,10 +252,11 @@ $prefixInputs = @(
     (New-Number 'E1' '1'), (New-Number 'E2' '2'), (New-Number 'E3' '3')
 )
 
-# The non-empty lines of a section file beside this script.
+# The lines of a section file beside this script, without empty lines and lines starting with #
+# (comments).
 function Get-SectionLines([string]$Name) {
     return @(Get-Content -LiteralPath (Join-Path (Join-Path $PSScriptRoot 'catalogue') $Name) |
-        Where-Object { $_ -ne '' })
+        Where-Object { $_ -ne '' -and -not $_.StartsWith('#') })
 }
 
 $prefixCalls = @()

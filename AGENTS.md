@@ -64,6 +64,20 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
 writes a receipt under `accept-receipts/`. Use it where a package registers cases. It is not
 required for every commit.
 
+## Extend, never duplicate
+
+Before you create a fixture, oracle workbook, generator, test helper, adapter, registry, tool
+command or document, look for the one that already exists and extend it. There is:
+- one catalogue oracle for calc-func, F1's `tests/fixtures/f1_prefix` and its generator, to which
+  each package adds its own section;
+- one corpus harness (`cargo xtask corpus`);
+- one adapter from OxFunc's types (`catalogue/kit.rs`);
+- one verdict path.
+
+A merge conflict in a shared file is cheaper than a second copy of it: pull often, keep your
+additions in their own section, and resolve conflicts keeping both sides. If you believe a
+second copy is really needed, say why in the commit message.
+
 ## Honesty rules
 
 1. **Provenance before value.** Only a value the engine actually calculated counts as

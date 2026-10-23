@@ -33,7 +33,7 @@ impl FilePrefix {
 /// below, since the lookup is a binary search), with the prefix a file writes before it. No
 /// catalogued function is stored with `_xlfn._xlws.`, the prefix Excel writes before FILTER and
 /// SORT, so there is no variant for it.
-const FILE_PREFIXES: [(&str, FilePrefix); 318] = [
+const FILE_PREFIXES: [(&str, FilePrefix); 320] = [
     ("ABS", FilePrefix::Bare),
     ("ACOS", FilePrefix::Bare),
     ("ACOSH", FilePrefix::Bare),
@@ -208,6 +208,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 318] = [
     ("ISNUMBER", FilePrefix::Bare),
     ("ISO.CEILING", FilePrefix::Bare),
     ("ISODD", FilePrefix::Bare),
+    ("ISOMITTED", FilePrefix::Xlfn),
     ("ISREF", FilePrefix::Bare),
     ("ISTEXT", FilePrefix::Bare),
     ("KURT", FilePrefix::Bare),
@@ -258,6 +259,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 318] = [
     ("OCT2DEC", FilePrefix::Bare),
     ("OCT2HEX", FilePrefix::Bare),
     ("ODD", FilePrefix::Bare),
+    ("OFFSET", FilePrefix::Bare),
     ("OR", FilePrefix::Bare),
     ("PEARSON", FilePrefix::Bare),
     ("PERCENTILE", FilePrefix::Bare),

@@ -34,8 +34,9 @@ pub mod syntax;
 
 pub use eval::{
     CompileError, CompiledPlan, EvalFault, EvalFrame, EvalScratch, EvaluationObserver,
-    EvaluationReport, EvaluationServices, ExecutedCall, FormulaInstance, PlanCache,
-    ResolvedReference, compile, compile_loaded, evaluate, instantiate,
+    EvaluationReport, EvaluationServices, ExecutedCall, FormulaForm, FormulaInstance,
+    MAX_CALL_DEPTH, PlanCache, ResolvedReference, compile, compile_loaded, compile_loaded_with,
+    compile_with, evaluate, instantiate,
 };
 pub use reference::{ReferenceCatalog, ReferenceReader, bind_references, read_cells};
 pub use syntax::parse_formula;

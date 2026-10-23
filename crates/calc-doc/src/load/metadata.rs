@@ -71,6 +71,11 @@ impl Metadata {
             })
     }
 
+    /// The number of `cellMetadata` records.
+    pub(crate) fn cell_count(&self) -> u32 {
+        u32::try_from(self.cell.len()).unwrap_or(u32::MAX)
+    }
+
     pub(crate) fn value(&self, index: u32) -> ValueMeta {
         index
             .checked_sub(1)
@@ -409,6 +414,11 @@ fn resolve_cell(rc: Option<(u32, u32)>, parsed: &ParsedMetadata) -> CellMeta {
             "cellMetadata rc v={future_index} names no XLDAPR record with dynamicArrayProperties"
         )),
     }
+}
+
+/// The workbook's metadata part, when its relationships name one that the package holds.
+pub(crate) fn part(package: &Package, workbook: &str) -> Option<String> {
+    related(package, workbook, "/sheetMetadata")
 }
 
 /// Reads the workbook's metadata and rich value parts, when it has them.

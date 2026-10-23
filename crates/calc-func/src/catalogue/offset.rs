@@ -1,0 +1,239 @@
+//! The reference-offset family fragment: OFFSET, and ISOMITTED, which LAMBDA parameters need.
+//!
+//! Ported from OxFunc `crates/oxfunc_core/src/functions/offset.rs` (`eval_offset_surface`), which
+//! shifts reference text through a reference-system provider; here the reference is calc-value's
+//! typed area and the shift is computed directly. Where OxFunc and Excel differ, Excel's measured
+//! behaviour is kept (Excel 16.0 through COM, 2026-10-23):
+//!
+//! - `rows` and `cols` read as numbers, truncated; an omitted argument or a blank cell is 0
+//!   (`=OFFSET(A1,,1)` is B1's value, and `=OFFSET(A1,G20,0)` over a blank G20 is A1's), where
+//!   OxFunc gave #VALUE!.
+//! - `height` and `width`, when given, are truncated; 0 is #REF!, and a negative one extends the
+//!   area up or left from the shifted cell (`=OFFSET(A5,0,0,-2)` is A4:A5, a spill), where OxFunc
+//!   gave #REF!. Omitted, they are the reference's own.
+//! - A reference of more than one area is #VALUE!; an area that leaves the grid is #REF!.
+//!
+//! An array given to a numeric argument lifts in calc-fml, which owns lifting; this kernel
+//! refuses one. OFFSET's result is a reference that the formula's own references do not name:
+//! the caller learns what it read from the evaluator, as for INDIRECT.
+
+use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
+use crate::call::{EvalServices, FunctionFault};
+use crate::kernel::{Exit, Site, Step};
+use crate::value::{
+    CalcValue, CallableArityShape, CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, ReferenceLike,
+    WorksheetErrorCode,
+};
+
+const CODE: u16 = 40;
+
+const OFFSET: FunctionId = FunctionId::new(CODE, 1);
+const ISOMITTED: FunctionId = FunctionId::new(CODE, 2);
+
+pub(super) const FAMILY: Family = Family {
+    code: CODE,
+    entries: &[
+        CatalogueEntry {
+            id: OFFSET,
+            spelling: "OFFSET",
+            notation: Notation::Call,
+            arity: CallableArityShape::range(3, 5),
+            parameters: &[
+                Parameter::reference("reference"),
+                Parameter::value("rows"),
+                Parameter::value("cols"),
+                Parameter::value("height"),
+                Parameter::value("width"),
+            ],
+            demand: ArgumentDemand::Eager,
+            kernel: Kernel::Eager(offset),
+        },
+        CatalogueEntry {
+            id: ISOMITTED,
+            spelling: "ISOMITTED",
+            notation: Notation::Call,
+            arity: CallableArityShape::exact(1),
+            parameters: &[Parameter::value("argument")],
+            demand: ArgumentDemand::Eager,
+            kernel: Kernel::Eager(isomitted),
+        },
+    ],
+};
+
+fn offset(
+    arguments: &[CalcValue],
+    services: &mut EvalServices<'_>,
+) -> Result<CalcValue, FunctionFault> {
+    let site = Site::new(OFFSET, services);
+    Site::finish(shifted(&site, arguments))
+}
+
+fn shifted(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
+    site.scalar_operands(arguments)?;
+    let Some(reference) = arguments[0].as_reference() else {
+        return Err(Exit::Error(WorksheetErrorCode::Value));
+    };
+    let [base] = reference.areas() else {
+        return Err(Exit::Error(WorksheetErrorCode::Value));
+    };
+    let rows = whole(site, 1, &arguments[1])?;
+    let cols = whole(site, 2, &arguments[2])?;
+    let height = extent(site, 3, arguments.get(3), base.row_count())?;
+    let width = extent(site, 4, arguments.get(4), base.column_count())?;
+    let top = i64::from(base.first().row()) + rows;
+    let left = i64::from(base.first().column()) + cols;
+    let (top, bottom) = span(top, height);
+    let (left, right) = span(left, width);
+    let on_grid = |low: i64, high: i64, max: u32| low >= 1 && high <= i64::from(max);
+    if !on_grid(top, bottom, MAX_ROWS) || !on_grid(left, right, MAX_COLUMNS) {
+        return Err(Exit::Error(WorksheetErrorCode::Ref));
+    }
+    let sheet = base.sheet();
+    let corner = |row: i64, column: i64| {
+        CellKey::new(sheet, row as u32, column as u32).expect("checked on the grid")
+    };
+    let area = GridArea::new(corner(top, left), corner(bottom, right))
+        .expect("both corners lie on one sheet");
+    Ok(CalcValue::reference(ReferenceLike::area(area)))
+}
+
+/// Argument `index` read as a number and truncated toward zero; a value beyond any grid offset
+/// is kept large enough to leave the grid.
+fn whole(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<i64> {
+    let n = site.number_argument(index, value)?.trunc();
+    Ok(n.clamp(-4_000_000.0, 4_000_000.0) as i64)
+}
+
+/// The height or width argument `index`, truncated: the reference's own `own` when it is not
+/// given, #REF! when it is 0.
+fn extent(site: &Site<'_>, index: usize, value: Option<&CalcValue>, own: u32) -> Step<i64> {
+    match value {
+        None => Ok(i64::from(own)),
+        Some(value) if value.is_missing() => Ok(i64::from(own)),
+        Some(value) => match whole(site, index, value)? {
+            0 => Err(Exit::Error(WorksheetErrorCode::Ref)),
+            n => Ok(n),
+        },
+    }
+}
+
+/// The first and last row (or column) of an extent of `size` from `start`: down or right when it
+/// is positive, up or left when it is negative.
+fn span(start: i64, size: i64) -> (i64, i64) {
+    if size > 0 {
+        (start, start + size - 1)
+    } else {
+        (start + size + 1, start)
+    }
+}
+
+/// ISOMITTED(argument): TRUE when the argument is omitted, as a LAMBDA parameter its call did not
+/// supply is (Excel 16.0, 2026-10-23: `=LAMBDA(x,[y],IF(ISOMITTED(y),x*2,x+y))(5)` is 10 and
+/// `=ISOMITTED(1)` FALSE).
+fn isomitted(
+    arguments: &[CalcValue],
+    _services: &mut EvalServices<'_>,
+) -> Result<CalcValue, FunctionFault> {
+    Ok(CalcValue::logical(arguments[0].is_missing()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::call::{FunctionCallScratch, PreparedArguments};
+    use crate::catalogue::catalogue;
+    use crate::value::{IdAllocator, NumericMode, SheetId};
+
+    struct Given(Vec<CalcValue>);
+
+    impl PreparedArguments for Given {
+        fn count(&self) -> usize {
+            self.0.len()
+        }
+
+        fn argument(&mut self, index: usize) -> CalcValue {
+            self.0[index].clone()
+        }
+    }
+
+    fn call(id: FunctionId, arguments: Vec<CalcValue>) -> Result<CalcValue, FunctionFault> {
+        let mode = NumericMode::Fast;
+        crate::call::invoke(
+            catalogue().resolve(id).unwrap(),
+            &mut Given(arguments),
+            &mut EvalServices::new(&mode),
+            &mut FunctionCallScratch::new(),
+        )
+    }
+
+    fn area(sheet: SheetId, a: (u32, u32), b: (u32, u32)) -> CalcValue {
+        CalcValue::reference(ReferenceLike::area(
+            GridArea::new(
+                CellKey::new(sheet, a.0, a.1).unwrap(),
+                CellKey::new(sheet, b.0, b.1).unwrap(),
+            )
+            .unwrap(),
+        ))
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn offset_shifts_and_resizes() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let s = ids.issue().unwrap();
+        let n = CalcValue::number;
+        let a1 = area(s, (1, 1), (1, 1));
+        assert_eq!(
+            call(OFFSET, vec![a1.clone(), CalcValue::missing(), n(1.0)]),
+            Ok(area(s, (1, 2), (1, 2)))
+        );
+        assert_eq!(
+            call(OFFSET, vec![a1.clone(), CalcValue::empty(), n(0.0)]),
+            Ok(a1.clone())
+        );
+        assert_eq!(
+            call(
+                OFFSET,
+                vec![area(s, (5, 1), (5, 1)), n(0.0), n(0.0), n(-2.0)]
+            ),
+            Ok(area(s, (4, 1), (5, 1)))
+        );
+        assert_eq!(
+            call(OFFSET, vec![a1.clone(), n(1.9), n(2.0), n(2.0), n(3.0)]),
+            Ok(area(s, (2, 3), (3, 5)))
+        );
+        assert_eq!(
+            call(OFFSET, vec![area(s, (1, 1), (2, 2)), n(1.0), n(1.0)]),
+            Ok(area(s, (2, 2), (3, 3)))
+        );
+        for refused in [
+            vec![a1.clone(), n(-1.0), n(0.0)],
+            vec![a1.clone(), n(0.0), n(0.0), n(0.0)],
+        ] {
+            assert_eq!(
+                call(OFFSET, refused),
+                Ok(CalcValue::error(WorksheetErrorCode::Ref))
+            );
+        }
+        assert_eq!(
+            call(
+                OFFSET,
+                vec![a1, CalcValue::error(WorksheetErrorCode::NA), n(0.0)]
+            ),
+            Ok(CalcValue::error(WorksheetErrorCode::NA))
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn isomitted_is_true_only_for_an_omitted_argument() {
+        assert_eq!(
+            call(ISOMITTED, vec![CalcValue::missing()]),
+            Ok(CalcValue::logical(true))
+        );
+        assert_eq!(
+            call(ISOMITTED, vec![CalcValue::number(1.0)]),
+            Ok(CalcValue::logical(false))
+        );
+    }
+}

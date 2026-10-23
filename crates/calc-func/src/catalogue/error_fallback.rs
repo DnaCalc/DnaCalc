@@ -13,7 +13,7 @@
 //! for each of bead dc-ibp2's oracle rows on these points.
 //!
 //! An array `value` is refused as not modelled: Excel lifts both entries over its elements, which
-//! array evaluation owns (bead cfml-m3.4). So is a callable `value`, whose worksheet-visible core is
+//! array evaluation owns (dc-mzk, in calc-fml). So is a callable `value`, whose worksheet-visible core is
 //! #CALC! but which is not a worksheet error until it reaches a cell (LAMBDA, bead cfml-m2.3). A
 //! fallback that is an array or a callable is refused the same way, naming argument 1, when it is
 //! asked for: an array result would be lifted or spilled, which the same beads own.

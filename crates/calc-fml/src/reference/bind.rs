@@ -30,6 +30,38 @@ pub trait ReferenceCatalog {
     /// qualifier's sheet name as written, without quotes or `!` (`It's` for `'It''s'!A1`); the
     /// catalogue matches it as Excel matches sheet names, regardless of case.
     fn sheet_named(&self, name: &str) -> Option<SheetId>;
+
+    /// The defined name `name` (as written, matched regardless of case as Excel matches names)
+    /// seen from `scope`. The default is [`NameDefinition::NotModelled`]: a catalogue that does
+    /// not carry the workbook's defined names says so, and a formula that uses a name is then
+    /// refused rather than given #NAME?.
+    fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition {
+        let _ = (name, scope);
+        NameDefinition::NotModelled
+    }
+}
+
+/// Where a defined name is looked up from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NameScope {
+    /// An unqualified name in a formula on this sheet: the sheet's own name of that spelling,
+    /// else the workbook's.
+    Formula(SheetId),
+    /// A name qualified by this sheet (`Sheet2!TaxRate`): that sheet's own name.
+    Sheet(SheetId),
+}
+
+/// What a defined name is, as a [`ReferenceCatalog`] gives it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum NameDefinition {
+    /// The name's formula in A1 notation, with or without a leading `=` (`Sheet1!$B$2`,
+    /// `0.05`, `LAMBDA(x,x+1)`), as a file's `definedName` element holds it. Its references are
+    /// bound as a file stores them, relative to cell A1; one that is relative is refused.
+    Formula(String),
+    /// The workbook has no such name: Excel's #NAME?.
+    Unknown,
+    /// The catalogue does not carry defined names.
+    NotModelled,
 }
 
 /// One reference of a formula, or one stretch of syntax the parser refused, and what it bound to.
@@ -430,6 +462,20 @@ fn endpoint(node: &SyntaxNode) -> Option<(Qualifier, &Token)> {
             Some((qualifier, only_token(target)?))
         }
     }
+}
+
+/// The sheet name and the name token of a name qualified by one sheet (`Sheet2!TaxRate`,
+/// `'Q2 Data'!Rate`), when `node` is one.
+pub(crate) fn qualified_name(node: &SyntaxNode) -> Option<(String, &Token)> {
+    let (qualifier, target) = qualified_parts(node)?;
+    let Qualifier::Sheet(sheet) = qualifier else {
+        return None;
+    };
+    let token = match target.children() {
+        [SyntaxChild::Token(token)] if target.kind() == SyntaxKind::IdentifierExpr => token,
+        _ => return None,
+    };
+    Some((sheet, token))
 }
 
 /// The qualifier of a qualified operand and the operand it qualifies.

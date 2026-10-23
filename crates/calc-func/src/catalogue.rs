@@ -29,6 +29,7 @@ mod information;
 mod logical;
 mod lookup;
 mod math;
+mod offset;
 mod reference_text;
 mod random;
 mod rounding;
@@ -39,7 +40,7 @@ mod text;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 18] = [
+const FAMILIES: [&Family; 19] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -58,6 +59,7 @@ const FAMILIES: [&Family; 18] = [
     &rounding_more::FAMILY,
     &subtotal::FAMILY,
     &random::FAMILY,
+    &offset::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);

@@ -13,6 +13,25 @@ pub trait ReferenceReader {
     /// next. The runs cover every cell of the area exactly once, so blank and unsupplied cells
     /// are counted, not skipped. Once `sink` returns [`ControlFlow::Break`] the reader stops.
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>);
+
+    /// The range spilled from the dynamic-array formula at `anchor`, which a spill reference
+    /// (`A1#`) names. The default is [`SpillExtent::NotModelled`]: a reader that does not know
+    /// spills says so, and the reference is refused.
+    fn spill_extent(&mut self, anchor: CellKey) -> SpillExtent {
+        let _ = anchor;
+        SpillExtent::NotModelled
+    }
+}
+
+/// What a [`ReferenceReader`] knows of the range spilled from a cell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpillExtent {
+    /// The cell's formula spills over this area, the cell its first.
+    Area(GridArea),
+    /// The cell spills nothing: the spill reference is #REF!.
+    None,
+    /// The reader does not know spills.
+    NotModelled,
 }
 
 /// Consecutive cells of a read, in row-major order.

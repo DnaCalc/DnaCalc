@@ -3,7 +3,9 @@
 //! strings, the calculation chain and `calcPr`; for a changed skin layout, the view manifest and
 //! the workbook part's locator names.
 
+use super::array_metadata::{self, ArrayMetadata};
 use super::diff::{SheetChanges, sheet_changes};
+use super::file_form::{FileForm, file_form};
 use super::manifest::{self, NewManifest};
 use super::parts::{self, NameChanges, NewRelationship};
 use super::reader::Reader;
@@ -18,7 +20,7 @@ use crate::load::{self, LoadError, SHARED_STRINGS};
 use crate::opc::{Package, TargetMode};
 use crate::xml::XmlElement;
 use calc_doc_model::value::{CellKey, GridArea};
-use calc_doc_model::{CellInput, SheetName};
+use calc_doc_model::{CellInput, DefinedName, SheetName};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -126,6 +128,16 @@ fn check_tables(
 /// moved it from the group's text.
 fn check_formulas(sheet_part: &str, changes: &SheetChanges) -> Result<(), SaveRefusal> {
     for (&(row, column), input) in changes {
+        if let Some(CellInput::Error(code)) = input
+            && !crate::edit::error_constant_writable(*code)
+        {
+            return Err(SaveRefusal::ErrorConstant {
+                part: sheet_part.to_owned(),
+                row,
+                column,
+                code: *code,
+            });
+        }
         let Some(CellInput::Formula(formula)) = input else {
             continue;
         };
@@ -148,6 +160,29 @@ fn check_formulas(sheet_part: &str, changes: &SheetChanges) -> Result<(), SaveRe
         })?;
     }
     Ok(())
+}
+
+/// The file form of each formula `changes` set, by (row, column): its text with Excel's prefixes
+/// and whether it is written as a dynamic array.
+fn file_forms(
+    sheet_part: &str,
+    changes: &SheetChanges,
+    names: &[DefinedName],
+) -> Result<BTreeMap<(u32, u32), FileForm>, SaveRefusal> {
+    let mut forms = BTreeMap::new();
+    for (&(row, column), input) in changes {
+        let Some(CellInput::Formula(formula)) = input else {
+            continue;
+        };
+        let form = file_form(formula, names).map_err(|error| SaveRefusal::FormulaFileForm {
+            part: sheet_part.to_owned(),
+            row,
+            column,
+            error,
+        })?;
+        forms.insert((row, column), form);
+    }
+    Ok(forms)
 }
 
 /// A part name beside the workbook part, `folder/<stem>.xml` or, when the package holds a part of
@@ -290,11 +325,34 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     }
     let mut chain = None;
     let mut new_strings = None;
+    let mut dynamic_cm = None;
+    let mut new_metadata: Option<((String, String), Vec<u8>)> = None;
     if cells_changed {
+        let mut forms = Vec::with_capacity(sheets.len());
         for (sheet, changes) in sheets.iter().zip(&changes) {
             if !changes.is_empty() {
                 check_formulas(sheet.part().name(), changes)?;
                 check_tables(package, sheet.part().name(), changes)?;
+            }
+            forms.push(file_forms(
+                sheet.part().name(),
+                changes,
+                model.definitions().names(),
+            )?);
+        }
+        // The cell metadata an authored dynamic array names, found or made in the metadata part.
+        if forms.iter().flatten().any(|(_, form)| form.dynamic) {
+            match array_metadata::array_metadata(package, workbook_part)? {
+                ArrayMetadata::Present { cm } => dynamic_cm = Some(cm),
+                ArrayMetadata::Rewrite { cm, part, content } => {
+                    dynamic_cm = Some(cm);
+                    out.rewritten.insert(part, content);
+                }
+                ArrayMetadata::Create { content } => {
+                    dynamic_cm = Some(1);
+                    new_metadata =
+                        Some((new_part_name(package, workbook_part, "metadata"), content));
+                }
             }
         }
         // The areas the loaded array formulas of each sheet fill, whose cells beside the anchor
@@ -343,8 +401,12 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         let strings_part = load::workbook_part_of(package, workbook_part, SHARED_STRINGS)
             .map_err(|error| load_refusal(workbook_part, error))?;
         let mut strings = SharedStrings::read(package, strings_part.as_deref())?;
-        for (((sheet, changes), rewrite), cleared) in
-            sheets.iter().zip(&changes).zip(&rewritten).zip(&cleared)
+        for ((((sheet, changes), rewrite), cleared), forms) in sheets
+            .iter()
+            .zip(&changes)
+            .zip(&rewritten)
+            .zip(&cleared)
+            .zip(&forms)
         {
             if !rewrite {
                 continue;
@@ -354,6 +416,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             let job = Job {
                 changes,
                 cleared,
+                forms,
+                dynamic_cm,
                 loaded: sheet,
                 model,
             };
@@ -416,6 +480,11 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     if let Some((name, target)) = &new_strings {
         relationships_added.push((SHARED_STRINGS, target.clone()));
         overrides.push((name.clone(), strings::CONTENT_TYPE));
+    }
+    if let Some(((name, target), content)) = new_metadata {
+        relationships_added.push((array_metadata::RELATIONSHIP, target));
+        overrides.push((name.clone(), array_metadata::CONTENT_TYPE));
+        out.added.push((name, content));
     }
     match layout.map(|layout| layout.manifest) {
         Some(ManifestChange::Rewrite { part, content }) => {

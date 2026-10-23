@@ -10,8 +10,8 @@
 
 use crate::result::{Calculation, FormulaResult};
 use crate::state::EngineState;
-use calc_doc_model::{CellInput, ModelRoot};
-use calc_fml::reference::{CellRun, ReferenceReader};
+use calc_doc_model::{CellInput, ModelRoot, NameScope};
+use calc_fml::reference::{CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader};
 use calc_fml::{EvalFault, EvaluationReport, ExecutedCall, ReferenceCatalog};
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -137,6 +137,45 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
                     })
             })
             .map(|sheet| sheet.id())
+    }
+
+    /// The snapshot's defined name `name`, matched as sheet names are, from `scope`: the formula
+    /// sheet's own name first, then the workbook's; for a qualified name, the sheet's own. A name
+    /// the snapshot does not hold is unknown (#NAME?). A macro or VBA name, and a qualified name
+    /// that only the workbook holds, are not modelled.
+    fn defined_name(&self, name: &str, scope: FmlNameScope) -> NameDefinition {
+        let same = |held: &str| {
+            held == name
+                || held
+                    .chars()
+                    .flat_map(char::to_uppercase)
+                    .eq(name.chars().flat_map(char::to_uppercase))
+        };
+        let names = self.0.definitions().names();
+        let find = |wanted: NameScope| {
+            names
+                .iter()
+                .find(|defined| defined.scope == wanted && same(&defined.name))
+        };
+        let found = match scope {
+            FmlNameScope::Formula(sheet) => {
+                find(NameScope::Sheet(sheet)).or_else(|| find(NameScope::Workbook))
+            }
+            FmlNameScope::Sheet(sheet) => match find(NameScope::Sheet(sheet)) {
+                Some(defined) => Some(defined),
+                None if find(NameScope::Workbook).is_some() => {
+                    return NameDefinition::NotModelled;
+                }
+                None => None,
+            },
+        };
+        match found {
+            None => NameDefinition::Unknown,
+            Some(defined) if defined.function || defined.vb_procedure || defined.xlm => {
+                NameDefinition::NotModelled
+            }
+            Some(defined) => NameDefinition::Formula(defined.formula.clone()),
+        }
     }
 }
 

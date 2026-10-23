@@ -6,8 +6,10 @@
 //! missing cell so that the evaluation reports which input it lacked.
 
 use super::run::EvalFault;
-use crate::reference::{CellRun, ReadContractError, ReferenceReader, read_cells};
-use calc_func::value::{CalcValue, CellKey, GridArea, ReferenceLike};
+use crate::reference::{CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells};
+use calc_func::value::{
+    ArrayShape, CalcArray, CalcValue, CellKey, GridArea, ReferenceLike, WorksheetErrorCode,
+};
 use calc_func::{CellReader, Unreadable};
 use std::cell::{Cell, RefCell};
 use std::ops::ControlFlow;
@@ -59,8 +61,8 @@ impl<'r> SharedReader<'r> {
 
     /// The value of a single-cell reference, where one value is needed: the cell's value, or
     /// [`CalcValue::empty`] for a blank cell. A reference to more than one cell is
-    /// [`EvalFault::AreaAsValue`]: Excel gives such a reference one value by implicit
-    /// intersection or spills it as an array, neither of which is modelled.
+    /// [`EvalFault::AreaAsValue`]; the evaluator intersects or lifts such a reference before it
+    /// asks for a value.
     pub(super) fn value_of(&self, reference: &ReferenceLike) -> Result<CalcValue, EvalFault> {
         let area = match reference.areas() {
             [area] if area.cell_count() == 1 => *area,
@@ -88,7 +90,70 @@ impl<'r> SharedReader<'r> {
             covered: 0,
         }))
     }
+
+    /// The values of a reference as an array, where a dynamic-array formula lifts over a range:
+    /// a reference to one cell is the cell's value, a larger area the array of its values (a blank
+    /// cell [`CalcValue::empty`]), and a reference of more than one area #VALUE!. An area of more
+    /// than `MAX_LIFTED_CELLS` cells is refused as not modelled.
+    pub(super) fn values_of(&self, reference: &ReferenceLike) -> Result<CalcValue, EvalFault> {
+        let area = match reference.areas() {
+            [area] if area.cell_count() == 1 => return self.value_of(reference),
+            [area] => *area,
+            _ => return Ok(CalcValue::error(WorksheetErrorCode::Value)),
+        };
+        if area.cell_count() > MAX_LIFTED_CELLS {
+            return Err(EvalFault::NotModelled {
+                construct: "a range of more than 2^24 cells lifted as an array",
+                owner: "dc-mzk",
+            });
+        }
+        let total = area.cell_count() as usize;
+        let mut cells = vec![CalcValue::empty(); total];
+        let width = u64::from(area.column_count());
+        let first = area.first();
+        let mut missing = None;
+        let mut reader = self.reader.borrow_mut();
+        let read = read_cells(&mut **reader, area, &mut |start, run| {
+            let offset = u64::from(start.row() - first.row()) * width
+                + u64::from(start.column() - first.column());
+            match run {
+                CellRun::Values(values) => {
+                    for (index, value) in values.iter().enumerate() {
+                        cells[offset as usize + index] = value.clone();
+                    }
+                    ControlFlow::Continue(())
+                }
+                CellRun::Blank(_) => ControlFlow::Continue(()),
+                CellRun::Missing(_) => {
+                    missing = Some(start);
+                    ControlFlow::Break(())
+                }
+            }
+        });
+        drop(reader);
+        if let Err(error) = read {
+            return Err(EvalFault::ReadContract(error));
+        }
+        if let Some(cell) = missing {
+            return Err(EvalFault::MissingInput { cell });
+        }
+        let shape = ArrayShape {
+            rows: area.row_count() as usize,
+            cols: area.column_count() as usize,
+        };
+        Ok(CalcValue::array(
+            CalcArray::new(shape, cells).expect("one value per cell of the area"),
+        ))
+    }
+
+    /// The range spilled from `anchor`, as the caller's reader knows it.
+    pub(super) fn spill_extent(&self, anchor: CellKey) -> SpillExtent {
+        self.reader.borrow_mut().spill_extent(anchor)
+    }
 }
+
+/// The largest range lifted as an array: 2^24 cells, sixteen whole columns.
+const MAX_LIFTED_CELLS: u64 = 1 << 24;
 
 /// The shared reader as calc-func's [`CellReader`].
 pub(super) struct ReaderCells<'a, 'r> {

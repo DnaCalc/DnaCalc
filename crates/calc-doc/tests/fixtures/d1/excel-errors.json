@@ -1,0 +1,141 @@
+﻿{
+    "excel":  "16.0 build 20430",
+    "metadata_part":  false,
+    "rows":  [
+                 {
+                     "typed":  "#NULL!",
+                     "shown":  "#NULL!",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#NULL!",
+                     "error_type":  "1",
+                     "reopened":  "#NULL!"
+                 },
+                 {
+                     "typed":  "#DIV/0!",
+                     "shown":  "#DIV/0!",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#DIV/0!",
+                     "error_type":  "2",
+                     "reopened":  "#DIV/0!"
+                 },
+                 {
+                     "typed":  "#VALUE!",
+                     "shown":  "#VALUE!",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#VALUE!",
+                     "error_type":  "3",
+                     "reopened":  "#VALUE!"
+                 },
+                 {
+                     "typed":  "#REF!",
+                     "shown":  "#REF!",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#REF!",
+                     "error_type":  "4",
+                     "reopened":  "#REF!"
+                 },
+                 {
+                     "typed":  "#NAME?",
+                     "shown":  "#NAME?",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#NAME?",
+                     "error_type":  "5",
+                     "reopened":  "#NAME?"
+                 },
+                 {
+                     "typed":  "#NUM!",
+                     "shown":  "#NUM!",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#NUM!",
+                     "error_type":  "6",
+                     "reopened":  "#NUM!"
+                 },
+                 {
+                     "typed":  "#N/A",
+                     "shown":  "#N/A",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#N/A",
+                     "error_type":  "7",
+                     "reopened":  "#N/A"
+                 },
+                 {
+                     "typed":  "#GETTING_DATA",
+                     "shown":  "########",
+                     "t":  "e",
+                     "vm":  "",
+                     "v":  "#N/A",
+                     "error_type":  "8",
+                     "reopened":  "#N/A"
+                 },
+                 {
+                     "typed":  "#SPILL!",
+                     "shown":  "#SPILL!",
+                     "t":  "s",
+                     "vm":  "",
+                     "v":  "0",
+                     "error_type":  "#N/A",
+                     "reopened":  "#SPILL!"
+                 },
+                 {
+                     "typed":  "#CALC!",
+                     "shown":  "#CALC!",
+                     "t":  "s",
+                     "vm":  "",
+                     "v":  "1",
+                     "error_type":  "#N/A",
+                     "reopened":  "#CALC!"
+                 },
+                 {
+                     "typed":  "#FIELD!",
+                     "shown":  "#FIELD!",
+                     "t":  "s",
+                     "vm":  "",
+                     "v":  "2",
+                     "error_type":  "#N/A",
+                     "reopened":  "#FIELD!"
+                 },
+                 {
+                     "typed":  "#BLOCKED!",
+                     "shown":  "#BLOCKED!",
+                     "t":  "s",
+                     "vm":  "",
+                     "v":  "3",
+                     "error_type":  "#N/A",
+                     "reopened":  "#BLOCKED!"
+                 },
+                 {
+                     "typed":  "#CONNECT!",
+                     "shown":  "#CONNECT!",
+                     "t":  "s",
+                     "vm":  "",
+                     "v":  "4",
+                     "error_type":  "#N/A",
+                     "reopened":  "#CONNECT!"
+                 },
+                 {
+                     "typed":  "#BUSY!",
+                     "shown":  "#BUSY!",
+                     "t":  "s",
+                     "vm":  "",
+                     "v":  "5",
+                     "error_type":  "#N/A",
+                     "reopened":  "#BUSY!"
+                 },
+                 {
+                     "typed":  "#UNKNOWN!",
+                     "shown":  "#UNKNOWN!",
+                     "t":  "s",
+                     "vm":  "",
+                     "v":  "6",
+                     "error_type":  "#N/A",
+                     "reopened":  "#UNKNOWN!"
+                 }
+             ]
+}

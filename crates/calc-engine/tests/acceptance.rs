@@ -24,9 +24,10 @@ use calc_doc_model::value::{
     NumericMode, NumericTargetId, SheetId,
 };
 use calc_doc_model::{
-    AuthoredRevision, Axis, AxisChange, AxisEdit, CachedValue, CellInput, CellText, FileCached,
-    FiniteNumber, FormulaText, ModelRoot, OpBatch, SheetEdit, SheetEntry, SheetKey, SheetName,
-    SheetVisibility, SourcePart, WorkbookOp,
+    ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, CachedValue, CellInput,
+    CellText, DefinedName, Definitions, FileCached, FiniteNumber, FormulaText, ModelRoot,
+    NameScope, OpBatch, SheetEdit, SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayout,
+    SourcePart, WorkbookOp,
 };
 use calc_engine::{
     AxisInterval, CacheWithoutFormula, EngineState, FormulaNode, FormulaResult, InputSeed,
@@ -2126,7 +2127,11 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(6, 1), formula("SUM(Data:Calc!A1)")),
             set(c(7, 1), unpaired),
             set(c(8, 1), formula("0.1+0.2-0.3")),
-            set(c(9, 1), formula("Data!A1:A2")),
+            // A range where a legacy formula takes one value at a place whose evaluation is not
+            // modelled (XLOOKUP's lookup array; dc-mzk): a typed refusal. (A range at the
+            // formula's root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9
+            // is #VALUE!.)
+            set(c(9, 1), formula("_xlfn.XLOOKUP(1,Data!A1:A2*1,Data!A1:A2)")),
             set(c(1, 3), formula("A2*2")),
         ],
     );
@@ -3306,4 +3311,223 @@ fn dc_qguw__published_value_differs() {
             ("evaluations.json", encoded.as_bytes()),
         ],
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// L1 (dc-mzk) through the engine's route: formulas that use defined names (workbook and sheet
+// scope, named LAMBDAs), array constants, LET, LAMBDA, the reference operators and OFFSET are
+// bound by begin_recalc through CalcFml, with the snapshot's names, and calculated by step. Every
+// expected value is derived by hand from the literals and the formula texts.
+
+fn l1_name(name: &str, scope: NameScope, formula: &str) -> DefinedName {
+    DefinedName {
+        name: name.to_owned(),
+        scope,
+        formula: formula.to_owned(),
+        hidden: false,
+        comment: None,
+        function: false,
+        vb_procedure: false,
+        xlm: false,
+    }
+}
+
+/// Builds a two-sheet workbook (Data, Calc) with `cells` and `names`, recalculates it once and
+/// gives the state.
+fn l1_calculated(
+    cells: Vec<(CellKey, CellInput)>,
+    names: Vec<DefinedName>,
+    sheets: (SheetId, SheetId),
+) -> EngineState {
+    l1_calculated_with(cells, names, vec![], sheets)
+}
+
+/// [`l1_calculated`] with the array formulas `arrays`.
+fn l1_calculated_with(
+    cells: Vec<(CellKey, CellInput)>,
+    names: Vec<DefinedName>,
+    arrays: Vec<ArrayFormula>,
+    sheets: (SheetId, SheetId),
+) -> EngineState {
+    let entries = vec![
+        sheet_entry(sheets.0, 1, "Data"),
+        sheet_entry(sheets.1, 2, "Calc"),
+    ];
+    let root: Arc<ModelRoot> = ModelRoot::with_definitions(
+        AuthoredRevision::new(0),
+        entries,
+        cells,
+        SkinLayout::default(),
+        Definitions::new(arrays, names, vec![], []),
+    )
+    .unwrap();
+    let mut state = EngineState::new(&root);
+    let mut work = begin_recalc(&mut state, &root, NumericMode::Fast).unwrap();
+    assert_eq!(
+        step(
+            &state,
+            &root,
+            &mut work,
+            WorkBudget::UNLIMITED,
+            &mut Unobserved
+        ),
+        RecalcProgress::Complete
+    );
+    finish(&mut state, work).unwrap();
+    state
+}
+
+fn l1_value(state: &EngineState, at: CellKey) -> CalcValue {
+    match state.result(at) {
+        Some(FormulaResult::Calculated { value, .. }) => value.clone(),
+        other => panic!("{at:?}: {other:?}"),
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_mzk__l1_through_the_engine() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let mut cells = vec![
+        (d(1, 1), number(10.0)),
+        (d(2, 1), number(20.0)),
+        (d(3, 1), number(30.0)),
+        (d(1, 2), number(0.25)),
+    ];
+    let formulas = [
+        // 10+20+30.
+        (c(1, 1), "SUM(Inputs)"),
+        // Calc's own Rate, 0.5, shadows the workbook's: 60 * (1 + 0.5).
+        (c(2, 1), "SUM(Inputs)*(1+Rate)"),
+        (c(3, 1), "Rate"),
+        // On Data the workbook's Rate, Data!B1: 0.25.
+        (d(1, 3), "Rate*1"),
+        // The named LAMBDA: 7^2.
+        (c(4, 1), "Square(7)"),
+        // An array constant: 1+2+3+4.
+        (c(5, 1), "SUM({1,2;3,4})"),
+        // LET and a LET-bound LAMBDA, in the file form: (5+1)*2.
+        (
+            c(6, 1),
+            "_xlfn.LET(_xlpm.f,_xlfn.LAMBDA(_xlpm.x,_xlpm.x+1),_xlpm.f(5)*2)",
+        ),
+        // OFFSET from Data!A1 down two rows: 30.
+        (c(7, 1), "OFFSET(Data!A1,2,0)"),
+        // The union: 10 + 30.
+        (c(8, 1), "SUM((Data!A1,Data!A3))"),
+        // The intersection of A1:A3 and A2:B2: 20.
+        (c(9, 1), "SUM(Data!A1:A3 Data!A2:B2)"),
+        // A name the workbook does not hold: #NAME?.
+        (c(10, 1), "NoSuchName"),
+        // A legacy formula intersects a range with its own row: Calc!A2 is row 2, Data!A2 = 20.
+        (c(2, 3), "Data!A1:A3*1"),
+        // SUMPRODUCT lifts: 10*1 + 20*2 + 30*3.
+        (c(1, 4), "SUMPRODUCT(Data!A1:A3*{1;2;3})"),
+    ];
+    cells.extend(formulas.iter().map(|(at, text)| (*at, formula(text))));
+    let names = vec![
+        l1_name("Inputs", NameScope::Workbook, "Data!$A$1:$A$3"),
+        l1_name("Rate", NameScope::Workbook, "Data!$B$1"),
+        l1_name("Rate", NameScope::Sheet(calc), "0.5"),
+        l1_name(
+            "Square",
+            NameScope::Workbook,
+            "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*_xlpm.x)",
+        ),
+    ];
+    let state = l1_calculated(cells, names, (data, calc));
+    let n = CalcValue::number;
+    for (at, expected) in [
+        (c(1, 1), n(60.0)),
+        (c(2, 1), n(90.0)),
+        (d(1, 3), n(0.25)),
+        (c(3, 1), n(0.5)),
+        (c(4, 1), n(49.0)),
+        (c(5, 1), n(10.0)),
+        (c(6, 1), n(12.0)),
+        (c(7, 1), n(30.0)),
+        (c(8, 1), n(40.0)),
+        (c(9, 1), n(20.0)),
+        (
+            c(10, 1),
+            CalcValue::error(calc_doc_model::value::WorksheetErrorCode::Name),
+        ),
+        (c(2, 3), n(20.0)),
+        (c(1, 4), n(140.0)),
+    ] {
+        assert_eq!(l1_value(&state, at), expected, "{at:?}");
+    }
+}
+
+/// OFFSET into a formula cell the schedule orders later: the engine cannot order a reference the
+/// evaluation computed (L2 owns dynamic dependencies), so that formula is refused and every other
+/// formula still calculates.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_mzk__offset_into_a_later_formula_cell() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        // Calc!A1 reads Calc!B1 and, through OFFSET, Calc!A5, which comes later in the schedule.
+        (c(1, 1), formula("OFFSET(B1,4,-1)")),
+        (c(2, 1), formula("1+1")),
+        (c(5, 1), formula("2*3")),
+    ];
+    let state = l1_calculated(cells, vec![], (data, calc));
+    assert_eq!(l1_value(&state, c(2, 1)), CalcValue::number(2.0));
+    assert_eq!(l1_value(&state, c(5, 1)), CalcValue::number(6.0));
+    match state.result(c(1, 1)) {
+        Some(FormulaResult::NotModeled {
+            refusal: NotModeled::Evaluation(EvalFault::NotModelled { owner, .. }),
+            ..
+        }) => assert_eq!(*owner, "dc-0k9"),
+        other => panic!("{other:?}"),
+    }
+}
+
+/// An array formula of one cell evaluates as an array formula: a legacy (Ctrl+Shift+Enter) one
+/// shows the first element of its result, a dynamic-array one its one value; one that fills more
+/// cells is refused as a spill. Hand-derived: Data!A1:A3 = 10, 20, 30, so SUM(A1:A3*{1;2;3}) is
+/// 140 and A1:A3*2 starts with 20.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_mzk__one_cell_array_formulas() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (d(1, 1), number(10.0)),
+        (d(2, 1), number(20.0)),
+        (d(3, 1), number(30.0)),
+        (c(1, 1), formula("SUM(Data!A1:A3*Data!A1:A3/10)")),
+        (c(2, 1), formula("Data!A1:A3*2")),
+        (c(3, 1), formula("SUM(Data!A1:A3*{1;2;3})")),
+        (c(5, 1), formula("Data!A1:A3*2")),
+    ];
+    let one = |at: CellKey, kind| ArrayFormula::new(GridArea::cell(at), kind);
+    let arrays = vec![
+        one(c(1, 1), ArrayKind::Legacy),
+        one(c(2, 1), ArrayKind::Legacy),
+        one(c(3, 1), ArrayKind::Dynamic { collapsed: false }),
+        ArrayFormula::new(
+            GridArea::new(c(5, 1), c(7, 1)).unwrap(),
+            ArrayKind::Dynamic { collapsed: false },
+        ),
+    ];
+    let state = l1_calculated_with(cells, vec![], arrays, (data, calc));
+    assert_eq!(l1_value(&state, c(1, 1)), CalcValue::number(140.0));
+    assert_eq!(l1_value(&state, c(2, 1)), CalcValue::number(20.0));
+    assert_eq!(l1_value(&state, c(3, 1)), CalcValue::number(140.0));
+    assert!(matches!(
+        state.result(c(5, 1)),
+        Some(FormulaResult::NotModeled {
+            refusal: NotModeled::ArrayFormula(_),
+            ..
+        })
+    ));
 }

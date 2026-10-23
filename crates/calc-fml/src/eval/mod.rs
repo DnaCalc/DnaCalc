@@ -32,18 +32,24 @@
 //! ([`EvaluationServices::with_catalog`]) and the instance's anchor. Without a catalogue, calc-func
 //! refuses the call as not modelled.
 
+mod builtins;
 mod cells;
+mod closure;
 mod compile;
+mod legacy;
+mod lift;
+mod refops;
 mod run;
 
-pub use compile::{CompileError, compile, compile_loaded};
-pub use run::{EvalFault, evaluate};
+pub use compile::{CompileError, compile, compile_loaded, compile_loaded_with, compile_with};
+pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
 
 use crate::reference::{
     FormulaAnchor, PlacementError, ReferenceCatalog, ReferenceOperand, ReferenceReader,
 };
 use calc_func::value::{
-    CalcValue, ExcelText, GridArea, NumericMode, ReferenceLike, WorksheetErrorCode,
+    ArrayShape, CalcArray, CalcValue, ExcelText, GridArea, NumericMode, ReferenceLike,
+    WorksheetErrorCode,
 };
 use calc_func::{FunctionCallScratch, FunctionCallTarget};
 use std::collections::HashSet;
@@ -66,6 +72,31 @@ use std::sync::Arc;
 pub struct CompiledPlan {
     blocks: Box<[Box<[Instruction]>]>,
     references: Box<[ReferenceOperand]>,
+    form: FormulaForm,
+}
+
+/// How a formula's text is evaluated where a range or an array meets a place that takes one
+/// value, and how its result is published.
+///
+/// Excel keeps two forms of a cell formula. A dynamic-array formula (entered in Excel 365, or set
+/// through `Range.Formula2`) lifts: a function of single values given a range or an array runs on
+/// each element, and a result of more than one value spills. A legacy formula (every formula a
+/// file holds without dynamic-array cell metadata, or one set through `Range.Formula`) takes one
+/// value by implicit intersection where Excel 365 shows an `@` in its `Formula2` text: a range at
+/// a single-value parameter or an operator's operand gives the cell in the formula's row or
+/// column, and the formula's result is one value. Inside an array parameter (SUMPRODUCT's,
+/// LOOKUP's vectors, INDEX's array) a legacy formula lifts too. Measured on Excel 16.0 through COM
+/// on 2026-10-23 (`Range.Formula` entry, then `Range.Formula2` and the value): `=SUM(A1:A3*2)` in
+/// row 2 is `=SUM(@A1:A3*2)`, 4; `=SUMPRODUCT(A1:A3*2)` keeps no `@`, 12; `=SUM(ABS({-1,-2}))`
+/// keeps no `@`, 3; `=ABS({-1,-2})` is `=ABS(@{-1,-2})`, 1; `=SUMPRODUCT(IF(A1:A3>1,1,0))` is
+/// `=SUMPRODUCT(IF(@A1:A3>1,1,0))`, 1.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FormulaForm {
+    /// Implicit intersection where Excel 365 writes `@` for a legacy formula; the `legacy`
+    /// module says where it applies and where this package refuses rather than guess.
+    Legacy,
+    /// Lifting and spilling, as a dynamic-array formula.
+    Dynamic,
 }
 
 impl CompiledPlan {
@@ -74,6 +105,30 @@ impl CompiledPlan {
     pub fn references(&self) -> &[ReferenceOperand] {
         &self.references
     }
+
+    /// The form the plan was compiled in.
+    pub fn form(&self) -> FormulaForm {
+        self.form
+    }
+}
+
+/// How a call admits a range of more than one cell, or an array, given to a parameter that takes
+/// one value (an operator's operand included). Compile decides it from the formula's form and
+/// the argument's place in the formula (the `legacy` module).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Admission {
+    /// The call runs on each element (a range as the array of its values), and its result is the
+    /// array of the results: a dynamic-array formula, or an array parameter of a legacy one.
+    Lift,
+    /// A range gives the cell implicit intersection picks, and an array its first element: a
+    /// legacy formula's single-value place on the way to its result.
+    IntersectAll,
+    /// A range gives the cell implicit intersection picks, and an array lifts: a legacy formula
+    /// inside a parameter that takes a reference (SUM's).
+    IntersectReferences,
+    /// A range or an array there is refused: a legacy formula whose evaluation at this place is
+    /// not modelled.
+    Refuse,
 }
 
 /// One step of a plan.
@@ -91,19 +146,53 @@ enum Instruction {
     /// cell's value) stay on the stack beneath the result instead of being popped. With
     /// `synthetic`, compile inserted the call (a negation of the near-zero check) and the formula
     /// did not write it.
+    ///
+    /// `admission` says how a range or an array given to a single-value parameter is admitted.
     Call {
         target: Target,
         argc: usize,
         retain: bool,
         synthetic: bool,
+        admission: Admission,
     },
     /// Calls the lazy entry `target`, whose argument `i` is block `first_block + i`; it pushes the
-    /// result.
+    /// result. When its first argument, which decides, is an array (or a range admitted as one),
+    /// every argument runs and the call lifts over the arrays.
     LazyCall {
         target: Target,
         first_block: usize,
         argc: usize,
+        admission: Admission,
     },
+    /// Pops two references and pushes the reference from the top-left of the two to their
+    /// bottom-right (the range operator `:` between references that are not one written range).
+    Range,
+    /// Pops two references and pushes their intersection (the intersection operator, a space).
+    Intersect,
+    /// Pops `.0` references and pushes the multi-area reference of all their areas (the union
+    /// operator `,`).
+    Union(usize),
+    /// Pops a value and pushes the one value implicit intersection takes of it (`@`).
+    Implicit,
+    /// Pops a reference to one cell and pushes the reference to the range spilled from it (`#`).
+    Spill,
+    /// Pushes local `.0` of the current frame: a LET name or a LAMBDA parameter.
+    Local(u32),
+    /// Pops a value into local `.0` of the current frame, forgetting the locals after it.
+    Store(u32),
+    /// Pushes a LAMBDA value whose body is block `block`: it takes `params` arguments, the first
+    /// `required` of them required, and captures the current frame's first `captured` locals.
+    Lambda {
+        block: usize,
+        params: u32,
+        required: u32,
+        captured: u32,
+    },
+    /// Pops `argc` arguments and the value beneath them, which must be a LAMBDA value, and pushes
+    /// the result of calling it.
+    Invoke { argc: usize },
+    /// Runs block `.0`, a defined name's formula, in a frame of its own and pushes its value.
+    Name(usize),
     /// Pushes a copy of the value `.0` places below the top of the stack (0 is the top).
     Copy(usize),
     /// Starts the check of the formula's final infix `+` or `-`, whose call retained its two
@@ -126,6 +215,12 @@ enum Literal {
     Text(ExcelText),
     Logical(bool),
     Error(WorksheetErrorCode),
+    /// An array constant: `rows` by `cols` scalar literals in row-major order.
+    Array {
+        rows: usize,
+        cols: usize,
+        cells: Box<[Literal]>,
+    },
 }
 
 impl Literal {
@@ -135,6 +230,17 @@ impl Literal {
             Literal::Text(text) => CalcValue::text(text.clone()),
             Literal::Logical(b) => CalcValue::logical(*b),
             Literal::Error(code) => CalcValue::error(*code),
+            Literal::Array { rows, cols, cells } => {
+                let shape = ArrayShape {
+                    rows: *rows,
+                    cols: *cols,
+                };
+                let cells = cells.iter().map(Literal::value).collect();
+                CalcValue::array(
+                    CalcArray::new(shape, cells)
+                        .expect("compile gives an array constant its shape"),
+                )
+            }
         }
     }
 }
@@ -398,6 +504,9 @@ impl ResolvedReference {
 pub struct EvalScratch {
     stack: Vec<CalcValue>,
     calls: Vec<FunctionCallScratch>,
+    /// The locals of every frame of the evaluation (LET names, LAMBDA parameters and captures),
+    /// each frame above its caller's.
+    locals: Vec<CalcValue>,
 }
 
 impl EvalScratch {
@@ -418,6 +527,7 @@ impl<'a> EvalFrame<'a> {
     /// A frame for one evaluation of `instance`, working in `scratch`'s storage.
     pub fn new(instance: &'a FormulaInstance, scratch: &'a mut EvalScratch) -> Self {
         scratch.stack.clear();
+        scratch.locals.clear();
         EvalFrame { instance, scratch }
     }
 }
