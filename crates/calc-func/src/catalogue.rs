@@ -20,6 +20,7 @@ mod kit;
 
 mod aggregate;
 mod arithmetic;
+mod bonds;
 mod comparison;
 mod conditional;
 mod database;
@@ -27,6 +28,7 @@ mod dates;
 mod distributions;
 mod engineering;
 mod error_fallback;
+mod financial;
 mod host_reference;
 mod information;
 mod logical;
@@ -46,7 +48,7 @@ mod text_functions;
 
 /// The family fragments that make up the catalogue. A new family adds its module above and one
 /// line here; its entries stay in its own file.
-const FAMILIES: [&Family; 25] = [
+const FAMILIES: [&Family; 27] = [
     &arithmetic::FAMILY,
     &comparison::FAMILY,
     &text::FAMILY,
@@ -72,6 +74,8 @@ const FAMILIES: [&Family; 25] = [
     &dates::FAMILY,
     &host_reference::FAMILY,
     &database::FAMILY,
+    &financial::FAMILY,
+    &bonds::FAMILY,
 ];
 
 const ENTRY_COUNT: usize = entry_count(&FAMILIES);

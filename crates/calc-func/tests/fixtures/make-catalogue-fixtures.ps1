@@ -246,6 +246,9 @@ $FormulaSheets += , @('f1_power', 'sheet-f1_power.txt')
 $PrefixSections += 'prefix-l1.txt'
 # F2 dc-ip6: text, date and time, information, logical, lookup, database and web text.
 $PrefixSections += 'prefix-f2.txt'
+# F3 dc-728: financial, dynamic-array and LAMBDA-helper functions.
+$PrefixSections += 'prefix-f3.txt'
+$FormulaSheets += , @('f3_financial', 'sheet-f3_financial.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
