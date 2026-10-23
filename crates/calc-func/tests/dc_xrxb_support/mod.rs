@@ -21,18 +21,47 @@ use calc_verdict::{Acquisition, CaptureRecord, CellObservation, Observation, sha
 use std::collections::BTreeMap;
 
 const CASE: &str = "dc_xrxb__prefix_metadata_matches_excel";
-/// The oracle workbook, as committed.
-const ORACLE: &[u8] = include_bytes!("../fixtures/dc_xrxb/oracle.xlsx");
-/// Excel's capture of the oracle workbook.
-const CAPTURE: &[u8] = include_bytes!("../captures/dc_xrxb/oracle.capture.json");
-/// The package Excel saved from the oracle workbook during that capture, as the capture's work
-/// directory kept it.
-const SAVED: &[u8] = include_bytes!("../captures/dc_xrxb/oracle.saved.xlsx");
-/// The command that wrote the capture; the saved package is `out/oracle.xlsx` of its work
-/// directory.
-const CAPTURE_COMMAND: &str = "cargo xtask capture --fixture crates/calc-func/tests/fixtures/dc_xrxb/oracle.xlsx --case dc_xrxb__prefix_metadata_matches_excel --out crates/calc-func/tests/captures/dc_xrxb/oracle.capture.json";
-/// The sheet of the oracle workbook that calls each function.
+/// The sheet of each oracle workbook that calls each function.
 const SHEET: &str = "prefix_metadata";
+
+/// One oracle workbook of the case, its capture and the package Excel saved from it. dc-xrxb's
+/// workbook holds the rows of the functions catalogued before F1; F1 (dc-8dq) keeps its rows in
+/// a workbook of its own, written by its own generator (make-f1-fixtures.ps1), so that the two
+/// generators do not share one list. A catalogued named function has its row in exactly one.
+struct Oracle {
+    /// The workbook's directory below tests/fixtures/ (and its capture's below tests/captures/).
+    name: &'static str,
+    /// The case the capture names.
+    case: &'static str,
+    /// The workbook, as committed.
+    workbook: &'static [u8],
+    /// Excel's capture of the workbook.
+    capture: &'static [u8],
+    /// The package Excel saved from the workbook during that capture, as the capture's work
+    /// directory kept it (`out/oracle.xlsx`).
+    saved: &'static [u8],
+    /// The command that wrote the capture.
+    command: &'static str,
+}
+
+const ORACLES: [Oracle; 2] = [
+    Oracle {
+        name: "dc_xrxb",
+        case: CASE,
+        workbook: include_bytes!("../fixtures/dc_xrxb/oracle.xlsx"),
+        capture: include_bytes!("../captures/dc_xrxb/oracle.capture.json"),
+        saved: include_bytes!("../captures/dc_xrxb/oracle.saved.xlsx"),
+        command: "cargo xtask capture --fixture crates/calc-func/tests/fixtures/dc_xrxb/oracle.xlsx --case dc_xrxb__prefix_metadata_matches_excel --out crates/calc-func/tests/captures/dc_xrxb/oracle.capture.json",
+    },
+    Oracle {
+        name: "f1_prefix",
+        case: "f1__prefix_metadata",
+        workbook: include_bytes!("../fixtures/f1_prefix/oracle.xlsx"),
+        capture: include_bytes!("../captures/f1_prefix/oracle.capture.json"),
+        saved: include_bytes!("../captures/f1_prefix/oracle.saved.xlsx"),
+        command: "cargo xtask capture --fixture crates/calc-func/tests/fixtures/f1_prefix/oracle.xlsx --case f1__prefix_metadata --out crates/calc-func/tests/captures/f1_prefix/oracle.capture.json --work-dir <dir>",
+    },
+];
 
 /// The parts of a ZIP package by name, each stored or deflated entry as its uncompressed bytes,
 /// read through the central directory.
@@ -187,8 +216,8 @@ struct Row {
 
 /// The sheet's rows as the oracle workbook holds them: in row n, column A is `_xlfn.` and the call
 /// and column B the call itself.
-fn oracle_rows() -> Vec<Row> {
-    let parts = package_parts(ORACLE);
+fn oracle_rows(workbook: &[u8]) -> Vec<Row> {
+    let parts = package_parts(workbook);
     let cells = formulas(sheet_part(&parts, SHEET));
     let mut rows = Vec::new();
     for row in 1u32.. {
@@ -217,9 +246,103 @@ fn oracle_rows() -> Vec<Row> {
     rows
 }
 
+/// F1's generator, run into a fresh directory: the workbook it writes.
+#[cfg(all(windows, not(target_arch = "wasm32")))]
+fn f1_generated() -> Vec<u8> {
+    use std::path::Path;
+    use std::process::{Command, Stdio};
+    let generator = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("make-f1-fixtures.ps1");
+    let out = std::env::temp_dir().join(format!("calc-func-f1-fixtures-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out);
+    let system_root = std::env::var_os("SystemRoot").expect("SystemRoot is set on Windows");
+    let powershell = Path::new(&system_root)
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe");
+    let ran = Command::new(&powershell)
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ])
+        .arg(&generator)
+        .arg("-OutDir")
+        .arg(&out)
+        .stdin(Stdio::null())
+        .output()
+        .expect("Windows PowerShell starts");
+    assert!(
+        ran.status.success(),
+        "the F1 generator failed ({:?}):\n{}\n{}",
+        ran.status,
+        String::from_utf8_lossy(&ran.stdout),
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    let bytes = std::fs::read(out.join("f1_prefix").join("oracle.xlsx")).expect("the F1 workbook");
+    let _ = std::fs::remove_dir_all(&out);
+    bytes
+}
+
+/// One oracle's capture, checked: a live capture of the committed workbook by the committed
+/// worker, with no failure, naming the saved package kept beside it.
+fn checked_capture(oracle: &Oracle) -> CaptureRecord {
+    let capture = CaptureRecord::decode(oracle.capture).unwrap_or_else(|e| {
+        panic!("the capture record does not decode ({}): {e}", oracle.command)
+    });
+    assert_eq!(capture.case, oracle.case);
+    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
+    assert_eq!(
+        capture.source,
+        format!("sha256:{}", sha256_hex(oracle.workbook))
+    );
+    let session = capture
+        .session
+        .as_ref()
+        .expect("a version 2 capture session");
+    assert!(
+        session.tool.contains(&format!(
+            "worker sha256:{}",
+            sha256_hex(crate::CAPTURE_WORKER)
+        )),
+        "{}: the capture was taken by another worker: {}",
+        oracle.name,
+        session.tool
+    );
+    assert!(
+        session.failures.is_empty(),
+        "{}: capture failures: {:?}",
+        oracle.name,
+        session.failures
+    );
+    let saved_hash = format!("sha256:{}", sha256_hex(oracle.saved));
+    assert_eq!(
+        session.output_package.as_deref(),
+        Some(saved_hash.as_str()),
+        "{}: the kept package is not the one Excel saved during the capture",
+        oracle.name
+    );
+    let environment = capture.environment.as_ref().expect("Excel's environment");
+    note!(
+        "ACCEPT-NOTE: {CASE}: capture of {} by Excel {} ({}), worker sha256:{}; Excel saved the package {saved_hash}, kept as tests/captures/{}/oracle.saved.xlsx",
+        capture.source,
+        environment.target.excel_build(),
+        environment.target.channel(),
+        sha256_hex(crate::CAPTURE_WORKER),
+        oracle.name
+    );
+    capture
+}
+
 pub fn prefix_metadata_matches_excel() {
-    // The committed oracle workbook is what the committed generator writes, byte for byte, and the
-    // generator leaves every other workbook as committed.
+    // Each committed oracle workbook is what its committed generator writes, byte for byte, and
+    // the generator of the earlier workbooks leaves every other workbook as committed.
     #[cfg(all(windows, not(target_arch = "wasm32")))]
     {
         let generated = crate::generated_fixtures();
@@ -230,63 +353,44 @@ pub fn prefix_metadata_matches_excel() {
             "the generator's workbooks"
         );
         assert!(
-            generated["dc_xrxb/oracle.xlsx"] == ORACLE,
+            generated["dc_xrxb/oracle.xlsx"] == ORACLES[0].workbook,
             "the committed dc_xrxb/oracle.xlsx differs from the generator's output"
         );
+        assert!(
+            f1_generated() == ORACLES[1].workbook,
+            "the committed f1_prefix/oracle.xlsx differs from make-f1-fixtures.ps1's output"
+        );
         note!(
-            "ACCEPT-NOTE: {CASE}: the committed generator wrote {} workbooks; dc_xrxb/oracle.xlsx equals the committed fixture byte for byte (sha256 {})",
+            "ACCEPT-NOTE: {CASE}: the committed generators wrote {} workbooks and f1_prefix/oracle.xlsx; dc_xrxb/oracle.xlsx (sha256 {}) and f1_prefix/oracle.xlsx (sha256 {}) equal the committed fixtures byte for byte",
             generated.len(),
-            sha256_hex(ORACLE)
+            sha256_hex(ORACLES[0].workbook),
+            sha256_hex(ORACLES[1].workbook)
         );
     }
 
-    // The capture: a live capture of the committed workbook by the committed worker, with no
-    // failure, naming the saved package kept beside it.
-    let capture = CaptureRecord::decode(CAPTURE)
-        .unwrap_or_else(|e| panic!("the capture record does not decode ({CAPTURE_COMMAND}): {e}"));
-    assert_eq!(capture.case, CASE);
-    assert_eq!(capture.acquisition, Acquisition::LiveCapture);
-    assert_eq!(capture.source, format!("sha256:{}", sha256_hex(ORACLE)));
-    let session = capture
-        .session
-        .as_ref()
-        .expect("a version 2 capture session");
-    assert!(
-        session.tool.contains(&format!(
-            "worker sha256:{}",
-            sha256_hex(crate::CAPTURE_WORKER)
-        )),
-        "the capture was taken by another worker: {}",
-        session.tool
-    );
-    assert!(
-        session.failures.is_empty(),
-        "capture failures: {:?}",
-        session.failures
-    );
-    let saved_hash = format!("sha256:{}", sha256_hex(SAVED));
-    assert_eq!(
-        session.output_package.as_deref(),
-        Some(saved_hash.as_str()),
-        "the kept package is not the one Excel saved during the capture"
-    );
-    let environment = capture.environment.as_ref().expect("Excel's environment");
-    note!(
-        "ACCEPT-NOTE: {CASE}: capture of {} by Excel {} ({}), worker sha256:{}; Excel saved the package {saved_hash}, kept as tests/captures/dc_xrxb/oracle.saved.xlsx",
-        capture.source,
-        environment.target.excel_build(),
-        environment.target.channel(),
-        sha256_hex(crate::CAPTURE_WORKER)
-    );
-
-    let saved_parts = package_parts(SAVED);
-    let saved = formulas(sheet_part(&saved_parts, SHEET));
-    let rows = oracle_rows();
-    let by_function: BTreeMap<&str, &Row> = rows
+    // Every oracle's capture, saved formulas and rows; each function's row, in whichever oracle
+    // holds it.
+    let captures: Vec<CaptureRecord> = ORACLES.iter().map(checked_capture).collect();
+    let saved: Vec<BTreeMap<String, String>> = ORACLES
         .iter()
-        .map(|row| (row.function.as_str(), row))
+        .map(|oracle| formulas(sheet_part(&package_parts(oracle.saved), SHEET)))
         .collect();
-    assert_eq!(by_function.len(), rows.len(), "a function has two rows");
+    let rows: Vec<Vec<Row>> = ORACLES
+        .iter()
+        .map(|oracle| oracle_rows(oracle.workbook))
+        .collect();
+    let mut by_function: BTreeMap<&str, (usize, &Row)> = BTreeMap::new();
+    for (index, oracle_rows) in rows.iter().enumerate() {
+        for row in oracle_rows {
+            assert!(
+                by_function
+                    .insert(row.function.as_str(), (index, row))
+                    .is_none(),
+                "{}: a function has two rows",
+                row.function
+            );
+        }
+    }
 
     let named: Vec<FunctionCallTarget<'static>> = catalogue()
         .surfaces()
@@ -302,9 +406,9 @@ pub fn prefix_metadata_matches_excel() {
     let mut bare = 0;
     for target in &named {
         let name = target.spelling();
-        let Some(row) = by_function.get(name) else {
+        let Some(&(oracle, row)) = by_function.get(name) else {
             problems.push(format!(
-                "{name}: catalogued, and the oracle workbook has no row calling it"
+                "{name}: catalogued, and no oracle workbook has a row calling it"
             ));
             continue;
         };
@@ -312,6 +416,7 @@ pub fn prefix_metadata_matches_excel() {
             problems.push(format!("{name}: catalogued with no file prefix"));
             continue;
         };
+        let (capture, saved) = (&captures[oracle], &saved[oracle]);
         let at = row.row;
         let saved_a = saved.get(&format!("A{at}"));
         let saved_b = saved.get(&format!("B{at}"));
@@ -320,7 +425,7 @@ pub fn prefix_metadata_matches_excel() {
             FilePrefix::Bare => (row.call.clone(), false),
             FilePrefix::Xlfn => (format!("_xludf.{}", row.call), true),
         };
-        let (raw_a, raw_b) = (raw(&capture, at, 1), raw(&capture, at, 2));
+        let (raw_a, raw_b) = (raw(capture, at, 1), raw(capture, at, 2));
         if saved_a != Some(&expected_a) {
             problems.push(format!(
                 "{name}: prefix {:?}, and Excel saved _xlfn.{} as {saved_a:?}",
@@ -352,22 +457,22 @@ pub fn prefix_metadata_matches_excel() {
         }
     }
     let catalogued: Vec<&str> = named.iter().map(|target| target.spelling()).collect();
-    for row in &rows {
-        if !catalogued.contains(&row.function.as_str()) {
+    for (function, (oracle, row)) in &by_function {
+        if !catalogued.contains(function) {
             problems.push(format!(
-                "{}: the oracle workbook calls it in row {}, and the catalogue holds no such function",
-                row.function, row.row
+                "{function}: the oracle workbook {} calls it in row {}, and the catalogue holds no such function",
+                ORACLES[*oracle].name, row.row
             ));
         }
     }
     assert!(
         problems.is_empty(),
-        "{} disagreements with Excel's saved package and capture:\n{}",
+        "{} disagreements with Excel's saved packages and captures:\n{}",
         problems.len(),
         problems.join("\n")
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: all {} catalogued named functions agree with the package Excel saved: {bare} saved without a prefix in column A and as written in column B, with the same raw value in both; {} saved as _xlfn. and the call in column A and as _xludf. and the call in column B, whose raw value is #NAME?: {}",
+        "ACCEPT-NOTE: {CASE}: all {} catalogued named functions agree with the packages Excel saved: {bare} saved without a prefix in column A and as written in column B, with the same raw value in both; {} saved as _xlfn. and the call in column A and as _xludf. and the call in column B, whose raw value is #NAME?: {}",
         named.len(),
         prefixed.len(),
         prefixed.join(", ")
