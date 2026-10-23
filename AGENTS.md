@@ -1,112 +1,110 @@
-# AGENTS.md: operating contract for this repository
+# AGENTS.md: how work is done in this repository
 
-This is the DNA Calc re-implementation: one Cargo workspace for CalcFunc, CalcFml, CalcEngine, CalcDoc, CalcHost and the DNA OneCalc and DNA Calc applications. It is Excel only. The legacy repositories (OxFunc, OxFml, OxCalc, OxDoc, DnaTreeCalc and the others beside this checkout under `C:\Work\DnaCalc`) are read-only inputs: port from them, never edit them from here.
+This is the DNA Calc re-implementation: one Cargo workspace for CalcFunc, CalcFml, CalcEngine,
+CalcDoc and CalcHost, and the DNA OneCalc and DNA Calc applications. It is Excel only. The legacy
+repositories beside this checkout under `C:\Work\DnaCalc` (OxFunc, OxFml, OxCalc, OxDoc,
+DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, never edit them.
 
 ## Read first
 
-- `docs/plan/ROLLOUT_BRIEF.md`: what the plan decides, how the graph is shaped, the roll-out sequence.
-- `docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md`: the architecture and the rules every bead cites by section number.
-- `docs/plan/BEAD_DETAILS.md`: every bead in full, as `docs/plan/build_plan.py` generated it. The tracker, read with `br show <id>`, is authoritative: it also carries the notes added when a bead is claimed or sharpened, so where the two differ the tracker wins.
-
-`docs/plan/` holds the plan bundle that bead descriptions cite: the plan, `BEAD_GRAPH.md`, `BEAD_DETAILS.md`, the JSONL exports `beads.plan.jsonl` and `beads.br.jsonl`, `coverage.json` and `validate_plan.py`. Only `docs/plan/build_plan.py` writes its generated files and only `br` writes `.beads/`; neither is edited by hand, and nothing is re-imported over `.beads/issues.jsonl`.
+- `docs/plan/BULK_PORT_PLAN.md`: the current plan, the work packages and how correctness is
+  shown.
+- `docs/plan/DNA_CALC_REIMPLEMENTATION_PLAN.md`: the architecture (libraries, layering, contracts).
+  Its roll-out sections are superseded by the bulk-port plan.
+- The tracker: `br ready`, then `br show <id>`.
 
 ## Workspace
 
-One Cargo workspace with one committed `Cargo.lock`:
-
 | Directory | Packages |
 |---|---|
-| `crates/` | `calc-value`, `calc-func` (CalcFunc); `calc-fml` (CalcFml); `calc-doc-model`, `calc-doc` (CalcDoc); `calc-engine` (CalcEngine); `calc-host` (CalcHost) |
+| `crates/` | `calc-value` and `calc-func` (CalcFunc); `calc-fml` (CalcFml); `calc-doc-model` and `calc-doc` (CalcDoc); `calc-engine` (CalcEngine); `calc-host` (CalcHost) |
 | `apps/` | `dna-onecalc`, `dna-calc` |
 | `platform/` | `calc-platform-desktop`, `calc-oracle-excel` (native-only adapters) |
-| `tools/` | `calc-verdict` (the portable verdict library: CaptureRecord, result set, evaluation record and CellVerdict report); `xtask` (native-only repository tooling) |
+| `tools/` | `calc-verdict` (capture records and the verdict path), `xtask` (repository tooling) |
 
-The workspace is MIT-licensed (`LICENSE`), and a new package inherits that license with `license.workspace = true` in its `[package]` table.
+- **Licence:** MIT; a new package uses `license.workspace = true`.
+- **Portability:** each package declares `[package.metadata.dnacalc] portability` as `"portable"`
+  or `"native-only"`. Portable packages build for `wasm32-unknown-unknown` and touch no
+  `std::fs`, `std::process`, `std::os` or `std::net`. Native-only packages refuse to compile for
+  wasm32.
+- **Layering:** the layering rules in `tools/xtask/architecture.json` are checked mechanically.
 
-Every package declares `[package.metadata.dnacalc] portability` as `"portable"` or `"native-only"`. Native-only packages refuse to compile for wasm32, and the wasm32 compile check (a compile check, not browser evidence) excludes exactly them:
+## Doing a work package
 
-```text
-cargo check --workspace --target wasm32-unknown-unknown --exclude calc-platform-desktop --exclude calc-oracle-excel --exclude xtask
-```
+1. **Claim it.** Pick a package with `br ready` and read it with `br show <id>`. Claim it with
+   `br update <id> --status in_progress --assignee <clone-name>`. Each lane works in its own full
+   clone (`C:\Work\DnaCalc\DnaCalc-<lane>`) on master.
+2. **Port in bulk.** Copy legacy code wholesale, then rename types and adapt it to the new APIs.
+   Keep the layering and the one-evaluator rule. Leave behind the tree-reference language, the
+   dual-profile model and OxCalc's consumer layer. Bring the legacy tests over wherever they
+   still apply. The third-party numeric code in the legacy functions may be ported as is (owner
+   ruling, 2026-10-23).
+3. **Commit in working chunks.** Each commit:
+   - starts with `git pull --no-rebase`;
+   - builds the workspace;
+   - passes `cargo test` for the crates it touched, on Windows;
+   - is then pushed.
 
-Each package owns its acceptance cases. They live in its `tests/acceptance.rs` (test target `acceptance`), are named `<bead>__<case>` with the bead ID in snake case (`infra_m0_1__workspace_builds`), and their exact names are registered in the package's own `acceptance.json`. A bead edits only its own package's `acceptance.json` and `seams.json`; there is no shared registry. A manifest has this shape; every key is required and no other key is accepted. `test` names the package's test target, `platforms` gives every registered case the platforms it runs on (`windows`, `linux`, `wasm`, `excel`), `commands` lists the bead's Acceptance commands, plus any supporting command the bead's case evidence relies on (such as `cargo test -p xtask --bins` for unit-tested checks), each as an argument vector, and a package with no cases yet has `"beads": []`:
+   The message starts with the bead ID and names the legacy repository, commit and paths it
+   ported from. Several commits per package is normal.
 
-```text
-{"package": "<package name>", "beads": [{"id": "<bead id>", "test": "acceptance", "cases": ["<case name>", ...], "platforms": {"<case name>": ["windows", "linux"], ...}, "commands": [["cargo", "<arg>", ...], ...]}]}
-```
+   `cargo xtask check` builds the workspace and tests every package (one line each); `--wasm`
+   adds the portable packages' tests in headless Chrome and Firefox.
+4. **Measure.** Run the corpus comparison (`cargo xtask corpus`, or `cargo xtask compare` per
+   workbook until it lands) before and after the package, and record the summary.
+5. **Close.**
+   - One read-only review agent checks the change against the honesty rules and checks the
+     close note against tool output.
+   - Close with `br close <id> --reason "<what works now; evidence: tests, corpus summary,
+     commits; still open>"`.
+   - Gaps go into the next package's notes or into one root-cause bead per batch of corpus
+     mismatches; never one bead per refusal.
 
-Each portable package also keeps a reviewed `seams.json` beside its `Cargo.toml`: every pub enum variant and pub trait of its non-test sources, each with a non-test caller (file and function) and the registered acceptance case that executes that caller. The format is described at the top of `tools/xtask/src/seams.rs`; a package without such items has `"seams": []`. `infra-m0.3` created the `seams.json` of every portable package as part of the bootstrap, as `infra-m0.1` created the `acceptance.json` files; from then on each bead edits only its own package's two files.
+`cargo xtask accept --id <id> --platform <p>` still runs a bead's registered acceptance cases and
+writes a receipt under `accept-receipts/`. Use it where a package registers cases. It is not
+required for every commit.
 
-A package whose tests run in the browsers declares `wasm-bindgen = "=0.2.117"` and `wasm-bindgen-test = "=0.3.67"` (the pair `tools/xtask/ci-browser-fixture` pins) as `[target.'cfg(target_arch = "wasm32")'.dev-dependencies]`, and marks each test `#[test]` natively and `#[wasm_bindgen_test]` on wasm32, with no browser or Node configuration of its own: the runner and `cargo xtask ci wasm` choose the browser.
+## Honesty rules
 
-A bead that ports legacy code writes its migration record as `migration/ports/<bead>.json`, a file only that bead writes: each ported source's repository, commit, path and blob (the pin's), its `cargo xtask pin-sources --lookup` exit and `calls_quarantined` list, the symbols ported, each semantic change with its reason, each item not ported with the beads that will need it (found by a search the record states), and each legacy test whose expectation the port keeps, changes or drops. Code comments state a constraint the code cannot show, never where code came from; provenance lives in that record.
+1. **Provenance before value.** Only a value the engine actually calculated counts as
+   calculated. A file cache, a stale value or a typed not-modelled result never scores as a pass.
+2. **Typed refusals, counted.** What is not implemented returns a typed not-modelled refusal
+   naming the work package that owns it. A refused formula is a failure in every statistic
+   (owner ruling, 2026-10-23): every report gives pass = matched Excel, and fail = mismatched +
+   refused (+ failed or missing), as counts and a pass rate over all formula cells, never a
+   rate over calculated cells only.
+3. **No faked behaviour.** No hard-coded answers, no weakened assertions, no golden files
+   regenerated to force green, no `todo!()` in commits.
+4. **One of everything:** one evaluator, one graph, one capture lineage, one verdict path.
+5. **Test the route the application runs**, not a parallel route built for the test.
+6. **Measure, do not assert.** Claims never exceed the evidence. Reports say what the product can
+   now do, then the evidence, then what is still open.
 
-## Beads are the work queue
+## Git: master only
 
-- Pick work with `br ready` or `bv --robot-next` (never bare `bv`; `bv --robot-plan` lists epics as tracks, ignore epic rows). Read the bead with `br show <id>`.
-- Claim it: `br update <id> --status in_progress --assignee <clone-name> --actor <clone-name>`, where `<clone-name>` is the checkout's directory name (`DnaCalc`, `DnaCalc-<lane>`). One bead is being built per clone at a time; the only other in_progress beads a clone holds are held beads awaiting the owner's close and prepared oracle beads awaiting a capture, each carrying a handover note (`br update <id> --notes "..."`). One library per bead: the bead's Context names the library whose files it may change.
-- Do exactly the bead's **Do** and prove its **Acceptance**. Every named acceptance case must exist, run and pass on the declared platforms; keep the receipt. A zero-test run, a misspelled case name, a skipped case or a compile check standing in for execution is a failure.
-- Acceptance commands: for each platform the bead's cases declare, run `cargo xtask accept --id <id> --platform <platform> --require-all`: `windows` on a Windows host, `linux` on a Linux host (a WSL clone of the pushed commit here), `wasm` in the browsers, and `excel` on a Windows host with Excel installed, which on the owner's machine any agent may run (see Excel on this machine below). The runner first runs the architecture checks below. It then runs each command in the bead's `commands` (the bead's Acceptance section) once, from the workspace root with `CARGO_TARGET_DIR=target/xtask-accept`, and records its argv, exit code and log; a non-zero exit fails the run, and a registered `cargo xtask accept ...` is skipped and listed, not run. It then lists the test target the manifest's `test` names and runs each registered case for that platform on its own, as `cargo test -p <package> --test acceptance -- --exact <case> --nocapture` (every package's `test` is `acceptance`; only a runner test fixture names another target) with `--locked` and its own target directory `target/xtask-accept`, and with `DNACALC_ACCEPT_PLATFORM` set to the route (`windows`, `linux` or `excel`), so a case whose windows and excel parts share one name runs its Excel part, and starts Excel, only when the variable is `excel`; a case reads no other signal for that. A case passes only when the listing holds its exact name and its transcript must report `1 passed`: a misspelled or partial case name runs 0 tests and cargo still exits 0. A case that prints `ACCEPT-NOT-RUN: <case>: <reason>` on standard output or standard error (no Excel, no browser driver, no capture) is `not_run`, and so is a case the runner cannot start on its route: `excel` on a Windows host where Excel is not registered for automation, and `wasm` in a browser whose `wasm-bindgen-test-runner` or driver (`CHROMEDRIVER`, `GECKODRIVER`) is missing. A `wasm` case runs once per browser with `WASM_BINDGEN_USE_BROWSER=1`, and its run in a browser counts as passed only when the runner's own first output line is the banner naming that browser (wasm-bindgen-test-runner 0.2.117's "Running headless tests in Chrome/Firefox"); a `1 passed` run without that banner, such as a target configured for Node.js, is `failed`. The receipt (format `dnacalc-accept-receipt/4`) records each browser's run, the banner, the driver environment and any `ACCEPT-NOTE: <case>: <text>` lines a case prints; on a host that cannot run the platform (`windows` off Windows, `linux` off Linux, `excel` off Windows) no command or case runs and every case is `not_run` with that reason, with or without `--require-all`. The receipt's `result` is `failed` when a manifest, an architecture check or a command failed, the bead ID is unknown, no case declares the platform, a case is absent from the listing (a misspelled or partial name), runs zero tests, is ignored or fails, or a test with the bead's case prefix is not registered; otherwise `not_run` when any case is `not_run`; otherwise `passed`. A run that executed nothing never records `passed`, and there is no `#[ignore]` route around a case. The run exits 0 for `passed`, exits 0 for `not_run` only without `--require-all`, and exits 1 otherwise: under `--require-all` only `passed` exits 0. The runner prints one line per command and per case with its outcome and exit code, keeps each transcript under `target/accept/<id>/<platform>/` and writes the machine-readable receipt `receipt.json` there; for a bead that some manifest registers it also copies the receipt to `accept-receipts/<id>/<platform>.json`, failed runs included (an unknown bead ID gets no committed copy). Receipt paths are relative to the workspace root, directories outside it appear as `<rustup>`, `<cargo-home>`, `<home>` or `<temp>`, the legacy root appears relative to the workspace root (normally `..`) or as `<legacy-root>`, and the receipt's own committed path is left out of its dirty paths. Keep the transcript and exit code of every other command under `target/accept/<id>/`, and quote the runner's case lines and exit codes in the close reason.
-- Architecture checks: every `cargo xtask accept` run performs them first, whatever the bead, and records them in its receipt. `dependencies`: the plan section 1.3 layering rules in `tools/xtask/architecture.json` on resolved cargo metadata with all features for `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu` and `wasm32-unknown-unknown` (plus the host triple when it is none of them) on either host, and no portable package reaching a native-only one. `os-imports`: no `std::fs`, `std::process`, `std::os`, `std::net`, `extern "system"` or `#[link]` in the non-test code of the lib and bin targets of portable packages (build scripts run on the build host, so this scan reads them only for the include macros named below), and no OS-binding crate of the deny list as a direct normal or build dependency of a portable package on any of those targets or anywhere in its `wasm32-unknown-unknown` closure (a transitive one on a native target, such as libc or rustix, is allowed). `wasm-refusal`: each native-only package fails to compile for `wasm32-unknown-unknown` through its own `compile_error!`. `tree-reference-tokens`: no tree-reference or reference-profile token in the identifiers, strings and doc comments of the non-test code of portable packages, build scripts included; plain comments, `tests/`, `benches/`, `examples/` and `#[cfg(test)]` code are outside its scope by design. Neither source scan follows `include!`, `include_str!` or `include_bytes!`: a portable package that uses one fails both until a bead extends them to read the included file. `seams`: each portable package's `seams.json` against its parsed pub enum variants and pub traits. This is the manifest half of plan section 8.8; proving that each entry's case reaches its caller is owned by bead `dc-pz3u`, and every receipt counts the entries whose reach is still unproven. `word-scan`: the two banned words over `docs/`, `AGENTS.md`, `README.md`, tracker text and commit messages, against the counted baseline in `tools/xtask/word-scan.json` that bead `dc-0nvp` owns; fixed identifiers are excluded by name, every receipt reports how many occurrences each one masked, and any occurrence beyond the baseline fails. That file stores the words and identifiers as hex, so it does not use them itself. `numeric-provenance` (bead `infra-m0.5`): `migration/release-source-allowlist.json`, which `cargo xtask pin-sources` writes beside the source manifest, must list exactly the port inputs whose numeric provenance is absent or cleared, each with its `calls_quarantined` list when it has one. Numeric provenance is a property of a file's own content (the orchestrator's ruling of 2026-10-15; plan sections 1.1 and 12). The entries of `migration/numeric-provenance.json` apply first, in this order: a module entry for the path (at least unresolved when the pinned blob is not the reviewed one), else a `witness_chain` entry at the pinned blob that the commits review clears on the file's own acquisition, but only for a file that holds a retained witness's expected bits (the five pinned answer captures and their retention `extended-numeric/numeric-outcomes.json`), else the first class whose selector matches; such a `witness_chain` entry takes precedence over every class, a limit `known_limits` records for `dc-qfqa`. Then a file is at least unresolved when its own text matches the citation sweep (the CRT chains, 87tran/87disp, C-runtime routines), when a commit that file lists as tainted changed it and no such `witness_chain` entry names that commit among its considered commits, or when its code holds an include macro the pin cannot read, and it takes at least the provenance of every file it includes. Every other `witness_chain` entry (the scripts and modules of a witness's chain) admits its file to the witness chain only and changes no provenance. A file that only calls a tainted or unresolved module keeps its own provenance and carries a `calls_quarantined` list (files of its own repository, `<Repo> crate <name>` for a crate of another repository that holds such a file, `<Repo> run-time loads` for its run-time loads); the allowlist admits it only with that list, and a port bead ports it only against clean replacements of every listed module. The check does not trust the provenance the manifest records: it recomputes every input's provenance and list from the dispositions file and the facts the manifest records per input (`code_refs`, `content_facts`), so a hand edit of the manifest's recorded provenance together with the allowlist fails; it also fails an allowlist entry without its exact list, manifest facts computed with other sweep patterns or tainted commits than the dispositions file holds, a dispositions file with no review record or one that does not match its review file, an entry cleared without being covered by the recorded hash of the dispositions as reviewed (a tainted or unresolved entry may be added or changed later when it is marked `after_review`), a class-wide or deferred entry without an owner bead, a tainted-commit list that omits a commit its stated rule finds (`tainted_commit_rule`: an identification grep of the commit messages and the citation sweep applied to them, whose sets at the pin the manifest records) or that the commits review ties to the pass, or that lists one neither gives, and a file under `migration/witnesses/` that is not a retained selection with black-box acquisition metadata, a directory over its size bound, a selection whose bytes, source, selection rule or capture record differ from that metadata, a generator the pin quarantines (quarantined, quarantine_derived or under the numeric directory) or that a module or class entry marks tainted or unresolved, a file of a witness's chain (its source, generators, retention and the retention's writer) without a reviewed `witness_chain` entry at the blob that ran or was retained whose considered commits include every listed tainted commit that changed it and whose blob matches no citation, and a generator that builds, runs or names a package of a tainted class when the witness records no row-for-row equality of its bits with the retention of the same capture or no hash-continuity record. A generator that the content rules leave tainted or unresolved as a pinned input is admitted only through its reviewed `witness_chain` entry at the blob that ran: the manifest records all eight generators of the five retained witnesses as unresolved (tainted-commit), `Run-W109BulkBatch.ps1`, `CellRefBatch.psm1`, `OracleCache.psm1`, `run_numeric_campaign.py`, `gen_extended_numeric_20260929.py`, `gen_w111_broad_20260929.py`, `snapshot_numeric_20260929.py` and `freeze_campaign_snapshot_20260929.py`, the first two admitted at the blobs that ran rather than the pinned ones. Witness independence rests on hash continuity, not on when the retention was written, which is not established: the raw-capture hashes recorded before the freeze agree with the retention's and the snapshots' records, and the pinned answers equal the retention row for row; the check requires the continuity record and trusts the hashes it declares, and the infra-m0.5 acceptance case reads them from the pinned blobs. The limits that remain: the check trusts the facts the manifest records (the code edges, the citation sweep's matches, the touched-by-commit lists and the sets of the tainted-commit rule); the infra-m0.5 acceptance case recomputes the sweep, the touched-by-commit lists and the rule's sets from git and spot-checks the cross-repository edges, but the in-repository code edges, which the `calls_quarantined` lists and the include rule rest on, come from the pin alone; cross-repository edges stay at crate level, run-time loads are detected only in Rust code and not resolved, and edges into files that are not pinned inputs are not followed, all counted in the summary and owned by `dc-4uy4`. The accept-time architecture check reads the rule sets from the manifest without running git, so only the infra-m0.5 case, which recomputes them from git, catches a coordinated edit of the record, the manifest's sets and the hash. Its summary counts the inputs of every rule and of every class-wide or deferred entry with the bead that owns it. `cargo xtask pin-sources --lookup` exits 3 for a quarantined or quarantine_derived input, 5 for any other input the allowlist leaves out because its numeric provenance is tainted or unresolved (printing that provenance and the facts it rests on, and, for a script or module of a witness's chain, a line saying that its `witness_chain` entry clears it only for the witness chain), 6 for a port input the allowlist admits only with its `calls_quarantined` list (printing the list), and 0 for the source of a retained witness, which it names with its selection.
-- Commit: one build commit per bead on master, bead ID first. A defect found after the build commit (a mutation probe that stays green, a Linux failure) is fixed in a further commit on the same bead, also bead ID first, and the close reason cites every commit:
-
-  ```text
-  br sync --flush-only
-  git add <source paths> accept-receipts/<id> .beads/issues.jsonl
-  git commit -m "<id>: <what was built, one line>"
-  ```
-
-  The message body says Product status / Evidence / Still open. The build commit carries the receipts `accept-receipts/<id>/<platform>.json` of the platforms run before it. The build commit and the later `<id>: close` commit are separate because the close comes only after evidence the build commit cannot carry, such as the Linux run on the pushed commit, the owner's answer on a held bead or an oracle capture; the close commit carries `.beads/issues.jsonl` plus the receipts of the platforms run after the build commit.
-- Close with evidence, always passing the ID: `br close <id> --reason "Product status: ... Evidence: <cases, platforms, commands, commit>. Still open: ..."`, then `br sync --flush-only`, `git add .beads/issues.jsonl accept-receipts/<id>`, `git commit -m "<id>: close"` and `git push`. `--force` is never used on claim, close or sync.
-- A missing prerequisite or a discovered gap gets a new bead, never a local substitute or a widened scope. Two directions, verified on br 0.1.34: a prerequisite that must land before the current bead is created with `br create ...` and attached with `br dep add <current> <new>` (the current bead then depends on it and cannot close first); a follow-up that the current bead must not wait for is created with `br create ... --deps blocks:<current>` (the new bead depends on the current one). New bead IDs use the `dc` prefix; imported IDs keep their library prefixes. Two follow-ups created on 2026-10-19, `cdoc-jpha` and `cdoc-qhau`, carry a library prefix by mistake; br has no rename, so they keep their IDs, and infra-m0.1's agent-contract case lists them as the only such exceptions.
-- Epics hold no work. A parent-child link never blocks a task.
-
-## Git: master only, no branches, no worktrees, ever
-
-- The loop is: `git pull --no-rebase`, work on one bead, `git commit` (bead ID first in the message), `git push`. Nothing else: no branches, no worktrees, no rebase, no force push, no reset.
-- Agents working at the same time each use their own full clone of this repository on master (`git clone https://github.com/DnaCalc/DnaCalc.git C:\Work\DnaCalc\DnaCalc-<lane>`), which gives each its own `target/`. Pull before starting. If a push is rejected, run `git pull --no-rebase`, re-run the bead's acceptance, and push again.
-- Never run two cargo invocations in one target directory at the same time. Cargo started from inside a test uses a target directory of its own; the outer `cargo test` owns `target/`.
-- Never commit `target/`, Excel lock files, secrets or bulk evidence.
+- The loop is `git pull --no-rebase`, work, commit, `git push`.
+- Never use branches, worktrees, rebase, force push or `reset --hard`.
+- If a push is rejected, pull with `--no-rebase`, re-run the tests and push again.
+- Never run two cargo invocations in one target directory at the same time.
+- Never commit `target/`, Excel lock files, secrets or bulk corpus files.
 - Commit messages end with the attribution line the harness asks for.
-
-## Honesty rules (from the owner brief, section 6; they are requirements)
-
-1. Provenance before value: only a value the engine actually calculated may be scored as calculated. A file cache, a stale value or a typed not-modeled result never counts as a pass.
-2. Count every fallback. A conservative broadening is legal only when it is counted, reported and owned by a bead naming its replacement.
-3. No faked behaviour. Typed not-implemented is always better than a hard-coded answer.
-4. No seams without traffic: every production enum variant and interface has a non-test caller, checked mechanically.
-5. One of everything: one evaluator, one graph, one capture lineage, one verdict path.
-6. The machine is not the product: test the route the application actually runs, not a parallel route built for the test.
-7. Measure, do not assert. Claims never exceed the evidence; a status flag assigned by the code under test proves nothing.
-
-## Capability first (owner direction, 2026-10-19)
-
-The work here is the product: formulas that parse, functions that compute, workbooks that calculate, save and reopen. Process serves that and is never the product.
-
-- A process artifact (a ledger, matrix, report, speculative check, or a follow-up bead) is created only when it names who or what reads it, the capability that cannot ship without it, the defect actually observed that justifies it, and when it is retired. If running product code branches on it, it is product work; if only people and status reports read it, it is process and this rule applies. The one exception is a minimal integrity control, such as a provenance snapshot, that prevents a named evidence-loss mode.
-- Review scales with the bead. Hardening of the runner, the checks or the tracker is taken only when it blocks a capability bead or the owner asks for it.
-- No self-certification. A bead is closed on evidence at an exact revision that someone other than its implementer re-executed. Agreement between agents of the same model raises confidence; it is not independent evidence.
-- Refusal-only work never closes a capability bead; it stays open and says so.
-- A condition of a bead's own acceptance stays in that bead. Moving it into a follow-up bead in order to close the original is follow-up laundering.
-- Reports lead with what the product can now do, then the evidence. A truthful "nothing shipped" beats a list of process results.
+- Only `br` writes `.beads/`.
 
 ## Writing
 
-- Reports, commit bodies, handovers and close reasons use Product status / Evidence / Still open and claim only what a tool result shows.
-- Never use the two banned words listed in `docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md` §0; say what blocks what instead.
+Never use the two banned words listed in `docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md` §0. The
+word scan reads code, docs, tracker text and commit messages. Say what blocks what instead.
 
 ## Platforms
 
-Windows, Linux and wasm from the first version; CI runs all three.
-
-The `ci` workflow is disabled on GitHub (the owner, 2026-10-20: the account's Actions minutes ran low), so no CI runs on push or dispatch until the owner enables it again with `gh workflow enable ci`. Do not enable or dispatch it. Linux evidence comes from the WSL clone and browser evidence from local `cargo xtask accept --platform wasm` runs; the `cargo xtask ci <job>` commands below still run locally on a clone. What follows describes the workflow as it runs when enabled.
-
-CI (`.github/workflows/ci.yml`, installed by `infra-m0.2`) runs on every push to master and on dispatch. Each job checks out master at the run's commit, builds with the toolchain `rust-toolchain.toml` pins (Rust 1.94.1 with wasm32-unknown-unknown, rustfmt and clippy), runs one repository command and uploads its record whatever the outcome: `cargo xtask ci windows` and `cargo xtask ci linux` (the architecture checks and every package's tests natively) and `cargo xtask ci wasm` (every portable package's wasm test targets under wasm-bindgen-test-runner 0.2.117 for Chrome and for Firefox, plus a route probe that records each browser's user agent; the runner starts a browser only for a module that holds wasm-bindgen tests, and for a module without any it reports no tests and starts none) each upload `target/ci`, `target/accept` and `accept-receipts`; `cargo xtask ci licenses` (crates.io sources and the reviewed license expressions of `tools/xtask/licenses.json`) and `cargo xtask ci desktop` (a release build of the native-only packages, not a packaging smoke: no desktop application package exists yet, and `dc-x704` owns the real smoke) upload `target/ci`; the audit job's `cargo xtask ci-audit --require-executed-targets windows,linux,wasm` uploads `target/ci-audit`. The audit fails unless every portable package and both app cores were built and had their test harness run on all three, each target's manifest made at the audited commit from a clean tree (`--allow-dirty` accepts a dirty local tree and prints its changed paths). Each command writes `target/ci/<job>/` (the audit `target/ci-audit/`); the same commands run on a clone. A package whose harness ran zero tests is recorded `zero_tests`, never passed. Package test runs leave each package's acceptance target to `cargo xtask accept`: a dispatch with `accept_ids` (`gh workflow run ci.yml -f accept_ids=<id>`) runs `cargo xtask accept --id <id> --platform <job> --require-all` in the windows, linux and wasm jobs for the beads that declare that platform and keeps the receipts, which is how Linux and browser evidence comes from CI (`gh run download <run-id>`); a dispatch with `inject_browser_failure=true` adds a browser test that fails on purpose, and the wasm job must then fail.
-
-Beads whose platform is `oracle` need live Excel and run on the owner's Windows machine; their retained captures replay everywhere else. Missing Excel is reported as not run, never as a pass.
-
-Excel on this machine (owner's ruling, 2026-10-21): all Excel use is allowed on the owner's Windows machine, by the orchestrator and by lane agents alike. That covers opening any workbook in Excel, running macros and add-ins, `cargo xtask capture`, `cargo xtask accept --platform excel`, Excel COM automation of any kind, and several Excel processes at the same time. The capture adapter may still open a fixture with macros, add-ins or external links disabled when a case needs a deterministic recalculation; that is the adapter's choice, not a limit on agents. Beads that wait on Excel (captures, oracle comparisons, the excel route) are high priority. Excel lock files are still never committed, and a workbook from outside the repository keeps its provenance and licence record before its capture is committed.
-
-## Bootstrap note
-
-`infra-m0.1` created the workspace. The first library API is calc-value's (bead `cfunc-m0.1`: generational IDs, checked grid coordinates, the value model and the numeric mode), which calc-func re-exports as `calc_func::value`; the other packages have none yet. `infra-m0.1`'s case `infra_m0_1__workspace_builds` (in `tools/xtask/tests/acceptance.rs`) checks that the workspace has exactly these members, runs `cargo check` on every package for the host target and on every portable package for `wasm32-unknown-unknown`, and confirms from cargo's compiler-artifact messages that each of them was compiled in that run. `infra-m0.3` added `cargo xtask accept` and the architecture checks (`tools/xtask`); the `cargo xtask` alias lives in `.cargo/config.toml`, which sets no `build.target-dir`. Acceptance from then on goes through the runner. Its `wasm` route (wasm-bindgen-test-runner with chromedriver and geckodriver) has run a fixture wasm case in headless Chrome and Firefox on the owner's Windows PC (`dc_e8ql__browser_route`, bead `dc-e8ql`); `cfunc-m0.1`'s cases `cfunc_m0_1__send_sync` and `cfunc_m0_1__grid_edges`, in calc-func, are the first product cases on that route, and calc-value's unit tests run in both browsers under `cargo xtask ci wasm`.
+- **Per commit:** tests run on Windows.
+- **Per milestone:** a whole-suite sweep runs on Windows, Linux (a WSL clone of the pushed
+  commit; WSL is offline and builds from `~/cargo-vendor`) and wasm (headless Chrome and Firefox
+  via wasm-bindgen-test-runner).
+- **GitHub CI:** the `ci` workflow is disabled (owner, 2026-10-20). Do not enable or dispatch it.
+- **Excel on this machine** (owner ruling, 2026-10-21): any agent may use Excel here. That
+  includes opening any workbook, macros, add-ins, COM automation, `cargo xtask capture`, and
+  several Excel processes at once. Stop only the Excel processes your own scripts started; the
+  owner's own Excel stays. Never change a Trust Center, macro-security or registry setting.
+  Excel lock files are never committed, and a workbook from outside the repository keeps its
+  provenance and licence record before its capture is committed.

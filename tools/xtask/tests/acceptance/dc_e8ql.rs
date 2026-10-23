@@ -50,7 +50,6 @@ static BROWSER_FIXTURE: Fixture = Fixture {
         ("acceptance.rs", "tests/acceptance.rs"),
         ("node.rs", "tests/node.rs"),
         ("acceptance.json", "acceptance.json"),
-        ("seams.json", "seams.json"),
     ],
 };
 

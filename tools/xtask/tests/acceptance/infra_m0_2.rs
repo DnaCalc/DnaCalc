@@ -53,7 +53,6 @@ static MATRIX_FIXTURE: Fixture = Fixture {
         ("matrix.rs", "tests/matrix.rs"),
         ("acceptance.rs", "tests/acceptance.rs"),
         ("acceptance.json", "acceptance.json"),
-        ("seams.json", "seams.json"),
     ],
 };
 

@@ -20,7 +20,7 @@
 //! in `builds_outside_rule`: unknown is the conservative label, and the list counts it.
 
 use crate::evidence::{CHECKOUT, real_dir};
-use crate::pin_git::Legacy;
+use crate::legacy::Legacy;
 use serde_json::{Map, Value, json};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};

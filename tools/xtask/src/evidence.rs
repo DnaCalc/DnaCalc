@@ -17,8 +17,8 @@
 
 use crate::cargo::Workspace;
 use crate::evidence_labels;
-use crate::pin::{LEGACY_ROOT_VARIABLE, legacy_root};
-use crate::pin_git::Legacy;
+use crate::legacy::Legacy;
+use crate::legacy::{LEGACY_ROOT_VARIABLE, legacy_root};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};

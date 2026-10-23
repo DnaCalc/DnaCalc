@@ -1218,7 +1218,7 @@ fn native_job(
         record.insert("packages".into(), json!([]));
         return;
     }
-    let checks = arch::run_all(ws, manifests, &out_dir.join("arch"));
+    let checks = arch::run_all(ws, &out_dir.join("arch"));
     for check in &checks {
         println!(
             "ARCH {} {}: {}",
