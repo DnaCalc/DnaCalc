@@ -21,6 +21,8 @@ mod coerce;
 mod decimal;
 mod file_prefix;
 mod format;
+/// One-line function descriptions for signature help and function help.
+pub mod help;
 mod kernel;
 pub mod locale;
 mod number_text;

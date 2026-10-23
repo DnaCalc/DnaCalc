@@ -42,6 +42,8 @@ mod refops;
 mod run;
 
 pub use compile::{CompileError, compile, compile_loaded, compile_loaded_with, compile_with};
+/// The spelling a named call resolves by in the catalogue; the editor assistance resolves by it too.
+pub(crate) use compile::file_unprefixed;
 pub use run::{EvalFault, MAX_CALL_DEPTH, evaluate};
 
 use crate::reference::{

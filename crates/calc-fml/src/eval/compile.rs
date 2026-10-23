@@ -1211,7 +1211,7 @@ fn unknown_on_load(spelling: &str, target: Target) -> bool {
 /// (`_xlfn.SUM`), and reads `_xlws.` alone as an unknown name (#NAME?); in a file it loads, so are
 /// `_xlfn._xlfn.` and `_xlws._xlfn.`. A formula a user enters may spell a function a file stores
 /// with a prefix without it (`MAXIFS`); a file that does is read by [`unknown_on_load`].
-fn file_unprefixed(spelling: &str) -> &str {
+pub(crate) fn file_unprefixed(spelling: &str) -> &str {
     match without_prefix(spelling, "_xlfn.") {
         Some(rest) => without_prefix(rest, "_xlws.").unwrap_or(rest),
         None => spelling,
