@@ -52,6 +52,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-value",
                 "calc-verdict"
               ]
@@ -105,6 +111,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -159,6 +171,12 @@
                 "calc-value"
               ],
               "xtask": [
+                "calc-doc",
+                "calc-doc-model",
+                "calc-engine",
+                "calc-fml",
+                "calc-func",
+                "calc-host",
                 "calc-oracle-excel",
                 "calc-value",
                 "calc-verdict"
@@ -185,7 +203,7 @@
           "calc-doc-model": 13,
           "calc-engine": 7,
           "calc-fml": 15,
-          "calc-func": 15,
+          "calc-func": 18,
           "calc-host": 5,
           "calc-value": 5,
           "calc-verdict": 11,
@@ -201,7 +219,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "103 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "106 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -299,7 +317,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 103,
+        "files_scanned": 106,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -312,7 +330,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "103 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "106 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "seams",
@@ -483,9 +501,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 208,
+          "commit_messages": 232,
           "files": 20,
-          "tracker_records": 367
+          "tracker_records": 371
         },
         "tracker": {
           "ceng-m7.1": {
@@ -536,7 +554,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 367 tracker records, 1 in 1 of 208 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 20 files, 14 in 11 of 371 tracker records, 1 in 1 of 232 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 26 occurrences masked by 4 excluded identifiers"
     },
     {
       "check": "numeric-provenance",
@@ -899,7 +917,7 @@
           ],
           "browser": "chromium",
           "case": "cfunc_m1_2__mixed_operands@chromium",
-          "duration_s": 6.606,
+          "duration_s": 6.031,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -943,12 +961,12 @@
             "oracle mixed_operands!D17 =\"1E+3\"+0 -> number 1000.0 (bits 0x408f400000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D18 =\"0.1\"+0 -> number 0.1 (bits 0x3fb999999999999a) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D19 =\"1e-400\"+0 -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
             "oracle mixed_operands!D26 =0+\"1e400\" -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D27 =9.99999999999999E+307*10 -> #NUM! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D28 =0*-1 -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a zero result is +0)",
@@ -988,30 +1006,30 @@
             "oracle mixed_operands!D62 =1<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D63 =\"a\"<TRUE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D64 =FALSE>9.99999999999999E+307 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+            "oracle mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D66 =A5=0 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D67 =A5=\"\" with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D68 =A5=FALSE with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D69 =A5=A6 with A5 blank, A6 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D70 =A5<1 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+            "oracle mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D77 =1>=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D78 =1<=0 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D79 =TRUE>FALSE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D80 =\"é\"=\"é\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D81 =1=2 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D82 =0.1+0.2=0.3 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D83 =\"é\"=\"É\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =\"a-b\"<\"ab\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D85 =\"apple pie\"<\"banana\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D88 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
+            "oracle mixed_operands!D82 =0.1+0.2=0.3 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D83 =\"é\"=\"É\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D84 =\"a-b\"<\"ab\" -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D85 =\"apple pie\"<\"banana\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D88 =1+1E-15=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D89 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D90 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D91 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1040,7 +1058,7 @@
             "oracle mixed_operands!D113 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D114 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D115 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
             "oracle mixed_operands!D117 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D118 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D119 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1078,14 +1096,14 @@
             "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm; Excel's capture gives the oracle's ^ rows that ^ refuses (not modeled here): mixed_operands!D34 =2^3 8.0 (bits 0x4020000000000000; the witness holds no row for these arguments), mixed_operands!D35 =10^-2 0.01 (bits 0x3f847ae147ae147b; equal to the witness's POWER row w111extended-2026092903-POWER-00046), mixed_operands!D36 =2^0.5 1.4142135623730951 (bits 0x3ff6a09e667f3bcd; the witness holds no row for these arguments)",
             "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet mixed_operands holds exactly the 147 oracle rows' formulas in column D, in row order, and the 15 cells the rows read",
             "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-            "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 108 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 39 whose behaviour another bead owns (17 of them refused by calc-func)",
-            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 108, not_modeled 39; not modeled by owner: 2 (cdoc-jpha: Excel's comparison of nearly equal numbers), 12 (cdoc-jpha: Excel's text collation), 7 (cfml-m2.6: text read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
+            "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 122 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 25 whose behaviour another bead owns (12 of them refused by calc-func)",
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 122, not_modeled 25; not modeled by owner: 7 (cfml-m2.6: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 15 filtered out; finished in 1.45s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:61986/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 22 filtered out; finished in 1.56s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:52662/`"
         },
         {
           "argv": [
@@ -1107,7 +1125,7 @@
           ],
           "browser": "firefox",
           "case": "cfunc_m1_2__mixed_operands@firefox",
-          "duration_s": 11.163,
+          "duration_s": 9.435,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1151,12 +1169,12 @@
             "oracle mixed_operands!D17 =\"1E+3\"+0 -> number 1000.0 (bits 0x408f400000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D18 =\"0.1\"+0 -> number 0.1 (bits 0x3fb999999999999a) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D19 =\"1e-400\"+0 -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
             "oracle mixed_operands!D26 =0+\"1e400\" -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D27 =9.99999999999999E+307*10 -> #NUM! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D28 =0*-1 -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a zero result is +0)",
@@ -1196,30 +1214,30 @@
             "oracle mixed_operands!D62 =1<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D63 =\"a\"<TRUE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D64 =FALSE>9.99999999999999E+307 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+            "oracle mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D66 =A5=0 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D67 =A5=\"\" with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D68 =A5=FALSE with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D69 =A5=A6 with A5 blank, A6 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D70 =A5<1 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+            "oracle mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D77 =1>=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D78 =1<=0 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D79 =TRUE>FALSE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D80 =\"é\"=\"é\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D81 =1=2 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D82 =0.1+0.2=0.3 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D83 =\"é\"=\"É\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =\"a-b\"<\"ab\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D85 =\"apple pie\"<\"banana\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-            "not modeled here, owned by cdoc-jpha: mixed_operands!D88 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
+            "oracle mixed_operands!D82 =0.1+0.2=0.3 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D83 =\"é\"=\"É\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D84 =\"a-b\"<\"ab\" -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D85 =\"apple pie\"<\"banana\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+            "oracle mixed_operands!D88 =1+1E-15=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D89 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D90 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D91 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1248,7 +1266,7 @@
             "oracle mixed_operands!D113 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D114 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D115 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-            "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+            "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
             "oracle mixed_operands!D117 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D118 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
             "oracle mixed_operands!D119 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1286,18 +1304,18 @@
             "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm; Excel's capture gives the oracle's ^ rows that ^ refuses (not modeled here): mixed_operands!D34 =2^3 8.0 (bits 0x4020000000000000; the witness holds no row for these arguments), mixed_operands!D35 =10^-2 0.01 (bits 0x3f847ae147ae147b; equal to the witness's POWER row w111extended-2026092903-POWER-00046), mixed_operands!D36 =2^0.5 1.4142135623730951 (bits 0x3ff6a09e667f3bcd; the witness holds no row for these arguments)",
             "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet mixed_operands holds exactly the 147 oracle rows' formulas in column D, in row order, and the 15 cells the rows read",
             "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-            "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 108 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 39 whose behaviour another bead owns (17 of them refused by calc-func)",
-            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 108, not_modeled 39; not modeled by owner: 2 (cdoc-jpha: Excel's comparison of nearly equal numbers), 12 (cdoc-jpha: Excel's text collation), 7 (cfml-m2.6: text read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
+            "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 122 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 25 whose behaviour another bead owns (12 of them refused by calc-func)",
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 122, not_modeled 25; not modeled by owner: 7 (cfml-m2.6: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 15 filtered out; finished in 2.13s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55791/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 22 filtered out; finished in 1.96s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:64344/`"
         }
       ],
       "case": "cfunc_m1_2__mixed_operands",
-      "duration_s": 17.77,
+      "duration_s": 15.465,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -1321,12 +1339,12 @@
         "oracle mixed_operands!D17 =\"1E+3\"+0 -> number 1000.0 (bits 0x408f400000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D18 =\"0.1\"+0 -> number 0.1 (bits 0x3fb999999999999a) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D19 =\"1e-400\"+0 -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
         "oracle mixed_operands!D26 =0+\"1e400\" -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D27 =9.99999999999999E+307*10 -> #NUM! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D28 =0*-1 -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a zero result is +0)",
@@ -1366,30 +1384,30 @@
         "oracle mixed_operands!D62 =1<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D63 =\"a\"<TRUE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D64 =FALSE>9.99999999999999E+307 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+        "oracle mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D66 =A5=0 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D67 =A5=\"\" with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D68 =A5=FALSE with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D69 =A5=A6 with A5 blank, A6 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D70 =A5<1 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+        "oracle mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D77 =1>=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D78 =1<=0 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D79 =TRUE>FALSE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D80 =\"é\"=\"é\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D81 =1=2 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D82 =0.1+0.2=0.3 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D83 =\"é\"=\"É\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =\"a-b\"<\"ab\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D85 =\"apple pie\"<\"banana\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D88 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
+        "oracle mixed_operands!D82 =0.1+0.2=0.3 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D83 =\"é\"=\"É\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D84 =\"a-b\"<\"ab\" -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D85 =\"apple pie\"<\"banana\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D88 =1+1E-15=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D89 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D90 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D91 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1418,7 +1436,7 @@
         "oracle mixed_operands!D113 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D114 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D115 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
         "oracle mixed_operands!D117 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D118 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D119 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1456,8 +1474,8 @@
         "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm; Excel's capture gives the oracle's ^ rows that ^ refuses (not modeled here): mixed_operands!D34 =2^3 8.0 (bits 0x4020000000000000; the witness holds no row for these arguments), mixed_operands!D35 =10^-2 0.01 (bits 0x3f847ae147ae147b; equal to the witness's POWER row w111extended-2026092903-POWER-00046), mixed_operands!D36 =2^0.5 1.4142135623730951 (bits 0x3ff6a09e667f3bcd; the witness holds no row for these arguments)",
         "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet mixed_operands holds exactly the 147 oracle rows' formulas in column D, in row order, and the 15 cells the rows read",
         "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-        "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 108 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 39 whose behaviour another bead owns (17 of them refused by calc-func)",
-        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 108, not_modeled 39; not modeled by owner: 2 (cdoc-jpha: Excel's comparison of nearly equal numbers), 12 (cdoc-jpha: Excel's text collation), 7 (cfml-m2.6: text read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+        "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 122 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 25 whose behaviour another bead owns (12 of them refused by calc-func)",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 122, not_modeled 25; not modeled by owner: 7 (cfml-m2.6: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
         "the sheet holds A1 = text \"2\", B1 = 0.5, C1 = text of 32766 \"a\" characters, A2 = TRUE, B2 = -2, C2 = text of 32767 \"a\" characters, A3 = 5, B3 = 10, C3 = 123456789012.34, A4 = text \"a\", C4 = 123456789012.33, C5 = 0, C6 = text \"1e-400\", A7 = 10, C7 = text \"1e-309\"; A5 and A6 are blank",
         "oracle mixed_operands!D1 =\"1\"+1 -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D2 =A1+1 with A1 = text \"2\" -> number 3.0 (bits 0x4008000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1478,12 +1496,12 @@
         "oracle mixed_operands!D17 =\"1E+3\"+0 -> number 1000.0 (bits 0x408f400000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D18 =\"0.1\"+0 -> number 0.1 (bits 0x3fb999999999999a) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D19 =\"1e-400\"+0 -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D20 =\"1/2\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D21 =\"$5\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D22 =\"1,000\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D23 =\"50%\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D24 =\"1234567890123456\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D25 =\"1.2345678901234567\"+0 -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
         "oracle mixed_operands!D26 =0+\"1e400\" -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D27 =9.99999999999999E+307*10 -> #NUM! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D28 =0*-1 -> number 0.0 (bits 0x0000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a zero result is +0)",
@@ -1523,30 +1541,30 @@
         "oracle mixed_operands!D62 =1<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D63 =\"a\"<TRUE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D64 =FALSE>9.99999999999999E+307 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+        "oracle mixed_operands!D65 =\"a\"=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D66 =A5=0 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D67 =A5=\"\" with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D68 =A5=FALSE with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D69 =A5=A6 with A5 blank, A6 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D70 =A5<1 with A5 blank -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
+        "oracle mixed_operands!D71 =\"abc\"<\"abd\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D72 =\"B\">\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D73 =\"a1\"<\"aa\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D74 =\"10\"<\"9\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D75 =\"\"<\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D76 =\"a\"<=\"A\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D77 =1>=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D78 =1<=0 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D79 =TRUE>FALSE -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D80 =\"é\"=\"é\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D81 =1=2 -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D82 =0.1+0.2=0.3 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D83 =\"é\"=\"É\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D84 =\"a-b\"<\"ab\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D85 =\"apple pie\"<\"banana\" -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's text collation)",
-        "not modeled here, owned by cdoc-jpha: mixed_operands!D88 =1+1E-15=1 -> NotImplemented (argument None) (hand-written, asserted as the code's own consistency check; published as not modeled: Excel's comparison of nearly equal numbers)",
+        "oracle mixed_operands!D82 =0.1+0.2=0.3 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D83 =\"é\"=\"É\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D84 =\"a-b\"<\"ab\" -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D85 =\"apple pie\"<\"banana\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D86 =\"a\"<\"B\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D87 =\"A\"=\"a\" -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
+        "oracle mixed_operands!D88 =1+1E-15=1 -> TRUE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D89 =\"a\"&\"b\" -> text \"ab\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D90 =\"a\"&TRUE -> text \"aTRUE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D91 =\"a\"&FALSE -> text \"aFALSE\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1575,7 +1593,7 @@
         "oracle mixed_operands!D113 =IF(\"false\",1,2) -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D114 =IF(\"x\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D115 =IF(\"\",1,2) -> #VALUE! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
-        "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text read as a number or a logical by Excel's number-text rules)",
+        "not modeled here, owned by cfml-m2.6: mixed_operands!D116 =IF(\"1\",1,2) -> NotImplemented (argument Some(0)) (hand-written, asserted as the code's own consistency check; published as not modeled: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules)",
         "oracle mixed_operands!D117 =IF(A5,1,2) with A5 blank -> number 2.0 (bits 0x4000000000000000) (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D118 =IF(0,1) -> FALSE (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
         "oracle mixed_operands!D119 =IF(2,\"a\",1/0) -> text \"a\" (hand-written, asserted as the code's own consistency check; compared with Excel's capture below)",
@@ -1613,8 +1631,8 @@
         "retained witness of the POWER function (migration/witnesses/w111-extended-power.json, 111 rows), applied to ^ on the assumption that ^ computes POWER: ^ computed 56 rows equal to Excel's POWER results (19 of them #NUM! or #DIV/0!) and refused 55 rows that need a power algorithm; Excel's capture gives the oracle's ^ rows that ^ refuses (not modeled here): mixed_operands!D34 =2^3 8.0 (bits 0x4020000000000000; the witness holds no row for these arguments), mixed_operands!D35 =10^-2 0.01 (bits 0x3f847ae147ae147b; equal to the witness's POWER row w111extended-2026092903-POWER-00046), mixed_operands!D36 =2^0.5 1.4142135623730951 (bits 0x3ff6a09e667f3bcd; the witness holds no row for these arguments)",
         "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet mixed_operands holds exactly the 147 oracle rows' formulas in column D, in row order, and the 15 cells the rows read",
         "the generator runs under Windows PowerShell, so the check that the committed oracle workbook is its output runs on the windows route; here the workbook is checked against the rows only",
-        "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 108 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 39 whose behaviour another bead owns (17 of them refused by calc-func)",
-        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 108, not_modeled 39; not modeled by owner: 2 (cdoc-jpha: Excel's comparison of nearly equal numbers), 12 (cdoc-jpha: Excel's text collation), 7 (cfml-m2.6: text read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
+        "147 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet mixed_operands of the oracle workbook: 122 of cfunc-m1.2 (11 of them naming the rule they show), each compared with Excel's capture below, and 25 whose behaviour another bead owns (12 of them refused by calc-func)",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet mixed_operands: matched 122, not_modeled 25; not modeled by owner: 7 (cfml-m2.6: text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules), 1 (cfml-m3.4: an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)), 1 (cfunc-m3.23: subnormal results), 3 (cfunc-m3.3, cfunc-m3.23: ^ through a pinned power implementation), 2 (cfunc-m3.4: number text read by COUNT), 4 (cfunc-m3.5: number text in COUNTIF's criteria and range cells), 7 (dc-r4ci: the near-zero adjustment of + and - by the formula's final operation) (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
       ],
       "outcome": "passed",
       "package": "calc-func",
@@ -1660,7 +1678,7 @@
           ],
           "browser": "chromium",
           "case": "cfunc_m1_2__error_order@chromium",
-          "duration_s": 6.118,
+          "duration_s": 5.693,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -1774,13 +1792,13 @@
             "oracle error_order!D87 =SUM(9.99999999999999E+307,9.99999999999999E+307,B1) with B1 = #N/A -> #N/A (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a reference's error after the running total overflowed)",
             "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet error_order holds exactly the 87 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
             "87 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 87 of cfunc-m1.2 (57 of them naming the rule they show), each compared with Excel's capture below, and 0 whose behaviour another bead owns (0 of them refused by calc-func)",
-            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 15 filtered out; finished in 1.19s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:51510/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 22 filtered out; finished in 1.11s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50464/`"
         },
         {
           "argv": [
@@ -1802,7 +1820,7 @@
           ],
           "browser": "firefox",
           "case": "cfunc_m1_2__error_order@firefox",
-          "duration_s": 10.099,
+          "duration_s": 9.101,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -1916,17 +1934,17 @@
             "oracle error_order!D87 =SUM(9.99999999999999E+307,9.99999999999999E+307,B1) with B1 = #N/A -> #N/A (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a reference's error after the running total overflowed)",
             "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet error_order holds exactly the 87 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
             "87 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 87 of cfunc-m1.2 (57 of them naming the rule they show), each compared with Excel's capture below, and 0 whose behaviour another bead owns (0 of them refused by calc-func)",
-            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
+            "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 15 filtered out; finished in 1.55s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55810/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 22 filtered out; finished in 1.46s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:53364/`"
         }
       ],
       "case": "cfunc_m1_2__error_order",
-      "duration_s": 16.217,
+      "duration_s": 14.794,
       "exit_code": 0,
       "log": null,
       "notes": [
@@ -2020,7 +2038,7 @@
         "oracle error_order!D87 =SUM(9.99999999999999E+307,9.99999999999999E+307,B1) with B1 = #N/A -> #N/A (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a reference's error after the running total overflowed)",
         "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet error_order holds exactly the 87 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
         "87 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 87 of cfunc-m1.2 (57 of them naming the rule they show), each compared with Excel's capture below, and 0 whose behaviour another bead owns (0 of them refused by calc-func)",
-        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture",
         "the sheet holds A1 = 1, B1 = #N/A, A2 = #DIV/0!, B2 = 2",
         "oracle error_order!D1 =#N/A+#DIV/0! -> #N/A (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: the left operand's error before the right operand's)",
         "oracle error_order!D2 =#DIV/0!+#N/A -> #DIV/0! (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: the left operand's error before the right operand's)",
@@ -2111,7 +2129,7 @@
         "oracle error_order!D87 =SUM(9.99999999999999E+307,9.99999999999999E+307,B1) with B1 = #N/A -> #N/A (hand-written, asserted as the code's own consistency check; compared with Excel's capture below; the rule it shows: a reference's error after the running total overflowed)",
         "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx (sha256 f37656d9c0a1f2cebc11d82eab48fd932a68bfcb29a852780ce7a1b45a6e4d7f): sheet error_order holds exactly the 87 oracle rows' formulas in column D, in row order, and the 4 cells the rows read",
         "87 rows through calc_func::invoke, each asserted against a hand-written expectation as the code's own consistency check and each with its formula on sheet error_order of the oracle workbook: 87 of cfunc-m1.2 (57 of them naming the rule they show), each compared with Excel's capture below, and 0 whose behaviour another bead owns (0 of them refused by calc-func)",
-        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 195 of 234 formula cells; matched 195 of 195 calculated, mismatched 0, not run 0; of the 195 compared, strict-bit certified 0, uncertified 195 (no_exact_target 195); not calculated: unproven 0, stale 0, file-cached 0, not modeled 39, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 195 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
+        "Excel comparison through calc_verdict::judge against Excel 16.0.20430.20182's capture of the oracle workbook: sheet error_order: matched 87; not modeled by owner: none (every row of cfunc-m1.2 matched, every other row not modeled with its owner); the whole workbook: cfunc_m1_2__mixed_operands: calculated 209 of 234 formula cells; matched 209 of 209 calculated, mismatched 0, not run 0; of the 209 compared, strict-bit certified 0, uncertified 209 (no_exact_target 209); not calculated: unproven 0, stale 0, file-cached 0, not modeled 25, failed 0, missing 0; 0 not-calculated values equal their expectation; 0 results outside the inventory; 234 evaluator calls (evaluation record version 1, 209 calculated without a value check); 0 capture failures; 1 COM add-ins connected during the capture"
       ],
       "outcome": "passed",
       "package": "calc-func",
@@ -2157,7 +2175,7 @@
           ],
           "browser": "chromium",
           "case": "cfunc_m1_2__excel_comparison@chromium",
-          "duration_s": 5.799,
+          "duration_s": 4.983,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "CHROMEDRIVER": "<cargo-home>/bin/chromedriver.exe",
@@ -2181,13 +2199,13 @@
           "exit_code": 0,
           "log": "target/accept/cfunc-m1.2/wasm/cfunc_m1_2__excel_comparison@chromium.log",
           "notes": [
-            "on in-memory captures of the oracle workbook (234 rows: 195 of cfunc-m1.2, 39 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 108 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
+            "on in-memory captures of the oracle workbook (234 rows: 209 of cfunc-m1.2, 25 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 122 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 15 filtered out; finished in 0.49s",
-          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:54866/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 22 filtered out; finished in 0.44s",
+          "runner_banner": "Running headless tests in Chrome on `http://127.0.0.1:50838/`"
         },
         {
           "argv": [
@@ -2209,7 +2227,7 @@
           ],
           "browser": "firefox",
           "case": "cfunc_m1_2__excel_comparison@firefox",
-          "duration_s": 10.023,
+          "duration_s": 8.45,
           "environment": {
             "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER": "<cargo-home>/bin/wasm-bindgen-test-runner.exe",
             "GECKODRIVER": "<cargo-home>/bin/geckodriver.exe",
@@ -2233,22 +2251,22 @@
           "exit_code": 0,
           "log": "target/accept/cfunc-m1.2/wasm/cfunc_m1_2__excel_comparison@firefox.log",
           "notes": [
-            "on in-memory captures of the oracle workbook (234 rows: 195 of cfunc-m1.2, 39 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 108 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
+            "on in-memory captures of the oracle workbook (234 rows: 209 of cfunc-m1.2, 25 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 122 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
           ],
           "outcome": "passed",
           "package": "calc-func",
           "reason": null,
-          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 15 filtered out; finished in 0.83s",
-          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:55829/`"
+          "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 22 filtered out; finished in 0.52s",
+          "runner_banner": "Running headless tests in Firefox on `http://127.0.0.1:51701/`"
         }
       ],
       "case": "cfunc_m1_2__excel_comparison",
-      "duration_s": 15.823,
+      "duration_s": 13.433,
       "exit_code": 0,
       "log": null,
       "notes": [
-        "on in-memory captures of the oracle workbook (234 rows: 195 of cfunc-m1.2, 39 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 108 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused",
-        "on in-memory captures of the oracle workbook (234 rows: 195 of cfunc-m1.2, 39 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 108 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
+        "on in-memory captures of the oracle workbook (234 rows: 209 of cfunc-m1.2, 25 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 122 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused",
+        "on in-memory captures of the oracle workbook (234 rows: 209 of cfunc-m1.2, 25 of other beads), calc_verdict::judge's report through the comparison: the agreeing capture matches every row of cfunc-m1.2 and counts every other row not modeled, a row of another bead observed with calc-func's own value included; each of 7 single-cell changes (a number's last bit, +0 as -0, a number as text, an error code, a text, a logical, a missing observation) is exactly one problem at its cell; an extra and a lacking formula cell are one problem each; a result whose invoke call is not in the evaluation record is unproven; a capture under another calculation context leaves the 122 rows of cfunc-m1.2 on the sheet stale; a capture with a cell-less inventory failure is refused"
       ],
       "outcome": "passed",
       "package": "calc-func",
@@ -2279,13 +2297,13 @@
         "--",
         "--nocapture"
       ],
-      "duration_s": 17.477,
+      "duration_s": 6.837,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 5.10s"
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 6.64s"
       ],
       "log": "target/accept/cfunc-m1.2/wasm/command-1.log",
       "outcome": "passed",
@@ -2310,13 +2328,13 @@
         "calc-func",
         "--lib"
       ],
-      "duration_s": 3.488,
+      "duration_s": 0.206,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        "test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
       ],
       "log": "target/accept/cfunc-m1.2/wasm/command-2.log",
       "outcome": "passed",
@@ -2412,7 +2430,7 @@
     "passed": 3,
     "selected": 3
   },
-  "duration_s": 156.683,
+  "duration_s": 130.916,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -2423,62 +2441,72 @@
       "dirty": true,
       "dirty_paths": [
         {
-          "blob": "a62c6bf150dbfa071838349d6dee8e81563d02a9",
+          "blob": "e20021f3afdc7df2341e870698c4e6b3fb2f5cf6",
           "path": "accept-receipts/cfunc-m1.2/windows.json",
           "status": "M"
         },
         {
-          "blob": "9f75fea3625bf8f8113abab6e81cb7be97529ca4",
-          "path": "crates/calc-func/src/catalogue/aggregate.rs",
+          "blob": "6fb3da5690142cd3436198e39003822a3f078138",
+          "path": "crates/calc-func/acceptance.json",
           "status": "M"
         },
         {
-          "blob": "3be7018b1242c784b0b43f1d4b078455e344e4b2",
+          "blob": "e38705ad9ae7dc98fb6fcb0f0d388041e83810dd",
+          "path": "crates/calc-func/src/catalogue/comparison.rs",
+          "status": "M"
+        },
+        {
+          "blob": "822a33bcba03957aefc9f29c55f83d745825ae6f",
           "path": "crates/calc-func/src/catalogue/conditional.rs",
           "status": "M"
         },
         {
-          "blob": "b3437db45d513b90ccfc53b0e54b903557fb0c1c",
-          "path": "crates/calc-func/src/catalogue/text.rs",
+          "blob": "746b4ff3aed9cb1c0475a4d8013a3b07d532d38d",
+          "path": "crates/calc-func/src/catalogue/lookup.rs",
           "status": "M"
         },
         {
-          "blob": "52d71f9e42a8bb93d879174c45d9beb93eb5c2e1",
-          "path": "crates/calc-func/src/coerce.rs",
-          "status": "M"
-        },
-        {
-          "blob": "57d2751243000a6dc810f35bf06bfdf8d8e78c56",
+          "blob": "7c63429894275086906ed9d9266b06b816fab920",
           "path": "crates/calc-func/tests/acceptance.rs",
           "status": "M"
         },
         {
-          "blob": "eedc6a650eaf7949361ffed051fead6ea34e02a4",
-          "path": "crates/calc-func/tests/captures/cfunc_m1_2/oracle.capture.json",
-          "status": "M"
-        },
-        {
-          "blob": "334cbf20761ae4dc330828c25f27d7e79f62ff8f",
-          "path": "crates/calc-func/tests/fixtures/cfunc_m1_2/oracle.xlsx",
-          "status": "M"
-        },
-        {
-          "blob": "98b30945c283abb08e954b4bc0c2d37b7cc4b084",
+          "blob": "e3202f9c589d91986890346e140fbc7e2f9a84f8",
           "path": "crates/calc-func/tests/fixtures/make-fixtures.ps1",
           "status": "M"
         },
         {
-          "blob": "3bde6e7a50f74582be9142c5a47380409980fd1a",
-          "path": "migration/ports/cfunc-m1.2.json",
-          "status": "M"
+          "blob": "a5e9c7b19239a067eb7c16fb01d10890d3369df7",
+          "path": "accept-receipts/cdoc-jpha/wasm.json",
+          "status": "??"
         },
         {
-          "blob": "b2f52cac52c96302b14d43129bc53bdf824af2e0",
-          "path": "migration/ports/cfunc-m3.4.json",
-          "status": "M"
+          "blob": "d4dcc769b2729abd5101e28f9d4b9f1410264a52",
+          "path": "accept-receipts/cdoc-jpha/windows.json",
+          "status": "??"
+        },
+        {
+          "blob": "6abb59988576bfa4600aa4385669ec20fa41947f",
+          "path": "crates/calc-func/src/catalogue/comparison/collation.rs",
+          "status": "??"
+        },
+        {
+          "blob": "9b5e4f21d26e480ec0e63c90408c9b77068a6cf7",
+          "path": "crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json",
+          "status": "??"
+        },
+        {
+          "blob": "f96544b4b56a0c0a31b6d7a40aab527a2de211f3",
+          "path": "crates/calc-func/tests/fixtures/cdoc_jpha/oracle.xlsx",
+          "status": "??"
+        },
+        {
+          "blob": "08898fcc15d213b8247ee545a36d6ef11392a0f8",
+          "path": "crates/calc-func/tests/fixtures/cdoc_jpha/rows.txt",
+          "status": "??"
         }
       ],
-      "head": "7b59bf679bd70ecb7e435d6d09788d9951b3bf31",
+      "head": "305c9a1302853f5d8995943f11b65c5e9ccc9cc5",
       "receipt_paths_left_out": [
         "accept-receipts/cfunc-m1.2/wasm.json"
       ]
@@ -2519,5 +2547,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-21T15:51:43Z"
+  "started_utc": "2026-10-21T18:48:33Z"
 }

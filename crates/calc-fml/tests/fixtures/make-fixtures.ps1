@@ -2,10 +2,11 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File make-fixtures.ps1 -OutDir <directory>
 #
-# writes <directory>/dc_ibp2/oracle.xlsx and <directory>/dc_l10u/oracle.xlsx. Run with this
-# directory as -OutDir it rewrites the committed fixtures; the acceptance cases
-# dc_ibp2__error_fallback and dc_l10u__reference_results_as_values run it into a fresh directory on
-# Windows and compare its output with the committed workbooks byte for byte.
+# writes <directory>/dc_ibp2/oracle.xlsx, <directory>/dc_l10u/oracle.xlsx and
+# <directory>/dc_51ka/oracle.xlsx. Run with this directory as -OutDir it rewrites the committed
+# fixtures; the acceptance cases dc_ibp2__error_fallback, dc_l10u__reference_results_as_values and
+# dc_51ka__indirect_text_references run it into a fresh directory on Windows and compare every
+# workbook it writes with the committed one byte for byte.
 #
 # dc_ibp2/oracle.xlsx is the workbook the Excel capture of bead dc-ibp2 reads
 # (`cargo xtask capture --fixture crates/calc-fml/tests/fixtures/dc_ibp2/oracle.xlsx ...`). It has
@@ -100,6 +101,11 @@ function Get-Escaped([string]$Text) {
     return $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
 }
 
+# The text as an XML attribute value between double quotes.
+function Get-AttributeEscaped([string]$Text) {
+    return (Get-Escaped $Text).Replace('"', '&quot;')
+}
+
 # Constant cells, each @(reference, XML).
 function New-Number([string]$Ref, [string]$Value) { return @($Ref, ('<c r="' + $Ref + '"><v>' + $Value + '</v></c>')) }
 function New-Text([string]$Ref, [string]$Text) { return @($Ref, ('<c r="' + $Ref + '" t="inlineStr"><is><t>' + (Get-Escaped $Text) + '</t></is></c>')) }
@@ -186,8 +192,9 @@ $Metadata = $Decl + '<metadata xmlns="' + $Main + '" xmlns:xda="http://schemas.m
     '</metadata>'
 
 # Writes a workbook of the worksheets $Sheets (each @(name, worksheet XML)), in order, with the
-# metadata part.
-function Write-Workbook([string]$Path, $Sheets) {
+# metadata part, and the workbook-scoped defined names $Names (each @(name, formula without '='), in
+# order; none when omitted).
+function Write-Workbook([string]$Path, $Sheets, $Names = @()) {
     $types = $Decl + '<Types xmlns="' + $ContentTypes + '">' +
         '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
         '<Default Extension="xml" ContentType="application/xml"/>' +
@@ -200,7 +207,7 @@ function Write-Workbook([string]$Path, $Sheets) {
     $index = 0
     foreach ($sheet in $Sheets) {
         $index += 1
-        $entries += '<sheet name="' + $sheet[0] + '" sheetId="' + $index + '" r:id="rId' + $index + '"/>'
+        $entries += '<sheet name="' + (Get-AttributeEscaped $sheet[0]) + '" sheetId="' + $index + '" r:id="rId' + $index + '"/>'
         [void]$rels.Add(@("rId$index", "$Rel/worksheet", "worksheets/sheet$index.xml"))
         $types += '<Override PartName="/xl/worksheets/sheet' + $index + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
         [void]$parts.Add(@("xl/worksheets/sheet$index.xml", $sheet[1]))
@@ -208,8 +215,16 @@ function Write-Workbook([string]$Path, $Sheets) {
     [void]$rels.Add(@(('rId' + ($index + 1)), "$Rel/styles", 'styles.xml'))
     [void]$rels.Add(@(('rId' + ($index + 2)), "$Rel/sheetMetadata", 'metadata.xml'))
     $types += '</Types>'
+    $definedNames = ''
+    if (@($Names).Count -gt 0) {
+        $definedNames = '<definedNames>'
+        foreach ($name in $Names) {
+            $definedNames += '<definedName name="' + (Get-AttributeEscaped $name[0]) + '">' + (Get-Escaped $name[1]) + '</definedName>'
+        }
+        $definedNames += '</definedNames>'
+    }
     $workbook = $Decl + '<workbook xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><bookViews><workbookView/></bookViews>' +
-        '<sheets>' + $entries + '</sheets><calcPr fullCalcOnLoad="1"/></workbook>'
+        '<sheets>' + $entries + '</sheets>' + $definedNames + '<calcPr fullCalcOnLoad="1"/></workbook>'
     $all = New-Object System.Collections.ArrayList
     [void]$all.Add(@('[Content_Types].xml', $types))
     [void]$all.Add(@('_rels/.rels', (New-Relationships @(, @('rId1', "$Rel/officeDocument", 'xl/workbook.xml')))))
@@ -347,4 +362,198 @@ $referenceFormulas = @(
 
 Write-Workbook (Join-Path $OutDir 'dc_l10u/oracle.xlsx') @(
     , @('reference_values', (New-OracleSheet $referenceInputs @() $referenceFormulas))
+)
+
+# --- dc_51ka/oracle.xlsx ------------------------------------------------------------------------
+
+# dc_51ka/oracle.xlsx is the workbook the Excel capture of bead dc-51ka reads
+# (`cargo xtask capture --fixture crates/calc-fml/tests/fixtures/dc_51ka/oracle.xlsx ...`): INDIRECT
+# over text that names cells, ranges, whole rows and columns of its own sheet and of 41 others,
+# whose names need quoting or not, and two workbook-scoped defined names. Sheet indirect holds the
+# constant cells the rows read (columns A and B, A1048576 and XFD1, which the rows that wrap around
+# the grid's edge read) and in column D one formula per oracle row, from row 1, in the order the
+# case dc_51ka__indirect_text_references runs its rows; each other sheet holds constant cells only.
+# No formula cell carries a cache. A tab, carriage return or line feed in a formula is written as a
+# character reference, which XML's line-end handling leaves as written.
+
+# The column number of column letters (A is 1).
+function Get-ColumnNumber([string]$Letters) {
+    $number = 0
+    foreach ($letter in $Letters.ToCharArray()) { $number = $number * 26 + ([int][char]$letter - 64) }
+    return $number
+}
+
+# A formula cell: the formula without '=', as the file stores it.
+function New-Formula([string]$Ref, [string]$Formula) {
+    $escaped = (Get-Escaped $Formula).Replace([string][char]9, '&#9;').Replace([string][char]13, '&#13;').Replace([string][char]10, '&#10;')
+    return @($Ref, ('<c r="' + $Ref + '"><f>' + $escaped + '</f></c>'))
+}
+
+# A worksheet part of the cells $Cells (each @(reference, XML)) in any columns, written row by row
+# in row order and each row's cells in column order.
+function New-CellSheet($Cells) {
+    $rows = @{}
+    foreach ($cell in $Cells) {
+        $place = Split-Ref $cell[0]
+        if (-not $rows.ContainsKey($place[0])) { $rows[$place[0]] = @{} }
+        $column = Get-ColumnNumber $place[1]
+        if ($rows[$place[0]].ContainsKey($column)) { throw "cell $($cell[0]) is written twice" }
+        $rows[$place[0]][$column] = $cell[1]
+    }
+    $text = $Decl + '<worksheet xmlns="' + $Main + '" xmlns:r="' + $Rel + '"><sheetData>'
+    foreach ($row in ($rows.Keys | Sort-Object)) {
+        $text += '<row r="' + $row + '">'
+        foreach ($column in ($rows[$row].Keys | Sort-Object)) { $text += $rows[$row][$column] }
+        $text += '</row>'
+    }
+    return $text + '</sheetData></worksheet>'
+}
+
+$eAcute = [string][char]0xE9
+# The marks of the sheets a<mark>b, each a character that is not a letter, a digit, _ or . and that
+# a sheet name may hold, and the non-ASCII sheet names: six letters of six scripts and the euro sign.
+$sheetMarks = @('(', ')', '+', '&', ',', '%', '#', '$', '{', '~', '^', '=', '!', ';', '"', '<', '>', '@', '`', '|', '}')
+$wideNames = @([string][char]0xDF, [string][char]0xD8, [string][char]0xF1, [string][char]0x3A9, [string][char]0x416, [string][char]0x4E2D, [string][char]0x20AC)
+# The whitespace of the rows that place it before, inside and after the text: tab, carriage return
+# and no-break space; and the line feed.
+$blanks = @([string][char]9, [string][char]13, [string][char]0xA0)
+$lineFeed = [string][char]10
+
+$indirectInputs = @(
+    (New-Number 'A1' '10'), (New-Number 'A2' '20'), (New-Number 'B1' '30'), (New-Number 'B2' '40'),
+    (New-Text 'A3' 'bench'), (New-Text 'A5' 'A1'), (New-Text 'A6' 'R1C1'), (New-Text 'A7' "'Q2 Data'"),
+    (New-Text 'B3' 'q'), (New-Text 'B4' 'y'), (New-Text 'B5' 'zz'),
+    (New-Number 'A1048576' '99'), (New-Number 'XFD1' '98')
+)
+$indirectFormulas = New-Object System.Collections.ArrayList
+foreach ($formula in @(
+    # R1C1 offsets from the formula's cell, wrapping around the grid's edge: up from row 1, left from
+    # column D, down from row 5 by 1048575 rows (to row 4), and a range from row 6 whose first
+    # corner wraps to the last row.
+    'INDIRECT("R[-1]C1",FALSE)', 'INDIRECT("R[-1]C[-3]",FALSE)', 'INDIRECT("R1C[-4]",FALSE)',
+    'INDIRECT("R[1048576]C1",FALSE)', 'INDIRECT("R[1048575]C[-2]",FALSE)',
+    'SUM(INDIRECT("R[-6]C1:R[-4]C2",FALSE))',
+    # A1 cells of the formula's own sheet.
+    'INDIRECT("A1")', 'INDIRECT("$A$1")', 'INDIRECT("b2")', 'INDIRECT("A$2")', 'INDIRECT(A5)',
+    'INDIRECT("B"&1)', 'INDIRECT("A01")', 'INDIRECT("A1   ")', 'INDIRECT("XFD1048576")',
+    'INDIRECT("$A$1048577")', 'INDIRECT("$XFE$1")',
+    # Sheet qualifiers, quoted and not.
+    'INDIRECT("data!A1")', 'INDIRECT("DATA!a1")', 'INDIRECT("''data''!A1")', 'INDIRECT("data! A1")',
+    'INDIRECT("''data''! A1")', 'INDIRECT("data !A1")', 'INDIRECT("''data'' !A1")',
+    'INDIRECT("''Q2 Data''!C3")', 'INDIRECT("Q2 Data!C3")', 'INDIRECT("''It''''s''!A1")',
+    'INDIRECT("It''s!A1")', 'INDIRECT("a-b!A1")', 'INDIRECT("''a-b''!A1")', 'INDIRECT("1x!A1")',
+    'INDIRECT("A1!B2")', 'INDIRECT("a.b!A1")', 'INDIRECT(".x!A1")', 'INDIRECT("''.x''!A1")',
+    'INDIRECT("TRUE!A1")', 'INDIRECT("true!A1")', 'INDIRECT("''TRUE''!A1")', 'INDIRECT("FALSE!A1")',
+    'INDIRECT("a_b!A1")', ('INDIRECT("' + $eAcute + '!A1")'),
+    'INDIRECT("nosuch!A1")', 'INDIRECT(A3&"!B2")',
+    # Ranges, whole columns and rows.
+    'SUM(INDIRECT("A1:B2"))', 'SUM(INDIRECT("B2:A1"))', 'SUM(INDIRECT("$A1 : B$2"))',
+    'SUM(INDIRECT("data!B2:B4"))', 'SUM(INDIRECT("''Q2 Data''!A1:C3"))',
+    'SUM(INDIRECT("data!B2:data!B4"))', 'SUM(INDIRECT("A1:data!B2"))', 'SUM(INDIRECT("A1:B2:C3"))',
+    'SUM(INDIRECT("A1 B1"))', 'SUM(INDIRECT("A:A"))', 'SUM(INDIRECT("$A:$B"))',
+    'SUM(INDIRECT("data!B:B"))', 'SUM(INDIRECT("data!2:2"))', 'SUM(INDIRECT("data!3:2"))',
+    'ROWS(INDIRECT("A1:B3"))', 'COLUMNS(INDIRECT("data!B1:D1"))',
+    # R1C1 text.
+    'INDIRECT("R1C1",FALSE)', 'INDIRECT("r2c2",FALSE)', 'INDIRECT("data!R1C1",FALSE)',
+    'SUM(INDIRECT("R1C1:R2C2",FALSE))', 'SUM(INDIRECT("data!R2C2:R4C2",FALSE))',
+    'SUM(INDIRECT("data!R2",FALSE))', 'SUM(INDIRECT("data!C2",FALSE))', 'INDIRECT("A1",FALSE)',
+    'INDIRECT("R1C1")', 'INDIRECT("R0C1",FALSE)', 'INDIRECT("R1C1:R2",FALSE)',
+    # Text that names no reference.
+    'INDIRECT("")', 'INDIRECT(" A1")', 'INDIRECT("=A1")', 'INDIRECT("(A1)")', 'INDIRECT("A1+1")',
+    'INDIRECT("indirect:data!A1")', 'INDIRECT("data!#REF!")', 'INDIRECT("$A")', 'INDIRECT("1")',
+    # ref_text and a1 as values.
+    'INDIRECT(1)', 'INDIRECT(TRUE)', 'INDIRECT(#N/A)', 'INDIRECT(A4)', 'INDIRECT("A1",1)',
+    'INDIRECT("A1",0)', 'INDIRECT("A1",2)', 'INDIRECT("A1",)', 'INDIRECT("R1C1",)',
+    'INDIRECT("R1C1","FALSE")', 'INDIRECT("A1","true")', 'INDIRECT("A1","x")', 'INDIRECT("R1C1",A4)',
+    'INDIRECT("A1",#N/A)', 'INDIRECT(#DIV/0!,#N/A)', 'INDIRECT(1,#N/A)', 'INDIRECT(A6,FALSE)',
+    # INDIRECT nested in INDEX and MATCH, as the Ofgem price-cap workbook nests it, and in others.
+    'INDEX(INDIRECT(A3&"!$B$2:$D$4"),MATCH("Total_q",INDIRECT(A3&"!$A$2:$A$4"),0),MATCH("y",INDIRECT(A3&"!$B$1:$D$1"),0))',
+    'IFERROR(ROUND(INDEX(INDIRECT(A3&"!$B$2:$D$4"),MATCH("Total_"&B3,INDIRECT(A3&"!$A$2:$A$4"),0),MATCH(B4,INDIRECT(A3&"!$B$1:$D$1"),0)),2),"-")',
+    'IFERROR(ROUND(INDEX(INDIRECT(A3&"!$B$2:$D$4"),MATCH("Total_"&B5,INDIRECT(A3&"!$A$2:$A$4"),0),MATCH(B4,INDIRECT(A3&"!$B$1:$D$1"),0)),2),"-")',
+    'INDEX(INDIRECT(A7&"!A1:C3"),2,2)', 'MATCH(7.777,INDIRECT("bench!B2:B4"),0)',
+    'SUM(INDIRECT("A1"),INDIRECT("B2"))', 'INDIRECT("A1")+INDIRECT("data!A1")',
+    'INDIRECT(INDIRECT("A5"))'
+)) { [void]$indirectFormulas.Add($formula) }
+# Each mark in an unquoted sheet name, then the same sheet's name quoted; then four characters no
+# sheet name may hold (* / ? \) in an unquoted one.
+foreach ($mark in $sheetMarks) {
+    $literal = ('a' + $mark + 'b').Replace('"', '""')
+    [void]$indirectFormulas.Add('INDIRECT("' + $literal + '!A1")')
+    [void]$indirectFormulas.Add('INDIRECT("''' + $literal + '''!A1")')
+}
+foreach ($mark in @('*', '/', '?', '\')) { [void]$indirectFormulas.Add('INDIRECT("a' + $mark + 'b!A1")') }
+# Unquoted non-ASCII sheet names, and the euro sign's quoted.
+foreach ($name in $wideNames) { [void]$indirectFormulas.Add('INDIRECT("' + $name + '!A1")') }
+[void]$indirectFormulas.Add('INDIRECT("''' + [string][char]0x20AC + '''!A1")')
+# A defined name that starts with a backslash (the workbook defines \x as indirect!$B$1).
+[void]$indirectFormulas.Add('INDIRECT("\x")')
+# Each of tab, carriage return and no-break space after the text, before it, after the sheet
+# qualifier's !, and before and after a range's :.
+foreach ($blank in $blanks) {
+    [void]$indirectFormulas.Add('INDIRECT("A1' + $blank + '")')
+    [void]$indirectFormulas.Add('INDIRECT("' + $blank + 'A1")')
+    [void]$indirectFormulas.Add('INDIRECT("data!' + $blank + 'A1")')
+    [void]$indirectFormulas.Add('SUM(INDIRECT("A1' + $blank + ':B2"))')
+    [void]$indirectFormulas.Add('SUM(INDIRECT("A1:' + $blank + 'B2"))')
+}
+foreach ($formula in @(
+    # Rows calc-fml does not model: text that could be a defined name (the workbook defines Rate as
+    # indirect!$A$2), another workbook, a range where one value is needed, a1 text that may be
+    # number text, and a line feed.
+    'INDIRECT("NoSuchName")', 'INDIRECT("data!Foo")', 'INDIRECT("XFE1")', 'INDIRECT("Rate")',
+    'INDIRECT("[Book1]data!A1")', 'INDIRECT("A1:B2")', 'INDIRECT("A1","1")', 'SUM(INDIRECT("A1:B"))',
+    ('INDIRECT("A1' + $lineFeed + '")')
+)) { [void]$indirectFormulas.Add($formula) }
+
+$indirectCells = New-Object System.Collections.ArrayList
+foreach ($cell in $indirectInputs) { [void]$indirectCells.Add($cell) }
+$number = 0
+foreach ($formula in $indirectFormulas) {
+    $number += 1
+    [void]$indirectCells.Add((New-Formula "D$number" $formula))
+}
+
+$indirectSheets = New-Object System.Collections.ArrayList
+foreach ($sheet in @(
+    @('indirect', (New-CellSheet $indirectCells)),
+    @('data', (New-CellSheet @(
+        (New-Number 'A1' '100'), (New-Text 'B1' 'x'), (New-Text 'C1' 'y'), (New-Text 'D1' 'z'),
+        (New-Text 'A2' 'p'), (New-Number 'B2' '1'), (New-Number 'C2' '2'), (New-Number 'D2' '3'),
+        (New-Text 'A3' 'q'), (New-Number 'B3' '4'), (New-Number 'C3' '5'), (New-Number 'D3' '6'),
+        (New-Text 'A4' 'r'), (New-Number 'B4' '7'), (New-Number 'C4' '8'), (New-Number 'D4' '9')
+    ))),
+    @('bench', (New-CellSheet @(
+        (New-Text 'B1' 'x'), (New-Text 'C1' 'y'), (New-Text 'D1' 'z'),
+        (New-Text 'A2' 'Total_p'), (New-Number 'B2' '1.25'), (New-Number 'C2' '2.5'), (New-Number 'D2' '3.75'),
+        (New-Text 'A3' 'Total_q'), (New-Number 'B3' '4.125'), (New-Number 'C3' '12.3456'), (New-Number 'D3' '6.5'),
+        (New-Text 'A4' 'Total_r'), (New-Number 'B4' '7.777'), (New-Number 'C4' '8.25'), (New-Number 'D4' '9.5')
+    ))),
+    @('Q2 Data', (New-CellSheet @((New-Number 'B2' '5'), (New-Number 'C3' '333')))),
+    @("It's", (New-CellSheet @(, (New-Number 'A1' '444')))),
+    @('a-b', (New-CellSheet @(, (New-Number 'A1' '555')))),
+    @('1x', (New-CellSheet @(, (New-Number 'A1' '777')))),
+    @('A1', (New-CellSheet @(, (New-Number 'B2' '666')))),
+    @('a.b', (New-CellSheet @(, (New-Number 'A1' '888')))),
+    @('.x', (New-CellSheet @(, (New-Number 'A1' '1020')))),
+    @('TRUE', (New-CellSheet @(, (New-Number 'A1' '999')))),
+    @('FALSE', (New-CellSheet @(, (New-Number 'A1' '1111')))),
+    @('a_b', (New-CellSheet @(, (New-Number 'A1' '2222')))),
+    @($eAcute, (New-CellSheet @(, (New-Number 'A1' '1003'))))
+)) { [void]$indirectSheets.Add($sheet) }
+# The sheets a<mark>b, A1 holding 3001, 3002, ... in the marks' order, and the non-ASCII sheets, A1
+# holding 4001, 4002, ... in their order.
+$value = 3000
+foreach ($mark in $sheetMarks) {
+    $value += 1
+    [void]$indirectSheets.Add(@(('a' + $mark + 'b'), (New-CellSheet @(, (New-Number 'A1' "$value")))))
+}
+$value = 4000
+foreach ($name in $wideNames) {
+    $value += 1
+    [void]$indirectSheets.Add(@($name, (New-CellSheet @(, (New-Number 'A1' "$value")))))
+}
+
+Write-Workbook (Join-Path $OutDir 'dc_51ka/oracle.xlsx') $indirectSheets @(
+    @('Rate', 'indirect!$A$2'),
+    @('\x', 'indirect!$B$1')
 )

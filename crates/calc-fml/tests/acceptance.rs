@@ -79,6 +79,13 @@
 //! Excel's capture of it (`tests/captures/dc_l10u/oracle.capture.json`), whose rows pass a reference
 //! result of INDEX, XLOOKUP or CHOOSE to an operator or to a value parameter of another function,
 //! over cells holding numbers, a blank, errors, text, numeric text, a logical and empty text.
+//!
+//! The dc-51ka cases (`acceptance/dc_51ka.rs`) run INDIRECT through the same public route, with the
+//! catalogue of the oracle workbook's sheets given to the evaluation
+//! (`EvaluationServices::with_catalog`) and an observer that records the areas INDIRECT resolved;
+//! each row is labelled documented (Microsoft's INDIRECT page) or measured (Excel's value), and
+//! `tests/fixtures/dc_51ka/oracle.xlsx`, from the committed generator, and its capture
+//! `tests/captures/dc_51ka/oracle.capture.json` are judged through calc_verdict::judge.
 
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
@@ -3803,7 +3810,11 @@ fn sheet_cells(xml: &str) -> BTreeMap<String, SheetCell> {
 
 /// The workbooks the committed generator writes, by their path under its output directory.
 #[cfg(all(windows, not(target_arch = "wasm32")))]
-const GENERATED_WORKBOOKS: [&str; 2] = ["dc_ibp2/oracle.xlsx", "dc_l10u/oracle.xlsx"];
+const GENERATED_WORKBOOKS: [&str; 3] = [
+    "dc_51ka/oracle.xlsx",
+    "dc_ibp2/oracle.xlsx",
+    "dc_l10u/oracle.xlsx",
+];
 
 /// Runs the committed generator under Windows PowerShell into a new directory under the target
 /// directory's temporary directory, named for `case` so that cases running at the same time in one
@@ -6117,4 +6128,28 @@ fn dc_l10u__reference_results_as_values() {
         "ACCEPT-NOTE: {CASE}: against a copy of the capture with reference_values!D1 observed as 7 (made by the case, not Excel's), the comparison reports D1 alone: {}",
         changed_problems[0]
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-51ka: INDIRECT's text resolved to a reference through calc_fml, and its Excel comparison
+// through calc_verdict::judge. The bodies are in `acceptance/dc_51ka.rs`.
+
+#[path = "acceptance/dc_51ka.rs"]
+mod dc_51ka;
+
+/// Every oracle row of the dc-51ka workbook through calc_fml::evaluate with the workbook's
+/// catalogue: values, refusals with their owners, the areas INDIRECT resolved as the observer is
+/// shown them, and the workbook as the committed generator writes it.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_51ka__indirect_text_references() {
+    dc_51ka::indirect_text_references();
+}
+
+/// The committed Excel capture of the dc-51ka workbook judged through calc_verdict::judge: every
+/// row calc_fml computes matched, every row it refuses published as not modelled.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_51ka__excel_comparison() {
+    dc_51ka::excel_comparison();
 }

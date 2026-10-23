@@ -193,6 +193,44 @@
         "dc_fwpz__logical_functions": ["windows", "linux", "wasm"],
         "dc_fwpz__excel_comparison": ["windows", "linux", "wasm"]
       }
+    },
+    {
+      "id": "cdoc-jpha",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "cdoc_jpha", "--", "--nocapture"],
+        ["cargo", "test", "-p", "calc-func", "--lib"],
+        ["cargo", "xtask", "accept", "--id", "cfunc-m1.2", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-jpha", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-jpha", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "cdoc-jpha", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "cdoc_jpha__text_and_number_comparison",
+        "cdoc_jpha__excel_comparison"
+      ],
+      "platforms": {
+        "cdoc_jpha__text_and_number_comparison": ["windows", "linux", "wasm"],
+        "cdoc_jpha__excel_comparison": ["windows", "linux", "wasm"]
+      }
+    },
+    {
+      "id": "dc-nzpw",
+      "test": "acceptance",
+      "commands": [
+        ["cargo", "test", "-p", "calc-func", "--test", "acceptance", "dc_nzpw", "--", "--nocapture"],
+        ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "windows", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "linux", "--require-all"],
+        ["cargo", "xtask", "accept", "--id", "dc-nzpw", "--platform", "wasm", "--require-all"]
+      ],
+      "cases": [
+        "dc_nzpw__information_functions",
+        "dc_nzpw__excel_comparison"
+      ],
+      "platforms": {
+        "dc_nzpw__information_functions": ["windows", "linux", "wasm"],
+        "dc_nzpw__excel_comparison": ["windows", "linux", "wasm"]
+      }
     }
   ]
 }

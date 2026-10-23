@@ -42,11 +42,35 @@ pub trait CellReader {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Unreadable;
 
+/// Resolves reference text, as INDIRECT reads it, in the calling formula's workbook context: its
+/// sheets, and its cell, from which relative R1C1 text is offset. calc-func holds neither, and
+/// no reference grammar, so the caller supplies the resolution with the services
+/// ([`EvalServices::with_reference_text`]); calc-fml implements it with its reference binder.
+pub trait ReferenceText {
+    /// The reference `text` (UTF-16 code units) names, read in A1 notation when `a1` is true and
+    /// in R1C1 notation otherwise.
+    fn resolve(&mut self, text: &[u16], a1: bool) -> TextReference;
+}
+
+/// What a [`ReferenceText`] resolution gives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextReference {
+    /// The text names this area.
+    Area(GridArea),
+    /// The text names no reference: the worksheet error #REF!.
+    Invalid,
+    /// What the text names is not modelled (a defined name, another workbook), and the call is
+    /// refused.
+    NotModelled,
+}
+
 /// The services a call runs with, owned by the caller: the numeric policy, which every
-/// arithmetic site reads instead of assuming one, and the typed reader of reference arguments.
+/// arithmetic site reads instead of assuming one, the typed reader of reference arguments, and
+/// the resolution of reference text.
 pub struct EvalServices<'s> {
     numeric: &'s NumericMode,
     cells: Option<&'s mut dyn CellReader>,
+    reference_text: Option<&'s mut dyn ReferenceText>,
 }
 
 impl<'s> EvalServices<'s> {
@@ -56,6 +80,7 @@ impl<'s> EvalServices<'s> {
         EvalServices {
             numeric,
             cells: None,
+            reference_text: None,
         }
     }
 
@@ -64,6 +89,16 @@ impl<'s> EvalServices<'s> {
         EvalServices {
             numeric,
             cells: Some(cells),
+            reference_text: None,
+        }
+    }
+
+    /// These services, with reference text resolved by `resolution`. Without one, a call that
+    /// must resolve reference text (INDIRECT's) is refused as not modelled.
+    pub fn with_reference_text(self, resolution: &'s mut dyn ReferenceText) -> Self {
+        EvalServices {
+            reference_text: Some(resolution),
+            ..self
         }
     }
 
@@ -74,6 +109,10 @@ impl<'s> EvalServices<'s> {
     pub(crate) fn cells(&mut self) -> Option<&mut (dyn CellReader + 's)> {
         self.cells.as_deref_mut()
     }
+
+    pub(crate) fn reference_text(&mut self) -> Option<&mut (dyn ReferenceText + 's)> {
+        self.reference_text.as_deref_mut()
+    }
 }
 
 impl fmt::Debug for EvalServices<'_> {
@@ -81,6 +120,7 @@ impl fmt::Debug for EvalServices<'_> {
         f.debug_struct("EvalServices")
             .field("numeric", self.numeric)
             .field("cells", &self.cells.is_some())
+            .field("reference_text", &self.reference_text.is_some())
             .finish()
     }
 }

@@ -31,10 +31,11 @@
 //! errors, in the order #NULL!, #DIV/0!, #VALUE!, #REF!, #NAME?, #NUM!, #N/A; a cell of another
 //! kind does not meet it. Apart from text under a number criterion, <> holds exactly where =
 //! does not, blank cells included. Numbers compare by the comparison operators' rule and text by
-//! their text rule, so where that rule refuses (text beyond ASCII that differs, text ordered on
-//! anything but ASCII letters and digits, numbers within a relative 1e-13) the cell's verdict is
-//! unknown; patterns match ASCII text ignoring ASCII case and are unknown on other text, except a
-//! pattern of * alone, which matches every text. The verdict is also unknown for a text longer
+//! their text rule, so where that rule refuses (text holding a character beyond its collation's
+//! repertoire, and nearly equal numbers in the bands where Excel's rounding departs from the exact
+//! one) the cell's verdict is unknown; patterns match ASCII text ignoring ASCII case and are
+//! unknown on other text (dc-o4do owns Excel's matching there), except a pattern of * alone, which
+//! matches every text. The verdict is also unknown for a text longer
 //! than 255 characters against a text criterion or a pattern, for text that coercion refuses
 //! against = a number, for text spelling TRUE or FALSE against a logical criterion, for text
 //! spelling the criterion's error literal (or any, against an ordering), and for an error added
@@ -1037,8 +1038,8 @@ impl Criterion {
                     Want::Order
                 };
                 Ok(match comparison::texts(units, operand, want) {
-                    Some(ordering) => Match::of(op.holds(ordering)),
-                    None => Match::Unknown,
+                    Ok(ordering) => Match::of(op.holds(ordering)),
+                    Err(_) => Match::Unknown,
                 })
             }
             Criterion::Pattern(op, tokens) => {
@@ -1055,6 +1056,8 @@ impl Criterion {
                                 .iter()
                                 .any(|token| matches!(token, Token::Unit(unit) if *unit >= 0x80))
                         {
+                            // A pattern over text beyond ASCII: Excel's matching there is
+                            // dc-o4do's.
                             Match::Unknown
                         } else {
                             Match::of(wildcard(tokens, units))
