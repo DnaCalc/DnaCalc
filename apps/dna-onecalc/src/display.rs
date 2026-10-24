@@ -267,7 +267,7 @@ fn eval_fault(session: &Session, fault: &EvalFault) -> String {
             error.covered
         ),
         EvalFault::AreaAsValue { area: at } => format!(
-            "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (work package dc-mzk)",
+            "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (work package dc-m3u)",
             area(session, *at)
         ),
         EvalFault::NotModelled { construct, owner } => {
