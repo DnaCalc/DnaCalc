@@ -1984,6 +1984,7 @@ dependencies = [
  "quote",
  "serde_json",
  "syn 3.0.9",
+ "windows-sys",
 ]
 
 [[package]]

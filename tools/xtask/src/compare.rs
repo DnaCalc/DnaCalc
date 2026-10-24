@@ -446,7 +446,7 @@ fn cached_value(value: &CachedValue) -> CalcValue {
 /// The locale profile of the Excel that took `capture`: its user culture with the decimal and
 /// group separators it recorded, which the host's TEXT, VALUE and number text read with.
 /// `None` when the capture records no culture or separators the profile table cannot hold.
-fn capture_locale(capture: &CaptureRecord) -> Option<calc_host::FormatProfile> {
+pub(crate) fn capture_locale(capture: &CaptureRecord) -> Option<calc_host::FormatProfile> {
     let environment = capture.environment.as_ref()?;
     let setting = |name: &str| {
         environment

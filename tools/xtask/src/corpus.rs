@@ -335,7 +335,7 @@ pub(crate) fn record_key(record: &CaptureRecord) -> Result<(String, String), Str
 
 /// The file version of the `EXCEL.EXE` that `App Paths` registers, as a capture records its
 /// `excel_build`.
-fn excel_build() -> Result<String, String> {
+pub(crate) fn excel_build() -> Result<String, String> {
     if !cfg!(windows) {
         return Err(format!(
             "an Excel build is read on Windows; this host is {}",
@@ -380,7 +380,7 @@ fn repository_root() -> PathBuf {
 }
 
 /// The release xtask the comparisons run in, and its description.
-fn compare_program() -> Result<(PathBuf, String), String> {
+pub(crate) fn compare_program() -> Result<(PathBuf, String), String> {
     if !cfg!(debug_assertions) {
         let exe = std::env::current_exe()
             .map_err(|e| format!("cannot name this xtask's executable: {e}"))?;

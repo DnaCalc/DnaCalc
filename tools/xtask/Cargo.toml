@@ -34,3 +34,8 @@ syn = { version = "3", default-features = false, features = ["full", "parsing", 
 # command, in main.rs), which must fail through xtask's own compile_error! alone.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 calc-oracle-excel = { path = "../../platform/calc-oracle-excel" }
+
+# `cargo xtask bench` reads its own process's peak memory (GetProcessMemoryInfo). windows-sys is
+# already in the workspace lock (calc-oracle-excel's isolation uses it).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }
