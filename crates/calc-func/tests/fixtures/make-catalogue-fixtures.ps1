@@ -254,6 +254,7 @@ $FormulaSheets += , @('f3_arrays', 'sheet-f3_arrays.txt')
 # The function exactness lane (dc-j9k, dc-6qki, dc-uar): readings of Excel's exact results.
 $FormulaSheets += , @('dc6qki_arith', 'sheet-dc6qki_arith.txt')
 $FormulaSheets += , @('dcj9k_regression', 'sheet-dcj9k_regression.txt')
+$FormulaSheets += , @('dcj9k_closed_form', 'sheet-dcj9k_closed_form.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
