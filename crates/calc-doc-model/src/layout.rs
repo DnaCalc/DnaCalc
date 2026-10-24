@@ -565,6 +565,16 @@ impl SkinLayout {
         Ok(layout)
     }
 
+    /// This layout with each block's anchor replaced by what `moved` gives for it: the anchors
+    /// after a structural edit, `None` for an anchor whose cells it deleted (L3, dc-m3u).
+    pub(crate) fn with_anchors(&self, moved: impl Fn(GridArea) -> Option<GridArea>) -> SkinLayout {
+        let mut layout = self.clone();
+        for block in &mut layout.blocks {
+            block.anchor = block.anchor.and_then(&moved);
+        }
+        layout
+    }
+
     /// The blocks, in the order they were created.
     pub fn blocks(&self) -> &[Block] {
         &self.blocks

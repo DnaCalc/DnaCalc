@@ -93,6 +93,8 @@ impl std::error::Error for PrerequisiteError {}
 pub(crate) enum Binding {
     Placed(FormulaInstance, ArrayRole),
     Refused(NotModeled),
+    /// A cell of a what-if data table (L3, dc-m3u), calculated from the table.
+    DataTable(calc_doc_model::DataTable),
 }
 
 /// How a bound formula's result fills cells.
@@ -171,6 +173,12 @@ pub struct EngineState {
     /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and
     /// number-format functions.
     pub(crate) environment: Option<CalcEnvironment>,
+    /// The formulas the last published recalculation found on a cycle (L3, dc-m3u); with
+    /// iteration on, every recalculation calculates them again.
+    pub(crate) cycle_members: BTreeSet<NodeId>,
+    /// Whether recalculations leave the cells of data tables, and the formulas that read only
+    /// through them, uncalculated (L3, dc-m3u): Excel's "Automatic except for data tables".
+    pub(crate) tables_deferred: bool,
 }
 
 impl EngineState {
@@ -199,6 +207,8 @@ impl EngineState {
             random_seed: 0,
             templates: HashMap::new(),
             environment: None,
+            cycle_members: BTreeSet::new(),
+            tables_deferred: false,
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -209,7 +219,43 @@ impl EngineState {
                 }
             }
         }
+        // L3 (dc-m3u): each cell of a what-if data table is a node, calculated from its table.
+        for table in inputs.definitions().data_tables() {
+            let area = table.area();
+            for row in area.first().row()..=area.last().row() {
+                for column in area.first().column()..=area.last().column() {
+                    let at = CellKey::new(area.sheet(), row, column)
+                        .expect("a cell of the table's area");
+                    if state.by_anchor.contains_key(&at)
+                        || matches!(inputs.cell(at), Some(CellInput::Formula(_)))
+                    {
+                        continue;
+                    }
+                    let id = issue_node_id(&mut state.ids);
+                    state.add_node(id, at);
+                    state.pending.insert(id);
+                }
+            }
+        }
         state
+    }
+
+    /// Whether recalculations leave the cells of what-if data tables, and the formulas that read
+    /// only through them, uncalculated: Excel's "Automatic except for data tables", which a host
+    /// sets until a recalculation is asked for (L3, dc-m3u). Those nodes stay pending.
+    pub fn set_tables_deferred(&mut self, deferred: bool) {
+        self.tables_deferred = deferred;
+    }
+
+    /// Whether a recalculation would calculate anything: a pending node, other than a data
+    /// table's cell while tables are deferred ([`EngineState::set_tables_deferred`]).
+    pub fn needs_recalc(&self, inputs: &ModelRoot) -> bool {
+        self.pending.iter().any(|node| {
+            !(self.tables_deferred
+                && self
+                    .node(*node)
+                    .is_some_and(|record| crate::data_table::is_table_cell(inputs, record.anchor())))
+        })
     }
 
     /// The state of an opened file's snapshot, as [`EngineState::new`] makes it, with the results
@@ -307,7 +353,7 @@ impl EngineState {
         self.node(node)?;
         match self.bindings.get(&node)? {
             Binding::Placed(instance, _) => Some(instance),
-            Binding::Refused(_) => None,
+            Binding::Refused(_) | Binding::DataTable(_) => None,
         }
     }
 
@@ -508,6 +554,56 @@ impl EngineState {
             self.subtotal_cells.remove(&record.anchor);
             self.pending.insert(node);
         }
+    }
+
+    /// Applies a structural edit's moves (L3, dc-m3u): each node whose anchor is `None` is
+    /// removed with its result; every other node keeps its ID, moves to its new anchor with its
+    /// published result, and is left unbound and pending, so the next recalculation binds its
+    /// rewritten formula and calculates it. Published spills, templates and the record of
+    /// removed results go: every formula is calculated again. Returns the removed nodes.
+    pub(crate) fn apply_moves(&mut self, moves: Vec<(NodeId, Option<CellKey>)>) -> Vec<NodeId> {
+        let mut removed = Vec::new();
+        let mut results = BTreeMap::new();
+        let mut anchors = BTreeMap::new();
+        for (node, anchor) in moves {
+            let Some(old) = self.node(node).map(FormulaNode::anchor) else {
+                continue;
+            };
+            let result = self.results.remove(&old);
+            match anchor {
+                None => {
+                    self.remove_node(node);
+                    removed.push(node);
+                }
+                Some(at) => {
+                    self.unbind_node(node);
+                    if let Some((owner, result)) = result
+                        && owner == node
+                    {
+                        results.insert(at, (node, result));
+                    }
+                    anchors.insert(node, at);
+                }
+            }
+        }
+        self.by_anchor.clear();
+        for (node, at) in anchors {
+            if let Some(record) = self
+                .nodes
+                .get_mut(node.slot() as usize)
+                .and_then(Option::as_mut)
+                .filter(|record| record.id == node)
+            {
+                record.anchor = at;
+            }
+            self.by_anchor.insert(at, node);
+        }
+        self.results = results;
+        self.retired.clear();
+        self.spills = SpillIndex::default();
+        self.templates.clear();
+        self.subtotal_cells.clear();
+        removed
     }
 
     /// Records a node issued by this state's allocator at `anchor`, unbound. The caller makes it

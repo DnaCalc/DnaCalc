@@ -71,8 +71,9 @@ pub enum CompileError {
     NumberLiteral { span: TextSpan },
 }
 
-/// This work package, which owns the refusals of the constructs it lowers.
-const OWNER: &str = "dc-mzk";
+/// The work package that owns the refusals of the constructs this module lowers and does not
+/// model: L1 (dc-mzk) lowered them, and L3 (dc-m3u) took over its open refusals.
+const OWNER: &str = "dc-m3u";
 
 /// The work package that loads a workbook's defined names into the document model.
 const NAMES_OWNER: &str = "dc-ndi";

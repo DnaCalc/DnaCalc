@@ -36,7 +36,7 @@ use calc_host::{
     CommandReceipt, EditError, FileCached, FiniteNumber, FormulaText, HostCommand, HostOptions,
     HostProgress, HostState, LoadError, MemorySource, NotModeled, OpenFailure, OpenPolicy,
     PackageRead, ProjectedValue, ProjectionPage, ProjectionRequest, ReadObserver, RecalcContext,
-    RecalcFailed, RecalcFailure, StaleCause, StartError, Unobserved, ValueChange, WorkBudget,
+    RecalcFailed, RecalcFailure, StaleCause, Unobserved, ValueChange, WorkBudget,
     dispatch, project, step,
 };
 use calc_verdict::CalculationContext;
@@ -805,8 +805,8 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
     assert_eq!(book.described(), after_failure);
 
     // A second edit makes a circular reference: Inputs!A2 = Calc!A2, which reads Calc!A1, which
-    // reads Inputs!A2. The engine refuses to begin: the cycle's cells and Calc!A3, which reads
-    // Inputs!A2 through Inputs!A1:A2, cannot be ordered; Calc!C1 reads only the literal Inputs!A1.
+    // reads Inputs!A2. Calc!A3 reads Inputs!A2 through Inputs!A1:A2; Calc!C1 reads only the
+    // literal Inputs!A1.
     let receipt = book
         .run(1, vec![set(book.inputs("A2"), formula("Calc!A2"))])
         .expect("a circular reference is authored like any formula");
@@ -841,53 +841,17 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
     ]);
     assert_eq!(book.described(), committed_after_failure);
     assert_eq!(book.page().recalc_failure(), Some(&expected_failure));
-    let refused = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
-    let expected_refusal = RecalcFailed::Refused(StartError::Cycle {
-        cells: sorted(vec![
-            book.inputs("A2"),
-            book.calc("A1"),
-            book.calc("A2"),
-            book.calc("A3"),
-        ]),
-    });
-    assert_eq!(refused, HostProgress::Failed(expected_refusal.clone()));
-    let cycle = book.expected(&[
-        d(book.inputs("A1"), "literal 10"),
-        d(book.inputs("B1"), "literal 0.5"),
-        d(book.inputs("A2"), "stale last none none recalc-failed"),
-        d(book.inputs("A3"), "literal \"rate\""),
-        d(book.calc("A1"), "stale last 5 r0 t1 recalc-failed"),
-        d(
-            book.calc("B1"),
-            "calculated Name r0 t1 fast",
-        ),
-        d(book.calc("C1"), "stale last \"big\" r0 t1 recalc-failed"),
-        d(book.calc("A2"), "stale last 50 r0 t1 recalc-failed"),
-        d(book.calc("B2"), "calculated 2 r0 t1 fast"),
-        d(book.calc("A3"), "stale last 2.5 r0 t1 recalc-failed"),
-    ]);
-    assert_eq!(book.described(), cycle);
-    let page = book.page();
-    assert_eq!(page.authored_revision(), AuthoredRevision::new(2));
-    assert_eq!(page.recalc_failure(), Some(&expected_refusal));
-
-    // Breaking the cycle: Inputs!A2 = 3 again. The next recalculation calculates the edit both
-    // failures kept: Calc!A1 = 10+3, Calc!A2 = 13*10, Calc!A3 = (10+3)*0.5. It takes tick 3: the
-    // stopped recalculation used tick 2, and the refused one began none.
-    let receipt = book
-        .run(2, vec![set(book.inputs("A2"), number(3.0))])
-        .expect("the edit commits");
-    assert_eq!(receipt.revision(), AuthoredRevision::new(3));
-    assert_eq!(
-        receipt.pending(),
-        sorted(vec![book.calc("A1"), book.calc("C1"), book.calc("A3")]).as_slice()
-    );
+    // L3 (dc-m3u): the recalculation publishes at tick 3. The workbook declares no iteration, so
+    // the formulas on the cycle are refused (Excel keeps their previous values, which no
+    // calculation of this engine gave), Calc!A3, which reads one, is refused for reading a value
+    // it cannot be given, and Calc!C1 is calculated: 10 > 1, "big". The last failure is cleared.
     let published = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
     let (revision, tick, changes) = delta_cells(&published);
-    assert_eq!((revision, tick), (3, 3));
+    assert_eq!((revision, tick), (2, 3));
     assert_eq!(
         changes,
         sorted(vec![
+            book.inputs("A2"),
             book.calc("A1"),
             book.calc("C1"),
             book.calc("A2"),
@@ -897,6 +861,50 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         .map(|at| (at, true))
         .collect::<Vec<_>>()
     );
+    let circular = "not-modelled evaluation NotModelled r2 t3";
+    let cycle = book.expected(&[
+        d(book.inputs("A1"), "literal 10"),
+        d(book.inputs("B1"), "literal 0.5"),
+        d(book.inputs("A2"), circular),
+        d(book.inputs("A3"), "literal \"rate\""),
+        d(book.calc("A1"), circular),
+        d(book.calc("B1"), "calculated Name r0 t1 fast"),
+        d(book.calc("C1"), "calculated \"big\" r2 t3 fast"),
+        d(book.calc("A2"), circular),
+        d(book.calc("B2"), "calculated 2 r0 t1 fast"),
+        d(book.calc("A3"), "not-modelled evaluation MissingInput r2 t3"),
+    ]);
+    assert_eq!(book.described(), cycle);
+    let page = book.page();
+    assert_eq!(page.authored_revision(), AuthoredRevision::new(2));
+    assert!(page.recalc_failure().is_none());
+
+    // Breaking the cycle: Inputs!A2 = 3 again. The next recalculation removes Inputs!A2's
+    // result and calculates Calc!A1 = 10+3, Calc!A2 = 13*10, Calc!A3 = (10+3)*0.5; Calc!C1, which
+    // tick 3 calculated, reads nothing the edit changed. It takes tick 4: the stopped
+    // recalculation used tick 2 and the one that refused the cycle tick 3.
+    let receipt = book
+        .run(2, vec![set(book.inputs("A2"), number(3.0))])
+        .expect("the edit commits");
+    assert_eq!(receipt.revision(), AuthoredRevision::new(3));
+    assert_eq!(
+        receipt.pending(),
+        sorted(vec![book.calc("A1"), book.calc("A3")]).as_slice()
+    );
+    let published = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
+    let (revision, tick, changes) = delta_cells(&published);
+    assert_eq!((revision, tick), (3, 4));
+    assert_eq!(
+        changes,
+        [(book.inputs("A2"), false)]
+            .into_iter()
+            .chain(
+                sorted(vec![book.calc("A1"), book.calc("A2"), book.calc("A3")])
+                    .into_iter()
+                    .map(|at| (at, true))
+            )
+            .collect::<Vec<_>>()
+    );
     assert_eq!(
         book.described(),
         book.expected(&[
@@ -904,22 +912,22 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
             d(book.inputs("B1"), "literal 0.5"),
             d(book.inputs("A2"), "literal 3"),
             d(book.inputs("A3"), "literal \"rate\""),
-            d(book.calc("A1"), "calculated 13 r3 t3 fast"),
+            d(book.calc("A1"), "calculated 13 r3 t4 fast"),
             d(
                 book.calc("B1"),
                 "calculated Name r0 t1 fast"
             ),
-            d(book.calc("C1"), "calculated \"big\" r3 t3 fast"),
-            d(book.calc("A2"), "calculated 130 r3 t3 fast"),
+            d(book.calc("C1"), "calculated \"big\" r2 t3 fast"),
+            d(book.calc("A2"), "calculated 130 r3 t4 fast"),
             d(book.calc("B2"), "calculated 2 r0 t1 fast"),
-            d(book.calc("A3"), "calculated 6.5 r3 t3 fast"),
+            d(book.calc("A3"), "calculated 6.5 r3 t4 fast"),
         ])
     );
     assert!(book.page().recalc_failure().is_none());
 
     // A recalculation in progress is cancelled by an edit that commits during it, and nothing it
     // staged is published: Inputs!B1 = 1 leaves Calc!B2 and Calc!A3 pending; a step of one
-    // evaluation (tick 4) evaluates Calc!B2 first; then Inputs!A1 = 20 commits.
+    // evaluation (tick 5) evaluates Calc!B2 first; then Inputs!A1 = 20 commits.
     book.run(3, vec![set(book.inputs("B1"), number(1.0))])
         .expect("the edit commits");
     assert_eq!(
@@ -930,7 +938,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         .run(4, vec![set(book.inputs("A1"), number(20.0))])
         .expect("the edit commits");
     assert_eq!(receipt.revision(), AuthoredRevision::new(5));
-    assert_eq!(receipt.cancelled_recalc().map(|tick| tick.get()), Some(4));
+    assert_eq!(receipt.cancelled_recalc().map(|tick| tick.get()), Some(5));
     assert_eq!(
         receipt.pending(),
         sorted(vec![
@@ -950,12 +958,12 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
     assert_eq!(
         describe(b2.value()),
         "stale last 2 r0 t1 awaiting-recalc",
-        "the value tick 4 staged for Calc!B2 was never published"
+        "the value tick 5 staged for Calc!B2 was never published"
     );
-    // Calc!A1 = 20+3, Calc!A2 = 23*10, Calc!A3 = (20+3)*1, Calc!B2 = 1*4, at tick 5.
+    // Calc!A1 = 20+3, Calc!A2 = 23*10, Calc!A3 = (20+3)*1, Calc!B2 = 1*4, at tick 6.
     let published = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
     let (revision, tick, _) = delta_cells(&published);
-    assert_eq!((revision, tick), (5, 5));
+    assert_eq!((revision, tick), (5, 6));
     assert_eq!(
         book.described(),
         book.expected(&[
@@ -963,15 +971,15 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
             d(book.inputs("B1"), "literal 1"),
             d(book.inputs("A2"), "literal 3"),
             d(book.inputs("A3"), "literal \"rate\""),
-            d(book.calc("A1"), "calculated 23 r5 t5 fast"),
+            d(book.calc("A1"), "calculated 23 r5 t6 fast"),
             d(
                 book.calc("B1"),
                 "calculated Name r0 t1 fast"
             ),
-            d(book.calc("C1"), "calculated \"big\" r5 t5 fast"),
-            d(book.calc("A2"), "calculated 230 r5 t5 fast"),
-            d(book.calc("B2"), "calculated 4 r5 t5 fast"),
-            d(book.calc("A3"), "calculated 23 r5 t5 fast"),
+            d(book.calc("C1"), "calculated \"big\" r5 t6 fast"),
+            d(book.calc("A2"), "calculated 230 r5 t6 fast"),
+            d(book.calc("B2"), "calculated 4 r5 t6 fast"),
+            d(book.calc("A3"), "calculated 23 r5 t6 fast"),
         ])
     );
     assert_eq!(
@@ -1357,14 +1365,18 @@ fn context_text(context: &RecalcContext) -> String {
 }
 
 /// The verdict library's context fingerprint of a run under `context`, built from `context` and
-/// nothing else. The host reports no iteration count or maximum change, so a context with
-/// iteration on is refused here: its fingerprint would need limits from outside the host.
+/// nothing else: with iteration on, the iteration count and maximum change the host reports.
 fn run_fingerprint(context: &RecalcContext) -> String {
-    assert!(
-        !context.iteration,
-        "the host applies iteration but reports no iteration limits, so the run's context \
-         fingerprint cannot come from the host alone"
-    );
+    if context.iteration {
+        return CalculationContext {
+            date1904: context.date1904,
+            iteration: true,
+            max_iterations: context.max_iterations,
+            max_change: f64::from_bits(context.max_change_bits),
+            precision_as_displayed: context.precision_as_displayed,
+        }
+        .fingerprint();
+    }
     CalculationContext::without_iteration(context.date1904, context.precision_as_displayed)
         .fingerprint()
 }
@@ -1372,30 +1384,38 @@ fn run_fingerprint(context: &RecalcContext) -> String {
 /// A package whose workbook part declares the 1904 date system (`workbookPr date1904="1"`),
 /// iterative calculation (`calcPr iterate="1"`) and precision as displayed
 /// (`calcPr fullPrecision="0"`), as the case reads them from the generated bytes, opens through
-/// HostState::open and reports the context its recalculation applies: the 1900 date system, no
-/// iteration and full precision, under the numeric mode the host was opened with. The verdict
+/// HostState::open and reports the context its recalculation applies: the 1900 date system, the
+/// iteration settings the package declares (L3, dc-m3u: iterate="1", 100 iterations, maximum
+/// change 0.001) and full precision, under the numeric mode the host was opened with. The verdict
 /// library's context fingerprint of the run is built from that report alone. The host reports the
-/// date system the package declares, which calc-doc reads; it has no record of the calcPr
-/// settings, which calc-doc does not read. One of the applied values is also observed in what the
-/// host calculates: the circular reference B1 = B1+1 is refused, not iterated. A2 and A3 are
-/// published at full precision, which does not tell full precision from precision as displayed
-/// while calc-doc reads no number format, and the date system is not observed. A second package,
-/// the same with no calcPr in its stored workbook part, under an Exact numeric mode, reports the
-/// same applied settings, the same fingerprint and that mode.
+/// date system the package declares, which calc-doc reads, and does not apply it. One of the
+/// applied values is also observed in what the host calculates: the circular reference B1 = B1+1
+/// is iterated, 100 passes from 0 (each pass changes it by 1, more than 0.001), to 100. A2 and A3
+/// are published at full precision, which does not tell full precision from precision as
+/// displayed while calc-doc reads no number format, and the date system is not observed. A second
+/// package, the same with no calcPr in its stored workbook part, under an Exact numeric mode,
+/// reports no iteration (Excel's default), its fingerprint and that mode.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_hqcv__applied_context_reported() {
     const CASE: &str = "dc_hqcv__applied_context_reported";
     let applied = RecalcContext {
         date1904: false,
-        iteration: false,
+        iteration: true,
+        max_iterations: 100,
+        max_change_bits: 0.001f64.to_bits(),
         precision_as_displayed: false,
         numeric: NumericMode::Fast,
     };
-    // A context in the 1900 date system, without iteration and at full precision, as the verdict
-    // library names it: iteration off names Excel's default limits, 100 iterations and a maximum
-    // change of 0.001 (binary64 bits 3f50624dd2f1a9fc).
-    let applied_fingerprint = "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
+    // A context in the 1900 date system, iterating 100 times to a maximum change of 0.001 (binary64
+    // bits 3f50624dd2f1a9fc), at full precision, as the verdict library names it.
+    let applied_fingerprint = "excel-calc-context/1;date1904=false;iteration=true;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
+    // Without calcPr: no iteration, which names Excel's default limits.
+    let plain_applied = RecalcContext {
+        iteration: false,
+        ..applied.clone()
+    };
+    let plain_fingerprint = "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
 
     // The first package, as the generator wrote it: its stored workbook part declares
     // date1904="1", iterate="1" and fullPrecision="0".
@@ -1412,7 +1432,7 @@ fn dc_hqcv__applied_context_reported() {
     assert_eq!(run_fingerprint(&context), applied_fingerprint);
     assert_eq!(context, applied);
     note!(
-        "ACCEPT-NOTE: {CASE}: package 1's stored workbook part declares {workbook_pr} and {calc_pr}; the host reads the declared date system (declared_date1904={}) and has no record of calcPr, which calc-doc does not read; applied: {}; run context fingerprint from the applied context alone: {}",
+        "ACCEPT-NOTE: {CASE}: package 1's stored workbook part declares {workbook_pr} and {calc_pr}; the host reads the declared date system (declared_date1904={}) and applies calcPr's iteration settings; applied: {}; run context fingerprint from the applied context alone: {}",
         host.declared_date1904(),
         context_text(&context),
         run_fingerprint(&context)
@@ -1433,20 +1453,33 @@ fn dc_hqcv__applied_context_reported() {
     .collect();
     assert_eq!(described_a1_b3(&host, sheet), opened);
 
-    // No iteration: the recalculation is refused for the circular reference at B1, the only cell
-    // on a cycle or reading one, although calcPr declares iterate="1".
+    // Iteration: the circular reference at B1 runs 100 passes from 0 to 100, and A2 = 1.25*1 =
+    // 1.25 and A3 = A2*2 = 2.5 are published at full precision at tick 1. A2's cell format names
+    // number format `0`, but calc-doc loads no number format, so this shows full-precision
+    // results, not that the host ignores a format it reads.
+    let (revision, tick, published) =
+        delta_cells(&step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved));
+    assert_eq!((revision, tick), (0, 1));
     assert_eq!(
-        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
-        HostProgress::Failed(RecalcFailed::Refused(StartError::Cycle {
-            cells: vec![cell(sheet, "B1")],
-        }))
+        sorted(published.iter().map(|(at, _)| *at).collect()),
+        sorted(vec![cell(sheet, "B1"), cell(sheet, "A2"), cell(sheet, "A3")])
     );
     assert_eq!(host.recalc_context(), applied);
+    let iterated: Vec<(String, String)> = [
+        ("A1", "literal 1.25"),
+        ("B1", "calculated 100 r0 t1 fast"),
+        ("A2", "calculated 1.25 r0 t1 fast"),
+        ("B2", "empty"),
+        ("A3", "calculated 2.5 r0 t1 fast"),
+        ("B3", "empty"),
+    ]
+    .iter()
+    .map(|(a1, text)| ((*a1).to_owned(), (*text).to_owned()))
+    .collect();
+    assert_eq!(described_a1_b3(&host, sheet), iterated);
 
-    // Clearing B1 breaks the cycle (revision 1). The next recalculation takes tick 1 (the refused
-    // one began none) and publishes at full precision: A2 = 1.25*1 = 1.25 and A3 = A2*2 = 2.5.
-    // A2's cell format names number format `0`, but calc-doc loads no number format, so this
-    // shows full-precision results, not that the host ignores a format it reads.
+    // Clearing B1 breaks the cycle (revision 1); the next recalculation, tick 2, removes its
+    // result and calculates nothing else.
     let receipt = dispatch(
         &mut host,
         HostCommand {
@@ -1460,17 +1493,17 @@ fn dc_hqcv__applied_context_reported() {
     assert_eq!(receipt.revision(), AuthoredRevision::new(1));
     let (revision, tick, published) =
         delta_cells(&step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved));
-    assert_eq!((revision, tick), (1, 1));
+    assert_eq!((revision, tick), (1, 2));
     assert_eq!(
         sorted(published.iter().map(|(at, _)| *at).collect()),
-        sorted(vec![cell(sheet, "A2"), cell(sheet, "A3")])
+        sorted(vec![cell(sheet, "B1")])
     );
     let calculated: Vec<(String, String)> = [
         ("A1", "literal 1.25"),
         ("B1", "empty"),
-        ("A2", "calculated 1.25 r1 t1 fast"),
+        ("A2", "calculated 1.25 r0 t1 fast"),
         ("B2", "empty"),
-        ("A3", "calculated 2.5 r1 t1 fast"),
+        ("A3", "calculated 2.5 r0 t1 fast"),
         ("B3", "empty"),
     ]
     .iter()
@@ -1480,7 +1513,7 @@ fn dc_hqcv__applied_context_reported() {
     assert_eq!(host.recalc_context(), applied);
     assert!(host.declared_date1904());
     note!(
-        "ACCEPT-NOTE: {CASE}: package 1 observed: the circular reference B1 = B1+1 was refused (StartError::Cycle at B1), not iterated; after B1 was cleared, A2 = A1*1 calculated 1.25 and A3 = A2*2 calculated 2.5, published at full precision (A2's cell format names number format 0, which calc-doc does not load, so this does not show the host ignoring a format it reads); the date system was not observed: no calculation here reads or returns a serial date, so date1904=false is the host's report, not a measured behaviour"
+        "ACCEPT-NOTE: {CASE}: package 1 observed: the circular reference B1 = B1+1 was iterated 100 times to 100 (L3, dc-m3u); A2 = A1*1 calculated 1.25 and A3 = A2*2 calculated 2.5, published at full precision (A2's cell format names number format 0, which calc-doc does not load, so this does not show the host ignoring a format it reads); clearing B1 removed its result; the date system was not observed: no calculation here reads or returns a serial date, so date1904=false is the host's report, not a measured behaviour"
     );
 
     // The second package: the same workbook part with no calcPr, opened under an Exact numeric
@@ -1504,10 +1537,10 @@ fn dc_hqcv__applied_context_reported() {
         context,
         RecalcContext {
             numeric: exact.numeric.clone(),
-            ..applied
+            ..plain_applied
         }
     );
-    assert_eq!(run_fingerprint(&context), applied_fingerprint);
+    assert_eq!(run_fingerprint(&context), plain_fingerprint);
     note!(
         "ACCEPT-NOTE: {CASE}: package 2's stored workbook part declares {workbook_pr} and no calcPr; the host reads declared_date1904={}; applied: {}; run context fingerprint from the applied context alone: {}",
         host.declared_date1904(),

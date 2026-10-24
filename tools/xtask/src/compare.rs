@@ -33,9 +33,8 @@
 //!
 //! The run's context fingerprint is the one `calc_verdict::CalculationContext::without_iteration`
 //! gives for the date system and precision `HostState::recalc_context` reports the host applies,
-//! never the capture's; a host that applies iterative calculation is refused (exit 5), because
-//! the context the host reports does not carry the iteration limits a fingerprint names (no host
-//! applies iteration until ceng-m5.2). A version 1 capture names no context, so when the package
+//! never the capture's, with the iteration settings it applies (count and maximum change) when it
+//! iterates (L3, dc-m3u). A version 1 capture names no context, so when the package
 //! declares a date system the host does not apply (`HostState::declared_date1904`), the triage
 //! classes every calculated cell `context` under the setting that differs. Under
 //! `--exact-target` the host recalculates under that Exact numeric mode and the verdict certifies
@@ -52,9 +51,7 @@
 //! Exit codes: 0 when the three files were written, whatever they say; 1 when an input cannot be
 //! read or is refused (the fixture's hash, the capture's consistency) or a file cannot be written;
 //! 2 on a usage error; 3 when the capture's formula inventory is empty; 4 when the capture path
-//! holds the absent-capture marker (the capture has not been taken); 5 when the host applies a
-//! calculation context no fingerprint can name (iterative calculation, whose limits the host does
-//! not report), with nothing written.
+//! holds the absent-capture marker (the capture has not been taken).
 
 use crate::compare_triage::{
     self, Call, Class, Dna, Read, Retained, RunEntry, WorkbookFailure, address_of, refusal_of,
@@ -89,7 +86,6 @@ const EXIT_REFUSED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
 const EXIT_EMPTY_INVENTORY: u8 = 3;
 const EXIT_MISSING_CAPTURE: u8 = 4;
-const EXIT_CONTEXT_UNNAMED: u8 = 5;
 
 #[derive(Debug, PartialEq, Eq)]
 struct Request {
@@ -354,20 +350,21 @@ fn recalculate(host: &mut HostState, recorder: &mut impl Recorder) -> Option<Wor
     }
 }
 
-/// The fingerprint of the context `applied` names, or the refusal of a context no fingerprint can
-/// name: iterative calculation, whose iteration count and maximum change [`RecalcContext`] does
-/// not carry.
-fn run_context(applied: &RecalcContext) -> Result<String, Failure> {
+/// The fingerprint of the context `applied` names: its date system, precision and, when it
+/// iterates, its iteration count and maximum change.
+fn run_context(applied: &RecalcContext) -> String {
     if applied.iteration {
-        return Err(Failure {
-            code: EXIT_CONTEXT_UNNAMED,
-            message: "the host applies iterative calculation, and the context it reports does not carry the iteration count and maximum change a context fingerprint names, so the run's context cannot be named".to_owned(),
-        });
+        return CalculationContext {
+            date1904: applied.date1904,
+            iteration: true,
+            max_iterations: applied.max_iterations,
+            max_change: f64::from_bits(applied.max_change_bits),
+            precision_as_displayed: applied.precision_as_displayed,
+        }
+        .fingerprint();
     }
-    Ok(
-        CalculationContext::without_iteration(applied.date1904, applied.precision_as_displayed)
-            .fingerprint(),
-    )
+    CalculationContext::without_iteration(applied.date1904, applied.precision_as_displayed)
+        .fingerprint()
 }
 
 /// For a version 1 capture, which names no context, the key of the context settings the package
@@ -536,7 +533,7 @@ fn run_workbook(
     };
 
     let applied = host.recalc_context();
-    let context = run_context(&applied)?;
+    let context = run_context(&applied);
     let declared = declared_key(capture, host.declared_date1904(), &applied);
     let names: HashMap<SheetId, String> = host
         .sheets()
@@ -1043,27 +1040,37 @@ mod tests {
         expected.insert(at(1, 1), &wrong);
         let mut instrument = Instrument::new(expected);
         assert_eq!(recalculate(&mut host, &mut instrument), None);
-        assert_eq!(instrument.evaluations.len(), 4);
+        // The workbook is macro-enabled, so Calc!B1's call of a name no function holds is refused
+        // and never compiled; the other four formulas evaluate once, B2 stopping at B1.
+        let mut cells: Vec<CellKey> = instrument.evaluations.iter().map(|seen| seen.at).collect();
+        cells.sort();
+        assert_eq!(cells, [at(1, 1), at(2, 1), at(2, 2), at(3, 1)]);
         assert_eq!(instrument.retained.len(), 1);
     }
 
-    /// A host that applies iterative calculation is refused with exit 5; one that does not is
-    /// named by the fingerprint without iteration.
+    /// A host that applies iterative calculation is named with its iteration count and maximum
+    /// change (L3); one that does not is named by the fingerprint without iteration.
     #[test]
-    fn an_iterating_context_is_refused() {
+    fn an_iterating_context_is_named_with_its_limits() {
         let mut applied = RecalcContext {
             date1904: false,
             iteration: true,
+            max_iterations: 50,
+            max_change_bits: 0.01f64.to_bits(),
             precision_as_displayed: false,
             numeric: NumericMode::Fast,
         };
-        let refusal = run_context(&applied).unwrap_err();
-        assert_eq!(refusal.code, EXIT_CONTEXT_UNNAMED);
-        assert!(refusal.message.contains("iterative calculation"));
+        assert_eq!(
+            run_context(&applied),
+            format!(
+                "excel-calc-context/1;date1904=false;iteration=true;max_iterations=50;max_change={:016x};precision_as_displayed=false",
+                0.01f64.to_bits()
+            )
+        );
         applied.iteration = false;
         applied.date1904 = true;
         assert_eq!(
-            run_context(&applied).unwrap(),
+            run_context(&applied),
             "excel-calc-context/1;date1904=true;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false"
         );
     }
@@ -1075,6 +1082,8 @@ mod tests {
         let applied = RecalcContext {
             date1904: false,
             iteration: false,
+            max_iterations: 100,
+            max_change_bits: 0.001f64.to_bits(),
             precision_as_displayed: false,
             numeric: NumericMode::Fast,
         };

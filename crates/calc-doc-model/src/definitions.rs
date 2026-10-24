@@ -113,6 +113,137 @@ pub enum UnloadedCell {
     DataTable,
 }
 
+/// A workbook's iterative-calculation settings: the workbook part's `calcPr` attributes
+/// `iterate`, `iterateCount` and `iterateDelta` (L3, dc-m3u). With iteration off a circular
+/// reference is not calculated; with it on, the formulas on a cycle are calculated over and over,
+/// at most `max_iterations` times, until no value changes by `max_change` or more.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct IterationSettings {
+    enabled: bool,
+    max_iterations: u32,
+    max_change_bits: u64,
+}
+
+impl IterationSettings {
+    /// Excel's defaults, which a `calcPr` without the attributes means: off, 100 iterations, a
+    /// maximum change of 0.001.
+    pub const EXCEL_DEFAULT: IterationSettings = IterationSettings {
+        enabled: false,
+        max_iterations: 100,
+        max_change_bits: 0x3f50_624d_d2f1_a9fc,
+    };
+
+    pub fn new(enabled: bool, max_iterations: u32, max_change: f64) -> Self {
+        IterationSettings {
+            enabled,
+            max_iterations,
+            max_change_bits: max_change.to_bits(),
+        }
+    }
+
+    pub fn enabled(self) -> bool {
+        self.enabled
+    }
+
+    pub fn max_iterations(self) -> u32 {
+        self.max_iterations
+    }
+
+    pub fn max_change(self) -> f64 {
+        f64::from_bits(self.max_change_bits)
+    }
+}
+
+impl Default for IterationSettings {
+    fn default() -> Self {
+        IterationSettings::EXCEL_DEFAULT
+    }
+}
+
+/// Which input cells a what-if data table (`TABLE()`) substitutes its row and column values into.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DataTableInputs {
+    /// A one-variable table whose values stand in the row above it (`dtr="1"`): each of its
+    /// cells calculates the formula in the column left of the table, in its row, with this cell
+    /// set to the value above its column (`TABLE(C1,)`).
+    Row(CellKey),
+    /// A one-variable table whose values stand in the column left of it (`dtr="0"`): each cell
+    /// calculates the formula in the row above the table, in its column, with this cell set to
+    /// the value left of its row (`TABLE(,B1)`).
+    Column(CellKey),
+    /// A two-variable table (`dt2D="1"`): each cell calculates the formula above-left of the
+    /// table with `row` set to the value above its column and `column` set to the value left of
+    /// its row (`TABLE(B1,C1)`).
+    Both { row: CellKey, column: CellKey },
+}
+
+/// A what-if data table: the area its results fill and its input cells, as the file's
+/// `<f t="dataTable" ref r1 r2 dt2D dtr>` declares them (L3, dc-m3u). Measured on Excel 16.0
+/// through COM on 2026-10-23 (`Range.Table`): with B3 `=B1*10+C1` and C1 = 5, `TABLE(,B1)` over
+/// B4:B6 beside A4:A6 = 1, 2, 3 gave 15, 25, 35; `TABLE(B1,C1)` over B11:C12 with the formula
+/// `=B1*1000+C1` in A10, B10:C10 = 7, 8 and A11:A12 = 1, 2 gave 7001, 8001, 7002, 8002.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DataTable {
+    area: GridArea,
+    inputs: DataTableInputs,
+}
+
+impl DataTable {
+    /// A data table over `area`, whose top-left cell is not in the first row or column (the
+    /// values and the formulas stand above and left of it). `None` otherwise.
+    pub fn new(area: GridArea, inputs: DataTableInputs) -> Option<DataTable> {
+        (area.first().row() > 1 && area.first().column() > 1).then_some(DataTable { area, inputs })
+    }
+
+    /// The cells the table's results fill.
+    pub fn area(&self) -> GridArea {
+        self.area
+    }
+
+    pub fn inputs(&self) -> DataTableInputs {
+        self.inputs
+    }
+
+    /// For the cell `at` of the table: the formula cell it calculates, and each input cell with
+    /// the cell whose value it is set to. `None` when `at` is not in the table.
+    pub fn what_if(&self, at: CellKey) -> Option<(CellKey, Vec<(CellKey, CellKey)>)> {
+        if !self.area.contains(at) {
+            return None;
+        }
+        let sheet = at.sheet();
+        let (top, left) = (self.area.first().row(), self.area.first().column());
+        let cell = |row, column| CellKey::new(sheet, row, column).ok();
+        let above = cell(top - 1, at.column())?;
+        let beside = cell(at.row(), left - 1)?;
+        Some(match self.inputs {
+            DataTableInputs::Row(input) => (beside, vec![(input, above)]),
+            DataTableInputs::Column(input) => (above, vec![(input, beside)]),
+            DataTableInputs::Both { row, column } => (
+                cell(top - 1, left - 1)?,
+                vec![(row, above), (column, beside)],
+            ),
+        })
+    }
+
+    /// This table after its cells and input cells move by `moved_area` and `moved_cell`; `None`
+    /// when any of them is deleted.
+    pub fn moved(
+        &self,
+        moved_area: impl Fn(GridArea) -> Option<GridArea>,
+        moved_cell: impl Fn(CellKey) -> Option<CellKey>,
+    ) -> Option<DataTable> {
+        let inputs = match self.inputs {
+            DataTableInputs::Row(input) => DataTableInputs::Row(moved_cell(input)?),
+            DataTableInputs::Column(input) => DataTableInputs::Column(moved_cell(input)?),
+            DataTableInputs::Both { row, column } => DataTableInputs::Both {
+                row: moved_cell(row)?,
+                column: moved_cell(column)?,
+            },
+        };
+        DataTable::new(moved_area(self.area)?, inputs)
+    }
+}
+
 /// Why a row is hidden.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RowHidden {
@@ -135,6 +266,8 @@ pub struct Definitions {
     hidden_rows: BTreeMap<(SheetId, u32), RowHidden>,
     /// The workbook is macro-enabled (`.xlsm`, `.xltm`), so a VBA project may define functions.
     macro_enabled: bool,
+    iteration: IterationSettings,
+    data_tables: Vec<DataTable>,
 }
 
 impl Definitions {
@@ -154,7 +287,36 @@ impl Definitions {
             unloaded: unloaded.into_iter().collect(),
             hidden_rows: BTreeMap::new(),
             macro_enabled: false,
+            iteration: IterationSettings::EXCEL_DEFAULT,
+            data_tables: Vec::new(),
         }
+    }
+
+    /// These definitions with the workbook's what-if data tables.
+    pub fn with_data_tables(mut self, data_tables: Vec<DataTable>) -> Self {
+        self.data_tables = data_tables;
+        self
+    }
+
+    /// The workbook's what-if data tables ([`DataTable`]).
+    pub fn data_tables(&self) -> &[DataTable] {
+        &self.data_tables
+    }
+
+    /// The data table whose area holds `at`.
+    pub fn data_table_containing(&self, at: CellKey) -> Option<&DataTable> {
+        self.data_tables.iter().find(|table| table.area.contains(at))
+    }
+
+    /// These definitions with the workbook's iterative-calculation settings.
+    pub fn with_iteration(mut self, iteration: IterationSettings) -> Self {
+        self.iteration = iteration;
+        self
+    }
+
+    /// The workbook's iterative-calculation settings ([`IterationSettings`]).
+    pub fn iteration(&self) -> IterationSettings {
+        self.iteration
     }
 
     /// These definitions of a macro-enabled workbook (`.xlsm`, `.xltm`) when `macro_enabled`: a
@@ -181,6 +343,32 @@ impl Definitions {
             .into_iter()
             .map(|(sheet, row, why)| ((sheet, row), why))
             .collect();
+        self
+    }
+
+    /// Every hidden row, by sheet and row, with why.
+    pub fn hidden_rows_all(&self) -> impl Iterator<Item = (SheetId, u32, RowHidden)> + '_ {
+        self.hidden_rows
+            .iter()
+            .map(|((sheet, row), why)| (*sheet, *row, *why))
+    }
+
+    /// These definitions with `names` as the defined names.
+    pub fn with_names(mut self, names: Vec<DefinedName>) -> Self {
+        self.names = names;
+        self
+    }
+
+    /// These definitions without anything of `sheet`: its array formulas, tables, unloaded
+    /// cells, hidden rows and the names scoped to it (a removed sheet).
+    pub fn without_sheet(mut self, sheet: SheetId) -> Self {
+        self.arrays.retain(|at, _| at.sheet() != sheet);
+        self.tables.retain(|table| table.sheet != sheet);
+        self.unloaded.retain(|at, _| at.sheet() != sheet);
+        self.hidden_rows.retain(|(held, _), _| *held != sheet);
+        self.names
+            .retain(|name| name.scope != NameScope::Sheet(sheet));
+        self.data_tables.retain(|table| table.area.sheet() != sheet);
         self
     }
 
@@ -286,6 +474,7 @@ impl Definitions {
             .chain(self.unloaded.keys().map(|at| at.sheet()))
             .chain(self.tables.iter().map(|table| table.sheet))
             .chain(self.hidden_rows.keys().map(|(sheet, _)| *sheet))
+            .chain(self.data_tables.iter().map(|table| table.area.sheet()))
             .chain(self.names.iter().filter_map(|name| match name.scope {
                 NameScope::Sheet(sheet) => Some(sheet),
                 NameScope::Workbook => None,

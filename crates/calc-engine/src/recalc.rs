@@ -10,8 +10,8 @@
 //!   text, OFFSET's result, a spilled range `#` names). When it reads a formula cell this
 //!   recalculation has yet to evaluate, its result is discarded, never staged, and the formula
 //!   waits for that cell and is evaluated again once it is evaluated. A formula that would wait
-//!   on itself, directly or through others waiting, is on a circular reference and is refused
-//!   (cycles are L3's, dc-m3u). Every area an evaluation read beyond its placed references is
+//!   on itself, directly or through others waiting, is on a circular reference (below). Every
+//!   area an evaluation read beyond its placed references is
 //!   filed in the one graph as a dynamic prerequisite when the recalculation publishes, so a
 //!   change to such a cell makes the formula stale and the next recalculation orders it after
 //!   the formulas it read.
@@ -24,6 +24,34 @@
 //! - **Volatile functions.** A formula that calls one is calculated by every recalculation.
 //! - **Random numbers.** RAND, RANDBETWEEN and RANDARRAY draw from a stream keyed by the state's
 //!   seed, the recalculation's tick and the formula's cell (`random.rs`).
+//!
+//! Work package L3 (dc-m3u) adds circular references. The formulas on a cycle of placed
+//! references are found when the order is made (strongly connected components, by OxCalc's
+//! iterative Tarjan of `src/oxcalc-core/src/grid/machine/workbook_coordinator.rs`,
+//! `cycle_groups`, at commit 1bd514ef, rewritten on this engine's graph); those on a cycle that
+//! only an evaluation finds (INDIRECTs naming each other) are found when they would wait on each
+//! other. The workbook's iteration settings ([`calc_doc_model::IterationSettings`]) decide what
+//! happens to them:
+//!
+//! - **Iteration off.** Excel calculates no cell on the cycle: each keeps the value it had, and so
+//!   does each cell that reads one (Excel 16.0, 2026-10-23: with A1 `=B1+1` and B1 `=A1+1` entered
+//!   one after the other, A1 shows 1 and B1 0, and G1 `=A1*10` 0, through `CalculateFull`,
+//!   `CalculateFullRebuild` and an edit of an input elsewhere). That previous value is not a
+//!   calculation of this engine, so each formula on the cycle is published as a typed refusal,
+//!   and each formula reading one is refused as reading a value it cannot be given. The other
+//!   formulas are calculated.
+//! - **Iteration on.** The formulas of the order are evaluated in passes, each formula on a cycle
+//!   reading the value the other formulas on it had at the end of the last pass, or, once
+//!   evaluated in this pass, their new value (the members of a cycle in cell order: Excel
+//!   evaluates A1 before B1, A5 before A6 and B5 before C5). After each pass the change of every
+//!   formula on a cycle is measured: the recalculation stops after the first pass in which no
+//!   value changed by the maximum change or more, or after the maximum number of passes. Excel
+//!   16.0 (2026-10-23, 100 iterations, maximum change 0.001) added 200 to A1 `=B1+1` and B1
+//!   `=A1+1` and 100 to C1 `=C1+1` on each recalculation, and converged D3 `=E3/2+1` with E3
+//!   `=D3` to 2 and F3 `=F3*0.5+5` to 10. Every recalculation calculates the formulas on a cycle
+//!   again, as Excel's did each time a formula elsewhere was entered. A formula on a cycle starts
+//!   from its last calculated value in this engine, and from 0 when it has none: Excel starts
+//!   from the value the file stored, which is no calculation of this engine and is never read.
 //!
 //! The waiting formulas, the ready queue and the waves follow OxCalc's recalculation tracker
 //! (`src/oxcalc-core/src/recalc.rs`, `Stage1RecalcTracker`: a node reads only published or
@@ -43,7 +71,9 @@ use crate::result::{
 };
 use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
-use calc_doc_model::{ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, ModelRoot};
+use calc_doc_model::{
+    ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, IterationSettings, ModelRoot,
+};
 use calc_fml::reference::{
     CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape, template_key,
 };
@@ -77,9 +107,9 @@ pub enum StartError {
     ForeignInputs { node: NodeId, at: CellKey },
     /// The dirty closure has a cycle. `cells` are the formula cells that cannot be ordered, those
     /// on a cycle and those that read one, in the order of the cells (sheet ID, then row, then
-    /// column). The nodes stay pending, so every later recalculation is refused the same way
-    /// until an edit breaks the cycle: strongly connected components are ceng-m5.1's and
-    /// iterative calculation ceng-m5.2's.
+    /// column). [`begin_recalc`] no longer gives it: since L3 (dc-m3u) the formulas on a cycle
+    /// are refused one by one or calculated iteratively, as the workbook's iteration settings
+    /// say, and the others are calculated.
     Cycle { cells: Vec<CellKey> },
 }
 
@@ -212,6 +242,18 @@ pub struct RecalcWork {
     waves: u32,
     scratch: EvalScratch,
     failure: Option<RecalcFailure>,
+    /// The workbook's iteration settings.
+    iteration: IterationSettings,
+    /// The formulas on a cycle.
+    cyclic: BTreeSet<NodeId>,
+    /// With iteration on, the value each formula on a cycle holds as the recalculation stands:
+    /// its value at the end of the last pass, or its new value once evaluated in this pass;
+    /// `None` when its result is no value.
+    iterates: BTreeMap<NodeId, Option<CalcValue>>,
+    /// With iteration on, the values of `iterates` when the current pass began.
+    pass_start: BTreeMap<NodeId, Option<CalcValue>>,
+    /// How many passes over the order have ended.
+    passes: u32,
 }
 
 impl RecalcWork {
@@ -252,7 +294,35 @@ impl RecalcWork {
             state,
             progress: &self.progress,
             spills: &self.spills,
+            iterates: self.iterating().then_some(&self.iterates),
         }
+    }
+
+    /// Whether the formulas on a cycle are calculated iteratively.
+    fn iterating(&self) -> bool {
+        self.iteration.enabled() && !self.cyclic.is_empty()
+    }
+
+    /// Makes `nodes` formulas on a cycle, each starting from its last calculated value in `state`
+    /// (0 when it has none) when iteration is on.
+    fn add_cyclic(&mut self, state: &EngineState, nodes: impl IntoIterator<Item = NodeId>) {
+        for node in nodes {
+            if self.cyclic.insert(node) && self.iteration.enabled() {
+                let start = starting_value(state, node);
+                self.iterates.insert(node, Some(start.clone()));
+                self.pass_start.insert(node, Some(start));
+            }
+        }
+    }
+}
+
+/// The value a formula on a cycle starts iterating from: its last calculated value, else 0. A file
+/// cache is never read (see the module documentation).
+fn starting_value(state: &EngineState, node: NodeId) -> CalcValue {
+    let at = live_anchor(state, node);
+    match state.result(at).and_then(FormulaResult::calculated) {
+        Some((value, _)) => value.clone(),
+        None => CalcValue::number(0.0),
     }
 }
 
@@ -292,32 +362,62 @@ pub fn begin_recalc(
             inputs: inputs.revision(),
         });
     }
-    let mut unbound: Vec<(NodeId, CellKey, &FormulaText)> = Vec::new();
+    let mut unbound: Vec<(NodeId, CellKey, Option<&FormulaText>)> = Vec::new();
     for &node in &state.pending {
         if state.bindings.contains_key(&node) {
             continue;
         }
         let at = live_anchor(state, node);
         match inputs.cell(at) {
-            Some(CellInput::Formula(text)) => unbound.push((node, at, text)),
+            Some(CellInput::Formula(text)) => unbound.push((node, at, Some(text))),
+            None if crate::data_table::is_table_cell(inputs, at) => unbound.push((node, at, None)),
             _ => return Err(StartError::ForeignInputs { node, at }),
         }
     }
     for (node, at, text) in unbound {
-        bind(state, inputs, node, at, text);
+        match text {
+            Some(text) => bind(state, inputs, node, at, text),
+            None => bind_table_cell(state, inputs, node, at),
+        }
     }
+    let iteration = inputs.definitions().iteration();
     let roots = match &state.published_mode {
         Some(published) if *published != mode => state.by_anchor.values().copied().collect(),
         _ => {
             let mut roots = state.pending.clone();
             roots.extend(state.volatile.iter().copied());
+            if state.tables_deferred {
+                // The table cells the recalculation would reach stay pending, for the
+                // recalculation that calculates tables.
+                state.tables_deferred = false;
+                let reached: Vec<NodeId> = dirty_closure(state, inputs, roots.clone(), &|node| {
+                    published_areas(state, inputs, node)
+                })
+                .into_keys()
+                .filter(|node| crate::data_table::is_table_cell(inputs, live_anchor(state, *node)))
+                .collect();
+                state.tables_deferred = true;
+                state.pending.extend(reached);
+                roots.retain(|node| {
+                    !crate::data_table::is_table_cell(inputs, live_anchor(state, *node))
+                });
+            }
+            // With iteration on, the formulas on a cycle are calculated by every recalculation.
+            if iteration.enabled() {
+                roots.extend(
+                    state
+                        .cycle_members
+                        .iter()
+                        .copied()
+                        .filter(|node| state.node(*node).is_some()),
+                );
+            }
             roots
         }
     };
-    let order = schedule(state, inputs, roots, &|node| {
+    let Scheduled { order, cyclic } = schedule(state, inputs, roots, &|node| {
         published_areas(state, inputs, node)
-    })
-    .map_err(|cells| StartError::Cycle { cells })?;
+    });
     let mut progress = Progress::new(state.nodes.len());
     for node in &order {
         progress.schedule(*node);
@@ -343,6 +443,15 @@ pub fn begin_recalc(
         waves: 0,
         scratch: EvalScratch::new(),
         failure: None,
+        iteration,
+        cyclic: BTreeSet::new(),
+        iterates: BTreeMap::new(),
+        pass_start: BTreeMap::new(),
+        passes: 0,
+    })
+    .map(|mut work| {
+        work.add_cyclic(state, cyclic);
+        work
     })
 }
 
@@ -412,7 +521,7 @@ pub fn step(
 /// since the last publication are removed, the evaluated nodes are no longer pending, and the
 /// published generation's numeric mode is the recalculation's. Returns what changed. A
 /// recalculation that failed, is incomplete, or was superseded publishes nothing.
-pub fn finish(state: &mut EngineState, work: RecalcWork) -> Result<ValueDelta, RecalcFailure> {
+pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelta, RecalcFailure> {
     if let Some(failure) = work.failure {
         return Err(failure);
     }
@@ -427,7 +536,7 @@ pub fn finish(state: &mut EngineState, work: RecalcWork) -> Result<ValueDelta, R
     }
     let mut changes: BTreeMap<CellKey, ValueChange> = BTreeMap::new();
     let mut spill_changes = Vec::new();
-    for (node, result) in work.progress.into_staged() {
+    for (node, result) in std::mem::take(&mut work.progress).into_staged() {
         let at = live_anchor(state, node);
         let before = state.spills.remove(at).map(|spill| spill.area());
         let after = work.spills.get(at).cloned();
@@ -446,7 +555,7 @@ pub fn finish(state: &mut EngineState, work: RecalcWork) -> Result<ValueDelta, R
         state.pending.remove(&node);
         changes.insert(at, ValueChange::Published { at, node, result });
     }
-    for (node, dynamic) in work.dynamic {
+    for (node, dynamic) in std::mem::take(&mut work.dynamic) {
         state.set_dynamic(node, dynamic);
     }
     for at in std::mem::take(&mut state.retired) {
@@ -464,6 +573,7 @@ pub fn finish(state: &mut EngineState, work: RecalcWork) -> Result<ValueDelta, R
             changes.insert(at, ValueChange::Removed { at, node });
         }
     }
+    state.cycle_members = work.cyclic;
     state.generation += 1;
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
@@ -547,12 +657,39 @@ fn bind(
             }
             prerequisites(instance)
         }
-        Binding::Refused(_) => Vec::new(),
+        Binding::Refused(_) | Binding::DataTable(_) => Vec::new(),
     };
     state
         .set_prerequisites(inputs, node, prerequisites)
         .expect("the snapshot is at the state's revision, the node is live, and every sheet came from the snapshot");
     state.bindings.insert(node, binding);
+}
+
+/// Binds the cell `at` of a what-if data table: it reads its formula cell, the cells its row and
+/// column values stand in, and its table's input cells.
+fn bind_table_cell(state: &mut EngineState, inputs: &ModelRoot, node: NodeId, at: CellKey) {
+    let table = *inputs
+        .definitions()
+        .data_table_containing(at)
+        .expect("a table cell lies in a table");
+    let mut prerequisites = Vec::new();
+    if let Some((formula, pairs)) = table.what_if(at) {
+        let mut cells = vec![formula];
+        for (input, from) in pairs {
+            cells.push(input);
+            cells.push(from);
+        }
+        for cell in cells {
+            let prerequisite = Prerequisite::Cell(cell);
+            if !prerequisites.contains(&prerequisite) {
+                prerequisites.push(prerequisite);
+            }
+        }
+    }
+    state
+        .set_prerequisites(inputs, node, prerequisites)
+        .expect("the snapshot is at the state's revision and the node is live");
+    state.bindings.insert(node, Binding::DataTable(table));
 }
 
 /// What a placed formula reads: one prerequisite per distinct placed reference.
@@ -641,6 +778,11 @@ fn readers(
         .index
         .dependents_of_cell(inputs, live_anchor(state, node), &mut readers);
     readers.append(&mut area_readers);
+    if state.tables_deferred {
+        readers.retain(|reader| {
+            !crate::data_table::is_table_cell(inputs, live_anchor(state, *reader))
+        });
+    }
     readers
 }
 
@@ -668,18 +810,29 @@ pub(crate) fn dirty_closure(
     readers_of
 }
 
+/// The order a recalculation evaluates its nodes in, and the nodes on a cycle.
+struct Scheduled {
+    order: Vec<NodeId>,
+    cyclic: BTreeSet<NodeId>,
+}
+
 /// The dirty closure of `roots`, in the order of the ready queue; when the dynamic prerequisites
-/// close a cycle, in the order of the placed references alone. `Err` with the anchors of the
-/// nodes on or after a cycle of the placed references, in cell order.
+/// close a cycle, in the order of the placed references alone; and when the placed references
+/// close one too, the strongly connected components in the order of the ready queue, each one's
+/// members in cell order, with the members of each cycle.
 fn schedule(
     state: &EngineState,
     inputs: &ModelRoot,
     roots: BTreeSet<NodeId>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
-) -> Result<Vec<NodeId>, Vec<CellKey>> {
+) -> Scheduled {
     let readers_of = dirty_closure(state, inputs, roots, areas);
+    let acyclic = |order| Scheduled {
+        order,
+        cyclic: BTreeSet::new(),
+    };
     match order(state, &readers_of) {
-        Ok(order) => Ok(order),
+        Ok(order) => acyclic(order),
         Err(_) => {
             // Keep only the edges a placed reference makes: a dynamic prerequisite may be stale
             // (it is what the last evaluation read), and a formula that reads a cell evaluated
@@ -709,9 +862,136 @@ fn schedule(
                     (*node, kept)
                 })
                 .collect();
-            order(state, &placed)
+            match order(state, &placed) {
+                Ok(order) => acyclic(order),
+                Err(_) => order_with_cycles(state, &placed),
+            }
         }
     }
+}
+
+/// The nodes of `readers_of` with its cycles: each strongly connected component (found by an
+/// iterative Tarjan, ported from OxCalc's `cycle_groups`) in the order of the ready queue over
+/// the components, a component ready once every component it reads is ordered and the one whose
+/// first anchor comes first ordered next, its members in cell order; and the members of the
+/// components that are cycles (more than one node, or a node that reads itself).
+fn order_with_cycles(
+    state: &EngineState,
+    readers_of: &BTreeMap<NodeId, Vec<NodeId>>,
+) -> Scheduled {
+    let nodes: Vec<NodeId> = readers_of.keys().copied().collect();
+    let index_of: BTreeMap<NodeId, usize> =
+        nodes.iter().enumerate().map(|(i, n)| (*n, i)).collect();
+    let edges: Vec<Vec<usize>> = nodes
+        .iter()
+        .map(|node| readers_of[node].iter().map(|r| index_of[r]).collect())
+        .collect();
+    let component = tarjan(&edges);
+    let count = component.iter().copied().max().map_or(0, |max| max + 1);
+    let mut members: Vec<Vec<usize>> = vec![Vec::new(); count];
+    for (index, comp) in component.iter().enumerate() {
+        members[*comp].push(index);
+    }
+    let mut cyclic = BTreeSet::new();
+    for held in &members {
+        let self_loop = held.len() == 1 && edges[held[0]].contains(&held[0]);
+        if held.len() > 1 || self_loop {
+            cyclic.extend(held.iter().map(|index| nodes[*index]));
+        }
+    }
+    let mut readers: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); count];
+    let mut waiting = vec![0usize; count];
+    for (from, targets) in edges.iter().enumerate() {
+        for to in targets {
+            let (a, b) = (component[from], component[*to]);
+            if a != b && readers[a].insert(b) {
+                waiting[b] += 1;
+            }
+        }
+    }
+    let first_anchor = |comp: usize| {
+        members[comp]
+            .iter()
+            .map(|index| live_anchor(state, nodes[*index]))
+            .min()
+            .expect("a component has a member")
+    };
+    let mut ready: BTreeSet<(CellKey, usize)> = (0..count)
+        .filter(|comp| waiting[*comp] == 0)
+        .map(|comp| (first_anchor(comp), comp))
+        .collect();
+    let mut order = Vec::with_capacity(nodes.len());
+    while let Some((_, comp)) = ready.pop_first() {
+        let mut held: Vec<NodeId> = members[comp].iter().map(|index| nodes[*index]).collect();
+        held.sort_by_key(|node| live_anchor(state, *node));
+        order.extend(held);
+        for reader in &readers[comp] {
+            waiting[*reader] -= 1;
+            if waiting[*reader] == 0 {
+                ready.insert((first_anchor(*reader), *reader));
+            }
+        }
+    }
+    debug_assert_eq!(order.len(), nodes.len(), "the components form no cycle");
+    Scheduled { order, cyclic }
+}
+
+/// The strongly connected component of each vertex of `edges` (vertex `i` reaches each of
+/// `edges[i]`), numbered from 0, by Tarjan's algorithm on an explicit stack.
+fn tarjan(edges: &[Vec<usize>]) -> Vec<usize> {
+    const UNSEEN: usize = usize::MAX;
+    let n = edges.len();
+    let mut index = vec![UNSEEN; n];
+    let mut low = vec![0usize; n];
+    let mut on_stack = vec![false; n];
+    let mut stack = Vec::new();
+    let mut component = vec![UNSEEN; n];
+    let mut next_index = 0;
+    let mut next_component = 0;
+    for root in 0..n {
+        if index[root] != UNSEEN {
+            continue;
+        }
+        // Each frame: a vertex and the position of its next edge.
+        let mut frames: Vec<(usize, usize)> = vec![(root, 0)];
+        index[root] = next_index;
+        low[root] = next_index;
+        next_index += 1;
+        stack.push(root);
+        on_stack[root] = true;
+        while let Some(&mut (vertex, ref mut edge)) = frames.last_mut() {
+            if let Some(&to) = edges[vertex].get(*edge) {
+                *edge += 1;
+                if index[to] == UNSEEN {
+                    index[to] = next_index;
+                    low[to] = next_index;
+                    next_index += 1;
+                    stack.push(to);
+                    on_stack[to] = true;
+                    frames.push((to, 0));
+                } else if on_stack[to] {
+                    low[vertex] = low[vertex].min(index[to]);
+                }
+                continue;
+            }
+            frames.pop();
+            if let Some(&(parent, _)) = frames.last() {
+                low[parent] = low[parent].min(low[vertex]);
+            }
+            if low[vertex] == index[vertex] {
+                loop {
+                    let member = stack.pop().expect("the component's vertices are stacked");
+                    on_stack[member] = false;
+                    component[member] = next_component;
+                    if member == vertex {
+                        break;
+                    }
+                }
+                next_component += 1;
+            }
+        }
+    }
+    component
 }
 
 /// The nodes of `readers_of` in the order of the ready queue, or the anchors of those a cycle
@@ -773,16 +1053,33 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             if work.progress.is_evaluated(node) || work.waits_on.contains_key(&node) {
                 continue;
             }
+            // With iteration off a formula on a cycle is not calculated.
+            if !work.iteration.enabled() && work.cyclic.contains(&node) {
+                let done = refused(work, circular());
+                stage(state, inputs, work, node, done);
+                continue;
+            }
             return Some(node);
         }
         if !work.waits_on.is_empty() {
+            // Each waits on a formula that waits too: a cycle only the evaluations found.
             let stuck: Vec<NodeId> = work.waits_on.keys().copied().collect();
             work.waits_on.clear();
             work.waiting.clear();
-            for node in stuck {
-                let done = refused(work, circular());
-                stage(state, inputs, work, node, done);
+            if work.iteration.enabled() {
+                let mut stuck = stuck;
+                stuck.sort_by_key(|member| live_anchor(state, *member));
+                work.add_cyclic(state, stuck.iter().copied());
+                work.ready.extend(stuck);
+            } else {
+                for node in stuck {
+                    let done = refused(work, circular());
+                    stage(state, inputs, work, node, done);
+                }
             }
+            continue;
+        }
+        if work.iterating() && next_pass(work) {
             continue;
         }
         if !work.rewave.is_empty() {
@@ -790,6 +1087,46 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             continue;
         }
         return None;
+    }
+}
+
+/// Ends a pass of an iterating recalculation: when it changed the value of a formula on a cycle
+/// by the maximum change or more and fewer passes than the maximum have run, begins the next
+/// pass, every node of the order no longer evaluated (its staged result stands until it is
+/// evaluated again), and returns true.
+fn next_pass(work: &mut RecalcWork) -> bool {
+    work.passes += 1;
+    let change = work
+        .cyclic
+        .iter()
+        .map(|node| {
+            let before = work.pass_start.get(node).cloned().flatten();
+            let after = work.iterates.get(node).cloned().flatten();
+            change_between(before.as_ref(), after.as_ref())
+        })
+        .fold(0.0f64, f64::max);
+    if work.passes >= work.iteration.max_iterations() || change < work.iteration.max_change() {
+        return false;
+    }
+    work.pass_start = work.iterates.clone();
+    for node in &work.order {
+        work.progress.schedule(*node);
+    }
+    work.next = 0;
+    true
+}
+
+/// How much a formula's value changed in a pass: the difference of two numbers, nothing for two
+/// equal values, and without bound for any other change.
+fn change_between(before: Option<&CalcValue>, after: Option<&CalcValue>) -> f64 {
+    match (before, after) {
+        (Some(a), Some(b)) => match (a.as_number(), b.as_number()) {
+            (Some(x), Some(y)) => (x - y).abs(),
+            _ if a == b => 0.0,
+            _ => f64::INFINITY,
+        },
+        (None, None) => 0.0,
+        _ => f64::INFINITY,
     }
 }
 
@@ -807,10 +1144,11 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     let ordered = if work.waves > MAX_WAVES {
         Err(())
     } else {
-        schedule(state, inputs, roots.clone(), &areas).map_err(|_| ())
+        Ok(schedule(state, inputs, roots.clone(), &areas))
     };
     match ordered {
-        Ok(order) => {
+        Ok(Scheduled { order, cyclic }) => {
+            work.add_cyclic(state, cyclic);
             for node in &order {
                 let evaluated = work.progress.is_evaluated(*node);
                 work.progress.schedule(*node);
@@ -837,10 +1175,11 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     }
 }
 
-/// The refusal of a formula on a circular reference that only an evaluation found.
+/// The refusal of a formula on a circular reference while iterative calculation is off: Excel
+/// leaves each such cell at its previous value, which this engine did not calculate.
 fn circular() -> NotModeled {
     NotModeled::Evaluation(EvalFault::NotModelled {
-        construct: "a circular reference through a reference computed at evaluation (INDIRECT, OFFSET, a spill)",
+        construct: "a circular reference with iterative calculation off (Excel keeps each cell's previous value)",
         owner: "dc-m3u",
     })
 }
@@ -857,14 +1196,38 @@ fn refused(work: &RecalcWork, refusal: NotModeled) -> Done {
     }
 }
 
-/// Makes `node` wait for `on`, or stages it as not modelled when `on` waits, directly or through
-/// others, for `node`.
+/// Makes `node` wait for `on`, or, when `on` waits, directly or through others, for `node`, a
+/// cycle only the evaluations found: with iteration on its formulas join the formulas on a cycle
+/// and are evaluated again at once, and with iteration off `node` is staged as not modelled.
 fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: NodeId, on: NodeId) {
     let mut cursor = on;
     loop {
         if cursor == node {
-            let done = refused(work, circular());
-            stage(state, inputs, work, node, done);
+            if work.iteration.enabled() {
+                let mut chain = vec![node];
+                let mut link = on;
+                while link != node {
+                    chain.push(link);
+                    link = match work.waits_on.get(&link) {
+                        Some(next) => *next,
+                        None => break,
+                    };
+                }
+                for member in &chain {
+                    if let Some(awaited) = work.waits_on.remove(member)
+                        && let Some(waiters) = work.waiting.get_mut(&awaited)
+                    {
+                        waiters.retain(|waiter| waiter != member);
+                    }
+                }
+                // Evaluated again in cell order, as the members of a cycle the order found are.
+                chain.sort_by_key(|member| live_anchor(state, *member));
+                work.add_cyclic(state, chain.iter().copied());
+                work.ready.extend(chain);
+            } else {
+                let done = refused(work, circular());
+                stage(state, inputs, work, node, done);
+            }
             return;
         }
         match work.waits_on.get(&cursor) {
@@ -901,6 +1264,10 @@ fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
         work.spills.insert(spill);
     }
     work.filled.insert(node, after);
+    if work.iteration.enabled() && work.cyclic.contains(&node) {
+        let value = done.result.calculated().map(|(value, _)| value.clone());
+        work.iterates.insert(node, value);
+    }
     work.progress.stage(node, done.result);
     work.dynamic.insert(node, done.dynamic);
     if before != after {
@@ -1087,6 +1454,36 @@ fn evaluate_node(
     {
         Binding::Placed(instance, role) => (instance, *role),
         Binding::Refused(refusal) => return Ok(Attempt::Done(refused(work, refusal.clone()))),
+        Binding::DataTable(table) => {
+            let view = work.view(state, inputs);
+            return Ok(
+                match crate::data_table::evaluate_cell(
+                    state,
+                    inputs,
+                    view,
+                    calculation.mode(),
+                    table,
+                    formula,
+                ) {
+                    crate::data_table::TableOutcome::Value(value) => {
+                        match NotModeled::publishable(value) {
+                            Ok(value) => Attempt::Done(Done {
+                                result: FormulaResult::Calculated { value, calculation },
+                                spill: None,
+                                dynamic: Vec::new(),
+                            }),
+                            Err(refusal) => Attempt::Done(refused(work, refusal)),
+                        }
+                    }
+                    crate::data_table::TableOutcome::Refused(refusal) => {
+                        Attempt::Done(refused(work, refusal))
+                    }
+                    crate::data_table::TableOutcome::Waits { on, cell } => {
+                        Attempt::Waits { on, cell }
+                    }
+                },
+            );
+        }
     };
     let uncomputed = Cell::new(None);
     let footprint = RefCell::new(Vec::new());
@@ -1095,6 +1492,7 @@ fn evaluate_node(
         state,
         progress: &work.progress,
         spills: &work.spills,
+        iterates: work.iterating().then_some(&work.iterates),
     };
     let mut cells = WorkbookReader::new(view, &uncomputed);
     let catalog = SnapshotCatalog(inputs);

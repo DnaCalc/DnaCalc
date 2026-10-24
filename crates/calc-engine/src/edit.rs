@@ -4,7 +4,9 @@
 //! and returns no error.
 
 use crate::state::{EngineState, issue_node_id};
-use calc_doc_model::{AuthoredRevision, CellInput, ModelRoot, OpBatch, SheetEdit, WorkbookOp};
+use calc_doc_model::{
+    AuthoredRevision, CellInput, ModelRoot, OpBatch, SheetEdit, WorkbookOp, moved_cell,
+};
 use calc_value::{CellKey, GridArea, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -66,10 +68,9 @@ pub enum PrepareError {
     RevisionExhausted,
     /// The operation at this index of the batch names a sheet the snapshot does not hold.
     UnknownSheet { operation: usize, sheet: SheetId },
-    /// The operation at this index inserts or deletes rows or columns, or inserts, renames,
-    /// moves or removes a sheet. The graph's structural patches (moving anchors and edges,
-    /// deleting the nodes of a removed sheet) belong to ceng-m4.1; until then such a batch is
-    /// refused rather than leaving anchors and edges at their old places.
+    /// The operation at this index inserts or deletes rows or columns or inserts, renames, moves
+    /// or removes a sheet, in a batch that also sets or clears cells. A structural edit is staged
+    /// without cell operations (L3, dc-m3u): they would name cells before or after it moves them.
     StructuralEdit { operation: usize },
 }
 
@@ -96,7 +97,7 @@ impl fmt::Display for PrepareError {
             ),
             PrepareError::StructuralEdit { operation } => write!(
                 f,
-                "operation {operation} is a structural edit; the engine's structural patches are ceng-m4.1's"
+                "operation {operation} is a structural edit in a batch that also sets or clears cells, which the engine does not stage together"
             ),
         }
     }
@@ -117,9 +118,18 @@ pub struct PreparedEngineChange<'s, 'r> {
     next: AuthoredRevision,
     node_changes: Vec<NodeChange>,
     seeds: Vec<InputSeed<'r>>,
+    /// For a structural batch, where each formula node's anchor goes (`None`: its cell or sheet
+    /// is deleted).
+    moves: Option<Vec<(NodeId, Option<CellKey>)>>,
 }
 
 impl<'r> PreparedEngineChange<'_, 'r> {
+    /// For a structural batch, where each formula node's anchor goes, in the order of the old
+    /// anchors (`None`: the batch deletes its cell or its sheet); `None` for any other batch.
+    pub fn moves(&self) -> Option<&[(NodeId, Option<CellKey>)]> {
+        self.moves.as_deref()
+    }
+
     /// The revision the change was prepared against.
     pub fn base(&self) -> AuthoredRevision {
         self.base
@@ -197,6 +207,17 @@ pub fn prepare_edit<'s, 'r>(
         .checked_next()
         .ok_or(PrepareError::RevisionExhausted)?;
 
+    if let Some(moves) = structural_moves(state, inputs, change)? {
+        return Ok(PreparedEngineChange {
+            state,
+            base: change.base,
+            next,
+            node_changes: Vec::new(),
+            seeds: Vec::new(),
+            moves: Some(moves),
+        });
+    }
+
     // What each cell the batch can change holds after the batch (`None` for empty). A cleared
     // area adds every cell of it that holds an input in the snapshot or a formula node in the
     // state, so a cell is missing here only when the batch leaves it as the snapshot has it.
@@ -244,7 +265,7 @@ pub fn prepare_edit<'s, 'r>(
                 after.insert(array.anchor(), Some(input));
                 authored.push(area);
             }
-            WorkbookOp::EditAxis(_) => return Err(PrepareError::StructuralEdit { operation }),
+            WorkbookOp::EditAxis(_) => unreachable!("structural batches are staged above"),
             WorkbookOp::EditSheet(edit) => match edit {
                 SheetEdit::SetVisibility { sheet, .. } => {
                     require_sheet(inputs, operation, *sheet)?;
@@ -253,7 +274,7 @@ pub fn prepare_edit<'s, 'r>(
                 | SheetEdit::Rename { .. }
                 | SheetEdit::Move { .. }
                 | SheetEdit::Remove { .. } => {
-                    return Err(PrepareError::StructuralEdit { operation });
+                    unreachable!("structural batches are staged above")
                 }
             },
             WorkbookOp::EditSkinLayout(_) => {}
@@ -408,7 +429,82 @@ pub fn prepare_edit<'s, 'r>(
         next,
         node_changes,
         seeds,
+        moves: None,
     })
+}
+
+/// Where each formula node's anchor goes, the anchor before and its node.
+type Moves = Vec<(NodeId, Option<CellKey>)>;
+
+/// For a batch holding a structural edit (rows or columns inserted or deleted, a sheet inserted,
+/// renamed, moved or removed), where each formula node's anchor goes; `None` for any other batch.
+/// Such a batch may also show or hide sheets and edit the skin layout; a cell operation in it is
+/// refused.
+fn structural_moves(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    change: &OpBatch,
+) -> Result<Option<Moves>, PrepareError> {
+    let structural = change.operations.iter().position(|op| {
+        matches!(
+            op,
+            WorkbookOp::EditAxis(_)
+                | WorkbookOp::EditSheet(
+                    SheetEdit::Insert { .. }
+                        | SheetEdit::Rename { .. }
+                        | SheetEdit::Move { .. }
+                        | SheetEdit::Remove { .. }
+                )
+        )
+    });
+    let Some(structural) = structural else {
+        return Ok(None);
+    };
+    if change
+        .operations
+        .iter()
+        .any(|op| {
+            matches!(
+                op,
+                WorkbookOp::SetCell { .. } | WorkbookOp::Clear { .. } | WorkbookOp::SetArray { .. }
+            )
+        })
+    {
+        return Err(PrepareError::StructuralEdit {
+            operation: structural,
+        });
+    }
+    let mut moves: Moves = state
+        .by_anchor
+        .iter()
+        .map(|(at, node)| (*node, Some(*at)))
+        .collect();
+    for (operation, op) in change.operations.iter().enumerate() {
+        match op {
+            WorkbookOp::SetCell { .. } | WorkbookOp::Clear { .. } | WorkbookOp::SetArray { .. } => {
+                unreachable!("refused above")
+            }
+            WorkbookOp::EditAxis(edit) => {
+                require_sheet(inputs, operation, edit.sheet())?;
+                for (_, anchor) in &mut moves {
+                    *anchor = anchor.and_then(|at| moved_cell(*edit, at));
+                }
+            }
+            WorkbookOp::EditSheet(SheetEdit::Remove { sheet }) => {
+                require_sheet(inputs, operation, *sheet)?;
+                for (_, anchor) in &mut moves {
+                    *anchor = anchor.filter(|at| at.sheet() != *sheet);
+                }
+            }
+            WorkbookOp::EditSheet(
+                SheetEdit::Rename { sheet, .. }
+                | SheetEdit::Move { sheet, .. }
+                | SheetEdit::SetVisibility { sheet, .. },
+            ) => require_sheet(inputs, operation, *sheet)?,
+            WorkbookOp::EditSheet(SheetEdit::Insert { .. }) | WorkbookOp::EditSkinLayout(_) => {}
+        }
+    }
+    Ok(Some(moves))
 }
 
 fn require_sheet(inputs: &ModelRoot, operation: usize, sheet: SheetId) -> Result<(), PrepareError> {
@@ -459,6 +555,16 @@ impl CommitReceipt {
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
+    if let Some(moves) = change.moves.take() {
+        let removed = state.apply_moves(moves);
+        state.set_revision(change.next);
+        return CommitReceipt {
+            revision: change.next,
+            added: Vec::new(),
+            replaced: Vec::new(),
+            removed,
+        };
+    }
     let mut added = Vec::new();
     let mut replaced = Vec::new();
     let mut removed = Vec::new();

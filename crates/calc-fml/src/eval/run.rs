@@ -86,7 +86,7 @@ pub enum EvalFault {
     ReadContract(ReadContractError),
     /// A reference to more than one cell where a legacy formula takes one value at a place whose
     /// evaluation in Excel this package does not model (see [`super::FormulaForm::Legacy`]); work
-    /// package dc-mzk owns it.
+    /// package dc-m3u owns it (L1, dc-mzk, left it open).
     AreaAsValue { area: GridArea },
     /// The formula's final operation is an infix `+` or `-` (seen through parentheses, a prefix
     /// `+` or `-` and the arguments IF may return) whose result is a non-zero number of at most
@@ -240,7 +240,7 @@ struct Run<'a, 'r> {
 fn not_modelled(construct: &'static str) -> EvalFault {
     EvalFault::NotModelled {
         construct,
-        owner: "dc-mzk",
+        owner: "dc-m3u",
     }
 }
 

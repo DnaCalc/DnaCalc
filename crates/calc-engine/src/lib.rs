@@ -50,6 +50,7 @@
 //!   ([`calc_fml::reference::template_key`]) lets the copies of a filled formula share one plan
 //!   without each being parsed.
 
+mod data_table;
 mod edit;
 mod graph;
 mod random;
@@ -58,6 +59,7 @@ mod recalc;
 mod result;
 mod spill;
 mod state;
+mod structural;
 
 pub use edit::{
     CommitReceipt, InputSeed, NodeChange, PrepareError, PreparedEngineChange, commit_edit,
@@ -74,3 +76,4 @@ pub use result::{
 };
 pub use spill::Spill;
 pub use state::{EngineState, FormulaNode, PrerequisiteError};
+pub use structural::ReferenceRewriter;
