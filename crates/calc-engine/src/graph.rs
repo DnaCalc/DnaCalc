@@ -7,6 +7,7 @@
 use calc_doc_model::{Axis, ModelRoot, SheetEntry};
 use calc_value::{CellKey, GridArea, GridError, NodeId, SheetId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::hash::{BuildHasherDefault, Hasher};
 
 /// Whole rows or whole columns of one sheet: the positions `first` to `last`, both included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -258,6 +259,54 @@ fn block_of(sheet: SheetId, level: u8, row: u32, column: u32) -> BlockKey {
 /// A block of the rectangle index: its sheet, level, block row and block column.
 type BlockKey = (SheetId, u8, u32, u32);
 
+/// The hasher of the rectangle index's block keys (dc-10d9): a multiply-rotate hash of the few
+/// integers a key holds, in place of the standard library's keyed SipHash, which a lookup of every
+/// level for every cell a recalculation orders made a measurable share of ordering. The keys are
+/// the engine's own block coordinates, never text a workbook chooses, so a keyed hash buys nothing
+/// here.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct BlockHasher(u64);
+
+impl BlockHasher {
+    const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;
+
+    fn add(&mut self, word: u64) {
+        self.0 = (self.0.rotate_left(5) ^ word).wrapping_mul(Self::SEED);
+    }
+}
+
+impl Hasher for BlockHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(8) {
+            let mut word = [0u8; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            self.add(u64::from_le_bytes(word));
+        }
+    }
+
+    fn write_u8(&mut self, n: u8) {
+        self.add(u64::from(n));
+    }
+
+    fn write_u32(&mut self, n: u32) {
+        self.add(u64::from(n));
+    }
+
+    fn write_u64(&mut self, n: u64) {
+        self.add(n);
+    }
+
+    fn write_usize(&mut self, n: usize) {
+        self.add(n as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+type BlockMap<V> = HashMap<BlockKey, V, BuildHasherDefault<BlockHasher>>;
+
 /// One stored rectangle edge: the node that reads it and its rows and columns (the sheet is the
 /// key it is filed under).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -293,7 +342,10 @@ pub(crate) struct ReverseIndex {
     cells: BTreeMap<CellKey, BTreeSet<NodeId>>,
     /// Each block's rectangles, each with the nodes that read it. A rectangle is filed in every
     /// block of its level it meets (at most four).
-    rect_blocks: HashMap<BlockKey, BTreeMap<Rect, BTreeSet<NodeId>>>,
+    rect_blocks: BlockMap<BTreeMap<Rect, BTreeSet<NodeId>>>,
+    /// The levels at which a rectangle has been filed (bit `l` for level `l`), so a cell's query
+    /// looks only in those; a level whose last rectangle was removed keeps its bit.
+    rect_levels: u8,
     rects_by_sheet: BTreeMap<SheetId, BTreeSet<RectEdge>>,
     row_values: BTreeMap<SheetId, BTreeSet<AxisEdge>>,
     column_values: BTreeMap<SheetId, BTreeSet<AxisEdge>>,
@@ -327,6 +379,9 @@ impl ReverseIndex {
                 update(&mut self.rects_by_sheet, sheet, edge, insert);
                 let rect = edge.rect;
                 let level = level_of(rect);
+                if insert {
+                    self.rect_levels |= 1 << level;
+                }
                 let (first, last) = (
                     block_of(sheet, level, rect.top, rect.left),
                     block_of(sheet, level, rect.bottom, rect.right),
@@ -378,25 +433,29 @@ impl ReverseIndex {
         }
     }
 
-    /// Adds to `out` every node with a value edge that covers the cell `at`.
+    /// Adds to `out` every node with a value edge that covers the cell `at`. A node may be added
+    /// more than once when more than one of its edges covers the cell.
     pub(crate) fn dependents_of_cell(
         &self,
         inputs: &ModelRoot,
         at: CellKey,
-        out: &mut BTreeSet<NodeId>,
+        out: &mut impl Extend<NodeId>,
     ) {
         let (sheet, row, column) = (at.sheet(), at.row(), at.column());
         if let Some(nodes) = self.cells.get(&at) {
-            out.extend(nodes);
+            out.extend(nodes.iter().copied());
         }
         if !self.rect_blocks.is_empty() {
             for level in 0..LEVELS {
+                if self.rect_levels & (1 << level) == 0 {
+                    continue;
+                }
                 let Some(rects) = self.rect_blocks.get(&block_of(sheet, level, row, column)) else {
                     continue;
                 };
                 for (rect, nodes) in rects {
                     if rect.contains(row, column) {
-                        out.extend(nodes);
+                        out.extend(nodes.iter().copied());
                     }
                 }
             }
@@ -417,12 +476,13 @@ impl ReverseIndex {
         );
     }
 
-    /// Adds to `out` every node with a value edge that covers at least one cell of `area`.
+    /// Adds to `out` every node with a value edge that covers at least one cell of `area`, a
+    /// node perhaps more than once.
     pub(crate) fn dependents_of_area(
         &self,
         inputs: &ModelRoot,
         area: GridArea,
-        out: &mut BTreeSet<NodeId>,
+        out: &mut impl Extend<NodeId>,
     ) {
         let sheet = area.sheet();
         let rect = Rect::of(area);
@@ -430,7 +490,7 @@ impl ReverseIndex {
             self.cells
                 .range(area.first()..=area.last())
                 .filter(|(at, _)| area.contains(**at))
-                .flat_map(|(_, nodes)| nodes),
+                .flat_map(|(_, nodes)| nodes.iter().copied()),
         );
         let edges = self.rects_by_sheet.get(&sheet).into_iter().flatten();
         out.extend(

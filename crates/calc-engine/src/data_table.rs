@@ -90,7 +90,9 @@ pub(crate) fn evaluate_cell(
         state.index.dependents_of_cell(inputs, *input, &mut roots);
     }
     let affected: BTreeSet<NodeId> = dirty_closure(state, inputs, roots, &|_| Vec::new())
-        .into_keys()
+        .members()
+        .iter()
+        .copied()
         .collect();
     let what_if = WhatIf {
         state,
