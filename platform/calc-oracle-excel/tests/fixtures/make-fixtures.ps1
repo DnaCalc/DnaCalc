@@ -6,9 +6,10 @@
 # writes <directory>/infra_m1_2/{replay,untrusted-link,link-target}.xlsx and
 # <directory>/worker/{macro-sheet.xlsm,external-content.xlsx,pivot-refresh.xlsx,
 # query-table-refresh.xlsx,external-functions.xlsx,dynamic-array.xlsx,spill.xlsx,
-# spill-saved-cm.xlsx,spill-saved-values.xlsx}. Run with this directory as -OutDir it rewrites the
-# committed fixtures; the unit test fixtures_are_the_output_of_their_generator (src/worker_tests.rs)
-# runs it into a fresh directory and compares every file with the committed one byte for byte.
+# spill-saved-cm.xlsx,spill-saved-values.xlsx,legacy-array.xlsx,legacy-array-conflict.xlsx}. Run
+# with this directory as -OutDir it rewrites the committed fixtures; the unit test
+# fixtures_are_the_output_of_their_generator (src/worker_tests.rs) runs it into a fresh directory
+# and compares every file with the committed one byte for byte.
 #
 # Each package is a minimal SpreadsheetML package written as text: every part is UTF-8 XML, stored
 # (ZIP method 0, no compression) with the timestamp 1980-01-01 00:00 and no extra fields, by the
@@ -344,6 +345,24 @@ $fixtures['worker/spill.xlsx'] = New-SpillSpec '<c r="B1" cm="1"><f t="array" re
 $fixtures['worker/spill-saved-cm.xlsx'] = New-SpillSpec '<c r="B1" cm="2"><f t="array" ref="B1:C3">_xlfn.SEQUENCE(3,2)</f><v>1</v></c>'
 # worker/spill-saved-values.xlsx: B1 holds the value 1 and no formula.
 $fixtures['worker/spill-saved-values.xlsx'] = New-SpillSpec (New-Number 'B1' 1)
+
+
+# worker/legacy-array.xlsx: Sheet1!A1:A3 = 1, 2 and 3; B1:B3 the legacy (Ctrl+Shift+Enter) array
+# formula =A1:A3*10, held as Excel saves it (t="array" ref="B1:B3" on the anchor B1, no cell
+# metadata; B2 and B3 hold only their values, 20 and 30); C1 the legacy array formula =SUM(A1:A3)
+# over its one cell (6); and D1 =A1+1, an ordinary formula.
+$fixtures['worker/legacy-array.xlsx'] = New-Spec @(, @('Sheet1', '', (New-Worksheet @(
+    @((New-Number 'A1' 1), '<c r="B1"><f t="array" ref="B1:B3">A1:A3*10</f><v>10</v></c>', '<c r="C1"><f t="array" ref="C1">SUM(A1:A3)</f><v>6</v></c>', (New-Formula 'D1' 'A1+1' 2)),
+    @((New-Number 'A2' 2), (New-Number 'B2' 20)),
+    @((New-Number 'A3' 3), (New-Number 'B3' 30))
+)), $null))
+# worker/legacy-array-conflict.xlsx: as legacy-array.xlsx, but B2, inside the range of B1's legacy
+# array formula, holds a formula of its own (=A2*10).
+$fixtures['worker/legacy-array-conflict.xlsx'] = New-Spec @(, @('Sheet1', '', (New-Worksheet @(
+    @((New-Number 'A1' 1), '<c r="B1"><f t="array" ref="B1:B3">A1:A3*10</f><v>10</v></c>', '<c r="C1"><f t="array" ref="C1">SUM(A1:A3)</f><v>6</v></c>', (New-Formula 'D1' 'A1+1' 2)),
+    @((New-Number 'A2' 2), (New-Formula 'B2' 'A2*10' 20)),
+    @((New-Number 'A3' 3), (New-Number 'B3' 30))
+)), $null))
 
 foreach ($name in ($fixtures.Keys | Sort-Object)) {
     Write-Workbook (Join-Path $OutDir $name) $fixtures[$name]

@@ -53,6 +53,11 @@
 //! observation and the policy. A failure to establish the formula inventory makes the denominator
 //! unknown, so such a record is refused ([`JudgeError::Inconsistent`]), as an empty one is.
 //!
+//! The cells of a legacy array formula's range ([`FormulaKind::LegacyArrayAnchor`] and
+//! [`FormulaKind::LegacyArrayMember`]) are judged like ordinary formula cells, each by its own
+//! value; the record is refused when its inventory does not list every cell of each range once,
+//! the anchor and each member naming it.
+//!
 //! A record whose environment lists COM add-ins connected during the capture (the setting
 //! [`crate::SETTING_COM_ADD_INS_CONNECTED`]) was taken in an Excel instance that was not isolated
 //! from them, and what they did is not observed. The report counts them
@@ -62,7 +67,8 @@
 
 use crate::JudgeError;
 use crate::capture::{
-    Acquisition, CaptureRecord, CellAddress, FormulaCell, FormulaKind, Observation, SheetVisibility,
+    Acquisition, CaptureRecord, CellAddress, FormulaCell, FormulaKind, Observation,
+    SheetVisibility, a1_text,
 };
 use crate::evaluations::EvaluationProof;
 use crate::evidence::EvidenceLabels;
@@ -70,7 +76,7 @@ use crate::json::Out;
 use crate::result::{CellResult, Provenance, ResultSet, RunIdentity};
 use crate::session::{CaptureSession, STAGE_ENVIRONMENT, STAGE_INVENTORY, STAGE_ISOLATION};
 use crate::typed::{MismatchClass, compare, value_out};
-use crate::value::{CalcValue, CoreValue, NumericMode};
+use crate::value::{CalcValue, CoreValue, MAX_COLUMNS, MAX_ROWS, NumericMode};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const REPORT_FORMAT: &str = "dnacalc-verdict-report";
@@ -83,8 +89,10 @@ pub const REPORT_FORMAT: &str = "dnacalc-verdict-report";
 /// `returned` member, present when a version 2 record's evaluation of it returned no value or
 /// another value than the result's. Version 4 adds the `com_add_ins_connected` member, the COM
 /// add-ins a capture's environment lists as connected while it was taken, and the uncertified
-/// reason `com_add_in_connected`.
-pub const REPORT_VERSION: u64 = 4;
+/// reason `com_add_in_connected`. Version 5 adds the strata `legacy_array_anchor` and
+/// `legacy_array_member`, and on the cell of a legacy array formula its `ref` (an anchor) or its
+/// `anchor` (a member).
+pub const REPORT_VERSION: u64 = 5;
 
 /// What a verdict run is judged against: the numeric mode whose Exact target strict-bit certainty
 /// needs, and the legacy evidence labels a record converted from legacy evidence needs.
@@ -309,6 +317,10 @@ pub struct Strata {
     pub ordinary: u64,
     pub shared_master: u64,
     pub shared_child: u64,
+    /// The anchors of legacy array formulas.
+    pub legacy_array_anchor: u64,
+    /// The cells of legacy array formulas' ranges other than their anchors.
+    pub legacy_array_member: u64,
     /// Inventory cells with an observation.
     pub observed: u64,
     /// Inventory cells whose observation is a worksheet error value.
@@ -456,6 +468,89 @@ fn check_shared_ranges(
     Ok(())
 }
 
+/// Checks the legacy array formulas of an inventory: each anchor's range lies within Excel's grid
+/// and every other cell of it is in the inventory as a member naming that anchor, and each
+/// member's anchor is in the inventory as the anchor of a range that covers it. The inventory
+/// thus lists every cell of each range once, as Excel lists each among its formula cells.
+fn check_legacy_arrays(
+    capture: &CaptureRecord,
+    kinds: &BTreeMap<&CellAddress, FormulaKind>,
+) -> Result<(), JudgeError> {
+    for formula in &capture.formulas {
+        let cell = &formula.cell;
+        match formula.kind {
+            FormulaKind::LegacyArrayAnchor { rows, columns } => {
+                let (first, last) = formula
+                    .kind
+                    .legacy_range(cell)
+                    .expect("an anchor has a range");
+                if rows == 0 || columns == 0 || last.0 > MAX_ROWS || last.1 > MAX_COLUMNS {
+                    return Err(JudgeError::new(format!(
+                        "the legacy array formula at {} has a range of {rows} by {columns} cells, which is not a range of Excel's grid starting at the cell",
+                        place(cell)
+                    )));
+                }
+                let expected = FormulaKind::LegacyArrayMember {
+                    anchor_row: first.0,
+                    anchor_column: first.1,
+                };
+                for row in first.0..=last.0 {
+                    for column in first.1..=last.1 {
+                        if (row, column) == first {
+                            continue;
+                        }
+                        let member = CellAddress::new(cell.sheet(), row, column)
+                            .expect("a cell of a range within the grid");
+                        match kinds.get(&member) {
+                            Some(kind) if *kind == expected => {}
+                            Some(kind) => {
+                                return Err(JudgeError::new(format!(
+                                    "{} lies in the range of the legacy array formula at {} and the formula inventory lists it as {}, not as a member of that array",
+                                    place(&member),
+                                    place(cell),
+                                    kind.name()
+                                )));
+                            }
+                            None => {
+                                return Err(JudgeError::new(format!(
+                                    "{} lies in the range of the legacy array formula at {} and is not in the formula inventory; Excel lists every cell of the range as a formula cell",
+                                    place(&member),
+                                    place(cell)
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+            FormulaKind::LegacyArrayMember {
+                anchor_row,
+                anchor_column,
+            } => {
+                let covered =
+                    CellAddress::new(cell.sheet(), anchor_row, anchor_column).and_then(|anchor| {
+                        let kind = kinds.get(&anchor)?;
+                        let (first, last) = kind.legacy_range(&anchor)?;
+                        ((first.0..=last.0).contains(&cell.row())
+                            && (first.1..=last.1).contains(&cell.column()))
+                        .then_some(())
+                    });
+                if covered.is_none() {
+                    return Err(JudgeError::new(format!(
+                        "{} is a member of a legacy array formula anchored at {}!{}, which the formula inventory does not list as the anchor of a range covering it",
+                        place(cell),
+                        cell.sheet(),
+                        a1_text(anchor_row, anchor_column)
+                    )));
+                }
+            }
+            FormulaKind::Ordinary
+            | FormulaKind::SharedMaster { .. }
+            | FormulaKind::SharedChild { .. } => {}
+        }
+    }
+    Ok(())
+}
+
 /// The CellVerdict report for `results` judged against `capture`, with `evaluations` (an evaluation
 /// record of either version, [`crate::EvaluationRecord`] or [`crate::InstrumentRecord`]) as the
 /// proof of calculation, under `policy`: the one place a verdict is computed, for a file-cache
@@ -509,6 +604,7 @@ pub fn judge<'e>(
     }
 
     let mut inventory: BTreeSet<&CellAddress> = BTreeSet::new();
+    let mut kinds: BTreeMap<&CellAddress, FormulaKind> = BTreeMap::new();
     let mut groups: BTreeMap<(&str, u64), (u64, u64)> = BTreeMap::new();
     let mut group_cells: BTreeMap<(&str, u64), BTreeSet<&CellAddress>> = BTreeMap::new();
     for formula in &capture.formulas {
@@ -524,6 +620,7 @@ pub fn judge<'e>(
                 place(&formula.cell)
             )));
         }
+        kinds.insert(&formula.cell, formula.kind);
         if let Some(group) = formula.kind.group() {
             let entry = groups.entry((formula.cell.sheet(), group)).or_default();
             match formula.kind {
@@ -536,6 +633,7 @@ pub fn judge<'e>(
                 .insert(&formula.cell);
         }
     }
+    check_legacy_arrays(capture, &kinds)?;
     for ((sheet, group), (masters, children)) in &groups {
         if *masters != 1 {
             return Err(JudgeError::new(format!(
@@ -864,6 +962,8 @@ pub fn judge<'e>(
             FormulaKind::Ordinary => strata.ordinary += 1,
             FormulaKind::SharedMaster { .. } => strata.shared_master += 1,
             FormulaKind::SharedChild { .. } => strata.shared_child += 1,
+            FormulaKind::LegacyArrayAnchor { .. } => strata.legacy_array_anchor += 1,
+            FormulaKind::LegacyArrayMember { .. } => strata.legacy_array_member += 1,
         }
         if let Some(observation) = &cell.observation {
             strata.observed += 1;
@@ -957,6 +1057,9 @@ fn cell_out(cell: &CellVerdict) -> Out {
     ];
     if let Some(group) = cell.formula.kind.group() {
         members.push(("group", Out::Unsigned(group)));
+    }
+    if let Some((name, reference)) = cell.formula.kind.legacy_member(address) {
+        members.push((name, Out::text(reference.as_str())));
     }
     members.push(("sheet_visibility", Out::text(cell.visibility.name())));
     members.push((
@@ -1059,7 +1162,7 @@ impl VerdictReport {
         by_reason
     }
 
-    /// The report as a JSON document (`dnacalc-verdict-report`, version 4): the headline
+    /// The report as a JSON document (`dnacalc-verdict-report`, version 5): the headline
     /// (calculated of the denominator, then matched of the calculated), every count, the uncertified
     /// comparisons by reason, the strata, one line per inventory cell in inventory order, and the
     /// results outside the inventory. For a version 2 capture record a `captured` member after
@@ -1189,6 +1292,8 @@ impl VerdictReport {
                     ("ordinary", Out::Unsigned(s.ordinary)),
                     ("shared_master", Out::Unsigned(s.shared_master)),
                     ("shared_child", Out::Unsigned(s.shared_child)),
+                    ("legacy_array_anchor", Out::Unsigned(s.legacy_array_anchor)),
+                    ("legacy_array_member", Out::Unsigned(s.legacy_array_member)),
                     ("observed", Out::Unsigned(s.observed)),
                     ("error_expected", Out::Unsigned(s.error_expected)),
                 ]),
@@ -2424,7 +2529,7 @@ mod tests {
         let report = judge(&live, &calculated, &evaluated(), &exact("20430")).unwrap();
         let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
         assert_eq!(encoded["format"], REPORT_FORMAT);
-        assert_eq!(encoded["version"], 4);
+        assert_eq!(encoded["version"], 5);
         assert_eq!(encoded["evaluation_record_version"], 1);
         assert_eq!(encoded["counts"]["calculated_without_value_check"], 1);
         assert_eq!(

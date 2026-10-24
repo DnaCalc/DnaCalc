@@ -9,9 +9,10 @@
 //!  "environment": null | {"excel_build": "...", "channel": "...", "compatibility": "...",
 //!                         "numeric_environment": "...", "settings": [["<name>", "<value>"], ...]},
 //!  "sheets": [{"name": "...", "visibility": "visible" | "hidden" | "very_hidden"}, ...],
-//!  "formulas": [{"sheet", "row", "column", "type": "normal" | "shared" | "array" | ...,
+//!  "formulas": [{"sheet", "row", "column",
+//!                "type": "normal" | "shared" | "array" | "array_member" | ...,
 //!                "si": n | null, "ref": "C1:C3" | null, "cm": "<cell metadata index>" | null,
-//!                "dynamic_array_metadata": b}, ...],
+//!                "dynamic_array_metadata": b, ["anchor": "L1" (array_member only)]}, ...],
 //!  "cells": [{"sheet", "row", "column", "formula": "<UTF-16 hex>" | null, "value": <raw>,
 //!             "spill": <spill>}, ...],
 //!  "saved": [{"sheet", "row", "column", "t": "n" | "b" | "e" | "str" | ..., "v": "<UTF-16 hex>"}],
@@ -23,8 +24,11 @@
 //!
 //! where `dynamic_array_metadata` says whether the formula cell's `cm` names a block of the
 //! package's cell metadata that marks it as a dynamic-array formula (the metadata type XLDAPR with
-//! `fDynamic`), `<raw>` is `{"empty": true}`, `{"number": "<16 hex digits: the binary64 bits>"}`,
-//! `{"text": "<UTF-16 hex>"}`, `{"logical": b}`, `{"error_code": <Excel's CVErr code>}`,
+//! `fDynamic`), an `array_member` entry is a cell of a legacy array formula's range other than its
+//! anchor (the worker lists each, with its anchor's relative A1 reference, since the package holds
+//! the formula on the anchor only), `<raw>` is `{"empty": true}`,
+//! `{"number": "<16 hex digits: the binary64 bits>"}`, `{"text": "<UTF-16 hex>"}`,
+//! `{"logical": b}`, `{"error_code": <Excel's CVErr code>}`,
 //! `{"unsupported": "<.NET type of the Value2>"}` or `{"unread": "<why Value2 cannot be read>"}`,
 //! `<spill>` is what Excel reports of the cell's spill: `null` (Range.HasSpill is False),
 //! `{"ref": "B1:C3", "rows": r, "columns": c}` (Range.SpillingToRange's relative address, rows and
@@ -67,12 +71,20 @@
 //! the cell), which Excel with dynamic arrays saves for a formula that
 //! could return an array, is an ordinary formula; when it does not spill after the rebuild it is
 //! recorded as Excel shows it and flagged as dynamic ([`FormulaCell::dynamic_array`], a formula
-//! over its one cell with no spill range), whatever range its input `ref` claimed. A formula of a
-//! type the record has no kind for (a legacy array formula entered over one cell or many, an
-//! `array` formula whose cell metadata does not name XLDAPR, a dynamic-array formula whose `ref`
-//! does not start at its cell, a data-table formula) refuses the
-//! whole conversion: a record without that cell would have a denominator one short, and one that
-//! called it ordinary would misreport it.
+//! over its one cell with no spill range), whatever range its input `ref` claimed.
+//!
+//! A legacy array formula (entered with Ctrl+Shift+Enter: type `array` whose cell metadata is
+//! absent or does not name XLDAPR, its `ref` starting at the cell) is recorded over its whole
+//! range, as Excel lists every cell of it among its formula cells, each showing its own element:
+//! the anchor as [`FormulaKind::LegacyArrayAnchor`] with its range, and each `array_member` the
+//! worker lists as [`FormulaKind::LegacyArrayMember`] naming its anchor, each with Excel's value
+//! read like any other formula cell's. The package Excel saved must hold the anchor as a legacy
+//! array formula over the same range and each member as a member of it, or the cell gets a `save`
+//! failure. calc-verdict refuses a record that does not list every cell of each range once.
+//!
+//! A formula of a type the record has no kind for (an `array` formula whose `ref` does not start
+//! at its cell, a data-table formula) refuses the whole conversion: a record without that cell
+//! would have a denominator one short, and one that called it ordinary would misreport it.
 
 use calc_verdict::value::{
     CalcValue, ExcelText, MAX_COLUMNS, MAX_ROWS, NumericTargetId, WorksheetErrorCode,
@@ -249,9 +261,15 @@ fn parse_range(reference: &str) -> Option<((u32, u32), (u32, u32))> {
     (first.0 <= last.0 && first.1 <= last.1).then_some((first, last))
 }
 
-/// Whether a formula's `ref` is a range whose first cell is `cell` (`B1`, `B1:B1`, `B1:B3`).
-fn starts_at(reference: &str, cell: &CellAddress) -> bool {
-    parse_range(reference).is_some_and(|(first, _)| first == (cell.row(), cell.column()))
+/// The refusal of a formula of type `kind` at `cell`, the worker's `formula` entry, for which the
+/// record has no kind.
+fn no_kind(formula: &Value, cell: &CellAddress, kind: &str) -> String {
+    format!(
+        "{} holds a formula of type {kind:?} (ref {}, cell metadata {}), for which CaptureRecord version 2 has no kind; this capture is refused rather than written with that cell left out or misnamed",
+        place(cell),
+        formula["ref"].as_str().unwrap_or("none"),
+        formula["cm"].as_str().unwrap_or("none")
+    )
 }
 
 /// Whether a formula's `ref` names `cell` and no other cell (`B1`, or `B1:B1`).
@@ -359,17 +377,7 @@ fn saved_disagreement(saved: &Value, cell: &CellAddress, spill: Option<&Spill>) 
     let kind = saved["type"].as_str().unwrap_or("none");
     let reference = saved["ref"].as_str();
     let dynamic = saved["dynamic_array_metadata"] == true;
-    let metadata = match (saved["cm"].as_str(), dynamic) {
-        (None, _) => "cell metadata none".to_owned(),
-        (Some(cm), true) => format!("cell metadata {cm} (the dynamic-array metadata XLDAPR)"),
-        (Some(cm), false) => {
-            format!("cell metadata {cm}, which does not name the dynamic-array metadata XLDAPR")
-        }
-    };
-    let held = format!(
-        "the saved package holds the formula as type {kind:?} with ref {} and {metadata}",
-        reference.unwrap_or("none")
-    );
+    let held = held(saved);
     let dynamic_array = kind == "array" && dynamic;
     match spill {
         Some(spill) => (!dynamic_array
@@ -383,6 +391,79 @@ fn saved_disagreement(saved: &Value, cell: &CellAddress, spill: Option<&Spill>) 
         None => (dynamic_array && reference.is_some_and(|reference| !names_only(reference, cell)))
             .then(|| format!("Excel reports no spill after the full rebuild, and {held}")),
     }
+}
+
+/// How the saved package holds a formula, as a failure message says it: "the saved package holds
+/// the formula as type "array" with ref B1:C3 and cell metadata 1 (the dynamic-array metadata
+/// XLDAPR)", with the anchor a legacy array member names.
+fn held(saved: &Value) -> String {
+    let kind = saved["type"].as_str().unwrap_or("none");
+    let dynamic = saved["dynamic_array_metadata"] == true;
+    let metadata = match (saved["cm"].as_str(), dynamic) {
+        (None, _) => "cell metadata none".to_owned(),
+        (Some(cm), true) => format!("cell metadata {cm} (the dynamic-array metadata XLDAPR)"),
+        (Some(cm), false) => {
+            format!("cell metadata {cm}, which does not name the dynamic-array metadata XLDAPR")
+        }
+    };
+    let anchor = saved["anchor"]
+        .as_str()
+        .map(|anchor| format!(" and anchor {anchor}"))
+        .unwrap_or_default();
+    format!(
+        "the saved package holds the formula as type {kind:?} with ref {} and {metadata}{anchor}",
+        saved["ref"].as_str().unwrap_or("none")
+    )
+}
+
+/// The failure of a legacy array cell's saved formula `saved` (the package Excel saved) against
+/// the input's, or `None` when they agree: the anchor must be saved as a legacy array formula
+/// (`array` whose cell metadata does not name XLDAPR) over the same range, and a member as a
+/// member of the same anchor.
+fn saved_legacy_disagreement(
+    saved: &Value,
+    cell: &CellAddress,
+    kind: FormulaKind,
+) -> Option<String> {
+    let legacy = saved["type"] == "array"
+        && !(saved["cm"].as_str().is_some() && saved["dynamic_array_metadata"] == true);
+    match kind {
+        FormulaKind::LegacyArrayAnchor { .. } => {
+            let range = kind.legacy_range(cell);
+            (!legacy || saved["ref"].as_str().and_then(parse_range) != range).then(|| {
+                let (first, last) = range.expect("an anchor has a range");
+                format!(
+                    "the input package holds a legacy array formula over {}!{}:{}, and {}",
+                    cell.sheet(),
+                    a1(first),
+                    a1(last),
+                    held(saved)
+                )
+            })
+        }
+        FormulaKind::LegacyArrayMember {
+            anchor_row,
+            anchor_column,
+        } => {
+            let anchor = a1((anchor_row, anchor_column));
+            (saved["type"] != "array_member" || saved["anchor"].as_str() != Some(anchor.as_str()))
+                .then(|| {
+                    format!(
+                        "the input package holds this cell as a member of the legacy array formula anchored at {}!{anchor}, and {}",
+                        cell.sheet(),
+                        held(saved)
+                    )
+                })
+        }
+        FormulaKind::Ordinary
+        | FormulaKind::SharedMaster { .. }
+        | FormulaKind::SharedChild { .. } => None,
+    }
+}
+
+/// The relative A1 reference of a row and column (`B7`).
+fn a1((row, column): (u32, u32)) -> String {
+    CellAddress::new("A", row, column).map_or_else(|| format!("R{row}C{column}"), |cell| cell.a1())
 }
 
 /// The calculation context the settings read back from Excel give.
@@ -508,24 +589,41 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
                 }
             }
             ("shared", None) => return Err(format!("{at}: a shared formula without a group")),
-            ("array", _)
-                if formula["cm"].as_str().is_some()
-                    && formula["dynamic_array_metadata"] == true
-                    && formula["ref"]
-                        .as_str()
-                        .is_some_and(|reference| starts_at(reference, &cell)) =>
-            {
-                dynamic_array = true;
-                FormulaKind::Ordinary
+            ("array", _) => {
+                // A dynamic-array formula has cell metadata naming XLDAPR; a legacy array formula
+                // has none, or cell metadata that does not name it. Either has a ref starting at
+                // its cell.
+                let dynamic =
+                    formula["cm"].as_str().is_some() && formula["dynamic_array_metadata"] == true;
+                let range = formula["ref"]
+                    .as_str()
+                    .and_then(parse_range)
+                    .filter(|(first, _)| *first == (cell.row(), cell.column()));
+                match (dynamic, range) {
+                    (true, Some(_)) => {
+                        dynamic_array = true;
+                        FormulaKind::Ordinary
+                    }
+                    (false, Some((first, last))) => FormulaKind::LegacyArrayAnchor {
+                        rows: last.0 - first.0 + 1,
+                        columns: last.1 - first.1 + 1,
+                    },
+                    (_, None) => return Err(no_kind(formula, &cell, "array")),
+                }
             }
-            (other, _) => {
-                return Err(format!(
-                    "{} holds a formula of type {other:?} (ref {}, cell metadata {}), for which CaptureRecord version 2 has no kind; this capture is refused rather than written with that cell left out or misnamed",
-                    place(&cell),
-                    formula["ref"].as_str().unwrap_or("none"),
-                    formula["cm"].as_str().unwrap_or("none")
-                ));
+            ("array_member", _) => {
+                let anchor = formula["anchor"].as_str().and_then(parse_a1).ok_or_else(|| {
+                    format!(
+                        "{at}: the worker lists {} as a member of a legacy array formula without the relative A1 reference of its anchor",
+                        place(&cell)
+                    )
+                })?;
+                FormulaKind::LegacyArrayMember {
+                    anchor_row: anchor.0,
+                    anchor_column: anchor.1,
+                }
             }
+            (other, _) => return Err(no_kind(formula, &cell, other)),
         };
         let mut text_formula = None;
         match cells.get(&cell) {
@@ -553,9 +651,17 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
                 }
                 let spill =
                     spill_of(read, &cell).map_err(|why| format!("{why}; {UNREAD_SPILL}"))?;
-                let disagreement = saved_formulas
-                    .get(&cell)
-                    .and_then(|saved| saved_disagreement(saved, &cell, spill.as_ref()));
+                let legacy = matches!(
+                    kind,
+                    FormulaKind::LegacyArrayAnchor { .. } | FormulaKind::LegacyArrayMember { .. }
+                );
+                let disagreement = saved_formulas.get(&cell).and_then(|saved| {
+                    if legacy && spill.is_none() {
+                        saved_legacy_disagreement(saved, &cell, kind)
+                    } else {
+                        saved_disagreement(saved, &cell, spill.as_ref())
+                    }
+                });
                 match spill {
                     Some(spill) => {
                         failures.push(failure(
@@ -895,12 +1001,20 @@ mod tests {
     }
 
     #[test]
-    fn array_formulas_and_fatal_results_are_refused() {
+    fn array_formulas_without_a_range_and_fatal_results_are_refused() {
         let mut array = result();
         array["formulas"][0]["type"] = json!("array");
         let error = convert(&array, frame()).err().unwrap();
         assert!(
-            error.contains("S!B1 holds a formula of type \"array\""),
+            error.contains("S!B1 holds a formula of type \"array\" (ref none, cell metadata none)"),
+            "{error}"
+        );
+        let mut table = result();
+        table["formulas"][0]["type"] = json!("dataTable");
+        table["formulas"][0]["ref"] = json!("B1:B3");
+        let error = convert(&table, frame()).err().unwrap();
+        assert!(
+            error.starts_with("S!B1 holds a formula of type \"dataTable\" (ref B1:B3, cell metadata none), for which CaptureRecord version 2 has no kind"),
             "{error}"
         );
         let mut fatal = result();
@@ -920,9 +1034,9 @@ mod tests {
     }
 
     /// A single-cell formula saved as a dynamic array (type array, cell metadata cm, a ref of the
-    /// cell itself) that does not spill is an ordinary formula flagged as dynamic; a legacy array
-    /// formula (no cm) over one cell or several, and a dynamic array whose ref does not start at
-    /// its cell or that has none, are refused.
+    /// cell itself) that does not spill is an ordinary formula flagged as dynamic; an array formula
+    /// (dynamic or legacy) whose ref does not start at its cell or that has none is refused. A
+    /// legacy array formula with a ref starting at its cell is recorded (the tests below).
     #[test]
     fn a_single_cell_dynamic_array_formula_is_ordinary_and_flagged() {
         for reference in ["B1", "B1:B1"] {
@@ -946,22 +1060,9 @@ mod tests {
             let encoded = record.encode().unwrap();
             assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
         }
-        // Each refused row but the legacy ones says its cell metadata names XLDAPR, so the row is
-        // refused for its ref; the last row has a valid ref and cell metadata that does not name
-        // XLDAPR.
+        // Each refused row is refused for its ref, with cell metadata that names XLDAPR (a dynamic
+        // array) or none or cell metadata that does not name it (a legacy array).
         for (reference, cm, xldapr, what) in [
-            (
-                Some("B1"),
-                None,
-                false,
-                "a legacy array formula over its one cell",
-            ),
-            (
-                Some("B1:B2"),
-                None,
-                false,
-                "a legacy array formula over two cells",
-            ),
             (Some("C1"), Some("1"), true, "a ref that names another cell"),
             (
                 Some("A1:B3"),
@@ -972,11 +1073,19 @@ mod tests {
             (Some("B1:"), Some("1"), true, "a ref that is not a range"),
             (None, Some("1"), true, "no ref"),
             (
-                Some("B1:B3"),
+                Some("C1"),
+                None,
+                false,
+                "a legacy ref that names another cell",
+            ),
+            (
+                Some("A1:B3"),
                 Some("1"),
                 false,
-                "cell metadata that does not name XLDAPR",
+                "a legacy ref that starts at another cell",
             ),
+            (Some("B3:B1"), None, false, "a legacy ref that runs upwards"),
+            (None, None, false, "a legacy array without a ref"),
         ] {
             let mut array = result();
             array["formulas"][0]["type"] = json!("array");
@@ -992,6 +1101,163 @@ mod tests {
                 )),
                 "{what}: {error}"
             );
+        }
+    }
+
+    /// [`result`] with S!B1 a legacy array formula over `reference` (cell metadata `cm`, which
+    /// names no dynamic-array metadata), in the input and in the saved package, and each cell of
+    /// `members` (row, column) a member of it: listed by the worker with its anchor B1, read with
+    /// the value 20 and saved as a member with that value, and read again after reopening.
+    fn with_legacy(reference: &str, cm: Option<&str>, members: &[(u32, u32)]) -> Value {
+        let mut with = result();
+        for list in ["formulas", "saved_formulas"] {
+            with[list][0]["type"] = json!("array");
+            with[list][0]["ref"] = json!(reference);
+            with[list][0]["cm"] = json!(cm);
+            with[list][0]["dynamic_array_metadata"] = json!(false);
+        }
+        for (row, column) in members {
+            let member = json!({"sheet": "S", "row": row, "column": column, "type": "array_member", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false, "anchor": "B1"});
+            for list in ["formulas", "saved_formulas"] {
+                with[list].as_array_mut().unwrap().push(member.clone());
+            }
+            with["cells"].as_array_mut().unwrap().push(json!({"sheet": "S", "row": row, "column": column, "formula": "003d00410031003a00410032002a00310030", "value": {"number": "4034000000000000"}, "spill": null}));
+            with["saved"].as_array_mut().unwrap().push(
+                json!({"sheet": "S", "row": row, "column": column, "t": "n", "v": "00320030"}),
+            );
+            with["reopened"].as_array_mut().unwrap().push(json!({"sheet": "S", "row": row, "column": column, "value": {"number": "4034000000000000"}, "spill": null}));
+        }
+        with
+    }
+
+    /// A legacy array formula (type array with no cell metadata, or cell metadata that does not
+    /// name XLDAPR, its ref starting at its cell) is recorded over its range: the anchor with its
+    /// range and each member the worker lists naming its anchor, each with the value Excel shows,
+    /// its saved cache and its reopened value, and no failure when the saved package holds them
+    /// alike. The record round-trips.
+    #[test]
+    fn a_legacy_array_formula_is_recorded_over_its_range() {
+        let anchor = |rows, columns| FormulaKind::LegacyArrayAnchor { rows, columns };
+        let member = FormulaKind::LegacyArrayMember {
+            anchor_row: 1,
+            anchor_column: 2,
+        };
+        for (reference, cm, members, kinds) in [
+            ("B1", None, vec![], vec![anchor(1, 1)]),
+            ("B1:B1", Some("1"), vec![], vec![anchor(1, 1)]),
+            ("B1:B2", None, vec![(2, 2)], vec![anchor(2, 1), member]),
+            (
+                "B1:B3",
+                Some("1"),
+                vec![(2, 2), (3, 2)],
+                vec![anchor(3, 1), member, member],
+            ),
+        ] {
+            let record = convert(&with_legacy(reference, cm, &members), frame())
+                .unwrap_or_else(|e| panic!("{reference}: {e}"));
+            let held: Vec<FormulaKind> = record
+                .formulas
+                .iter()
+                .filter(|f| f.cell.column() == 2)
+                .map(|f| f.kind)
+                .collect();
+            assert_eq!(held, kinds, "{reference}");
+            assert!(record.formulas.iter().all(|f| !f.dynamic_array));
+            assert_eq!(record.formulas.len(), 4 + members.len());
+            let session = record.session.as_ref().unwrap();
+            for (row, column) in &members {
+                let at = CellAddress::new("S", *row, *column).unwrap();
+                let a1 = place(&at);
+                assert!(listed(&record.observations).contains(&a1), "{a1}");
+                assert!(listed(&session.saved).contains(&a1), "{a1}");
+                assert!(listed(&session.reopened).contains(&a1), "{a1}");
+                assert_eq!(
+                    record
+                        .formulas
+                        .iter()
+                        .find(|f| f.cell == at)
+                        .unwrap()
+                        .formula
+                        .as_deref(),
+                    Some("=A1:A2*10")
+                );
+                assert_eq!(failures_at(&record, "S", &at.a1()), []);
+            }
+            assert_eq!(failures_at(&record, "S", "B1"), []);
+            let encoded = record.encode().unwrap();
+            assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
+        }
+        // A member the worker lists without its anchor's reference refuses the conversion.
+        let mut unanchored = with_legacy("B1:B2", None, &[(2, 2)]);
+        unanchored["formulas"][4]["anchor"] = json!("$B$1");
+        let error = convert(&unanchored, frame()).unwrap_err();
+        assert_eq!(
+            error,
+            "formulas[4]: the worker lists S!B2 as a member of a legacy array formula without the relative A1 reference of its anchor"
+        );
+    }
+
+    /// The package Excel saved must hold a legacy array formula's anchor as a legacy array formula
+    /// over the same range, and each member as a member of that anchor: a saved anchor over another
+    /// range, saved as a dynamic-array formula or as an ordinary one, and a saved member of another
+    /// anchor or saved as another type, are save failures of their cells; the values are still
+    /// recorded.
+    #[test]
+    fn a_saved_legacy_array_that_disagrees_is_a_save_failure() {
+        let save = |record: &CaptureRecord, a1: &str| -> Vec<String> {
+            failures_at(record, "S", a1)
+                .into_iter()
+                .filter(|(stage, _)| stage == "save")
+                .map(|(_, message)| message)
+                .collect()
+        };
+        let input = "the input package holds a legacy array formula over S!B1:B2, and the saved package holds the formula as type";
+        for (change, expected) in [
+            (
+                json!({"ref": "B1:B3"}),
+                format!("{input} \"array\" with ref B1:B3 and cell metadata none"),
+            ),
+            (
+                json!({"cm": "1", "dynamic_array_metadata": true}),
+                format!(
+                    "{input} \"array\" with ref B1:B2 and cell metadata 1 (the dynamic-array metadata XLDAPR)"
+                ),
+            ),
+            (
+                json!({"type": "normal", "ref": null}),
+                format!("{input} \"normal\" with ref none and cell metadata none"),
+            ),
+        ] {
+            let mut changed = with_legacy("B1:B2", None, &[(2, 2)]);
+            for (name, value) in change.as_object().unwrap() {
+                changed["saved_formulas"][0][name] = value.clone();
+            }
+            let record = convert(&changed, frame()).unwrap();
+            assert_eq!(save(&record, "B1"), [expected], "{change}");
+            assert_eq!(save(&record, "B2"), Vec::<String>::new(), "{change}");
+            assert!(listed(&record.observations).contains(&"S!B1".to_owned()));
+        }
+        let member = "the input package holds this cell as a member of the legacy array formula anchored at S!B1, and the saved package holds the formula as type";
+        for (change, expected) in [
+            (
+                json!({"anchor": "A1"}),
+                format!(
+                    "{member} \"array_member\" with ref none and cell metadata none and anchor A1"
+                ),
+            ),
+            (
+                json!({"type": "normal", "anchor": null}),
+                format!("{member} \"normal\" with ref none and cell metadata none"),
+            ),
+        ] {
+            let mut changed = with_legacy("B1:B2", None, &[(2, 2)]);
+            for (name, value) in change.as_object().unwrap() {
+                changed["saved_formulas"][4][name] = value.clone();
+            }
+            let record = convert(&changed, frame()).unwrap();
+            assert_eq!(save(&record, "B2"), [expected], "{change}");
+            assert_eq!(save(&record, "B1"), Vec::<String>::new(), "{change}");
+            assert!(listed(&record.observations).contains(&"S!B2".to_owned()));
         }
     }
 

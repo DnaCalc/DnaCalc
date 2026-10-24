@@ -445,7 +445,8 @@ fn infra_m1_1__denominator_integrity() {
 
     let expected_strata = json!({
         "visible_sheet": 5, "hidden_sheet": 1, "very_hidden_sheet": 1, "ordinary": 4,
-        "shared_master": 1, "shared_child": 2, "observed": 7, "error_expected": 2
+        "shared_master": 1, "shared_child": 2,
+        "legacy_array_anchor": 0, "legacy_array_member": 0, "observed": 7, "error_expected": 2
     });
 
     // Every inventory cell calculated, plus one result for a cell outside the inventory (Sheet1!E1),
@@ -857,7 +858,8 @@ fn dc_61sj__shared_ref_with_holes_judged() {
     );
     let expected_strata = json!({
         "visible_sheet": 7, "hidden_sheet": 0, "very_hidden_sheet": 0, "ordinary": 1,
-        "shared_master": 1, "shared_child": 5, "observed": 7, "error_expected": 0
+        "shared_master": 1, "shared_child": 5,
+        "legacy_array_anchor": 0, "legacy_array_member": 0, "observed": 7, "error_expected": 0
     });
 
     // The route `cargo xtask capture` takes before it writes a record: the file-cache replay of
@@ -977,7 +979,8 @@ fn dc_61sj__shared_ref_with_holes_judged() {
     );
     let second_strata = json!({
         "visible_sheet": 8, "hidden_sheet": 0, "very_hidden_sheet": 0, "ordinary": 0,
-        "shared_master": 2, "shared_child": 6, "observed": 8, "error_expected": 0
+        "shared_master": 2, "shared_child": 6,
+        "legacy_array_anchor": 0, "legacy_array_member": 0, "observed": 8, "error_expected": 0
     });
     let second_replay =
         replayed(HOLES_SECOND_CAPTURE).expect("a ref covering another group is judged");

@@ -16,7 +16,9 @@
 #   1. reads the input package with .NET's ZIP and XML readers (no DTDs, no external resolution):
 #      the worksheets, their visibility, every formula cell with its formula type, shared group,
 #      range ref and cell metadata index (cm, with whether it names the dynamic-array metadata
-#      XLDAPR of the metadata part), the data connections with their refreshOnLoad flag,
+#      XLDAPR of the metadata part), each other cell of a legacy array formula's range (an
+#      array_member naming its anchor: Excel lists every cell of the range as a formula cell),
+#      the data connections with their refreshOnLoad flag,
 #      the kind of each external link part, the root element and refreshOnLoad flag of every XML
 #      part, and the calls of the formulas it reads to the functions of $ExternalDataFunctions;
 #      this inventory comes from the package, not from Excel;
@@ -210,6 +212,17 @@ function Split-Reference([string]$Text) {
     return @{ row = [int]$Matches[2]; column = $column }
 }
 
+# The first and last cell of a relative A1 range (B1 or B1:B3), the first neither below nor right
+# of the last, or $null.
+function Split-Range([string]$Text) {
+    $parts = $Text.Split(':')
+    if ($parts.Count -gt 2) { return $null }
+    $first = Split-Reference $parts[0]
+    $last = Split-Reference $parts[$parts.Count - 1]
+    if ($null -eq $first -or $null -eq $last -or $last.row -lt $first.row -or $last.column -lt $first.column) { return $null }
+    return @{ first = $first; last = $last }
+}
+
 # The text of a shared string item or an inline string: its t elements, phonetic runs left out.
 function Get-StringText($Node, $Names) {
     $builder = New-Object System.Text.StringBuilder
@@ -325,7 +338,8 @@ function Get-Index([string]$Text) {
 
 # The worksheets of a package with their visibility, every cell that holds a formula or a value
 # (formula type, shared group, ref and cell metadata index cm with whether cm names the
-# dynamic-array metadata (Read-DynamicArrayBlocks), and the cached value's type and text), the
+# dynamic-array metadata (Read-DynamicArrayBlocks), and the cached value's type and text), each
+# other cell of a legacy array formula's range as a formula of type array_member with its anchor, the
 # data connections of its connections part with their refreshOnLoad flag, the kind of
 # each external link part (the local name of its first element: externalBook, ddeLink or oleLink),
 # the root element of every XML part with its refreshOnLoad flag, and each formula of a sheet (cell,
@@ -437,6 +451,7 @@ function Read-Package([string]$Path) {
             [void]$sheets.Add([ordered]@{ name = $name; visibility = $visibility })
             $sheetNames = New-Object System.Xml.XmlNamespaceManager($document.NameTable)
             $sheetNames.AddNamespace('x', $MainNs)
+            $sheetStart = $formulas.Count
             foreach ($c in $document.SelectNodes('/x:worksheet/x:sheetData/x:row/x:c', $sheetNames)) {
                 $place = Split-Reference $c.GetAttribute('r')
                 if ($null -eq $place) {
@@ -472,6 +487,36 @@ function Read-Package([string]$Path) {
                         $caches[$key] = @{ t = 'str'; v = $strings[$index] }
                     } else {
                         $caches[$key] = @{ t = $t; v = $text }
+                    }
+                }
+            }
+            # The members of each legacy array formula of the sheet (type array whose cell metadata
+            # does not name the dynamic-array metadata XLDAPR, with a ref starting at its cell). The
+            # package holds the formula on its anchor only, while Excel lists every cell of the
+            # range among its formula cells, each showing its own element, so each other cell of
+            # the range is a formula cell of the inventory too: listed after the sheet's own
+            # formulas, in rows, as type array_member with the anchor's reference. A cell of the
+            # range that holds a formula of its own or lies in the range of an earlier legacy array
+            # is an inventory failure, and is not listed twice. A legacy array whose ref is not a
+            # range starting at its cell gets no members; the conversion refuses it.
+            $sheetEntries = @($formulas.GetRange($sheetStart, $formulas.Count - $sheetStart))
+            $held = @{}
+            foreach ($entry in $sheetEntries) { $held[(Get-Key $name $entry.row $entry.column)] = $true }
+            foreach ($entry in $sheetEntries) {
+                if ($entry.type -ne 'array' -or $entry.dynamic_array_metadata -or $null -eq $entry.ref) { continue }
+                $range = Split-Range $entry.ref
+                if ($null -eq $range -or $range.first.row -ne $entry.row -or $range.first.column -ne $entry.column) { continue }
+                $anchor = $entry.ref.Split(':')[0]
+                for ($row = $range.first.row; $row -le $range.last.row; $row++) {
+                    for ($column = $range.first.column; $column -le $range.last.column; $column++) {
+                        if ($row -eq $entry.row -and $column -eq $entry.column) { continue }
+                        $key = Get-Key $name $row $column
+                        if ($held.ContainsKey($key)) {
+                            Add-Failure 'inventory' ([ordered]@{ sheet = $name; row = $row; column = $column }) ("the cell lies in the range " + $entry.ref + " of the legacy array formula at $name!$anchor and holds a formula of its own or lies in the range of another legacy array formula")
+                            continue
+                        }
+                        $held[$key] = $true
+                        [void]$formulas.Add([ordered]@{ sheet = $name; row = $row; column = $column; type = 'array_member'; si = $null; ref = $null; cm = $null; dynamic_array_metadata = $false; anchor = $anchor })
                     }
                 }
             }
@@ -1140,7 +1185,9 @@ try {
     # listed cell the package holds no formula for is a spill member when it lies in the spill range
     # of an inventory cell read above (Excel may list the cells a dynamic-array formula spills into
     # among its formula cells): it is recorded in spill_members, never in the inventory, and the
-    # conversion checks it against the spill it records. Any other is an inventory failure.
+    # conversion checks it against the spill it records. Any other is an inventory failure. Each
+    # cell of a legacy array formula's range is an inventory cell (Read-Package lists the members
+    # beside the anchor), so Excel listing it is no failure.
     try {
         $worksheets = Get-ComProperty $workbook 'Worksheets'
         if ($null -eq $worksheets) { throw 'Workbook.Worksheets reads as nothing' }
