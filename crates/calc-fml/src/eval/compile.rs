@@ -33,8 +33,9 @@ use super::legacy::Place;
 use super::{Admission, CompiledPlan, FormulaForm, Instruction, Literal, PlanCache, Target};
 use crate::parse_formula;
 use crate::reference::{
-    AxisRef, BindError, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog,
-    ReferenceNotation, ReferenceOperand, ReferenceShape, bind_references, qualified_name,
+    BindError, FormulaAnchor, NameDefinition, NameScope, ReferenceCatalog,
+    ReferenceNotation, ReferenceOperand, SheetTarget, TableLookup,
+    bind_references, qualified_name,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, ExcelText, WorksheetErrorCode};
@@ -75,6 +76,10 @@ const OWNER: &str = "dc-mzk";
 
 /// The work package that loads a workbook's defined names into the document model.
 const NAMES_OWNER: &str = "dc-ndi";
+
+/// Work package L3, which owns tables, 3-D references, names with relative references and the
+/// calls of names no defined name holds.
+const L3: &str = "dc-m3u";
 
 /// How many defined names deep one name's formula may use another's while it is lowered.
 pub const MAX_NAME_NESTING: usize = 32;
@@ -185,6 +190,8 @@ fn compile_as(
         sites: HashMap::new(),
         blocks: vec![Vec::new()],
         references: Vec::new(),
+        wrapped: Vec::new(),
+        in_name: false,
         scope: Vec::new(),
         floor: 0,
         names: HashMap::new(),
@@ -200,12 +207,16 @@ fn compile_as(
             .map(Vec::into_boxed_slice)
             .collect(),
         references: lowering.references.into_boxed_slice(),
+        wrapped: lowering.wrapped.into_boxed_slice(),
         form,
     };
     Ok(cache.share(plan))
 }
 
-type Sites = HashMap<TextSpan, Result<ReferenceOperand, BindError>>;
+/// A site's binding and whether it takes the formula's row by implicit intersection.
+type Site = (Result<ReferenceOperand, BindError>, bool);
+
+type Sites = HashMap<TextSpan, Site>;
 
 fn sites(
     tree: &SyntaxTree,
@@ -215,7 +226,7 @@ fn sites(
 ) -> Sites {
     bind_references(tree, notation, anchor, catalog)
         .into_iter()
-        .map(|site| (site.span, site.binding))
+        .map(|site| (site.span, (site.binding, site.this_row)))
         .collect()
 }
 
@@ -228,6 +239,11 @@ struct Lowering<'c> {
     sites: Sites,
     blocks: Vec<Vec<Instruction>>,
     references: Vec<ReferenceOperand>,
+    /// Whether each reference is placed with its relative offsets wrapping around the grid's
+    /// edge: the references of a defined name's formula.
+    wrapped: Vec<bool>,
+    /// Whether the references being bound now belong to a defined name's formula.
+    in_name: bool,
     /// The LET names and LAMBDA parameters in scope, innermost last, each with its local slot.
     scope: Vec<(String, u32)>,
     /// The first entry of `scope` the tree being lowered sees: a defined name's formula sees none
@@ -377,6 +393,15 @@ impl<'c> Lowering<'c> {
             SyntaxKind::IdentifierExpr => {
                 if !self.reference(node, block)? {
                     let text = only_token(node).map(Token::text).unwrap_or_default();
+                    if text.contains('[') {
+                        // A bracket group binding left alone: `[y]` outside a LAMBDA's
+                        // parameters and outside every table.
+                        return Err(unsupported(
+                            span,
+                            "a structured reference in a formula outside every table",
+                            L3,
+                        ));
+                    }
                     if text.eq_ignore_ascii_case("TRUE") {
                         self.blocks[block].push(Instruction::Literal(Literal::Logical(true)));
                     } else if text.eq_ignore_ascii_case("FALSE") {
@@ -394,6 +419,13 @@ impl<'c> Lowering<'c> {
                     let Some((sheet, name)) = qualified_name(node) else {
                         return Err(unsupported(span, "a sheet-qualified name", OWNER));
                     };
+                    if name.text().contains('[') {
+                        return Err(unsupported(
+                            span,
+                            "a sheet-qualified structured reference",
+                            L3,
+                        ));
+                    }
                     let Some(sheet) = self.catalog.sheet_named(&sheet) else {
                         return Err(CompileError::Reference {
                             span,
@@ -414,12 +446,7 @@ impl<'c> Lowering<'c> {
                         instruction: Instruction::Range,
                     });
                     for operand in [right, left] {
-                        tasks.push(Task::Lower {
-                            node: operand,
-                            tail: false,
-                            block,
-                            place,
-                        });
+                        self.lower_reference_operand(operand, block, place, tasks);
                     }
                 }
             }
@@ -433,12 +460,7 @@ impl<'c> Lowering<'c> {
                     instruction: Instruction::Intersect,
                 });
                 for operand in [right, left] {
-                    tasks.push(Task::Lower {
-                        node: operand,
-                        tail: false,
-                        block,
-                        place,
-                    });
+                    self.lower_reference_operand(operand, block, place, tasks);
                 }
             }
             SyntaxKind::UnionExpr => {
@@ -448,12 +470,7 @@ impl<'c> Lowering<'c> {
                     instruction: Instruction::Union(operands.len()),
                 });
                 for operand in operands.into_iter().rev() {
-                    tasks.push(Task::Lower {
-                        node: operand,
-                        tail: false,
-                        block,
-                        place,
-                    });
+                    self.lower_reference_operand(operand, block, place, tasks);
                 }
             }
             SyntaxKind::QuotedIdentifierExpr => {
@@ -709,18 +726,44 @@ impl<'c> Lowering<'c> {
         let spelled = target.0.spelling();
         let value_place = place.argument(spelled, 0, Some(ParameterClass::Value), lazy);
         let admission = self.admission(value_place);
+        let mut three_d: Vec<Option<Vec<Instruction>>> = Vec::with_capacity(argc);
+        for (index, argument) in arguments.iter().enumerate() {
+            match self
+                .three_d_argument(argument, spelled, index, !lazy)
+                .transpose()?
+            {
+                Some(ThreeD::CallIs(code)) => {
+                    self.blocks[block].push(Instruction::Literal(Literal::Error(code)));
+                    return Ok(());
+                }
+                Some(ThreeD::Arguments(instructions)) => three_d.push(Some(instructions)),
+                None => three_d.push(None),
+            }
+        }
         if !lazy {
+            // A 3-D reference spread over one argument per sheet adds arguments.
+            let spread: usize = three_d
+                .iter()
+                .flatten()
+                .map(|instructions| instructions.len() - 1)
+                .sum();
             tasks.push(Task::Emit {
                 block,
                 instruction: Instruction::Call {
                     target,
-                    argc,
+                    argc: argc + spread,
                     retain: false,
                     synthetic: false,
                     admission,
                 },
             });
             for (index, argument) in arguments.into_iter().enumerate().rev() {
+                if let Some(instructions) = three_d[index].take() {
+                    for instruction in instructions.into_iter().rev() {
+                        tasks.push(Task::Emit { block, instruction });
+                    }
+                    continue;
+                }
                 tasks.push(Task::Lower {
                     node: argument,
                     tail: false,
@@ -742,6 +785,15 @@ impl<'c> Lowering<'c> {
             },
         });
         for (index, argument) in arguments.into_iter().enumerate().rev() {
+            if let Some(instructions) = three_d[index].take() {
+                for instruction in instructions.into_iter().rev() {
+                    tasks.push(Task::Emit {
+                        block: first_block + index,
+                        instruction,
+                    });
+                }
+                continue;
+            }
             tasks.push(Task::Lower {
                 node: argument,
                 tail: tail && carries_final_sum(demand, index),
@@ -777,9 +829,16 @@ impl<'c> Lowering<'c> {
                     let name_block = self.name_block(name.text(), &definition, name.span())?;
                     self.blocks[block].push(Instruction::Name(name_block));
                 }
-                // No defined name: Excel's #NAME?, unless a function the document does not
-                // carry (a VBA or add-in function) has the name, which the catalogue cannot rule
-                // out; refused.
+                // No defined name: Excel's #NAME? when the workbook can hold no function of its
+                // own (Excel 16.0, 2026-10-23: `=FOO(1)` is #NAME? and `=IFERROR(FOO(1),3)` is
+                // 3); else a VBA or add-in function might have the name, and the call is refused.
+                // The arguments are not evaluated: Excel's #NAME? comes from the name alone.
+                NameDefinition::Unknown if self.catalog.unknown_calls_are_names() => {
+                    self.blocks[block].push(Instruction::Literal(Literal::Error(
+                        WorksheetErrorCode::Name,
+                    )));
+                    return Ok(());
+                }
                 NameDefinition::Unknown | NameDefinition::NotModelled => return Err(unknown),
             }
         }
@@ -913,13 +972,20 @@ impl<'c> Lowering<'c> {
     /// The name a LET name or LAMBDA parameter node declares, upper case and without its file
     /// prefix, and whether it is optional (`[y]`, or `_xlop.y` in a file). A node that is no
     /// name, or that binding read as a reference, is refused as syntax Excel does not accept.
-    fn declared_name(&self, node: &SyntaxNode) -> Result<(String, bool), CompileError> {
+    fn declared_name(&mut self, node: &SyntaxNode) -> Result<(String, bool), CompileError> {
         let span = node.span();
         let refused = CompileError::Syntax { span };
-        if node.kind() != SyntaxKind::IdentifierExpr || self.sites.contains_key(&span) {
+        if node.kind() != SyntaxKind::IdentifierExpr {
             return Err(refused);
         }
         let text = only_token(node).map(Token::text).ok_or(refused.clone())?;
+        if text.starts_with('[') {
+            // An optional parameter, which a formula inside a table may also read as a
+            // structured reference: as a parameter it is a name.
+            self.sites.remove(&span);
+        } else if self.sites.contains_key(&span) {
+            return Err(refused);
+        }
         if text.eq_ignore_ascii_case("TRUE") || text.eq_ignore_ascii_case("FALSE") {
             return Err(refused);
         }
@@ -959,9 +1025,23 @@ impl<'c> Lowering<'c> {
                 self.blocks[block].push(Instruction::Name(name_block));
             }
             NameDefinition::Unknown => {
-                self.blocks[block].push(Instruction::Literal(Literal::Error(
-                    WorksheetErrorCode::Name,
-                )));
+                // A table's name alone names its data rows (Excel 16.0, 2026-10-23:
+                // `=ROWS(Sales)` is 3 and `=SUM(Sales)` sums the data rows; a file stores it as
+                // `Sales[]`). Tables and defined names share one namespace.
+                let table = match scope {
+                    NameScope::Formula(_) => self.catalog.table(name),
+                    NameScope::Sheet(_) => TableLookup::Unknown,
+                };
+                match table {
+                    TableLookup::Found(table) => {
+                        self.push_reference(table.data_body(), false, block);
+                    }
+                    TableLookup::Unknown | TableLookup::NotModelled => {
+                        self.blocks[block].push(Instruction::Literal(Literal::Error(
+                            WorksheetErrorCode::Name,
+                        )));
+                    }
+                }
             }
             NameDefinition::NotModelled => {
                 return Err(unsupported(span, "a defined name", NAMES_OWNER));
@@ -972,7 +1052,10 @@ impl<'c> Lowering<'c> {
 
     /// The block of the defined name `name` whose formula is `definition`, compiled into the plan
     /// the first time the formula uses it. Its references are bound as a file stores them,
-    /// relative to cell A1 of the formula's sheet; a name with a relative reference is refused.
+    /// relative to cell A1 of the formula's sheet, and placed at the formula's cell with each
+    /// relative offset wrapping around the grid's edge
+    /// ([`ReferenceOperand::instantiate_wrapped`]): Excel 16.0 (2026-10-23) stores `RC[-1]` as
+    /// `Nm!XFD1` and reads `=LeftCell` in C3 as B3 and in A1 as XFD1.
     /// It sees no LET name or LAMBDA parameter of the formula that uses it. A name that uses
     /// itself is given its own block, so a LAMBDA a name holds may call that name.
     fn name_block(
@@ -1012,23 +1095,15 @@ impl<'c> Lowering<'c> {
             FormulaAnchor::new(a1),
             self.catalog,
         );
-        if sites
-            .values()
-            .any(|site| matches!(site, Ok(operand) if relative(operand)))
-        {
-            return Err(unsupported(
-                span,
-                "a defined name with a relative reference",
-                OWNER,
-            ));
-        }
         let block = self.blocks.len();
         self.blocks.push(Vec::new());
         self.names.insert(key, block);
         let floor = std::mem::replace(&mut self.floor, self.scope.len());
+        let in_name = std::mem::replace(&mut self.in_name, true);
         self.nesting += 1;
         let lowered = self.lower_root(expression, sites, block, false, Place::Unknown);
         self.nesting -= 1;
+        self.in_name = in_name;
         self.floor = floor;
         lowered.map_err(|error| match error {
             CompileError::Unsupported { .. } | CompileError::UnknownFunction { .. } => error,
@@ -1038,33 +1113,223 @@ impl<'c> Lowering<'c> {
     }
 
     /// Pushes onto block `block` the reference `node` binds to, when binding gave it a site;
-    /// `false` when it is not a reference.
+    /// `false` when it is not a reference. A structured reference's `#This Row` is followed by
+    /// implicit intersection. A 3-D reference here, where no function takes it, is #REF!: Excel
+    /// 16.0 (2026-10-23) gives `=Ja:Ma!A1`, `=Ja:Ma!A1+1`, `=ABS(Ja:Ma!A1)` and
+    /// `=IFERROR(Ja:Ma!A1,"e")` #REF!, #REF!, #REF! and "e".
     fn reference(&mut self, node: &SyntaxNode, block: usize) -> Result<bool, CompileError> {
         let span = node.span();
         match self.sites.remove(&span) {
             None => Ok(false),
-            Some(Err(error)) => Err(CompileError::Reference { span, error }),
-            Some(Ok(operand)) => {
-                self.blocks[block].push(Instruction::Reference(self.references.len()));
-                self.references.push(operand);
+            Some((Err(error), _)) => Err(CompileError::Reference { span, error }),
+            Some((Ok(operand), _)) if matches!(operand.sheet, SheetTarget::Span { .. }) => {
+                self.blocks[block].push(Instruction::Literal(Literal::Error(
+                    WorksheetErrorCode::Ref,
+                )));
+                Ok(true)
+            }
+            Some((Ok(operand), this_row)) => {
+                self.push_reference(operand, this_row, block);
                 Ok(true)
             }
         }
     }
+
+    /// Pushes the task that lowers `operand`, an operand of the range, intersection or union
+    /// operator, into block `block`. A 3-D reference there is #VALUE! (Excel 16.0, 2026-10-23:
+    /// `=SUM(Ja:Ma!A1:A2 Ja:Ma!A1)` is #VALUE!), where elsewhere it is #REF!.
+    fn lower_reference_operand<'t>(
+        &mut self,
+        operand: &'t SyntaxNode,
+        block: usize,
+        place: Place,
+        tasks: &mut Vec<Task<'t>>,
+    ) {
+        let span = operand.span();
+        if let Some((Ok(bound), _)) = self.sites.get(&span)
+            && matches!(bound.sheet, SheetTarget::Span { .. })
+        {
+            self.sites.remove(&span);
+            tasks.push(Task::Emit {
+                block,
+                instruction: Instruction::Literal(Literal::Error(WorksheetErrorCode::Value)),
+            });
+            return;
+        }
+        tasks.push(Task::Lower {
+            node: operand,
+            tail: false,
+            block,
+            place,
+        });
+    }
+
+    /// Pushes `operand` onto block `block`, followed by implicit intersection with `this_row`.
+    fn push_reference(&mut self, operand: ReferenceOperand, this_row: bool, block: usize) {
+        self.blocks[block].push(Instruction::Reference(self.references.len()));
+        self.references.push(operand);
+        self.wrapped.push(self.in_name);
+        if this_row {
+            self.blocks[block].push(Instruction::Implicit);
+        }
+    }
+
+    /// When argument `index` of a call of `spelling` is a 3-D reference, what it becomes there:
+    /// the reference across its sheets for a function that takes one, the error a function gives
+    /// one it does not take, or the refusal of a function whose handling of it is not measured.
+    /// `None` when the argument is no 3-D reference.
+    fn three_d_argument(
+        &mut self,
+        node: &SyntaxNode,
+        spelling: &str,
+        index: usize,
+        may_spread: bool,
+    ) -> Option<Result<ThreeD, CompileError>> {
+        let span = node.span();
+        let (Ok(operand), _) = self.sites.get(&span)? else {
+            return None;
+        };
+        let SheetTarget::Span { first, last } = operand.sheet else {
+            return None;
+        };
+        let shape = operand.shape;
+        self.sites.remove(&span);
+        let name = strip_prefixes(spelling);
+        let at = |table: &[(&str, &[usize])]| {
+            table.iter().any(|(listed, positions)| {
+                listed.eq_ignore_ascii_case(name)
+                    && (positions.is_empty() || positions.contains(&index))
+            })
+        };
+        if at(THREE_D_VALUE) {
+            return Some(Ok(ThreeD::CallIs(WorksheetErrorCode::Value)));
+        }
+        if at(THREE_D_REF) {
+            return Some(Ok(ThreeD::Arguments(vec![Instruction::Literal(
+                Literal::Error(WorksheetErrorCode::Ref),
+            )])));
+        }
+        if !at(THREE_D_TAKEN) {
+            return Some(Err(unsupported(
+                span,
+                "a 3-D reference given to a function whose handling of it is not measured",
+                L3,
+            )));
+        }
+        let Some(sheets) = self.catalog.sheet_span(first, last) else {
+            return Some(Err(CompileError::Reference {
+                span,
+                error: BindError::SheetSpan,
+            }));
+        };
+        let start = self.references.len();
+        for sheet in &sheets {
+            self.references.push(ReferenceOperand {
+                sheet: SheetTarget::Sheet(*sheet),
+                shape,
+            });
+            self.wrapped.push(self.in_name);
+        }
+        // A function that reads every argument alike (SUM's numbers, CONCAT's texts) reads a 3-D
+        // reference as one argument per sheet, in sheet order; any other is given the reference
+        // across its sheets.
+        let spreads = may_spread
+            && THREE_D_TAKEN.iter().any(|(listed, positions)| {
+                listed.eq_ignore_ascii_case(name) && positions.is_empty()
+            });
+        Some(Ok(ThreeD::Arguments(if spreads {
+            (start..start + sheets.len())
+                .map(Instruction::Reference)
+                .collect()
+        } else {
+            vec![Instruction::Reference3D {
+                first: start,
+                count: sheets.len(),
+            }]
+        })))
+    }
 }
 
-/// Whether a bound operand has a relative row or column.
-fn relative(operand: &ReferenceOperand) -> bool {
-    let rel = |axis: AxisRef| matches!(axis, AxisRef::Relative(_));
-    match operand.shape {
-        ReferenceShape::Cell(cell) => rel(cell.row) || rel(cell.column),
-        ReferenceShape::Area { first, last } => {
-            rel(first.row) || rel(first.column) || rel(last.row) || rel(last.column)
+/// What a 3-D reference given as an argument becomes.
+enum ThreeD {
+    /// The instructions that push the argument, or the arguments it spreads into.
+    Arguments(Vec<Instruction>),
+    /// The call's result is this error, whatever its other arguments.
+    CallIs(WorksheetErrorCode),
+}
+
+/// The functions that take a 3-D reference, with the argument positions where they take it (no
+/// position: every argument). Microsoft's "Create a 3-D reference" page lists SUM, AVERAGE,
+/// AVERAGEA, COUNT, COUNTA, MAX, MAXA, MIN, MINA, PRODUCT, STDEV, STDEVA, STDEVP, STDEVPA, VAR,
+/// VARA, VARP and VARPA; Excel 16.0 (2026-10-23, sheets Ja, Fe and Ma holding 1, 2 and 3 in A1)
+/// also gave `=VAR.S(Ja:Ma!A1)` 1, `=STDEV.P(..)` 0.8165, `=SUMSQ(..)` 14, `=MEDIAN(..)` 2,
+/// `=LARGE(Ja:Ma!A1,1)` 3, `=RANK(1,Ja:Ma!A1)` 3, `=CONCAT(..)` "123", `=AND(..)` and `=OR(..)`
+/// TRUE, `=TEXTJOIN(",",TRUE,Ja:Ma!A1)` "1,2,3", `=SHEETS(..)` 3 and `=SHEET(..)` 2.
+const THREE_D_TAKEN: &[(&str, &[usize])] = &[
+    ("SUM", &[]),
+    ("AVERAGE", &[]),
+    ("AVERAGEA", &[]),
+    ("COUNT", &[]),
+    ("COUNTA", &[]),
+    ("MAX", &[]),
+    ("MAXA", &[]),
+    ("MIN", &[]),
+    ("MINA", &[]),
+    ("PRODUCT", &[]),
+    ("STDEV", &[]),
+    ("STDEVA", &[]),
+    ("STDEVP", &[]),
+    ("STDEVPA", &[]),
+    ("VAR", &[]),
+    ("VARA", &[]),
+    ("VARP", &[]),
+    ("VARPA", &[]),
+    ("VAR.S", &[]),
+    ("STDEV.P", &[]),
+    ("SUMSQ", &[]),
+    ("MEDIAN", &[]),
+    ("LARGE", &[0]),
+    ("RANK", &[1]),
+    ("CONCAT", &[]),
+    ("AND", &[]),
+    ("OR", &[]),
+    ("TEXTJOIN", &[]),
+    ("SHEETS", &[0]),
+    ("SHEET", &[0]),
+];
+
+/// The functions Excel 16.0 (2026-10-23) gave #VALUE! for a 3-D reference argument:
+/// `=INDEX(Ja:Ma!A1,1)`, `=ROWS(Ja:Ma!A1:B2)`, `=AREAS(..)`, `=COUNTIF(Ja:Ma!A1,">0")`,
+/// `=N(..)` and `=COUNTBLANK(..)`. The call is #VALUE!.
+const THREE_D_VALUE: &[(&str, &[usize])] = &[
+    ("INDEX", &[0]),
+    ("ROWS", &[0]),
+    ("AREAS", &[0]),
+    ("COUNTIF", &[0]),
+    ("N", &[0]),
+    ("COUNTBLANK", &[0]),
+];
+
+/// The functions Excel 16.0 (2026-10-23) gave the result of a #REF! argument for a 3-D reference:
+/// `=ABS(Ja:Ma!A1)`, `=SUMPRODUCT(..)` and `=MODE(..)` #REF!, `=IFERROR(Ja:Ma!A1,"e")` "e",
+/// `=ISERROR(..)` TRUE and `=ISREF(..)` FALSE.
+const THREE_D_REF: &[(&str, &[usize])] = &[
+    ("ABS", &[0]),
+    ("SUMPRODUCT", &[]),
+    ("MODE", &[]),
+    ("IFERROR", &[0]),
+    ("ISERROR", &[0]),
+    ("ISREF", &[0]),
+];
+
+/// A catalogue spelling without the file prefixes `_XLFN.` and `_XLWS.`.
+fn strip_prefixes(spelling: &str) -> &str {
+    let mut name = spelling;
+    loop {
+        match without_prefix(name, "_xlfn.").or_else(|| without_prefix(name, "_xlws.")) {
+            Some(rest) => name = rest,
+            None => return name,
         }
-        ReferenceShape::Rows { first, last } | ReferenceShape::Columns { first, last } => {
-            rel(first) || rel(last)
-        }
-        ReferenceShape::Deleted => false,
     }
 }
 
@@ -1200,7 +1465,7 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
 fn unknown_on_load(spelling: &str, target: Target) -> bool {
     without_prefix(spelling, "_xlfn.").is_none()
         && match target.0.file_prefix() {
-            Some(FilePrefix::Xlfn) => true,
+            Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws) => true,
             Some(FilePrefix::Bare) | None => false,
         }
 }
@@ -1211,7 +1476,7 @@ fn unknown_on_load(spelling: &str, target: Target) -> bool {
 /// (`_xlfn.SUM`), and reads `_xlws.` alone as an unknown name (#NAME?); in a file it loads, so are
 /// `_xlfn._xlfn.` and `_xlws._xlfn.`. A formula a user enters may spell a function a file stores
 /// with a prefix without it (`MAXIFS`); a file that does is read by [`unknown_on_load`].
-fn file_unprefixed(spelling: &str) -> &str {
+pub(crate) fn file_unprefixed(spelling: &str) -> &str {
     match without_prefix(spelling, "_xlfn.") {
         Some(rest) => without_prefix(rest, "_xlws.").unwrap_or(rest),
         None => spelling,

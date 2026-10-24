@@ -22,13 +22,13 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 /// A workbook of two sheets, Sheet1 and Sheet2, over the cfml-m1.3 fixtures, with defined names
 /// and spills known.
-struct Book {
+pub(super) struct Book {
     catalog: LoggingCatalog,
     reader: RunReader,
 }
 
 impl Book {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let mut catalog = LoggingCatalog::new(&["Sheet1", "Sheet2"]);
         catalog.names = Some(Default::default());
         let reader = RunReader {
@@ -50,13 +50,13 @@ impl Book {
         GridArea::new(self.at(a), self.at(b)).unwrap()
     }
 
-    fn set(&mut self, address: &str, value: CalcValue) -> &mut Self {
+    pub(super) fn set(&mut self, address: &str, value: CalcValue) -> &mut Self {
         let at = self.at(address);
         self.reader.values.insert(at, value);
         self
     }
 
-    fn number(&mut self, address: &str, value: f64) -> &mut Self {
+    pub(super) fn number(&mut self, address: &str, value: f64) -> &mut Self {
         self.set(address, CalcValue::number(value))
     }
 
@@ -79,7 +79,7 @@ impl Book {
 
     /// Compiles `formula` at `at` in `form` and evaluates it, with the catalogue as the
     /// formula's workbook context.
-    fn eval_in(
+    pub(super) fn eval_in(
         &mut self,
         form: FormulaForm,
         formula: &str,
@@ -105,11 +105,11 @@ impl Book {
     }
 
     /// A dynamic-array formula's value at Sheet1!Z100.
-    fn dynamic(&mut self, formula: &str) -> CalcValue {
+    pub(super) fn dynamic(&mut self, formula: &str) -> CalcValue {
         self.dynamic_at(formula, "Z100")
     }
 
-    fn dynamic_at(&mut self, formula: &str, at: &str) -> CalcValue {
+    pub(super) fn dynamic_at(&mut self, formula: &str, at: &str) -> CalcValue {
         match self.eval_in(FormulaForm::Dynamic, formula, at) {
             Ok(Ok(value)) => value,
             other => panic!("{formula}: {other:?}"),
@@ -117,7 +117,7 @@ impl Book {
     }
 
     /// A legacy formula's value at `at`.
-    fn legacy_at(&mut self, formula: &str, at: &str) -> CalcValue {
+    pub(super) fn legacy_at(&mut self, formula: &str, at: &str) -> CalcValue {
         match self.eval_in(FormulaForm::Legacy, formula, at) {
             Ok(Ok(value)) => value,
             other => panic!("{formula}: {other:?}"),
@@ -125,29 +125,29 @@ impl Book {
     }
 }
 
-fn n(value: f64) -> CalcValue {
+pub(super) fn n(value: f64) -> CalcValue {
     CalcValue::number(value)
 }
 
-fn t(text: &str) -> CalcValue {
+pub(super) fn t(text: &str) -> CalcValue {
     CalcValue::text(ExcelText::from_interop_assignment(text))
 }
 
-fn b(value: bool) -> CalcValue {
+pub(super) fn b(value: bool) -> CalcValue {
     CalcValue::logical(value)
 }
 
-fn e(code: W) -> CalcValue {
+pub(super) fn e(code: W) -> CalcValue {
     CalcValue::error(code)
 }
 
 /// The array of these rows.
-fn rows(rows: &[&[CalcValue]]) -> CalcValue {
+pub(super) fn rows(rows: &[&[CalcValue]]) -> CalcValue {
     CalcValue::array(CalcArray::from_rows(rows.iter().map(|row| row.to_vec()).collect()).unwrap())
 }
 
 /// The array of these numbers, in rows.
-fn numbers(values: &[&[f64]]) -> CalcValue {
+pub(super) fn numbers(values: &[&[f64]]) -> CalcValue {
     rows(
         &values
             .iter()
@@ -372,8 +372,10 @@ mod arrays {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn legacy_formulas_refuse_unmeasured_places() {
         let mut book = data();
+        // XLOOKUP's lookup array, which this row used before, was measured by L3 (dc-m3u) and
+        // lifts (`acceptance/l3.rs`); CHISQ.TEST's actual range is not measured.
         let outcome = book
-            .eval_in(FormulaForm::Legacy, "=XLOOKUP(2,A1:A3*1,B1:B3)", "I2")
+            .eval_in(FormulaForm::Legacy, "=CHISQ.TEST(A1:A3*1,B1:B3)", "I2")
             .unwrap();
         assert!(
             matches!(outcome, Err(EvalFault::AreaAsValue { .. })),
@@ -618,13 +620,18 @@ mod names {
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-    fn names_with_relative_references_are_refused() {
+    fn names_with_relative_references_read_from_the_formula_cell() {
+        // L3 (dc-m3u): a file stores a name's relative reference relative to A1, and Excel reads
+        // it from the cell of the formula that uses the name, wrapping around the grid's edge
+        // (Excel 16.0, 2026-10-23: LeftCell, `RC[-1]` stored as `Nm!XFD1`, is B3 in C3 and XFD1 in
+        // A1).
         let mut book = Book::new();
-        book.name("Left", "Sheet1!A1");
-        match book.eval_in(FormulaForm::Dynamic, "=Left", "Z100") {
-            Err(CompileError::Unsupported { owner, .. }) => assert_eq!(owner, "dc-mzk"),
-            other => panic!("{other:?}"),
-        }
+        book.number("Y100", 7.0).number("XFD1", 9.0).number("B3", 5.0);
+        book.name("Here", "Sheet1!A1").name("LeftCell", "Sheet1!XFD1");
+        assert_eq!(book.dynamic_at("=Here", "Y100"), n(7.0));
+        assert_eq!(book.dynamic_at("=LeftCell", "C3"), n(5.0));
+        assert_eq!(book.dynamic_at("=LeftCell", "A1"), n(9.0));
+        assert_eq!(book.dynamic_at("=SUM(LeftCell)", "Z100"), n(7.0));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

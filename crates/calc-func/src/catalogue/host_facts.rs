@@ -135,7 +135,14 @@ fn sheet(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Ca
 
 fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     if !a.is_empty() && !a[0].is_missing() {
-        // A reference spans one sheet; 3-D references are not modelled by the language.
+        // The sheets the reference spans: one, or each sheet of a 3-D reference (L3, dc-m3u;
+        // Excel 16.0, 2026-10-23: `=SHEETS(Ja:Ma!A1)` is 3).
+        if let CoreValue::Reference(reference) = a[0].core() {
+            let mut sheets: Vec<_> = reference.areas().iter().map(|area| area.sheet()).collect();
+            sheets.sort();
+            sheets.dedup();
+            return site.number(sheets.len() as f64);
+        }
         return site.number(1.0);
     }
     match sv.host().and_then(|host| host.sheet_count()) {

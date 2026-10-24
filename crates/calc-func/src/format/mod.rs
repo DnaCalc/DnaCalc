@@ -29,7 +29,7 @@ mod names;
 use crate::decimal::{Direction, ExactDecimal};
 use crate::locale::{
     CurrencyNegativePattern, CurrencyPlacement, CurrencySpacing, DateSystem, FormatProfile,
-    LocaleProfileId,
+    LocaleId,
 };
 
 /// Why a value has no text under a code.
@@ -47,7 +47,7 @@ type Rendered = Result<String, Failure>;
 pub(crate) fn designator(profile: &FormatProfile, am: bool) -> &'static str {
     let lower = matches!(
         profile.id,
-        LocaleProfileId::EnZa | LocaleProfileId::CurrentExcelHost
+        LocaleId::EnZa | LocaleId::CurrentExcelHost
     );
     match (am, lower) {
         (true, true) => "am",
@@ -179,8 +179,10 @@ pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> String
 
 // --- General --------------------------------------------------------------------------------------
 
-/// The General format's text: at most 11 characters besides the sign.
-pub(crate) fn general(profile: &FormatProfile, value: f64) -> String {
+/// The General format's text: at most 11 characters besides the sign, as a cell of Excel's
+/// standard column width shows a number. Public as [`crate::general_format`] for an app that
+/// shows a value as a cell would.
+pub fn general(profile: &FormatProfile, value: f64) -> String {
     const WIDTH: i64 = 11;
     if value == 0.0 || value.is_subnormal() {
         return "0".to_owned();
@@ -868,7 +870,7 @@ mod tests {
     use crate::locale::format_profile;
 
     fn host() -> FormatProfile {
-        format_profile(LocaleProfileId::CurrentExcelHost)
+        format_profile(LocaleId::CurrentExcelHost)
             .with_separators(".", " ")
             .expect("separators")
     }

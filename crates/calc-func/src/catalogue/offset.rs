@@ -1,7 +1,7 @@
 //! The reference-offset family fragment: OFFSET, and ISOMITTED, which LAMBDA parameters need.
 //!
 //! Ported from OxFunc `crates/oxfunc_core/src/functions/offset.rs` (`eval_offset_surface`), which
-//! shifts reference text through a reference-system provider; here the reference is calc-value's
+//! shifts reference text through a provider of reference text; here the reference is calc-value's
 //! typed area and the shift is computed directly. Where OxFunc and Excel differ, Excel's measured
 //! behaviour is kept (Excel 16.0 through COM, 2026-10-23):
 //!

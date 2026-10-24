@@ -1,0 +1,1033 @@
+//! `cargo xtask onecalc bundle [--out <dir>]` and `cargo xtask onecalc smoke [--bundle <dir>]
+//! [--browser chromium|firefox]`: DNA OneCalc's browser bundle and its smoke test.
+//!
+//! `bundle` builds the app's browser entry (`apps/dna-onecalc/src/bin/dna-onecalc-web.rs`) for
+//! wasm32-unknown-unknown in the workspace's `web` profile (release, optimised for size), runs wasm-bindgen 0.2.117 (`--target web`) over it, and
+//! copies `apps/dna-onecalc/web/index.html` beside the output, into `target/onecalc-bundle` unless
+//! `--out` names another folder. It prints each file's size and the total. Nothing is published:
+//! the folder is served only by `smoke`, on 127.0.0.1.
+//!
+//! `smoke` builds the bundle (or takes the one `--bundle` names), serves it on 127.0.0.1 from a
+//! port the system picks, and drives it in headless Chrome and headless Firefox through their
+//! WebDriver servers (chromedriver and geckodriver, found as `cargo xtask accept` finds them:
+//! `CHROMEDRIVER` or `GECKODRIVER` naming a file, else PATH). In each browser it loads the page,
+//! types into the scratch grid and the formula field with WebDriver key input (the browser's own
+//! key and input events), and reads back what the page shows: result type, value, array cells,
+//! error meaning, diagnostics, completion list, signature help and function help. Every expected
+//! value is derived by hand from Excel's documented behaviour. After every case it reads the
+//! page's fault record: the panic message the app's panic hook writes on the root element
+//! (`data-onecalc-panic`) and every uncaught error and unhandled rejection the page recorded
+//! (`window.__onecalcFaults`). A panic in a reactive effect, which surfaces in a browser only as a
+//! trap (`RuntimeError: unreachable`) while the rest of the page may still answer, fails the case
+//! there. A browser whose driver is missing fails the run; it is never skipped.
+//!
+//! Exit code: 0 when every case passed in every browser run, 1 otherwise, 2 for a usage error.
+
+use crate::accept::{BROWSERS, Browser, find_on_path, variable_file};
+use crate::cargo::{self, WASM_TARGET, Workspace};
+use serde_json::{Value, json};
+use std::fs;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, ExitCode, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
+
+pub const USAGE: &str = "usage: cargo xtask onecalc bundle [--out <dir>]\n       cargo xtask onecalc smoke [--bundle <dir>] [--browser chromium|firefox]";
+
+/// The package and binary of the browser entry.
+const PACKAGE: &str = "dna-onecalc";
+const ENTRY: &str = "dna-onecalc-web";
+
+/// The wasm-bindgen CLI release the bundle needs: the one the app's wasm-bindgen crate is pinned to.
+const BINDGEN_VERSION: &str = "wasm-bindgen 0.2.117";
+
+/// The cargo profile of the bundle: release, optimised for size (the workspace's `[profile.web]`).
+const PROFILE: &str = "web";
+
+/// The page, relative to the workspace root.
+const PAGE: &str = "apps/dna-onecalc/web/index.html";
+
+/// The default bundle folder, relative to the workspace root.
+const DEFAULT_OUT: &str = "target/onecalc-bundle";
+
+/// How long a check waits for the page to show what it expects.
+const SETTLE: Duration = Duration::from_secs(8);
+
+pub fn run(raw: &[String]) -> ExitCode {
+    let ws = match std::env::current_dir()
+        .map_err(|e| format!("no current directory: {e}"))
+        .and_then(|cwd| Workspace::load(&cwd))
+    {
+        Ok(ws) => ws,
+        Err(e) => {
+            eprintln!("xtask onecalc: cannot read the workspace: {e}");
+            return ExitCode::from(1);
+        }
+    };
+    match raw {
+        [command, rest @ ..] if command == "bundle" => {
+            let out = match rest {
+                [] => ws.root.join(DEFAULT_OUT),
+                [flag, dir] if flag == "--out" => PathBuf::from(dir),
+                _ => return usage(raw),
+            };
+            match bundle(&ws, &out) {
+                Ok(_) => ExitCode::SUCCESS,
+                Err(e) => {
+                    println!("ONECALC RESULT failed: {e}");
+                    ExitCode::from(1)
+                }
+            }
+        }
+        [command, rest @ ..] if command == "smoke" => {
+            let mut bundle_dir = None;
+            let mut only: Option<String> = None;
+            let mut args = rest.iter();
+            while let Some(arg) = args.next() {
+                match (arg.as_str(), args.next()) {
+                    ("--bundle", Some(dir)) => bundle_dir = Some(PathBuf::from(dir)),
+                    ("--browser", Some(name)) => only = Some(name.clone()),
+                    _ => return usage(raw),
+                }
+            }
+            smoke(&ws, bundle_dir, only.as_deref())
+        }
+        _ => usage(raw),
+    }
+}
+
+fn usage(raw: &[String]) -> ExitCode {
+    eprintln!("xtask onecalc: unknown arguments {raw:?}\n{USAGE}");
+    ExitCode::from(2)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The bundle.
+
+/// Builds the bundle into `out` and returns its files with their sizes.
+fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
+    let bindgen = find_on_path("wasm-bindgen").ok_or("wasm-bindgen is not on PATH")?;
+    let version = cargo::output(Command::new(&bindgen).arg("--version"))?;
+    let version = cargo::text(&version.stdout).trim().to_owned();
+    if version != BINDGEN_VERSION {
+        return Err(format!(
+            "{} is {version}, not {BINDGEN_VERSION}, the release the app's wasm-bindgen crate is pinned to",
+            bindgen.display()
+        ));
+    }
+    println!("ONECALC building {ENTRY} for {WASM_TARGET} (profile {PROFILE})");
+    let target_dir = ws.accept_target_dir();
+    let mut build = Command::new(cargo::cargo_program());
+    build
+        .current_dir(&ws.root)
+        .args([
+            "build",
+            "--locked",
+            "--profile",
+            PROFILE,
+            "-p",
+            PACKAGE,
+            "--bin",
+            ENTRY,
+        ])
+        .args(["--target", WASM_TARGET])
+        .arg("--target-dir")
+        .arg(&target_dir);
+    let built = cargo::output(&mut build)?;
+    if !built.status.success() {
+        return Err(format!(
+            "cargo build failed:\n{}",
+            cargo::tail(&built.stderr, 40)
+        ));
+    }
+    let wasm = target_dir
+        .join(WASM_TARGET)
+        .join(PROFILE)
+        .join(format!("{ENTRY}.wasm"));
+    fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
+    let generated = cargo::output(
+        Command::new(&bindgen)
+            .args(["--target", "web", "--no-typescript", "--out-dir"])
+            .arg(out)
+            .arg(&wasm),
+    )?;
+    if !generated.status.success() {
+        return Err(format!(
+            "wasm-bindgen failed:\n{}",
+            cargo::tail(&generated.stderr, 40)
+        ));
+    }
+    fs::copy(ws.root.join(PAGE), out.join("index.html"))
+        .map_err(|e| format!("cannot copy {PAGE}: {e}"))?;
+    let mut files = Vec::new();
+    for name in [
+        "index.html",
+        "dna-onecalc-web.js",
+        "dna-onecalc-web_bg.wasm",
+    ] {
+        let size = fs::metadata(out.join(name))
+            .map_err(|e| format!("the bundle has no {name}: {e}"))?
+            .len();
+        files.push((name.to_owned(), size));
+    }
+    let total: u64 = files.iter().map(|(_, size)| size).sum();
+    for (name, size) in &files {
+        println!("ONECALC bundle file {name}: {size} bytes");
+    }
+    println!(
+        "ONECALC bundle {}: {} files, {total} bytes",
+        out.display(),
+        files.len()
+    );
+    Ok(files)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The page server.
+
+/// Serves the files of `dir` on 127.0.0.1 from a thread; returns the port.
+fn serve(dir: PathBuf) -> Result<u16, String> {
+    let listener =
+        TcpListener::bind("127.0.0.1:0").map_err(|e| format!("cannot listen on 127.0.0.1: {e}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("no local address: {e}"))?
+        .port();
+    thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let dir = dir.clone();
+            thread::spawn(move || {
+                let _ = answer(stream, &dir);
+            });
+        }
+    });
+    Ok(port)
+}
+
+/// Answers one request: a file of the bundle by its plain name, `/` as `index.html`.
+fn answer(mut stream: TcpStream, dir: &Path) -> std::io::Result<()> {
+    let mut request = Vec::new();
+    let mut buffer = [0u8; 4096];
+    while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+        let read = stream.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        request.extend_from_slice(&buffer[..read]);
+    }
+    let line = String::from_utf8_lossy(&request);
+    let path = line.split_whitespace().nth(1).unwrap_or("/");
+    let path = path.split('?').next().unwrap_or("/");
+    let name = match path.trim_start_matches('/') {
+        "" => "index.html",
+        name => name,
+    };
+    let plain = name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        && !name.contains("..");
+    let content_type = match Path::new(name).extension().and_then(|e| e.to_str()) {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("wasm") => "application/wasm",
+        _ => "application/octet-stream",
+    };
+    let body = if plain {
+        fs::read(dir.join(name)).ok()
+    } else {
+        None
+    };
+    match body {
+        Some(body) => {
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+                body.len()
+            )?;
+            stream.write_all(&body)?;
+        }
+        None => {
+            stream.write_all(
+                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            )?;
+        }
+    }
+    stream.flush()
+}
+
+// ---------------------------------------------------------------------------------------------
+// WebDriver.
+
+/// One HTTP request to a WebDriver server on 127.0.0.1; the response's JSON `value`, or the
+/// error the server reported.
+fn webdriver(port: u16, method: &str, path: &str, body: Option<&Value>) -> Result<Value, String> {
+    let mut stream = TcpStream::connect(("127.0.0.1", port))
+        .map_err(|e| format!("cannot reach the driver on port {port}: {e}"))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(120)))
+        .map_err(|e| e.to_string())?;
+    let body = body.map(Value::to_string).unwrap_or_default();
+    write!(
+        stream,
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    )
+    .map_err(|e| format!("cannot write to the driver: {e}"))?;
+    // A driver may keep the connection open whatever the request asks, so the answer is read to
+    // its declared length (or its last chunk), not to the end of the stream.
+    let mut response = Vec::new();
+    let mut buffer = [0u8; 16384];
+    let read_more = |stream: &mut TcpStream, response: &mut Vec<u8>, buffer: &mut [u8]| {
+        let read = stream
+            .read(buffer)
+            .map_err(|e| format!("cannot read the driver's answer: {e}"))?;
+        response.extend_from_slice(&buffer[..read]);
+        Ok::<usize, String>(read)
+    };
+    let split = loop {
+        if let Some(split) = response.windows(4).position(|w| w == b"\r\n\r\n") {
+            break split;
+        }
+        if read_more(&mut stream, &mut response, &mut buffer)? == 0 {
+            return Err("the driver's answer ended inside its header".to_owned());
+        }
+    };
+    let head = String::from_utf8_lossy(&response[..split]).to_ascii_lowercase();
+    let length = head.lines().find_map(|line| {
+        line.strip_prefix("content-length:")
+            .and_then(|n| n.trim().parse::<usize>().ok())
+    });
+    let chunked = head.contains("transfer-encoding: chunked");
+    loop {
+        let body = &response[split + 4..];
+        let complete = match length {
+            Some(length) => body.len() >= length,
+            None if chunked => body.ends_with(b"0\r\n\r\n"),
+            None => false,
+        };
+        if complete || read_more(&mut stream, &mut response, &mut buffer)? == 0 {
+            break;
+        }
+    }
+    let mut payload = response[split + 4..].to_vec();
+    if let Some(length) = length {
+        payload.truncate(length);
+    } else if chunked {
+        payload = unchunk(&payload)?;
+    }
+    let value: Value = serde_json::from_slice(&payload).map_err(|e| {
+        format!(
+            "the driver's answer is not JSON ({e}): {}",
+            String::from_utf8_lossy(&payload)
+        )
+    })?;
+    let value = value.get("value").cloned().unwrap_or(Value::Null);
+    if let Some(error) = value.get("error").and_then(Value::as_str) {
+        let message = value.get("message").and_then(Value::as_str).unwrap_or("");
+        return Err(format!("{method} {path}: {error}: {message}"));
+    }
+    Ok(value)
+}
+
+/// The body of a chunked HTTP response.
+fn unchunk(mut data: &[u8]) -> Result<Vec<u8>, String> {
+    let mut out = Vec::new();
+    loop {
+        let line_end = data
+            .windows(2)
+            .position(|w| w == b"\r\n")
+            .ok_or("a chunk without a size line")?;
+        let size_text = String::from_utf8_lossy(&data[..line_end]);
+        let size = usize::from_str_radix(size_text.split(';').next().unwrap_or("").trim(), 16)
+            .map_err(|e| format!("a chunk size {size_text:?}: {e}"))?;
+        data = &data[line_end + 2..];
+        if size == 0 {
+            return Ok(out);
+        }
+        if data.len() < size {
+            return Err("a chunk shorter than its size".to_owned());
+        }
+        out.extend_from_slice(&data[..size]);
+        data = data.get(size + 2..).unwrap_or(&[]);
+    }
+}
+
+/// A free port on 127.0.0.1, for a driver to listen on.
+fn free_port() -> Result<u16, String> {
+    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    Ok(port)
+}
+
+/// A running WebDriver server, stopped when dropped.
+struct DriverProcess {
+    child: Child,
+    port: u16,
+}
+
+impl Drop for DriverProcess {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// One browser session over a driver.
+struct Session {
+    port: u16,
+    id: String,
+}
+
+impl Session {
+    fn post(&self, path: &str, body: Value) -> Result<Value, String> {
+        webdriver(
+            self.port,
+            "POST",
+            &format!("/session/{}{path}", self.id),
+            Some(&body),
+        )
+    }
+
+    fn script(&self, script: &str) -> Result<Value, String> {
+        self.post("/execute/sync", json!({ "script": script, "args": [] }))
+    }
+
+    /// The element `css` selects.
+    fn element(&self, css: &str) -> Result<String, String> {
+        let found = self.post("/element", json!({ "using": "css selector", "value": css }))?;
+        found
+            .as_object()
+            .and_then(|o| o.values().next())
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("no element id for {css}"))
+    }
+
+    /// Clears the element `css` selects (WebDriver's Element Clear).
+    fn clear(&self, css: &str) -> Result<(), String> {
+        let element = self.element(css)?;
+        self.post(&format!("/element/{element}/clear"), json!({}))?;
+        Ok(())
+    }
+
+    fn keys(&self, css: &str, text: &str) -> Result<(), String> {
+        let element = self.element(css)?;
+        self.post(
+            &format!("/element/{element}/value"),
+            json!({ "text": text }),
+        )?;
+        Ok(())
+    }
+
+    fn end(&self) {
+        let _ = webdriver(self.port, "DELETE", &format!("/session/{}", self.id), None);
+    }
+}
+
+/// Starts `browser`'s driver and a headless session in it.
+fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
+    let program = variable_file(browser.variable)
+        .or_else(|| find_on_path(browser.program))
+        .ok_or_else(|| {
+            format!(
+                "{} is not on PATH and {} names no file",
+                browser.program, browser.variable
+            )
+        })?;
+    let port = free_port()?;
+    let mut command = Command::new(&program);
+    match browser.name {
+        "firefox" => command.args(["--port", &port.to_string()]),
+        _ => command.arg(format!("--port={port}")),
+    };
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child = command
+        .spawn()
+        .map_err(|e| format!("cannot start {}: {e}", program.display()))?;
+    let driver = DriverProcess { child, port };
+    let started = Instant::now();
+    loop {
+        if let Ok(status) = webdriver(port, "GET", "/status", None)
+            && status.get("ready").and_then(Value::as_bool) == Some(true)
+        {
+            break;
+        }
+        if started.elapsed() > Duration::from_secs(20) {
+            return Err(format!("{} did not become ready", browser.program));
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    let capabilities = match browser.name {
+        "firefox" => json!({
+            "browserName": "firefox",
+            "moz:firefoxOptions": { "args": ["-headless", "-width=1280", "-height=1000"] }
+        }),
+        _ => json!({
+            "browserName": "chrome",
+            "goog:chromeOptions": { "args": ["--headless=new", "--disable-gpu", "--window-size=1280,1000"] }
+        }),
+    };
+    let created = webdriver(
+        port,
+        "POST",
+        "/session",
+        Some(&json!({ "capabilities": { "alwaysMatch": capabilities } })),
+    )?;
+    let id = created
+        .get("sessionId")
+        .and_then(Value::as_str)
+        .ok_or("the driver gave no session id")?
+        .to_owned();
+    let session = Session {
+        port: driver.port,
+        id,
+    };
+    Ok((driver, session))
+}
+
+// ---------------------------------------------------------------------------------------------
+// The cases.
+
+/// WebDriver's codes for keys that are not characters.
+const TAB: &str = "\u{E004}";
+const ESCAPE: &str = "\u{E00C}";
+
+/// The selector of the element with a `data-onecalc` role.
+fn role(name: &str) -> String {
+    format!("[data-onecalc=\"{name}\"]")
+}
+
+/// What a case does.
+enum Action {
+    /// Types into a grid cell, after clearing it.
+    Grid(&'static str, &'static str),
+    /// Clears the formula field and types this.
+    Formula(&'static str),
+    /// Types these keys into the formula field.
+    Keys(&'static str),
+    /// Chooses the option with this value in the select element with this role.
+    Choose(&'static str, &'static str),
+    /// Clears the field with this role and types this into it.
+    Into(&'static str, &'static str),
+    /// Clicks the element this selector selects.
+    Click(&'static str),
+}
+
+/// What a case expects the page to show.
+enum Check {
+    /// The text of the element with this role.
+    Text(&'static str, &'static str),
+    /// The text of the element with this role starts with this.
+    Starts(&'static str, &'static str),
+    /// The list items under the element with this role, in order.
+    Items(&'static str, &'static [&'static str]),
+    /// The element with this role contains an item with this text.
+    Contains(&'static str, &'static str),
+    /// No element has this role.
+    Absent(&'static str),
+    /// The formula field's value.
+    Field(&'static str),
+    /// The array result's cells, row by row.
+    Array(&'static [&'static [&'static str]]),
+    /// The text of the highlighted run with this role.
+    Highlighted(&'static str, &'static str),
+}
+
+struct Case {
+    name: &'static str,
+    actions: &'static [Action],
+    checks: &'static [Check],
+}
+
+/// The cases, in the order each browser runs them in one page. The grid entries of the first
+/// case stay for the rest: A1 = 1.5, A2 = 2, B1 = hello, B2 = TRUE, A3 left blank.
+const CASES: &[Case] = &[
+    Case {
+        name: "the page loads with the surface and an empty formula",
+        actions: &[
+            Action::Grid("A1", "1.5"),
+            Action::Grid("A2", "2"),
+            Action::Grid("B1", "hello"),
+            Action::Grid("B2", "TRUE"),
+        ],
+        checks: &[
+            Check::Text("result", "no formula"),
+            Check::Text("sheets", "Sheet1"),
+            Check::Text("formula-cell-status", "Sheet1!H1"),
+        ],
+    },
+    Case {
+        name: "arithmetic: =1+2 is the number 3",
+        actions: &[Action::Formula("=1+2")],
+        checks: &[
+            Check::Text("result", "number 3"),
+            Check::Text("result-type", "number"),
+            Check::Text("result-value", "3"),
+            Check::Starts(
+                "provenance",
+                "calculated in Sheet1!H1 by calc-fml's evaluator with calc-func's functions; no cells read",
+            ),
+            Check::Items("diagnostics", &[]),
+        ],
+    },
+    Case {
+        name: "a grid range with a blank cell: =SUM(A1:A3) is 3.5",
+        actions: &[Action::Formula("=SUM(A1:A3)")],
+        checks: &[
+            Check::Text("result", "number 3.5"),
+            Check::Items(
+                "reads",
+                &["Sheet1!A1:A3: Sheet1!A1 = number 1.5; Sheet1!A2 = number 2; Sheet1!A3 blank"],
+            ),
+            Check::Starts("provenance", "calculated in Sheet1!H1"),
+            Check::Highlighted("function", "SUM"),
+        ],
+    },
+    Case {
+        name: "text from the grid: =B1&\" world\"",
+        actions: &[Action::Formula("=B1&\" world\"")],
+        checks: &[
+            Check::Text("result-type", "text"),
+            Check::Text("result-value", "hello world"),
+        ],
+    },
+    Case {
+        name: "a logical from the grid: =IF(B2,A1*10,0) is 15",
+        actions: &[Action::Formula("=IF(B2,A1*10,0)")],
+        checks: &[Check::Text("result", "number 15")],
+    },
+    Case {
+        name: "an array constant times 10 is a 2 x 2 grid",
+        actions: &[Action::Formula("={1,2;3,4}*10")],
+        checks: &[
+            Check::Text("result-type", "array"),
+            Check::Starts("result-shape", "2 x 2 array"),
+            Check::Array(&[&["10", "20"], &["30", "40"]]),
+        ],
+    },
+    Case {
+        name: "a grid range lifted: =A1:A2*2 is a 2 x 1 grid",
+        actions: &[Action::Formula("=A1:A2*2")],
+        checks: &[Check::Array(&[&["3"], &["4"]])],
+    },
+    Case {
+        name: "an error value: =1/0 is #DIV/0!, shown with its meaning",
+        actions: &[Action::Formula("=1/0")],
+        checks: &[
+            Check::Text("result-type", "error"),
+            Check::Text("result-value", "#DIV/0!"),
+            Check::Text("result-error", "division by zero"),
+        ],
+    },
+    Case {
+        name: "a syntax error is a diagnostic and no value",
+        actions: &[Action::Formula("=A1*")],
+        checks: &[
+            Check::Text("result", "not calculated"),
+            Check::Text("result-type", "no value"),
+            Check::Contains("diagnostics", "syntax at 4..4: "),
+        ],
+    },
+    Case {
+        name: "an unknown function is refused by name",
+        actions: &[Action::Formula("=NOSUCH(1)")],
+        checks: &[
+            Check::Text("result", "not calculated"),
+            Check::Items("diagnostics", &["unknown function at 1..7: NOSUCH"]),
+        ],
+    },
+    Case {
+        name: "completion: =SUM lists SUM first; Tab accepts it with its parenthesis",
+        actions: &[Action::Formula("=SUM")],
+        checks: &[
+            Check::Text("completion-label", "SUM"),
+            Check::Text("help-name", "SUM"),
+        ],
+    },
+    Case {
+        name: "completion accepted: signature help marks the first argument",
+        actions: &[Action::Keys(TAB)],
+        checks: &[
+            Check::Field("=SUM("),
+            Check::Absent("completions"),
+            Check::Text("active-parameter", "number1"),
+            Check::Text("signature", "SUM(number1, [number2], ...)"),
+            Check::Text("help-name", "SUM"),
+            Check::Text(
+                "help-description",
+                "Use this function to add the values in cells.",
+            ),
+        ],
+    },
+    Case {
+        name: "the arguments typed after completion calculate",
+        actions: &[Action::Keys("A1:A2,10)")],
+        checks: &[
+            Check::Field("=SUM(A1:A2,10)"),
+            Check::Text("result", "number 13.5"),
+        ],
+    },
+    Case {
+        name: "signature help follows the argument the caret is in",
+        actions: &[Action::Formula("=ROUND(A1,")],
+        checks: &[
+            Check::Text("active-parameter", "num_digits"),
+            Check::Text("help-name", "ROUND"),
+        ],
+    },
+    Case {
+        name: "a number shows as a cell shows it, with the exact decimal beside",
+        actions: &[Action::Formula("=0.1+0.2")],
+        checks: &[
+            Check::Text("result-value", "0.3"),
+            Check::Text("result-exact", " exactly 0.30000000000000004"),
+        ],
+    },
+    Case {
+        name: "a date function reads the 1900 date system: =DATE(2024,1,31) is 45322",
+        actions: &[Action::Formula("=DATE(2024,1,31)")],
+        checks: &[Check::Text("result", "number 45322")],
+    },
+    Case {
+        name: "a number format reads the en-US profile: =TEXT(1234.5,\"#,##0.00\")",
+        actions: &[Action::Formula("=TEXT(1234.5,\"#,##0.00\")")],
+        checks: &[Check::Text("result", "text \"1,234.50\"")],
+    },
+    Case {
+        name: "NOW reads the browser's clock: =NOW()>45000 is TRUE",
+        actions: &[Action::Formula("=NOW()>45000")],
+        checks: &[Check::Text("result", "logical TRUE")],
+    },
+    Case {
+        name: "the legacy form takes one value: ={1,2;3,4}*10 is 10",
+        actions: &[
+            Action::Choose("formula-form", "legacy"),
+            Action::Formula("={1,2;3,4}*10"),
+        ],
+        checks: &[Check::Text("result", "number 10")],
+    },
+    Case {
+        name: "back in the dynamic-array form the same formula is a 2 x 2 array",
+        actions: &[Action::Choose("formula-form", "dynamic")],
+        checks: &[Check::Array(&[&["10", "20"], &["30", "40"]])],
+    },
+    Case {
+        name: "the function list finds ROUND by name and MROUND too",
+        actions: &[
+            Action::Formula("=1+"),
+            Action::Into("function-filter", "round"),
+        ],
+        checks: &[
+            Check::Contains("functions", "ROUND(number, num_digits)"),
+            Check::Contains("functions", "MROUND(number, multiple)"),
+        ],
+    },
+    Case {
+        name: "a click in the function list inserts the call at the caret",
+        actions: &[Action::Click(
+            "[data-onecalc=\"function-entry\"][data-name=\"ROUND\"]",
+        )],
+        checks: &[
+            Check::Field("=1+ROUND("),
+            Check::Text("active-parameter", "number"),
+            Check::Text("help-name", "ROUND"),
+        ],
+    },
+    Case {
+        name: "Escape dismisses the completion list",
+        actions: &[Action::Formula("=AVER"), Action::Keys(ESCAPE)],
+        checks: &[Check::Absent("completions"), Check::Field("=AVER")],
+    },
+];
+
+/// The script that reads what one check looks at.
+fn observe(session: &Session, check: &Check) -> Result<Value, String> {
+    let q = |name: &str| {
+        format!(
+            "document.querySelector('{}')",
+            role(name).replace('\'', "\\'")
+        )
+    };
+    let script = match check {
+        Check::Text(name, _) | Check::Starts(name, _) => {
+            format!("var e = {}; return e ? e.textContent : null;", q(name))
+        }
+        Check::Items(name, _) | Check::Contains(name, _) => format!(
+            "var e = {}; return e ? Array.from(e.querySelectorAll('li')).map(function (l) {{ return l.textContent; }}) : null;",
+            q(name)
+        ),
+        Check::Absent(name) => format!("return {} === null;", q(name)),
+        Check::Field(_) => format!("return {}.value;", q("formula")),
+        Check::Array(_) => format!(
+            "var e = {}; return e ? Array.from(e.querySelectorAll('tr')).map(function (r) {{ return Array.from(r.querySelectorAll('td')).map(function (c) {{ return c.textContent; }}); }}) : null;",
+            q("result-array")
+        ),
+        Check::Highlighted(role_name, _) => format!(
+            "return Array.from(document.querySelectorAll('[data-onecalc=\"highlight\"] [data-role=\"{role_name}\"]')).map(function (s) {{ return s.textContent; }});"
+        ),
+    };
+    session.script(&script)
+}
+
+fn satisfied(check: &Check, seen: &Value) -> bool {
+    match check {
+        Check::Text(_, expected) => seen.as_str() == Some(expected),
+        Check::Starts(_, prefix) => seen.as_str().is_some_and(|text| text.starts_with(prefix)),
+        Check::Items(_, expected) => seen.as_array().is_some_and(|items| {
+            items.len() == expected.len()
+                && items
+                    .iter()
+                    .zip(expected.iter())
+                    .all(|(a, b)| a.as_str() == Some(b))
+        }),
+        Check::Contains(_, wanted) => seen.as_array().is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
+        }),
+        Check::Absent(_) => seen.as_bool() == Some(true),
+        Check::Field(expected) => seen.as_str() == Some(expected),
+        Check::Array(rows) => seen.as_array().is_some_and(|seen_rows| {
+            seen_rows.len() == rows.len()
+                && seen_rows.iter().zip(rows.iter()).all(|(seen_row, row)| {
+                    seen_row.as_array().is_some_and(|cells| {
+                        cells.len() == row.len()
+                            && cells
+                                .iter()
+                                .zip(row.iter())
+                                .all(|(a, b)| a.as_str() == Some(b))
+                    })
+                })
+        }),
+        Check::Highlighted(_, text) => seen
+            .as_array()
+            .is_some_and(|runs| runs.iter().any(|run| run.as_str() == Some(text))),
+    }
+}
+
+fn describe(check: &Check) -> String {
+    match check {
+        Check::Text(name, expected) => format!("{name} is {expected:?}"),
+        Check::Starts(name, prefix) => format!("{name} starts with {prefix:?}"),
+        Check::Items(name, expected) => format!("{name} lists {expected:?}"),
+        Check::Contains(name, wanted) => format!("{name} has an item starting {wanted:?}"),
+        Check::Absent(name) => format!("no {name}"),
+        Check::Field(expected) => format!("the formula field holds {expected:?}"),
+        Check::Array(rows) => format!("result-array is {rows:?}"),
+        Check::Highlighted(role_name, text) => format!("{text:?} is highlighted as {role_name}"),
+    }
+}
+
+/// The page's fault record: the app's panic message and every uncaught error it recorded.
+fn faults(session: &Session) -> Result<Vec<String>, String> {
+    let seen = session.script(
+        "var out = []; var p = document.documentElement.getAttribute('data-onecalc-panic'); if (p !== null) { out.push('panic: ' + p); } (window.__onecalcFaults || ['the page has no fault record']).forEach(function (f) { out.push(f); }); return out;",
+    )?;
+    Ok(seen
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| item.as_str().unwrap_or("").to_owned())
+                .collect()
+        })
+        .unwrap_or_else(|| vec![format!("the fault record is not a list: {seen}")]))
+}
+
+fn act(session: &Session, action: &Action) -> Result<(), String> {
+    match action {
+        Action::Grid(cell, text) => {
+            let css = format!("{}[data-cell=\"{cell}\"]", role("grid-cell"));
+            session.clear(&css)?;
+            session.keys(&css, text)
+        }
+        Action::Formula(text) => {
+            session.clear(&role("formula"))?;
+            session.keys(&role("formula"), text)
+        }
+        Action::Keys(keys) => session.keys(&role("formula"), keys),
+        Action::Into(name, text) => {
+            session.clear(&role(name))?;
+            session.keys(&role(name), text)
+        }
+        Action::Click(css) => {
+            let element = session.element(css)?;
+            session.post(&format!("/element/{element}/click"), json!({}))?;
+            Ok(())
+        }
+        Action::Choose(name, value) => {
+            let option = session.element(&format!("{} option[value=\"{value}\"]", role(name)))?;
+            session.post(&format!("/element/{option}/click"), json!({}))?;
+            Ok(())
+        }
+    }
+}
+
+/// Runs one case: its actions, then each check until it holds or [`SETTLE`] passes, then the fault
+/// record. Returns the failures.
+fn run_case(session: &Session, case: &Case) -> Vec<String> {
+    let mut failures = Vec::new();
+    for action in case.actions {
+        if let Err(e) = act(session, action) {
+            failures.push(format!("action failed: {e}"));
+            return failures;
+        }
+    }
+    for check in case.checks {
+        let started = Instant::now();
+        let mut last: Value;
+        loop {
+            match observe(session, check) {
+                Ok(seen) if satisfied(check, &seen) => break,
+                Ok(seen) => last = seen,
+                Err(e) => last = Value::String(format!("(script failed: {e})")),
+            }
+            if started.elapsed() > SETTLE {
+                failures.push(format!("expected {}; saw {last}", describe(check)));
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+    match faults(session) {
+        Ok(list) if list.is_empty() => {}
+        Ok(list) => failures.extend(list.into_iter().map(|f| format!("page fault: {f}"))),
+        Err(e) => failures.push(format!("cannot read the fault record: {e}")),
+    }
+    failures
+}
+
+/// Runs every case in one browser; returns (passed, failed) or why the browser could not run.
+fn run_browser(browser: &Browser, page: &str) -> Result<(usize, usize), String> {
+    let (_driver, session) = open(browser)?;
+    let outcome = (|| {
+        session.post("/url", json!({ "url": page }))?;
+        let started = Instant::now();
+        loop {
+            let ready = session
+                .script("return document.documentElement.getAttribute('data-onecalc-ready');")?;
+            if ready.as_str() == Some("true") {
+                break;
+            }
+            if started.elapsed() > Duration::from_secs(30) {
+                let faults = faults(&session).unwrap_or_default();
+                return Err(format!(
+                    "the app did not start within 30 s; faults {faults:?}"
+                ));
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        let (mut passed, mut failed) = (0, 0);
+        for case in CASES {
+            let failures = run_case(&session, case);
+            if failures.is_empty() {
+                passed += 1;
+                println!("ONECALC SMOKE {} passed: {}", browser.name, case.name);
+            } else {
+                failed += 1;
+                println!("ONECALC SMOKE {} failed: {}", browser.name, case.name);
+                for failure in failures {
+                    println!("    {failure}");
+                }
+            }
+        }
+        Ok((passed, failed))
+    })();
+    session.end();
+    outcome
+}
+
+fn smoke(ws: &Workspace, bundle_dir: Option<PathBuf>, only: Option<&str>) -> ExitCode {
+    let dir = match bundle_dir {
+        Some(dir) => dir,
+        None => {
+            let dir = ws.root.join(DEFAULT_OUT);
+            if let Err(e) = bundle(ws, &dir) {
+                println!("ONECALC RESULT failed: {e}");
+                return ExitCode::from(1);
+            }
+            dir
+        }
+    };
+    let port = match serve(dir.clone()) {
+        Ok(port) => port,
+        Err(e) => {
+            println!("ONECALC RESULT failed: {e}");
+            return ExitCode::from(1);
+        }
+    };
+    let page = format!("http://127.0.0.1:{port}/index.html");
+    println!("ONECALC serving {} at {page}", dir.display());
+    let mut all_passed = true;
+    let mut summary = Vec::new();
+    for browser in BROWSERS
+        .iter()
+        .filter(|b| only.is_none_or(|name| b.name == name))
+    {
+        match run_browser(browser, &page) {
+            Ok((passed, failed)) => {
+                all_passed &= failed == 0;
+                summary.push(format!(
+                    "{}: {passed} passed, {failed} failed",
+                    browser.name
+                ));
+            }
+            Err(e) => {
+                all_passed = false;
+                println!("ONECALC SMOKE {} did not run: {e}", browser.name);
+                summary.push(format!("{}: did not run", browser.name));
+            }
+        }
+    }
+    if summary.is_empty() {
+        println!("ONECALC RESULT failed: no browser named {only:?}");
+        return ExitCode::from(2);
+    }
+    println!(
+        "ONECALC RESULT {}: {} cases per browser; {}",
+        if all_passed { "passed" } else { "failed" },
+        CASES.len(),
+        summary.join("; ")
+    );
+    if all_passed {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunked_bodies_join() {
+        assert_eq!(
+            unchunk(b"4\r\nWiki\r\n5;x=1\r\npedia\r\n0\r\n\r\n").unwrap(),
+            b"Wikipedia"
+        );
+        assert!(unchunk(b"zz\r\n").is_err());
+    }
+
+    #[test]
+    fn checks_compare_what_the_page_shows() {
+        assert!(satisfied(&Check::Text("r", "a"), &json!("a")));
+        assert!(!satisfied(&Check::Text("r", "a"), &Value::Null));
+        assert!(satisfied(&Check::Items("r", &[]), &json!([])));
+        assert!(!satisfied(&Check::Items("r", &[]), &Value::Null));
+        assert!(satisfied(
+            &Check::Array(&[&["1", "2"]]),
+            &json!([["1", "2"]])
+        ));
+        assert!(!satisfied(&Check::Array(&[&["1", "2"]]), &json!([["1"]])));
+        assert!(satisfied(
+            &Check::Contains("r", "SU"),
+            &json!(["AB", "SUM"])
+        ));
+    }
+}

@@ -29,6 +29,19 @@
 //! | `=INDEX(A1:A3*2,2)`, `=SUM(INDEX(A1:A3*2,0))` | `@` before INDEX at the root only | 4, 12 |
 //! | `=ROWS(A1:A3*1)` | unchanged | 3 |
 //!
+//! L3 (dc-m3u) measured more parameters the same way on 2026-10-23 (Excel 16.0.20430, `Range.Formula`
+//! entry in rows 5 to 91 over the same A1:B3, `Range.Formula2` read back). Excel wrote no `@` before
+//! the range expression at these array parameters: XLOOKUP's lookup and return arrays
+//! (`=XLOOKUP(2,A1:A3*1,B1:B3)` 20, `=XLOOKUP(2,A1:A3,B1:B3*1)` 20), XMATCH's lookup array (2),
+//! MMULT's (`=@MMULT(A1:A3*1,1)` 1), IRR's values (#NUM!), CORREL's, SLOPE's, INTERCEPT's,
+//! FORECAST's known values, SUMX2MY2's, SUMXMY2's, COVAR's, PEARSON's, RSQ's and STEYX's arrays (1,
+//! 10, 0, 20, -1386, 1134, 6.666667, 1, 1, 0), FREQUENCY's (`=@FREQUENCY(A1:A3*1,2)` 2) and MODE's
+//! numbers (#N/A). It wrote `@` before the range expression, intersected, at these: MEDIAN's,
+//! STDEV's, VAR's, STDEVP's, VARP's, MINA's, GEOMEAN's, HARMEAN's, DEVSQ's, AVEDEV's, KURT's and
+//! SKEW's numbers, LARGE's and SMALL's array, PERCENTILE's, QUARTILE's, PERCENTRANK's and
+//! TRIMMEAN's array, CONCAT's and TEXTJOIN's texts, NPV's values and TRANSPOSE's array
+//! (`=@TRANSPOSE(@A1:A3*1)`); each is #VALUE! in those rows, below A1:A3.
+//!
 //! From these rows a place is one of four kinds ([`Place`]). The formula's root, and every
 //! single-value parameter and operand on the way down from it, is a [`Place::Value`]: a range
 //! there gives the cell implicit intersection picks, and an array its first element. A parameter
@@ -72,15 +85,57 @@ const AGGREGATE: &[(&str, &[usize])] = &[
     ("SUM", ALL),
     ("SUMSQ", ALL),
     ("VLOOKUP", &[1]),
+    // L3 (dc-m3u), measured (see the module documentation).
+    ("AVEDEV", ALL),
+    ("CONCAT", ALL),
+    ("DEVSQ", ALL),
+    ("GEOMEAN", ALL),
+    ("HARMEAN", ALL),
+    ("KURT", ALL),
+    ("LARGE", &[0]),
+    ("MEDIAN", ALL),
+    ("NPV", ALL),
+    ("PERCENTILE", &[0]),
+    ("PERCENTRANK", &[0]),
+    ("QUARTILE", &[0]),
+    ("SKEW", ALL),
+    ("SMALL", &[0]),
+    ("STDEV", ALL),
+    ("STDEVP", ALL),
+    ("TEXTJOIN", ALL),
+    ("TRANSPOSE", &[0]),
+    ("TRIMMEAN", &[0]),
+    ("VAR", ALL),
+    ("VARP", ALL),
 ];
 
-/// The array parameters, by function: a range expression written there lifts.
+/// The array parameters, by function: a range expression written there lifts. FILTER's include
+/// is measured by the catalogue oracle's capture (F3 dc-728): `=_xlfn._xlws.FILTER(Data!A1:A3,
+/// Data!A1:A3>1)` entered as a legacy formula gives 5, the first of FILTER's rows {5;3}.
 const ARRAY: &[(&str, &[usize])] = &[
     ("COLUMNS", &[0]),
+    ("FILTER", &[1]),
     ("INDEX", &[0]),
     ("LOOKUP", &[1, 2]),
     ("ROWS", &[0]),
     ("SUMPRODUCT", ALL),
+    // L3 (dc-m3u), measured (see the module documentation).
+    ("CORREL", ALL),
+    ("COVAR", ALL),
+    ("FORECAST", &[1, 2]),
+    ("FREQUENCY", ALL),
+    ("INTERCEPT", ALL),
+    ("IRR", &[0]),
+    ("MMULT", ALL),
+    ("MODE", ALL),
+    ("PEARSON", ALL),
+    ("RSQ", ALL),
+    ("SLOPE", ALL),
+    ("STEYX", ALL),
+    ("SUMX2MY2", ALL),
+    ("SUMXMY2", ALL),
+    ("XLOOKUP", &[1, 2]),
+    ("XMATCH", &[1]),
 ];
 
 /// Every parameter of a function.
@@ -174,9 +229,12 @@ mod tests {
         assert_eq!(Place::Value.admission(), Admission::IntersectAll);
         // A parameter not measured: refused.
         assert_eq!(
-            Place::Value.argument("XLOOKUP", 1, r, false),
+            Place::Value.argument("CHISQ.TEST", 0, r, false),
             Place::Unknown
         );
+        // L3: XLOOKUP's lookup array lifts; MEDIAN's numbers are intersected.
+        assert_eq!(Place::Value.argument("XLOOKUP", 1, r, false), Place::Array);
+        assert_eq!(Place::Value.argument("MEDIAN", 0, r, false), Place::Aggregate);
         assert_eq!(Place::Unknown.admission(), Admission::Refuse);
         // A function below an array place that is not measured there.
         assert_eq!(array.argument("SUM", 0, r, false), Place::Unknown);

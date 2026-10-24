@@ -21,6 +21,9 @@
 //! that only the evaluator can make. INDIRECT's text is bound against the [`ReferenceCatalog`] the
 //! caller gives the services ([`EvaluationServices::with_catalog`]).
 //!
+//! [`assist`] is editor assistance over formula text: token roles for highlighting, completion of
+//! calc-func's function names, and the call the caret is in for signature help.
+//!
 //! Parsing, binding and compiling keep stacks of their own instead of recursing on the native
 //! stack, so a formula nested as deep as Excel's 8,192 characters allow is handled on a 1 MB
 //! stack. Two recursions remain. Evaluation recurses into the arguments of nested lazy calls, at
@@ -28,6 +31,7 @@
 //! levels of functions. The derived `Debug` of a syntax tree recurses once per level of the tree,
 //! and nothing on the route from formula text to value calls it.
 
+pub mod assist;
 pub mod eval;
 pub mod reference;
 pub mod syntax;

@@ -277,8 +277,11 @@ impl EngineState {
 
     /// The formula cells whose published result is stale, in the order of the cells (sheet ID,
     /// then row, then column): the anchors of the pending nodes and of every node that reads one
-    /// of them, directly or through other nodes. This is the dirty closure the next recalculation
-    /// under the published generation's numeric mode calculates. After a recalculation fails or
+    /// of them (through a placed reference, a dynamic prerequisite or a cell of its spill),
+    /// directly or through other nodes. The next recalculation under the published generation's
+    /// numeric mode calculates these and also every formula that calls a volatile function, with
+    /// its readers: a volatile formula's published result is not stale for that, it is only
+    /// calculated again ([`EngineState::is_volatile`]). After a recalculation fails or
     /// is refused nothing of it was published, so this lists every result it left stale. `None`
     /// when `inputs` is not at the state's revision: a span's sheets are read from the
     /// snapshot's sheet order.

@@ -654,12 +654,12 @@ fn date_time(text: &str, context: &ReadContext<'_>) -> Result<f64, Unread> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::locale::{LocaleProfileId, format_profile};
+    use crate::locale::{LocaleId, format_profile};
 
     /// Reads `text` under this machine's Excel settings (en-ZA with `.` and a space), on a clock
     /// in 2026 as the ad hoc reads were.
     fn host(text: &str) -> Result<f64, Unread> {
-        let profile = format_profile(LocaleProfileId::CurrentExcelHost);
+        let profile = format_profile(LocaleId::CurrentExcelHost);
         let context = ReadContext {
             profile: &profile,
             date_system: DateSystem::System1900,
@@ -811,7 +811,7 @@ mod tests {
 
     #[test]
     fn a_date_without_a_year_needs_a_clock() {
-        let profile = format_profile(LocaleProfileId::CurrentExcelHost);
+        let profile = format_profile(LocaleId::CurrentExcelHost);
         let context = ReadContext {
             profile: &profile,
             date_system: DateSystem::System1900,

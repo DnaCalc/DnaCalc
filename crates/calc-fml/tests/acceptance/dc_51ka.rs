@@ -407,9 +407,12 @@ fn rows(_book: &Book) -> Vec<Row> {
         not_modelled("=INDIRECT(\"Rate\")", refused(0), DEFINED, "dc-mzk"),
         not_modelled(
             "=INDIRECT(\"[Book1]data!A1\")",
-            refused(0),
-            "a qualifier naming another workbook, which INDIRECT resolves when that workbook is open",
-            "cfml-m3.5",
+            EvalFault::NotModelled {
+                construct: "reference text naming another workbook (an external reference)",
+                owner: "dc-m3u",
+            },
+            "a qualifier naming another workbook, which INDIRECT resolves when that workbook is open; external references are refused (L3)",
+            "dc-m3u",
         ),
         // The legacy formula intersects the range with its own row, which A1:B2 does not reach
         // (Excel writes it `=@INDIRECT("A1:B2")`; dc-mzk).

@@ -148,6 +148,33 @@ fn security_fraction(
     yearfrac_positive(settlement, maturity, basis)
 }
 
+/// The security's day count as the pair (days `D`, year basis `B`), whose quotient is
+/// [`security_fraction`]: DISC, INTRATE, RECEIVED and PRICEDISC use the two apart (dc-j9k).
+fn security_days_and_year(
+    settlement: f64,
+    maturity: f64,
+    basis: Option<f64>,
+) -> Result<(f64, f64), DiscountBillYearfracEvalError> {
+    let settlement = parse_date_serial(settlement)?;
+    let maturity = parse_date_serial(maturity)?;
+    let basis = parse_basis(basis.unwrap_or(0.0))?;
+    if settlement >= maturity {
+        return Err(DiscountBillYearfracEvalError::Domain(
+            WorksheetErrorCode::Num,
+        ));
+    }
+    match basis {
+        DayCountBasis::Us30_360 => Ok((days360_us(settlement, maturity)?, 360.0)),
+        DayCountBasis::ActualActual => {
+            crate::ported::day_count_common::excel_actual_actual_year(settlement, maturity)
+                .map_err(DiscountBillYearfracEvalError::Domain)
+        }
+        DayCountBasis::Actual360 => Ok((actual_days(settlement, maturity), 360.0)),
+        DayCountBasis::Actual365 => Ok((actual_days(settlement, maturity), 365.0)),
+        DayCountBasis::European30_360 => Ok((days360_eu(settlement, maturity)?, 360.0)),
+    }
+}
+
 pub fn disc_kernel(
     settlement: f64,
     maturity: f64,
@@ -165,8 +192,10 @@ pub fn disc_kernel(
             WorksheetErrorCode::Num,
         ));
     }
-    let frac = security_fraction(settlement, maturity, basis)?;
-    Ok((1.0 - pr / redemption) / frac)
+    // Excel: (1 - pr/redemption)*(B/D) (dc-j9k: 60 of 60 readings in the catalogue oracle's
+    // sheet dcj9k_closed_form; dividing by the fraction D/B matched 41).
+    let (days, year) = security_days_and_year(settlement, maturity, basis)?;
+    Ok((1.0 - pr / redemption) * (year / days))
 }
 
 pub fn intrate_kernel(
@@ -186,8 +215,10 @@ pub fn intrate_kernel(
             WorksheetErrorCode::Num,
         ));
     }
-    let frac = security_fraction(settlement, maturity, basis)?;
-    Ok(((redemption - investment) / investment) / frac)
+    // Excel: ((redemption - investment)/investment)*(B/D) (dc-j9k: 40 of 40 readings; dividing
+    // by the fraction D/B matched 28).
+    let (days, year) = security_days_and_year(settlement, maturity, basis)?;
+    Ok(((redemption - investment) / investment) * (year / days))
 }
 
 pub fn received_kernel(
@@ -207,8 +238,10 @@ pub fn received_kernel(
             WorksheetErrorCode::Num,
         ));
     }
-    let frac = security_fraction(settlement, maturity, basis)?;
-    let denom = 1.0 - discount * frac;
+    // Excel: investment/(1 - discount*D/B), the product before the division (dc-j9k: 38 of 38
+    // readings; discount times the fraction D/B matched 33).
+    let (days, year) = security_days_and_year(settlement, maturity, basis)?;
+    let denom = 1.0 - discount * days / year;
     if denom <= 0.0 {
         return Err(DiscountBillYearfracEvalError::Domain(
             WorksheetErrorCode::Num,
@@ -234,8 +267,10 @@ pub fn pricedisc_kernel(
             WorksheetErrorCode::Num,
         ));
     }
-    let frac = security_fraction(settlement, maturity, basis)?;
-    Ok(redemption * (1.0 - discount * frac))
+    // Excel: redemption - discount*redemption*D/B, from left to right (dc-j9k: 40 of 40
+    // readings; redemption*(1 - discount*fraction) matched 21).
+    let (days, year) = security_days_and_year(settlement, maturity, basis)?;
+    Ok(redemption - discount * redemption * days / year)
 }
 
 fn tbill_days(settlement: f64, maturity: f64) -> Result<f64, DiscountBillYearfracEvalError> {

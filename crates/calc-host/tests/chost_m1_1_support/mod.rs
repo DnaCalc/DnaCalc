@@ -97,7 +97,7 @@ pub const INPUTS_SHEET: &str = r#"<?xml version="1.0" encoding="UTF-8"?><workshe
 /// | cell | formula                         | cached  | value from the inputs above |
 /// |------|---------------------------------|---------|-----------------------------|
 /// | A1   | `Inputs!A1+Inputs!A2`           | 41      | 5                           |
-/// | B1   | `NOSUCHFUNCTION(Inputs!B1,0)`   | 1       | not in the catalogue        |
+/// | B1   | `NOSUCHFUNCTION(Inputs!B1,0)`   | 1       | no function: #NAME?         |
 /// | C1   | `IF(Inputs!A1>1,"big","small")` | "small" | "big"                       |
 /// | A2   | `A1*10`                         | 999     | 50                          |
 /// | B2   | `Inputs!B1*4`                   | none    | 2                           |

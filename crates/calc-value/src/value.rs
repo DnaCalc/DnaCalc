@@ -220,10 +220,11 @@ impl fmt::Display for ReferenceError {
 
 impl std::error::Error for ReferenceError {}
 
-/// A reference value: one or more grid areas of one sheet, in order. A single cell is a one-cell
-/// area. The areas of a multi-area (union) reference are shared behind an `Arc`; one area is held
-/// inline and allocates nothing. A 3D sheet span, a structured reference, a spill anchor and an
-/// external workbook reference are not representable here.
+/// A reference value: one or more grid areas of one sheet, in order, or a 3-D reference's areas,
+/// one per sheet of its span ([`ReferenceLike::three_d`]). A single cell is a one-cell area. The
+/// areas of a multi-area (union) reference are shared behind an `Arc`; one area is held inline
+/// and allocates nothing. A structured reference is bound to its areas before it becomes a value;
+/// a spill anchor and an external workbook reference are not representable here.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ReferenceLike {
     areas: Areas,
@@ -265,9 +266,31 @@ impl ReferenceLike {
         }
     }
 
-    /// The sheet that every area of this reference lies on.
+    /// The reference a 3-D reference (`Sheet1:Sheet3!A1:B2`) names: the same area on each sheet of
+    /// the span, in the workbook's sheet order (L3, dc-m3u). Unlike [`Self::from_areas`] the areas
+    /// may lie on several sheets; Excel's union, intersection and range operators still refuse
+    /// such a reference, and only the functions that take a 3-D reference are given one.
+    /// Refused with [`ReferenceError::NoAreas`] when there are no areas.
+    pub fn three_d(areas: Vec<GridArea>) -> Result<Self, ReferenceError> {
+        match areas.as_slice() {
+            [] => Err(ReferenceError::NoAreas),
+            [one] => Ok(Self::area(*one)),
+            _ => Ok(ReferenceLike {
+                areas: Areas::Many(areas.into()),
+            }),
+        }
+    }
+
+    /// The sheet of the reference's first area: the sheet every area lies on, except for a 3-D
+    /// reference ([`Self::three_d`]), whose first sheet it is.
     pub fn sheet(&self) -> SheetId {
         self.areas()[0].sheet()
+    }
+
+    /// Whether the areas lie on more than one sheet: a 3-D reference ([`Self::three_d`]).
+    pub fn spans_sheets(&self) -> bool {
+        let first = self.sheet();
+        self.areas().iter().any(|area| area.sheet() != first)
     }
 
     pub fn areas(&self) -> &[GridArea] {

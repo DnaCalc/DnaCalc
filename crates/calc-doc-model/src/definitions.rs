@@ -133,6 +133,8 @@ pub struct Definitions {
     tables: Vec<Table>,
     unloaded: BTreeMap<CellKey, UnloadedCell>,
     hidden_rows: BTreeMap<(SheetId, u32), RowHidden>,
+    /// The workbook is macro-enabled (`.xlsm`, `.xltm`), so a VBA project may define functions.
+    macro_enabled: bool,
 }
 
 impl Definitions {
@@ -151,7 +153,21 @@ impl Definitions {
             tables,
             unloaded: unloaded.into_iter().collect(),
             hidden_rows: BTreeMap::new(),
+            macro_enabled: false,
         }
+    }
+
+    /// These definitions of a macro-enabled workbook (`.xlsm`, `.xltm`) when `macro_enabled`: a
+    /// VBA project may then define functions, so a call of a name no function or defined name
+    /// holds is not known to be #NAME?.
+    pub fn with_macro_enabled(mut self, macro_enabled: bool) -> Self {
+        self.macro_enabled = macro_enabled;
+        self
+    }
+
+    /// Whether the workbook is macro-enabled ([`Definitions::with_macro_enabled`]).
+    pub fn macro_enabled(&self) -> bool {
+        self.macro_enabled
     }
 
     /// These definitions with `rows` hidden: each a sheet, a row (1-based) and why it is hidden.

@@ -273,10 +273,104 @@ pub(crate) fn excel_tan(x: f64) -> f64 {
     }
 }
 
+/// The portable emulation of the x87 double-rounded basic operations, `RN53(RN64(a op b))`: the
+/// fallback of [`excel_x87_add`], [`excel_x87_sub`], [`excel_x87_mul`] and [`excel_x87_div`] off
+/// `x86_64` (dc-6qki). It has no FMA: the exact error of the single-rounded result comes from the
+/// error-free transformations (Knuth's two-sum, Dekker's product with Veltkamp's split).
+///
+/// `RN53(RN64(x))` differs from `RN53(x)` only when `q = RN53(x)` is odd and `x` lies within
+/// `u/4096` of the midpoint between `q` and its neighbour (`u` the spacing at `q`): `RN64(x)` is then
+/// that midpoint, and the tie goes to the even neighbour. So `q` moves one step toward `x` when its
+/// last bit is set and the exact error is at least `2047u/4096`.
+///
+/// Its limits, where it returns the single-rounded result: a result below `2^-960` in magnitude
+/// (the 80-bit register keeps a wider exponent, and the error terms would lose bits), and a product
+/// or quotient with an operand of magnitude `2^995` or more (the split would overflow).
+pub(crate) mod pc64 {
+    const TINY: f64 = 1.0e-289; // about 2^-960
+    const HUGE: f64 = 3.0e299; // below 2^995
+
+    /// `q`, moved one step toward the exact result when the double rounding moves it. `error` is
+    /// the exact result minus `q` (its sign), and `at_least` says whether the error's magnitude
+    /// reaches `2047u/4096`.
+    fn settle(q: f64, positive: bool, at_least: impl FnOnce(f64) -> bool) -> f64 {
+        if !q.is_normal() || q.abs() < TINY || q.to_bits() & 1 == 0 {
+            return q;
+        }
+        let u = f64::from_bits(((q.to_bits() >> 52) & 0x7ff).saturating_sub(52) << 52);
+        if !at_least(u * (2047.0 / 4096.0)) {
+            return q;
+        }
+        if positive { q.next_up() } else { q.next_down() }
+    }
+
+    fn split(a: f64) -> (f64, f64) {
+        let c = 134_217_729.0 * a;
+        let hi = c - (c - a);
+        (hi, a - hi)
+    }
+
+    /// `(p, e)` with `p = RN53(a*b)` and `p + e = a*b` exactly.
+    fn two_product(a: f64, b: f64) -> (f64, f64) {
+        let p = a * b;
+        let (ah, al) = split(a);
+        let (bh, bl) = split(b);
+        (p, ((ah * bh - p) + ah * bl + al * bh) + al * bl)
+    }
+
+    fn two_sum(a: f64, b: f64) -> (f64, f64) {
+        let s = a + b;
+        let bb = s - a;
+        (s, (a - (s - bb)) + (b - bb))
+    }
+
+    pub(crate) fn add(a: f64, b: f64) -> f64 {
+        let (s, e) = two_sum(a, b);
+        if !s.is_finite() || e == 0.0 {
+            return s;
+        }
+        settle(s, e > 0.0, |t| e.abs() >= t)
+    }
+
+    pub(crate) fn sub(a: f64, b: f64) -> f64 {
+        add(a, -b)
+    }
+
+    pub(crate) fn mul(a: f64, b: f64) -> f64 {
+        if a.abs() >= HUGE || b.abs() >= HUGE {
+            return a * b;
+        }
+        let (p, e) = two_product(a, b);
+        if !p.is_finite() || e == 0.0 {
+            return p;
+        }
+        settle(p, e > 0.0, |t| e.abs() >= t)
+    }
+
+    pub(crate) fn div(a: f64, b: f64) -> f64 {
+        let q = a / b;
+        if !q.is_finite() || q == 0.0 || a.abs() >= HUGE || b.abs() >= HUGE || q.abs() >= HUGE {
+            return q;
+        }
+        // r = a - q*b, exactly: a - p is exact (p is within a factor 2 of a) and r is
+        // representable, so its one rounding is exact.
+        let (p, pe) = two_product(q, b);
+        let r = (a - p) - pe;
+        if r == 0.0 {
+            return q;
+        }
+        // The error is r/b; compare |r| with t*|b| = P + E exactly.
+        settle(q, (r > 0.0) == (b > 0.0), |t| {
+            let (big, small) = two_product(t, b.abs());
+            r.abs() - big >= small
+        })
+    }
+}
+
 /// `RN53(RN64(a + b))` — the x87 double-rounded sum of Excel's legacy
 /// x87-compiled function bodies (W109: XNPV's `1 + rate` and running-total
-/// accumulation). Bit-exact to 64-bit Excel on `x86_64`; plain `a + b`
-/// elsewhere (single-rounded — the documented portable fallback).
+/// accumulation; dc-6qki: the worksheet `+` and SUM's running total). Bit-exact to 64-bit Excel
+/// on `x86_64`; elsewhere the portable emulation [`pc64::add`].
 pub(crate) fn excel_x87_add(a: f64, b: f64) -> f64 {
     #[cfg(target_arch = "x86_64")]
     {
@@ -284,7 +378,7 @@ pub(crate) fn excel_x87_add(a: f64, b: f64) -> f64 {
     }
     #[cfg(not(target_arch = "x86_64"))]
     {
-        a + b
+        pc64::add(a, b)
     }
 }
 
@@ -297,7 +391,7 @@ pub(crate) fn excel_x87_sub(a: f64, b: f64) -> f64 {
     }
     #[cfg(not(target_arch = "x86_64"))]
     {
-        a - b
+        pc64::sub(a, b)
     }
 }
 
@@ -310,7 +404,7 @@ pub(crate) fn excel_x87_mul(a: f64, b: f64) -> f64 {
     }
     #[cfg(not(target_arch = "x86_64"))]
     {
-        a * b
+        pc64::mul(a, b)
     }
 }
 
@@ -323,7 +417,7 @@ pub(crate) fn excel_x87_div(a: f64, b: f64) -> f64 {
     }
     #[cfg(not(target_arch = "x86_64"))]
     {
-        a / b
+        pc64::div(a, b)
     }
 }
 
@@ -386,6 +480,44 @@ pub(crate) fn excel_sqrt_staged(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// dc-6qki: the portable double rounding equals the x87 hardware's, operation for operation,
+    /// over random operands of mixed magnitudes, among which a few hundred per operation are the
+    /// near-midpoint cases where the double rounding moves the result.
+    #[cfg(target_arch = "x86_64")]
+    #[test]
+    fn pc64_emulation_matches_the_x87_hardware() {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut moved = [0usize; 4];
+        for _ in 0..400_000 {
+            let a = f64::from_bits((next() & 0x000f_ffff_ffff_ffff) | ((1023 + next() % 40 - 20) << 52));
+            let b = f64::from_bits((next() & 0x000f_ffff_ffff_ffff) | ((1023 + next() % 40 - 20) << 52));
+            let b = if next() & 1 == 0 { b } else { -b };
+            let cases = [
+                (x87::add(a, b), pc64::add(a, b), a + b),
+                (x87::sub(a, b), pc64::sub(a, b), a - b),
+                (x87::mul(a, b), pc64::mul(a, b), a * b),
+                (x87::div(a, b), pc64::div(a, b), a / b),
+            ];
+            for (op, (hardware, portable, single)) in cases.into_iter().enumerate() {
+                assert_eq!(
+                    hardware.to_bits(),
+                    portable.to_bits(),
+                    "op {op} a={a:e} b={b:e}"
+                );
+                if hardware.to_bits() != single.to_bits() {
+                    moved[op] += 1;
+                }
+            }
+        }
+        assert!(moved.iter().all(|&n| n > 20), "too few near-midpoint cases: {moved:?}");
+    }
 
     // Golden (x_bits, cr_bits) pulled from the W108-A corpus. These pin the
     // *portable* faithful core (`exp_portable`/`log_portable` and the

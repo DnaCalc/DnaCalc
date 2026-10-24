@@ -2,6 +2,7 @@
 //! functions/regression_forecast_family.rs (6fca3518) with its reference resolution removed: the
 //! statistics family reads a reference argument into an array before the call.
 
+use crate::ported::excel_numeric;
 use crate::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
 
 
@@ -367,116 +368,121 @@ fn prediction_input_from_optional(
     }
 }
 
-fn transpose(matrix: &[Vec<f64>]) -> Vec<Vec<f64>> {
-    let rows = matrix.len();
-    let cols = matrix.first().map_or(0, Vec::len);
-    let mut result = vec![vec![0.0; rows]; cols];
-    for (row_idx, row) in matrix.iter().enumerate() {
-        for (col_idx, value) in row.iter().enumerate() {
-            result[col_idx][row_idx] = *value;
-        }
+/// The least-squares fit of LINEST, LOGEST, TREND and GROWTH as Excel computes it (dc-j9k,
+/// identified on captured coefficients and predictions of one, two and three predictors, with and
+/// without a constant; the catalogue oracle's sheet dcj9k_regression holds them):
+///
+/// 1. With a constant, each predictor column and `y` are centred on their means (each mean the
+///    forward sum divided by the count), and a column of ones leads the matrix; without one, the
+///    raw columns are the matrix.
+/// 2. Householder QR. Before each predictor column's step, the predictor column with the largest
+///    sum of squares over the remaining rows comes next (the first such column on a tie); the
+///    ones column always goes first. At step `j`, with `x0` the diagonal entry, `rest` the sum
+///    of squares below it and `s` the sum of squares from it down (each a forward sum from 0):
+///    `alpha = -sign(x0)*sqrt(s)`, `v = (x0 - alpha, the entries below)`, `vv = rest + v0*v0`, and
+///    each later column and `y` become `a - (2*(v.a)/vv)*v`.
+/// 3. Back substitution: `b_j = (y_j - d)/alpha_j`, with `d` the forward sum of `r_jk*b_k` over
+///    the later columns.
+/// 4. The intercept is `my - b_1*m_1 - b_2*m_2 - ...`, subtracted in predictor order.
+///
+/// A column whose norm at its step is below 1e-12 (a constant or collinear predictor, which
+/// Excel answers with a zero coefficient) is #NUM!, as before.
+fn least_squares(
+    columns: &[Vec<f64>],
+    y: &[f64],
+    use_const: bool,
+) -> Result<LinearRegressionModel, WorksheetErrorCode> {
+    let n = y.len();
+    let mean = |values: &[f64]| values.iter().fold(0.0, |sum, v| sum + v) / n as f64;
+    let means: Vec<f64> = columns.iter().map(|column| mean(column)).collect();
+    let y_mean = if use_const { mean(y) } else { 0.0 };
+    // The matrix's columns, each with the predictor it holds (None for the ones column).
+    let mut matrix: Vec<(Option<usize>, Vec<f64>)> = Vec::with_capacity(columns.len() + 1);
+    if use_const {
+        matrix.push((None, vec![1.0; n]));
     }
-    result
-}
-
-fn mat_mul(left: &[Vec<f64>], right: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, WorksheetErrorCode> {
-    if left.is_empty() || right.is_empty() {
-        return Err(WorksheetErrorCode::Value);
+    for (index, column) in columns.iter().enumerate() {
+        let values = if use_const {
+            column.iter().map(|v| v - means[index]).collect()
+        } else {
+            column.clone()
+        };
+        matrix.push((Some(index), values));
     }
-    let left_cols = left[0].len();
-    let right_cols = right[0].len();
-    if left.iter().any(|row| row.len() != left_cols)
-        || right.iter().any(|row| row.len() != right_cols)
-        || left_cols != right.len()
-    {
-        return Err(WorksheetErrorCode::Value);
+    let mut target: Vec<f64> = if use_const {
+        y.iter().map(|v| v - y_mean).collect()
+    } else {
+        y.to_vec()
+    };
+    let p = matrix.len();
+    if p > n {
+        return Err(WorksheetErrorCode::Num);
     }
-    let mut result = vec![vec![0.0; right_cols]; left.len()];
-    for row in 0..left.len() {
-        for col in 0..right_cols {
-            let mut sum = 0.0;
-            for idx in 0..left_cols {
-                sum += left[row][idx] * right[idx][col];
+    let squares_from =
+        |values: &[f64], from: usize| values[from..].iter().fold(0.0, |sum, v| sum + v * v);
+    let mut diagonal = vec![0.0; p];
+    for j in 0..p {
+        if matrix[j].0.is_some() {
+            let mut best = j;
+            let mut best_squares = -1.0;
+            for (k, (_, column)) in matrix.iter().enumerate().skip(j) {
+                let squares = squares_from(column, j);
+                if squares > best_squares {
+                    best_squares = squares;
+                    best = k;
+                }
             }
-            result[row][col] = sum;
+            matrix.swap(j, best);
         }
-    }
-    Ok(result)
-}
-
-fn inverse_square(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, WorksheetErrorCode> {
-    let n = matrix.len();
-    if n == 0 || matrix.iter().any(|row| row.len() != n) {
-        return Err(WorksheetErrorCode::Value);
-    }
-
-    let mut augmented = Vec::with_capacity(n);
-    for (row_idx, row) in matrix.iter().enumerate() {
-        let mut augmented_row = Vec::with_capacity(n * 2);
-        augmented_row.extend_from_slice(row);
-        for col in 0..n {
-            augmented_row.push(if row_idx == col { 1.0 } else { 0.0 });
-        }
-        augmented.push(augmented_row);
-    }
-
-    const EPS: f64 = 1e-12;
-    for pivot_idx in 0..n {
-        let mut pivot_row = pivot_idx;
-        let mut pivot_abs = augmented[pivot_idx][pivot_idx].abs();
-        for row in (pivot_idx + 1)..n {
-            let candidate = augmented[row][pivot_idx].abs();
-            if candidate > pivot_abs {
-                pivot_abs = candidate;
-                pivot_row = row;
-            }
-        }
-
-        if pivot_abs < EPS {
+        let x0 = matrix[j].1[j];
+        let rest = squares_from(&matrix[j].1, j + 1);
+        let norm = squares_from(&matrix[j].1, j).sqrt();
+        if norm < 1e-12 {
             return Err(WorksheetErrorCode::Num);
         }
-
-        if pivot_row != pivot_idx {
-            augmented.swap(pivot_row, pivot_idx);
+        let alpha = -norm.copysign(x0);
+        let mut v = matrix[j].1[j..].to_vec();
+        v[0] = x0 - alpha;
+        let vv = rest + v[0] * v[0];
+        let reflect = |a: &mut [f64]| {
+            let t = v
+                .iter()
+                .zip(a[j..].iter())
+                .fold(0.0, |sum, (vi, ai)| sum + vi * ai);
+            let f = 2.0 * t / vv;
+            for (ai, vi) in a[j..].iter_mut().zip(v.iter()) {
+                *ai -= f * vi;
+            }
+        };
+        for (_, column) in matrix.iter_mut().skip(j + 1) {
+            reflect(column);
         }
-
-        let pivot = augmented[pivot_idx][pivot_idx];
-        for col in 0..(n * 2) {
-            augmented[pivot_idx][col] /= pivot;
-        }
-
-        for row in 0..n {
-            if row == pivot_idx {
-                continue;
-            }
-            let factor = augmented[row][pivot_idx];
-            if factor == 0.0 {
-                continue;
-            }
-            for col in 0..(n * 2) {
-                augmented[row][col] -= factor * augmented[pivot_idx][col];
-            }
+        reflect(&mut target);
+        diagonal[j] = alpha;
+    }
+    let mut solution = vec![0.0; p];
+    for j in (0..p).rev() {
+        let d = ((j + 1)..p).fold(0.0, |sum, k| sum + matrix[k].1[j] * solution[k]);
+        solution[j] = (target[j] - d) / diagonal[j];
+    }
+    let mut coefficients = vec![0.0; columns.len()];
+    for (j, (predictor, _)) in matrix.iter().enumerate() {
+        if let Some(index) = predictor {
+            coefficients[*index] = solution[j];
         }
     }
-
-    Ok(augmented
-        .into_iter()
-        .map(|row| row[n..].to_vec())
-        .collect::<Vec<_>>())
-}
-
-fn solve_least_squares(x: &[Vec<f64>], y: &[f64]) -> Result<Vec<f64>, WorksheetErrorCode> {
-    let xt = transpose(x);
-    let y_column = y
-        .iter()
-        .copied()
-        .map(|value| vec![value])
-        .collect::<Vec<_>>();
-    let xtx = mat_mul(&xt, x)?;
-    let xty = mat_mul(&xt, &y_column)?;
-    let inv = inverse_square(&xtx)?;
-    let beta = mat_mul(&inv, &xty)?;
-    Ok(beta.into_iter().map(|row| row[0]).collect())
+    let intercept = if use_const {
+        coefficients
+            .iter()
+            .zip(means.iter())
+            .fold(y_mean, |a, (b, m)| a - b * m)
+    } else {
+        0.0
+    };
+    Ok(LinearRegressionModel {
+        coefficients,
+        intercept,
+    })
 }
 
 fn linear_model_from_data(
@@ -488,57 +494,53 @@ fn linear_model_from_data(
     if known_x.predictors.rows != observation_count {
         return Err(WorksheetErrorCode::Ref);
     }
-
-    let mut design = Vec::with_capacity(observation_count);
-    for row_idx in 0..observation_count {
-        let mut row = known_x.predictors.row_values(row_idx).to_vec();
-        if use_const {
-            row.push(1.0);
-        }
-        design.push(row);
-    }
-
-    let beta = solve_least_squares(&design, &known_y.values)?;
-    if use_const {
-        let intercept = *beta.last().expect("const=true keeps intercept coefficient");
-        Ok(LinearRegressionModel {
-            coefficients: beta[..beta.len() - 1].to_vec(),
-            intercept,
+    let columns: Vec<Vec<f64>> = (0..known_x.predictors.cols)
+        .map(|col| {
+            (0..observation_count)
+                .map(|row| known_x.predictors.cell(row, col))
+                .collect()
         })
-    } else {
-        Ok(LinearRegressionModel {
-            coefficients: beta,
-            intercept: 0.0,
-        })
-    }
+        .collect();
+    least_squares(&columns, &known_y.values, use_const)
 }
 
+/// A TREND prediction: `b_1*x_1 + b_2*x_2 + ...`, added in predictor order, then the intercept.
+fn linear_prediction(model: &LinearRegressionModel, x: &[f64]) -> f64 {
+    let mut terms = model.coefficients.iter().zip(x.iter()).map(|(b, x)| b * x);
+    let first = terms.next().unwrap_or(0.0);
+    terms.fold(first, |sum, term| sum + term) + model.intercept
+}
+
+/// A GROWTH prediction: the product of `EXP(b_j*x_j)` in predictor order, from 1, then
+/// `EXP(intercept)` times it.
+fn exponential_prediction(model: &LinearRegressionModel, x: &[f64]) -> f64 {
+    let product = model
+        .coefficients
+        .iter()
+        .zip(x.iter())
+        .fold(1.0, |product, (b, x)| product * excel_numeric::excel_exp(b * x));
+    excel_numeric::excel_exp(model.intercept) * product
+}
+
+/// The fit of LOGEST and GROWTH: the least-squares fit of the worksheet LN of each y (#NUM! for
+/// a y that is not positive).
 fn exponential_model_from_data(
     known_y: &NumericVector,
     known_x: &PreparedPredictorInput,
     use_const: bool,
-) -> Result<(Vec<f64>, f64), WorksheetErrorCode> {
+) -> Result<LinearRegressionModel, WorksheetErrorCode> {
     let mut log_y = Vec::with_capacity(known_y.values.len());
     for value in &known_y.values {
         if *value <= 0.0 || !value.is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
-        log_y.push(value.ln());
+        log_y.push(excel_numeric::excel_log(*value));
     }
     let logged = NumericVector {
         values: log_y,
         shape: known_y.shape,
     };
-    let model = linear_model_from_data(&logged, known_x, use_const)?;
-    Ok((
-        model
-            .coefficients
-            .iter()
-            .copied()
-            .map(f64::exp)
-            .collect::<Vec<_>>(),
-        model.intercept.exp(),
-    ))
+    linear_model_from_data(&logged, known_x, use_const)
 }
 
 fn eval_value_from_output_shape(
@@ -600,16 +602,7 @@ fn trend_kernel(
         return Err(WorksheetErrorCode::Ref);
     }
     let predicted = (0..new_x.predictors.rows)
-        .map(|row_idx| {
-            model
-                .coefficients
-                .iter()
-                .copied()
-                .zip(new_x.predictors.row_values(row_idx).iter().copied())
-                .map(|(coef, x)| coef * x)
-                .sum::<f64>()
-                + model.intercept
-        })
+        .map(|row_idx| linear_prediction(&model, new_x.predictors.row_values(row_idx)))
         .collect::<Vec<_>>();
     eval_value_from_output_shape(&predicted, new_x.output_shape)
 }
@@ -620,18 +613,12 @@ fn growth_kernel(
     new_x: &PreparedPredictorInput,
     use_const: bool,
 ) -> Result<CalcValue, WorksheetErrorCode> {
-    let (factors, base) = exponential_model_from_data(known_y, known_x, use_const)?;
-    if new_x.predictors.cols != factors.len() {
+    let model = exponential_model_from_data(known_y, known_x, use_const)?;
+    if new_x.predictors.cols != model.coefficients.len() {
         return Err(WorksheetErrorCode::Ref);
     }
     let predicted = (0..new_x.predictors.rows)
-        .map(|row_idx| {
-            base * factors
-                .iter()
-                .copied()
-                .zip(new_x.predictors.row_values(row_idx).iter().copied())
-                .fold(1.0, |acc, (factor, x)| acc * factor.powf(x))
-        })
+        .map(|row_idx| exponential_prediction(&model, new_x.predictors.row_values(row_idx)))
         .collect::<Vec<_>>();
     eval_value_from_output_shape(&predicted, new_x.output_shape)
 }
@@ -660,9 +647,18 @@ fn logest_kernel(
     if stats {
         return Err(WorksheetErrorCode::Ref);
     }
-    let (factors, base) = exponential_model_from_data(known_y, known_x, use_const)?;
-    let mut row = factors.iter().rev().copied().collect::<Vec<_>>();
-    row.push(if use_const { base } else { 1.0 });
+    let model = exponential_model_from_data(known_y, known_x, use_const)?;
+    let mut row = model
+        .coefficients
+        .iter()
+        .rev()
+        .map(|b| excel_numeric::excel_exp(*b))
+        .collect::<Vec<_>>();
+    row.push(if use_const {
+        excel_numeric::excel_exp(model.intercept)
+    } else {
+        1.0
+    });
     Ok(row_array(&row))
 }
 
@@ -1049,7 +1045,9 @@ mod tests {
         )
         .unwrap();
         let coeffs = expect_row_array(got);
-        assert_eq!(coeffs, vec![2.0, 0.0]);
+        // Excel 16.0.20430: =INDEX(LINEST({2;4;6},{1;2;3},FALSE),1) is 2.0000000000000004, the QR
+        // fit's rounding (dc-j9k), and the intercept cell is 0.
+        assert_eq!(coeffs, vec![2.0000000000000004, 0.0]);
     }
 
     #[test]

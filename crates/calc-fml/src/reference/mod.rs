@@ -28,6 +28,7 @@
 mod bind;
 mod notation;
 mod read;
+mod structured;
 mod template;
 mod text;
 
@@ -36,6 +37,7 @@ pub use bind::{
     BindError, NameDefinition, NameScope, ReferenceCatalog, ReferenceSite, bind_references,
 };
 pub use read::{CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells};
+pub use structured::{TableInfo, TableLookup};
 pub use template::template_key;
 pub(crate) use text::bind_text;
 
@@ -135,6 +137,12 @@ pub enum SheetTarget {
     /// The `#REF!` qualifier Excel writes in place of a deleted sheet (`#REF!A1`). Placing the
     /// operand gives [`PlacementError::DeletedSheet`].
     Deleted,
+    /// A run of sheets (`Sheet1:Sheet3!A1`, a 3-D reference): the sheets from `first` to `last`
+    /// in the workbook's sheet order, both included, whichever of the two comes first. Compile
+    /// expands it into one operand per sheet the catalogue lists
+    /// ([`ReferenceCatalog::sheet_span`]); placing a span operand itself gives
+    /// [`PlacementError::SheetSpan`].
+    Span { first: SheetId, last: SheetId },
 }
 
 /// A bound grid reference: its sheet and shape, with every coordinate absolute or relative to the
@@ -157,6 +165,9 @@ pub enum PlacementError {
     RowOffGrid { resolved: i64 },
     /// A column lands at `resolved`, outside columns 1 to [`MAX_COLUMNS`].
     ColumnOffGrid { resolved: i64 },
+    /// The operand names a run of sheets ([`SheetTarget::Span`]), which names no one area; compile
+    /// places each sheet of the span on its own.
+    SheetSpan,
 }
 
 impl PlacementError {
@@ -168,7 +179,8 @@ impl PlacementError {
             PlacementError::DeletedSheet
             | PlacementError::DeletedCells
             | PlacementError::RowOffGrid { .. }
-            | PlacementError::ColumnOffGrid { .. } => WorksheetErrorCode::Ref,
+            | PlacementError::ColumnOffGrid { .. }
+            | PlacementError::SheetSpan => WorksheetErrorCode::Ref,
         }
     }
 }
@@ -183,6 +195,7 @@ impl ReferenceOperand {
             SheetTarget::Anchor => anchor.sheet(),
             SheetTarget::Sheet(sheet) => sheet,
             SheetTarget::Deleted => return Err(PlacementError::DeletedSheet),
+            SheetTarget::Span { .. } => return Err(PlacementError::SheetSpan),
         };
         let at = anchor.cell();
         let (top, left, bottom, right) = match self.shape {
@@ -207,6 +220,56 @@ impl ReferenceOperand {
             ReferenceShape::Deleted => return Err(PlacementError::DeletedCells),
         };
         Ok(area(sheet, top, left, bottom, right))
+    }
+}
+
+impl ReferenceOperand {
+    /// The area this operand names for a formula anchored at `anchor` when it is a reference of
+    /// a defined name's formula: as [`ReferenceOperand::instantiate`] places it, except that a
+    /// relative row or column wraps around the grid's edge. A file stores a name's references
+    /// relative to cell A1 (`Nm!XFD1` for `RC[-1]`), and Excel 16.0 (2026-10-23) reads such a
+    /// name at each formula's cell with the offset wrapped: `=LeftCell` for `RC[-1]` in A1 reads
+    /// XFD1.
+    pub fn instantiate_wrapped(&self, anchor: FormulaAnchor) -> Result<GridArea, PlacementError> {
+        let sheet = match self.sheet {
+            SheetTarget::Anchor => anchor.sheet(),
+            SheetTarget::Sheet(sheet) => sheet,
+            SheetTarget::Deleted => return Err(PlacementError::DeletedSheet),
+            SheetTarget::Span { .. } => return Err(PlacementError::SheetSpan),
+        };
+        let at = anchor.cell();
+        let row = |axis: AxisRef| wrap(axis, at.row(), MAX_ROWS);
+        let column = |axis: AxisRef| wrap(axis, at.column(), MAX_COLUMNS);
+        let (top, left, bottom, right) = match self.shape {
+            ReferenceShape::Cell(cell) => {
+                let (r, c) = (row(cell.row), column(cell.column));
+                (r, c, r, c)
+            }
+            ReferenceShape::Area { first, last } => (
+                row(first.row),
+                column(first.column),
+                row(last.row),
+                column(last.column),
+            ),
+            ReferenceShape::Rows { first, last } => (row(first), 1, row(last), MAX_COLUMNS),
+            ReferenceShape::Columns { first, last } => (1, column(first), MAX_ROWS, column(last)),
+            ReferenceShape::Deleted => return Err(PlacementError::DeletedCells),
+        };
+        let (top, bottom) = (top.min(bottom), top.max(bottom));
+        let (left, right) = (left.min(right), left.max(right));
+        Ok(area(sheet, top, left, bottom, right))
+    }
+}
+
+/// The 1-based index `axis` names when the anchor's is `anchor`, on an axis of `max` indexes, a
+/// relative offset wrapping around the edge.
+pub(crate) fn wrap(axis: AxisRef, anchor: u32, max: u32) -> u32 {
+    match axis {
+        AxisRef::Absolute(index) => index,
+        AxisRef::Relative(offset) => {
+            let zero_based = (i64::from(anchor) - 1 + i64::from(offset)).rem_euclid(i64::from(max));
+            u32::try_from(zero_based + 1).expect("an index below the axis's size")
+        }
     }
 }
 

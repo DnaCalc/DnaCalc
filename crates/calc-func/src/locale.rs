@@ -10,7 +10,7 @@
 //! as not modelled.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LocaleProfileId {
+pub enum LocaleId {
     EnUs,
     EnGb,
     EnIe,
@@ -43,44 +43,44 @@ pub enum LocaleProfileId {
     HuHu,
     /// Host-regional-settings placeholder. This is not a stable locale identity;
     /// callers that need reproducible locale-keyed behavior should use an
-    /// explicit locale profile id.
+    /// explicit locale identifier.
     CurrentExcelHost,
 }
 
-impl LocaleProfileId {
+impl LocaleId {
     pub const fn stable_name(self) -> &'static str {
         match self {
-            LocaleProfileId::EnUs => "en-US",
-            LocaleProfileId::EnGb => "en-GB",
-            LocaleProfileId::EnIe => "en-IE",
-            LocaleProfileId::EnAu => "en-AU",
-            LocaleProfileId::EnNz => "en-NZ",
-            LocaleProfileId::EnZa => "en-ZA",
-            LocaleProfileId::EnIn => "en-IN",
-            LocaleProfileId::EnCa => "en-CA",
-            LocaleProfileId::EnPh => "en-PH",
-            LocaleProfileId::DeDe => "de-DE",
-            LocaleProfileId::RuRu => "ru-RU",
-            LocaleProfileId::FiFi => "fi-FI",
-            LocaleProfileId::EtEe => "et-EE",
-            LocaleProfileId::LvLv => "lv-LV",
-            LocaleProfileId::LtLt => "lt-LT",
-            LocaleProfileId::SkSk => "sk-SK",
-            LocaleProfileId::CsCz => "cs-CZ",
-            LocaleProfileId::NbNo => "nb-NO",
-            LocaleProfileId::NnNo => "nn-NO",
-            LocaleProfileId::FrFr => "fr-FR",
-            LocaleProfileId::EsEs => "es-ES",
-            LocaleProfileId::PtPt => "pt-PT",
-            LocaleProfileId::ItIt => "it-IT",
-            LocaleProfileId::NlNl => "nl-NL",
-            LocaleProfileId::PlPl => "pl-PL",
-            LocaleProfileId::PtBr => "pt-BR",
-            LocaleProfileId::JaJp => "ja-JP",
-            LocaleProfileId::KoKr => "ko-KR",
-            LocaleProfileId::ZhCn => "zh-CN",
-            LocaleProfileId::HuHu => "hu-HU",
-            LocaleProfileId::CurrentExcelHost => "current-excel-host",
+            LocaleId::EnUs => "en-US",
+            LocaleId::EnGb => "en-GB",
+            LocaleId::EnIe => "en-IE",
+            LocaleId::EnAu => "en-AU",
+            LocaleId::EnNz => "en-NZ",
+            LocaleId::EnZa => "en-ZA",
+            LocaleId::EnIn => "en-IN",
+            LocaleId::EnCa => "en-CA",
+            LocaleId::EnPh => "en-PH",
+            LocaleId::DeDe => "de-DE",
+            LocaleId::RuRu => "ru-RU",
+            LocaleId::FiFi => "fi-FI",
+            LocaleId::EtEe => "et-EE",
+            LocaleId::LvLv => "lv-LV",
+            LocaleId::LtLt => "lt-LT",
+            LocaleId::SkSk => "sk-SK",
+            LocaleId::CsCz => "cs-CZ",
+            LocaleId::NbNo => "nb-NO",
+            LocaleId::NnNo => "nn-NO",
+            LocaleId::FrFr => "fr-FR",
+            LocaleId::EsEs => "es-ES",
+            LocaleId::PtPt => "pt-PT",
+            LocaleId::ItIt => "it-IT",
+            LocaleId::NlNl => "nl-NL",
+            LocaleId::PlPl => "pl-PL",
+            LocaleId::PtBr => "pt-BR",
+            LocaleId::JaJp => "ja-JP",
+            LocaleId::KoKr => "ko-KR",
+            LocaleId::ZhCn => "zh-CN",
+            LocaleId::HuHu => "hu-HU",
+            LocaleId::CurrentExcelHost => "current-excel-host",
         }
     }
 
@@ -91,142 +91,142 @@ impl LocaleProfileId {
         let region = parts.next().unwrap_or("");
 
         match (language, region) {
-            ("en", "") | ("en", "us") => Some(LocaleProfileId::EnUs),
-            ("en", "gb") => Some(LocaleProfileId::EnGb),
-            ("en", "ie") => Some(LocaleProfileId::EnIe),
-            ("en", "au") => Some(LocaleProfileId::EnAu),
-            ("en", "nz") => Some(LocaleProfileId::EnNz),
-            ("en", "za") => Some(LocaleProfileId::EnZa),
-            ("en", "in") => Some(LocaleProfileId::EnIn),
-            ("en", "ca") => Some(LocaleProfileId::EnCa),
-            ("en", "ph") => Some(LocaleProfileId::EnPh),
-            ("de", _) => Some(LocaleProfileId::DeDe),
-            ("ru", _) => Some(LocaleProfileId::RuRu),
-            ("fi", _) => Some(LocaleProfileId::FiFi),
-            ("et", _) => Some(LocaleProfileId::EtEe),
-            ("lv", _) => Some(LocaleProfileId::LvLv),
-            ("lt", _) => Some(LocaleProfileId::LtLt),
-            ("sk", _) => Some(LocaleProfileId::SkSk),
-            ("cs", _) => Some(LocaleProfileId::CsCz),
-            ("nb", _) => Some(LocaleProfileId::NbNo),
-            ("nn", _) => Some(LocaleProfileId::NnNo),
-            ("fr", _) => Some(LocaleProfileId::FrFr),
-            ("es", _) => Some(LocaleProfileId::EsEs),
-            ("pt", "") | ("pt", "pt") => Some(LocaleProfileId::PtPt),
-            ("pt", "br") => Some(LocaleProfileId::PtBr),
-            ("it", _) => Some(LocaleProfileId::ItIt),
-            ("nl", _) => Some(LocaleProfileId::NlNl),
-            ("pl", _) => Some(LocaleProfileId::PlPl),
-            ("zh", _) => Some(LocaleProfileId::ZhCn),
-            ("ja", _) => Some(LocaleProfileId::JaJp),
-            ("ko", _) => Some(LocaleProfileId::KoKr),
-            ("hu", _) => Some(LocaleProfileId::HuHu),
+            ("en", "") | ("en", "us") => Some(LocaleId::EnUs),
+            ("en", "gb") => Some(LocaleId::EnGb),
+            ("en", "ie") => Some(LocaleId::EnIe),
+            ("en", "au") => Some(LocaleId::EnAu),
+            ("en", "nz") => Some(LocaleId::EnNz),
+            ("en", "za") => Some(LocaleId::EnZa),
+            ("en", "in") => Some(LocaleId::EnIn),
+            ("en", "ca") => Some(LocaleId::EnCa),
+            ("en", "ph") => Some(LocaleId::EnPh),
+            ("de", _) => Some(LocaleId::DeDe),
+            ("ru", _) => Some(LocaleId::RuRu),
+            ("fi", _) => Some(LocaleId::FiFi),
+            ("et", _) => Some(LocaleId::EtEe),
+            ("lv", _) => Some(LocaleId::LvLv),
+            ("lt", _) => Some(LocaleId::LtLt),
+            ("sk", _) => Some(LocaleId::SkSk),
+            ("cs", _) => Some(LocaleId::CsCz),
+            ("nb", _) => Some(LocaleId::NbNo),
+            ("nn", _) => Some(LocaleId::NnNo),
+            ("fr", _) => Some(LocaleId::FrFr),
+            ("es", _) => Some(LocaleId::EsEs),
+            ("pt", "") | ("pt", "pt") => Some(LocaleId::PtPt),
+            ("pt", "br") => Some(LocaleId::PtBr),
+            ("it", _) => Some(LocaleId::ItIt),
+            ("nl", _) => Some(LocaleId::NlNl),
+            ("pl", _) => Some(LocaleId::PlPl),
+            ("zh", _) => Some(LocaleId::ZhCn),
+            ("ja", _) => Some(LocaleId::JaJp),
+            ("ko", _) => Some(LocaleId::KoKr),
+            ("hu", _) => Some(LocaleId::HuHu),
             _ => None,
         }
     }
 
     pub const fn from_excel_lcid(lcid: u16) -> Option<Self> {
         match lcid {
-            0x0409 => Some(LocaleProfileId::EnUs),
-            0x0809 => Some(LocaleProfileId::EnGb),
-            0x1809 => Some(LocaleProfileId::EnIe),
-            0x0C09 => Some(LocaleProfileId::EnAu),
-            0x1409 => Some(LocaleProfileId::EnNz),
-            0x1C09 => Some(LocaleProfileId::EnZa),
-            0x4009 => Some(LocaleProfileId::EnIn),
-            0x1009 => Some(LocaleProfileId::EnCa),
-            0x3409 => Some(LocaleProfileId::EnPh),
-            0x0407 | 0x0807 | 0x0C07 => Some(LocaleProfileId::DeDe),
-            0x0419 => Some(LocaleProfileId::RuRu),
-            0x040B => Some(LocaleProfileId::FiFi),
-            0x0425 => Some(LocaleProfileId::EtEe),
-            0x0426 => Some(LocaleProfileId::LvLv),
-            0x0427 => Some(LocaleProfileId::LtLt),
-            0x041B => Some(LocaleProfileId::SkSk),
-            0x0405 => Some(LocaleProfileId::CsCz),
-            0x0414 => Some(LocaleProfileId::NbNo),
-            0x0814 => Some(LocaleProfileId::NnNo),
-            0x040C | 0x080C | 0x0C0C | 0x100C => Some(LocaleProfileId::FrFr),
-            0x040A | 0x080A | 0x0C0A => Some(LocaleProfileId::EsEs),
-            0x0816 => Some(LocaleProfileId::PtPt),
-            0x0410 => Some(LocaleProfileId::ItIt),
-            0x0413 | 0x0813 => Some(LocaleProfileId::NlNl),
-            0x0415 => Some(LocaleProfileId::PlPl),
-            0x0416 => Some(LocaleProfileId::PtBr),
-            0x0411 => Some(LocaleProfileId::JaJp),
-            0x0412 => Some(LocaleProfileId::KoKr),
-            0x0804 | 0x1004 | 0x0404 | 0x0C04 => Some(LocaleProfileId::ZhCn),
-            0x040E => Some(LocaleProfileId::HuHu),
+            0x0409 => Some(LocaleId::EnUs),
+            0x0809 => Some(LocaleId::EnGb),
+            0x1809 => Some(LocaleId::EnIe),
+            0x0C09 => Some(LocaleId::EnAu),
+            0x1409 => Some(LocaleId::EnNz),
+            0x1C09 => Some(LocaleId::EnZa),
+            0x4009 => Some(LocaleId::EnIn),
+            0x1009 => Some(LocaleId::EnCa),
+            0x3409 => Some(LocaleId::EnPh),
+            0x0407 | 0x0807 | 0x0C07 => Some(LocaleId::DeDe),
+            0x0419 => Some(LocaleId::RuRu),
+            0x040B => Some(LocaleId::FiFi),
+            0x0425 => Some(LocaleId::EtEe),
+            0x0426 => Some(LocaleId::LvLv),
+            0x0427 => Some(LocaleId::LtLt),
+            0x041B => Some(LocaleId::SkSk),
+            0x0405 => Some(LocaleId::CsCz),
+            0x0414 => Some(LocaleId::NbNo),
+            0x0814 => Some(LocaleId::NnNo),
+            0x040C | 0x080C | 0x0C0C | 0x100C => Some(LocaleId::FrFr),
+            0x040A | 0x080A | 0x0C0A => Some(LocaleId::EsEs),
+            0x0816 => Some(LocaleId::PtPt),
+            0x0410 => Some(LocaleId::ItIt),
+            0x0413 | 0x0813 => Some(LocaleId::NlNl),
+            0x0415 => Some(LocaleId::PlPl),
+            0x0416 => Some(LocaleId::PtBr),
+            0x0411 => Some(LocaleId::JaJp),
+            0x0412 => Some(LocaleId::KoKr),
+            0x0804 | 0x1004 | 0x0404 | 0x0C04 => Some(LocaleId::ZhCn),
+            0x040E => Some(LocaleId::HuHu),
             _ => None,
         }
     }
 }
 
-pub const CANONICAL_LOCALE_PROFILE_IDS: [LocaleProfileId; 30] = [
-    LocaleProfileId::EnUs,
-    LocaleProfileId::EnGb,
-    LocaleProfileId::EnIe,
-    LocaleProfileId::EnAu,
-    LocaleProfileId::EnNz,
-    LocaleProfileId::EnZa,
-    LocaleProfileId::EnIn,
-    LocaleProfileId::EnCa,
-    LocaleProfileId::EnPh,
-    LocaleProfileId::DeDe,
-    LocaleProfileId::RuRu,
-    LocaleProfileId::FiFi,
-    LocaleProfileId::EtEe,
-    LocaleProfileId::LvLv,
-    LocaleProfileId::LtLt,
-    LocaleProfileId::SkSk,
-    LocaleProfileId::CsCz,
-    LocaleProfileId::NbNo,
-    LocaleProfileId::NnNo,
-    LocaleProfileId::FrFr,
-    LocaleProfileId::EsEs,
-    LocaleProfileId::PtPt,
-    LocaleProfileId::ItIt,
-    LocaleProfileId::NlNl,
-    LocaleProfileId::PlPl,
-    LocaleProfileId::PtBr,
-    LocaleProfileId::JaJp,
-    LocaleProfileId::KoKr,
-    LocaleProfileId::ZhCn,
-    LocaleProfileId::HuHu,
+pub const CANONICAL_LOCALE_IDS: [LocaleId; 30] = [
+    LocaleId::EnUs,
+    LocaleId::EnGb,
+    LocaleId::EnIe,
+    LocaleId::EnAu,
+    LocaleId::EnNz,
+    LocaleId::EnZa,
+    LocaleId::EnIn,
+    LocaleId::EnCa,
+    LocaleId::EnPh,
+    LocaleId::DeDe,
+    LocaleId::RuRu,
+    LocaleId::FiFi,
+    LocaleId::EtEe,
+    LocaleId::LvLv,
+    LocaleId::LtLt,
+    LocaleId::SkSk,
+    LocaleId::CsCz,
+    LocaleId::NbNo,
+    LocaleId::NnNo,
+    LocaleId::FrFr,
+    LocaleId::EsEs,
+    LocaleId::PtPt,
+    LocaleId::ItIt,
+    LocaleId::NlNl,
+    LocaleId::PlPl,
+    LocaleId::PtBr,
+    LocaleId::JaJp,
+    LocaleId::KoKr,
+    LocaleId::ZhCn,
+    LocaleId::HuHu,
 ];
 
-pub const LOCALE_PROFILE_IDS: [LocaleProfileId; 31] = [
-    LocaleProfileId::EnUs,
-    LocaleProfileId::EnGb,
-    LocaleProfileId::EnIe,
-    LocaleProfileId::EnAu,
-    LocaleProfileId::EnNz,
-    LocaleProfileId::EnZa,
-    LocaleProfileId::EnIn,
-    LocaleProfileId::EnCa,
-    LocaleProfileId::EnPh,
-    LocaleProfileId::DeDe,
-    LocaleProfileId::RuRu,
-    LocaleProfileId::FiFi,
-    LocaleProfileId::EtEe,
-    LocaleProfileId::LvLv,
-    LocaleProfileId::LtLt,
-    LocaleProfileId::SkSk,
-    LocaleProfileId::CsCz,
-    LocaleProfileId::NbNo,
-    LocaleProfileId::NnNo,
-    LocaleProfileId::FrFr,
-    LocaleProfileId::EsEs,
-    LocaleProfileId::PtPt,
-    LocaleProfileId::ItIt,
-    LocaleProfileId::NlNl,
-    LocaleProfileId::PlPl,
-    LocaleProfileId::PtBr,
-    LocaleProfileId::JaJp,
-    LocaleProfileId::KoKr,
-    LocaleProfileId::ZhCn,
-    LocaleProfileId::HuHu,
-    LocaleProfileId::CurrentExcelHost,
+pub const ALL_LOCALE_IDS: [LocaleId; 31] = [
+    LocaleId::EnUs,
+    LocaleId::EnGb,
+    LocaleId::EnIe,
+    LocaleId::EnAu,
+    LocaleId::EnNz,
+    LocaleId::EnZa,
+    LocaleId::EnIn,
+    LocaleId::EnCa,
+    LocaleId::EnPh,
+    LocaleId::DeDe,
+    LocaleId::RuRu,
+    LocaleId::FiFi,
+    LocaleId::EtEe,
+    LocaleId::LvLv,
+    LocaleId::LtLt,
+    LocaleId::SkSk,
+    LocaleId::CsCz,
+    LocaleId::NbNo,
+    LocaleId::NnNo,
+    LocaleId::FrFr,
+    LocaleId::EsEs,
+    LocaleId::PtPt,
+    LocaleId::ItIt,
+    LocaleId::NlNl,
+    LocaleId::PlPl,
+    LocaleId::PtBr,
+    LocaleId::JaJp,
+    LocaleId::KoKr,
+    LocaleId::ZhCn,
+    LocaleId::HuHu,
+    LocaleId::CurrentExcelHost,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -271,7 +271,7 @@ pub enum FormatCodeTokenPolicy {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FormatProfile {
-    pub id: LocaleProfileId,
+    pub id: LocaleId,
     pub decimal_separator: &'static str,
     pub thousands_separator: &'static str,
     pub list_separator: &'static str,
@@ -301,120 +301,120 @@ pub enum FormatFailure {
     UnsupportedCode(String),
     InvalidDateSerial,
 }
-const fn short_date_order(id: LocaleProfileId) -> DateComponentOrder {
+const fn short_date_order(id: LocaleId) -> DateComponentOrder {
     match id {
-        LocaleProfileId::EnUs | LocaleProfileId::EnPh => DateComponentOrder::Mdy,
-        LocaleProfileId::EnZa
-        | LocaleProfileId::EnCa
-        | LocaleProfileId::LtLt
-        | LocaleProfileId::JaJp
-        | LocaleProfileId::KoKr
-        | LocaleProfileId::ZhCn
-        | LocaleProfileId::HuHu
-        | LocaleProfileId::CurrentExcelHost => DateComponentOrder::Ymd,
+        LocaleId::EnUs | LocaleId::EnPh => DateComponentOrder::Mdy,
+        LocaleId::EnZa
+        | LocaleId::EnCa
+        | LocaleId::LtLt
+        | LocaleId::JaJp
+        | LocaleId::KoKr
+        | LocaleId::ZhCn
+        | LocaleId::HuHu
+        | LocaleId::CurrentExcelHost => DateComponentOrder::Ymd,
         _ => DateComponentOrder::Dmy,
     }
 }
 
-const fn short_date_pattern(id: LocaleProfileId) -> &'static str {
+const fn short_date_pattern(id: LocaleId) -> &'static str {
     match id {
-        LocaleProfileId::EnUs | LocaleProfileId::EnPh => "M/d/yyyy",
-        LocaleProfileId::EnGb | LocaleProfileId::EnIe | LocaleProfileId::EnIn => "dd/MM/yyyy",
-        LocaleProfileId::EnAu | LocaleProfileId::EsEs => "d/M/yyyy",
-        LocaleProfileId::EnNz => "d/MM/yyyy",
-        LocaleProfileId::EnZa => "yyyy/MM/dd",
-        LocaleProfileId::EnCa | LocaleProfileId::LtLt => "yyyy-MM-dd",
-        LocaleProfileId::DeDe
-        | LocaleProfileId::RuRu
-        | LocaleProfileId::EtEe
-        | LocaleProfileId::LvLv
-        | LocaleProfileId::CsCz
-        | LocaleProfileId::NbNo
-        | LocaleProfileId::NnNo => "dd.MM.yyyy",
-        LocaleProfileId::FiFi => "d.M.yyyy",
-        LocaleProfileId::PlPl => "d.MM.yyyy",
-        LocaleProfileId::SkSk => "d. M. yyyy",
-        LocaleProfileId::FrFr
-        | LocaleProfileId::PtPt
-        | LocaleProfileId::ItIt
-        | LocaleProfileId::PtBr => "dd/MM/yyyy",
-        LocaleProfileId::NlNl => "dd-MM-yyyy",
-        LocaleProfileId::JaJp => "yyyy/MM/dd",
-        LocaleProfileId::KoKr => "yyyy. M. d.",
-        LocaleProfileId::ZhCn => "yyyy/M/d",
-        LocaleProfileId::HuHu => "yyyy. MM. dd.",
-        LocaleProfileId::CurrentExcelHost => "yyyy/MM/dd",
+        LocaleId::EnUs | LocaleId::EnPh => "M/d/yyyy",
+        LocaleId::EnGb | LocaleId::EnIe | LocaleId::EnIn => "dd/MM/yyyy",
+        LocaleId::EnAu | LocaleId::EsEs => "d/M/yyyy",
+        LocaleId::EnNz => "d/MM/yyyy",
+        LocaleId::EnZa => "yyyy/MM/dd",
+        LocaleId::EnCa | LocaleId::LtLt => "yyyy-MM-dd",
+        LocaleId::DeDe
+        | LocaleId::RuRu
+        | LocaleId::EtEe
+        | LocaleId::LvLv
+        | LocaleId::CsCz
+        | LocaleId::NbNo
+        | LocaleId::NnNo => "dd.MM.yyyy",
+        LocaleId::FiFi => "d.M.yyyy",
+        LocaleId::PlPl => "d.MM.yyyy",
+        LocaleId::SkSk => "d. M. yyyy",
+        LocaleId::FrFr
+        | LocaleId::PtPt
+        | LocaleId::ItIt
+        | LocaleId::PtBr => "dd/MM/yyyy",
+        LocaleId::NlNl => "dd-MM-yyyy",
+        LocaleId::JaJp => "yyyy/MM/dd",
+        LocaleId::KoKr => "yyyy. M. d.",
+        LocaleId::ZhCn => "yyyy/M/d",
+        LocaleId::HuHu => "yyyy. MM. dd.",
+        LocaleId::CurrentExcelHost => "yyyy/MM/dd",
     }
 }
 
-const fn currency_placement(id: LocaleProfileId) -> CurrencyPlacement {
+const fn currency_placement(id: LocaleId) -> CurrencyPlacement {
     match id {
-        LocaleProfileId::DeDe
-        | LocaleProfileId::RuRu
-        | LocaleProfileId::FiFi
-        | LocaleProfileId::EtEe
-        | LocaleProfileId::LvLv
-        | LocaleProfileId::LtLt
-        | LocaleProfileId::SkSk
-        | LocaleProfileId::CsCz
-        | LocaleProfileId::NnNo
-        | LocaleProfileId::FrFr
-        | LocaleProfileId::EsEs
-        | LocaleProfileId::PtPt
-        | LocaleProfileId::ItIt
-        | LocaleProfileId::PlPl
-        | LocaleProfileId::HuHu => CurrencyPlacement::After,
+        LocaleId::DeDe
+        | LocaleId::RuRu
+        | LocaleId::FiFi
+        | LocaleId::EtEe
+        | LocaleId::LvLv
+        | LocaleId::LtLt
+        | LocaleId::SkSk
+        | LocaleId::CsCz
+        | LocaleId::NnNo
+        | LocaleId::FrFr
+        | LocaleId::EsEs
+        | LocaleId::PtPt
+        | LocaleId::ItIt
+        | LocaleId::PlPl
+        | LocaleId::HuHu => CurrencyPlacement::After,
         _ => CurrencyPlacement::Before,
     }
 }
 
-const fn currency_spacing(id: LocaleProfileId) -> CurrencySpacing {
+const fn currency_spacing(id: LocaleId) -> CurrencySpacing {
     match id {
-        LocaleProfileId::FrFr => CurrencySpacing::NarrowNoBreakSpace,
-        LocaleProfileId::DeDe
-        | LocaleProfileId::RuRu
-        | LocaleProfileId::FiFi
-        | LocaleProfileId::EtEe
-        | LocaleProfileId::LvLv
-        | LocaleProfileId::LtLt
-        | LocaleProfileId::SkSk
-        | LocaleProfileId::CsCz
-        | LocaleProfileId::NbNo
-        | LocaleProfileId::NnNo
-        | LocaleProfileId::EsEs
-        | LocaleProfileId::PtPt
-        | LocaleProfileId::ItIt
-        | LocaleProfileId::NlNl
-        | LocaleProfileId::PlPl
-        | LocaleProfileId::PtBr
-        | LocaleProfileId::HuHu => CurrencySpacing::Space,
+        LocaleId::FrFr => CurrencySpacing::NarrowNoBreakSpace,
+        LocaleId::DeDe
+        | LocaleId::RuRu
+        | LocaleId::FiFi
+        | LocaleId::EtEe
+        | LocaleId::LvLv
+        | LocaleId::LtLt
+        | LocaleId::SkSk
+        | LocaleId::CsCz
+        | LocaleId::NbNo
+        | LocaleId::NnNo
+        | LocaleId::EsEs
+        | LocaleId::PtPt
+        | LocaleId::ItIt
+        | LocaleId::NlNl
+        | LocaleId::PlPl
+        | LocaleId::PtBr
+        | LocaleId::HuHu => CurrencySpacing::Space,
         _ => CurrencySpacing::None,
     }
 }
 
-const fn currency_negative_pattern(id: LocaleProfileId) -> CurrencyNegativePattern {
+const fn currency_negative_pattern(id: LocaleId) -> CurrencyNegativePattern {
     match id {
-        LocaleProfileId::EnUs
-        | LocaleProfileId::EnGb
-        | LocaleProfileId::EnIe
-        | LocaleProfileId::EnAu
-        | LocaleProfileId::EnNz
-        | LocaleProfileId::EnZa
-        | LocaleProfileId::EnIn
-        | LocaleProfileId::EnCa
-        | LocaleProfileId::EnPh
-        | LocaleProfileId::JaJp
-        | LocaleProfileId::KoKr
-        | LocaleProfileId::ZhCn
-        | LocaleProfileId::CurrentExcelHost => CurrencyNegativePattern::MinusBeforeSymbol,
-        LocaleProfileId::PtBr => CurrencyNegativePattern::MinusBeforeSymbol,
+        LocaleId::EnUs
+        | LocaleId::EnGb
+        | LocaleId::EnIe
+        | LocaleId::EnAu
+        | LocaleId::EnNz
+        | LocaleId::EnZa
+        | LocaleId::EnIn
+        | LocaleId::EnCa
+        | LocaleId::EnPh
+        | LocaleId::JaJp
+        | LocaleId::KoKr
+        | LocaleId::ZhCn
+        | LocaleId::CurrentExcelHost => CurrencyNegativePattern::MinusBeforeSymbol,
+        LocaleId::PtBr => CurrencyNegativePattern::MinusBeforeSymbol,
         _ => CurrencyNegativePattern::LeadingMinus,
     }
 }
 
-pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
+pub const fn format_profile(id: LocaleId) -> FormatProfile {
     match id {
-        LocaleProfileId::EnUs => FormatProfile {
+        LocaleId::EnUs => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -433,7 +433,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnGb => FormatProfile {
+        LocaleId::EnGb => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -452,7 +452,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnIe => FormatProfile {
+        LocaleId::EnIe => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -471,7 +471,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnAu => FormatProfile {
+        LocaleId::EnAu => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -490,7 +490,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnNz => FormatProfile {
+        LocaleId::EnNz => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -509,7 +509,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnZa => FormatProfile {
+        LocaleId::EnZa => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -528,7 +528,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnIn => FormatProfile {
+        LocaleId::EnIn => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -547,7 +547,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnCa => FormatProfile {
+        LocaleId::EnCa => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -566,7 +566,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EnPh => FormatProfile {
+        LocaleId::EnPh => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -585,7 +585,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::DeDe => FormatProfile {
+        LocaleId::DeDe => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: ".",
@@ -604,7 +604,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::RuRu => FormatProfile {
+        LocaleId::RuRu => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -623,7 +623,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::FiFi => FormatProfile {
+        LocaleId::FiFi => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -642,7 +642,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EtEe => FormatProfile {
+        LocaleId::EtEe => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -661,7 +661,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::LvLv => FormatProfile {
+        LocaleId::LvLv => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -680,7 +680,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::LtLt => FormatProfile {
+        LocaleId::LtLt => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -699,7 +699,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::SkSk => FormatProfile {
+        LocaleId::SkSk => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -718,7 +718,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::CsCz => FormatProfile {
+        LocaleId::CsCz => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -737,7 +737,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::NbNo | LocaleProfileId::NnNo => FormatProfile {
+        LocaleId::NbNo | LocaleId::NnNo => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -756,7 +756,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::FrFr => FormatProfile {
+        LocaleId::FrFr => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{202F}",
@@ -775,7 +775,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::EsEs => FormatProfile {
+        LocaleId::EsEs => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: ".",
@@ -794,7 +794,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::PtPt => FormatProfile {
+        LocaleId::PtPt => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -813,7 +813,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::ItIt => FormatProfile {
+        LocaleId::ItIt => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: ".",
@@ -832,7 +832,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::NlNl => FormatProfile {
+        LocaleId::NlNl => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: ".",
@@ -851,7 +851,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::PlPl => FormatProfile {
+        LocaleId::PlPl => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -870,7 +870,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::PtBr => FormatProfile {
+        LocaleId::PtBr => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: ".",
@@ -889,7 +889,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::JaJp => FormatProfile {
+        LocaleId::JaJp => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -908,7 +908,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::KoKr => FormatProfile {
+        LocaleId::KoKr => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -927,7 +927,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::ZhCn => FormatProfile {
+        LocaleId::ZhCn => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: ",",
@@ -946,7 +946,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::HuHu => FormatProfile {
+        LocaleId::HuHu => FormatProfile {
             id,
             decimal_separator: ",",
             thousands_separator: "\u{00A0}",
@@ -965,7 +965,7 @@ pub const fn format_profile(id: LocaleProfileId) -> FormatProfile {
             format_code_group_token: ",",
             format_code_token_policy: FormatCodeTokenPolicy::InvariantExcel,
         },
-        LocaleProfileId::CurrentExcelHost => FormatProfile {
+        LocaleId::CurrentExcelHost => FormatProfile {
             id,
             decimal_separator: ".",
             thousands_separator: " ",
@@ -1071,7 +1071,7 @@ impl FormatProfile {
     /// The profile of the culture named by a BCP 47 tag such as `en-ZA`, when OxFunc's table
     /// holds one.
     pub fn for_culture(tag: &str) -> Option<FormatProfile> {
-        LocaleProfileId::from_bcp47_language_tag(tag).map(format_profile)
+        LocaleId::from_bcp47_language_tag(tag).map(format_profile)
     }
 
     /// This profile with the decimal and thousands separators a host's settings name (Windows

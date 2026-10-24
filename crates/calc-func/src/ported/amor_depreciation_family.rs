@@ -113,31 +113,17 @@ fn days360_eu(start: i64, end: i64) -> Result<f64, AmorDepreciationEvalError> {
     Ok(((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64)
 }
 
+/// The actual/actual fraction of the first period: the actual days divided by the days of the
+/// purchase year, also when the period ends in a later year (dc-j9k: 40 of 40 AMORLINC and 40 of
+/// 40 AMORDEGRC readings in the catalogue oracle's sheet dcj9k_closed_form; the year-split sum
+/// this replaces missed every reading that crosses into a year of another length).
 fn actual_actual_positive(start: i64, end: i64) -> Result<f64, AmorDepreciationEvalError> {
     if end <= start {
         return Ok(0.0);
     }
     let (sy, _, _) = ymd_from_excel_serial(WorkbookDateSystem::System1900, start as f64)
         .ok_or(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Value))?;
-    let (ey, _, _) = ymd_from_excel_serial(WorkbookDateSystem::System1900, end as f64)
-        .ok_or(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Value))?;
-    if sy == ey {
-        return Ok(actual_days(start, end) / days_in_year(sy));
-    }
-
-    let start_next_year = excel_serial_from_ymd(WorkbookDateSystem::System1900, sy + 1, 1, 1)
-        .ok_or(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Value))?
-        as i64;
-    let end_year_start = excel_serial_from_ymd(WorkbookDateSystem::System1900, ey, 1, 1)
-        .ok_or(AmorDepreciationEvalError::Domain(WorksheetErrorCode::Value))?
-        as i64;
-
-    let mut total = actual_days(start, start_next_year) / days_in_year(sy);
-    for _year in (sy + 1)..ey {
-        total += 1.0;
-    }
-    total += actual_days(end_year_start, end) / days_in_year(ey);
-    Ok(total)
+    Ok(actual_days(start, end) / days_in_year(sy))
 }
 
 fn first_period_fraction(
@@ -222,7 +208,10 @@ pub fn amorlinc_kernel(
     let normalized_period = normalize_amorlinc_period(period)?;
     let annual_depreciation = cost * rate;
     let initial_fraction = first_period_fraction(purchase, first, basis)?;
-    let first_depreciation = annual_depreciation * initial_fraction;
+    // Excel multiplies the rate by the fraction first (dc-j9k: cost*(rate*fraction) matches 78 of
+    // the 80 AMORLINC readings of sheet dcj9k_closed_form, and the other two were the basis-1
+    // fraction; (cost*rate)*fraction matched 68).
+    let first_depreciation = cost * (rate * initial_fraction);
     let depreciable_basis = cost - salvage;
 
     if normalized_period == 0 {

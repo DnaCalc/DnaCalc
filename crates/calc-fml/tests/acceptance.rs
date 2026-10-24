@@ -927,6 +927,14 @@ struct LoggingCatalog {
     /// Until a case adds one ([`LoggingCatalog::define`]) the catalogue carries no names, and
     /// every name is not modelled.
     names: Option<BTreeMap<(Option<SheetId>, String), String>>,
+    /// L3 (dc-m3u): the tables; until a case sets them the catalogue carries no tables.
+    tables: Option<Vec<calc_fml::reference::TableInfo>>,
+    /// L3 (dc-m3u): whether the catalogue lists the sheets of a 3-D reference, in the order of
+    /// `sheets`.
+    spans: bool,
+    /// L3 (dc-m3u): whether the workbook can hold no function of its own, so that a call of an
+    /// unknown name is #NAME?.
+    no_macros: bool,
 }
 
 impl LoggingCatalog {
@@ -939,6 +947,9 @@ impl LoggingCatalog {
                 .collect(),
             requests: RefCell::new(Vec::new()),
             names: None,
+            tables: None,
+            spans: false,
+            no_macros: false,
         }
     }
 
@@ -986,6 +997,50 @@ impl ReferenceCatalog for LoggingCatalog {
             Some(definition) => NameDefinition::Formula(definition.clone()),
             None => NameDefinition::Unknown,
         }
+    }
+
+    fn table(&self, name: &str) -> calc_fml::reference::TableLookup {
+        use calc_fml::reference::TableLookup;
+        match &self.tables {
+            None => TableLookup::NotModelled,
+            Some(tables) => tables
+                .iter()
+                .find(|table| table.name.to_uppercase() == name.to_uppercase())
+                .map_or(TableLookup::Unknown, |table| {
+                    TableLookup::Found(table.clone())
+                }),
+        }
+    }
+
+    fn table_containing(&self, cell: CellKey) -> calc_fml::reference::TableLookup {
+        use calc_fml::reference::TableLookup;
+        match &self.tables {
+            None => TableLookup::NotModelled,
+            Some(tables) => tables
+                .iter()
+                .find(|table| table.area.contains(cell))
+                .map_or(TableLookup::Unknown, |table| {
+                    TableLookup::Found(table.clone())
+                }),
+        }
+    }
+
+    fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
+        if !self.spans {
+            return None;
+        }
+        let at = |id: SheetId| self.sheets.iter().position(|(_, sheet)| *sheet == id);
+        let (a, b) = (at(first)?, at(last)?);
+        Some(
+            self.sheets[a.min(b)..=a.max(b)]
+                .iter()
+                .map(|(_, sheet)| *sheet)
+                .collect(),
+        )
+    }
+
+    fn unknown_calls_are_names(&self) -> bool {
+        self.no_macros
     }
 }
 
@@ -1613,11 +1668,13 @@ fn cfml_m1_2__provider_reads() {
     let bound = sites(formula, ReferenceNotation::A1, anchor, &catalog);
 
     // The catalogue was asked for sheets only, by the names the qualifiers spell, unquoted and
-    // as written: never for reference text, and not for the other workbook, the runs of sheets
-    // or the sheet-qualified name.
+    // as written: never for reference text, and not for the other workbook or the
+    // sheet-qualified name. L3 (dc-m3u): a run of sheets asks for its first and last sheet.
     assert_eq!(
         *catalog.requests.borrow(),
-        ["sheet2", "Q2 Data", "It's", "Sheet2", "Missing"]
+        [
+            "sheet2", "Q2 Data", "It's", "Sheet2", "Missing", "Sheet1", "Sheet3", "Sheet 1"
+        ]
     );
     assert_eq!(
         texts(&bound),
@@ -1649,8 +1706,13 @@ fn cfml_m1_2__provider_reads() {
                 name: "Missing".to_owned()
             }),
             Err(BindError::ExternalWorkbook),
-            Err(BindError::SheetSpan),
-            Err(BindError::SheetSpan),
+            // L3 (dc-m3u): neither run's last sheet is in this workbook.
+            Err(BindError::UnknownSheet {
+                name: "Sheet3".to_owned()
+            }),
+            Err(BindError::UnknownSheet {
+                name: "Sheet 1".to_owned()
+            }),
         ]
     );
 
@@ -1682,7 +1744,12 @@ fn cfml_m1_2__provider_reads() {
     // of sheets, is one refused site.
     for (formula, refused) in [
         ("=[B.xlsx]S!A1:[B.xlsx]S!B2", BindError::ExternalWorkbook),
-        ("=Sheet1:Sheet3!A1:Sheet3!B2", BindError::SheetSpan),
+        (
+            "=Sheet1:Sheet3!A1:Sheet3!B2",
+            BindError::UnknownSheet {
+                name: "Sheet3".to_owned(),
+            },
+        ),
     ] {
         assert_eq!(
             sites(formula, ReferenceNotation::A1, anchor, &catalog),
@@ -1690,6 +1757,8 @@ fn cfml_m1_2__provider_reads() {
             "{formula}"
         );
     }
+    // L3 (dc-m3u): the run of sheets asked for its two sheets.
+    let asked = asked + 2;
     // An array constant holds constants only: each reference inside one is refused, a qualified
     // one without asking the catalogue, and the constants and the name give no site.
     assert_eq!(
@@ -3682,18 +3751,21 @@ fn fallback_run(book: &mut FallbackBook) -> Vec<OracleRun> {
         .collect()
 }
 
-/// Each source formula of column F with calc-fml's refusal to compile it at its own cell: the
-/// diagnostic its not-modelled result carries.
-fn source_refusals(book: &mut FallbackBook) -> Vec<(SourceCell, CompileError)> {
+/// Each source formula of column F with why this case does not evaluate it: calc-fml's refusal to
+/// compile it at its own cell, or, for a source whose function calc-func now catalogues (FILTER
+/// and SEQUENCE, F3 dc-728), that the case holds Excel's assumed value for it in the reader (its
+/// own value rests on the engine: SEQUENCE's spill blocked by F3). The reason is the diagnostic
+/// its not-modelled result carries.
+fn source_refusals(book: &mut FallbackBook) -> Vec<(SourceCell, String)> {
     fallback_sources()
         .into_iter()
         .map(|source| {
             let anchor = anchor_at(book.sheet, source.address);
-            let refused = book
-                .compile(source.formula, anchor)
-                .err()
-                .unwrap_or_else(|| panic!("{} compiles", source.formula));
-            (source, refused)
+            let reason = match book.compile(source.formula, anchor) {
+                Err(refused) => format!("calc_fml::compile refuses it ({refused:?})"),
+                Ok(_) => "it compiles, and this case holds its assumed value in the reader instead of evaluating it".to_owned(),
+            };
+            (source, reason)
         })
         .collect()
 }
@@ -4214,19 +4286,25 @@ fn dc_ibp2__error_fallback() {
         Ok(CalcValue::number(1.0)),
         "=_xlfn.IFNA(#N/A,1)"
     );
-    // The source formulas of column F are not compiled: calc-func's catalogue has none of their
-    // functions, so the rows that read them read the error the reader holds for each.
+    // The source formulas of column F are not evaluated here: FIELDVALUE's is refused at compile
+    // (calc-func's catalogue has no entry for it), and FILTER's and SEQUENCE's, which compile since
+    // F3 (dc-728), are held by the reader, so the rows that read them read the error the reader
+    // holds for each.
     let sources = source_refusals(&mut book);
-    for (source, refused) in &sources {
-        let function = &source.formula[1..source.formula.find('(').expect("a call")];
-        assert!(
-            matches!(refused, CompileError::UnknownFunction { spelling, .. } if spelling == function),
-            "{}: {refused:?}",
+    for (source, reason) in &sources {
+        let compiles = source.formula.starts_with("=FILTER(") || source.formula.starts_with("=SEQUENCE(");
+        assert_eq!(
+            reason.starts_with("it compiles"),
+            compiles,
+            "{}: {reason}",
             source.formula
         );
+        if !compiles {
+            assert!(reason.contains("UnknownFunction"), "{}: {reason}", source.formula);
+        }
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: the source formulas of column F are refused at compile as unknown functions ({}); the rows that read them read the errors the reader holds for them ({}), which the comparison checks against Excel's capture of those cells",
+        "ACCEPT-NOTE: {CASE}: the source formulas of column F are not evaluated by this case: FIELDVALUE's is refused at compile as an unknown function, FILTER's and SEQUENCE's compile and are held by the reader ({}); the rows that read them read the errors the reader holds for them ({}), which the comparison checks against Excel's capture of those cells",
         sources
             .iter()
             .map(|(source, _)| format!("{} {}", source.address, source.formula))
@@ -4366,7 +4444,7 @@ fn source_address(source: &SourceCell) -> CellAddress {
 /// value it is conditional on in its diagnostic, never as calculated.
 fn fallback_documents(
     run: &[OracleRun],
-    sources: &[(SourceCell, CompileError)],
+    sources: &[(SourceCell, String)],
 ) -> (ResultSet, InstrumentRecord) {
     let source = format!("sha256:{}", sha256_hex(FALLBACK_WORKBOOK));
     let context = fallback_context().fingerprint();
@@ -4392,7 +4470,7 @@ fn fallback_documents(
                     Provenance::NotModeled {
                         feature: format!("reads {read}, {}", source.feature),
                         diagnostic: format!(
-                            "conditional on Excel's value of {read}, whose formula {} calc_fml::compile refuses ({refused:?}): with the reader holding {} for {read}, calc_fml::evaluate gives {}",
+                            "conditional on Excel's value of {read}, whose formula {} is not evaluated here ({refused}): with the reader holding {} for {read}, calc_fml::evaluate gives {}",
                             source.formula,
                             value_shown(&CalcValue::error(source.assumed)),
                             value_shown(value)
@@ -4433,7 +4511,7 @@ fn fallback_documents(
             cell: source_address(source),
             provenance: Provenance::NotModeled {
                 feature: source.feature.to_owned(),
-                diagnostic: format!("calc_fml::compile refuses {}: {refused:?}", source.formula),
+                diagnostic: format!("not evaluated here, {}: {refused}", source.formula),
             },
             value: None,
         });
@@ -4467,7 +4545,7 @@ fn fallback_documents(
 fn fallback_comparison(
     capture: &CaptureRecord,
     run: &[OracleRun],
-    sources: &[(SourceCell, CompileError)],
+    sources: &[(SourceCell, String)],
 ) -> Comparison {
     let (results, evaluations) = fallback_documents(run, sources);
     let policy = VerdictPolicy {
@@ -4572,7 +4650,7 @@ struct Comparison {
 /// made here, so it is evidence about the comparison's documents, not about Excel.
 fn made_capture(
     run: &[OracleRun],
-    sources: &[(SourceCell, CompileError)],
+    sources: &[(SourceCell, String)],
     observe: impl Fn(&OracleRun) -> CalcValue,
     source_raw: impl Fn(&SourceCell) -> CalcValue,
 ) -> CaptureRecord {
@@ -4645,7 +4723,7 @@ fn judge_excel_capture(
     what: &str,
     bytes: &[u8],
     run: &[OracleRun],
-    sources: &[(SourceCell, CompileError)],
+    sources: &[(SourceCell, String)],
 ) {
     let capture = CaptureRecord::decode(bytes)
         .unwrap_or_else(|refusal| panic!("{what} does not decode: {refusal}"));
@@ -6217,3 +6295,17 @@ fn dc_51ka__excel_comparison() {
 
 #[path = "acceptance/l1.rs"]
 mod l1;
+
+// F3 (dc-728): the dynamic-array functions and the LAMBDA helpers through calc_fml::evaluate, on
+// L1's workbook. The cases are in `acceptance/f3.rs`.
+
+#[path = "acceptance/f3.rs"]
+mod f3;
+
+// L3 (dc-m3u): structured references to tables, 3-D references, external references, names with
+// relative references, calls of unknown names and INDIRECT text naming a defined name, through
+// calc_fml::evaluate over the cfml-m1.3 fixtures (LoggingCatalog with tables and sheet spans,
+// RunReader). The cases are in `acceptance/l3.rs`.
+
+#[path = "acceptance/l3.rs"]
+mod l3;

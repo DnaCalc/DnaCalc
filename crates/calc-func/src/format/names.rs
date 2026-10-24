@@ -1,6 +1,6 @@
 //! Month and weekday names by locale, ported from OxFml (crates/oxfml_core/src/format/locale_tables.rs at 15daac5).
 
-use crate::locale::{FormatProfile, LocaleProfileId};
+use crate::locale::{FormatProfile, LocaleId};
 
 #[derive(Clone, Copy)]
 struct LocaleNames {
@@ -31,39 +31,39 @@ pub(crate) fn weekday_name(profile: &FormatProfile, index: usize, abbreviated: b
     }
 }
 
-fn locale_names(id: LocaleProfileId) -> &'static LocaleNames {
+fn locale_names(id: LocaleId) -> &'static LocaleNames {
     match id {
-        LocaleProfileId::EnUs => &EN_US,
-        LocaleProfileId::EnGb => &EN_GB,
-        LocaleProfileId::EnIe => &EN_IE,
-        LocaleProfileId::EnAu => &EN_AU,
-        LocaleProfileId::EnNz => &EN_NZ,
-        LocaleProfileId::EnZa => &EN_ZA,
-        LocaleProfileId::EnIn => &EN_IN,
-        LocaleProfileId::EnCa => &EN_CA,
-        LocaleProfileId::EnPh => &EN_PH,
-        LocaleProfileId::DeDe => &DE_DE,
-        LocaleProfileId::RuRu => &RU_RU,
-        LocaleProfileId::FiFi => &FI_FI,
-        LocaleProfileId::EtEe => &ET_EE,
-        LocaleProfileId::LvLv => &LV_LV,
-        LocaleProfileId::LtLt => &LT_LT,
-        LocaleProfileId::SkSk => &SK_SK,
-        LocaleProfileId::CsCz => &CS_CZ,
-        LocaleProfileId::NbNo => &NB_NO,
-        LocaleProfileId::NnNo => &NN_NO,
-        LocaleProfileId::FrFr => &FR_FR,
-        LocaleProfileId::EsEs => &ES_ES,
-        LocaleProfileId::PtPt => &PT_PT,
-        LocaleProfileId::ItIt => &IT_IT,
-        LocaleProfileId::NlNl => &NL_NL,
-        LocaleProfileId::PlPl => &PL_PL,
-        LocaleProfileId::PtBr => &PT_BR,
-        LocaleProfileId::JaJp => &JA_JP,
-        LocaleProfileId::KoKr => &KO_KR,
-        LocaleProfileId::ZhCn => &ZH_CN,
-        LocaleProfileId::HuHu => &HU_HU,
-        LocaleProfileId::CurrentExcelHost => &EN_US,
+        LocaleId::EnUs => &EN_US,
+        LocaleId::EnGb => &EN_GB,
+        LocaleId::EnIe => &EN_IE,
+        LocaleId::EnAu => &EN_AU,
+        LocaleId::EnNz => &EN_NZ,
+        LocaleId::EnZa => &EN_ZA,
+        LocaleId::EnIn => &EN_IN,
+        LocaleId::EnCa => &EN_CA,
+        LocaleId::EnPh => &EN_PH,
+        LocaleId::DeDe => &DE_DE,
+        LocaleId::RuRu => &RU_RU,
+        LocaleId::FiFi => &FI_FI,
+        LocaleId::EtEe => &ET_EE,
+        LocaleId::LvLv => &LV_LV,
+        LocaleId::LtLt => &LT_LT,
+        LocaleId::SkSk => &SK_SK,
+        LocaleId::CsCz => &CS_CZ,
+        LocaleId::NbNo => &NB_NO,
+        LocaleId::NnNo => &NN_NO,
+        LocaleId::FrFr => &FR_FR,
+        LocaleId::EsEs => &ES_ES,
+        LocaleId::PtPt => &PT_PT,
+        LocaleId::ItIt => &IT_IT,
+        LocaleId::NlNl => &NL_NL,
+        LocaleId::PlPl => &PL_PL,
+        LocaleId::PtBr => &PT_BR,
+        LocaleId::JaJp => &JA_JP,
+        LocaleId::KoKr => &KO_KR,
+        LocaleId::ZhCn => &ZH_CN,
+        LocaleId::HuHu => &HU_HU,
+        LocaleId::CurrentExcelHost => &EN_US,
     }
 }
 

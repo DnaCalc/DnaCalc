@@ -22,7 +22,14 @@ portability = "portable"
 calc-fml = { path = "../../crates/calc-fml" }
 calc-func = { path = "../../crates/calc-func" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
-web-sys = { version = "=0.3.94", features = ["HtmlElement"] }
+# The browser entry's start function (src/bin/dna-onecalc-web.rs) and the panic hook (src/web.rs).
+# 0.2.117 exactly: the release Leptos and web-sys resolve against, which the bundle's
+# wasm-bindgen CLI must match.
+wasm-bindgen = "=0.2.117"
+# The browser's clock for NOW and TODAY (src/surface.rs). 0.3.94 exactly, the release built on
+# that wasm-bindgen.
+js-sys = "=0.3.94"
+web-sys = { version = "=0.3.94", features = ["HtmlElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Window"] }
 
 # The dependency case reads cargo metadata's JSON. Test-only, native-only.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
@@ -49,6 +56,7 @@ web-sys = { version = "=0.3.94", features = [
     "HtmlElement",
     "HtmlInputElement",
     "HtmlSelectElement",
+    "HtmlTextAreaElement",
     "Node",
     "NodeList",
     "Window",

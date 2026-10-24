@@ -21,6 +21,8 @@ mod coerce;
 mod decimal;
 mod file_prefix;
 mod format;
+/// One-line function descriptions for signature help and function help.
+pub mod help;
 mod kernel;
 pub mod locale;
 mod number_text;
@@ -29,7 +31,7 @@ mod ported;
 mod value_text;
 
 pub use call::{
-    CellReader, EvalServices, HostFacts, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
+    CallAbandoned, CallableInvoker, CellReader, EvalServices, HostFacts, FunctionCallScratch, FunctionFault, PreparedArguments, RandomSource,
     ReferenceText, SubtotalExclusions, TextReference, Unreadable, invoke,
 };
 pub use catalogue::{
@@ -37,3 +39,5 @@ pub use catalogue::{
     ParameterClass, RegistrationError, SignatureHelp, catalogue,
 };
 pub use file_prefix::FilePrefix;
+/// A number in Excel's General format under a locale profile, as a cell shows it.
+pub use format::general as general_format;

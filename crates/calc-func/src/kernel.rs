@@ -7,6 +7,7 @@ use crate::catalogue::FunctionId;
 use crate::coerce::{self, Numeric, Stop};
 use crate::decimal::ExactDecimal;
 use crate::locale::CalcEnvironment;
+use crate::ported::excel_numeric;
 use crate::value_text;
 use crate::value::{CalcValue, CoreValue, NumericMode, WorksheetErrorCode};
 
@@ -146,8 +147,10 @@ impl<'m> Site<'m> {
         }
     }
 
-    /// Every arithmetic site rounds once under the call's mode. Fast is IEEE 754 binary64 with
-    /// round-to-nearest-even; Exact has no implementation, so a site under it is refused.
+    /// Every arithmetic site rounds under the call's mode. Fast is Excel's arithmetic: binary64,
+    /// round-to-nearest-even, and for the four basic operations the x87 double rounding Excel
+    /// computes them with (the exact result rounded to a 64-bit significand, then to binary64;
+    /// see [`Site::add`]). Exact has no implementation, so a site under it is refused.
     fn rounding(&self) -> Step<()> {
         match self.mode {
             NumericMode::Fast => Ok(()),
@@ -163,19 +166,27 @@ impl<'m> Site<'m> {
         self.rounding()
     }
 
+    /// `a + b` as Excel computes it: on the x87 unit at 64-bit precision, then stored to binary64,
+    /// so a result within 1/4096 of a unit in the last place of a midpoint rounds to the even
+    /// neighbour (dc-6qki). The four basic operations of the worksheet operators and of the
+    /// aggregates that use these sites (SUM, PRODUCT, AVERAGE, SUMSQ and the others) round so;
+    /// the catalogue oracle's sheet dc6qki_arith holds Excel's readings, each of which a single
+    /// rounding misses.
     pub(crate) fn add(&self, a: f64, b: f64) -> Step<f64> {
         self.rounding()?;
-        Ok(a + b)
+        Ok(excel_numeric::excel_x87_add(a, b))
     }
 
+    /// `a - b`, double rounded as [`Site::add`] is.
     pub(crate) fn subtract(&self, a: f64, b: f64) -> Step<f64> {
         self.rounding()?;
-        Ok(a - b)
+        Ok(excel_numeric::excel_x87_sub(a, b))
     }
 
+    /// `a * b`, double rounded as [`Site::add`] is.
     pub(crate) fn multiply(&self, a: f64, b: f64) -> Step<f64> {
         self.rounding()?;
-        Ok(a * b)
+        Ok(excel_numeric::excel_x87_mul(a, b))
     }
 
     /// The binary64 nearest a decimal that a kernel computed exactly. The conversion rounds once;
@@ -195,13 +206,14 @@ impl<'m> Site<'m> {
         Ok(nearest)
     }
 
-    /// `a / b`; #DIV/0! when `b` is 0, which needs no rounding.
+    /// `a / b`, double rounded as [`Site::add`] is; #DIV/0! when `b` is 0, which needs no
+    /// rounding.
     pub(crate) fn divide(&self, a: f64, b: f64) -> Step<f64> {
         if b == 0.0 {
             return Err(Exit::Error(WorksheetErrorCode::Div0));
         }
         self.rounding()?;
-        Ok(a / b)
+        Ok(excel_numeric::excel_x87_div(a, b))
     }
 
     /// A number result as the worksheet holds it. A result that is not finite (an overflow) is

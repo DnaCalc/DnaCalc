@@ -17,6 +17,8 @@ pub enum FilePrefix {
     Bare,
     /// `_xlfn.`, before a function Excel added after its 2007 file format (`_xlfn.IFNA(...)`).
     Xlfn,
+    /// `_xlfn._xlws.`, before the worksheet-only dynamic-array functions FILTER and SORT.
+    XlfnXlws,
 }
 
 impl FilePrefix {
@@ -25,15 +27,14 @@ impl FilePrefix {
         match self {
             Self::Bare => "",
             Self::Xlfn => "_xlfn.",
+            Self::XlfnXlws => "_xlfn._xlws.",
         }
     }
 }
 
 /// Each named function of the catalogue by its spelling, in byte order of the spelling (checked
-/// below, since the lookup is a binary search), with the prefix a file writes before it. No
-/// catalogued function is stored with `_xlfn._xlws.`, the prefix Excel writes before FILTER and
-/// SORT, so there is no variant for it.
-const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
+/// below, since the lookup is a binary search), with the prefix a file writes before it.
+const FILE_PREFIXES: [(&str, FilePrefix); 494] = [
     ("ABS", FilePrefix::Bare),
     ("ACCRINT", FilePrefix::Bare),
     ("ACCRINTM", FilePrefix::Bare),
@@ -82,6 +83,8 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("BITOR", FilePrefix::Xlfn),
     ("BITRSHIFT", FilePrefix::Xlfn),
     ("BITXOR", FilePrefix::Xlfn),
+    ("BYCOL", FilePrefix::Xlfn),
+    ("BYROW", FilePrefix::Xlfn),
     ("CEILING", FilePrefix::Bare),
     ("CEILING.MATH", FilePrefix::Xlfn),
     ("CEILING.PRECISE", FilePrefix::Xlfn),
@@ -96,6 +99,8 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("CHISQ.TEST", FilePrefix::Xlfn),
     ("CHITEST", FilePrefix::Bare),
     ("CHOOSE", FilePrefix::Bare),
+    ("CHOOSECOLS", FilePrefix::Xlfn),
+    ("CHOOSEROWS", FilePrefix::Xlfn),
     ("CLEAN", FilePrefix::Bare),
     ("CODE", FilePrefix::Bare),
     ("COLUMN", FilePrefix::Bare),
@@ -160,6 +165,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("DOLLARDE", FilePrefix::Bare),
     ("DOLLARFR", FilePrefix::Bare),
     ("DPRODUCT", FilePrefix::Bare),
+    ("DROP", FilePrefix::Xlfn),
     ("DSTDEV", FilePrefix::Bare),
     ("DSTDEVP", FilePrefix::Bare),
     ("DSUM", FilePrefix::Bare),
@@ -178,6 +184,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("EVEN", FilePrefix::Bare),
     ("EXACT", FilePrefix::Bare),
     ("EXP", FilePrefix::Bare),
+    ("EXPAND", FilePrefix::Xlfn),
     ("EXPON.DIST", FilePrefix::Xlfn),
     ("EXPONDIST", FilePrefix::Bare),
     ("F.DIST", FilePrefix::Xlfn),
@@ -189,6 +196,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("FACTDOUBLE", FilePrefix::Bare),
     ("FALSE", FilePrefix::Bare),
     ("FDIST", FilePrefix::Bare),
+    ("FILTER", FilePrefix::XlfnXlws),
     ("FILTERXML", FilePrefix::Xlfn),
     ("FIND", FilePrefix::Bare),
     ("FINDB", FilePrefix::Bare),
@@ -225,6 +233,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("HEX2OCT", FilePrefix::Bare),
     ("HLOOKUP", FilePrefix::Bare),
     ("HOUR", FilePrefix::Bare),
+    ("HSTACK", FilePrefix::Xlfn),
     ("HYPERLINK", FilePrefix::Bare),
     ("HYPGEOM.DIST", FilePrefix::Xlfn),
     ("HYPGEOMDIST", FilePrefix::Bare),
@@ -299,6 +308,8 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("LOGNORMDIST", FilePrefix::Bare),
     ("LOOKUP", FilePrefix::Bare),
     ("LOWER", FilePrefix::Bare),
+    ("MAKEARRAY", FilePrefix::Xlfn),
+    ("MAP", FilePrefix::Xlfn),
     ("MATCH", FilePrefix::Bare),
     ("MAX", FilePrefix::Bare),
     ("MAXA", FilePrefix::Bare),
@@ -391,6 +402,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("RANK.EQ", FilePrefix::Xlfn),
     ("RATE", FilePrefix::Bare),
     ("RECEIVED", FilePrefix::Bare),
+    ("REDUCE", FilePrefix::Xlfn),
     ("REGEXEXTRACT", FilePrefix::Xlfn),
     ("REGEXREPLACE", FilePrefix::Xlfn),
     ("REGEXTEST", FilePrefix::Xlfn),
@@ -407,11 +419,13 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("ROWS", FilePrefix::Bare),
     ("RRI", FilePrefix::Xlfn),
     ("RSQ", FilePrefix::Bare),
+    ("SCAN", FilePrefix::Xlfn),
     ("SEARCH", FilePrefix::Bare),
     ("SEARCHB", FilePrefix::Bare),
     ("SEC", FilePrefix::Xlfn),
     ("SECH", FilePrefix::Xlfn),
     ("SECOND", FilePrefix::Bare),
+    ("SEQUENCE", FilePrefix::Xlfn),
     ("SERIESSUM", FilePrefix::Bare),
     ("SHEET", FilePrefix::Xlfn),
     ("SHEETS", FilePrefix::Xlfn),
@@ -423,6 +437,8 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("SLN", FilePrefix::Bare),
     ("SLOPE", FilePrefix::Bare),
     ("SMALL", FilePrefix::Bare),
+    ("SORT", FilePrefix::XlfnXlws),
+    ("SORTBY", FilePrefix::Xlfn),
     ("SQRT", FilePrefix::Bare),
     ("SQRTPI", FilePrefix::Bare),
     ("STANDARDIZE", FilePrefix::Bare),
@@ -452,6 +468,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("T.INV", FilePrefix::Xlfn),
     ("T.INV.2T", FilePrefix::Xlfn),
     ("T.TEST", FilePrefix::Xlfn),
+    ("TAKE", FilePrefix::Xlfn),
     ("TAN", FilePrefix::Bare),
     ("TANH", FilePrefix::Bare),
     ("TBILLEQ", FilePrefix::Bare),
@@ -466,7 +483,9 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("TIME", FilePrefix::Bare),
     ("TIMEVALUE", FilePrefix::Bare),
     ("TINV", FilePrefix::Bare),
+    ("TOCOL", FilePrefix::Xlfn),
     ("TODAY", FilePrefix::Bare),
+    ("TOROW", FilePrefix::Xlfn),
     ("TRANSPOSE", FilePrefix::Bare),
     ("TREND", FilePrefix::Bare),
     ("TRIM", FilePrefix::Bare),
@@ -477,6 +496,7 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("TYPE", FilePrefix::Bare),
     ("UNICHAR", FilePrefix::Xlfn),
     ("UNICODE", FilePrefix::Xlfn),
+    ("UNIQUE", FilePrefix::Xlfn),
     ("UPPER", FilePrefix::Bare),
     ("VALUE", FilePrefix::Bare),
     ("VALUETOTEXT", FilePrefix::Xlfn),
@@ -488,12 +508,15 @@ const FILE_PREFIXES: [(&str, FilePrefix); 472] = [
     ("VARPA", FilePrefix::Bare),
     ("VDB", FilePrefix::Bare),
     ("VLOOKUP", FilePrefix::Bare),
+    ("VSTACK", FilePrefix::Xlfn),
     ("WEEKDAY", FilePrefix::Bare),
     ("WEEKNUM", FilePrefix::Bare),
     ("WEIBULL", FilePrefix::Bare),
     ("WEIBULL.DIST", FilePrefix::Xlfn),
     ("WORKDAY", FilePrefix::Bare),
     ("WORKDAY.INTL", FilePrefix::Bare),
+    ("WRAPCOLS", FilePrefix::Xlfn),
+    ("WRAPROWS", FilePrefix::Xlfn),
     ("XIRR", FilePrefix::Bare),
     ("XLOOKUP", FilePrefix::Xlfn),
     ("XMATCH", FilePrefix::Xlfn),
