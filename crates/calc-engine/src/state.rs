@@ -337,7 +337,9 @@ impl EngineState {
         }
         let areas = |node| published_areas(self, inputs, node);
         let mut cells: Vec<CellKey> = dirty_closure(self, inputs, self.pending.clone(), &areas)
-            .into_keys()
+            .members()
+            .iter()
+            .copied()
             .map(|node| live_anchor(self, node))
             .collect();
         cells.sort();
