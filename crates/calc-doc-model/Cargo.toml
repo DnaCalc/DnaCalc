@@ -17,3 +17,10 @@ portability = "portable"
 calc-value = { path = "../calc-value" }
 serde = "=1.0.229"
 serde_json = "=1.0.154"
+
+# The unit tests run natively and in Chrome and Firefox under wasm-bindgen-test-runner 0.2.117,
+# which runs only test binaries built with wasm-bindgen 0.2.117 exactly; wasm-bindgen-test 0.3.67
+# is the release built on it (the pair calc-value and calc-func pin). Test-only, wasm32-only.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "=0.2.117"
+wasm-bindgen-test = "=0.3.67"

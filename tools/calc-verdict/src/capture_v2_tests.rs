@@ -806,7 +806,7 @@ fn capture_failures_are_counted_in_the_report() {
         Some(CaptureFailureCounts { total: 2, by_stage })
     );
     let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
-    assert_eq!(encoded["version"], 4);
+    assert_eq!(encoded["version"], 5);
     assert_eq!(
         encoded["capture_failures"],
         serde_json::json!({"total": 2, "by_stage": {"isolation": 1, "value": 1}})
@@ -940,4 +940,407 @@ fn an_inventory_failure_refuses_the_record() {
         error.to_string().contains("records an inventory failure"),
         "{error}"
     );
+}
+
+// --- legacy array formulas ------------------------------------------------------------------------
+
+/// A version 2 live capture whose sheet Calc holds a legacy array formula over L1:L3 (anchor L1,
+/// members L2 and L3, each showing its own element: 10, 20, 30), a legacy array formula over its
+/// one cell N1 (6) and an ordinary formula O1 (1).
+const LEGACY: &str = r##"{"format": "dnacalc-capture-record", "version": 2, "case": "c", "source": "sha256:in",
+ "acquisition": {"kind": "live_capture"}, "environment": null,
+ "session": {"revision": 1, "operations": [],
+   "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
+   "tool": "calc-oracle-excel test", "packages": {"input": "sha256:in", "output": null}, "failures": []},
+ "sheets": [{"name": "Calc", "visibility": "visible"}],
+ "formulas": [{"sheet": "Calc", "row": 1, "column": 12, "kind": "legacy_array_anchor", "ref": "L1:L3", "formula": "=Data!A1:A3*10"},
+              {"sheet": "Calc", "row": 1, "column": 14, "kind": "legacy_array_anchor", "ref": "N1", "formula": "=SUM(Data!A1:A3)"},
+              {"sheet": "Calc", "row": 1, "column": 15, "kind": "ordinary", "formula": "=1"},
+              {"sheet": "Calc", "row": 2, "column": 12, "kind": "legacy_array_member", "anchor": "L1", "formula": "=Data!A1:A3*10"},
+              {"sheet": "Calc", "row": 3, "column": 12, "kind": "legacy_array_member", "anchor": "L1", "formula": "=Data!A1:A3*10"}],
+ "shared_ranges": [],
+ "observations": [{"sheet": "Calc", "row": 1, "column": 12, "excel_raw": {"number": "4024000000000000"}},
+                  {"sheet": "Calc", "row": 1, "column": 14, "excel_raw": {"number": "4018000000000000"}},
+                  {"sheet": "Calc", "row": 1, "column": 15, "excel_raw": {"number": "3ff0000000000000"}},
+                  {"sheet": "Calc", "row": 2, "column": 12, "excel_raw": {"number": "4034000000000000"}},
+                  {"sheet": "Calc", "row": 3, "column": 12, "excel_raw": {"number": "403e000000000000"}}],
+ "saved": [], "reopened": []}"##;
+
+fn legacy() -> CaptureRecord {
+    CaptureRecord::decode(LEGACY.as_bytes()).unwrap()
+}
+
+/// A run at revision 1 under [`CONTEXT`] that calculated each cell of `values`, with the
+/// evaluation record listing each evaluation.
+fn calculated_cells(values: &[(CellAddress, f64)]) -> (ResultSet, EvaluationRecord) {
+    let results = ResultSet {
+        case: "c".to_owned(),
+        source: "sha256:in".to_owned(),
+        run: RunIdentity {
+            revision: 1,
+            context: CONTEXT.to_owned(),
+        },
+        results: values
+            .iter()
+            .enumerate()
+            .map(|(i, (cell, value))| CellResult {
+                cell: cell.clone(),
+                provenance: Provenance::Calculated {
+                    tick: i as u64 + 1,
+                    revision: 1,
+                    context: CONTEXT.to_owned(),
+                },
+                value: Some(CalcValue::number(*value)),
+            })
+            .collect(),
+    };
+    let evaluations = EvaluationRecord {
+        case: "c".to_owned(),
+        source: "sha256:in".to_owned(),
+        evaluations: values
+            .iter()
+            .enumerate()
+            .map(|(i, (cell, _))| Evaluation {
+                cell: cell.clone(),
+                tick: i as u64 + 1,
+                revision: 1,
+                context: CONTEXT.to_owned(),
+            })
+            .collect(),
+    };
+    (results, evaluations)
+}
+
+/// The cells of [`LEGACY`] in its inventory order, each with Excel's value.
+fn legacy_values() -> Vec<(CellAddress, f64)> {
+    vec![
+        (cell("Calc", 1, 12), 10.0),
+        (cell("Calc", 1, 14), 6.0),
+        (cell("Calc", 1, 15), 1.0),
+        (cell("Calc", 2, 12), 20.0),
+        (cell("Calc", 3, 12), 30.0),
+    ]
+}
+
+/// The legacy array kinds decode from their JSON form (an anchor with its range, a member naming
+/// its anchor) and the record round-trips exactly.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn legacy_array_kinds_decode_and_round_trip() {
+    use crate::FormulaKind;
+    let record = legacy();
+    let kinds: Vec<(String, FormulaKind)> = record
+        .formulas
+        .iter()
+        .map(|f| (f.cell.a1(), f.kind))
+        .collect();
+    let member = FormulaKind::LegacyArrayMember {
+        anchor_row: 1,
+        anchor_column: 12,
+    };
+    assert_eq!(
+        kinds,
+        [
+            (
+                "L1".to_owned(),
+                FormulaKind::LegacyArrayAnchor {
+                    rows: 3,
+                    columns: 1
+                }
+            ),
+            (
+                "N1".to_owned(),
+                FormulaKind::LegacyArrayAnchor {
+                    rows: 1,
+                    columns: 1
+                }
+            ),
+            ("O1".to_owned(), FormulaKind::Ordinary),
+            ("L2".to_owned(), member),
+            ("L3".to_owned(), member),
+        ]
+    );
+    assert!(record.formulas.iter().all(|f| !f.dynamic_array));
+    let encoded = record.encode().unwrap();
+    for written in [
+        r#""column":12,"kind":"legacy_array_anchor","ref":"L1:L3","formula":"=Data!A1:A3*10"}"#,
+        r#""column":14,"kind":"legacy_array_anchor","ref":"N1","formula""#,
+        r#""row":2,"column":12,"kind":"legacy_array_member","anchor":"L1","formula""#,
+    ] {
+        assert!(encoded.contains(written), "{written} not in {encoded}");
+    }
+    let decoded = CaptureRecord::decode(encoded.as_bytes()).unwrap();
+    assert_eq!(decoded, record);
+    assert_eq!(decoded.encode().unwrap(), encoded);
+}
+
+/// A malformed legacy array entry is refused with its path: a range that does not start at the
+/// anchor, runs up or left, is not a range, or is not written in its one form; a member whose
+/// anchor is not above or left of it; a member without its anchor, an anchor without its range;
+/// and a member that belongs to another kind (a ref on an ordinary formula, a group on an anchor,
+/// a dynamic-array flag on a legacy cell). A version 1 record has no legacy kinds.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn malformed_legacy_array_entries_are_refused_with_their_path() {
+    let anchor = r#""kind": "legacy_array_anchor", "ref": "L1:L3""#;
+    let member = r#""kind": "legacy_array_member", "anchor": "L1""#;
+    let ordinary = r#""kind": "ordinary""#;
+    for (from, to, path, message) in [
+        (
+            anchor,
+            r#""kind": "legacy_array_anchor", "ref": "M1:M3""#,
+            "capture.formulas[0].ref",
+            "\"M1:M3\" does not start at the anchor L1",
+        ),
+        (
+            anchor,
+            r#""kind": "legacy_array_anchor", "ref": "L1:K3""#,
+            "capture.formulas[0].ref",
+            "does not start at the anchor L1 and extend down and right from it",
+        ),
+        (
+            anchor,
+            r#""kind": "legacy_array_anchor", "ref": "L1:""#,
+            "capture.formulas[0].ref",
+            "is not a range of relative A1 references",
+        ),
+        (
+            anchor,
+            r#""kind": "legacy_array_anchor", "ref": "$L$1:$L$3""#,
+            "capture.formulas[0].ref",
+            "is not a range of relative A1 references",
+        ),
+        (
+            r#""kind": "legacy_array_anchor", "ref": "N1""#,
+            r#""kind": "legacy_array_anchor", "ref": "N1:N1""#,
+            "capture.formulas[1].ref",
+            "is \"N1:N1\"; this range is written \"N1\"",
+        ),
+        (
+            anchor,
+            r#""kind": "legacy_array_anchor""#,
+            "capture.formulas[0].kind",
+            "is legacy_array_anchor and has no ref",
+        ),
+        (
+            anchor,
+            r#""kind": "legacy_array_anchor", "ref": "L1:L3", "group": 0"#,
+            "capture.formulas[0].group",
+            "is given for a legacy_array_anchor formula",
+        ),
+        (
+            anchor,
+            r#""kind": "legacy_array_anchor", "ref": "L1:L3", "anchor": "L1""#,
+            "capture.formulas[0].anchor",
+            "is given for a legacy_array_anchor formula",
+        ),
+        (
+            member,
+            r#""kind": "legacy_array_member", "anchor": "L3""#,
+            "capture.formulas[3].anchor",
+            "\"L3\" is not above or left of the member L2",
+        ),
+        (
+            member,
+            r#""kind": "legacy_array_member", "anchor": "L2""#,
+            "capture.formulas[3].anchor",
+            "\"L2\" is not above or left of the member L2",
+        ),
+        (
+            member,
+            r#""kind": "legacy_array_member", "anchor": "l1""#,
+            "capture.formulas[3].anchor",
+            "is not a relative A1 reference",
+        ),
+        (
+            member,
+            r#""kind": "legacy_array_member""#,
+            "capture.formulas[3].kind",
+            "is legacy_array_member and has no anchor",
+        ),
+        (
+            member,
+            r#""kind": "legacy_array_member", "anchor": "L1", "ref": "L1:L3""#,
+            "capture.formulas[3].ref",
+            "is given for a legacy_array_member formula",
+        ),
+        (
+            ordinary,
+            r#""kind": "ordinary", "ref": "O1""#,
+            "capture.formulas[2].ref",
+            "is given for an ordinary formula",
+        ),
+        (
+            anchor,
+            r#""kind": "legacy_array", "ref": "L1:L3""#,
+            "capture.formulas[0].kind",
+            "\"legacy_array\" is not one of ordinary, shared_master, shared_child, legacy_array_anchor, legacy_array_member",
+        ),
+        (
+            r#""ref": "N1", "formula": "=SUM(Data!A1:A3)"}"#,
+            r#""ref": "N1", "formula": "=SUM(Data!A1:A3)", "dynamic_array": true}"#,
+            "capture.formulas[1].dynamic_array",
+            "is given for a legacy_array_anchor formula",
+        ),
+    ] {
+        let text = LEGACY.replacen(from, to, 1);
+        assert_ne!(text, LEGACY, "{from} not found");
+        let error = CaptureRecord::decode(text.as_bytes()).err().unwrap();
+        assert_eq!(error.path, path, "{to}: {error}");
+        assert!(error.message.contains(message), "{to}: {error}");
+    }
+    // A version 1 record admits no ref or anchor member, so no legacy kind.
+    let v1 = r#"{"format": "dnacalc-capture-record", "version": 1, "case": "c", "source": "s",
+        "acquisition": {"kind": "live_capture"}, "environment": null,
+        "sheets": [{"name": "Calc", "visibility": "visible"}],
+        "formulas": [{"sheet": "Calc", "row": 1, "column": 14, "kind": "legacy_array_anchor", "ref": "N1"}],
+        "observations": []}"#;
+    let error = CaptureRecord::decode(v1.as_bytes()).err().unwrap();
+    assert_eq!(
+        (
+            error.path.as_str(),
+            error.message.contains("unknown member \"ref\"")
+        ),
+        ("capture.formulas[0]", true),
+        "{error}"
+    );
+}
+
+/// Each cell of a legacy array formula is judged like an ordinary formula cell, by its own value:
+/// the anchor and each member matched when calculated as Excel shows it, and a member calculated
+/// as another value mismatched. The strata count the anchors and members, and each cell of the
+/// report names its range or its anchor.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn legacy_array_cells_are_judged_each_by_its_own_value() {
+    let capture = legacy();
+    let (results, proof) = calculated_cells(&legacy_values());
+    assert_eq!(
+        verdict_names(&capture, &results, &proof),
+        vec!["matched"; 5]
+    );
+    let report = judge(&capture, &results, &proof, &VerdictPolicy::default()).unwrap();
+    assert_eq!(report.counts.denominator, 5);
+    assert_eq!(
+        (
+            report.strata.ordinary,
+            report.strata.legacy_array_anchor,
+            report.strata.legacy_array_member
+        ),
+        (1, 2, 2)
+    );
+    let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
+    assert_eq!(encoded["strata"]["legacy_array_anchor"], 2);
+    assert_eq!(encoded["strata"]["legacy_array_member"], 2);
+    let cells: Vec<String> = encoded["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|cell| {
+            format!(
+                "{} {} ref={} anchor={}",
+                cell["cell"].as_str().unwrap(),
+                cell["kind"].as_str().unwrap(),
+                cell["ref"],
+                cell["anchor"]
+            )
+        })
+        .collect();
+    assert_eq!(
+        cells,
+        [
+            "L1 legacy_array_anchor ref=\"L1:L3\" anchor=null",
+            "N1 legacy_array_anchor ref=\"N1\" anchor=null",
+            "O1 ordinary ref=null anchor=null",
+            "L2 legacy_array_member ref=null anchor=\"L1\"",
+            "L3 legacy_array_member ref=null anchor=\"L1\"",
+        ]
+    );
+
+    // L3 calculated as the anchor's value, as a scalar reading of the array would give it.
+    let mut wrong = legacy_values();
+    wrong[4].1 = 10.0;
+    let (results, proof) = calculated_cells(&wrong);
+    assert_eq!(
+        verdict_names(&capture, &results, &proof),
+        ["matched", "matched", "matched", "matched", "mismatched"]
+    );
+    // A member with no result is missing, never dropped from the denominator.
+    let mut omitted = legacy_values();
+    omitted.remove(3);
+    let (results, proof) = calculated_cells(&omitted);
+    let report = judge(&capture, &results, &proof, &VerdictPolicy::default()).unwrap();
+    assert_eq!((report.counts.denominator, report.counts.missing), (5, 1));
+}
+
+/// The inventory must list every cell of each legacy array range once, the anchor and each member
+/// naming it: a record with a member left out, listed as another kind, naming another anchor, or
+/// outside its anchor's range or naming a cell that is no anchor, or with an anchor whose range is
+/// empty or leaves the grid, is refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn a_legacy_array_must_list_every_cell_of_its_range() {
+    use crate::{FormulaCell, FormulaKind};
+    let member_of = |anchor_row, anchor_column| FormulaKind::LegacyArrayMember {
+        anchor_row,
+        anchor_column,
+    };
+    let mut dropped = legacy();
+    dropped.formulas.remove(4);
+    dropped.observations.remove(4);
+    refused(
+        &dropped,
+        "Calc!L3 lies in the range of the legacy array formula at Calc!L1 and is not in the formula inventory",
+    );
+    let mut ordinary = legacy();
+    ordinary.formulas[4].kind = FormulaKind::Ordinary;
+    refused(
+        &ordinary,
+        "Calc!L3 lies in the range of the legacy array formula at Calc!L1 and the formula inventory lists it as ordinary",
+    );
+    let mut elsewhere = legacy();
+    elsewhere.formulas[4].kind = member_of(2, 12);
+    refused(
+        &elsewhere,
+        "Calc!L3 lies in the range of the legacy array formula at Calc!L1 and the formula inventory lists it as legacy_array_member, not as a member of that array",
+    );
+    // A member below the anchor's range, which names the anchor.
+    let mut beyond = legacy();
+    beyond.formulas.push(FormulaCell {
+        cell: cell("Calc", 4, 12),
+        kind: member_of(1, 12),
+        formula: None,
+        dynamic_array: false,
+    });
+    refused(
+        &beyond,
+        "Calc!L4 is a member of a legacy array formula anchored at Calc!L1, which the formula inventory does not list as the anchor of a range covering it",
+    );
+    // A member naming an ordinary formula as its anchor.
+    let mut not_anchor = legacy();
+    not_anchor.formulas.push(FormulaCell {
+        cell: cell("Calc", 2, 15),
+        kind: member_of(1, 15),
+        formula: None,
+        dynamic_array: false,
+    });
+    refused(
+        &not_anchor,
+        "Calc!O2 is a member of a legacy array formula anchored at Calc!O1, which the formula inventory does not list as the anchor of a range covering it",
+    );
+    for (rows, columns) in [
+        (0, 1),
+        (1, 0),
+        (crate::value::MAX_ROWS + 1, 1),
+        (1, 2 << 14),
+    ] {
+        let mut empty = legacy();
+        empty.formulas[1].kind = FormulaKind::LegacyArrayAnchor { rows, columns };
+        refused(
+            &empty,
+            &format!(
+                "the legacy array formula at Calc!N1 has a range of {rows} by {columns} cells, which is not a range of Excel's grid starting at the cell"
+            ),
+        );
+    }
 }

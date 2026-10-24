@@ -355,6 +355,19 @@ fn filled_value(
         })
     };
     let definitions = host.model.definitions();
+    // L3 (dc-m3u): a data table's cell projects the result the engine calculated for it, as a
+    // formula's does; before its first calculation, what the file cached.
+    if definitions.data_table_containing(at).is_some()
+        && let Some(result) = host.engine.result(at)
+    {
+        return formula_value(
+            Some(result),
+            stale.binary_search(&at).is_ok(),
+            cause,
+            true,
+            file_cache_stands,
+        );
+    }
     if definitions.unloaded(at).is_some() {
         return match cache {
             Some(cache) if file_cache_stands => ProjectedValue::FileCached(cache),

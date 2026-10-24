@@ -93,6 +93,8 @@ impl std::error::Error for PrerequisiteError {}
 pub(crate) enum Binding {
     Placed(FormulaInstance, ArrayRole),
     Refused(NotModeled),
+    /// A cell of a what-if data table (L3, dc-m3u), calculated from the table.
+    DataTable(calc_doc_model::DataTable),
 }
 
 /// How a bound formula's result fills cells.
@@ -174,6 +176,9 @@ pub struct EngineState {
     /// The formulas the last published recalculation found on a cycle (L3, dc-m3u); with
     /// iteration on, every recalculation calculates them again.
     pub(crate) cycle_members: BTreeSet<NodeId>,
+    /// Whether recalculations leave the cells of data tables, and the formulas that read only
+    /// through them, uncalculated (L3, dc-m3u): Excel's "Automatic except for data tables".
+    pub(crate) tables_deferred: bool,
 }
 
 impl EngineState {
@@ -203,6 +208,7 @@ impl EngineState {
             templates: HashMap::new(),
             environment: None,
             cycle_members: BTreeSet::new(),
+            tables_deferred: false,
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -213,7 +219,43 @@ impl EngineState {
                 }
             }
         }
+        // L3 (dc-m3u): each cell of a what-if data table is a node, calculated from its table.
+        for table in inputs.definitions().data_tables() {
+            let area = table.area();
+            for row in area.first().row()..=area.last().row() {
+                for column in area.first().column()..=area.last().column() {
+                    let at = CellKey::new(area.sheet(), row, column)
+                        .expect("a cell of the table's area");
+                    if state.by_anchor.contains_key(&at)
+                        || matches!(inputs.cell(at), Some(CellInput::Formula(_)))
+                    {
+                        continue;
+                    }
+                    let id = issue_node_id(&mut state.ids);
+                    state.add_node(id, at);
+                    state.pending.insert(id);
+                }
+            }
+        }
         state
+    }
+
+    /// Whether recalculations leave the cells of what-if data tables, and the formulas that read
+    /// only through them, uncalculated: Excel's "Automatic except for data tables", which a host
+    /// sets until a recalculation is asked for (L3, dc-m3u). Those nodes stay pending.
+    pub fn set_tables_deferred(&mut self, deferred: bool) {
+        self.tables_deferred = deferred;
+    }
+
+    /// Whether a recalculation would calculate anything: a pending node, other than a data
+    /// table's cell while tables are deferred ([`EngineState::set_tables_deferred`]).
+    pub fn needs_recalc(&self, inputs: &ModelRoot) -> bool {
+        self.pending.iter().any(|node| {
+            !(self.tables_deferred
+                && self
+                    .node(*node)
+                    .is_some_and(|record| crate::data_table::is_table_cell(inputs, record.anchor())))
+        })
     }
 
     /// The state of an opened file's snapshot, as [`EngineState::new`] makes it, with the results
@@ -311,7 +353,7 @@ impl EngineState {
         self.node(node)?;
         match self.bindings.get(&node)? {
             Binding::Placed(instance, _) => Some(instance),
-            Binding::Refused(_) => None,
+            Binding::Refused(_) | Binding::DataTable(_) => None,
         }
     }
 

@@ -895,6 +895,7 @@ pub fn load(
     let mut cells = Vec::new();
     let mut sheets = Vec::with_capacity(declared.len());
     let (mut arrays, mut unloaded, mut tables) = (Vec::new(), Vec::new(), Vec::new());
+    let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
     for (declared, &id) in declared.iter().zip(&issued) {
         let loaded = sheet::load_sheet(package, &context, id, &declared.part)
@@ -903,6 +904,7 @@ pub fn load(
             Ok((loaded, sheet_tables)) => {
                 cells.extend(loaded.inputs);
                 arrays.extend(loaded.arrays);
+                data_tables.extend(loaded.data_tables.iter().copied());
                 hidden_rows.extend(
                     loaded
                         .hidden_rows
@@ -986,7 +988,8 @@ pub fn load(
     let definitions = Definitions::new(arrays, names, tables, unloaded)
         .with_hidden_rows(hidden_rows)
         .with_macro_enabled(macro_enabled)
-        .with_iteration(iteration);
+        .with_iteration(iteration)
+        .with_data_tables(data_tables);
     let entries = declared
         .into_iter()
         .zip(&issued)

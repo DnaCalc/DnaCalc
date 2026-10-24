@@ -48,8 +48,10 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    The message starts with the bead ID and names the legacy repository, commit and paths it
    ported from. Several commits per package is normal.
 
-   `cargo xtask check` builds the workspace and tests every package (one line each); `--wasm`
-   adds the portable packages' tests in headless Chrome and Firefox.
+   `cargo xtask check` runs the five architecture checks (dependencies, os-imports,
+   wasm-refusal, tree-reference-tokens, word-scan), builds the workspace and tests every package
+   (one line each), and fails on any of them; `--wasm` adds the portable packages' tests in
+   headless Chrome and Firefox.
 4. **Measure.** Run the corpus comparison (`cargo xtask corpus`, or `cargo xtask compare` per
    workbook until it lands) before and after the package, and record the summary.
 5. **Close.**

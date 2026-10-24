@@ -11,7 +11,7 @@
 //! the grid's last row or column becomes `#REF!`, and a range is cut at the grid's edge. The axis
 //! arithmetic is ported from OxCalc 1bd514ef (`src/oxcalc-core/src/grid/reference_engine/
 //! transform.rs`, `transform_structural_axis_index` and `transform_structural_axis_range`); its
-//! reference profiles and payload codecs are left behind. A renamed sheet is renamed in every
+//! own reference model and payload codecs are left behind. A renamed sheet is renamed in every
 //! qualifier that names it, quoted when its new name needs quotes; a removed sheet's qualifier
 //! becomes `#REF!` (`#REF!A1`), and a run of sheets loses an end that is removed to the next sheet
 //! inward.
@@ -22,7 +22,9 @@
 
 use super::bind::{ReferenceSite, bind_references};
 use super::notation;
-use super::{FormulaAnchor, ReferenceCatalog, ReferenceNotation, ReferenceShape, SheetTarget};
+use super::{
+    AxisRef, FormulaAnchor, ReferenceCatalog, ReferenceNotation, ReferenceShape, SheetTarget,
+};
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, TextSpan, Token, TokenKind};
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
 
@@ -385,6 +387,119 @@ fn axis_site(
             }
         }
     }
+}
+
+/// The formula `text` (without `=`) written in `from` notation, rewritten in `to` notation for a
+/// formula in the cell `at`: each reference the binder reads (a cell, a rectangle, whole rows or
+/// columns, with any qualifier as written) spelled in the other notation, every other character
+/// kept. A1 `$B$3` is R1C1 `R3C2`, `B3` in C5 is `R[-2]C[-1]`, `2:4` is `R2:R4`, `B:B` is `C2`; a
+/// relative R1C1 offset that leaves the grid at `at` is `#REF!` in A1. `None` when the text does
+/// not parse. Excel shows a formula in either notation (`Range.Formula`, `Range.FormulaR1C1`);
+/// the document holds A1 text.
+pub fn convert_notation(
+    text: &str,
+    at: CellKey,
+    from: ReferenceNotation,
+    to: ReferenceNotation,
+    catalog: &dyn ReferenceCatalog,
+) -> Option<String> {
+    let source = format!("={text}");
+    let tree = crate::parse_formula(&source);
+    if !tree.diagnostics().is_empty() {
+        return None;
+    }
+    if from == to {
+        return Some(text.to_owned());
+    }
+    let units: Vec<u16> = source.encode_utf16().collect();
+    let anchor = FormulaAnchor::new(at);
+    let mut replacements: Vec<(TextSpan, String)> = Vec::new();
+    for site in bind_references(&tree, from, anchor, catalog) {
+        let Ok(operand) = &site.binding else {
+            continue;
+        };
+        if matches!(operand.shape, ReferenceShape::Deleted) {
+            continue;
+        }
+        let written = String::from_utf16(&units[site.span.start..site.span.end()]).ok()?;
+        let (qualifier, _) = split_qualifier(&written);
+        let body = match to {
+            ReferenceNotation::R1C1 => r1c1_text(operand.shape),
+            ReferenceNotation::A1 => a1_text(operand.shape, at),
+        };
+        replacements.push((site.span, format!("{qualifier}{body}")));
+    }
+    let mut out: Vec<u16> = Vec::with_capacity(units.len());
+    let mut at_unit = 0;
+    for (span, text) in replacements {
+        out.extend_from_slice(&units[at_unit..span.start]);
+        out.extend(text.encode_utf16());
+        at_unit = span.end();
+    }
+    out.extend_from_slice(&units[at_unit..]);
+    String::from_utf16(&out).ok()?.strip_prefix('=').map(str::to_owned)
+}
+
+/// One axis in R1C1: `R3`, `R`, `R[-2]` (with `letter` R or C).
+fn r1c1_axis(letter: char, axis: AxisRef) -> String {
+    match axis {
+        AxisRef::Absolute(index) => format!("{letter}{index}"),
+        AxisRef::Relative(0) => letter.to_string(),
+        AxisRef::Relative(offset) => format!("{letter}[{offset}]"),
+    }
+}
+
+fn r1c1_text(shape: ReferenceShape) -> String {
+    let cell = |cell: super::CellRef| {
+        format!("{}{}", r1c1_axis('R', cell.row), r1c1_axis('C', cell.column))
+    };
+    match shape {
+        ReferenceShape::Cell(one) => cell(one),
+        ReferenceShape::Area { first, last } => format!("{}:{}", cell(first), cell(last)),
+        ReferenceShape::Rows { first, last } if first == last => r1c1_axis('R', first),
+        ReferenceShape::Rows { first, last } => {
+            format!("{}:{}", r1c1_axis('R', first), r1c1_axis('R', last))
+        }
+        ReferenceShape::Columns { first, last } if first == last => r1c1_axis('C', first),
+        ReferenceShape::Columns { first, last } => {
+            format!("{}:{}", r1c1_axis('C', first), r1c1_axis('C', last))
+        }
+        ReferenceShape::Deleted => "#REF!".to_owned(),
+    }
+}
+
+/// One A1 row (`3`, `$3`) or column (`B`, `$B`) at `anchor`; `None` off the grid.
+fn a1_axis(axis: AxisRef, anchor: u32, max: u32, column: bool) -> Option<String> {
+    let (dollar, index) = match axis {
+        AxisRef::Absolute(index) => ("$", i64::from(index)),
+        AxisRef::Relative(offset) => ("", i64::from(anchor) + i64::from(offset)),
+    };
+    let index = u32::try_from(index).ok().filter(|i| (1..=max).contains(i))?;
+    Some(if column {
+        format!("{dollar}{}", column_letters(index))
+    } else {
+        format!("{dollar}{index}")
+    })
+}
+
+fn a1_text(shape: ReferenceShape, at: CellKey) -> String {
+    let row = |axis| a1_axis(axis, at.row(), MAX_ROWS, false);
+    let column = |axis| a1_axis(axis, at.column(), MAX_COLUMNS, true);
+    let cell = |cell: super::CellRef| Some(format!("{}{}", column(cell.column)?, row(cell.row)?));
+    let text = match shape {
+        ReferenceShape::Cell(one) => cell(one),
+        ReferenceShape::Area { first, last } => {
+            cell(first).and_then(|a| Some(format!("{a}:{}", cell(last)?)))
+        }
+        ReferenceShape::Rows { first, last } => {
+            row(first).and_then(|a| Some(format!("{a}:{}", row(last)?)))
+        }
+        ReferenceShape::Columns { first, last } => {
+            column(first).and_then(|a| Some(format!("{a}:{}", column(last)?)))
+        }
+        ReferenceShape::Deleted => None,
+    };
+    text.unwrap_or_else(|| "#REF!".to_owned())
 }
 
 /// A site's text split into its leading qualifier (`Sheet2!`, `'Q2 Data'!`, `#REF!` or nothing)
@@ -790,5 +905,32 @@ mod tests {
         assert_eq!(quoted_if_needed("A1"), "'A1'");
         assert_eq!(quoted_if_needed("It's"), "'It''s'");
         assert_eq!(column_letters(28), "AB");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    /// Measured: Excel 16.0 through COM on 2026-10-23, each formula set in Sheet1!C5 through
+    /// `Range.Formula` and read back through `Range.FormulaR1C1`, and the reverse.
+    fn formulas_convert_between_a1_and_r1c1() {
+        use ReferenceNotation::{A1, R1C1};
+        let (catalog, one, _) = fixture();
+        let at = CellKey::new(one, 5, 3).unwrap();
+        let to_r1c1 = |text: &str| convert_notation(text, at, A1, R1C1, &catalog).unwrap();
+        let to_a1 = |text: &str| convert_notation(text, at, R1C1, A1, &catalog).unwrap();
+        assert_eq!(to_r1c1("$B$3+B3+C5"), "R3C2+R[-2]C[-1]+RC");
+        assert_eq!(to_r1c1("SUM(Sheet2!A1:B2)*$A1"), "SUM(Sheet2!R[-4]C[-2]:R[-3]C[-1])*R[-4]C1");
+        assert_eq!(
+            to_r1c1("SUM(2:4)+SUM(B:B)+SUM($B:$D)"),
+            "SUM(R[-3]:R[-1])+SUM(C[-1])+SUM(C2:C4)"
+        );
+        assert_eq!(to_r1c1("\"B3\"&TaxRate"), "\"B3\"&TaxRate");
+        assert_eq!(to_a1("R3C2+R[-2]C[-1]+RC"), "$B$3+B3+C5");
+        assert_eq!(to_r1c1("SUM(C:E)+$A$1:B9"), "SUM(C:C[2])+R1C1:R[4]C[-1]");
+        assert_eq!(to_a1("SUM(R2:R4)+SUM(C2)"), "SUM($2:$4)+SUM($B:$B)");
+        // Not measured: an offset that leaves the grid.
+        assert_eq!(to_a1("R[-10]C"), "#REF!");
+        for text in ["$B$3*2+B3", "SUM(Sheet2!A1:B2)", "SUM(C:E)+$A$1:B9"] {
+            assert_eq!(to_a1(&to_r1c1(text)), text, "{text}");
+        }
     }
 }

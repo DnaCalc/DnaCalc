@@ -73,11 +73,15 @@ pub fn step(
         None => {
             let current = host.model.revision();
             let requested = std::mem::take(&mut host.calculate_requested);
+            // L3 (dc-m3u): automatic except tables leaves data tables until a recalculation is
+            // asked for.
+            let deferred = host.calc_mode() == CalcMode::AutomaticExceptTables && !requested;
+            host.engine.set_tables_deferred(deferred);
             if !requested {
                 if host.calc_mode() == CalcMode::Manual {
                     return HostProgress::Manual;
                 }
-                if host.published == Some(current) && host.engine.pending().next().is_none() {
+                if host.published == Some(current) && !host.engine.needs_recalc(&host.model) {
                     return HostProgress::Current;
                 }
             }
