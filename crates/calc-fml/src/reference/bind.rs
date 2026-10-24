@@ -16,12 +16,13 @@
 //! an array constant holds constants only.
 
 use super::notation::{self, Spelled};
+use super::structured::{TableLookup, bind_structured};
 use super::{
     AxisRef, CellRef, FormulaAnchor, ReferenceNotation, ReferenceOperand, ReferenceShape,
     SheetTarget,
 };
 use crate::syntax::{SyntaxChild, SyntaxKind, SyntaxNode, SyntaxTree, TextSpan, Token, TokenKind};
-use calc_func::value::{SheetId, WorksheetErrorCode};
+use calc_func::value::{CellKey, SheetId, WorksheetErrorCode};
 
 /// The workbook identities a formula's references are bound against. Binding asks it only for
 /// sheets, by the name a qualifier spells, never for reference text.
@@ -38,6 +39,37 @@ pub trait ReferenceCatalog {
     fn defined_name(&self, name: &str, scope: NameScope) -> NameDefinition {
         let _ = (name, scope);
         NameDefinition::NotModelled
+    }
+
+    /// The table (ListObject) whose name is `name`, matched regardless of case (L3, dc-m3u). The
+    /// default is [`TableLookup::NotModelled`]: a structured reference is then refused.
+    fn table(&self, name: &str) -> TableLookup {
+        let _ = name;
+        TableLookup::NotModelled
+    }
+
+    /// The table whose area holds `cell`, which an unqualified structured reference (`[@Qty]`)
+    /// in a formula there names (L3, dc-m3u). The default is [`TableLookup::NotModelled`].
+    fn table_containing(&self, cell: CellKey) -> TableLookup {
+        let _ = cell;
+        TableLookup::NotModelled
+    }
+
+    /// The sheets a 3-D reference from `first` to `last` names, in the workbook's sheet order,
+    /// both included, whichever comes first (L3, dc-m3u). `None` when the catalogue does not
+    /// know the sheets' order: a 3-D reference is then refused ([`BindError::SheetSpan`]).
+    fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
+        let _ = (first, last);
+        None
+    }
+
+    /// Whether a call of a name that neither a function nor a defined name holds is the error
+    /// #NAME?: true when the workbook can hold no function of its own (no VBA project, no macro
+    /// sheet). The default, `false`, refuses such a call: a VBA or add-in function might hold
+    /// the name. Excel 16.0 (2026-10-23) gives `=FOO(1)` #NAME? in a workbook without macros and
+    /// stores it as `FOO(1)`.
+    fn unknown_calls_are_names(&self) -> bool {
+        false
     }
 }
 
@@ -70,6 +102,9 @@ pub struct ReferenceSite {
     /// The site's source, in UTF-16 code units of the formula text.
     pub span: TextSpan,
     pub binding: Result<ReferenceOperand, BindError>,
+    /// The reference takes the formula's row from its area by implicit intersection: a
+    /// structured reference's `#This Row` (`Sales[@Qty]`), bound to the column's data rows.
+    pub this_row: bool,
 }
 
 /// Why a site was refused at binding.
@@ -80,12 +115,24 @@ pub enum BindError {
     OutsideGrid,
     /// The catalogue has no sheet of this name.
     UnknownSheet { name: String },
-    /// A qualifier naming another workbook (`[Book2.xlsx]Sheet1!A1`); its binding belongs to
-    /// bead cfml-m3.5.
+    /// A qualifier naming another workbook (`[Book2.xlsx]Sheet1!A1`, or `[1]Sheet1!A1` as a file
+    /// stores it): external references are not modelled (L3, dc-m3u), and a formula holding one
+    /// is refused.
     ExternalWorkbook,
-    /// A run of sheets (`Sheet1:Sheet3!A1`, `'Sheet 1:Sheet 3'!A1`); its binding belongs to bead
-    /// cfml-m3.2.
+    /// A run of sheets (`Sheet1:Sheet3!A1`, `'Sheet 1:Sheet 3'!A1`) bound against a catalogue
+    /// that does not know the workbook's sheet order ([`ReferenceCatalog::sheet_span`]).
     SheetSpan,
+    /// A structured reference names a table the workbook does not hold (Excel refuses to enter
+    /// such a formula).
+    UnknownTable { name: String },
+    /// A structured reference names a column its table does not hold (Excel refuses to enter
+    /// such a formula).
+    UnknownColumn { name: String },
+    /// A structured reference bound against a catalogue that does not carry tables.
+    TablesNotModelled,
+    /// A structured reference whose combination of sections this package does not bind
+    /// (`#This Row` with another section, `#Headers` with `#Totals`).
+    StructuredReference,
     /// A qualifier (one sheet, a run of sheets, another workbook or `#REF!`) before an operand
     /// that is neither a cell, row or column of the formula's notation nor a name nor `#REF!`:
     /// `Sheet2!(A1)`, `Sheet2!Sheet3!A1`, `#REF!SUM(A1)`, `Sheet2!3`, and `#REF!(A1)`, which the
@@ -143,7 +190,8 @@ enum Qualifier {
     Sheet(String),
     Deleted,
     External,
-    Span,
+    /// A run of sheets: the first and last sheet names as written.
+    Span(String, String),
 }
 
 struct Binder<'c> {
@@ -189,6 +237,7 @@ impl Binder<'_> {
                 SyntaxKind::InvokeExpr if node.child_nodes().next().is_some_and(is_ref_error) => {
                     Some(Err(BindError::QualifiedNonReference))
                 }
+                SyntaxKind::IdentifierExpr if self.structured(node) => continue,
                 SyntaxKind::IdentifierExpr | SyntaxKind::NumberLiteralExpr => {
                     only_token(node).and_then(|token| self.alone(&Qualifier::Unqualified, token))
                 }
@@ -216,7 +265,47 @@ impl Binder<'_> {
     }
 
     fn push(&mut self, span: TextSpan, binding: Result<ReferenceOperand, BindError>) {
-        self.sites.push(ReferenceSite { span, binding });
+        self.sites.push(ReferenceSite {
+            span,
+            binding,
+            this_row: false,
+        });
+    }
+
+    /// Binds an identifier holding a bracket group as a structured reference (`Sales[Qty]`,
+    /// `[@Qty]`) and returns whether it was one: `false` for an identifier without brackets, and
+    /// for a bracket group that is no structured reference (`[y]`, a LAMBDA's optional
+    /// parameter, outside every table).
+    fn structured(&mut self, node: &SyntaxNode) -> bool {
+        let Some(token) = only_token(node) else {
+            return false;
+        };
+        if !token.text().contains('[') {
+            return false;
+        }
+        // In R1C1 notation a bracket marks a relative offset (`R[-1]C`), not a table.
+        if self.notation == ReferenceNotation::R1C1 && notation::r1c1(token.text()).is_some() {
+            return false;
+        }
+        if self.in_array_constant {
+            self.push(node.span(), Err(BindError::InArrayConstant));
+            return true;
+        }
+        match bind_structured(token.text(), self.anchor, self.catalog) {
+            None => false,
+            Some(Err(error)) => {
+                self.push(node.span(), Err(error));
+                true
+            }
+            Some(Ok(bound)) => {
+                self.sites.push(ReferenceSite {
+                    span: node.span(),
+                    binding: Ok(bound.operand),
+                    this_row: bound.this_row,
+                });
+                true
+            }
+        }
     }
 
     /// The binding of a qualified operand standing alone: the operand bound on the qualifier's
@@ -306,7 +395,7 @@ impl Binder<'_> {
         }
         let binding = match (&left_qualifier, &right_qualifier) {
             (_, Qualifier::Unqualified)
-            | (Qualifier::External | Qualifier::Span, _)
+            | (Qualifier::External | Qualifier::Span(..), _)
             | (Qualifier::Deleted, Qualifier::Deleted) => pair(left, right).and_then(|shape| {
                 Ok(ReferenceOperand {
                     sheet: self.sheet_target(&left_qualifier)?,
@@ -375,7 +464,18 @@ impl Binder<'_> {
             Qualifier::Unqualified => Ok(SheetTarget::Anchor),
             Qualifier::Deleted => Ok(SheetTarget::Deleted),
             Qualifier::External => Err(BindError::ExternalWorkbook),
-            Qualifier::Span => Err(BindError::SheetSpan),
+            Qualifier::Span(first, last) => {
+                let sheet = |name: &String| {
+                    self.catalog
+                        .sheet_named(name)
+                        .ok_or_else(|| BindError::UnknownSheet { name: name.clone() })
+                };
+                let (first, last) = (sheet(first)?, sheet(last)?);
+                match self.catalog.sheet_span(first, last) {
+                    Some(_) => Ok(SheetTarget::Span { first, last }),
+                    None => Err(BindError::SheetSpan),
+                }
+            }
             Qualifier::Sheet(name) => self
                 .catalog
                 .sheet_named(name)
@@ -487,7 +587,40 @@ fn qualified_parts(node: &SyntaxNode) -> Option<(Qualifier, &SyntaxNode)> {
             };
             Some((qualifier_of(qualifier), node.child_nodes().next()?))
         }
-        SyntaxKind::SheetSpan3DReferenceExpr => Some((Qualifier::Span, node.child_nodes().next()?)),
+        SyntaxKind::SheetSpan3DReferenceExpr => {
+            let names: Vec<&Token> = node
+                .children()
+                .iter()
+                .filter_map(|child| match child {
+                    SyntaxChild::Token(token)
+                        if matches!(
+                            token.kind(),
+                            TokenKind::Identifier | TokenKind::QuotedIdentifier
+                        ) =>
+                    {
+                        Some(token)
+                    }
+                    _ => None,
+                })
+                .collect();
+            let [first, last] = names[..] else {
+                return None;
+            };
+            let name = |token: &Token| match token.kind() {
+                TokenKind::QuotedIdentifier => unquote(token.text()),
+                _ => token.text().to_owned(),
+            };
+            let (first, last) = (name(first), name(last));
+            let qualifier = if [&first, &last]
+                .iter()
+                .any(|name| name.contains(['[', ']', '\\', '/']))
+            {
+                Qualifier::External
+            } else {
+                Qualifier::Span(first, last)
+            };
+            Some((qualifier, node.child_nodes().next()?))
+        }
         _ => None,
     }
 }
@@ -527,8 +660,8 @@ fn qualifier_of(token: &Token) -> Qualifier {
     };
     if name.contains(['[', ']', '\\', '/']) {
         Qualifier::External
-    } else if name.contains(':') {
-        Qualifier::Span
+    } else if let Some((first, last)) = name.split_once(':') {
+        Qualifier::Span(first.to_owned(), last.to_owned())
     } else {
         Qualifier::Sheet(name)
     }
@@ -607,10 +740,16 @@ mod tests {
             ["Sheet1!B3", "Sheet2!D7"]
         );
         assert_eq!(texts("=B3:'Sheet2'!D7", A1), ["B3", "'Sheet2'!D7"]);
-        // The parser reads an unquoted `B3:Sheet2!` as a run of sheets from B3 to Sheet2.
+        // The parser reads an unquoted `B3:Sheet2!` as a run of sheets from B3 to Sheet2, and the
+        // workbook holds no sheet B3.
         assert_eq!(
             bound("=B3:Sheet2!D7", A1),
-            [("B3:Sheet2!D7".to_owned(), Err(BindError::SheetSpan))]
+            [(
+                "B3:Sheet2!D7".to_owned(),
+                Err(BindError::UnknownSheet {
+                    name: "B3".to_owned()
+                })
+            )]
         );
         assert_eq!(texts("=B3:D7:E9", A1), ["B3:D7", "E9"]);
         assert_eq!(texts("=B3:4", A1), ["B3"]);
@@ -636,13 +775,18 @@ mod tests {
         // Each notation reads only its own spellings.
         assert_eq!(texts("=R1C1+B3", A1), ["B3"]);
         assert_eq!(texts("=R1C1+B3", R1C1), ["R1C1"]);
-        // Names, sheet-qualified names, tables and calls are not grid references.
+        // Names, sheet-qualified names and calls are not grid references. A structured reference
+        // is a site of its own, refused here by a catalogue that carries no tables (L3).
         assert_eq!(
             texts(
                 "=TaxRate+Sheet2!TaxRate+Sales2023+XFE1+XFE:XFE+Table1[Col]+TRUE+SUM(B3)",
                 A1
             ),
-            ["B3"]
+            ["Table1[Col]", "B3"]
+        );
+        assert_eq!(
+            bound("=Table1[Col]", A1),
+            [("Table1[Col]".to_owned(), Err(BindError::TablesNotModelled))]
         );
     }
 
@@ -689,7 +833,12 @@ mod tests {
             ("[1]Sheet2!B3", Err(BindError::ExternalWorkbook)),
             ("'C:\\[B.xlsx]S'!B3", Err(BindError::ExternalWorkbook)),
             ("Sheet1:Sheet2!B3", Err(BindError::SheetSpan)),
-            ("'S 1:S 2'!B3", Err(BindError::SheetSpan)),
+            (
+                "'S 1:S 2'!B3",
+                Err(BindError::UnknownSheet {
+                    name: "S 1".to_owned(),
+                }),
+            ),
             ("$XFE$1", Err(BindError::OutsideGrid)),
             ("0:3", Err(BindError::OutsideGrid)),
             (

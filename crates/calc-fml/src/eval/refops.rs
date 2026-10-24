@@ -42,7 +42,12 @@ fn references(operands: &[CalcValue]) -> Result<Vec<&ReferenceLike>, CalcValue> 
         out.push(reference(operand)?);
     }
     let sheet = out[0].sheet();
-    if out.iter().any(|reference| reference.sheet() != sheet) {
+    // A 3-D reference meets none of the operators (Excel 16.0, 2026-10-23:
+    // `=SUM(Ja:Ma!A1:A2 Ja:Ma!A1)` is #VALUE!).
+    if out
+        .iter()
+        .any(|reference| reference.sheet() != sheet || reference.spans_sheets())
+    {
         return Err(CalcValue::error(WorksheetErrorCode::Value));
     }
     Ok(out)

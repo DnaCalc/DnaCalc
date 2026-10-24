@@ -266,6 +266,10 @@ impl Run<'_, '_> {
                     self.stack.push(instance.reference(*reference));
                     Ok(())
                 }
+                Instruction::Reference3D { first, count } => {
+                    self.stack.push(instance.reference_3d(*first, *count));
+                    Ok(())
+                }
                 Instruction::Call {
                     target,
                     argc,
@@ -467,6 +471,7 @@ impl Run<'_, '_> {
             catalog,
             anchor: self.instance.anchor,
             resolved: Vec::new(),
+            external: false,
         });
         let result = {
             let mut cells = ReaderCells::new(self.reader);
@@ -483,11 +488,20 @@ impl Run<'_, '_> {
             )
         };
         self.calls.push(scratch);
+        let external = text.as_ref().is_some_and(|text| text.external);
         for area in text.map(|text| text.resolved).unwrap_or_default() {
             self.show_resolved(target, area);
         }
         self.show_call(target, synthetic);
-        result.map_err(|fault| self.function_fault(fault))
+        match result {
+            // Reference text naming another workbook: external references are refused as not
+            // modelled, by the work package that owns them.
+            Err(_) if external => Err(EvalFault::NotModelled {
+                construct: "reference text naming another workbook (an external reference)",
+                owner: "dc-m3u",
+            }),
+            result => result.map_err(|fault| self.function_fault(fault)),
+        }
     }
 
     /// Runs the eager entry `target` once on `arguments`, of which at least one is a LAMBDA value,
@@ -914,6 +928,8 @@ struct TextBinding<'c> {
     catalog: &'c dyn ReferenceCatalog,
     anchor: FormulaAnchor,
     resolved: Vec<GridArea>,
+    /// The text named another workbook.
+    external: bool,
 }
 
 impl ReferenceText for TextBinding<'_> {
@@ -927,8 +943,23 @@ impl ReferenceText for TextBinding<'_> {
         if let TextReference::Area(area) = bound {
             self.resolved.push(area);
         }
+        if bound == TextReference::NotModelled && names_another_workbook(text) {
+            self.external = true;
+        }
         bound
     }
+}
+
+/// Whether reference text (UTF-16 code units) names another workbook: a qualifier holding `[`,
+/// quoted (`'[Book2]Sheet1'!A1`) or not (`[Book2]Sheet1!A1`, `[1]!Name`).
+fn names_another_workbook(text: &[u16]) -> bool {
+    let text = String::from_utf16_lossy(text);
+    let text = text.trim_start();
+    let qualifier = match text.strip_prefix('\'') {
+        Some(quoted) => quoted.split('\'').next().unwrap_or_default(),
+        None => text.split('!').next().unwrap_or_default(),
+    };
+    text.contains('!') && qualifier.contains('[')
 }
 
 /// The caller of LAMBDA values for one eager call's kernel ([`calc_func::CallableInvoker`]): each
@@ -1217,10 +1248,10 @@ mod tests {
             // An argument the evaluation cannot supply stops the call before its function runs: a
             // range at a place of a legacy formula whose evaluation is not modelled.
             (
-                "=XLOOKUP(1,A1:A2+1,A1:A2)",
+                "=CHISQ.TEST(A1:A2+1,A1:A2)",
                 three.clone(),
                 &[],
-                evaluated("=XLOOKUP(1,A1:A2+1,A1:A2)", three.clone()),
+                evaluated("=CHISQ.TEST(A1:A2+1,A1:A2)", three.clone()),
             ),
             // A function that refuses still ran (a product below the normal range, which
             // calc-func refuses as not modelled).

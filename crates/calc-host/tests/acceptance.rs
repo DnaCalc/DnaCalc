@@ -468,7 +468,7 @@ fn chost_m1_1__atomic_prepare_failure() {
         d(book.calc("A1"), "calculated 5 r0 t1 fast"),
         d(
             book.calc("B1"),
-            "not-modelled compile UnknownFunction r0 t1",
+            "calculated Name r0 t1 fast",
         ),
         d(book.calc("C1"), "calculated \"big\" r0 t1 fast"),
         d(book.calc("A2"), "calculated 50 r0 t1 fast"),
@@ -696,7 +696,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.calc("A1"), "calculated 5 r0 t1 fast"),
         d(
             book.calc("B1"),
-            "not-modelled compile UnknownFunction r0 t1",
+            "calculated Name r0 t1 fast",
         ),
         d(book.calc("C1"), "calculated \"big\" r0 t1 fast"),
         d(book.calc("A2"), "calculated 50 r0 t1 fast"),
@@ -710,12 +710,16 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         .iter()
         .find(|cell| cell.at() == book.calc("B1"))
         .unwrap();
+    // L3 (dc-m3u): a call of a name no function or defined name holds is #NAME? in a workbook
+    // that is not macro-enabled (Excel 16.0, 2026-10-23: `=FOO(1)` is #NAME?).
     match b1.value() {
-        ProjectedValue::NotModeled {
-            refusal: NotModeled::Compile(error),
-            ..
-        } => assert!(format!("{error:?}").contains("spelling: \"NOSUCHFUNCTION\"")),
-        other => panic!("Calc!B1 is not refused: {other:?}"),
+        ProjectedValue::Calculated { value, .. } => assert_eq!(
+            *value,
+            calc_doc_model::value::CalcValue::error(
+                calc_doc_model::value::WorksheetErrorCode::Name
+            )
+        ),
+        other => panic!("Calc!B1 is not #NAME?: {other:?}"),
     }
     assert_eq!(
         step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved),
@@ -742,7 +746,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.calc("A1"), "stale last 5 r0 t1 awaiting-recalc"),
         d(
             book.calc("B1"),
-            "not-modelled compile UnknownFunction r0 t1",
+            "calculated Name r0 t1 fast",
         ),
         d(book.calc("C1"), "stale last \"big\" r0 t1 awaiting-recalc"),
         d(book.calc("A2"), "stale last 50 r0 t1 awaiting-recalc"),
@@ -775,7 +779,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.calc("A1"), "stale last 5 r0 t1 recalc-failed"),
         d(
             book.calc("B1"),
-            "not-modelled compile UnknownFunction r0 t1",
+            "calculated Name r0 t1 fast",
         ),
         d(book.calc("C1"), "stale last \"big\" r0 t1 recalc-failed"),
         d(book.calc("A2"), "stale last 50 r0 t1 recalc-failed"),
@@ -828,7 +832,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.calc("A1"), "stale last 5 r0 t1 awaiting-recalc"),
         d(
             book.calc("B1"),
-            "not-modelled compile UnknownFunction r0 t1",
+            "calculated Name r0 t1 fast",
         ),
         d(book.calc("C1"), "stale last \"big\" r0 t1 awaiting-recalc"),
         d(book.calc("A2"), "stale last 50 r0 t1 awaiting-recalc"),
@@ -855,7 +859,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         d(book.calc("A1"), "stale last 5 r0 t1 recalc-failed"),
         d(
             book.calc("B1"),
-            "not-modelled compile UnknownFunction r0 t1",
+            "calculated Name r0 t1 fast",
         ),
         d(book.calc("C1"), "stale last \"big\" r0 t1 recalc-failed"),
         d(book.calc("A2"), "stale last 50 r0 t1 recalc-failed"),
@@ -903,7 +907,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
             d(book.calc("A1"), "calculated 13 r3 t3 fast"),
             d(
                 book.calc("B1"),
-                "not-modelled compile UnknownFunction r0 t1"
+                "calculated Name r0 t1 fast"
             ),
             d(book.calc("C1"), "calculated \"big\" r3 t3 fast"),
             d(book.calc("A2"), "calculated 130 r3 t3 fast"),
@@ -962,7 +966,7 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
             d(book.calc("A1"), "calculated 23 r5 t5 fast"),
             d(
                 book.calc("B1"),
-                "not-modelled compile UnknownFunction r0 t1"
+                "calculated Name r0 t1 fast"
             ),
             d(book.calc("C1"), "calculated \"big\" r5 t5 fast"),
             d(book.calc("A2"), "calculated 230 r5 t5 fast"),
@@ -1175,7 +1179,8 @@ fn edits_before_the_first_recalculation(case: &str) {
 
     // The next recalculation (tick 2; the failed one used tick 1) calculates every formula of
     // revision 3: Calc!A1 = 0.5*100, Calc!C1 = 10*3, Calc!A2 = 50*10, Calc!B2 = 0.5*4, Calc!A3 =
-    // (10+3)*0.5; Calc!B1 is refused at compile time and Calc!C2, reading it, at evaluation.
+    // (10+3)*0.5; Calc!B1 calls a name no function holds, #NAME? (L3, dc-m3u), and Calc!C2,
+    // reading it, is #NAME? too.
     let published = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
     let (revision, tick, changes) = delta_cells(&published);
     assert_eq!((revision, tick), (3, 2));
@@ -1202,15 +1207,12 @@ fn edits_before_the_first_recalculation(case: &str) {
         d(book.calc("A1"), "calculated 50 r3 t2 fast"),
         d(
             book.calc("B1"),
-            "not-modelled compile UnknownFunction r3 t2",
+            "calculated Name r3 t2 fast",
         ),
         d(book.calc("C1"), "calculated 30 r3 t2 fast"),
         d(book.calc("A2"), "calculated 500 r3 t2 fast"),
         d(book.calc("B2"), "calculated 2 r3 t2 fast"),
-        d(
-            book.calc("C2"),
-            "not-modelled evaluation MissingInput r3 t2",
-        ),
+        d(book.calc("C2"), "calculated Name r3 t2 fast"),
         d(book.calc("A3"), "calculated 6.5 r3 t2 fast"),
     ]);
     assert_eq!(book.described(), calculated);
@@ -1221,19 +1223,18 @@ fn edits_before_the_first_recalculation(case: &str) {
         .find(|cell| cell.at() == book.calc("C2"))
         .unwrap();
     match c2.value() {
-        ProjectedValue::NotModeled {
-            refusal: NotModeled::Evaluation(fault),
-            ..
-        } => assert_eq!(
-            format!("{fault:?}"),
-            format!("MissingInput {{ cell: {:?} }}", book.calc("B1")),
-            "Calc!C2 is refused for reading the refused Calc!B1"
+        ProjectedValue::Calculated { value, .. } => assert_eq!(
+            *value,
+            calc_doc_model::value::CalcValue::error(
+                calc_doc_model::value::WorksheetErrorCode::Name
+            ),
+            "Calc!C2 reads Calc!B1's #NAME?"
         ),
-        other => panic!("Calc!C2 is not refused at evaluation: {other:?}"),
+        other => panic!("Calc!C2 is not #NAME?: {other:?}"),
     }
 
-    // Inputs!A1 = 20: its readers Calc!C1, Calc!C2 and Calc!A3 are pending, and the refusal of
-    // Calc!C2, which reads it, is stale like the values of the others.
+    // Inputs!A1 = 20: its readers Calc!C1, Calc!C2 and Calc!A3 are pending, and their values are
+    // stale.
     let receipt = book
         .run(3, vec![set(book.inputs("A1"), number(20.0))])
         .expect("the edit commits");
@@ -1252,17 +1253,17 @@ fn edits_before_the_first_recalculation(case: &str) {
             d(book.calc("A1"), "calculated 50 r3 t2 fast"),
             d(
                 book.calc("B1"),
-                "not-modelled compile UnknownFunction r3 t2",
+                "calculated Name r3 t2 fast",
             ),
             d(book.calc("C1"), "stale last 30 r3 t2 awaiting-recalc"),
             d(book.calc("A2"), "calculated 500 r3 t2 fast"),
             d(book.calc("B2"), "calculated 2 r3 t2 fast"),
-            d(book.calc("C2"), "stale last none r3 t2 awaiting-recalc"),
+            d(book.calc("C2"), "stale last Name r3 t2 awaiting-recalc"),
             d(book.calc("A3"), "stale last 6.5 r3 t2 awaiting-recalc"),
         ])
     );
 
-    // Calc!C1 = 20*3 and Calc!A3 = (20+3)*0.5 at tick 3; Calc!C2 is refused again.
+    // Calc!C1 = 20*3 and Calc!A3 = (20+3)*0.5 at tick 3; Calc!C2 is #NAME? again.
     let published = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
     let (revision, tick, changes) = delta_cells(&published);
     assert_eq!((revision, tick), (4, 3));
@@ -1283,15 +1284,12 @@ fn edits_before_the_first_recalculation(case: &str) {
             d(book.calc("A1"), "calculated 50 r3 t2 fast"),
             d(
                 book.calc("B1"),
-                "not-modelled compile UnknownFunction r3 t2",
+                "calculated Name r3 t2 fast",
             ),
             d(book.calc("C1"), "calculated 60 r4 t3 fast"),
             d(book.calc("A2"), "calculated 500 r3 t2 fast"),
             d(book.calc("B2"), "calculated 2 r3 t2 fast"),
-            d(
-                book.calc("C2"),
-                "not-modelled evaluation MissingInput r4 t3",
-            ),
+            d(book.calc("C2"), "calculated Name r4 t3 fast"),
             d(book.calc("A3"), "calculated 11.5 r4 t3 fast"),
         ])
     );
@@ -1550,9 +1548,11 @@ fn dc_besk_expected(maxifs: &str, minifs: &str, arithmetic: &str, sum: &str) -> 
         calculated(maxifs),
         calculated(sum),
         calculated("\"big\""),
-        Host::UnknownFunction("_xlws.MAXIFS"),
+        // L3 (dc-m3u): a name no function or defined name holds is #NAME? in a workbook that
+        // is not macro-enabled; `_xlws.` alone is no function prefix.
+        calculated("Name"),
         Host::UnknownFunction("_xlfn._xlfn.MAXIFS"),
-        Host::UnknownFunction("_xlws._xlfn.MAXIFS"),
+        calculated("Name"),
         calculated("Name"),
         calculated("Name"),
         calculated(maxifs),

@@ -11,8 +11,8 @@
 //! `EngineState::set_prerequisites` and does not come from the formula texts. The ceng-m1.2 cases
 //! recalculate through `begin_recalc`, `step` and `finish`, which bind each formula's text
 //! through CalcFml and state its prerequisites from the placed references (cells, rectangles and
-//! whole rows or columns); sheet spans have no binding yet (cfml-m3.2's binding, ceng-m3.5's
-//! calculation). The dc-qguw cases attach an instrument to `step` and judge what the engine, or a
+//! whole rows or columns); a 3-D reference is placed as one reference per sheet of its span (L3,
+//! dc-m3u). The dc-qguw cases attach an instrument to `step` and judge what the engine, or a
 //! deliberately faulty publication path, publishes against the evaluation record made from what
 //! the evaluator reported, with calc-verdict's `judge`.
 
@@ -1873,7 +1873,7 @@ fn ceng_m1_2__chain_recalculates() {
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: the clear of Inputs!C1:C5 drove the dirty closure through prepare_edit's area path (ReverseIndex::dependents_of_cells_in_area) by a whole-column edge; the clear the ceng-m1.1 reviewer asked for, on the middle sheet of a sheet span (Alpha!J5 of Gamma:Beta!J5), is not reachable through a formula while CalcFml's binder refuses sheet spans (BindError::SheetSpan, see ceng_m1_2__wrong_cache_not_pass), so it stays with the span beads cfml-m3.2 and ceng-m3.5 and no span is stated by hand here"
+        "ACCEPT-NOTE: {CASE}: the clear of Inputs!C1:C5 drove the dirty closure through prepare_edit's area path (ReverseIndex::dependents_of_cells_in_area) by a whole-column edge; the clear the ceng-m1.1 reviewer asked for, on the middle sheet of a sheet span (Alpha!J5 of Gamma:Beta!J5), is not stated by hand here; L3 (dc-m3u) binds 3-D references as one placed reference per sheet, and dc_m3u__tables_and_3d_through_the_engine edits the middle sheet of a span"
     );
 
     // 5. Work!C1's formula is replaced by the literal 5, and formulas enter Report!D1 and, one row
@@ -2127,14 +2127,17 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(3, 1), formula("IF(A2>10,\"big\",\"small\")")),
             set(c(4, 1), formula("1E-300*1E-10")),
             set(c(5, 1), formula("A4+1")),
-            set(c(6, 1), formula("SUM(Data:Calc!A1)")),
+            // A reference to another workbook (L3 binds 3-D references, which this row held
+            // before; external references stay refused).
+            set(c(6, 1), formula("SUM([1]Data!A1)")),
             set(c(7, 1), unpaired),
             set(c(8, 1), formula("0.1+0.2-0.3")),
             // A range where a legacy formula takes one value at a place whose evaluation is not
-            // modelled (XLOOKUP's lookup array; dc-mzk): a typed refusal. (A range at the
-            // formula's root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9
-            // is #VALUE!.)
-            set(c(9, 1), formula("_xlfn.XLOOKUP(1,Data!A1:A2*1,Data!A1:A2)")),
+            // measured (CHISQ.TEST's actual range; XLOOKUP's lookup array, which this row used
+            // before, was measured by L3 and lifts): a typed refusal. (A range at the formula's
+            // root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9 is
+            // #VALUE!.)
+            set(c(9, 1), formula("_xlfn.CHISQ.TEST(Data!A1:A2*1,Data!A1:A2)")),
             set(c(1, 3), formula("A2*2")),
         ],
     );
@@ -2331,7 +2334,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     assert!(matches!(
         refusal(&state, c(6, 1), 1, 3),
         NotModeled::Compile(CompileError::Reference {
-            error: BindError::SheetSpan,
+            error: BindError::ExternalWorkbook,
             ..
         })
     ));
@@ -3960,4 +3963,107 @@ fn dc_0k9__subtotal_and_aggregate() {
     assert_eq!(l1_value(&state, c(1, 1)), n(7.0));
     assert_eq!(l1_value(&state, c(2, 1)), n(5.0));
     assert_eq!(l1_value(&state, c(3, 1)), n(5.0));
+}
+
+// ---------------------------------------------------------------------------------------------
+// L3 (dc-m3u): tables, 3-D references, cycles and iteration, structural edits and data tables
+// through the engine.
+
+/// A root of the sheets `names` (keys 1, 2, ...), `cells` and `definitions`, at revision 0.
+fn l3_root(
+    sheets: &[(SheetId, &str)],
+    cells: Vec<(CellKey, CellInput)>,
+    definitions: Definitions,
+) -> Arc<ModelRoot> {
+    let entries = sheets
+        .iter()
+        .zip(1u32..)
+        .map(|((id, name), key)| sheet_entry(*id, key, name))
+        .collect();
+    ModelRoot::with_definitions(
+        AuthoredRevision::new(0),
+        entries,
+        cells,
+        SkinLayout::default(),
+        definitions,
+    )
+    .unwrap()
+}
+
+/// A 3-D reference and structured references through the engine: the 3-D sum reads each sheet
+/// of its span and an edit of the middle sheet recalculates it; a structured reference reads the
+/// table's column and follows an edit of its data. Values hand-derived from the cells.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_m3u__tables_and_3d_through_the_engine() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (f, ja, fe, ma, tab) = (
+        ids.issue().unwrap(),
+        ids.issue().unwrap(),
+        ids.issue().unwrap(),
+        ids.issue().unwrap(),
+        ids.issue().unwrap(),
+    );
+    let at = |sheet, row, column| CellKey::new(sheet, row, column).unwrap();
+    let cells = vec![
+        (at(ja, 1, 1), number(1.0)),
+        (at(fe, 1, 1), number(2.0)),
+        (at(ma, 1, 1), number(3.0)),
+        (at(tab, 1, 1), text("Name")),
+        (at(tab, 1, 2), text("Qty")),
+        (at(tab, 2, 1), text("a")),
+        (at(tab, 2, 2), number(2.0)),
+        (at(tab, 3, 1), text("b")),
+        (at(tab, 3, 2), number(3.0)),
+        (at(f, 1, 1), formula("SUM(Ja:Ma!A1)")),
+        (at(f, 2, 1), formula("SUM(Sales[Qty])")),
+        (at(f, 3, 1), formula("ROWS(Sales)")),
+        (at(tab, 2, 3), formula("Sales[[#This Row],[Qty]]*10")),
+        (at(tab, 3, 3), formula("Sales[[#This Row],[Qty]]*10")),
+    ];
+    let table = calc_doc_model::Table {
+        name: "Sales".to_owned(),
+        display_name: "Sales".to_owned(),
+        part: "xl/tables/table1.xml".to_owned(),
+        sheet: tab,
+        area: area(tab, 1, 1, 3, 3),
+        header_rows: 1,
+        totals_rows: 0,
+        columns: vec!["Name".to_owned(), "Qty".to_owned(), "Ten".to_owned()],
+    };
+    let root = l3_root(
+        &[(f, "F"), (ja, "Ja"), (fe, "Fe"), (ma, "Ma"), (tab, "Tab")],
+        cells,
+        Definitions::new(vec![], vec![], vec![table], []),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let n = CalcValue::number;
+    assert_eq!(l1_value(&state, at(f, 1, 1)), n(6.0));
+    assert_eq!(l1_value(&state, at(f, 2, 1)), n(5.0));
+    assert_eq!(l1_value(&state, at(f, 3, 1)), n(2.0));
+    assert_eq!(l1_value(&state, at(tab, 2, 3)), n(20.0));
+    assert_eq!(l1_value(&state, at(tab, 3, 3)), n(30.0));
+    // The middle sheet of the span, and a cell of the table's column.
+    let root = edit(
+        &mut state,
+        &root,
+        vec![set(at(fe, 1, 1), number(20.0)), set(at(tab, 3, 2), number(7.0))],
+    );
+    let delta = recalc(&mut state, &root, &mut Unobserved);
+    // ROWS(Sales) and both rows of the calculated column read areas holding Tab!B3 (the data
+    // rows, the Qty column), so each is calculated again.
+    assert_eq!(
+        delta_cells(&delta),
+        [
+            (at(f, 1, 1), true),
+            (at(f, 2, 1), true),
+            (at(f, 3, 1), true),
+            (at(tab, 2, 3), true),
+            (at(tab, 3, 3), true)
+        ]
+    );
+    assert_eq!(l1_value(&state, at(f, 1, 1)), n(24.0));
+    assert_eq!(l1_value(&state, at(f, 2, 1)), n(9.0));
+    assert_eq!(l1_value(&state, at(tab, 3, 3)), n(70.0));
 }

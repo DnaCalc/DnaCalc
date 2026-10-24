@@ -74,6 +74,9 @@ use std::sync::Arc;
 pub struct CompiledPlan {
     blocks: Box<[Box<[Instruction]>]>,
     references: Box<[ReferenceOperand]>,
+    /// Whether each reference is placed with its relative offsets wrapping around the grid's
+    /// edge ([`ReferenceOperand::instantiate_wrapped`]): a defined name's references.
+    wrapped: Box<[bool]>,
     form: FormulaForm,
 }
 
@@ -192,6 +195,10 @@ enum Instruction {
     /// Pushes reference operand `.0` of the plan as the instance placed it: a reference to its
     /// area, or `#REF!` where it could not be placed.
     Reference(usize),
+    /// Pushes the 3-D reference of the `count` reference operands from `first`, one per sheet of
+    /// its span in sheet order, as the instance placed them ([`ReferenceLike::three_d`]), or
+    /// `#REF!` where one could not be placed.
+    Reference3D { first: usize, count: usize },
     /// Pops `argc` values, calls `target` with them and pushes the result. With `retain`, the
     /// arguments as the call received them (each reference to a value parameter replaced by its
     /// cell's value) stay on the stack beneath the result instead of being popped. With
@@ -368,6 +375,21 @@ impl FormulaInstance {
             Err(placement) => CalcValue::error(placement.worksheet_error()),
         }
     }
+
+    /// The 3-D reference the `count` operands from `first` push.
+    fn reference_3d(&self, first: usize, count: usize) -> CalcValue {
+        let mut areas = Vec::with_capacity(count);
+        for placed in &self.areas[first..first + count] {
+            match placed {
+                Ok(area) => areas.push(*area),
+                Err(placement) => return CalcValue::error(placement.worksheet_error()),
+            }
+        }
+        match ReferenceLike::three_d(areas) {
+            Ok(reference) => CalcValue::reference(reference),
+            Err(_) => CalcValue::error(WorksheetErrorCode::Ref),
+        }
+    }
 }
 
 /// Places `plan` at `anchor`: the formula the plan was compiled from, copied to `anchor`.
@@ -378,7 +400,14 @@ pub fn instantiate(plan: &Arc<CompiledPlan>, anchor: FormulaAnchor) -> FormulaIn
         areas: plan
             .references
             .iter()
-            .map(|operand| operand.instantiate(anchor))
+            .zip(plan.wrapped.iter())
+            .map(|(operand, wrapped)| {
+                if *wrapped {
+                    operand.instantiate_wrapped(anchor)
+                } else {
+                    operand.instantiate(anchor)
+                }
+            })
             .collect(),
     }
 }

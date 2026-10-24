@@ -232,9 +232,20 @@ pub fn bind_error(error: &BindError) -> String {
         BindError::OutsideGrid => "it lies outside the grid".to_owned(),
         BindError::UnknownSheet { name } => format!("there is no sheet named {name}"),
         BindError::ExternalWorkbook => {
-            "a reference to another workbook is not bound yet (bead cfml-m3.5)".to_owned()
+            "a reference to another workbook is not modelled (work package L3, dc-m3u)".to_owned()
         }
-        BindError::SheetSpan => "a run of sheets is not bound yet (bead cfml-m3.2)".to_owned(),
+        BindError::SheetSpan => {
+            "a run of sheets is not bound without the workbook's sheet order (work package L3, dc-m3u)"
+                .to_owned()
+        }
+        BindError::UnknownTable { name } => format!("there is no table named {name}"),
+        BindError::UnknownColumn { name } => format!("the table has no column named {name}"),
+        BindError::TablesNotModelled => {
+            "a structured reference needs the workbook's tables (work package L3, dc-m3u)".to_owned()
+        }
+        BindError::StructuredReference => {
+            "this combination of table sections is not bound (work package L3, dc-m3u)".to_owned()
+        }
         BindError::QualifiedNonReference => {
             "a sheet qualifier stands before something that is not a reference".to_owned()
         }
