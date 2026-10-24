@@ -410,3 +410,139 @@ impl ModelRoot {
         Ok(self.rebuilt(parts, self.revision()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::definitions::{RowHidden, Table, UnloadedCell};
+    use crate::layout::SkinLayout;
+    use crate::op::AxisChange;
+    use crate::revision::AuthoredRevision;
+    use crate::sheet::{SheetKey, SheetName};
+    use calc_value::{ExcelText, IdAllocator};
+
+    /// Leaves every formula as it is.
+    struct Unchanged;
+
+    impl FormulaRewriter for Unchanged {
+        fn formula(
+            &self,
+            _: &ModelRoot,
+            _: &FormulaText,
+            _: CellKey,
+            _: &StructuralChange,
+        ) -> Option<FormulaText> {
+            None
+        }
+
+        fn name(
+            &self,
+            _: &ModelRoot,
+            _: &str,
+            _: NameScope,
+            _: &StructuralChange,
+        ) -> Option<String> {
+            None
+        }
+    }
+
+    /// Rows inserted move the cells, the table, the array formula, the unloaded cell and the
+    /// hidden rows below them; rows deleted remove those inside them.
+    #[test]
+    fn definitions_move_with_the_rows() {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let s = ids.issue().unwrap();
+        let at = |row, column| CellKey::new(s, row, column).unwrap();
+        let area = |a, b| GridArea::new(a, b).unwrap();
+        let number = |x: f64| CellInput::Number(crate::input::FiniteNumber::new(x).unwrap());
+        let formula = CellInput::Formula(
+            FormulaText::new(ExcelText::from_interop_assignment("{1;2}")).unwrap(),
+        );
+        let table = Table {
+            name: "T".into(),
+            display_name: "T".into(),
+            part: "t".into(),
+            sheet: s,
+            area: area(at(5, 1), at(7, 2)),
+            header_rows: 1,
+            totals_rows: 0,
+            columns: vec!["A".into(), "B".into()],
+        };
+        let definitions = Definitions::new(
+            [crate::definitions::ArrayFormula::new(
+                area(at(10, 1), at(11, 1)),
+                crate::definitions::ArrayKind::Legacy,
+            )],
+            vec![],
+            vec![table],
+            [(at(12, 1), UnloadedCell::DataTable)],
+        )
+        .with_hidden_rows([(s, 6, RowHidden::Manual), (s, 2, RowHidden::Manual)]);
+        let root = ModelRoot::with_definitions(
+            AuthoredRevision::new(0),
+            vec![SheetEntry::new(
+                s,
+                SheetKey::new(1),
+                SheetName::new(ExcelText::from_interop_assignment("S")).unwrap(),
+                SheetVisibility::Visible,
+            )],
+            [
+                (at(1, 1), number(1.0)),
+                (at(6, 1), number(6.0)),
+                (at(10, 1), formula),
+            ],
+            SkinLayout::default(),
+            definitions,
+        )
+        .unwrap();
+        let insert = AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 3, 2).unwrap();
+        let batch = OpBatch {
+            base: AuthoredRevision::new(0),
+            operations: vec![WorkbookOp::EditAxis(insert)],
+        };
+        let next = root
+            .apply_structural(&batch, &Unchanged, &mut || unreachable!())
+            .unwrap();
+        assert_eq!(next.revision(), AuthoredRevision::new(1));
+        assert_eq!(next.cell(at(8, 1)), Some(&number(6.0)));
+        assert_eq!(next.cell(at(1, 1)), Some(&number(1.0)));
+        let moved = next.definitions();
+        assert_eq!(moved.tables()[0].area, area(at(7, 1), at(9, 2)));
+        assert_eq!(
+            moved.array(at(12, 1)).map(|a| a.area()),
+            Some(area(at(12, 1), at(13, 1)))
+        );
+        assert!(moved.unloaded(at(14, 1)).is_some());
+        assert_eq!(
+            moved
+                .hidden_rows_all()
+                .map(|(_, row, _)| row)
+                .collect::<Vec<_>>(),
+            [2, 8]
+        );
+        // Rows 7 to 9 deleted: the table goes with them, and the hidden row 8.
+        let delete = AxisEdit::new(s, Axis::Rows, AxisChange::Delete, 7, 3).unwrap();
+        let batch = OpBatch {
+            base: AuthoredRevision::new(1),
+            operations: vec![WorkbookOp::EditAxis(delete)],
+        };
+        let after = next
+            .apply_structural(&batch, &Unchanged, &mut || unreachable!())
+            .unwrap();
+        assert!(after.definitions().tables().is_empty());
+        assert_eq!(
+            after
+                .definitions()
+                .hidden_rows_all()
+                .map(|(_, row, _)| row)
+                .collect::<Vec<_>>(),
+            [2]
+        );
+        assert_eq!(
+            after
+                .cell(at(9, 1))
+                .map(|input| matches!(input, CellInput::Formula(_))),
+            Some(true)
+        );
+    }
+}
