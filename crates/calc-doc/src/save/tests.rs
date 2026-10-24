@@ -126,7 +126,8 @@ fn cells(model: &calc_doc_model::ModelRoot) -> Vec<(u32, u32, CellInput)> {
 /// The rewrite reads every attribute with its references replaced, as the loader does: the row
 /// and the cell are where `r` says, the replaced shared string is uncounted, the group whose
 /// master changed is written as individual formulas, and the emptied cell of style 0 is removed.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn attributes_written_as_references() {
     let bytes = package();
     let document = open(

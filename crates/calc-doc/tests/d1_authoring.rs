@@ -3,8 +3,6 @@
 //! metadata (found, appended to a metadata part, or added with a new part), and error constants
 //! Excel cannot hold refused.
 
-#![cfg(not(target_arch = "wasm32"))]
-
 mod cdoc_m1_1_support;
 
 use calc_doc::model::value::WorksheetErrorCode;
@@ -12,7 +10,8 @@ use calc_doc::model::{ArrayKind, CellInput, OpBatch, WorkbookOp};
 use calc_doc::{EditError, prepare_edit};
 use cdoc_m1_1_support::d1::*;
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_authoring__formulas_are_written_in_file_form() {
     let bytes = fixture("../cdoc_m1_2/d1.saved.xlsx");
     let loaded = load(&bytes);
@@ -67,15 +66,11 @@ fn d1_authoring__formulas_are_written_in_file_form() {
     }
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_authoring__a_metadata_part_without_the_record_gains_it() {
     // OxDoc's rich-error fixture: a metadata part with only XLRICHVALUE value metadata.
-    let bytes = package_from_dir(
-        &fixtures()
-            .join("oxdoc")
-            .join("w010-rich-error-cell-edit")
-            .join("parts"),
-    );
+    let bytes = oxdoc_package("w010-rich-error-cell-edit");
     let loaded = load(&bytes);
     let first = loaded.model().sheets()[0].id();
     let model = edited(
@@ -121,7 +116,8 @@ fn d1_authoring__a_metadata_part_without_the_record_gains_it() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_authoring__error_constants_excel_cannot_hold_are_refused() {
     let loaded = load(&fixture("../cdoc_m1_2/d1.saved.xlsx"));
     let calc = sheet(&loaded, "Calc");
@@ -162,7 +158,8 @@ fn d1_authoring__error_constants_excel_cannot_hold_are_refused() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_authoring__a_value_for_a_cell_without_a_formula_is_refused() {
     let loaded = load(&fixture("../cdoc_m1_2/d1.saved.xlsx"));
     let calc = sheet(&loaded, "Calc");

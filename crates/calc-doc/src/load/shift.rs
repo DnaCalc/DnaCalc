@@ -439,7 +439,8 @@ mod tests {
             .map_err(|PastGrid| Refused::PastGrid)
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn moves_relative_references_only() {
         let cases = [
             // A range whose right end is a function call or a qualified cell.
@@ -516,7 +517,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn refuses_what_it_cannot_move() {
         assert_eq!(shift("A1048576", 1, 0), Err(Refused::PastGrid));
         assert_eq!(shift("XFD1", 0, 1), Err(Refused::PastGrid));

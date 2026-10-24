@@ -13,17 +13,11 @@
 //! - c1-preservation: a defined name, a table, a style table, a calculation chain and parts no
 //!   save touches (VBA, pivot, drawing, custom XML).
 
-#![cfg(not(target_arch = "wasm32"))]
-
 mod cdoc_m1_1_support;
 
 use calc_doc::model::value::{GridArea, WorksheetErrorCode};
 use calc_doc::model::{ArrayKind, CachedValue, CellInput, NameScope, WorkbookOp};
 use cdoc_m1_1_support::d1::*;
-
-fn package(name: &str) -> Vec<u8> {
-    package_from_dir(&fixtures().join("oxdoc").join(name).join("parts"))
-}
 
 fn cache(
     loaded: &calc_doc::LoadedWorkbook,
@@ -39,9 +33,10 @@ fn cache(
         .map(|cache| cache.value().clone())
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_oxdoc__rich_errors_resolve_through_value_metadata() {
-    let bytes = package("w010-rich-error-cell-edit");
+    let bytes = oxdoc_package("w010-rich-error-cell-edit");
     let loaded = load(&bytes);
     let name =
         String::from_utf16_lossy(loaded.model().sheets()[0].name().text().utf16_code_units());
@@ -91,9 +86,10 @@ fn d1_oxdoc__rich_errors_resolve_through_value_metadata() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_oxdoc__styled_cells_and_an_anchor_survive_a_value_edit() {
-    let bytes = package("w010-styled-cell-edit");
+    let bytes = oxdoc_package("w010-styled-cell-edit");
     keep_for_excel("d1_oxdoc_styled_source.xlsx", &bytes);
     let loaded = load(&bytes);
     let name =
@@ -133,9 +129,10 @@ fn d1_oxdoc__styled_cells_and_an_anchor_survive_a_value_edit() {
     }
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_oxdoc__cells_are_added_into_gaps_and_new_rows() {
-    let bytes = package("w010-cell-add");
+    let bytes = oxdoc_package("w010-cell-add");
     let loaded = load(&bytes);
     let name =
         String::from_utf16_lossy(loaded.model().sheets()[0].name().text().utf16_code_units());
@@ -191,9 +188,10 @@ fn d1_oxdoc__cells_are_added_into_gaps_and_new_rows() {
     assert!(part(&saved, "xl/calcChain.xml").is_none());
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_oxdoc__names_tables_styles_and_untouched_parts() {
-    let bytes = package("c1-preservation");
+    let bytes = oxdoc_package("c1-preservation");
     let loaded = load(&bytes);
     let model = loaded.model();
     let names = model.definitions().names();
@@ -261,4 +259,52 @@ fn d1_oxdoc__names_tables_styles_and_untouched_parts() {
         part_text(&saved, "xl/workbook.xml")
             .contains(r#"<definedName name="DataRange">C1!$A$1:$B$1</definedName>"#)
     );
+}
+
+/// The embedded copy of the OxDoc fixtures holds every file under each fixture's `parts`
+/// directory, and no other.
+///
+/// Native-only: it lists the fixture directories on disk, which a browser cannot read.
+#[test]
+fn d1_oxdoc__every_fixture_part_is_embedded() {
+    fn walk(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<String>) {
+        for entry in std::fs::read_dir(dir).expect("a fixture directory") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                walk(root, &path, out);
+            } else {
+                let name = path.strip_prefix(root).expect("under the root");
+                out.push(name.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    let oxdoc = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/d1/oxdoc");
+    let mut on_disk: Vec<(String, Vec<String>)> = Vec::new();
+    for entry in std::fs::read_dir(&oxdoc).expect("the OxDoc fixtures") {
+        let fixture = entry.expect("an entry").path();
+        if !fixture.is_dir() {
+            continue;
+        }
+        let parts_dir = fixture.join("parts");
+        let mut parts = Vec::new();
+        walk(&parts_dir, &parts_dir, &mut parts);
+        parts.sort();
+        let name = fixture
+            .file_name()
+            .expect("a name")
+            .to_string_lossy()
+            .into_owned();
+        on_disk.push((name, parts));
+    }
+    on_disk.sort();
+    let mut embedded: Vec<(String, Vec<String>)> = oxdoc_contents()
+        .into_iter()
+        .map(|(name, parts)| {
+            let mut parts: Vec<String> = parts.into_iter().map(str::to_owned).collect();
+            parts.sort();
+            (name.to_owned(), parts)
+        })
+        .collect();
+    embedded.sort();
+    assert_eq!(embedded, on_disk);
 }

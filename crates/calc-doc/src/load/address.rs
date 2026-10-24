@@ -70,7 +70,8 @@ pub(crate) fn area(text: &str) -> Option<(u32, u32, u32, u32)> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn addresses_at_the_grid_edges() {
         assert_eq!(cell("A1"), Some((1, 1)));
         assert_eq!(cell("xfd1048576"), Some((MAX_ROWS, MAX_COLUMNS)));

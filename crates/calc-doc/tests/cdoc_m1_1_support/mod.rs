@@ -704,41 +704,137 @@ pub mod d1 {
         LoadedWorkbook, MemorySource, OpenPolicy, OpenedDocument, PackageRead, SavePolicy,
         SaveReceipt, prepare_edit, prepare_save, write,
     };
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use std::sync::Arc;
 
-    /// The directory of the D1 fixtures.
-    pub fn fixtures() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/d1")
-    }
+    /// The fixture files the d1_* tests read, each under its name relative to `tests/fixtures/d1`.
+    /// They are embedded, not read from disk, so the same tests run natively and in the browsers
+    /// (dc-msg).
+    const FIXTURES: [(&str, &[u8]); 4] = [
+        (
+            "../cdoc_m1_2/d1.saved.xlsx",
+            include_bytes!("../fixtures/cdoc_m1_2/d1.saved.xlsx"),
+        ),
+        (
+            "excel-array-positions.json",
+            include_bytes!("../fixtures/d1/excel-array-positions.json"),
+        ),
+        (
+            "excel-file-form.json",
+            include_bytes!("../fixtures/d1/excel-file-form.json"),
+        ),
+        (
+            "excel-prefixes.json",
+            include_bytes!("../fixtures/d1/excel-prefixes.json"),
+        ),
+    ];
 
     /// The bytes of a fixture file under `tests/fixtures/d1`.
     pub fn fixture(name: &str) -> Vec<u8> {
-        std::fs::read(fixtures().join(name)).unwrap_or_else(|error| panic!("{name}: {error}"))
+        FIXTURES
+            .iter()
+            .find(|(embedded, _)| *embedded == name)
+            .map(|(_, bytes)| bytes.to_vec())
+            .unwrap_or_else(|| panic!("{name} is not an embedded D1 fixture"))
     }
 
-    /// A package of every file under `dir`, each stored under its path relative to `dir`, in path
-    /// order with `[Content_Types].xml` first.
-    pub fn package_from_dir(dir: &Path) -> Vec<u8> {
-        fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>)>) {
-            for entry in std::fs::read_dir(dir).expect("a fixture directory") {
-                let path = entry.expect("an entry").path();
-                if path.is_dir() {
-                    walk(root, &path, out);
-                } else {
-                    let name = path
-                        .strip_prefix(root)
-                        .expect("under the root")
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    out.push((name, std::fs::read(&path).expect("a part")));
-                }
-            }
-        }
-        let mut parts = Vec::new();
-        walk(dir, dir, &mut parts);
+    /// The parts of one OxDoc conformance fixture, each under its path relative to the fixture's
+    /// `parts` directory under `tests/fixtures/d1/oxdoc`.
+    macro_rules! parts {
+        ($fixture:literal: $($part:literal),+ $(,)?) => {
+            &[$((
+                $part,
+                include_bytes!(concat!("../fixtures/d1/oxdoc/", $fixture, "/parts/", $part))
+                    as &[u8],
+            )),+]
+        };
+    }
+
+    /// Every part of every OxDoc conformance fixture (OxDoc c103183) under
+    /// `tests/fixtures/d1/oxdoc`.
+    const OXDOC: [(&str, &[(&str, &[u8])]); 4] = [
+        (
+            "c1-preservation",
+            parts!("c1-preservation":
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "customXml/item1.xml",
+                "xl/_rels/workbook.xml.rels",
+                "xl/calcChain.xml",
+                "xl/drawings/drawing1.xml",
+                "xl/pivotCache/pivotCacheDefinition1.xml",
+                "xl/pivotTables/pivotTable1.xml",
+                "xl/sharedStrings.xml",
+                "xl/styles.xml",
+                "xl/tables/table1.xml",
+                "xl/vbaProject.bin",
+                "xl/workbook.xml",
+                "xl/worksheets/_rels/sheet1.xml.rels",
+                "xl/worksheets/sheet1.xml",
+            ),
+        ),
+        (
+            "w010-cell-add",
+            parts!("w010-cell-add":
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "xl/_rels/workbook.xml.rels",
+                "xl/calcChain.xml",
+                "xl/sharedStrings.xml",
+                "xl/styles.xml",
+                "xl/workbook.xml",
+                "xl/worksheets/sheet1.xml",
+            ),
+        ),
+        (
+            "w010-rich-error-cell-edit",
+            parts!("w010-rich-error-cell-edit":
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "xl/_rels/workbook.xml.rels",
+                "xl/metadata.xml",
+                "xl/richData/rdRichValueTypes.xml",
+                "xl/richData/rdrichvalue.xml",
+                "xl/richData/rdrichvaluestructure.xml",
+                "xl/styles.xml",
+                "xl/workbook.xml",
+                "xl/worksheets/sheet1.xml",
+            ),
+        ),
+        (
+            "w010-styled-cell-edit",
+            parts!("w010-styled-cell-edit":
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "xl/_rels/workbook.xml.rels",
+                "xl/metadata.xml",
+                "xl/sharedStrings.xml",
+                "xl/styles.xml",
+                "xl/workbook.xml",
+                "xl/worksheets/sheet1.xml",
+            ),
+        ),
+    ];
+
+    /// Each embedded OxDoc fixture's name with the paths of its parts.
+    pub fn oxdoc_contents() -> Vec<(&'static str, Vec<&'static str>)> {
+        OXDOC
+            .iter()
+            .map(|(name, parts)| (*name, parts.iter().map(|(part, _)| *part).collect()))
+            .collect()
+    }
+
+    /// The package of the OxDoc conformance fixture `name`: each of its parts stored under its
+    /// path, in path order with `[Content_Types].xml` first, as OxDoc's conformance harness zips
+    /// them.
+    pub fn oxdoc_package(name: &str) -> Vec<u8> {
+        let (_, parts) = OXDOC
+            .iter()
+            .find(|(fixture, _)| *fixture == name)
+            .unwrap_or_else(|| panic!("{name} is not an embedded OxDoc fixture"));
+        let mut parts: Vec<(&str, &[u8])> = parts.to_vec();
         parts.sort_by(|a, b| {
-            (a.0 != "[Content_Types].xml", &a.0).cmp(&(b.0 != "[Content_Types].xml", &b.0))
+            (a.0 != "[Content_Types].xml", a.0).cmp(&(b.0 != "[Content_Types].xml", b.0))
         });
         let entries: Vec<RawEntry> = parts
             .iter()

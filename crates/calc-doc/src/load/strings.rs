@@ -107,7 +107,8 @@ pub(super) fn shared_strings(package: &Package, part: &str) -> Result<Vec<ExcelT
 mod tests {
     use super::decode;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn escapes() {
         assert_eq!(decode("a_x000D_b"), vec![0x61, 0x0D, 0x62]);
         assert_eq!(
