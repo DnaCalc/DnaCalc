@@ -68,7 +68,7 @@ pub enum PrepareError {
     UnknownSheet { operation: usize, sheet: SheetId },
     /// The operation at this index inserts or deletes rows or columns, or inserts, renames,
     /// moves or removes a sheet. The graph's structural patches (moving anchors and edges,
-    /// deleting the nodes of a removed sheet) belong to ceng-m4.1; until then such a batch is
+    /// deleting the nodes of a removed sheet) belong to dc-m3u; until then such a batch is
     /// refused rather than leaving anchors and edges at their old places.
     StructuralEdit { operation: usize },
 }
@@ -96,7 +96,7 @@ impl fmt::Display for PrepareError {
             ),
             PrepareError::StructuralEdit { operation } => write!(
                 f,
-                "operation {operation} is a structural edit; the engine's structural patches are ceng-m4.1's"
+                "operation {operation} is a structural edit; the engine's structural patches are dc-m3u's"
             ),
         }
     }

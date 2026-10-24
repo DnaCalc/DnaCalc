@@ -14,7 +14,7 @@
 //! apart than any two with the same rounding order by value, and nearer ones by their roundings,
 //! each found exactly from the number's decimal value. Where Excel's own rounding departs from the
 //! exact one, a comparison that the departure could decide is refused as not modelled, naming no
-//! argument (bead dc-n8n7 owns Excel's rule there): a number within a relative 2^-59 of a
+//! argument (bead dc-j9k owns Excel's rule there): a number within a relative 2^-59 of a
 //! 16th-digit tie but not on it, a number of binary64's top binade (from 2^1023), and a number
 //! from 1E-146 or 1E-292 to a relative 2^-8 above it.
 //!
@@ -94,7 +94,7 @@ pub(super) enum Want {
 
 /// Why [`texts`] does not decide two texts: `operand` (0 for the first, 1 for the second) holds a
 /// character beyond the collation's repertoire, the first one met. Excel's collation of such
-/// characters belongs to locale services, and bead cfml-m2.6 owns its replacement; the comparison
+/// characters belongs to locale services, and bead dc-uar owns its replacement; the comparison
 /// operators refuse the pair as not modelled, naming that operand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Beyond {
@@ -260,7 +260,7 @@ pub(super) fn numbers(site: &Site<'_>, a: f64, b: f64) -> Step<Ordering> {
 
 /// The refusal of two nearly equal numbers in a band where Excel's rounding departs from the
 /// exact one (a near tie of [`NEAR_TIE_BITS`], [`TOP_BINADE`], [`FINER`]): not modelled, naming no
-/// argument, since the pair decides it. Bead dc-n8n7 owns Excel's rule in these bands.
+/// argument, since the pair decides it. Bead dc-j9k owns Excel's rule in these bands.
 fn in_band(site: &Site<'_>) -> Exit {
     site.not_modelled(None)
 }

@@ -27,10 +27,10 @@
 //!   NotImplemented), the binary64 result the evaluator publishes for a near-zero row it does not
 //!   refuse (=1*(0.5-0.4-0.1)), and the choices made by hand: SUM's first error in row-major
 //!   order, 0 for a formula whose value is a blank cell, and #REF! for a reference placed off the
-//!   grid (Excel may wrap on some routes; dc-ds2z measures it).
+//!   grid (Excel may wrap on some routes; dc-m3u measures it).
 //!
 //! cfunc-m1.2's oracle capture is the Excel evidence for the operators and functions; bead
-//! dc-r4ci reads it for the near-zero rows.
+//! dc-6qki reads it for the near-zero rows.
 //!
 //! The dc-2mlz case runs formulas of Excel's maximum length (8,192 characters) and its deepest
 //! nesting of functions (64) through the same public route, parse_formula, bind_references,
@@ -2443,7 +2443,7 @@ fn cfml_m1_3__reuse_plan() {
     // this reader's Sheet1!C3 and C4 hold. Each expected value is the evaluator's current answer,
     // not Excel's: a final + or - whose binary64 result lies in the chosen band is refused, the
     // same difference under a final * is published, and =1E15+1-1E15, exactly 1, is refused too.
-    // Bead dc-r4ci measures Excel's rule against the captured rows and replaces the refusal.
+    // Bead dc-6qki measures Excel's rule against the captured rows and replaces the refusal.
     reader.store(s1, "C3", CalcValue::number(123_456_789_012.34));
     reader.store(s1, "C4", CalcValue::number(123_456_789_012.33));
     let near_zero = |result: f64| Err(EvalFault::NearZeroFinalSum { result });
@@ -2479,7 +2479,7 @@ fn cfml_m1_3__reuse_plan() {
             Err(fault) => format!("{fault:?}"),
         };
         note!(
-            "ACCEPT-NOTE: cfml_m1_3__reuse_plan: near-zero row {formula} -> {answer} (the evaluator's current answer, not Excel's; Excel's rule is measured by dc-r4ci)"
+            "ACCEPT-NOTE: cfml_m1_3__reuse_plan: near-zero row {formula} -> {answer} (the evaluator's current answer, not Excel's; Excel's rule is measured by dc-6qki)"
         );
     }
 
@@ -2510,7 +2510,7 @@ fn cfml_m1_3__reuse_plan() {
     // One plan placed at three more anchors: one row down it reads A2:A4 (SUM skips A4's text:
     // (10+3)*2), at F20 the blank D11:D13, and at C3 its rows lie above the grid, so it is #REF!
     // without a read. That #REF! is cfml-m1.2's choice, not measured: Excel may wrap a relative
-    // reference around the grid on some routes (dc-ds2z measures it).
+    // reference around the grid on some routes (dc-m3u measures it).
     let placements = [
         (
             anchor_at(s1, "C11"),
@@ -2543,8 +2543,8 @@ fn cfml_m1_3__reuse_plan() {
     let refusals = [
         ("=1+", "syntax"),
         ("=Nope!A1", "reference"),
-        // A catalogue that carries no defined names refuses one, naming D1, which loads them.
-        ("=TaxRate*2", "unsupported dc-ndi"),
+        // A catalogue that carries no defined names refuses one, naming L3, which owns them.
+        ("=TaxRate*2", "unsupported dc-m3u"),
         // An array constant whose rows differ in length is no array constant.
         ("=SUM({1,2;3})", "syntax"),
         ("=NOSUCH(1)", "unknown function"),

@@ -14,8 +14,8 @@
 //!   reverse indexes that find the nodes reading a changed cell; a span's sheets are read from
 //!   the snapshot's current sheet order. [`begin_recalc`] states them from each formula's placed
 //!   references: cells, rectangles and whole rows or columns. CalcFml's binder refuses sheet
-//!   spans today, so only tests state a span; its binding is cfml-m3.2's and its calculation
-//!   ceng-m3.5's.
+//!   spans today, so only tests state a span; its binding and its calculation
+//!   are dc-m3u's.
 //! - Edits: [`prepare_edit`] stages an authored [`calc_doc_model::OpBatch`]'s effects against the
 //!   base snapshot and reserves the IDs of the nodes it adds, changing no node or edge: formula
 //!   nodes added, replaced or removed ([`NodeChange`]) and the changed inputs, each with its prior

@@ -164,7 +164,7 @@ pub struct EngineState {
     /// The plan of each formula template compiled ([`calc_fml::reference::template_key`]), per
     /// sheet and form, so a formula whose template was compiled is placed without parsing. Like
     /// the plan cache's plans, they were compiled against the state's sheets and defined names,
-    /// which no edit the engine admits changes (sheet edits are refused, ceng-m4.1; the model
+    /// which no edit the engine admits changes (sheet edits are refused, dc-m3u; the model
     /// has no edit of a defined name).
     pub(crate) templates: HashMap<(SheetId, FormulaForm, String), Arc<CompiledPlan>>,
     /// The environment every evaluation runs in: the workbook's date system, the host's locale
@@ -380,8 +380,8 @@ impl EngineState {
     /// States what a live node reads, replacing what it read before, and files each prerequisite
     /// in the graph's reverse indexes. Its product caller is [`crate::begin_recalc`], which binds
     /// each unbound node's formula through CalcFml and states the cells, rectangles and whole
-    /// rows or columns its references name; sheet spans have no product caller yet (cfml-m3.2's
-    /// binding, ceng-m3.5's calculation). Every sheet named must be in `inputs`, the snapshot at
+    /// rows or columns its references name; sheet spans have no product caller yet (dc-m3u's
+    /// binding and calculation). Every sheet named must be in `inputs`, the snapshot at
     /// this state's revision.
     ///
     /// It is public because ceng-m1.1's acceptance cases state prerequisites with it by hand, the

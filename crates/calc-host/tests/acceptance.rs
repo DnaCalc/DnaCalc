@@ -651,7 +651,7 @@ fn chost_m1_1__atomic_prepare_failure() {
 fn chost_m1_1__recalc_failure_keeps_edit() {
     const CASE: &str = "chost_m1_1__recalc_failure_keeps_edit";
     note!(
-        "ACCEPT-NOTE: {CASE}: every expected input, value, provenance, revision, tick, dirty set, stopped read and cycle is derived by hand from the generated fixture's literals and formula texts; none is read back from the host, a capture or Excel, and agreement with Excel is infra-m1.3's round trip"
+        "ACCEPT-NOTE: {CASE}: every expected input, value, provenance, revision, tick, dirty set, stopped read and cycle is derived by hand from the generated fixture's literals and formula texts; none is read back from the host, a capture or Excel, and agreement with Excel is dc-35p's round trip"
     );
 
     let mut book = Book::open(HostOptions::default());
@@ -1127,7 +1127,7 @@ fn edits_before_the_first_recalculation(case: &str) {
         "after the edits no cache is projected as a file cache that stands, and nothing as calculated"
     );
     note!(
-        "ACCEPT-NOTE: {case}: before any recalculation, a replaced formula (Calc!A1), a formula cleared and replaced by a different one (Calc!C1) and the formulas reading an edited cell (Calc!A3 reads Inputs!A1, Calc!A2 reads Calc!A1) project their file caches as stale, never as file caches; at revision 3 three cells carry the cause file-cache-unverified, which the host gives every as-opened file cache once an edit changed an input, without the engine's reach: Calc!A2 and Calc!A3, which the edits reached, and Calc!B1, which no edit reached (at revision 2 Calc!A3, not yet reached, carried it as well), the conservative broadening dc-f92f is to retire"
+        "ACCEPT-NOTE: {case}: before any recalculation, a replaced formula (Calc!A1), a formula cleared and replaced by a different one (Calc!C1) and the formulas reading an edited cell (Calc!A3 reads Inputs!A1, Calc!A2 reads Calc!A1) project their file caches as stale, never as file caches; at revision 3 three cells carry the cause file-cache-unverified, which the host gives every as-opened file cache once an edit changed an input, without the engine's reach: Calc!A2 and Calc!A3, which the edits reached, and Calc!B1, which no edit reached (at revision 2 Calc!A3, not yet reached, carried it as well), the conservative broadening dc-35p is to retire"
     );
 
     // The first recalculation fails: the observer stops its first read, Calc!A1's read of

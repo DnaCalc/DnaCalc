@@ -46,9 +46,9 @@ pub struct HostOptions {
 /// follows from the engine taking no date system; no calculation observes it until a function
 /// that reads or returns a serial date is calculated.
 ///
-/// ceng-m4.3 carries the workbook's date system, iteration settings and precision as displayed
+/// dc-35p carries the workbook's date system, iteration settings and precision as displayed
 /// into the engine; `date1904` and `precision_as_displayed` then come from the engine's settings
-/// and change with the workbook. `iteration` also waits on ceng-m5.2, which calculates circular
+/// and change with the workbook. `iteration` also waits on dc-m3u, which calculates circular
 /// references iteratively: until then the engine refuses every cycle, so this reports `false`
 /// even for a workbook whose settings ask for iteration. A host that applies iteration must also
 /// report the iteration count and maximum change it applies, which this struct does not hold.
@@ -191,7 +191,7 @@ impl HostState {
 
     /// The calculation context every recalculation of this host applies: the 1900 date system,
     /// no iteration and full precision, whatever the package declares, under the numeric mode the
-    /// host was opened with ([`RecalcContext`] says why, and that ceng-m4.3 changes these).
+    /// host was opened with ([`RecalcContext`] says why, and that dc-35p changes these).
     pub fn recalc_context(&self) -> RecalcContext {
         RecalcContext {
             date1904: false,

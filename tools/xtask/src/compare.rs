@@ -35,7 +35,7 @@
 //! gives for the date system and precision `HostState::recalc_context` reports the host applies,
 //! never the capture's; a host that applies iterative calculation is refused (exit 5), because
 //! the context the host reports does not carry the iteration limits a fingerprint names (no host
-//! applies iteration until ceng-m5.2). A version 1 capture names no context, so when the package
+//! applies iteration until dc-m3u). A version 1 capture names no context, so when the package
 //! declares a date system the host does not apply (`HostState::declared_date1904`), the triage
 //! classes every calculated cell `context` under the setting that differs. Under
 //! `--exact-target` the host recalculates under that Exact numeric mode and the verdict certifies
@@ -1208,7 +1208,7 @@ mod tests {
             (
                 Class::NotModelled,
                 "INFO",
-                "F2 dc-ip6",
+                "exactness dc-uar",
                 "Evaluation:Function:NotImplemented"
             )
         );

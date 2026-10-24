@@ -88,7 +88,7 @@ fn defined_names(
 
 /// The workbook part rewritten: with `fullCalcOnLoad="1"` on its `calcPr` when `full_calc` (which
 /// asks the application that opens the package to recalculate every formula; whether Excel does
-/// is measured by infra-m1.3's round trip), set on the `calcPr` the part holds, its other
+/// is measured by dc-35p's round trip), set on the `calcPr` the part holds, its other
 /// attributes kept, or a new `calcPr` at the place the schema gives it; and with `names` applied
 /// to its `definedNames`: each removed name's hidden, workbook-scoped `definedName` left out (and
 /// the element with it when nothing else remains in it), and each added name appended as a hidden,

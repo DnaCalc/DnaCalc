@@ -22,7 +22,7 @@
 //! 64 levels (Excel's documented limit of nested levels of functions); a LAMBDA call runs its body
 //! from `Run::invoke`; and a defined name's formula runs from `Run::name`. LAMBDA calls and names
 //! nest at most [`MAX_CALL_DEPTH`] deep; a deeper evaluation is refused. The explicit evaluation
-//! stack that removes the recursion is bead dc-2mlz's.
+//! stack that removes the recursion is bead dc-m3u's.
 
 use super::cells::{ReaderCells, SharedReader};
 use super::closure::Closure;
@@ -86,7 +86,7 @@ pub enum EvalFault {
     ReadContract(ReadContractError),
     /// A reference to more than one cell where a legacy formula takes one value at a place whose
     /// evaluation in Excel this package does not model (see [`super::FormulaForm::Legacy`]); work
-    /// package dc-mzk owns it.
+    /// package dc-m3u owns it.
     AreaAsValue { area: GridArea },
     /// The formula's final operation is an infix `+` or `-` (seen through parentheses, a prefix
     /// `+` or `-` and the arguments IF may return) whose result is a non-zero number of at most
@@ -96,7 +96,7 @@ pub enum EvalFault {
     /// by a rule that is not documented precisely enough to implement, so a result in this band
     /// is refused rather than published. The band is chosen, not measured: it is not Excel's, and
     /// it also refuses results that are exact and non-zero (`=1E15+1-1E15` is exactly 1). Bead
-    /// dc-r4ci measures Excel's rule against cfunc-m1.2's oracle rows and replaces this refusal
+    /// dc-6qki measures Excel's rule against cfunc-m1.2's oracle rows and replaces this refusal
     /// with it.
     NearZeroFinalSum { result: f64 },
     /// The evaluation reached a construct whose result is not modelled: `construct` says what it
@@ -110,7 +110,7 @@ pub enum EvalFault {
 /// The band within which the result of a final `+` or `-` is refused as
 /// [`EvalFault::NearZeroFinalSum`]: at most this many times its larger operand's magnitude. The
 /// value is chosen (the relative 1e-13 within which calc-func refuses to order two nearly equal
-/// numbers), not measured; bead dc-r4ci replaces the band with Excel's measured rule.
+/// numbers), not measured; bead dc-6qki replaces the band with Excel's measured rule.
 const NEAR_ZERO_BAND: f64 = 1e-13;
 
 /// The argument a lazy kernel receives after one of its arguments faulted. The call's result is
@@ -240,7 +240,7 @@ struct Run<'a, 'r> {
 fn not_modelled(construct: &'static str) -> EvalFault {
     EvalFault::NotModelled {
         construct,
-        owner: "dc-mzk",
+        owner: "dc-m3u",
     }
 }
 
@@ -767,7 +767,7 @@ impl Run<'_, '_> {
         if self.depth >= MAX_CALL_DEPTH {
             return Err(EvalFault::NotModelled {
                 construct: "LAMBDA calls or defined names nested more deeply than this package evaluates",
-                owner: "dc-2mlz",
+                owner: "dc-m3u",
             });
         }
         let frame = self.locals.len();
@@ -792,7 +792,7 @@ impl Run<'_, '_> {
         if self.depth >= MAX_CALL_DEPTH {
             return Err(EvalFault::NotModelled {
                 construct: "LAMBDA calls or defined names nested more deeply than this package evaluates",
-                owner: "dc-2mlz",
+                owner: "dc-m3u",
             });
         }
         let frame = self.locals.len();
@@ -818,7 +818,7 @@ impl Run<'_, '_> {
                     SpillExtent::NotModelled => {
                         return Err(EvalFault::NotModelled {
                             construct: "a spilled range reference (#) the reader does not know",
-                            owner: "dc-0k9",
+                            owner: "dc-m3u",
                         });
                     }
                 },

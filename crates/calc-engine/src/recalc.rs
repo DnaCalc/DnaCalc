@@ -78,8 +78,8 @@ pub enum StartError {
     /// The dirty closure has a cycle. `cells` are the formula cells that cannot be ordered, those
     /// on a cycle and those that read one, in the order of the cells (sheet ID, then row, then
     /// column). The nodes stay pending, so every later recalculation is refused the same way
-    /// until an edit breaks the cycle: strongly connected components are ceng-m5.1's and
-    /// iterative calculation ceng-m5.2's.
+    /// until an edit breaks the cycle: strongly connected components and iterative calculation
+    /// are dc-m3u's.
     Cycle { cells: Vec<CellKey> },
 }
 
@@ -825,7 +825,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
         Err(()) => {
             let refusal = NotModeled::Evaluation(EvalFault::NotModelled {
                 construct: "spill ranges that kept changing size within one recalculation",
-                owner: "dc-0k9",
+                owner: "dc-m3u",
             });
             for node in roots {
                 work.progress.schedule(node);
@@ -1296,7 +1296,7 @@ fn array_outcome(
                 Collision::Unknown => Err(Placed::Refused(NotModeled::Evaluation(
                     EvalFault::NotModelled {
                         construct: "a spill over the file's area of another array formula whose result is not calculated",
-                        owner: "dc-0k9",
+                        owner: "dc-m3u",
                     },
                 ))),
             }

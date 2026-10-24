@@ -139,10 +139,10 @@ pub enum ApplyError {
     /// The operation at this index of the batch names a sheet the root does not hold.
     UnknownSheet { operation: usize, sheet: SheetId },
     /// The operation at this index inserts or deletes rows or columns. This package does not
-    /// apply axis edits to its pages; cdoc-m4.1's axis maps do.
+    /// apply axis edits to its pages; dc-m3u's axis maps do.
     AxisEdit { operation: usize },
     /// The operation at this index inserts, renames, moves, removes, shows or hides a sheet. This
-    /// package does not apply sheet edits; cdoc-m4.3 authors the sheet lifecycle.
+    /// package does not apply sheet edits; dc-m3u authors the sheet lifecycle.
     SheetEdit { operation: usize },
     /// The skin layout edit at this index is refused, against the layout the batch's earlier
     /// operations leave.

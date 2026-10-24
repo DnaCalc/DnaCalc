@@ -10,7 +10,7 @@
 //! reference ends the call in ReferenceRequired, and a reference of several areas is not
 //! modelled. Neither is a shaped third argument that extends past the reference the formula
 //! gives: its cells past that reference are not among the formula's references, so a
-//! recalculation that follows them would not see those cells change (dc-1mc8 owns that).
+//! recalculation that follows them would not see those cells change (dc-m3u owns that).
 //!
 //! A criterion is read once, before any range. A reference criterion is dereferenced through the
 //! cell reader, a blank cell reading as Empty. A number, a logical, an error, or Empty or an

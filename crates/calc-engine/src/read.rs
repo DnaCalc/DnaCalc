@@ -140,7 +140,7 @@ impl ReadObserver for Unobserved {
 /// The sheets of a snapshot by name, for CalcFml's binding. A name matches a sheet whose name has
 /// the same UTF-16 code units, or, when both decode, the same characters once each is mapped to
 /// its Unicode uppercase. Excel compares sheet names without case; which characters its
-/// comparison folds is not measured: bead dc-85qk measures Excel's sheet-name rules, case-blind
+/// comparison folds is not measured: bead dc-m3u measures Excel's sheet-name rules, case-blind
 /// matching included.
 pub(crate) struct SnapshotCatalog<'r>(pub(crate) &'r ModelRoot);
 

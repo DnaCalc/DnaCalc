@@ -2,7 +2,7 @@
 //!
 //! These are inspection labels, never parsed back. A number is shown as the shortest decimal
 //! that round-trips its binary64, not in Excel's General format: number formats are calc-fml's
-//! (bead cfml-m2.6) and reach OneCalc through bead onecalc-m2.1. A cell is labelled `Sheet2!B3`,
+//! (bead dc-m3u) and reach OneCalc through bead onecalc-m2.1. A cell is labelled `Sheet2!B3`,
 //! with the sheet name as held, unquoted.
 
 use crate::fixture::{Read, RunCells};
@@ -220,7 +220,7 @@ fn compile_error(error: &CompileError) -> String {
             span(*at)
         ),
         CompileError::NumberLiteral { span: at } => format!(
-            "number at {}: its Excel value is not modelled (bead cfml-m2.6)",
+            "number at {}: its Excel value is not modelled (bead dc-m3u)",
             span(*at)
         ),
     }
@@ -267,14 +267,14 @@ fn eval_fault(session: &Session, fault: &EvalFault) -> String {
             error.covered
         ),
         EvalFault::AreaAsValue { area: at } => format!(
-            "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (work package dc-mzk)",
+            "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (work package dc-m3u)",
             area(session, *at)
         ),
         EvalFault::NotModelled { construct, owner } => {
             format!("not modelled: {construct} (work package {owner})")
         }
         EvalFault::NearZeroFinalSum { result } => format!(
-            "near-zero sum: the final + or - gave {result}, a result Excel adjusts by a rule not modelled yet (bead dc-r4ci)"
+            "near-zero sum: the final + or - gave {result}, a result Excel adjusts by a rule not modelled yet (bead dc-6qki)"
         ),
     }
 }
