@@ -6,8 +6,6 @@
 //! blocked by a value (`H1`, #SPILL!) and one with an empty result (`J1`, #CALC!), legacy array
 //! formulas (`L1:L3`, `N1`), and a name reference Excel stored as a dynamic array (`W1`).
 
-#![cfg(not(target_arch = "wasm32"))]
-
 mod cdoc_m1_1_support;
 
 use calc_doc::model::value::{GridArea, WorksheetErrorCode};
@@ -28,7 +26,8 @@ fn cached_number(value: &CachedValue) -> f64 {
     }
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_arrays__excel_arrays_load_with_anchor_area_and_kind() {
     let loaded = load(&fixture(FIXTURE));
     let calc = sheet(&loaded, "Calc");
@@ -115,7 +114,8 @@ fn d1_arrays__excel_arrays_load_with_anchor_area_and_kind() {
     assert_eq!(cached_number(&anchor_cache("N1").unwrap()), 55.0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_arrays__untouched_save_is_byte_for_byte() {
     let bytes = fixture(FIXTURE);
     let saved = save_untouched(&bytes);
@@ -132,7 +132,8 @@ fn d1_arrays__untouched_save_is_byte_for_byte() {
     assert_eq!(receipt.parts_written, 0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_arrays__edited_save_keeps_arrays_and_metadata() {
     let bytes = fixture(FIXTURE);
     let loaded = load(&bytes);
@@ -224,7 +225,8 @@ fn d1_arrays__edited_save_keeps_arrays_and_metadata() {
     assert!(part_text(&saved, "xl/workbook.xml").contains(r#"fullCalcOnLoad="1""#));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_arrays__replacing_an_anchor_removes_its_array() {
     let bytes = fixture(FIXTURE);
     let loaded = load(&bytes);
@@ -263,7 +265,8 @@ fn d1_arrays__replacing_an_anchor_removes_its_array() {
     assert_eq!(reloaded.model().definitions().arrays().count(), 6);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_arrays__part_of_an_array_is_refused() {
     let loaded = load(&fixture(FIXTURE));
     let calc = sheet(&loaded, "Calc");
@@ -332,7 +335,8 @@ fn d1_arrays__part_of_an_array_is_refused() {
 /// dc-35p (D2): an authored array formula. A legacy array over a free area is saved as Excel
 /// saves one (`<f t="array" ref="..">` without cell metadata); one that changes part of a legacy
 /// array is refused, and one that meets a dynamic array without replacing it overlaps it.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_arrays__an_authored_array_formula_saves_and_is_checked() {
     let bytes = fixture(FIXTURE);
     let loaded = load(&bytes);

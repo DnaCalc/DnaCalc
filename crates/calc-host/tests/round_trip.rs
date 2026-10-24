@@ -8,7 +8,6 @@
 //!   deltas, the intent log's replay, and the M1 proof: open, edit, undo, recalculate, save and
 //!   reopen.
 
-#![cfg(not(target_arch = "wasm32"))]
 // Case names are fixed identities of the form `<bead>__<case>`.
 #![allow(non_snake_case)]
 
@@ -24,10 +23,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+/// The D1 fixture, embedded so the same tests run natively and in the browsers.
 fn fixture() -> Vec<u8> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx");
-    std::fs::read(path).expect("the D1 fixture")
+    include_bytes!("../../calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx").to_vec()
 }
 
 fn open(bytes: &[u8]) -> HostState {
@@ -105,7 +103,8 @@ fn part_text(package: &[u8], name: &str) -> String {
     String::from_utf8(document.package().read_part(name).expect("the part")).unwrap()
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values() {
     let mut host = open(&fixture());
     let calc = sheet(&host, "Calc");
@@ -179,7 +178,8 @@ fn d1_round_trip__a_workbook_with_arrays_opens_calculates_and_saves_its_values()
     }
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_round_trip__readers_of_a_removed_array_recalculate() {
     let mut host = open(&fixture());
     let calc = sheet(&host, "Calc");
@@ -277,7 +277,8 @@ fn is_calculated(value: &ProjectedValue, expected: f64) -> bool {
     matches!(value, ProjectedValue::Calculated { value, .. } if *value == CalcValue::number(expected))
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__edits_undo_redo_and_deltas() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -415,7 +416,8 @@ fn d2_session__edits_undo_redo_and_deltas() {
     assert_mirror_current(&mut session, interest, &received);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__clear_and_undo_restore_formulas_and_values() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -454,7 +456,8 @@ fn d2_session__clear_and_undo_restore_formulas_and_values() {
     assert_mirror_current(&mut session, Interest::Area(area), &received);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__undo_restores_an_array_formula() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -505,7 +508,8 @@ fn d2_session__undo_restores_an_array_formula() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__an_entered_array_formula_spills() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -543,7 +547,8 @@ fn d2_session__an_entered_array_formula_spills() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__refused_entries_change_nothing() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -578,7 +583,8 @@ fn d2_session__refused_entries_change_nothing() {
 
 /// dc-10d9: a full recalculation (Excel's `CalculateFull`) calculates every formula again, under a
 /// new tick, with the plans and the graph kept, and gives the values the first one gave.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_10d9__a_full_recalculation_calculates_every_formula_again() {
     let mut host = open(&fixture());
     let first = match step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved) {
@@ -603,7 +609,8 @@ fn dc_10d9__a_full_recalculation_calculates_every_formula_again() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__manual_mode_recalculates_when_asked() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -626,7 +633,8 @@ fn d2_session__manual_mode_recalculates_when_asked() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__a_selection_interest_follows_the_selection() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -653,7 +661,8 @@ fn d2_session__a_selection_interest_follows_the_selection() {
     assert!(is_calculated(deltas.last().unwrap().cells[0].value(), 24.0));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__the_intent_log_replays() {
     let mut recorded = session(&fixture());
     let calc = sheet(recorded.host(), "Calc");
@@ -700,7 +709,8 @@ fn d2_session__the_intent_log_replays() {
 /// values alone, a legacy array's area filled, and, once a value blocks the spill, #SPILL! with
 /// its value metadata. With `DNACALC_D2_SAVE_DIR` set, both saved packages are also written there
 /// for a capture in Excel.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_m1_proof__open_edit_undo_recalculate_save_reopen() {
     let mut session = session(&fixture());
     let data = sheet(session.host(), "Data");
@@ -870,6 +880,8 @@ fn cached_of(value: &CalcValue) -> CachedValue {
 /// that sets the cell to the number. The saved file is then captured in Excel (`cargo xtask
 /// capture`) and compared (`cargo xtask compare`) outside this test. Without either variable it
 /// prints that it did not run.
+///
+/// Native-only: it reads and writes the workbook files an environment variable names.
 #[test]
 fn d1_round_trip__external_workbook() {
     let spec = match (
@@ -928,7 +940,8 @@ fn d1_round_trip__external_workbook() {
     println!("ACCEPT-NOTE: d1_round_trip__external_workbook: {receipt:?}");
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_session__an_interest_moves_and_an_unknown_subscription_is_refused() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");

@@ -1,18 +1,17 @@
 //! dc-ndi (D1): the file form calc_doc writes for authored formulas, compared with what Excel
 //! 16.0 build 20430 stored for the same entries (the measurements under tests/fixtures/d1/).
 
-#![cfg(not(target_arch = "wasm32"))]
-
 mod cdoc_m1_1_support;
 
 use calc_doc::file_form;
 use calc_doc::model::value::ExcelText;
 use calc_doc::model::{DefinedName, FormulaText, NameScope};
-use cdoc_m1_1_support::d1::fixtures;
+use cdoc_m1_1_support::d1::fixture;
 use serde_json::Value;
 
 fn measurement(name: &str) -> Value {
-    let text = std::fs::read_to_string(fixtures().join(name)).expect("a measurement");
+    let bytes = fixture(name);
+    let text = std::str::from_utf8(&bytes).expect("a measurement");
     serde_json::from_str(text.trim_start_matches('\u{feff}')).expect("JSON")
 }
 
@@ -50,7 +49,8 @@ fn flags(value: &Value) -> Vec<Option<bool>> {
     }
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_file_form__table_matches_the_measurements() {
     let prefixes = measurement("excel-prefixes.json");
     let positions = measurement("excel-array-positions.json");
@@ -90,7 +90,8 @@ fn d1_file_form__table_matches_the_measurements() {
     assert!(entries > 1500, "{entries} entries");
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_file_form__entered_formulas_match_excel() {
     let measured = measurement("excel-file-form.json");
     let names = [
@@ -114,7 +115,8 @@ fn d1_file_form__entered_formulas_match_excel() {
     assert_eq!(checked, 70);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_file_form__prefixed_text_is_left_as_written() {
     for written in [
         "_xlfn.XLOOKUP(1,A1:A3,B1:B3)",
@@ -129,7 +131,8 @@ fn d1_file_form__prefixed_text_is_left_as_written() {
 /// The save's prefix table is measured over every function Excel 16 knows; calc-func's
 /// file-prefix metadata covers the functions it catalogues. Every catalogued function's prefix
 /// agrees with what Excel stored for it in the measurement.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d1_file_form__catalogue_prefixes_agree() {
     let prefixes = measurement("excel-prefixes.json");
     let stored: std::collections::BTreeMap<String, String> = prefixes["rows"]

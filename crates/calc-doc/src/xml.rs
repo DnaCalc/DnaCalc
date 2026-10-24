@@ -426,7 +426,8 @@ mod tests {
     /// Each event's span is the bytes it was read from, so a writer can copy a part's source
     /// bytes around the elements it replaces; a part that starts with a UTF-8 byte order mark
     /// gives the same bytes, its spans counted from the part's first byte.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn spans() {
         let text = br#"<?xml version="1.0"?>
 <a xmlns="urn:x"><!-- c --><b k="1"/> t<c>u</c></a>"#;
@@ -457,7 +458,8 @@ mod tests {
     }
 
     /// A second byte order mark is refused, not dropped.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn second_byte_order_mark() {
         let text = [&UTF8_BOM[..], &UTF8_BOM[..], b"<a/>"].concat();
         let mut reader = XmlReader::new(&text, XmlLimits::default());

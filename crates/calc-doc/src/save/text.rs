@@ -281,7 +281,8 @@ mod tests {
     }
 
     /// Escaped text decodes, as the loader decodes it, to exactly the code units written.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xstring_round_trips() {
         let cases: Vec<Vec<u16>> = vec![
             "a<b>&c \"d\"".encode_utf16().collect(),
@@ -306,7 +307,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn numbers() {
         for (value, text) in [
             (0.1, "0.1"),
@@ -326,7 +328,8 @@ mod tests {
         assert_eq!(number(-0.0), "-0");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tags() {
         let tag = RawTag::parse(br#"<x:row r="3" spans='1:8'  x14ac:dyDescent="0.25"/>"#);
         assert_eq!(tag.prefix(), b"x:");
