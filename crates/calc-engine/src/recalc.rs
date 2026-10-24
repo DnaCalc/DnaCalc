@@ -84,7 +84,8 @@ use calc_fml::{
 };
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode};
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
 use std::fmt;
 use std::ops::ControlFlow;
 use std::sync::Arc;
@@ -393,7 +394,9 @@ pub fn begin_recalc(
                 let reached: Vec<NodeId> = dirty_closure(state, inputs, roots.clone(), &|node| {
                     published_areas(state, inputs, node)
                 })
-                .into_keys()
+                .members()
+                .iter()
+                .copied()
                 .filter(|node| crate::data_table::is_table_cell(inputs, live_anchor(state, *node)))
                 .collect();
                 state.tables_deferred = true;
@@ -756,34 +759,60 @@ pub(crate) fn published_areas(
     areas
 }
 
-/// The nodes that read the anchor of `node` or a cell of one of `areas`. A formula that reads its
-/// own anchor is among them, a cycle; one that reads only the cells its own result fills is not
-/// (its spill's own dynamic prerequisites are those cells), and an evaluation that reads them
-/// finds the circular reference itself.
-fn readers(
+/// Puts into `out`, in ID order and each once, the nodes that read the anchor of `node` or a cell
+/// of one of `areas`. A formula that reads its own anchor is among them, a cycle; one that reads
+/// only the cells its own result fills is not (its spill's own dynamic prerequisites are those
+/// cells), and an evaluation that reads them finds the circular reference itself.
+fn readers_into(
     state: &EngineState,
     inputs: &ModelRoot,
     node: NodeId,
     areas: &[GridArea],
-) -> BTreeSet<NodeId> {
-    let mut readers = BTreeSet::new();
-    let mut area_readers = BTreeSet::new();
+    out: &mut Vec<NodeId>,
+) {
+    out.clear();
     for area in areas {
-        state
-            .index
-            .dependents_of_area(inputs, *area, &mut area_readers);
+        state.index.dependents_of_area(inputs, *area, out);
     }
-    area_readers.remove(&node);
+    out.retain(|reader| *reader != node);
     state
         .index
-        .dependents_of_cell(inputs, live_anchor(state, node), &mut readers);
-    readers.append(&mut area_readers);
+        .dependents_of_cell(inputs, live_anchor(state, node), out);
     if state.tables_deferred {
-        readers.retain(|reader| {
-            !crate::data_table::is_table_cell(inputs, live_anchor(state, *reader))
-        });
+        out.retain(|reader| !crate::data_table::is_table_cell(inputs, live_anchor(state, *reader)));
     }
-    readers
+    out.sort_unstable();
+    out.dedup();
+}
+
+/// The dirty closure of a set of roots: its members, and each member's readers, kept by the
+/// member's slot (dc-10d9: in place of a map from node to readers, which ordering a closure of
+/// every formula built anew for every recalculation).
+pub(crate) struct Closure {
+    /// The members, in ID order.
+    members: Vec<NodeId>,
+    /// Each member's readers, in ID order, at the member's slot; empty at any other slot.
+    readers: Vec<Vec<NodeId>>,
+}
+
+impl Closure {
+    /// The members, in ID order.
+    pub(crate) fn members(&self) -> &[NodeId] {
+        &self.members
+    }
+
+    /// The readers of the member `node`, in ID order.
+    fn readers(&self, node: NodeId) -> &[NodeId] {
+        &self.readers[node.slot() as usize]
+    }
+
+    /// The members with their readers, as a map.
+    fn to_map(&self) -> BTreeMap<NodeId, Vec<NodeId>> {
+        self.members
+            .iter()
+            .map(|node| (*node, self.readers(*node).to_vec()))
+            .collect()
+    }
 }
 
 /// The dirty closure of `roots`: the roots and every node that reads the anchor of one, or a cell
@@ -794,20 +823,32 @@ pub(crate) fn dirty_closure(
     inputs: &ModelRoot,
     roots: BTreeSet<NodeId>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
-) -> BTreeMap<NodeId, Vec<NodeId>> {
-    let mut stack: Vec<NodeId> = roots.iter().copied().collect();
-    let mut closure = roots;
-    let mut readers_of: BTreeMap<NodeId, Vec<NodeId>> = BTreeMap::new();
+) -> Closure {
+    let slots = state.nodes.len();
+    let mut member = vec![false; slots];
+    let mut readers: Vec<Vec<NodeId>> = Vec::new();
+    readers.resize_with(slots, Vec::new);
+    let mut members: Vec<NodeId> = Vec::with_capacity(roots.len());
+    for node in &roots {
+        member[node.slot() as usize] = true;
+        members.push(*node);
+    }
+    let mut stack = members.clone();
+    let mut found = Vec::new();
     while let Some(node) = stack.pop() {
-        let readers = readers(state, inputs, node, &areas(node));
-        for &reader in &readers {
-            if closure.insert(reader) {
+        readers_into(state, inputs, node, &areas(node), &mut found);
+        for &reader in &found {
+            let slot = reader.slot() as usize;
+            if !member[slot] {
+                member[slot] = true;
+                members.push(reader);
                 stack.push(reader);
             }
         }
-        readers_of.insert(node, readers.into_iter().collect());
+        readers[node.slot() as usize] = std::mem::take(&mut found);
     }
-    readers_of
+    members.sort_unstable();
+    Closure { members, readers }
 }
 
 /// The order a recalculation evaluates its nodes in, and the nodes on a cycle.
@@ -826,14 +867,15 @@ fn schedule(
     roots: BTreeSet<NodeId>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Scheduled {
-    let readers_of = dirty_closure(state, inputs, roots, areas);
+    let closure = dirty_closure(state, inputs, roots, areas);
     let acyclic = |order| Scheduled {
         order,
         cyclic: BTreeSet::new(),
     };
-    match order(state, &readers_of) {
+    match order(state, &closure) {
         Ok(order) => acyclic(order),
         Err(_) => {
+            let readers_of = closure.to_map();
             // Keep only the edges a placed reference makes: a dynamic prerequisite may be stale
             // (it is what the last evaluation read), and a formula that reads a cell evaluated
             // later waits for it at evaluation.
@@ -862,7 +904,7 @@ fn schedule(
                     (*node, kept)
                 })
                 .collect();
-            match order(state, &placed) {
+            match order_map(state, &placed) {
                 Ok(order) => acyclic(order),
                 Err(_) => order_with_cycles(state, &placed),
             }
@@ -994,9 +1036,51 @@ fn tarjan(edges: &[Vec<usize>]) -> Vec<usize> {
     component
 }
 
+/// The members of `closure` in the order of the ready queue (a node is ready once every member
+/// it reads is ordered, and of the ready nodes the one whose anchor comes first is ordered next),
+/// or the anchors of those a cycle leaves unordered, in cell order. The counts are kept by slot
+/// and the ready queue is a heap (dc-10d9); the order is the one a map and an ordered set gave.
+fn order(state: &EngineState, closure: &Closure) -> Result<Vec<NodeId>, Vec<CellKey>> {
+    let mut waiting = vec![0u32; closure.readers.len()];
+    for node in closure.members() {
+        for reader in closure.readers(*node) {
+            waiting[reader.slot() as usize] += 1;
+        }
+    }
+    let mut ready: BinaryHeap<Reverse<(CellKey, NodeId)>> = closure
+        .members()
+        .iter()
+        .filter(|node| waiting[node.slot() as usize] == 0)
+        .map(|node| Reverse((live_anchor(state, *node), *node)))
+        .collect();
+    let mut order = Vec::with_capacity(closure.members().len());
+    while let Some(Reverse((_, node))) = ready.pop() {
+        order.push(node);
+        for &reader in closure.readers(node) {
+            let count = &mut waiting[reader.slot() as usize];
+            *count -= 1;
+            if *count == 0 {
+                ready.push(Reverse((live_anchor(state, reader), reader)));
+            }
+        }
+    }
+    if order.len() < closure.members().len() {
+        let mut cells: Vec<CellKey> = closure
+            .members()
+            .iter()
+            .filter(|node| waiting[node.slot() as usize] > 0)
+            .map(|node| live_anchor(state, *node))
+            .collect();
+        cells.sort();
+        return Err(cells);
+    }
+    Ok(order)
+}
+
 /// The nodes of `readers_of` in the order of the ready queue, or the anchors of those a cycle
-/// leaves unordered.
-fn order(
+/// leaves unordered: [`order`] over a closure given as a map, as the placed references alone give
+/// it when the dynamic prerequisites close a cycle.
+fn order_map(
     state: &EngineState,
     readers_of: &BTreeMap<NodeId, Vec<NodeId>>,
 ) -> Result<Vec<NodeId>, Vec<CellKey>> {
