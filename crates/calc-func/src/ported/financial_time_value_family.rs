@@ -722,29 +722,32 @@ pub fn ipmt(
     let periodic_payment = pmt(periodic_rate, periods, present_value, future_value, timing)?;
     let tf = timing.factor(periodic_rate); // 1 + r·type
     let type_is_beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
-    // Remaining balance entering `period_index` (the `rip` term); interest = rip·r.
+    // Remaining balance entering `period_index` (the `rip` term); interest = rip·r. Excel
+    // computes it backward from the end of the annuity (dc-j9k): the balance B after
+    // `period_index - 1` periods is the one that `m = periods - period_index + 1` more periods
+    // take to -fv, B = -fv·v^m + pmt·(1 + r·type)·(v^m - 1)/r with v = 1/(1 + r), so late
+    // periods of a long, high-rate annuity do not lose the balance to cancellation. Against
+    // the catalogue oracle's IPMT and PPMT readings, the forward recurrence missed by up to
+    // 0.6 in absolute terms (PPMT(0.1713,191,264,-8172.57) was -0.588 where Excel gives
+    // 0.0116); the backward form is within a few ulp of Excel on every reading.
     let rip = if period_index <= 1.0 {
         if type_is_beginning {
             0.0
         } else {
             -present_value
         }
-    } else if type_is_beginning {
-        fv_exp(
-            periodic_rate,
-            period_index - 2.0,
-            periodic_payment,
-            present_value,
-            tf,
-        ) - periodic_payment
     } else {
-        fv_exp(
-            periodic_rate,
-            period_index - 1.0,
-            periodic_payment,
-            present_value,
-            tf,
-        )
+        let remaining = periods - period_index + 1.0;
+        let log_discount = -(remaining * excel_log1p(periodic_rate));
+        let discount = exp_portable(log_discount); // v^m
+        let discount_m1 = excel_expm1(log_discount); // v^m - 1
+        let balance =
+            -future_value * discount + periodic_payment * tf * (discount_m1 / periodic_rate);
+        if type_is_beginning {
+            -balance / (1.0 + periodic_rate)
+        } else {
+            -balance
+        }
     };
     let result = rip * periodic_rate;
     if result.is_finite() {
@@ -763,6 +766,7 @@ pub fn ppmt(
     timing: PaymentTiming,
 ) -> Result<f64, FinancialError> {
     let payment = pmt(periodic_rate, periods, present_value, future_value, timing)?;
+    // IPMT's checks (period range, rate) and its zero-rate case apply to PPMT too.
     let interest = ipmt(
         periodic_rate,
         period_index,
@@ -771,7 +775,28 @@ pub fn ppmt(
         future_value,
         timing,
     )?;
-    Ok(payment - interest)
+    if periodic_rate == 0.0 || (period_index <= 1.0 && matches!(timing, PaymentTiming::BeginningOfPeriod)) {
+        return Ok(payment - interest);
+    }
+    // Excel does not subtract the interest from the payment, which cancels when the interest
+    // is nearly the whole payment (dc-j9k: PPMT(0.1809,1,375,57755.66,635.76) is -8.79e-24 in
+    // Excel, and payment - interest gave noise of order 1e-12). The principal is the payment
+    // net of the future value's interest, discounted over the m = periods - period_index + 1
+    // periods left: v^m * (pmt - fv*r), and v^m * (pmt - fv*r/(1 + r)) for payments at the
+    // start of a period. The catalogue oracle's PPMT readings hold it.
+    let remaining = periods - period_index + 1.0;
+    let discount = exp_portable(-(remaining * excel_log1p(periodic_rate)));
+    let carried = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
+        future_value * periodic_rate / (1.0 + periodic_rate)
+    } else {
+        future_value * periodic_rate
+    };
+    let result = discount * (payment - carried);
+    if result.is_finite() {
+        Ok(result)
+    } else {
+        Err(FinancialError::Num)
+    }
 }
 
 pub fn ispmt(
@@ -1267,6 +1292,11 @@ mod tests {
         // bit). The prior wrong-kernel local was 0xc06e09eace0506e4 (~63 ULP off
         // Excel). Pin the NEW local bits with the Excel target recorded; the 1-ULP
         // residual is a tracked W108 open bug, not an acceptance.
+        // dc-j9k (2026-10-24): PPMT now discounts the principal directly, v^m*(pmt - fv*r),
+        // which matches Excel on 58 of 150 catalogue-oracle PPMT readings and brings the rest
+        // within 84 ulp (the subtraction pmt - IPMT missed by up to whole units); on this
+        // witness it gives 0xc06e09eace050721, 2 ulp below Excel where the subtraction was 1
+        // above.
         let ppmt_actual = ppmt(
             0.05 / 12.0,
             1.0,
@@ -1276,7 +1306,7 @@ mod tests {
             PaymentTiming::EndOfPeriod,
         )
         .expect("ppmt witness");
-        let ppmt_current_local = f64::from_bits(0xc06e09eace050724);
+        let ppmt_current_local = f64::from_bits(0xc06e09eace050721);
         let ppmt_excel_target = f64::from_bits(0xc06e09eace050723);
 
         assert_bits(ppmt_actual, ppmt_current_local);

@@ -507,7 +507,9 @@ pub fn yielddisc_kernel(
     // act/act algorithm rather than DaysBetween/DaysInYear.
     let dim = dd(settlement, maturity, basis_)?;
     let b = days_in_year_for_mat(settlement, maturity, basis_)?;
-    Ok((red - price) / price * b / dim)
+    // Excel groups the year ratio: ((red - price)/price)*(b/dim) (dc-j9k: 25 of 25 readings in
+    // the catalogue oracle's sheet dcj9k_closed_form; the left-to-right form matched 17).
+    Ok(((red - price) / price) * (b / dim))
 }
 pub fn price_kernel(
     settlement: f64,
