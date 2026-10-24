@@ -44,6 +44,7 @@ use crate::save::{DocumentSnapshot, SaveRefusal};
 use crate::xml::{XmlElement, XmlEvent, XmlPart, XmlReader};
 use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId};
 use calc_doc_model::{
+    IterationSettings,
     AuthoredRevision, Definitions, FileCached, LocatorName, ModelRoot, NameScope, RowHidden,
     SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, StyleTable,
     WorkbookOp,
@@ -555,6 +556,8 @@ struct WorkbookPart {
     sheets: Vec<DeclaredSheet>,
     date_system: DateSystem,
     calc_mode: CalcMode,
+    /// `calcPr`'s `iterate`, `iterateCount` and `iterateDelta`.
+    iteration: IterationSettings,
     /// Its `definedName` elements, in order.
     defined_names: Vec<DefinedName>,
 }
@@ -588,6 +591,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
     let mut keys = BTreeSet::new();
     let mut date_system = None;
     let mut calc_mode = CalcMode::Automatic;
+    let mut iteration = IterationSettings::EXCEL_DEFAULT;
     let mut defined_names = Vec::new();
     loop {
         let element = match events.next()? {
@@ -620,6 +624,28 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 Some("manual") => CalcMode::Manual,
                 Some(_) => return Err(events.invalid("a calcPr whose calcMode is not a mode")),
             };
+            // L3 (dc-m3u): the iterative-calculation settings, Excel's defaults where absent.
+            let defaults = IterationSettings::EXCEL_DEFAULT;
+            let enabled = match element.attribute("iterate").map(str::trim) {
+                None | Some("0" | "false") => false,
+                Some("1" | "true") => true,
+                Some(_) => return Err(events.invalid("a calcPr whose iterate is not a boolean")),
+            };
+            let count = match element.attribute("iterateCount").map(str::trim) {
+                None => defaults.max_iterations(),
+                Some(text) => text.parse::<u32>().map_err(|_| {
+                    events.invalid("a calcPr whose iterateCount is not an unsigned integer")
+                })?,
+            };
+            let delta = match element.attribute("iterateDelta").map(str::trim) {
+                None => defaults.max_change(),
+                Some(text) => text
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|delta| delta.is_finite())
+                    .ok_or_else(|| events.invalid("a calcPr whose iterateDelta is not a number"))?,
+            };
+            iteration = IterationSettings::new(enabled, count, delta);
             continue;
         }
         if element.name.is(MAIN_NAMESPACE, "definedNames") {
@@ -734,6 +760,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
         sheets: declared,
         date_system: date_system.unwrap_or(DateSystem::Date1900),
         calc_mode,
+        iteration,
         defined_names,
     })
 }
@@ -831,6 +858,7 @@ pub fn load(
         sheets: declared,
         date_system,
         calc_mode,
+        iteration,
         defined_names,
     } = read_workbook(package, &workbook)?;
     let shared_strings = match workbook_part_of(package, &workbook, SHARED_STRINGS)? {
@@ -957,7 +985,8 @@ pub fn load(
         .collect();
     let definitions = Definitions::new(arrays, names, tables, unloaded)
         .with_hidden_rows(hidden_rows)
-        .with_macro_enabled(macro_enabled);
+        .with_macro_enabled(macro_enabled)
+        .with_iteration(iteration);
     let entries = declared
         .into_iter()
         .zip(&issued)

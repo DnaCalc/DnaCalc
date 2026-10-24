@@ -138,11 +138,12 @@ pub enum ApplyError {
     RevisionExhausted,
     /// The operation at this index of the batch names a sheet the root does not hold.
     UnknownSheet { operation: usize, sheet: SheetId },
-    /// The operation at this index inserts or deletes rows or columns. This package does not
-    /// apply axis edits to its pages; cdoc-m4.1's axis maps do.
+    /// The operation at this index inserts or deletes rows or columns, which
+    /// [`ModelRoot::apply`] does not apply: [`ModelRoot::apply_structural`] does, with a formula
+    /// rewriter.
     AxisEdit { operation: usize },
-    /// The operation at this index inserts, renames, moves, removes, shows or hides a sheet. This
-    /// package does not apply sheet edits; cdoc-m4.3 authors the sheet lifecycle.
+    /// The operation at this index inserts, renames, moves, removes, shows or hides a sheet,
+    /// which [`ModelRoot::apply`] does not apply: [`ModelRoot::apply_structural`] does.
     SheetEdit { operation: usize },
     /// The skin layout edit at this index is refused, against the layout the batch's earlier
     /// operations leave.
@@ -552,6 +553,62 @@ impl ModelRoot {
             definitions,
             lineage: self.lineage,
         }))
+    }
+
+    /// The root's contents taken apart: its sheets, every cell of each, its layout and its
+    /// definitions (L3's structural edits work on them).
+    pub(crate) fn parts(&self) -> crate::structural::Parts {
+        let cells = self
+            .sheets
+            .iter()
+            .map(|sheet| {
+                let held = self
+                    .sheet_cells(sheet.id)
+                    .into_iter()
+                    .flatten()
+                    .map(|(at, input)| (at, input.clone()))
+                    .collect();
+                (sheet.id, held)
+            })
+            .collect();
+        crate::structural::Parts {
+            sheets: self.sheets.clone(),
+            cells,
+            layout: SkinLayout::clone(&self.layout),
+            definitions: Definitions::clone(&self.definitions),
+        }
+    }
+
+    /// The root of `parts` at `revision`, of this root's lineage. Each sheet's pages are built
+    /// again from its cells.
+    pub(crate) fn rebuilt(
+        &self,
+        parts: crate::structural::Parts,
+        revision: AuthoredRevision,
+    ) -> Arc<ModelRoot> {
+        let mut pages = vec![SheetPages::default(); parts.sheets.len()];
+        for (position, sheet) in parts.sheets.iter().enumerate() {
+            let mut blocks: BTreeMap<(u32, u32), BTreeMap<u16, CellInput>> = BTreeMap::new();
+            for (at, input) in parts.cells.get(&sheet.id).into_iter().flatten() {
+                let (page_row, page_column, place) = locate(*at);
+                blocks
+                    .entry((page_row, page_column))
+                    .or_default()
+                    .insert(place, input.clone());
+            }
+            for ((page_row, page_column), cells) in blocks {
+                let page = CellPage::build(page_row, page_column, cells).map(Arc::new);
+                pages[position].set_page(page_row, page_column, page);
+            }
+        }
+        Arc::new(ModelRoot {
+            revision,
+            sheets: parts.sheets,
+            cells: pages,
+            layout: Arc::new(parts.layout),
+            definitions: Arc::new(parts.definitions),
+            lineage: self.lineage,
+        })
     }
 
     fn working_copy(

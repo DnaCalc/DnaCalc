@@ -171,6 +171,9 @@ pub struct EngineState {
     /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and
     /// number-format functions.
     pub(crate) environment: Option<CalcEnvironment>,
+    /// The formulas the last published recalculation found on a cycle (L3, dc-m3u); with
+    /// iteration on, every recalculation calculates them again.
+    pub(crate) cycle_members: BTreeSet<NodeId>,
 }
 
 impl EngineState {
@@ -199,6 +202,7 @@ impl EngineState {
             random_seed: 0,
             templates: HashMap::new(),
             environment: None,
+            cycle_members: BTreeSet::new(),
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -508,6 +512,56 @@ impl EngineState {
             self.subtotal_cells.remove(&record.anchor);
             self.pending.insert(node);
         }
+    }
+
+    /// Applies a structural edit's moves (L3, dc-m3u): each node whose anchor is `None` is
+    /// removed with its result; every other node keeps its ID, moves to its new anchor with its
+    /// published result, and is left unbound and pending, so the next recalculation binds its
+    /// rewritten formula and calculates it. Published spills, templates and the record of
+    /// removed results go: every formula is calculated again. Returns the removed nodes.
+    pub(crate) fn apply_moves(&mut self, moves: Vec<(NodeId, Option<CellKey>)>) -> Vec<NodeId> {
+        let mut removed = Vec::new();
+        let mut results = BTreeMap::new();
+        let mut anchors = BTreeMap::new();
+        for (node, anchor) in moves {
+            let Some(old) = self.node(node).map(FormulaNode::anchor) else {
+                continue;
+            };
+            let result = self.results.remove(&old);
+            match anchor {
+                None => {
+                    self.remove_node(node);
+                    removed.push(node);
+                }
+                Some(at) => {
+                    self.unbind_node(node);
+                    if let Some((owner, result)) = result
+                        && owner == node
+                    {
+                        results.insert(at, (node, result));
+                    }
+                    anchors.insert(node, at);
+                }
+            }
+        }
+        self.by_anchor.clear();
+        for (node, at) in anchors {
+            if let Some(record) = self
+                .nodes
+                .get_mut(node.slot() as usize)
+                .and_then(Option::as_mut)
+                .filter(|record| record.id == node)
+            {
+                record.anchor = at;
+            }
+            self.by_anchor.insert(at, node);
+        }
+        self.results = results;
+        self.retired.clear();
+        self.spills = SpillIndex::default();
+        self.templates.clear();
+        self.subtotal_cells.clear();
+        removed
     }
 
     /// Records a node issued by this state's allocator at `anchor`, unbound. The caller makes it
