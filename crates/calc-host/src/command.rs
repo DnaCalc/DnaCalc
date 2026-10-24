@@ -5,7 +5,7 @@
 use crate::state::HostState;
 use calc_doc::EditError;
 use calc_doc_model::value::{CellKey, GridArea};
-use calc_doc_model::{AuthoredRevision, CellInput, OpBatch, WorkbookOp};
+use calc_doc_model::{ArrayFormula, AuthoredRevision, CellInput, FormulaText, OpBatch, WorkbookOp};
 use calc_engine::{CalcTick, FormulaNode, InputSeed, NodeChange, PrepareError};
 use std::fmt;
 
@@ -16,6 +16,14 @@ pub enum CellEdit {
     Set { at: CellKey, input: CellInput },
     /// Removes the contents of every cell of an area of an existing sheet.
     Clear { area: GridArea },
+    /// Authors an array formula: the rest of the array's area is emptied and its anchor holds
+    /// the formula ([`calc_doc_model::WorkbookOp::SetArray`]). A dynamic array over its anchor
+    /// alone is what Excel stores for a formula entered into one cell that can return an array;
+    /// a legacy array is a Ctrl+Shift+Enter formula over its area.
+    SetArray {
+        array: ArrayFormula,
+        formula: FormulaText,
+    },
 }
 
 impl CellEdit {
@@ -23,6 +31,10 @@ impl CellEdit {
         match self {
             CellEdit::Set { at, input } => WorkbookOp::SetCell { at, input },
             CellEdit::Clear { area } => WorkbookOp::Clear { area },
+            CellEdit::SetArray { array, formula } => WorkbookOp::SetArray {
+                array,
+                input: CellInput::Formula(formula),
+            },
         }
     }
 }

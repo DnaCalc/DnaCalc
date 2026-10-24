@@ -5,6 +5,7 @@
 //! [`SheetId`], which travels on the wire as that sheet's [`SheetKey`]; an insert names the sheet
 //! it adds by a new [`SheetKey`] alone.
 
+use crate::definitions::ArrayFormula;
 use crate::input::CellInput;
 use crate::layout::SkinLayoutEdit;
 use crate::revision::AuthoredRevision;
@@ -20,6 +21,16 @@ pub enum WorkbookOp {
     SetCell { at: CellKey, input: CellInput },
     /// Remove the authored contents of every cell of an area.
     Clear { area: GridArea },
+    /// Author an array formula: the rest of `array`'s area is emptied, its anchor (the area's
+    /// first cell) holds `input`, which must be a formula ([`crate::ApplyError::ArrayInput`]),
+    /// and the array fills the area: a legacy array's fixed area, or the extent a dynamic array's
+    /// result last spilled into (the engine spills a dynamic array over its result's own shape).
+    /// An array formula whose anchor lies in the area is replaced; one that meets the area
+    /// without its anchor in it is refused ([`crate::ApplyError::ArrayOverlap`]).
+    SetArray {
+        array: ArrayFormula,
+        input: CellInput,
+    },
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.

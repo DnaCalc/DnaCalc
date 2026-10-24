@@ -53,7 +53,7 @@ use crate::load::sheet::{ERRORS, collapsed};
 use crate::load::{LoadedSheet, MAIN_NAMESPACE};
 use crate::xml::{XmlElement, XmlEvent, XmlPart};
 use calc_doc_model::value::CellKey;
-use calc_doc_model::{CachedValue, CellInput, ModelRoot};
+use calc_doc_model::{ArrayKind, CachedValue, CellInput, ModelRoot};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// What one sheet's rewrite reads beside its part.
@@ -469,8 +469,18 @@ impl<'j> Rewrite<'_, 'j> {
             ),
             _ => None,
         };
+        // The array formula the model anchors at the cell, if any: an authored dynamic array is
+        // written as one whatever its file form, and a legacy array over its area.
+        let array = CellKey::new(self.job.loaded.id(), row, column)
+            .ok()
+            .and_then(|key| self.job.model.definitions().array(key).copied())
+            .filter(|_| form.is_some());
+        let legacy = array.filter(|array| array.kind() == ArrayKind::Legacy);
+        let dynamic = legacy.is_none()
+            && (form.is_some_and(|form| form.dynamic)
+                || array.is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. })));
         // A dynamic-array formula's cell names its cell metadata.
-        let cm = form.filter(|form| form.dynamic).map(|_| {
+        let cm = dynamic.then(|| {
             self.job
                 .dynamic_cm
                 .expect("a save with a dynamic array has its cell metadata")
@@ -504,7 +514,13 @@ impl<'j> Rewrite<'_, 'j> {
             }
         }
         if let Some(form) = form {
-            if form.dynamic {
+            if let Some(array) = legacy {
+                let (first, last) = (array.area().first(), array.area().last());
+                let reference = area_text((first.row(), first.column(), last.row(), last.column()));
+                out.push(b'<');
+                out.extend_from_slice(prefix);
+                out.extend_from_slice(format!("f t=\"array\" ref=\"{reference}\">").as_bytes());
+            } else if dynamic {
                 let reference = self
                     .job
                     .spills

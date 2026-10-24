@@ -424,7 +424,20 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         }
         // The cell metadata an authored dynamic array names, and the value metadata of each
         // newer error a value holds, found or made in the metadata part.
-        let dynamic = forms.iter().flatten().any(|(_, form)| form.dynamic);
+        // A changed formula is written as a dynamic array when its file form is one or the model
+        // anchors a dynamic array at it, unless the model anchors a legacy array there.
+        let dynamic = sheets.iter().zip(&forms).any(|(sheet, forms)| {
+            forms.iter().any(|(&(row, column), form)| {
+                let array = CellKey::new(sheet.id(), row, column)
+                    .ok()
+                    .and_then(|at| model.definitions().array(at));
+                match array.map(|array| array.kind()) {
+                    Some(calc_doc_model::ArrayKind::Legacy) => false,
+                    Some(calc_doc_model::ArrayKind::Dynamic { .. }) => true,
+                    None => form.dynamic,
+                }
+            })
+        });
         let written = |position: usize, at: (u32, u32)| {
             sheet_values[position]
                 .as_ref()

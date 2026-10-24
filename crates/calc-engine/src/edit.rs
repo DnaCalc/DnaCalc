@@ -202,6 +202,8 @@ pub fn prepare_edit<'s, 'r>(
     // state, so a cell is missing here only when the batch leaves it as the snapshot has it.
     let mut after: BTreeMap<CellKey, Option<&CellInput>> = BTreeMap::new();
     let mut cleared = Vec::new();
+    // The areas of the array formulas the batch authors.
+    let mut authored: Vec<GridArea> = Vec::new();
     for (operation, op) in change.operations.iter().enumerate() {
         match op {
             WorkbookOp::SetCell { at, input } => {
@@ -222,6 +224,25 @@ pub fn prepare_edit<'s, 'r>(
                     }
                 }
                 cleared.push(*area);
+            }
+            // An authored array formula: its area cleared, then its anchor set.
+            WorkbookOp::SetArray { array, input } => {
+                let area = array.area();
+                require_sheet(inputs, operation, area.sheet())?;
+                for (at, _) in inputs.cells(area).into_iter().flatten() {
+                    after.insert(at, None);
+                }
+                for at in state.anchors_in(area) {
+                    after.insert(at, None);
+                }
+                for (at, input) in after.range_mut(area.first()..=area.last()) {
+                    if area.contains(*at) {
+                        *input = None;
+                    }
+                }
+                cleared.push(area);
+                after.insert(array.anchor(), Some(input));
+                authored.push(area);
             }
             WorkbookOp::EditAxis(_) => return Err(PrepareError::StructuralEdit { operation }),
             WorkbookOp::EditSheet(edit) => match edit {
@@ -340,6 +361,25 @@ pub fn prepare_edit<'s, 'r>(
             })
             .filter_map(Result::ok)
             .filter(|at| *at != array.anchor())
+            .collect();
+        if !filled.is_empty() {
+            seeds.push(InputSeed::Area {
+                area,
+                dependents: state.dependents_of_emptied(inputs, area, &filled, &leaving),
+            });
+        }
+    }
+
+    // An array formula the batch authors fills its area beside its anchor, whose cells read as
+    // not available or as the array's values from then on: the nodes reading them are seeded.
+    for area in authored {
+        let filled: Vec<CellKey> = (area.first().row()..=area.last().row())
+            .flat_map(|row| {
+                (area.first().column()..=area.last().column())
+                    .map(move |column| CellKey::new(area.sheet(), row, column))
+            })
+            .filter_map(Result::ok)
+            .filter(|at| *at != area.first())
             .collect();
         if !filled.is_empty() {
             seeds.push(InputSeed::Area {
