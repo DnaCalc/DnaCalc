@@ -104,10 +104,10 @@ pub struct Table {
 pub enum UnloadedCell {
     /// A value cell whose value is a rich value (a linked data type, an image in a cell): the
     /// file's `vm` names a rich value of this structure type (`_linkedEntity`, `_webimage`, ...),
-    /// which the model does not represent. Owner: D1 (dc-ndi).
+    /// which the model does not represent. Owner: D2 (dc-35p).
     RichValue { structure: String },
     /// A value cell whose `vm` could not be followed to a rich value: the reason names the broken
-    /// link. Owner: D1 (dc-ndi).
+    /// link. Owner: D2 (dc-35p).
     UnresolvedValueMetadata { reason: String },
     /// A cell of a what-if data table (`<f t="dataTable">`). Owner: L3.
     DataTable,

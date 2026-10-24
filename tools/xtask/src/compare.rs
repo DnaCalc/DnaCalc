@@ -1217,7 +1217,7 @@ mod tests {
             (
                 Class::NotModelled,
                 "INFO",
-                "F2 dc-ip6",
+                "exactness dc-uar",
                 "Evaluation:Function:NotImplemented"
             )
         );

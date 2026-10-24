@@ -46,7 +46,7 @@ pub struct HostOptions {
 /// system; no calculation observes it until a function that reads or returns a serial date is
 /// calculated.
 ///
-/// ceng-m4.3 carries the workbook's date system and precision as displayed into the engine;
+/// dc-35p carries the workbook's date system and precision as displayed into the engine;
 /// `date1904` and `precision_as_displayed` then come from the engine's settings and change with
 /// the workbook.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -195,7 +195,7 @@ impl HostState {
     /// The calculation context every recalculation of this host applies: the 1900 date system
     /// and full precision, whatever the package declares, the iteration settings the current
     /// revision holds, under the numeric mode the host was opened with ([`RecalcContext`] says
-    /// why, and that ceng-m4.3 changes the others).
+    /// why, and that dc-35p changes the others).
     pub fn recalc_context(&self) -> RecalcContext {
         let iteration = self.model.definitions().iteration();
         RecalcContext {

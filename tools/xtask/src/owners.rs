@@ -4,17 +4,19 @@
 //! CalcFml's `CompileError::Unsupported` names the bead that owns the construct it refuses, so the
 //! triage takes that owner as it is. A kernel's `FunctionFault::NotImplemented`, a function the
 //! catalogue does not hold (`CompileError::UnknownFunction`) and the other refusals of a catalogued
-//! function name no owner. For those this table gives the bulk-port work package
-//! (`docs/plan/BULK_PORT_PLAN.md` section 4) whose scope holds the function, by Excel's function
-//! category:
+//! function name no owner. For those this table gives the work package whose scope holds the
+//! function, by Excel's function category. The bulk-port packages F1, F2, F3, L1 and L2
+//! (`docs/plan/BULK_PORT_PLAN.md` section 4) are closed, and their gaps passed to these owners:
 //!
-//! - F1 (`dc-8dq`): math and trigonometry, statistics (with the compatibility functions),
-//!   engineering, and the arithmetic operators.
-//! - F2 (`dc-ip6`): text, date and time, information, logical, lookup and reference, database, web
-//!   and cube functions, and the concatenation and comparison operators.
-//! - F3 (`dc-728`): financial functions, the dynamic-array functions and the LAMBDA helpers.
-//! - L1 (`dc-mzk`): LET and LAMBDA, which the plan puts in the formula language.
-//! - L2 (`dc-0k9`): INDIRECT and OFFSET, whose dynamic dependencies the plan puts in the engine.
+//! - F1's categories, exactness `dc-j9k`: math and trigonometry, statistics (with the
+//!   compatibility functions), engineering, and the arithmetic operators.
+//! - F2's categories, exactness `dc-uar`: text, date and time, information, logical, lookup and
+//!   reference, database, web and cube functions, and the concatenation and comparison operators.
+//! - F3's categories, exactness `dc-j9k`: financial functions, the dynamic-array functions and the
+//!   LAMBDA helpers.
+//! - L1's, L3 `dc-m3u`: LET and LAMBDA, which the plan puts in the formula language.
+//! - L2's, L3 `dc-m3u`: INDIRECT and OFFSET, whose dynamic dependencies the plan puts in the
+//!   engine.
 //!
 //! The table is this repository's reading of the plan, not a statement the refusal makes, and a
 //! name in no list (a user-defined or add-in function, or a name Excel does not know) is owned by
@@ -23,11 +25,11 @@
 /// The owner of a function in none of the lists.
 pub(crate) const UNASSIGNED: &str = "no package (a name in no function category)";
 
-const F1: &str = "F1 dc-8dq";
-const F2: &str = "F2 dc-ip6";
-const F3: &str = "F3 dc-728";
-const L1: &str = "L1 dc-mzk";
-const L2: &str = "L2 dc-0k9";
+const F1: &str = "exactness dc-j9k";
+const F2: &str = "exactness dc-uar";
+const F3: &str = "exactness dc-j9k";
+const L1: &str = "L3 dc-m3u";
+const L2: &str = "L3 dc-m3u";
 
 const MATH: &str = "ABS ACOS ACOSH ACOT ACOTH AGGREGATE ARABIC ASIN ASINH ATAN ATAN2 ATANH BASE \
     CEILING CEILING.MATH CEILING.PRECISE COMBIN COMBINA COS COSH COT COTH CSC CSCH DECIMAL DEGREES \
