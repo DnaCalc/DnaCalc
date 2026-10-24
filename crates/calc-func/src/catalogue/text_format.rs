@@ -556,6 +556,31 @@ fn bahttext(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     Ok(crate::catalogue::kit::text_value(&out))
 }
 
+/// ENCODEURL: the text's UTF-8 bytes with every byte but the ASCII letters, digits, `-`, `.` and
+/// `_` written as `%` and two upper-case hex digits; a number or logical is first read as text, as
+/// `&` reads it. A result longer than a cell's text is #VALUE!. Excel 16.0.20430 (dc-uar, the
+/// catalogue oracle's sheet dcuar_text): `~` is encoded, `ENCODEURL("a b")` is `a%20b`,
+/// `ENCODEURL(1E+20)` is `1E%2B20`, and `LEN(ENCODEURL(REPT("é",10000)))` is #VALUE!. Text that is
+/// not valid UTF-16 (a lone surrogate) is refused as not modelled.
+fn encodeurl(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    let text = super::kit::text(site, a, 0)?;
+    let mut out: Vec<u16> = Vec::with_capacity(text.len());
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_') {
+            out.push(u16::from(byte));
+        } else {
+            const HEX: &[u8; 16] = b"0123456789ABCDEF";
+            out.push(u16::from(b'%'));
+            out.push(u16::from(HEX[usize::from(byte >> 4)]));
+            out.push(u16::from(HEX[usize::from(byte & 15)]));
+        }
+        if out.len() > crate::value::EXCEL_TEXT_MAX_UTF16_CODE_UNITS {
+            return fail(WorksheetErrorCode::Value);
+        }
+    }
+    Ok(CalcValue::text(ExcelText::from_utf16_code_units(out)))
+}
+
 ported_family! {
     code: CODE;
     1 value_fn "VALUE" (1, 1) [V "text"] |s, a, sv| { value(s, a) }
@@ -575,7 +600,7 @@ ported_family! {
     16 regextest_fn "REGEXTEST" (2, 3) [V "text", V "pattern", V "case_sensitivity"] |s, a, sv| { regextest(s, a) }
     17 regexextract_fn "REGEXEXTRACT" (2, 4) [V "text", V "pattern", V "return_mode", V "case_sensitivity"] |s, a, sv| { regexextract(s, a) }
     18 regexreplace_fn "REGEXREPLACE" (3, 5) [V "text", V "pattern", V "replacement", V "occurrence", V "case_sensitivity"] |s, a, sv| { regexreplace(s, a) }
-    19 encodeurl_fn "ENCODEURL" (1, 1) [V "text"] |s, a, sv| { refused(s) }
+    19 encodeurl_fn "ENCODEURL" (1, 1) [V "text"] |s, a, sv| { encodeurl(s, a) }
     20 filterxml_fn "FILTERXML" (2, 2) [V "xml", V "xpath"] |s, a, sv| { refused(s) }
     21 hyperlink_fn "HYPERLINK" (1, 2) [V "link_location", V "friendly_name"] |s, a, sv| { hyperlink(s, a) }
 }

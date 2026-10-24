@@ -163,7 +163,8 @@ fn delimited_split_regex_and_conversions() {
     text(c(&e, "ASC", vec![t("ＡＢＣ")]), "ＡＢＣ");
     exact(c(&e, "HYPERLINK", vec![t("x"), n(5.0)]), 5.0);
     text(c(&e, "HYPERLINK", vec![t("https://example.com")]), "https://example.com");
-    refused(c(&e, "ENCODEURL", vec![t("a b")]));
+    // Excel 16.0.20430: ENCODEURL("a b") is a%20b (dc-uar; sheet dcuar_text of the catalogue oracle).
+    text(c(&e, "ENCODEURL", vec![t("a b")]), "a%20b");
     // Excel: BAHTTEXT of these numbers on this machine, read ad hoc.
     for (number, expected) in [
         (0.0, "\u{0e28}\u{0e39}\u{0e19}\u{0e22}\u{0e4c}\u{0e1a}\u{0e32}\u{0e17}\u{0e16}\u{0e49}\u{0e27}\u{0e19}"),
