@@ -1040,9 +1040,11 @@ mod tests {
         expected.insert(at(1, 1), &wrong);
         let mut instrument = Instrument::new(expected);
         assert_eq!(recalculate(&mut host, &mut instrument), None);
-        // Five formulas, Calc!B1's NOSUCHFUNCTION call among them, which is #NAME? in a workbook
-        // without macros (L3, dc-m3u).
-        assert_eq!(instrument.evaluations.len(), 5);
+        // All five formulas evaluate once: Calc!B1's call of a name no function holds is #NAME?
+        // in a workbook without macros (dc-m3u), so B2, which reads it, is evaluated too.
+        let mut cells: Vec<CellKey> = instrument.evaluations.iter().map(|seen| seen.at).collect();
+        cells.sort();
+        assert_eq!(cells, [at(1, 1), at(1, 2), at(2, 1), at(2, 2), at(3, 1)]);
         assert_eq!(instrument.retained.len(), 1);
     }
 

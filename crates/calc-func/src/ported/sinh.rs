@@ -71,6 +71,13 @@ mod tests {
         for (x, bits) in pins {
             assert_eq!(sinh_kernel(x).to_bits(), bits, "x={x}");
         }
+    }
+
+    /// The libm misses are those of the MSVC runtime's `sinh`: glibc's `sinh` returns Excel's
+    /// bits at 0.01 (Linux sweep, dc-ns0), so `f64::sinh` is no witness on other targets.
+    #[cfg(target_env = "msvc")]
+    #[test]
+    fn sinh_differs_from_the_msvc_libm_where_excel_does() {
         assert_ne!(sinh_kernel(0.01).to_bits(), 0.01_f64.sinh().to_bits());
         assert_ne!(sinh_kernel(2.0).to_bits(), 2.0_f64.sinh().to_bits());
     }
