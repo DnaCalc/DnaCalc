@@ -8,7 +8,8 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Calc, Value};
 use f1_support::*;
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn references_are_read_as_arrays() {
     let mut sheet = Sheet::new();
     sheet.column(1, 1, vec![n(3.0), n(1.0), n(2.0)]);
@@ -51,7 +52,8 @@ fn a_lambda(params: usize) -> calc_func::value::CalcValue {
     ))
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_lambda_helper_without_a_caller_is_refused() {
     refused(call("MAP", vec![arr(vec![vec![1.0]]), a_lambda(1)]));
     refused(call("MAKEARRAY", vec![n(1.0), n(1.0), a_lambda(2)]));

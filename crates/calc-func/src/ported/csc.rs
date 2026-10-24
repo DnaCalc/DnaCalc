@@ -15,12 +15,14 @@ pub fn csc_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn csc_kernel_zero_is_div0() {
         assert_eq!(csc_kernel(0.0), Err(WorksheetErrorCode::Div0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn csc_matches_live_excel_recip_sin_pins() {
         // Live Excel 16.0 b20326: CSC(x)=1/SIN(x) 8/8.
         assert_eq!(csc_kernel(0.5).unwrap().to_bits(), 0x4000afc773ab69dc);

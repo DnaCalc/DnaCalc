@@ -16,7 +16,8 @@ fn data() -> CalcValue {
 
 use calc_func::value::CalcValue;
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn deviations_and_means() {
     exact(call("AVEDEV", vec![data()]), 1.5);
     exact(call("DEVSQ", vec![data()]), 32.0);
@@ -28,7 +29,8 @@ fn deviations_and_means() {
     error(call("MEDIAN", vec![arr_values(vec![vec![t("a")]])]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn variances() {
     exact(call("STDEV.P", vec![data()]), 2.0);
     exact(call("STDEVP", vec![data()]), 2.0);
@@ -43,7 +45,8 @@ fn variances() {
     exact(call("VARP", vec![mixed]), 0.0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn order_statistics() {
     exact(call("MODE.SNGL", vec![data()]), 4.0);
     exact(call("MODE", vec![n(1.0), n(2.0), n(2.0), n(1.0)]), 1.0);
@@ -63,7 +66,8 @@ fn order_statistics() {
     exact(call("TRIMMEAN", vec![arr(vec![(1..=10).map(f64::from).collect()]), n(0.2)]), 5.5);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn ranks_read_a_reference() {
     let mut sheet = Sheet::new();
     sheet.column(1, 1, [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0].map(n).to_vec());
@@ -75,7 +79,8 @@ fn ranks_read_a_reference() {
     error(call_on(&mut sheet, "RANK.EQ", vec![n(3.0), range]), NA);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn paired_statistics() {
     let x = arr(vec![vec![1.0, 2.0, 3.0]]);
     let y = arr(vec![vec![2.0, 4.0, 7.0]]);
@@ -92,7 +97,8 @@ fn paired_statistics() {
     error(call("CORREL", vec![x, arr(vec![vec![1.0, 2.0]])]), NA);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn moments_and_transforms() {
     let d = arr(vec![vec![3.0, 4.0, 5.0, 2.0, 3.0, 4.0, 5.0, 6.0, 4.0, 7.0]]);
     close(call("KURT", vec![d.clone()]), -0.15179963720841538, 1e-12);
@@ -104,7 +110,8 @@ fn moments_and_transforms() {
     error(call("FISHER", vec![n(1.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn prob_and_frequency() {
     let xs = arr(vec![vec![0.0, 1.0, 2.0, 3.0]]);
     let ps = arr(vec![vec![0.2, 0.3, 0.1, 0.4]]);
@@ -123,7 +130,8 @@ fn prob_and_frequency() {
     assert_eq!(cells, vec![2.0, 2.0, 1.0]);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn regressions() {
     let y = arr(vec![vec![1.0], vec![2.0], vec![3.0]]);
     let x = arr(vec![vec![1.0], vec![2.0], vec![3.0]]);
@@ -137,7 +145,8 @@ fn regressions() {
     assert!((cells[0] - 2.0).abs() < 1e-13 && (cells[1] - 1.0).abs() < 1e-13, "{cells:?}");
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn distributions_match_excel_examples() {
     close(call("NORM.S.DIST", vec![n(1.0), b(true)]), 0.8413447460685429, 1e-12);
     close(call("NORMSDIST", vec![n(1.0)]), 0.8413447460685429, 1e-12);
@@ -172,7 +181,8 @@ fn distributions_match_excel_examples() {
     error(call("NORM.S.DIST", vec![n(1.0), t("yes")]), Value);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn tests_of_samples() {
     let a1 = arr(vec![vec![3.0, 4.0, 5.0, 8.0, 9.0, 1.0, 2.0, 4.0, 5.0]]);
     let a2 = arr(vec![vec![6.0, 19.0, 3.0, 2.0, 14.0, 4.0, 5.0, 17.0, 1.0]]);
@@ -181,7 +191,8 @@ fn tests_of_samples() {
     error(call("T.TEST", vec![a1, a2, n(2.0), n(4.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn subtotal_needs_the_readers_exclusions() {
     let mut sheet = Sheet::new();
     sheet.column(1, 1, vec![n(1.0), n(2.0), n(3.0), n(10.0)]);
@@ -211,7 +222,8 @@ fn subtotal_needs_the_readers_exclusions() {
     error(call("AGGREGATE", vec![n(14.0), n(4.0), with_error, n(1.0)]), Div0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn rounding_to_a_significance() {
     exact(call("CEILING.MATH", vec![n(-8.1), n(2.0)]), -8.0);
     exact(call("CEILING.MATH", vec![n(-5.5), n(2.0), n(-1.0)]), -6.0);
@@ -224,7 +236,8 @@ fn rounding_to_a_significance() {
     exact(call("FLOOR.PRECISE", vec![n(-3.2), n(-1.0)]), -4.0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn random_numbers_draw_from_the_services_source() {
     refused(call("RAND", vec![]));
     exact(call_random(&mut Fixed(vec![0.25]), "RAND", vec![]), 0.25);

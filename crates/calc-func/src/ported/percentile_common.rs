@@ -48,13 +48,15 @@ fn interpolate_sorted(values: &[f64], rank: f64) -> Result<f64, WorksheetErrorCo
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn percentile_inc_interpolates_seed_lane() {
         let mut values = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         assert_eq!(percentile_inc_kernel(&mut values, 0.3), Ok(2.2));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn percentile_exc_interpolates_seed_lane() {
         let mut values = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let got = percentile_exc_kernel(&mut values, 0.3).unwrap();

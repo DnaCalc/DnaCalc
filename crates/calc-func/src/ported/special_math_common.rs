@@ -2605,21 +2605,24 @@ where
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_and_ln_gamma_match_known_values() {
         assert!((gamma(5.0) - 24.0).abs() < 1e-10);
         assert!((gamma(0.5) - std::f64::consts::PI.sqrt()).abs() < 1e-10);
         assert!((ln_gamma(5.0) - 24.0_f64.ln()).abs() < 1e-10);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn regularized_gamma_matches_known_values() {
         assert!(regularized_gamma_p(0.5, 0.5).is_finite());
         assert!((regularized_gamma_p(2.0, 2.0) - 0.593_994_150_290_161_9).abs() < 1e-10);
         assert!((regularized_gamma_q(2.0, 2.0) - 0.406_005_849_709_838_1).abs() < 1e-10);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn regularized_beta_matches_known_values() {
         assert!((regularized_beta(0.5, 2.0, 2.0) - 0.5).abs() < 1e-12);
         assert!((regularized_beta(0.25, 2.0, 3.0) - 0.261_718_75).abs() < 1e-12);
@@ -2635,7 +2638,8 @@ mod tests {
     // (statement 20 -> gamma_nswc normalizer -> statement 50 Taylor tail), the
     // Q side being returned as 0.5 + (0.5 - P). Q(5, 0.5) and Q(1, 0.5) are the
     // internal arguments behind CHIDIST(1,10) and CHIDIST(1,2) respectively.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gratio_pinned_live_excel_witnesses() {
         // CHIDIST(1,10) => Q(df/2=5, x/2=0.5).
         let (p5, q5) = gratio(5.0, 0.5);
@@ -2662,7 +2666,8 @@ mod tests {
 
     // The public wrappers must preserve the previous kernel's invalid-input and
     // boundary contract (NAN for out-of-domain, 0/1 at x == 0).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn regularized_gamma_domain_contract_preserved() {
         assert!(regularized_gamma_p(-1.0, 1.0).is_nan());
         assert!(regularized_gamma_q(-1.0, 1.0).is_nan());

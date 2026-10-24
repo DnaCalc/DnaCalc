@@ -722,29 +722,32 @@ pub fn ipmt(
     let periodic_payment = pmt(periodic_rate, periods, present_value, future_value, timing)?;
     let tf = timing.factor(periodic_rate); // 1 + r·type
     let type_is_beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
-    // Remaining balance entering `period_index` (the `rip` term); interest = rip·r.
+    // Remaining balance entering `period_index` (the `rip` term); interest = rip·r. Excel
+    // computes it backward from the end of the annuity (dc-j9k): the balance B after
+    // `period_index - 1` periods is the one that `m = periods - period_index + 1` more periods
+    // take to -fv, B = -fv·v^m + pmt·(1 + r·type)·(v^m - 1)/r with v = 1/(1 + r), so late
+    // periods of a long, high-rate annuity do not lose the balance to cancellation. Against
+    // the catalogue oracle's IPMT and PPMT readings, the forward recurrence missed by up to
+    // 0.6 in absolute terms (PPMT(0.1713,191,264,-8172.57) was -0.588 where Excel gives
+    // 0.0116); the backward form is within a few ulp of Excel on every reading.
     let rip = if period_index <= 1.0 {
         if type_is_beginning {
             0.0
         } else {
             -present_value
         }
-    } else if type_is_beginning {
-        fv_exp(
-            periodic_rate,
-            period_index - 2.0,
-            periodic_payment,
-            present_value,
-            tf,
-        ) - periodic_payment
     } else {
-        fv_exp(
-            periodic_rate,
-            period_index - 1.0,
-            periodic_payment,
-            present_value,
-            tf,
-        )
+        let remaining = periods - period_index + 1.0;
+        let log_discount = -(remaining * excel_log1p(periodic_rate));
+        let discount = exp_portable(log_discount); // v^m
+        let discount_m1 = excel_expm1(log_discount); // v^m - 1
+        let balance =
+            -future_value * discount + periodic_payment * tf * (discount_m1 / periodic_rate);
+        if type_is_beginning {
+            -balance / (1.0 + periodic_rate)
+        } else {
+            -balance
+        }
     };
     let result = rip * periodic_rate;
     if result.is_finite() {
@@ -763,6 +766,7 @@ pub fn ppmt(
     timing: PaymentTiming,
 ) -> Result<f64, FinancialError> {
     let payment = pmt(periodic_rate, periods, present_value, future_value, timing)?;
+    // IPMT's checks (period range, rate) and its zero-rate case apply to PPMT too.
     let interest = ipmt(
         periodic_rate,
         period_index,
@@ -771,7 +775,28 @@ pub fn ppmt(
         future_value,
         timing,
     )?;
-    Ok(payment - interest)
+    if periodic_rate == 0.0 || (period_index <= 1.0 && matches!(timing, PaymentTiming::BeginningOfPeriod)) {
+        return Ok(payment - interest);
+    }
+    // Excel does not subtract the interest from the payment, which cancels when the interest
+    // is nearly the whole payment (dc-j9k: PPMT(0.1809,1,375,57755.66,635.76) is -8.79e-24 in
+    // Excel, and payment - interest gave noise of order 1e-12). The principal is the payment
+    // net of the future value's interest, discounted over the m = periods - period_index + 1
+    // periods left: v^m * (pmt - fv*r), and v^m * (pmt - fv*r/(1 + r)) for payments at the
+    // start of a period. The catalogue oracle's PPMT readings hold it.
+    let remaining = periods - period_index + 1.0;
+    let discount = exp_portable(-(remaining * excel_log1p(periodic_rate)));
+    let carried = if matches!(timing, PaymentTiming::BeginningOfPeriod) {
+        future_value * periodic_rate / (1.0 + periodic_rate)
+    } else {
+        future_value * periodic_rate
+    };
+    let result = discount * (payment - carried);
+    if result.is_finite() {
+        Ok(result)
+    } else {
+        Err(FinancialError::Num)
+    }
 }
 
 pub fn ispmt(
@@ -1049,7 +1074,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pmt_and_npv_exactness_witness_rows_are_pinned() {
         // W108 Bead C — CLOSED. On the correctly-rounded numeric core (PV-side
         // stable discount form), PMT(0.05/12, 360, 200000) now matches live Excel
@@ -1071,7 +1097,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn w108_bead_c_bit_exact_witnesses_match_live_excel() {
         // New W108 Bead C bit-exact witnesses drawn from the w108-b2-financial
         // live-Excel corpus (242 cases). These pin OxFunc==Excel bit-for-bit on the
@@ -1121,6 +1148,7 @@ mod tests {
     /// final divide, double-rounded linear zero-rate branch) plus the
     /// live-probed error lanes. The 1,729-row live sweep is replayed by the
     /// racer's oracle-cache verifier.
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn nper_matches_live_excel_pinned_witnesses() {
         let rows: &[(u64, u64, u64, u64, PaymentTiming, u64)] = &[
@@ -1241,7 +1269,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rate_exactness_witness_pins_current_local_value_and_excel_gap() {
         let actual = rate(
             360.0,
@@ -1259,7 +1288,8 @@ mod tests {
         assert_ne!(actual.to_bits(), excel_target.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ppmt_exactness_witness_pins_current_local_bits_and_excel_gap() {
         // W108 Bead C — open discrepancy, MAGNITUDE COLLAPSED. On the CR core,
         // PPMT(0.05/12, 1, 360, 200000) = 0xc06e09eace050724; Excel (PPMT-0000) is
@@ -1267,6 +1297,11 @@ mod tests {
         // bit). The prior wrong-kernel local was 0xc06e09eace0506e4 (~63 ULP off
         // Excel). Pin the NEW local bits with the Excel target recorded; the 1-ULP
         // residual is a tracked W108 open bug, not an acceptance.
+        // dc-j9k (2026-10-24): PPMT now discounts the principal directly, v^m*(pmt - fv*r),
+        // which matches Excel on 58 of 150 catalogue-oracle PPMT readings and brings the rest
+        // within 84 ulp (the subtraction pmt - IPMT missed by up to whole units); on this
+        // witness it gives 0xc06e09eace050721, 2 ulp below Excel where the subtraction was 1
+        // above.
         let ppmt_actual = ppmt(
             0.05 / 12.0,
             1.0,
@@ -1276,14 +1311,15 @@ mod tests {
             PaymentTiming::EndOfPeriod,
         )
         .expect("ppmt witness");
-        let ppmt_current_local = f64::from_bits(0xc06e09eace050724);
+        let ppmt_current_local = f64::from_bits(0xc06e09eace050721);
         let ppmt_excel_target = f64::from_bits(0xc06e09eace050723);
 
         assert_bits(ppmt_actual, ppmt_current_local);
         assert_ne!(ppmt_actual.to_bits(), ppmt_excel_target.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn effect_exactness_witness_matches_excel_target() {
         let actual = effect(0.05, 12.0).expect("effect witness");
         let prior_local = f64::from_bits(0x3faa31e46c681b80);
@@ -1293,7 +1329,8 @@ mod tests {
         assert_ne!(actual.to_bits(), prior_local.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn effect_widened_publication_family_rows_pin_current_local_bits() {
         for (periods, expected) in [
             (2.0_f64, f64::from_bits(0x3fa9eb851eb851e0)),
@@ -1306,7 +1343,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn effect_uses_x87_spill_binexp_on_banked_and_blind_discriminators() {
         // BUG-FUNC-043 / G6-12. The ordinary POWER integer path diverges on the
         // first four rows; the last four independently pin the x87-DR base add.
@@ -1360,7 +1398,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn effect_switches_to_raw_pow_chain_at_u32_max_truncated_periods() {
         // BUG-FUNC-043 / G6-12. Live Excel 16.0 build 20228 x64, CV2,
         // NoCache. The dispatch predicate is applied after truncation:
@@ -1379,6 +1418,7 @@ mod tests {
         }
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn rri_uses_raw_x87_pow_chain_and_x87_spill_wrapper() {
         // BUG-FUNC-044 / G6-13. The first three rows pin the cancellation ladder;
@@ -1464,6 +1504,7 @@ mod tests {
         }
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn rri_matches_excel_daz_guard_order_and_exact_period_identity() {
         // BUG-FUNC-044 / G6-13. Live Excel 16.0 build 20228 x64, CV2,
@@ -1538,6 +1579,7 @@ mod tests {
         }
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn nominal_uses_direct_x87_then_raw_pow_routes_with_stored_power() {
         // BUG-FUNC-045 / G6-14. These pins cover: native-powf cancellation;
@@ -1608,7 +1650,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn nominal_of_effect_stays_just_below_nominal_input_for_widened_rows() {
         for periods in [2.0_f64, 4.0, 12.0, 365.0] {
             let effective = effect(0.05, periods).expect("effect widened row");
@@ -1620,7 +1663,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn core_annuity_functions_match_known_examples() {
         let monthly_rate = 0.08 / 12.0;
         let periods = 10.0;
@@ -1666,7 +1710,8 @@ mod tests {
         assert_close(recovered_nper, periods, 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn core_annuity_functions_match_pinned_excel_publication_rows() {
         // PV/FV are UNCHANGED by W108 Bead C (two-kernel `powi`/`powf` split kept)
         // and still match their pinned publication values bit-for-bit.
@@ -1689,7 +1734,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rate_recovers_known_periodic_rate_from_annuity_identity() {
         let expected_rate = 0.01;
         let payment = pmt(expected_rate, 48.0, 8000.0, 0.0, PaymentTiming::EndOfPeriod)
@@ -1706,7 +1752,8 @@ mod tests {
         assert_close(recovered, expected_rate, 1e-7);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rate_default_guess_converges_on_mortgage_style_lane() {
         let expected_rate = 0.004166644536345589;
         let omitted_guess = rate(
@@ -1732,13 +1779,15 @@ mod tests {
         assert_close(default_guess, expected_rate, 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn npv_matches_microsoft_sample() {
         let got = npv(0.1, &[-10000.0, 3000.0, 4200.0, 6800.0]).expect("npv");
         assert_close(got, 1188.4434123352216, 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ipmt_and_ppmt_partition_payment() {
         let monthly_rate = 0.10 / 12.0;
         let periods = 3.0 * 12.0;
@@ -1773,7 +1822,8 @@ mod tests {
         assert_close(interest, -66.66666666666667, 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ispmt_uses_even_principal_schedule() {
         let first = ispmt(0.1, 1.0, 4.0, 1000.0).expect("ispmt first");
         assert_close(first, -75.0, 1e-9);
@@ -1788,20 +1838,23 @@ mod tests {
         assert_close(beyond_schedule, 25.0, 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn mirr_matches_manual_compounding_identity() {
         let cashflows = [-120000.0, 39000.0, 30000.0, 21000.0, 37000.0, 46000.0];
         let got = mirr(&cashflows, 0.10, 0.12).expect("mirr");
         assert_close(got, 0.1260941303659051, 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fvschedule_matches_microsoft_sample() {
         let got = fvschedule(1.0, &[0.09, 0.11, 0.10]).expect("fvschedule");
         assert_close(got, 1.33089, 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pduration_and_rri_match_documented_examples() {
         let pd = pduration(0.025, 2000.0, 2200.0).expect("pduration");
         assert_close(pd, 3.859866162622662, 1e-9);
@@ -1819,7 +1872,8 @@ mod tests {
         assert_close(rr, 0.0009933073762913303, 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn nominal_and_effect_are_consistent_with_microsoft_example() {
         let nominal_rate = nominal(0.053543, 4.0).expect("nominal");
         assert_close(nominal_rate, 0.052500319868356016, 1e-12);
@@ -1828,7 +1882,8 @@ mod tests {
         assert_close(effect_rate, 0.053543, 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn numeric_domain_errors_are_reported() {
         assert_eq!(pduration(0.0, 100.0, 120.0), Err(FinancialError::Num));
         assert_eq!(nominal(0.05, 0.0), Err(FinancialError::Num));
@@ -1844,7 +1899,8 @@ mod tests {
     // beginning-of-period payment before multiplying by rate. Closed-form pins
     // below are derived from the corrected formula and are fixed-pending Excel
     // bit-pinning by the probe lane.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ipmt_ppmt_type_one_witness_candidates_pending_excel_bit_pinning() {
         let rate = 0.1;
         let nper = 3.0;
@@ -1905,7 +1961,8 @@ mod tests {
         assert_close(principal[1], -302.1148036253773, 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ipmt_type_one_per_equal_one_is_zero_interest() {
         assert_eq!(
             ipmt(0.1, 1.0, 3.0, 1000.0, 0.0, PaymentTiming::BeginningOfPeriod),
@@ -1917,7 +1974,8 @@ mod tests {
     // rate flows through the MAIN path (NOT collapsed to 0.0), and only EXACT r==0 -> +0.0.
     // Values match Excel to ≤1 ULP (the tracked PMT/balance residual); the point of the fix is
     // that the band no longer zeroes tiny/negative rates.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ipmt_tiny_rate_flows_through_main_path() {
         let t = PaymentTiming::EndOfPeriod;
         // Was 0.0 (buggy band); now ~ -pv*r = -2e-8 (Excel -1.999999...e-8), NOT collapsed.
@@ -1945,7 +2003,8 @@ mod tests {
     }
 
     // BUG-FUNC-038: NPV/FV/PV rate<=-1 lanes (live-Excel probe matrix).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn npv_negative_base_lanes_match_excel_probe_matrix() {
         // rate < -1: finite alternating-sign discounting (Excel =NPV(-2,100) = -100).
         assert_eq!(npv(-2.0, &[100.0]), Ok(-100.0));
@@ -1954,7 +2013,8 @@ mod tests {
         assert_eq!(npv(-1.0, &[100.0]), Err(FinancialError::Div0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fv_negative_base_lanes_match_excel_probe_matrix() {
         // Integer nper at rate <= -1 (including rate = -1) publishes a number.
         assert_eq!(
@@ -1976,7 +2036,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pv_negative_base_lanes_match_excel_probe_matrix() {
         // Integer nper at rate < -1 publishes a number.
         assert_eq!(
@@ -1995,7 +2056,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pmt_ipmt_nper_keep_num_at_rate_at_or_below_minus_one() {
         assert_eq!(
             pmt(-2.0, 3.0, -100.0, 0.0, PaymentTiming::EndOfPeriod),

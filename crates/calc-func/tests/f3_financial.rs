@@ -17,7 +17,8 @@ fn dated(spelling: &str, args: Vec<calc_func::value::CalcValue>) -> Result<calc_
     call_in(&CalcEnvironment::dates(System1900), None, None, spelling, args)
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn time_value_of_money() {
     close(call("PMT", vec![n(0.08 / 12.0), n(10.0), n(10000.0)]), -1037.032089, 1e-9);
     close(call("PMT", vec![n(0.06 / 12.0), n(18.0 * 12.0), n(0.0), n(50000.0)]), -129.0811609, 1e-9);
@@ -40,7 +41,8 @@ fn time_value_of_money() {
     error(call("PMT", vec![n(0.1), n(0.0), n(1000.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn cash_flows() {
     let mut sheet = Sheet::new();
     sheet.column(1, 1, vec![n(-10000.0), n(3000.0), n(4200.0), n(6800.0), t("x"), b(true)]);
@@ -97,7 +99,8 @@ fn cash_flows() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn depreciation() {
     exact(call("SLN", vec![n(30000.0), n(7500.0), n(10.0)]), 2250.0);
     error(call("SLN", vec![n(30000.0), n(7500.0), n(0.0)]), Div0);
@@ -111,7 +114,8 @@ fn depreciation() {
     close(call("VDB", vec![n(2400.0), n(300.0), n(120.0), n(6.0), n(18.0)]), 396.31, 1e-5);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn amortisation_needs_the_date_system() {
     let args = || vec![n(2400.0), n(39679.0), n(39813.0), n(300.0), n(1.0), n(0.15), n(1.0)];
     exact(dated("AMORDEGRC", args()), 776.0);
@@ -123,7 +127,8 @@ fn amortisation_needs_the_date_system() {
     exact(call_in(&CalcEnvironment::dates(System1904), None, None, "AMORLINC", shifted), 360.0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dollar_fractions() {
     close(call("DOLLARDE", vec![n(1.02), n(16.0)]), 1.125, 1e-15);
     close(call("DOLLARDE", vec![n(1.1), n(32.0)]), 1.3125, 1e-15);
@@ -137,7 +142,8 @@ fn dollar_fractions() {
     error(call("DOLLARFR", vec![n(1.0), missing()]), NA);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bonds_and_coupons() {
     close(
         dated("PRICE", vec![n(39493.0), n(43054.0), n(0.0575), n(0.065), n(100.0), n(2.0), n(0.0)]),
@@ -191,7 +197,8 @@ fn bonds_and_coupons() {
     );
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn discounted_securities_and_bills() {
     close(
         dated("PRICEDISC", vec![n(39494.0), n(39508.0), n(0.0525), n(100.0), n(2.0)]),
@@ -218,7 +225,8 @@ fn discounted_securities_and_bills() {
     close(dated("TBILLEQ", vec![n(39538.0), n(39600.0), n(0.0914)]), 0.094151, 1e-5);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn odd_period_bonds() {
     close(
         dated(

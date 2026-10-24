@@ -18,18 +18,21 @@ pub fn atan2_kernel(x_num: f64, y_num: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atan2_kernel_matches_excel_axis_order() {
         assert_eq!(atan2_kernel(1.0, 0.0), Ok(0.0));
         assert_eq!(atan2_kernel(0.0, 1.0), Ok(std::f64::consts::FRAC_PI_2));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atan2_kernel_zero_vector_is_div0() {
         assert_eq!(atan2_kernel(0.0, 0.0), Err(WorksheetErrorCode::Div0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atan2_overflowing_ratio_is_num_axis_stays_finite() {
         // BUG-FUNC-027 B3: Excel returns #NUM! when y/x overflows to infinity
         // (verified vs live Excel 16.0 b20026), while the axis case x==0 stays valid.

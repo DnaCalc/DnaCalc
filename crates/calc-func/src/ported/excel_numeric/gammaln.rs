@@ -260,7 +260,8 @@ mod tests {
         assert!((a - b).abs() <= tol, "got {a}, want {b}");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn zeros_at_1_and_2() {
         // Both are exactly 0 by construction. x=1.0 yields -0.0 (the (x-1)
         // prefactor times a negative N/D), exactly as the identified op-graph
@@ -270,7 +271,8 @@ mod tests {
         assert_eq!(gammaln_excel(2.0).to_bits(), 0.0_f64.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn matches_reference_across_bands() {
         close(gammaln_excel(0.5), 0.5723649429247001, 1e-12); // composed -> B2
         close(gammaln_excel(1.2), -0.0853740900033158, 1e-12); // B1 (negative)
@@ -280,6 +282,7 @@ mod tests {
         close(gammaln_excel(1e-300), 690.7755278982137, 1e-9); // composed, xp->1
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     #[cfg(target_arch = "x86_64")]
     fn stirling_ln87_dr_matches_current_build_hits_and_keeps_two_open() {

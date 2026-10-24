@@ -214,7 +214,8 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn decimal_to_engineering_radix_matches_seed_rows() {
         assert_text_eq(dec2bin_kernel(9.0, Some(4.0)), "1001");
         assert_text_eq(dec2bin_kernel(-100.0, Some(2.0)), "1110011100");
@@ -224,7 +225,8 @@ mod tests {
         assert_text_eq(dec2oct_kernel(-100.0, None), "7777777634");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn decimal_to_engineering_radix_enforces_ranges_and_places() {
         assert_eq!(dec2bin_kernel(512.0, None), Err(WorksheetErrorCode::Num));
         assert_eq!(
@@ -239,7 +241,8 @@ mod tests {
         assert_text_eq(dec2hex_kernel(255.0, Some(4.8)), "00FF");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn radix_to_decimal_matches_signed_ten_digit_rules() {
         assert_eq!(bin2dec_kernel("1100100"), Ok(100.0));
         assert_eq!(bin2dec_kernel("1111111111"), Ok(-1.0));
@@ -249,7 +252,8 @@ mod tests {
         assert_eq!(oct2dec_kernel("7777777533"), Ok(-165.0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cross_radix_text_conversions_match_seed_rows() {
         assert_text_eq(bin2hex_kernel("11111011", Some(4.0)), "00FB");
         assert_text_eq(bin2hex_kernel("1111111111", Some(1.0)), "FFFFFFFFFF");
@@ -260,7 +264,8 @@ mod tests {
         assert_text_eq(oct2hex_kernel("100", Some(4.0)), "0040");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cross_radix_text_conversions_reject_invalid_inputs() {
         assert_eq!(bin2hex_kernel("102", None), Err(WorksheetErrorCode::Num));
         assert_eq!(

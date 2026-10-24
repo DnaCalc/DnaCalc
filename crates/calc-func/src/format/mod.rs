@@ -881,7 +881,8 @@ mod tests {
 
     /// Every row is Excel's TEXT, FIXED or DOLLAR on this machine (16.0.20430, en-ZA with `.` and
     /// a space), read ad hoc.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn text_renders_as_excel_did() {
         let ok = |s: &str| Ok(s.to_owned());
         let rows: &[(f64, &str, Rendered)] = &[
@@ -948,7 +949,8 @@ mod tests {
         assert_eq!(text_of_text("abc", "0.00", &host()), Ok("abc".to_owned()));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fixed_and_dollar_render_as_excel_did() {
         let p = host();
         assert_eq!(fixed(&p, 1234.567, 2, false), "1 234.57");

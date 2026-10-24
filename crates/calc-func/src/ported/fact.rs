@@ -40,7 +40,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fact_kernel_truncates_and_rejects_negative() {
         assert_eq!(fact_kernel(5.9), Ok(120.0));
         assert_eq!(fact_kernel(-1.0), Err(WorksheetErrorCode::Num));
@@ -50,20 +51,23 @@ mod tests {
     }
 
     // BUG-FUNC-027 / oxf-vgxs: live Excel FACT(171)=#NUM!, FACT(170) finite.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fact_kernel_overflow_maps_to_num() {
         assert_eq!(fact_kernel(171.0), Err(WorksheetErrorCode::Num));
         assert_eq!(fact_kernel(f64::MAX), Err(WorksheetErrorCode::Num));
         assert!(fact_kernel(170.0).is_ok());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fact_exact_publication_controls_remain_exact() {
         assert_bits(fact_kernel(9.0).expect("fact(9)"), 362880.0_f64);
         assert_bits(fact_kernel(2.0).expect("fact(2)"), 2.0_f64);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fact_reverse_product_matches_live_excel_large_n() {
         assert_eq!(fact_kernel(25.0).unwrap().to_bits(), 0x4529a940c33f6120);
         assert_eq!(fact_kernel(100.0).unwrap().to_bits(), 0x60bb30964ec395de);

@@ -189,7 +189,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn multinomial_kernel_matches_exact_control_rows() {
         for (items, expected) in [
             (&[1, 2][..], 3.0_f64),
@@ -204,7 +205,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn multinomial_exactness_witness_matches_excel_target() {
         let actual = multinomial_kernel(&[2, 3, 4]).expect("multinomial witness");
         let prior_local = 1260.0_f64;
@@ -214,7 +216,8 @@ mod tests {
         assert_ne!(actual.to_bits(), prior_local.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn multinomial_widened_empirical_machine_witness_rows_match_excel_targets() {
         let anchor_target = 1259.9999999999991_f64;
         for (items, expected) in [
@@ -232,7 +235,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn multinomial_ordering_and_zero_padding_invariance_hold_for_widened_rows() {
         let anchor = multinomial_kernel(&[2, 3, 4]).expect("anchor");
         let four_arg = multinomial_kernel(&[1, 2, 3, 4]).expect("four arg");

@@ -680,7 +680,8 @@ pub(crate) fn yearfrac(start_date: f64, end_date: f64, basis: f64) -> Result<f64
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn date_keeps_the_1900_leap_day_and_normalizes_months() {
         assert_eq!(date(1900.0, 1.0, 1.0, DateSystem::System1900), Ok(1.0));
         assert_eq!(date(1900.0, 2.0, 29.0, DateSystem::System1900), Ok(60.0));
@@ -689,7 +690,8 @@ mod tests {
         assert_eq!(date(1903.0, 12.0, 31.0, DateSystem::System1904), Err(W::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn networkdays_matches_a_day_by_day_walk() {
         let holidays: BTreeSet<i64> = [45005, 45006, 45100].into_iter().collect();
         for weekend in [1, 2, 7, 11, 17] {

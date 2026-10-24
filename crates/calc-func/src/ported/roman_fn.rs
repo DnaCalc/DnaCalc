@@ -175,7 +175,8 @@ mod tests {
         text.to_string_lossy()
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn roman_kernel_matches_excel_probe_rows() {
         let cases = [
             (499.0, 0, "CDXCIX"),
@@ -195,7 +196,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn roman_kernel_matches_excel_simplification_boundaries() {
         let cases = [
             (45.0, 1, "VL"),
@@ -218,7 +220,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn roman_kernel_truncates_numeric_inputs_and_rejects_domain_violations() {
         assert_eq!(as_string(&roman_kernel(499.9, 0).unwrap()), "CDXCIX");
         assert_eq!(as_string(&roman_kernel(499.0, 1).unwrap()), "LDVLIV");

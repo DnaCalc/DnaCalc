@@ -339,7 +339,8 @@ mod tests {
         CalcValue::number(n)
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn coupdaybs_us30_360_settlement_on_31st_rolls_end_into_next_month() {
         let settlement = serial(2024, 7, 31);
         let maturity = serial(2024, 8, 15);
@@ -353,7 +354,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn regular_semiannual_actual_actual_matches_known_example() {
         let settlement = serial(2011, 1, 25);
         let maturity = serial(2011, 11, 15);
@@ -385,7 +387,8 @@ mod tests {
 
     /// W111-5 (2026-09-24): the three b37-battery rows where a direct basis-0 count was one
     /// day high. Excel publishes COUPDAYSNC = COUPDAYS - COUPDAYBS on basis 0.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn coupdaysnc_basis_zero_settlement_on_the_31st_is_coupdays_minus_coupdaybs() {
         let cases = [
             (serial(2020, 7, 31), serial(2025, 1, 1), 4.0, 60.0),
@@ -406,7 +409,8 @@ mod tests {
     /// W111-5 G8-08, live Excel 20430: coupon dates are computed from maturity, keeping a
     /// 28th-30th maturity day in every month long enough for it; only a month-end maturity
     /// gives month-end coupons.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn coupon_schedule_keeps_the_maturity_day_across_february() {
         assert_eq!(
             coupncd_kernel(serial(2045, 2, 28), serial(2046, 8, 28), 4.0, Some(2.0)),
@@ -422,7 +426,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn basis_zero_two_three_and_four_follow_bounded_contract() {
         let settlement = serial(2011, 1, 25);
         let maturity = serial(2011, 11, 15);
@@ -452,7 +457,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn quarterly_end_of_month_schedule_clamps_coupon_dates() {
         let settlement = serial(2024, 2, 15);
         let maturity = serial(2024, 11, 30);
@@ -474,7 +480,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn invalid_frequency_basis_and_order_are_rejected() {
         let settlement = serial(2011, 1, 25);
         let maturity = serial(2011, 11, 15);
@@ -492,7 +499,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn serial_zero_is_admitted_but_negative_or_nonfinite_dates_are_num_errors() {
         let maturity = serial(2011, 11, 15);
         assert_eq!(coupdaybs_kernel(0.0, maturity, 2.0, Some(1.0)), Ok(0.0));
@@ -507,7 +515,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn settlement_on_coupon_date_advances_to_following_period() {
         let maturity = serial(2011, 11, 15);
         assert_eq!(couppcd_kernel(136.0, maturity, 2.0, Some(1.0)), Ok(136.0));

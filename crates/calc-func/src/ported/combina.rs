@@ -56,7 +56,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_kernel_matches_excel_boundary_lanes() {
         assert_eq!(combina_kernel(4.0, 3.0), Ok(20.0));
         assert_eq!(combina_kernel(5.9, 2.2), Ok(15.0));
@@ -64,7 +65,8 @@ mod tests {
         assert_eq!(combina_kernel(0.0, 1.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_exact_publication_controls_remain_exact() {
         assert_bits(combina_kernel(4.0, 3.0).expect("combina(4,3)"), 20.0_f64);
         assert_bits(combina_kernel(10.0, 3.0).expect("combina(10,3)"), 220.0_f64);
@@ -73,7 +75,8 @@ mod tests {
     /// W109 current-build discovery pins where the former multiply-first
     /// product returns the mathematical integer but Excel publishes the
     /// cyclic stored-x87 COMBIN graph one ULP away.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_matches_live_excel_transformed_combin_pins() {
         assert_eq!(
             combina_kernel(7.0, 3.0).unwrap().to_bits(),
@@ -92,7 +95,8 @@ mod tests {
     /// COMBINA truncates each source argument before constructing the
     /// transformed COMBIN total. A worksheet composition would add first and
     /// therefore selects a different total for this exact-binary fraction.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_truncates_arguments_before_transformed_total() {
         let got = combina_kernel(7.75, 3.75).unwrap();
         assert_eq!(got.to_bits(), 0x4054_ffff_ffff_ffff);
@@ -100,7 +104,8 @@ mod tests {
         assert_ne!(got.to_bits(), worksheet_pretrunc.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_matches_live_excel_daz_and_asymmetric_guard_order() {
         assert_eq!(combina_kernel(-0.25, 0.75), Ok(1.0));
         assert_eq!(combina_kernel(-0.25, 1.0), Err(WorksheetErrorCode::Num));
@@ -120,7 +125,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_matches_live_excel_transformed_total_ceiling() {
         assert_eq!(combina_kernel(2_147_483_647.0, 0.0), Ok(1.0));
         assert_eq!(combina_kernel(2_147_483_646.0, 1.0), Ok(2_147_483_646.0));
@@ -135,7 +141,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_large_central_overflow_short_circuits_to_num() {
         assert_eq!(
             combina_kernel(1_000_000_000.0, 1_000_000_000.0),
@@ -143,7 +150,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combina_direct_nonfinite_inputs_are_defensively_num() {
         for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert_eq!(combina_kernel(value, 0.0), Err(WorksheetErrorCode::Num));

@@ -518,7 +518,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn bahttext_renders_integer_and_satang_lanes() {
         assert_eq!(
             bahttext_kernel(1234.0).unwrap().to_string_lossy(),
@@ -540,7 +541,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn convert_matches_bounded_catalog_examples() {
         assert_close(
             convert_kernel(1.0, "lbm", "kg").unwrap(),
@@ -560,7 +562,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn convert_v3_graph_matches_banked_refinement_and_publication_bit_pins() {
         // W109 G4-05: discovery/retired-bank, retired-v2, refinement-only v3,
         // and frozen disjoint publication witnesses. The publication rows pin
@@ -597,7 +600,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn convert_v3_pins_direct_temperature_routes_and_unsupported_bar() {
         // The direct C->F route differs by three ULP from composition through
         // Kelvin for this frozen publication witness.
@@ -616,7 +620,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn euroconvert_supports_default_rounding_and_full_precision() {
         assert_close(
             euroconvert_kernel(10.0, "DEM", "EUR", None, None).unwrap(),
@@ -643,7 +648,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn percentof_maps_ratio_and_div0() {
         assert_close(percentof_kernel(15.0, 60.0).unwrap(), 0.25, 1.0e-12);
         assert_eq!(percentof_kernel(1.0, 0.0), Err(WorksheetErrorCode::Div0));
@@ -651,7 +657,8 @@ mod tests {
 
     /// W111-5 G8-07, live Excel 20430 strings: negatives, amounts under one baht, decimal
     /// half-up satang after 15-digit rounding, and "เอ็ด" across million groups.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn bahttext_matches_excel_edge_strings() {
         let t = |v: f64| bahttext_kernel(v).unwrap().to_string_lossy();
         assert_eq!(t(-5.0), "ลบห้าบาทถ้วน");

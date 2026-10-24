@@ -563,7 +563,8 @@ mod tests {
         text_from_str(s)
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn char_and_code_read_code_page_1252() {
         assert_eq!(char_from_number(128.0), Ok(t("\u{20AC}")));
         assert_eq!(char_from_number(65.9), Ok(t("A")));
@@ -573,7 +574,8 @@ mod tests {
         assert_eq!(code_of_text(&t("")), Err(WorksheetErrorCode::Value));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn search_folds_case_beyond_ascii_and_reads_wildcards() {
         assert_eq!(search(&t("é"), &t("XÉ"), 1), Ok(2.0));
         assert_eq!(search(&t("σ"), &t("ΑΣ"), 1), Ok(2.0));
@@ -582,7 +584,8 @@ mod tests {
         assert_eq!(find(&t("B"), &t("abc"), 1), Err(WorksheetErrorCode::Value));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn slices_count_surrogate_pairs_once() {
         let emoji = text(vec![0xD83D, 0xDE00, 0x41]);
         assert_eq!(len_character_count(&emoji), 2);
@@ -591,7 +594,8 @@ mod tests {
         assert_eq!(take_mid(&emoji, 2, 5, false), t("A"));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn lower_writes_a_final_sigma() {
         assert_eq!(lower(&t("ΑΣ")), t("ας"));
         assert_eq!(upper(&t("straße")), t("STRAßE"));

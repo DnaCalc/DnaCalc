@@ -1121,12 +1121,14 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn erfc_one_matches_excel_exact_bits() {
         assert_bits_eq("erfc(1)", erfc_kernel(1.0).unwrap(), 0.15729920705028513);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn erfc_positive_half_is_one_minus_erf() {
         // Live Excel 16.0 b20326: ERFC.PRECISE(z)==1-ERF.PRECISE(z) on
         // (0, 0.5]. Production publishes that composition through erf_approx.
@@ -1155,7 +1157,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn erfc_family_direct_call_witnesses() {
         // Excel-anchored exact bits. These are all in the libm-matching
         // regime (x <= 1.25, or all negatives).
@@ -1230,7 +1233,8 @@ mod tests {
     // Excel-matching exact-bit witnesses for every input where the
     // empirical correction-fit kernel reproduces Excel's bits. These
     // pass on every platform (no UCRT dependency).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn erfc_correction_fit_matches_excel_exact_bits() {
         // Newly-matched by the correction fit (previously blocked).
         assert_bits_eq("erfc(1.5)", erfc_kernel(1.5).unwrap(), 0.03389485352468927);
@@ -1312,7 +1316,8 @@ mod tests {
     // representable polynomial correction reproduces these. Kept as
     // #[ignore]d sentinels; enable via `cargo test -- --ignored` when a
     // kernel candidate targeting them is in flight.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[ignore = "Excel residual not reproducible via smooth correction polynomial; see docs/function-lane/ERFC_EXCEL_EMULATION.md"]
     fn erfc_remaining_blocked_excel_witnesses() {
         let cases: &[(f64, f64)] = &[
@@ -1357,7 +1362,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn erf_family_matches_seed_rows() {
         assert_close(erf_kernel(1.0, None).unwrap(), 0.8427007929497149, 1e-15);
         assert_close(
@@ -1384,7 +1390,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_family_matches_seed_rows() {
         assert_close(gamma_kernel(5.0).unwrap(), 24.0, 1e-12);
         assert_close(gamma_kernel(0.5).unwrap(), 1.772453850905516, 1e-12);
@@ -1400,7 +1407,8 @@ mod tests {
         assert_eq!(gamma_kernel(172.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_positive_integers_1_through_88_match_excel_reverse_product() {
         assert_eq!(gamma_kernel(1.0).unwrap().to_bits(), 0x3ff0000000000000);
         assert_eq!(gamma_kernel(8.0).unwrap().to_bits(), 0x40b3b00000000000);
@@ -2415,7 +2423,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_tiny_positive_is_reciprocal_and_subnormals_are_num() {
         assert_eq!(gamma_kernel(1e-16).unwrap().to_bits(), 0x4341c37937e08000);
         assert_eq!(
@@ -2438,7 +2447,8 @@ mod tests {
 
     // BUG-FUNC-027 CLASS-A1: GAMMALN(1E-300) was +Inf (z+1 == 0 in Lanczos);
     // live Excel 16.0 b20026 = 690.7755278982137 via the recurrence.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gammaln_tiny_positive_uses_recurrence_not_inf() {
         let v = gammaln_kernel(1e-300).unwrap();
         assert!(v.is_finite(), "GAMMALN(1e-300) was non-finite: {v}");
@@ -2446,7 +2456,8 @@ mod tests {
         assert!(gammaln_precise_kernel(1e-300).unwrap().is_finite());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gammaln_rejects_positive_subnormals_and_admits_min_normal() {
         // W109 G3-02 current-reference discovery plus separately frozen
         // answer-blind heldout: 40/40 positive-subnormal rows publish #NUM!
@@ -2472,7 +2483,8 @@ mod tests {
 
     // BUG-FUNC-027 CLASS-A2: GAMMA(-1E-200) rounds to 0 but is not the pole at 0;
     // live Excel 16.0 b20026 ~ -1E200 (finite). Fine ULP exactness is CLASS-C1.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_tiny_negative_is_not_a_false_pole() {
         let v = gamma_kernel(-1e-200).unwrap();
         assert!(v.is_finite() && v < 0.0, "GAMMA(-1e-200) = {v}");
@@ -2487,7 +2499,8 @@ mod tests {
         assert!(gamma_kernel(-1.5).unwrap().is_finite());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn weibull_family_matches_seed_rows() {
         assert_close(
             weibull_kernel(2.0, 3.0, 4.0, true).unwrap(),

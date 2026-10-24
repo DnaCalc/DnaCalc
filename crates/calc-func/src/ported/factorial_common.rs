@@ -40,13 +40,15 @@ pub fn double_factorial_of_int(n: i64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trunc_nonnegative_or_minus_one_allows_minus_one_and_zero() {
         assert_eq!(trunc_nonnegative_or_minus_one(-1.0), Ok(-1));
         assert_eq!(trunc_nonnegative_or_minus_one(-0.1), Ok(0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trunc_nonnegative_or_minus_one_rejects_below_minus_one() {
         assert_eq!(
             trunc_nonnegative_or_minus_one(-1.1),
@@ -58,7 +60,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trunc_nonnegative_rejects_negative_and_truncates_positive() {
         assert_eq!(trunc_nonnegative(5.9), Ok(5));
         assert_eq!(trunc_nonnegative(-0.1), Err(WorksheetErrorCode::Num));

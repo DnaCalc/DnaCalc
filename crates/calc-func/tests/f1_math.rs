@@ -11,7 +11,8 @@ use f1_support::*;
 
 const PI: f64 = std::f64::consts::PI;
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn circular_functions() {
     close(call("SIN", vec![n(1.0)]), 0.8414709848078965, 1e-15);
     exact(call("COS", vec![n(0.0)]), 1.0);
@@ -27,7 +28,8 @@ fn circular_functions() {
     error(call("CSC", vec![n(0.0)]), Div0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn inverse_circular_functions() {
     close(call("ASIN", vec![n(0.5)]), PI / 6.0, 1e-15);
     error(call("ASIN", vec![n(2.0)]), Num);
@@ -40,7 +42,8 @@ fn inverse_circular_functions() {
     close(call("ACOT", vec![n(1.0)]), PI / 4.0, 1e-15);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn hyperbolic_functions() {
     close(call("SINH", vec![n(1.0)]), 1.1752011936438014, 1e-15);
     close(call("COSH", vec![n(1.0)]), 1.5430806348152437, 1e-15);
@@ -59,7 +62,8 @@ fn hyperbolic_functions() {
     close(call("CSCH", vec![n(1.0)]), 0.8509181282393216, 1e-15);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn angles_and_pi() {
     exact(call("PI", vec![]), PI);
     close(call("DEGREES", vec![n(PI)]), 180.0, 1e-15);
@@ -67,7 +71,8 @@ fn angles_and_pi() {
     error(call("DEGREES", vec![n(1e307)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn exponentials_logarithms_and_roots() {
     close(call("EXP", vec![n(1.0)]), std::f64::consts::E, 1e-15);
     error(call("EXP", vec![n(1000.0)]), Num);
@@ -83,7 +88,8 @@ fn exponentials_logarithms_and_roots() {
     error(call("SQRTPI", vec![n(-1.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn power_shares_the_operator_rule() {
     exact(call("POWER", vec![n(3.0), n(2.0)]), 9.0);
     error(call("POWER", vec![n(0.0), n(0.0)]), Num);
@@ -96,7 +102,8 @@ fn power_shares_the_operator_rule() {
     exact(call("POWER", vec![n(10.0), n(-2.0)]), 0.01);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn factorials_and_combinatorics() {
     exact(call("FACT", vec![n(5.0)]), 120.0);
     exact(call("FACT", vec![n(5.9)]), 120.0);
@@ -113,7 +120,8 @@ fn factorials_and_combinatorics() {
     error(call("MULTINOMIAL", vec![n(-1.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn gcd_and_lcm() {
     exact(call("GCD", vec![n(24.0), n(36.0)]), 12.0);
     exact(call("GCD", vec![n(5.0), n(2.0)]), 1.0);
@@ -128,7 +136,8 @@ fn gcd_and_lcm() {
     exact(call_on(&mut sheet, "GCD", vec![range]), 4.0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn numeral_systems() {
     text(call("ROMAN", vec![n(499.0)]), "CDXCIX");
     text(call("ROMAN", vec![n(499.0), n(1.0)]), "LDVLIV");
@@ -145,7 +154,8 @@ fn numeral_systems() {
     error(call("DECIMAL", vec![t("FF"), n(10.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn series_and_paired_sums() {
     exact(
         call("SERIESSUM", vec![n(2.0), n(0.0), n(1.0), arr(vec![vec![1.0, 2.0, 3.0]])]),
@@ -159,7 +169,8 @@ fn series_and_paired_sums() {
     error(call("SUMXMY2", vec![x, arr(vec![vec![1.0]])]), NA);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn matrix_functions() {
     close(call("MDETERM", vec![arr(vec![vec![1.0, 2.0], vec![3.0, 4.0]])]), -2.0, 1e-15);
     let (rows, cols, cells) = array(call("MINVERSE", vec![arr(vec![vec![4.0, 7.0], vec![2.0, 6.0]])]));
@@ -179,7 +190,8 @@ fn matrix_functions() {
     error(call("MUNIT", vec![n(0.0)]), Value);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn arguments_are_read_by_worksheet_coercion() {
     close(call("SIN", vec![t("1")]), 0.8414709848078965, 1e-15);
     exact(call("SQRT", vec![b(true)]), 1.0);

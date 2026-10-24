@@ -11,13 +11,15 @@ pub fn exp_kernel(n: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn exp_kernel_matches_std() {
         assert_eq!(exp_kernel(1.0), std::f64::consts::E);
     }
 
     // BUG-FUNC-027 / oxf-vgxs: live Excel EXP(1000)=#NUM! (overflow guard on the surface).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn exp_overflow_maps_to_num() {
         assert_eq!(
             ExcelRealPolicy::FINITE

@@ -54,7 +54,8 @@ pub fn bit_shift_kernel(number: f64, shift: f64, left: bool) -> Result<f64, Work
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn bit_common_bounds_match_excel_seed() {
         assert_eq!(coerce_bit_operand(281_474_976_710_655.0), Ok(BIT_MAX));
         assert_eq!(
@@ -65,7 +66,8 @@ mod tests {
         assert_eq!(coerce_shift_count(54.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn bit_operands_reject_fractional_values_instead_of_truncating() {
         for n in [0.9, 1.5, 33_072_894_177_336.25, 188_572_911_003_774.5] {
             assert_eq!(coerce_bit_operand(n), Err(WorksheetErrorCode::Num));
@@ -74,7 +76,8 @@ mod tests {
         assert_eq!(coerce_shift_count(53.5), Ok(53));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn bit_shift_bounds_and_empirical_shortcuts_match_value2_witnesses() {
         assert_eq!(bit_shift_kernel(0.0, 54.0, true), Ok(0.0));
         assert_eq!(bit_shift_kernel(1.0, 53.0, true), Ok(0.0));

@@ -1417,14 +1417,16 @@ mod tests {
     use super::{DESCRIPTIONS, description, description_of};
     use crate::{Notation, catalogue};
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_table_is_in_byte_order_without_duplicates() {
         for pair in DESCRIPTIONS.windows(2) {
             assert!(pair[0].0.as_bytes() < pair[1].0.as_bytes(), "{:?}", pair);
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn named_functions_are_described_and_operators_are_not() {
         let sum = catalogue()
             .resolve_surface(Notation::Call, "SUM")

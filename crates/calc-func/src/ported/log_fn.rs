@@ -27,7 +27,8 @@ pub fn log_kernel(number: f64, base: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn log_kernel_seed_lanes_match_excel_probe() {
         assert_eq!(log_kernel(8.0, 2.0), Ok(3.0));
         assert_eq!(log_kernel(8.0, 1.0), Err(WorksheetErrorCode::Div0));
@@ -39,7 +40,8 @@ mod tests {
     // decisive rows are LOG(1000,10) and LOG(0.1,10): Excel's dedicated LOG10()
     // returns an exact 3 / -1, but LOG(_,10) is a different code path that
     // returns the imprecise ln/ln value — so LOG must NOT use a dedicated log10.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn log_kernel_pins_live_excel_ln_over_ln_all_bases() {
         // base 10 — the "not-log10" witnesses (imprecise, and that IS Excel).
         assert_eq!(

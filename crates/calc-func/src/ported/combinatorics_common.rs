@@ -17,7 +17,8 @@ pub fn combinations_of_int(n: i64, k: i64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combinations_of_int_matches_basic_lanes() {
         assert_eq!(combinations_of_int(5, 2), Ok(10.0));
         assert_eq!(combinations_of_int(0, 0), Ok(1.0));

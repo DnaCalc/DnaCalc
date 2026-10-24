@@ -8,17 +8,20 @@ pub fn atan_kernel(n: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atan_kernel_matches_std() {
         assert_eq!(atan_kernel(1.0), 1.0f64.atan());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atan_matches_live_excel_pins() {
         assert_eq!(atan_kernel(0.5).to_bits(), 0x3fddac670561bb4f);
         assert_eq!(atan_kernel(1.0).to_bits(), 0x3fe921fb54442d18);
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     #[cfg(target_arch = "x86_64")]
     fn atan_retains_extended_inverse_angle_and_pi() {

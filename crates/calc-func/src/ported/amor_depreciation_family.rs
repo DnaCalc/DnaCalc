@@ -320,7 +320,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn amorlinc_matches_seeded_support_example_periods() {
         assert_close(
             amorlinc_kernel(2400.0, 39679.0, 39813.0, 300.0, 0.0, 0.15, Some(1.0)).unwrap(),
@@ -343,7 +344,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn amordegrc_matches_seeded_support_example_periods() {
         let expected = [330.0, 776.0, 485.0, 303.0, 190.0, 158.0, 0.0];
         for (period, wanted) in expected.iter().copied().enumerate() {
@@ -379,7 +381,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn basis_specific_first_period_rows_are_pinned() {
         assert_close(
             amorlinc_kernel(2400.0, 39679.0, 39813.0, 300.0, 0.0, 0.15, Some(0.0)).unwrap(),
@@ -410,7 +413,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn equal_purchase_and_first_period_is_full_first_year() {
         assert_eq!(
             amorlinc_kernel(2400.0, 39679.0, 39679.0, 300.0, 0.0, 0.15, Some(1.0)).unwrap(),
@@ -422,7 +426,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn fractional_period_normalization_lanes_are_pinned() {
         assert_eq!(
             amorlinc_kernel(2400.0, 39679.0, 39813.0, 300.0, 0.1, 0.15, Some(1.0)).unwrap(),
@@ -450,7 +455,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn domain_lanes_are_explicit() {
         assert_eq!(
             amorlinc_kernel(2400.0, 39679.0, 39813.0, 300.0, 0.0, 0.15, Some(2.0)),
@@ -478,7 +484,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn date_helper_matches_known_serials() {
         assert_eq!(serial(2008, 8, 19), 39679.0);
         assert_eq!(serial(2008, 12, 31), 39813.0);

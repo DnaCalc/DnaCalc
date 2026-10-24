@@ -114,7 +114,8 @@ impl ExcelRealPolicy {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn excel_real_policy_finite_maps_overflow_to_num() {
         let p = ExcelRealPolicy::FINITE;
         assert_eq!(
@@ -124,7 +125,8 @@ mod tests {
         assert_eq!(p.publish(1.0, 1.0_f64.exp()), Ok(1.0_f64.exp()));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn excel_real_policy_saturate_sign_publishes_unit() {
         let p = ExcelRealPolicy::SATURATE_SIGN;
         // cosh/sinh = Inf/Inf = NaN at large |x|.
@@ -133,7 +135,8 @@ mod tests {
         assert_eq!(p.publish(1.0, 1.3130352854993312), Ok(1.3130352854993312));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn excel_real_policy_circular_trig_guards_arg_at_two_pow_27() {
         let p = ExcelRealPolicy::CIRCULAR_TRIG;
         assert_eq!(p.publish(134_217_727.0, 0.5), Ok(0.5));
@@ -143,7 +146,8 @@ mod tests {
         assert_eq!(p.check_arg(1.0), Ok(()));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn excel_real_policy_wrap_threads_through_kernel() {
         let sin = ExcelRealPolicy::CIRCULAR_TRIG.wrap(f64::sin);
         assert_eq!(sin(0.0), Ok(0.0));

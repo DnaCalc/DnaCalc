@@ -15,12 +15,14 @@ pub fn sec_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sec_kernel_zero_is_one() {
         assert_eq!(sec_kernel(0.0), Ok(1.0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sec_matches_live_excel_recip_cos_pins() {
         // Live Excel 16.0 b20326: SEC(x)=1/COS(x) 8/8.
         assert_eq!(sec_kernel(0.5).unwrap().to_bits(), 0x3ff23b5dfbfd97b6);

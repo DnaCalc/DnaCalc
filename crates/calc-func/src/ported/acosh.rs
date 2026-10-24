@@ -19,12 +19,14 @@ pub fn acosh_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acosh_kernel_rejects_values_below_one() {
         assert_eq!(acosh_kernel(0.5), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acosh_just_above_one_is_nonzero_matching_excel() {
         // BUG-FUNC-027 C5: the "Excel collapses to 0" near-1 witness was a
         // formula-literal artifact (the parser rounded 1+1e-15 down to 1.0).
@@ -36,7 +38,8 @@ mod tests {
         assert_eq!(y.to_bits(), 0x3e694c5839fffffe);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acosh_follows_worksheet_ln_identity() {
         for x in [1.0, 1.0 + f64::EPSILON, 1.1, 2.0, 10.0, 1e6, 1e150] {
             let got = acosh_kernel(x).unwrap();

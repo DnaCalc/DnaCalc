@@ -20,20 +20,23 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn factdouble_kernel_matches_excel_negative_boundary() {
         assert_eq!(factdouble_kernel(6.9), Ok(48.0));
         assert_eq!(factdouble_kernel(-1.0), Ok(1.0));
         assert_eq!(factdouble_kernel(-1.1), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn factdouble_exact_publication_controls_remain_exact() {
         assert_bits(factdouble_kernel(9.0).expect("factdouble(9)"), 945.0_f64);
         assert_bits(factdouble_kernel(6.0).expect("factdouble(6)"), 48.0_f64);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn factdouble_reverse_product_matches_live_excel_large_n() {
         assert_eq!(
             factdouble_kernel(50.0).unwrap().to_bits(),

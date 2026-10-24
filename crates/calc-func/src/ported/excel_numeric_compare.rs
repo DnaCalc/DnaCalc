@@ -31,7 +31,8 @@ pub fn excel_numbers_equal(lhs: f64, rhs: f64) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn excel_numeric_compare_matches_observed_near_equal_lanes() {
         assert!(excel_numbers_equal(0.1 + 0.2, 0.3));
         assert!(excel_numbers_equal(5.0 + 1.0e-15, 5.0));
@@ -39,14 +40,16 @@ mod tests {
         assert!(!excel_numbers_equal(1.0 + 1.0e-14, 1.0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn excel_numeric_compare_preserves_order_when_values_are_not_near_equal() {
         assert_eq!(compare_excel_numbers(0.1 + 0.2, 0.3), Ordering::Equal);
         assert_eq!(compare_excel_numbers(1.0 + 1.0e-14, 1.0), Ordering::Greater);
         assert_eq!(compare_excel_numbers(-1.0 - 1.0e-14, -1.0), Ordering::Less);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn excel_numeric_compare_matches_arithmetic_generated_boundary_pairs() {
         let lhs = ((123_456_789_012_345_f64 * 10.0) + 5.0) / 1.0e25;
         let rhs = ((123_456_789_012_345_f64 * 10.0) + 4.0) / 1.0e25;

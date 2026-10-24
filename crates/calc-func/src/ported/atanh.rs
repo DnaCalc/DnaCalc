@@ -38,13 +38,15 @@ pub fn atanh_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_kernel_rejects_abs_one() {
         assert_eq!(atanh_kernel(1.0), Err(WorksheetErrorCode::Num));
         assert_eq!(atanh_kernel(-1.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_matches_live_excel_pins_near_minus_one() {
         // BUG-FUNC-027 C4 historical boundary witnesses. The identified signed
         // ratio graph matches both rows; this particular adjacent positive/
@@ -62,7 +64,8 @@ mod tests {
         assert_eq!(atanh_kernel(-x).unwrap(), -atanh_kernel(x).unwrap());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_ratio_candidate_is_not_global() {
         // The ratio-log is the production path only for |x| >= the floor. A
         // tiny *normal* input is the canonical discriminator: the ratio rounds
@@ -77,7 +80,8 @@ mod tests {
     /// W109 (2026-07-12): region-C ratio-log is bit-exact to live Excel 16.0
     /// build 20131 across the catalog mid-small band and up to the domain edge
     /// (163/163 answered rows; pins from G4-hyp / G4-02 answer sets).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_region_c_matches_live_excel_pinned_witnesses() {
         let pins: [(u64, u64); 5] = [
             (0x3fb9_9999_9999_999a, 0x3fb9_af93_cd23_4415), // 0.1
@@ -98,7 +102,8 @@ mod tests {
     /// which is 1 ULP away from -ATANH(0.2) = 0xbfc9f323ecbf9849. The prior
     /// copysign-forced oddness therefore introduced a divergence; the signed ratio
     /// reproduces Excel's actual (non-odd) value.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_region_c_is_not_odd_and_matches_signed_ratio() {
         let x = f64::from_bits(0x3fc9_9999_9999_999a); // 0.2
         assert_eq!(atanh_kernel(-x).unwrap().to_bits(), 0xbfc9_f323_ecbf_984a);
@@ -112,7 +117,8 @@ mod tests {
     /// `x + x^3/3`, not the formerly inferred x87 `fyl2xp1` pair. Pins span the
     /// exact-input regime and the top of the cubic lane; subnormal DAZ is pinned
     /// separately by `atanh_exact_three_regime_w109_pins`.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_cubic_body_matches_live_excel_pinned_witnesses() {
         let pins: [(u64, u64); 4] = [
             (0x01a5_6e1f_c2f8_f359, 0x01a5_6e1f_c2f8_f359), // 1e-300 (passthrough)
@@ -128,7 +134,8 @@ mod tests {
 
     /// The binary64 cubic body is odd on this pinned normal-input row, unlike
     /// the independently evaluated signed-ratio route above the exact seam.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_cubic_body_is_odd_on_pinned_normal_row() {
         let x = f64::from_bits(0x3f15_0c68_6bf5_4163); // 8.029353e-05
         assert_eq!(atanh_kernel(-x).unwrap().to_bits(), 0xbf15_0c68_6cb7_882b);
@@ -138,7 +145,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn atanh_exact_three_regime_w109_pins() {
         // Fresh Excel 16.0 build 20228 x64, CV2, Value2/Formula2, NoCache.
         // The subnormal pair pins DAZ/+0 publication; the six seam rows pin

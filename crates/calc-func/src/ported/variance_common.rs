@@ -23,19 +23,42 @@ pub fn variance_from_values(
         return Err(WorksheetErrorCode::Div0);
     }
 
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let sumsq = values
+    // Excel's variance (dc-j9k), with s the forward sum and q the forward sum of squares: the
+    // one-pass form, (q - s*s/n)/(n - 1) for a sample and (n*q - s*s)/(n*n) for a population,
+    // unless its numerator is below 1% of q (n*q for a population), where it cancels; then the
+    // two-pass form, the forward sum of (x - mean)^2 with mean = s/n, over n - 1 or n. Measured
+    // on VAR.S and VAR.P readings of the catalogue oracle's sheet dcj9k_statistics: every
+    // reading whose forms differ follows the one-pass form at a numerator of 1.0006e-2 of q
+    // and above and the two-pass form at 9.963e-3 and below.
+    let n = values.len() as f64;
+    let (sum, squares) = values
         .iter()
-        .map(|value| {
+        .fold((0.0, 0.0), |(s, q), value| (s + value, q + value * value));
+    let two_pass = || {
+        let mean = sum / n;
+        values.iter().fold(0.0, |total, value| {
             let delta = value - mean;
-            delta * delta
+            total + delta * delta
         })
-        .sum::<f64>();
-    let denom = match divisor {
-        VarianceDivisor::Population => values.len() as f64,
-        VarianceDivisor::Sample => (values.len() - 1) as f64,
     };
-    Ok(sumsq / denom)
+    match divisor {
+        VarianceDivisor::Sample => {
+            let numerator = squares - sum * sum / n;
+            if numerator < squares * 0.01 {
+                Ok(two_pass() / (n - 1.0))
+            } else {
+                Ok(numerator / (n - 1.0))
+            }
+        }
+        VarianceDivisor::Population => {
+            let numerator = n * squares - sum * sum;
+            if numerator < n * squares * 0.01 {
+                Ok(two_pass() / n)
+            } else {
+                Ok(numerator / (n * n))
+            }
+        }
+    }
 }
 
 pub fn stdev_from_values(
@@ -49,7 +72,8 @@ pub fn stdev_from_values(
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn variance_population_and_sample_split_basic_lane() {
         let values = vec![2.0, 3.0, 4.0];
         let pop = variance_from_values(&values, VarianceDivisor::Population).unwrap();
@@ -58,7 +82,8 @@ mod tests {
         assert!((sample - 1.0).abs() < 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sample_variance_requires_two_values() {
         let err = variance_from_values(&[1.0], VarianceDivisor::Sample).unwrap_err();
         assert_eq!(err, WorksheetErrorCode::Div0);

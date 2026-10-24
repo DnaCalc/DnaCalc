@@ -393,7 +393,8 @@ mod tests {
         Rounded { digits, exponent }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn roundings_follow_the_exact_decimal_value() {
         let of = |x: f64| Roundings::of(x).expect("a modelled magnitude");
         let one = of(1.0);

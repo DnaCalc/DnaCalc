@@ -507,7 +507,9 @@ pub fn yielddisc_kernel(
     // act/act algorithm rather than DaysBetween/DaysInYear.
     let dim = dd(settlement, maturity, basis_)?;
     let b = days_in_year_for_mat(settlement, maturity, basis_)?;
-    Ok((red - price) / price * b / dim)
+    // Excel groups the year ratio: ((red - price)/price)*(b/dim) (dc-j9k: 25 of 25 readings in
+    // the catalogue oracle's sheet dcj9k_closed_form; the left-to-right form matched 17).
+    Ok(((red - price) / price) * (b / dim))
 }
 pub fn price_kernel(
     settlement: f64,
@@ -934,7 +936,8 @@ mod tests {
     fn close(a: f64, b: f64, t: f64) {
         assert!((a - b).abs() <= t, "a={a}, b={b}");
     }
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yielddisc_bit_exact_vs_excel() {
         // G6 three-way: the prior `(red/price - 1) / yearfrac` form was ~5 ULP off
         // Excel. The faithful `yieldDisc` port `(red - pr)/pr * b / dim` is now
@@ -944,7 +947,8 @@ mod tests {
             .expect("yielddisc should succeed");
         assert_eq!(y.to_bits(), 0.035_087_719_298_245_61_f64.to_bits());
     }
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn d360us_rolls_end_day_31_into_next_month() {
         assert_eq!(
             d360us(serial(2023, 11, 15) as i64, serial(2024, 1, 31) as i64),
@@ -952,7 +956,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn d360us_start_at_least_30_collapses_end_in_place() {
         assert_eq!(
             d360us(serial(2024, 1, 30) as i64, serial(2024, 3, 31) as i64),
@@ -960,7 +965,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accrint_leap_february_and_settlement_after_first_bit_exact() {
         // BUG-FUNC-030 residual closed by the faithful F# accrInt port: act/act and
         // act/365 partial periods crossing leap February, and settlement past the first
@@ -1004,7 +1010,8 @@ mod tests {
         assert_eq!(after.to_bits(), 0x4051_a9bd_37a6_f4df); // settlement after first_interest
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accrint_staging_bit_exact_vs_excel_w109() {
         // W109 G6-02 (agent-W): staging identification across b39/b40/b42 live-Excel
         // corpora (145,620 witnesses, 99.99% bit-exact). Each pin is a live Excel 16.0
@@ -1113,7 +1120,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accrint_x87_final_publication_matches_live_excel_w109() {
         // W109 G6-02 final-publication identification. The stored coupon and
         // stored accrual fraction are multiplied through RN53(RN64(coupon*a)).
@@ -1215,7 +1223,8 @@ mod tests {
             assert_eq!(got.to_bits(), expected);
         }
     }
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn price_yield_round_trip() {
         let s = serial(2029, 6, 15);
         let m = serial(2029, 11, 15);
@@ -1226,7 +1235,8 @@ mod tests {
             1e-10,
         );
     }
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yield_converges_for_well_posed_multi_period_discount_bond() {
         // BUG-FUNC-031: the root-finder probes negative candidate yields (its
         // bracket runs to -frequency), which price_kernel rejected via rate(yld),
@@ -1245,7 +1255,8 @@ mod tests {
         .expect("yield converges for a well-posed discount bond");
         close(y, 0.08624873995, 1e-7);
     }
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn duration_relation() {
         let s = serial(2024, 3, 15);
         let m = serial(2031, 11, 15);
@@ -1258,7 +1269,8 @@ mod tests {
     /// 2 ULP off), and a constructed double-rounding-window row that separates
     /// the spill-loop arithmetic from strict staging. The 1,250-row live sweep
     /// is replayed via the racer work dir (race-validation.json).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yieldmat_matches_live_excel_pinned_witnesses() {
         let rows: &[(u64, u64, u64, u64, u64, f64, u64)] = &[
             // settlement, maturity, issue, rate, price bits; basis; excel bits
@@ -1310,7 +1322,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn mat_round_trip() {
         let s = serial(2024, 6, 15);
         let m = serial(2025, 12, 31);
@@ -1323,7 +1336,8 @@ mod tests {
             1e-12,
         );
     }
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accrint_slices() {
         // BUG-FUNC-030 witness: an odd first coupon spanning two quasi-coupon
         // periods must sum over the periods, not interpolate issue->first once.
@@ -1375,7 +1389,8 @@ mod tests {
     // W109: PRICE bit-exact vs live Excel (build 20131) after the C-runtime integer-`pow`
     // (binexp) discount fix. 25 points over 5 bonds (on-coupon short/long + fractional-off),
     // the same identification+held-out ladders that validated `excel_bond_pow` (25/25).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn price_binexp_matches_excel_ladders() {
         // (settle, mat, rate, red, [(yld, excel_price_bits)])
         let ladders: &[(f64, f64, f64, f64, &[(f64, u64)])] = &[
@@ -1462,6 +1477,7 @@ mod tests {
     // `dsc = E - A` discount-fraction rule + the fractional x87 `pow` chain
     // (`excel_pow_chain`). Held out: b37 bases 2/3 3656+3658 (14 open ±1-ULP
     // extreme-yield residuals), b38 fresh 945/945 all bases. Bits from answers-b37-price.json.
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn price_dsc_e_minus_a_and_x87_pow_chain_pins() {
         // (settle, mat, rate, yld, red, freq, basis, excel_bits)
@@ -1533,6 +1549,7 @@ mod tests {
     // Macaulay body op-graph. b44 6,360 live witnesses: 2247 -> 6217 exact
     // (bases 2/3 0/1272 -> 1239/1242; on-coupon 100%). Remaining 143 are the
     // shared fractional x87 pow-chain ±1-2 ULP wall (same as PRICE b37 bases 2/3).
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn duration_matches_live_excel_pinned_witnesses() {
         // settlement, maturity, coupon, yld bits; freq; basis; excel bits
@@ -1640,7 +1657,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yield_unchanged_by_price_fix() {
         let cat = yield_kernel(44013.0, 44562.0, 0.05, 95.0, 100.0, 2.0, Some(0.0)).unwrap();
         assert_eq!(
@@ -1658,7 +1676,8 @@ mod tests {
 
     /// W111-5 G8-06, live Excel 20430: ACCRINTM basis 1 uses Excel's actual/actual rule,
     /// equal dates accrue 0, and a zero rate is #NUM!.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn accrintm_actual_actual_and_edges_match_excel() {
         // 2036-10-31 .. 2037-02-13: 105 days over a 365-day year
         let v = accrintm_kernel(49979.0, 50084.0, 0.13139245608065744, Some(100.0), Some(1.0)).unwrap();
