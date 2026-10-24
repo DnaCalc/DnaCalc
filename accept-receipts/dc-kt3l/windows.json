@@ -199,16 +199,16 @@
       "details": {
         "build_script_files_scanned": 0,
         "files_scanned": {
-          "calc-doc": 26,
-          "calc-doc-model": 13,
-          "calc-engine": 7,
-          "calc-fml": 16,
-          "calc-func": 20,
-          "calc-host": 5,
+          "calc-doc": 32,
+          "calc-doc-model": 16,
+          "calc-engine": 11,
+          "calc-fml": 25,
+          "calc-func": 157,
+          "calc-host": 9,
           "calc-value": 5,
           "calc-verdict": 11,
           "dna-calc": 1,
-          "dna-onecalc": 5
+          "dna-onecalc": 10
         },
         "scope": "the non-test code of the lib and bin targets of every portable package, as parsed, for denied std modules, ABIs and attributes and for include!, include_str! and include_bytes!; build scripts run on the build host and are scanned only for those include macros; plain comments, tests/, benches/, examples/ and #[cfg(test)] items are outside the scan; OS-binding crates are denied as direct normal or build dependencies of a portable package on every resolved target and anywhere in its wasm32-unknown-unknown closure of normal dependencies, while a transitive one on a native target (libc or rustix under a std-only crate) is allowed",
         "targets": [
@@ -219,7 +219,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "109 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
+      "summary": "277 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure"
     },
     {
       "check": "wasm-refusal",
@@ -317,7 +317,7 @@
       "check": "tree-reference-tokens",
       "details": {
         "build_script_files_scanned": 0,
-        "files_scanned": 109,
+        "files_scanned": 277,
         "phrases": [
           "tree reference",
           "tree ref",
@@ -330,7 +330,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "109 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
+      "summary": "277 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros"
     },
     {
       "check": "word-scan",
@@ -426,9 +426,9 @@
         "forms": 5,
         "rule": "docs/plan/ULTRACODE_WORK_PROMPT_OPUS_5_5.md section 0: neither banned word appears in anything written here",
         "scanned": {
-          "commit_messages": 254,
+          "commit_messages": 353,
           "files": 21,
-          "tracker_records": 72
+          "tracker_records": 75
         },
         "tracker": {
           "ceng-m7.1": {
@@ -479,7 +479,7 @@
       },
       "findings": [],
       "passed": true,
-      "summary": "68 occurrences in 10 of 21 files, 3 in 1 of 72 tracker records, 1 in 1 of 254 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+      "summary": "68 occurrences in 10 of 21 files, 3 in 1 of 75 tracker records, 1 in 1 of 353 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
     }
   ],
   "bead": "dc-kt3l",
@@ -502,7 +502,7 @@
         "--nocapture"
       ],
       "case": "dc_kt3l__every_cell_classified",
-      "duration_s": 1.431,
+      "duration_s": 2.258,
       "exit_code": 0,
       "log": "target/accept/dc-kt3l/windows/dc_kt3l__every_cell_classified.log",
       "notes": [
@@ -511,7 +511,7 @@
       "outcome": "passed",
       "package": "xtask",
       "reason": null,
-      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 1.14s"
+      "result_line": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 1.69s"
     }
   ],
   "command": [
@@ -533,13 +533,13 @@
         "xtask",
         "--bins"
       ],
-      "duration_s": 9.496,
+      "duration_s": 8.741,
       "environment": {
         "CARGO_TARGET_DIR": "target/xtask-accept"
       },
       "exit_code": 0,
       "libtest_result_lines": [
-        "test result: ok. 81 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s"
+        "test result: ok. 98 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s"
       ],
       "log": "target/accept/dc-kt3l/windows/command-1.log",
       "outcome": "passed",
@@ -635,7 +635,7 @@
     "passed": 1,
     "selected": 1
   },
-  "duration_s": 32.405,
+  "duration_s": 45.572,
   "exit_code": 0,
   "format": "dnacalc-accept-receipt/4",
   "host": {
@@ -643,15 +643,9 @@
     "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
     "git": {
       "branch": "master",
-      "dirty": true,
-      "dirty_paths": [
-        {
-          "blob": "bfa2c3830e2db76817344f76cf3775050bff3db9",
-          "path": "accept-receipts/infra-m0.1/windows.json",
-          "status": "M"
-        }
-      ],
-      "head": "ae62e407adf157728f927668f9ebbcc6c1e64197",
+      "dirty": false,
+      "dirty_paths": [],
+      "head": "28c569d160743dde935f7a7c3a2cbfc3caf0b4cc",
       "receipt_paths_left_out": []
     },
     "legacy_root": {
@@ -690,5 +684,5 @@
   "require_all": true,
   "result": "passed",
   "result_rule": "failed when a manifest, an architecture check or a command failed, the bead is unknown, no case declares the platform, or a selected case is failed, missing or ignored; otherwise not_run when a selected case is not_run (every case is not_run on a host that cannot run the platform); otherwise passed. On wasm a case runs in each browser with WASM_BINDGEN_USE_BROWSER set, a browser's run is passed only when wasm-bindgen-test-runner's first line names that browser, and the case takes its worst browser outcome. The run exits 0 for passed, and for not_run only without --require-all.",
-  "started_utc": "2026-10-23T11:21:51Z"
+  "started_utc": "2026-10-24T12:19:54Z"
 }
