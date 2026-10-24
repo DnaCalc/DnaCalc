@@ -257,7 +257,7 @@ const CALC_ENGINE: &str = "no package named (calc-engine refused)";
 
 /// The owner CalcFml's documentation gives `CompileError::NumberLiteral`, which the variant does
 /// not carry.
-const NUMBER_LITERAL_OWNER: &str = "cfml-m2.6";
+const NUMBER_LITERAL_OWNER: &str = "dc-m3u";
 
 /// The class, key and owner of the engine's typed refusal `refusal`, with `address` naming a cell
 /// for CalcFml's `MissingInput`.
@@ -1868,17 +1868,17 @@ mod tests {
                 }),
                 Class::FunctionMissing,
                 "_XLFN.XLOOKUP",
-                "F2 dc-ip6",
+                "exactness dc-uar",
             ),
             (
                 NotModeled::Compile(CompileError::Unsupported {
                     span,
                     construct: "a defined name",
-                    owner: "cfml-m3.1",
+                    owner: "dc-m3u",
                 }),
                 Class::Formula,
-                "Compile:Unsupported:a defined name (cfml-m3.1)",
-                "cfml-m3.1",
+                "Compile:Unsupported:a defined name (dc-m3u)",
+                "dc-m3u",
             ),
             (
                 NotModeled::Compile(CompileError::NumberLiteral { span }),
@@ -1893,7 +1893,7 @@ mod tests {
                 })),
                 Class::NotModelled,
                 "SUM",
-                "F1 dc-8dq",
+                "exactness dc-j9k",
             ),
             (
                 NotModeled::Evaluation(EvalFault::Function(FunctionFault::ArityMismatch {
@@ -1945,7 +1945,7 @@ mod tests {
             (
                 Class::NotModelled,
                 "NOT",
-                "F2 dc-ip6",
+                "exactness dc-uar",
                 "Evaluation:Function:NotImplemented (NOT, argument 1)"
             )
         );

@@ -55,9 +55,9 @@ fn mixed_triage() -> Value {
         },
         "cells": [
             cell("A1", "matched", "matched", "matched", None),
-            with(cell("A2", "not_modeled", "not-modelled", "NOT", Some("root")), "owner", json!("F2 dc-ip6")),
+            with(cell("A2", "not_modeled", "not-modelled", "NOT", Some("root")), "owner", json!("exactness dc-uar")),
             with(
-                with(cell("A3", "not_modeled", "not-modelled", "NOT", Some("reads_root")), "owner", json!("F2 dc-ip6")),
+                with(cell("A3", "not_modeled", "not-modelled", "NOT", Some("reads_root")), "owner", json!("exactness dc-uar")),
                 "root",
                 json!("S!A2"),
             ),
@@ -159,7 +159,7 @@ fn one_workbook_is_counted_and_grouped_by_root_cause() {
         BTreeMap::from([("missing".to_owned(), 1), ("stale".to_owned(), 1)])
     );
     let expected = BTreeMap::from([
-        (refusal("F2 dc-ip6", "not-modelled NOT"), count(1, 1, 0)),
+        (refusal("exactness dc-uar", "not-modelled NOT"), count(1, 1, 0)),
         // B2's own difference is its + call's, but it is counted under its root, B1.
         (mismatch("SUM", "number, 1 ulp apart"), count(1, 1, 0)),
         (
@@ -298,7 +298,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
             cell("A1", "matched", "matched", "matched", None),
             cell("A2", "matched", "matched", "matched", None),
             cell("A3", "matched", "matched", "matched", None),
-            with(cell("A4", "not_modeled", "not-modelled", "NOT", Some("root")), "owner", json!("F2 dc-ip6")),
+            with(cell("A4", "not_modeled", "not-modelled", "NOT", Some("root")), "owner", json!("exactness dc-uar")),
         ],
     }))
     .unwrap();
@@ -369,7 +369,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
     assert_eq!(
         causes[0],
         (
-            refusal("F2 dc-ip6", "not-modelled NOT"),
+            refusal("exactness dc-uar", "not-modelled NOT"),
             CorpusCause {
                 count: count(2, 1, 0),
                 workbooks: BTreeSet::from(["one.xlsx".to_owned(), "two.xlsx".to_owned()]),
@@ -397,7 +397,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
     assert_eq!(
         summary_json["root_causes"]["refusals"][0],
         json!({
-            "owner": "F2 dc-ip6",
+            "owner": "exactness dc-uar",
             "reason": "not-modelled NOT",
             "roots": 2,
             "downstream": 1,
@@ -424,7 +424,7 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
         "| one.xlsx | 9 | 1 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
         "| three.xlsx (not compared) |",
         "- three.xlsx: capture: Excel refused",
-        "| F2 dc-ip6 | not-modelled NOT | 2 | 1 | 0 | 3 | 2 |",
+        "| exactness dc-uar | not-modelled NOT | 2 | 1 | 0 | 3 | 2 |",
         "| SUM | number, 1 ulp apart | 1 | 1 | 0 | 2 | 1 |",
         "- 1 workbook(s) not compared hold formula cells not counted above",
     ] {

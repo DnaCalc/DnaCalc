@@ -329,7 +329,7 @@ fn ceng_m1_1__two_sheets_one_graph() {
         ),
         (
             "graph::Prerequisite::SheetSpan",
-            "test-only traffic: CalcFml's binder refuses sheet spans; its product traffic is to come from cfml-m3.2's 3D span binding and ceng-m3.5's span calculation",
+            "test-only traffic: CalcFml's binder refuses sheet spans; its product traffic is to come from dc-m3u's 3D span binding and span calculation",
         ),
     ] {
         note!("ACCEPT-NOTE: {CASE}: seams entry {item}: {traffic}");
@@ -1468,7 +1468,7 @@ fn generation(state: &EngineState) -> Vec<(CellKey, FormulaResult)> {
 fn ceng_m1_2__chain_recalculates() {
     const CASE: &str = "ceng_m1_2__chain_recalculates";
     note!(
-        "ACCEPT-NOTE: {CASE}: every expected value, prerequisite, read and evaluation order below is derived by hand in the case from the literals and the formula texts (labelled 'hand-derived'); none is read back from the engine, a capture or Excel, and agreement with Excel is infra-m1.3's round trip"
+        "ACCEPT-NOTE: {CASE}: every expected value, prerequisite, read and evaluation order below is derived by hand in the case from the literals and the formula texts (labelled 'hand-derived'); none is read back from the engine, a capture or Excel, and agreement with Excel is dc-35p's round trip"
     );
 
     // Three sheets in the order Inputs, Work, Report, whose IDs were issued in the order Report,
@@ -3061,7 +3061,7 @@ fn qguw_write(case: &str, documents: &[(&str, &[u8])]) {
 fn dc_qguw__fault_injection() {
     const CASE: &str = "dc_qguw__fault_injection";
     note!(
-        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived (3*4 = 12, -3+10 = 7, 1E-300*1E-10 shown as 0); no Excel ran, and agreement with Excel is infra-m1.3's round trip"
+        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived (3*4 = 12, -3+10 = 7, 1E-300*1E-10 shown as 0); no Excel ran, and agreement with Excel is dc-35p's round trip"
     );
     let mut book = QguwBook::new();
     let capture = book.capture();

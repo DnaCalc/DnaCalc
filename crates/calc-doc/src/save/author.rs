@@ -80,7 +80,7 @@ fn header_and_totals(
 
 /// Refuses a change to a cell in the header row or the totals row of a table (ListObject) of the
 /// sheet's part: the table part records its header row's names and its totals row's functions,
-/// which an edit of those cells would contradict, and tables are authored by cdoc-m3.2. A cell of
+/// which an edit of those cells would contradict, and tables are authored by dc-35p. A cell of
 /// a table's data rows is written like any other cell; the table part does not record it.
 fn check_tables(
     package: &Package,
@@ -554,7 +554,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         // The calculation chain lists formula cells; when the set of them changed, the chain no
         // longer lists exactly the workbook's formulas, so it is left out, with its relationship
         // and its content type override, rather than written stale. What Excel does with a stale
-        // or a missing chain is measured by infra-m1.3's round trip, not here.
+        // or a missing chain is measured by dc-35p's round trip, not here.
         let formulas_changed = sheets.iter().zip(&changes).any(|(sheet, changes)| {
             changes.iter().any(|(&(row, column), input)| {
                 let key =

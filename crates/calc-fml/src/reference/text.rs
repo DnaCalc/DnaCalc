@@ -41,17 +41,17 @@
 //! a reference's nor a defined name's form, a coordinate outside the grid that no name can spell
 //! (`$A$1048577`, `R0C1`, `1:1048577`), an unknown sheet, a name the workbook does not define. An
 //! unknown sheet leaves no trace: no area is resolved, so nothing records that the text would name
-//! a reference once that sheet exists (work package dc-mzk, whose absent-target case owns it).
+//! a reference once that sheet exists (work package dc-m3u owns it).
 //! Text whose reference is not modelled is [`TextReference::NotModelled`]:
 //!
 //! - a defined name whose formula is not one absolute reference (a constant, a computed or a
 //!   relative reference), a range through a defined name, and a name when the catalogue carries
 //!   no names;
-//! - a qualifier naming another workbook (`[Book2]Sheet1!A1`, bead cfml-m3.5);
+//! - a qualifier naming another workbook (`[Book2]Sheet1!A1`, bead dc-m3u);
 //! - a line feed other than after the text, and every control character but tab and carriage
-//!   return, whose reading is not measured (bead dc-ea6r);
-//! - an unquoted sheet name holding a tab or a carriage return (bead dc-ea6r), or a non-ASCII
-//!   character that is neither a letter nor `€` (work package dc-mzk), whose reading is not measured;
+//!   return, whose reading is not measured (bead dc-m3u);
+//! - an unquoted sheet name holding a tab or a carriage return (bead dc-m3u), or a non-ASCII
+//!   character that is neither a letter nor `€` (work package dc-m3u), whose reading is not measured;
 //! - text that is not UTF-16 throughout.
 
 use super::bind::pair;
@@ -112,7 +112,7 @@ fn bind_str(
     depth: usize,
 ) -> TextReference {
     // A tab and a carriage return are characters no reference or name holds; a line feed and the
-    // other control characters are not modelled (bead dc-ea6r).
+    // other control characters are not modelled (bead dc-m3u).
     if text
         .chars()
         .any(|c| c.is_control() && c != '\t' && c != '\r')
@@ -134,7 +134,7 @@ fn bind_str(
         Some(name) => match catalog.sheet_named(&name) {
             Some(sheet) => sheet,
             // No area, and so no footprint: creating the sheet later re-dirties nothing (bead
-            // dc-mzk).
+            // dc-m3u).
             None => return TextReference::Invalid,
         },
     };
@@ -316,8 +316,8 @@ fn split_qualifier(text: &str) -> Result<(Option<String>, &str), TextReference> 
     {
         return Err(TextReference::Invalid);
     }
-    // A tab, a carriage return (bead dc-ea6r) or a non-ASCII character that is neither a letter
-    // nor `€` (work package dc-mzk): not measured in an unquoted name.
+    // A tab, a carriage return (bead dc-m3u) or a non-ASCII character that is neither a letter
+    // nor `€` (work package dc-m3u): not measured in an unquoted name.
     if !name.chars().all(in_unquoted_name) {
         return Err(TextReference::NotModelled);
     }

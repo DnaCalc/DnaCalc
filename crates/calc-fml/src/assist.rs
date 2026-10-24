@@ -311,7 +311,8 @@ mod tests {
             .collect()
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn highlight_runs_cover_the_text_with_roles() {
         let text = "= SUM(A1:B2, \"x\", #N/A, 1.5) & Sheet2!C3";
         let runs = highlight(text);
@@ -333,7 +334,8 @@ mod tests {
         assert_eq!(runs[2].span.start, 5);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn function_names_complete_from_the_catalogue() {
         let completion = complete("=SU", 3).expect("a name being typed");
         assert_eq!(completion.prefix, "SU");
@@ -372,7 +374,8 @@ mod tests {
         assert_eq!(completion.replace, TextSpan::new(1, 2));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn completion_is_not_offered_outside_a_name() {
         assert_eq!(complete("SU", 2), None, "not a formula");
         assert_eq!(complete("=\"SU", 4), None, "inside a string");
@@ -384,7 +387,8 @@ mod tests {
         assert!(none.proposals.is_empty());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_call_at_the_caret_gives_its_active_argument() {
         let text = "=SUM(1,IF(A1,2,3),4)";
         let tree = parse_formula(text);

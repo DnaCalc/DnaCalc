@@ -11,7 +11,7 @@
 //! the grid's last row or column becomes `#REF!`, and a range is cut at the grid's edge. The axis
 //! arithmetic is ported from OxCalc 1bd514ef (`src/oxcalc-core/src/grid/reference_engine/
 //! transform.rs`, `transform_structural_axis_index` and `transform_structural_axis_range`); its
-//! reference profiles and payload codecs are left behind. A renamed sheet is renamed in every
+//! own reference model and payload codecs are left behind. A renamed sheet is renamed in every
 //! qualifier that names it, quoted when its new name needs quotes; a removed sheet's qualifier
 //! becomes `#REF!` (`#REF!A1`), and a run of sheets loses an end that is removed to the next sheet
 //! inward.

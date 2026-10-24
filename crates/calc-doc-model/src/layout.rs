@@ -760,7 +760,8 @@ impl SkinLayout {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ids_have_one_text() {
         let id = BlockId::new(0x0123_4567_89ab_cdef_0011_2233_4455_6677).unwrap();
         assert_eq!(id.to_string(), "01234567-89ab-cdef-0011-223344556677");
@@ -781,7 +782,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn locator_names() {
         for good in ["_dna.block.1", "Locator", "a.b_c", "R1C1x", "ABCD1", "RC_"] {
             assert!(LocatorName::new(good).is_some(), "{good}");

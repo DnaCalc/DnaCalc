@@ -140,7 +140,7 @@ pub enum SaveRefusal {
     InvalidPart { part: String, detail: String },
     /// A changed cell lies in the header row or the totals row of a table (ListObject) of its
     /// sheet. The table part records the names of its header row and the functions of its totals
-    /// row, which the change could contradict; tables are authored by cdoc-m3.2. A change in a
+    /// row, which the change could contradict; tables are authored by dc-35p. A change in a
     /// table's data rows is saved.
     EditInTable {
         part: String,
@@ -512,7 +512,7 @@ pub struct SaveReceipt {
     /// The formula cells the edit did not change whose file-cached result the save left out:
     /// after any authored edit, every one, since without a dependency graph no cached result is
     /// known to be current. A counted broadening; engine-computed caches, which a save could
-    /// write, are cdoc-m6.5's and chost-m1.1's.
+    /// write, are dc-35p's.
     pub caches_dropped: usize,
     /// The worksheet parts rewritten that hold no changed cell, only to leave out or replace
     /// their formulas' cached results.

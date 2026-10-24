@@ -927,3 +927,39 @@ fn d1_round_trip__external_workbook() {
     std::fs::write(output, &saved).expect("written");
     println!("ACCEPT-NOTE: d1_round_trip__external_workbook: {receipt:?}");
 }
+
+#[test]
+fn d2_session__an_interest_moves_and_an_unknown_subscription_is_refused() {
+    let mut session = session(&fixture());
+    let calc = sheet(session.host(), "Calc");
+    let data = sheet(session.host(), "Data");
+    let (id, received) = subscribe(
+        &mut session,
+        Interest::Area(GridArea::new(at_(calc, "U1"), at_(calc, "U3")).unwrap()),
+    );
+    assert_eq!(received.borrow()[0].cells.len(), 3);
+    // Moving the interest delivers the new area's cells as a reset.
+    let receipt = session.dispatch(SkinIntent::SetInterest {
+        subscription: id,
+        interest: Interest::Area(GridArea::new(at_(data, "A1"), at_(data, "A5")).unwrap()),
+    });
+    assert!(receipt.accepted());
+    {
+        let deltas = received.borrow();
+        let moved = deltas.last().unwrap();
+        assert_eq!(moved.cause, DeltaCause::InterestMoved);
+        assert!(moved.reset);
+        assert_eq!(moved.cells.len(), 5);
+    }
+    // An edit of the old area no longer reaches the subscription.
+    let before = received.borrow().len();
+    enter(&mut session, at_(calc, "U2"), "8");
+    assert_eq!(received.borrow().len(), before);
+    // A subscription the session no longer holds.
+    assert!(session.unsubscribe(id));
+    let receipt = session.dispatch(SkinIntent::SetInterest {
+        subscription: id,
+        interest: Interest::Selection,
+    });
+    assert_eq!(receipt.error, Some(IntentError::UnknownSubscription(id)));
+}

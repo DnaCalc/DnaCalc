@@ -15,7 +15,7 @@
 //! be the only words Excel reads inside number text, and other locales were not measured. Any
 //! other text holding a digit (a date, a time, a fraction, a currency amount, grouped digits, a
 //! percentage, a 16th significant digit) is refused as not modelled, because Excel may read it as
-//! a number through its locale's number-text rules, which no service supplies yet (cfml-m2.6); the
+//! a number through its locale's number-text rules, which no service supplies yet (dc-uar); the
 //! same holds for a logical's text forms, which are the English TRUE and FALSE. Coercion only
 //! reads the decimal ([`Numeric::Decimal`]): finding its nearest binary64 rounds, so the kernel
 //! does that at an arithmetic site, under the call's numeric mode, and the scale's #VALUE! comes
@@ -24,9 +24,9 @@
 //! A number read as text takes its text from [`number_text`]. A subnormal number reads as text as
 //! 0, since Excel holds none and reads a cell written as one back as +0; read as a number
 //! ([`operand`]) a subnormal is refused as not modelled, since Excel's arithmetic on one is not
-//! (cfunc-m3.23 owns subnormal numbers and makes the two readings agree). A number near a tie at
+//! (dc-6qki owns subnormal numbers and makes the two readings agree). A number near a tie at
 //! its 16th significant digit, whose side of the tie decides its text, is refused as not modelled
-//! (dc-rkzm).
+//! (dc-uar).
 
 use crate::number_text;
 use crate::number_words;

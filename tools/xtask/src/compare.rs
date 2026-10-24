@@ -1040,11 +1040,11 @@ mod tests {
         expected.insert(at(1, 1), &wrong);
         let mut instrument = Instrument::new(expected);
         assert_eq!(recalculate(&mut host, &mut instrument), None);
-        // All five formulas evaluate once: Calc!B1's call of a name no function holds is #NAME?
-        // in a workbook without macros (dc-m3u), so B2, which reads it, is evaluated too.
+        // The workbook is macro-enabled, so Calc!B1's call of a name no function holds is refused
+        // and never compiled; the other four formulas evaluate once, B2 stopping at B1.
         let mut cells: Vec<CellKey> = instrument.evaluations.iter().map(|seen| seen.at).collect();
         cells.sort();
-        assert_eq!(cells, [at(1, 1), at(1, 2), at(2, 1), at(2, 2), at(3, 1)]);
+        assert_eq!(cells, [at(1, 1), at(2, 1), at(2, 2), at(3, 1)]);
         assert_eq!(instrument.retained.len(), 1);
     }
 
@@ -1217,7 +1217,7 @@ mod tests {
             (
                 Class::NotModelled,
                 "INFO",
-                "F2 dc-ip6",
+                "exactness dc-uar",
                 "Evaluation:Function:NotImplemented"
             )
         );

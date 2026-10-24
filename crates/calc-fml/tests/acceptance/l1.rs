@@ -493,7 +493,7 @@ mod references {
             n(101.0 + 201.0 + 301.0)
         );
         assert_eq!(book.dynamic("=ROWS(B1#)"), e(W::Ref));
-        // A reader that does not know spills refuses the reference, naming L2.
+        // A reader that does not know spills refuses the reference, naming L3.
         book.reader.spills = None;
         let outcome = book
             .eval_in(FormulaForm::Dynamic, "=SUM(A1#)", "Z100")
@@ -502,7 +502,7 @@ mod references {
             outcome,
             Err(EvalFault::NotModelled {
                 construct: "a spilled range reference (#) the reader does not know",
-                owner: "dc-0k9"
+                owner: "dc-m3u"
             })
         );
     }
@@ -604,12 +604,12 @@ mod names {
             book.eval_in(FormulaForm::Dynamic, "=ISERROR(NoSuchFunction(1))", "Z100"),
             Err(CompileError::UnknownFunction { .. })
         ));
-        // A catalogue that does not carry names: every name is refused, naming D1.
+        // A catalogue that does not carry names: every name is refused, naming L3.
         book.catalog.names = None;
         match book.eval_in(FormulaForm::Dynamic, "=TaxRate*2", "Z100") {
             Err(CompileError::Unsupported {
                 construct, owner, ..
-            }) => assert_eq!((construct, owner), ("a defined name", "dc-ndi")),
+            }) => assert_eq!((construct, owner), ("a defined name", "dc-m3u")),
             other => panic!("{other:?}"),
         }
         assert!(matches!(
@@ -670,7 +670,7 @@ mod names {
             matches!(
                 deep,
                 Err(EvalFault::NotModelled {
-                    owner: "dc-2mlz",
+                    owner: "dc-m3u",
                     ..
                 })
             ),

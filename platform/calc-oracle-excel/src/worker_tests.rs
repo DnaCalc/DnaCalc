@@ -17,6 +17,10 @@
 //!   Excel on `worker/spill.xlsx`, each result converted with the conversion [`crate::capture`]
 //!   applies and judged by calc-verdict. The acceptance case `dc_xb26__spill_shape` runs them by
 //!   name.
+//! - The legacy array scenarios (the section of that name below): the package reader on
+//!   `worker/legacy-array.xlsx` and `worker/legacy-array-conflict.xlsx`, and the main flow against
+//!   the stand-in Excel on `worker/legacy-array.xlsx`, converted and judged like the spill
+//!   scenarios.
 //! - Text checks of the script: the empty catches, and the settings it assigns.
 //! - The fixtures are the output of their committed generator, `tests/fixtures/make-fixtures.ps1`.
 
@@ -1169,8 +1173,17 @@ type Verdicts = (Vec<(String, &'static str)>, u64);
 /// shows), D1 as 2 and E1 as 6, with an evaluation of each in the evaluation record, and the
 /// number of spill failures the report counts; or why calc-verdict refuses to judge the record.
 fn verdicts(record: &CaptureRecord) -> Result<Verdicts, String> {
+    verdicts_of(
+        record,
+        &[(sheet1(2), 1.0), (sheet1(4), 2.0), (sheet1(5), 6.0)],
+    )
+}
+
+/// The verdict of each judged cell when a run calculated each cell of `cells` as its number, with
+/// an evaluation of each in the evaluation record, and the number of spill failures the report
+/// counts; or why calc-verdict refuses to judge the record.
+fn verdicts_of(record: &CaptureRecord, cells: &[(CellAddress, f64)]) -> Result<Verdicts, String> {
     let session = record.session.as_ref().expect("a version 2 record");
-    let cells = [(2, 1.0), (4, 2.0), (5, 6.0)];
     let results = ResultSet {
         case: record.case.clone(),
         source: record.source.clone(),
@@ -1180,8 +1193,8 @@ fn verdicts(record: &CaptureRecord) -> Result<Verdicts, String> {
         },
         results: cells
             .iter()
-            .map(|(column, value)| CellResult {
-                cell: sheet1(*column),
+            .map(|(cell, value)| CellResult {
+                cell: cell.clone(),
                 provenance: Provenance::Calculated {
                     tick: 1,
                     revision: session.revision,
@@ -1196,8 +1209,8 @@ fn verdicts(record: &CaptureRecord) -> Result<Verdicts, String> {
         source: record.source.clone(),
         evaluations: cells
             .iter()
-            .map(|(column, _)| Evaluation {
-                cell: sheet1(*column),
+            .map(|(cell, _)| Evaluation {
+                cell: cell.clone(),
                 tick: 1,
                 revision: session.revision,
                 context: session.context.clone(),
@@ -1572,6 +1585,205 @@ fn cells_excel_lists_in_a_spill_range_are_spill_members_not_inventory_failures()
     );
 }
 
+// --- legacy array formulas ----------------------------------------------------------------------
+
+/// The package reader lists every cell of a legacy array formula's range: on
+/// `worker/legacy-array.xlsx`, the anchor B1 of B1:B3 (t="array", no cell metadata) and the
+/// single-cell C1 as the package holds them, D1, and then B2 and B3, which the package holds only
+/// values for, as members naming their anchor B1. On `worker/legacy-array-conflict.xlsx`, whose B2
+/// holds a formula of its own inside B1's range, B2 is listed once, as its own formula, and is an
+/// inventory failure.
+#[test]
+fn the_package_reader_lists_each_cell_of_a_legacy_array() {
+    let read = read_package(&fixture("worker/legacy-array.xlsx"));
+    let member = |row: u32| json!({"sheet": "Sheet1", "row": row, "column": 2, "type": "array_member", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false, "anchor": "B1"});
+    assert_eq!(
+        read["formulas"],
+        json!([
+            {"sheet": "Sheet1", "row": 1, "column": 2, "type": "array", "si": null, "ref": "B1:B3", "cm": null, "dynamic_array_metadata": false},
+            {"sheet": "Sheet1", "row": 1, "column": 3, "type": "array", "si": null, "ref": "C1", "cm": null, "dynamic_array_metadata": false},
+            {"sheet": "Sheet1", "row": 1, "column": 4, "type": "normal", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false},
+            member(2),
+            member(3)
+        ])
+    );
+    assert_eq!(read["failures"], json!([]));
+    assert_eq!(read["refusals"], json!([]));
+
+    let read = read_package(&fixture("worker/legacy-array-conflict.xlsx"));
+    let listed: Vec<String> = read["formulas"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| {
+            format!(
+                "R{}C{} {}",
+                f["row"],
+                f["column"],
+                f["type"].as_str().unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            "R1C2 array",
+            "R1C3 array",
+            "R1C4 normal",
+            "R2C2 normal",
+            "R3C2 array_member"
+        ]
+    );
+    assert_eq!(
+        read["failures"],
+        json!([{"stage": "inventory", "sheet": "Sheet1", "row": 2, "column": 2, "message": "the cell lies in the range B1:B3 of the legacy array formula at Sheet1!B1 and holds a formula of its own or lies in the range of another legacy array formula"}])
+    );
+}
+
+/// The worker's result for `worker/legacy-array.xlsx` against the stand-in Excel, in which every
+/// cell of B1's legacy array B1:B3 is a formula cell showing its own element (10, 20, 30), C1
+/// shows 6 and D1 2, none spilling; its SaveAs writes the input's bytes, and its SpecialCells lists
+/// the five formula cells and then the cells `listed` (row, column). The result's conversion.
+fn legacy_capture(name: &str, listed: &[(u32, u32)]) -> (Value, Result<CaptureRecord, String>) {
+    let listed: String = listed
+        .iter()
+        .map(|(row, column)| format!("[void]$global:StandinListed.Add(@({row}, {column}))\n"))
+        .collect();
+    let setup = format!(
+        "$global:StandinCells = @(@(1, 2, '=A1:A3*10', 10.0, $null), @(2, 2, '=A1:A3*10', 20.0, $null), @(3, 2, '=A1:A3*10', 30.0, $null), @(1, 3, '=SUM(A1:A3)', 6.0, $null), @(1, 4, '=A1+1', 2.0, $null))\n$global:StandinSaved = $null\n$global:StandinListed = New-Object System.Collections.ArrayList\n{listed}{FULL_STANDIN}"
+    );
+    let (code, lines, result) = run_main_flow(name, &fixture("worker/legacy-array.xlsx"), &setup);
+    assert_eq!(code, Some(0), "{lines:?}\n{result}");
+    assert_eq!(result["fatal"], Value::Null, "{result}");
+    let frame = Frame {
+        case: "legacy-standin".to_owned(),
+        source: format!(
+            "sha256:{}",
+            crate::sha256_hex(&std::fs::read(fixture("worker/legacy-array.xlsx")).unwrap())
+        ),
+        tool: crate::capture_tool_revision(None),
+        revision: 0,
+        operations: Vec::new(),
+        output_package: None,
+        failures: Vec::new(),
+    };
+    let record = convert::convert(&result, frame);
+    (result, record)
+}
+
+/// Each cell of a legacy array formula is a formula cell of the record, as Excel lists it: the
+/// worker reads the members B2 and B3 like any inventory cell (their Value2 after the rebuild, the
+/// saved package's caches and the Value2 after reopening), Excel's listing of them is no inventory
+/// failure, the conversion records B1 and C1 as anchors and B2 and B3 as members of B1, and
+/// calc-verdict judges each by its own value: matched when calculated as Excel shows it, B3
+/// mismatched when calculated as the anchor's value. A further cell Excel lists outside every
+/// range (B4) is still an inventory failure, and calc-verdict refuses the record.
+#[test]
+fn each_cell_of_a_legacy_array_is_read_recorded_and_judged() {
+    let (result, record) = legacy_capture("legacy", &[]);
+    assert_eq!(
+        failure_messages(&result, STAGE_INVENTORY),
+        Vec::<String>::new()
+    );
+    for (row, value) in [(2u64, 20f64), (3, 30.0)] {
+        for list in ["cells", "reopened"] {
+            let read = result[list]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|entry| entry["row"] == row && entry["column"] == 2)
+                .unwrap_or_else(|| panic!("{list} holds no B{row}: {result}"));
+            assert_eq!(
+                read["value"],
+                json!({"number": format!("{:016x}", value.to_bits())}),
+                "{list} B{row}"
+            );
+            assert_eq!(read["spill"], Value::Null, "{list} B{row}");
+        }
+    }
+    let record = record.unwrap_or_else(|e| panic!("the legacy capture converts: {e}\n{result}"));
+    let session = record.session.as_ref().unwrap();
+    let member = FormulaKind::LegacyArrayMember {
+        anchor_row: 1,
+        anchor_column: 2,
+    };
+    let inventory: Vec<(String, FormulaKind)> = record
+        .formulas
+        .iter()
+        .map(|formula| (formula.cell.a1(), formula.kind))
+        .collect();
+    assert_eq!(
+        inventory,
+        [
+            (
+                "B1".to_owned(),
+                FormulaKind::LegacyArrayAnchor {
+                    rows: 3,
+                    columns: 1
+                }
+            ),
+            (
+                "C1".to_owned(),
+                FormulaKind::LegacyArrayAnchor {
+                    rows: 1,
+                    columns: 1
+                }
+            ),
+            ("D1".to_owned(), FormulaKind::Ordinary),
+            ("B2".to_owned(), member),
+            ("B3".to_owned(), member),
+        ]
+    );
+    let all = ["B1", "C1", "D1", "B2", "B3"];
+    assert_eq!(a1s(&record.observations), all);
+    assert_eq!(a1s(&session.saved), all);
+    assert_eq!(a1s(&session.reopened), all);
+    assert!(
+        session
+            .failures
+            .iter()
+            .all(|failure| failure.stage == "environment"),
+        "{:?}",
+        session.failures
+    );
+    let encoded = record.encode().unwrap();
+    assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
+
+    let at = |row: u32, column: u32| CellAddress::new("Sheet1", row, column).unwrap();
+    let mut calculated = vec![
+        (at(1, 2), 10.0),
+        (at(1, 3), 6.0),
+        (at(1, 4), 2.0),
+        (at(2, 2), 20.0),
+        (at(3, 2), 30.0),
+    ];
+    let (judged, _) = verdicts_of(&record, &calculated).unwrap();
+    assert_eq!(
+        judged,
+        all.iter()
+            .map(|a1| ((*a1).to_owned(), "matched"))
+            .collect::<Vec<_>>()
+    );
+    calculated[4].1 = 10.0;
+    let (judged, _) = verdicts_of(&record, &calculated).unwrap();
+    assert_eq!(judged[4], ("B3".to_owned(), "mismatched"));
+
+    let (result, record) = legacy_capture("legacy-beyond", &[(4, 2)]);
+    assert_eq!(
+        failure_messages(&result, STAGE_INVENTORY),
+        ["Excel reports a formula here that the package does not hold"]
+    );
+    let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
+    let refused = verdicts_of(&record, &[]).unwrap_err();
+    assert!(
+        refused.contains("records an inventory failure at Sheet1!B4"),
+        "{refused}"
+    );
+    println!(
+        "NOTE: legacy array B1:B3 (=A1:A3*10) and C1: the worker read B2 and B3 as inventory cells (Value2 20 and 30 after the rebuild and after reopening), no inventory failure; recorded as anchors B1 (3 by 1) and C1 (1 by 1) and members B2, B3 of B1; judged each by its own value (B3 calculated as 10 is mismatched); a listed B4 outside the range is an inventory failure and calc-verdict refuses: {refused}"
+    );
+}
+
 // --- text checks of the script ------------------------------------------------------------------
 
 /// The trimmed line on which each catch with an empty body starts: `catch {}`, `catch { }`, a
@@ -1782,13 +1994,15 @@ fn the_worker_creates_com_objects_only_through_new_object() {
 // --- fixture provenance -------------------------------------------------------------------------
 
 /// The files `tests/fixtures/make-fixtures.ps1` writes, relative to its output directory.
-const GENERATED: [&str; 12] = [
+const GENERATED: [&str; 14] = [
     "infra_m1_2/link-target.xlsx",
     "infra_m1_2/replay.xlsx",
     "infra_m1_2/untrusted-link.xlsx",
     "worker/dynamic-array.xlsx",
     "worker/external-content.xlsx",
     "worker/external-functions.xlsx",
+    "worker/legacy-array-conflict.xlsx",
+    "worker/legacy-array.xlsx",
     "worker/macro-sheet.xlsm",
     "worker/pivot-refresh.xlsx",
     "worker/query-table-refresh.xlsx",

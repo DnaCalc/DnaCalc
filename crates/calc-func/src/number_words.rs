@@ -15,7 +15,7 @@
 //! `Q1 2016`, is not a number: read as a number it is #VALUE!, it meets no number criterion under
 //! =, and as a criterion it asks for text. Text holding only these words, or no word, is not
 //! decided here: whether Excel reads it as a number (a date, a time, a fraction, a currency
-//! amount, grouped digits) is cfml-m2.6's.
+//! amount, grouped digits) is dc-uar's.
 //!
 //! The verdict is given only for text of printable ASCII (U+0020 to U+007E). Any other character
 //! leaves the text undecided: Excel may read a full-width letter or digit as its ASCII form, or

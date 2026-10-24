@@ -67,7 +67,7 @@ pub enum CompileError {
     Arity { span: TextSpan, supplied: usize },
     /// A number literal whose Excel value is not modelled: more than 15 significant digits
     /// (which Excel rounds to 15 at entry), beyond binary64's range, or in or below its subnormal
-    /// range. Owned by bead cfml-m2.6 (numeric text policy).
+    /// range. Owned by bead dc-m3u (numeric text policy).
     NumberLiteral { span: TextSpan },
 }
 
@@ -75,8 +75,8 @@ pub enum CompileError {
 /// model: L1 (dc-mzk) lowered them, and L3 (dc-m3u) took over its open refusals.
 const OWNER: &str = "dc-m3u";
 
-/// The work package that loads a workbook's defined names into the document model.
-const NAMES_OWNER: &str = "dc-ndi";
+/// The work package that owns the defined names a catalogue does not model.
+const NAMES_OWNER: &str = "dc-m3u";
 
 /// Work package L3, which owns tables, 3-D references, names with relative references and the
 /// calls of names no defined name holds.
@@ -1416,7 +1416,7 @@ fn array_element(node: &SyntaxNode) -> Result<Literal, CompileError> {
 
 /// Whether the check of the formula's final `+` or `-` follows argument `index` of a lazy call
 /// with demand `demand` at the formula's tail. It follows IF's branches, a choice the check makes
-/// rather than guess (bead dc-r4ci measures it). It does not follow IFERROR's and IFNA's
+/// rather than guess (bead dc-6qki measures it). It does not follow IFERROR's and IFNA's
 /// arguments: a near-zero sum there is published as computed, as Excel 16.0.20430.20182 publishes
 /// it (bead dc-ibp2's capture: `=IFERROR(0.5-0.4-0.1,1)` and `=IFERROR(#N/A,0.5-0.4-0.1)` are
 /// both -2.7755575615628914e-17, not adjusted to 0).
@@ -1627,13 +1627,13 @@ mod tests {
         }
     }
 
-    /// A defined name the catalogue cannot supply is refused with the work package that loads
-    /// names; the constructs L1 lowers compile.
+    /// A defined name the catalogue cannot supply is refused with the work package that owns
+    /// such names; the constructs L1 lowers compile.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn unsupported_constructs_name_their_owner() {
-        assert_eq!(owner("=TaxRate*2"), "dc-ndi");
-        assert_eq!(owner("=Sheet2!TaxRate"), "dc-ndi");
+        assert_eq!(owner("=TaxRate*2"), "dc-m3u");
+        assert_eq!(owner("=Sheet2!TaxRate"), "dc-m3u");
         for compiles in [
             "=(A1):B2",
             "=SUM(A1 B2)",

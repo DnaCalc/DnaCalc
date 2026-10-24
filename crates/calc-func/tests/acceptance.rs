@@ -1894,28 +1894,28 @@ impl Owner {
 
 /// Wildcard criteria over text beyond ASCII, which calc_func's pattern matching refuses.
 const COLLATION: Owner = Owner {
-    bead: "dc-o4do",
+    bead: "dc-uar",
     behaviour: "wildcard criteria over text beyond ASCII, as Excel matches them",
 };
 const NEAR_ZERO: Owner = Owner {
-    bead: "dc-r4ci",
+    bead: "dc-6qki",
     behaviour: "the near-zero adjustment of + and - by the formula's final operation",
 };
 /// Text that holds a digit and no word that rules out a number, or that holds a character beyond
 /// printable ASCII (dc-e00t's verdict decides the rest), read as a number or a logical.
 const NUMBER_TEXT: Owner = Owner {
-    bead: "cfml-m2.6",
+    bead: "dc-uar",
     behaviour: "text holding a digit and no word that rules out a number, or a character beyond printable ASCII, read as a number or a logical by Excel's number-text rules",
 };
 /// Excel loads the oracle workbook's IF({TRUE,FALSE},1,2) as the legacy formula
 /// =@IF({TRUE,FALSE},1,2) and gives 1, so its row measures that legacy formula, not IF lifted over
 /// the array; calc_func refuses the array condition.
 const LEGACY_ARRAY_IF: Owner = Owner {
-    bead: "cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)",
 };
 const SUBNORMAL: Owner = Owner {
-    bead: "cfunc-m3.23",
+    bead: "dc-6qki",
     behaviour: "subnormal results",
 };
 /// COUNT and COUNTIF read number text through cfunc-m1.2's coercion, but each is another bead's
@@ -3394,7 +3394,7 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     row!(r, s, IF, [logical(true), omitted(), num("2")], N(0.0));
     row!(r, s, IF, [logical(false), num("1"), omitted()], N(0.0));
     row!(r, s, IF, [omitted(), num("1"), num("2")], N(2.0));
-    // A legacy formula (cfml-m3.4): Excel loads IF({TRUE,FALSE},1,2) from the file as
+    // A legacy formula (dc-m3u): Excel loads IF({TRUE,FALSE},1,2) from the file as
     // =@IF({TRUE,FALSE},1,2) and gives 1, the array's first element; calc_func refuses the array.
     let conditions = CalcArray::from_rows(vec![vec![
         CalcValue::logical(true),
@@ -4879,7 +4879,7 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [num("1E16"), num("1"), num("-1E16")],
         N(0.0),
         Choice(
-            "the sequential left fold in reading order: 1E16+1 rounds to 1E16 before -1E16 is added (the reduction order cfunc-m3.23 is to document)"
+            "the sequential left fold in reading order: 1E16+1 rounds to 1E16 before -1E16 is added (the reduction order dc-6qki is to document)"
         )
     );
     agg!(
@@ -5321,7 +5321,7 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         "COUNT",
         [txt("1/2")],
         Refused(Some(0)),
-        Unsupported("typed text that Excel's number-text rules may read as a date (cfml-m2.6)")
+        Unsupported("typed text that Excel's number-text rules may read as a date (dc-uar)")
     );
 
     // COUNTA.
@@ -6598,7 +6598,7 @@ const NONNUMERIC: &str = "a nonnumeric argument is #VALUE!";
 const FIRST_ERROR: &str = "the first argument's error is the result, before any domain rule, as the operators of cfunc-m1.2 read their operands";
 const EXAMPLE: &str = "an example row of the function's page";
 const SIGN_OF_DIVISOR: &str = "MOD(n, d) = n - d*INT(n/d): the result has the divisor's sign";
-const LIFTED: &str = "an array argument, over which Excel lifts the function, is not modelled (array lifting is cfml-m3.4's)";
+const LIFTED: &str = "an array argument, over which Excel lifts the function, is not modelled (array lifting is dc-m3u's)";
 
 // ---------------------------------------------------------------------------------------------
 // cfunc_m3_2__rounding_boundaries
@@ -7709,7 +7709,7 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         [num("2.5E-308"), num("308")],
         Refused(None),
         Unsupported(
-            "the result 2E-308 is subnormal, and Excel's handling of a subnormal result is not modelled (subnormal handling is cfunc-m3.23's)"
+            "the result 2E-308 is subnormal, and Excel's handling of a subnormal result is not modelled (subnormal handling is dc-6qki's)"
         )
     );
     rnd!(
@@ -7719,7 +7719,7 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         [cell(s, "A6"), num("5.70820472448858E-308")],
         Refused(None),
         Unsupported(
-            "the exact remainder of A6's binary64 by 5.70820472448858E-308 is not zero but lies below half the smallest subnormal, so it would convert to 0; it is refused as a subnormal result is, since Excel's handling of a result below the normal range is not modelled (subnormal handling is cfunc-m3.23's)"
+            "the exact remainder of A6's binary64 by 5.70820472448858E-308 is not zero but lies below half the smallest subnormal, so it would convert to 0; it is refused as a subnormal result is, since Excel's handling of a result below the normal range is not modelled (subnormal handling is dc-6qki's)"
         )
     );
     rows
@@ -8811,11 +8811,11 @@ fn owned(rows: &mut Rows, owner: Owner) {
 /// The behaviours that refused rows of cfunc-m3.5 show, by the bead that owns each. No row names
 /// cfunc-m3.5 itself: the Excel comparison counts such a row as a problem.
 const SEVERAL_AREAS: Owner = Owner {
-    bead: "dc-gdii",
+    bead: "dc-j9k",
     behaviour: "a range of several areas in the conditional aggregates",
 };
 const SHAPED_PAST: Owner = Owner {
-    bead: "dc-1mc8",
+    bead: "dc-m3u",
     behaviour: "a SUMIF or AVERAGEIF sum range shaped past the reference the formula gives, as a recalculation prerequisite",
 };
 
@@ -8911,7 +8911,7 @@ const EMPTY_IS_ZERO_ELSEWHERE: &str = "an empty cell given as the criterion is t
 const NUMBER_TEXT_MEETS: &str = "number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number; no page states it (Excel's ad-hoc read agrees on every such row)";
 const NOT_EQUAL: &str = "<> holds wherever = does not: blank cells, numbers, logicals and errors meet a <> text criterion";
 const TOP_LEFT: &str = "a third range of another size is used from its top-left cell over the range's size (the SUMIF and AVERAGEIF pages)";
-const SHAPED_PAST_TEXT: &str = "the third argument shaped from its top-left cell to the range's size (the SUMIF and AVERAGEIF pages) extends past the reference the formula gives, whose cells past it the engine does not yet take as the formula's prerequisites; owned by dc-1mc8";
+const SHAPED_PAST_TEXT: &str = "the third argument shaped from its top-left cell to the range's size (the SUMIF and AVERAGEIF pages) extends past the reference the formula gives, whose cells past it the engine does not yet take as the formula's prerequisites; owned by dc-m3u";
 const SAME_SHAPE: &str =
     "every range has the same size and shape; positions align even when the ranges do not";
 const SHAPE_VALUE: &str = "ranges of different sizes or shapes return #VALUE!, as the MAXIFS page states for MAXIFS; this page names no error";
@@ -8921,7 +8921,7 @@ const MATCHED_ERROR: &str =
     "an error in a matched target cell is the result, the first in row-major order";
 const DIGIT_LABEL_CRITERION: &str = "a criterion holding a word that no number text holds, such as the label Q1 or 2016-17 Winter, is no number (dc-e00t's rule, from its measurement of the words Excel reads inside number text, compared with its Excel capture in dc_e00t__excel_comparison), so it asks for that text, which a text criterion matches ignoring case (the COUNTIF page); no cell of A1:A16 holds it";
 const DIGIT_LABEL_CELL: &str = "the label 2016-17 Winter in the range holds a word that no number text holds, so it is no number (dc-e00t's rule, compared with its Excel capture in dc_e00t__excel_comparison) and does not meet = 2016";
-const NUMBER_TEXT_FORMS: &str = "a criterion that Excel's number-text rules may read as a number, such as the fraction or date 1/2, is not modelled; owned by cfml-m2.6";
+const NUMBER_TEXT_FORMS: &str = "a criterion that Excel's number-text rules may read as a number, such as the fraction or date 1/2, is not modelled; owned by dc-uar";
 
 // ---------------------------------------------------------------------------------------------
 // cfunc_m3_5__criteria_semantics
@@ -10707,7 +10707,7 @@ fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>)
 
     // SUMIF and AVERAGEIF shape their third argument from its top-left cell. A shaped range
     // inside the reference the formula gives is read; one that extends past it is refused, the
-    // engine not yet taking the cells past it as the formula's prerequisites (dc-1mc8).
+    // engine not yet taking the cells past it as the formula's prerequisites (dc-m3u).
     measure(
         r,
         s,
@@ -10786,7 +10786,7 @@ fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>)
         &[],
         Refused(Some(2)),
         Unsupported(
-            "the sum_range shaped from A1048575 to 4 rows extends past A1048575 and past the sheet's last row; owned by dc-1mc8 (Excel's ad-hoc read gives 7 for it and for SUMIF(B3:B6,\"a\",A1048575:A1048576), as if the shaped range were cut at the last row)",
+            "the sum_range shaped from A1048575 to 4 rows extends past A1048575 and past the sheet's last row; owned by dc-m3u (Excel's ad-hoc read gives 7 for it and for SUMIF(B3:B6,\"a\",A1048575:A1048576), as if the shaped range were cut at the last row)",
         ),
     );
     owned(r, SHAPED_PAST);
@@ -11302,7 +11302,7 @@ fn cfunc_m3_5__excel_comparison() {
 // rounds the exact ties of rows D5, D11, D12, D61, D72 and D73 toward zero and those of rows D77 to
 // D80 away from zero, and the near ties of rows D81 and D82 against their exact value (the capture
 // records formula cells only, so it cannot tell that apart from Excel reading the A-cell text as
-// another binary64; both rows are refused). The rows that show it name dc-rkzm as the owner of that
+// another binary64; both rows are refused). The rows that show it name dc-uar as the owner of that
 // behaviour, and the Excel comparison publishes them as not modelled with that owner. Every other
 // number gives its text (row D84 lies that near a tie, but its 14-digit text is the same on either
 // side of it).
@@ -11345,11 +11345,11 @@ const CAPTURED_COM_ADD_IN: &str = "VS15ExcelAdaptor";
 /// records it. That package holds the cells the subnormal and -0 rows read as 0; it was read when
 /// the capture was taken and is not retained.
 const CAPTURED_OUTPUT_PACKAGE: &str =
-    "sha256:744760a32d95daf8ad4b9363e5e1d573834d841422fc5bec8d45867163aa1039";
+    "sha256:99dc773ac5189a5e97c9a51c2279d318ba4386cf074faeae6572ec6004f192b3";
 
 /// The behaviour the refused dc-q9rb rows show.
 const NEAR_TIE: Owner = Owner {
-    bead: "dc-rkzm",
+    bead: "dc-uar",
     behaviour: "a number's text within a relative 2^-59 of a tie at its 16th significant digit",
 };
 
@@ -12187,19 +12187,19 @@ enum Seen {
 }
 
 const SPILL_OWNER: Owner = Owner {
-    bead: "cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "an array result published in a cell",
 };
 const AREA_OWNER: Owner = Owner {
-    bead: "cfml-m3.3",
+    bead: "dc-m3u",
     behaviour: "a reference to several cells as a cell's value (implicit intersection)",
 };
 const BLANK_OWNER: Owner = Owner {
-    bead: "cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "a blank function result published in a cell as 0",
 };
 const LIFT_OWNER: Owner = Owner {
-    bead: "cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "a function lifted over an array argument",
 };
 /// The rows that stand in for calc-fml: a reference result dereferenced at the formula's root, or
@@ -12210,12 +12210,12 @@ const ENGINE_ROUTE: Owner = Owner {
 };
 /// The calling cell, which ROW() and COLUMN() without an argument need.
 const CALLER_OWNER: Owner = Owner {
-    bead: "dc-ebla",
+    bead: "dc-m3u",
     behaviour: "the calling cell supplied to a kernel",
 };
 /// A read past the reference a formula gives, which the engine does not see as a prerequisite.
 const READ_PAST_OWNER: Owner = Owner {
-    bead: "dc-1mc8",
+    bead: "dc-m3u",
     behaviour: "cells read past the reference given, as prerequisites of the formula",
 };
 
@@ -12233,7 +12233,7 @@ const XLOOKUP_PART: &str = "the row (a vertical lookup array) or column (a horiz
 /// context: a legacy formula (an xlsx cell without dynamic-array metadata, as the oracle workbook
 /// stores its formulas) gives the first number, a dynamic-array formula the array of every number.
 const LEGACY_ARRAY: Owner = Owner {
-    bead: "cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "ROW or COLUMN of several rows or columns in the formula's array context",
 };
 
@@ -12265,20 +12265,20 @@ fn error_name(code: WorksheetErrorCode) -> &'static str {
 /// The functions of the source formulas, which calc_func's catalogue does not have, and the error
 /// Excel gives each source formula of the lookup oracle workbook.
 const SOURCE_CALC: Owner = Owner {
-    bead: "cfunc-m3.16",
+    bead: "dc-j9k",
     behaviour: "FILTER, here with no cell of A1:A6 above 100, which Excel gives #CALC!",
 };
 const SOURCE_SPILL: Owner = Owner {
-    bead: "cfunc-m3.16, cfml-m3.4",
+    bead: "dc-j9k, dc-m3u",
     behaviour: "SEQUENCE(1,2), whose spill the filled cell to its right blocks, which Excel gives #SPILL!",
 };
 const SOURCE_FIELD: Owner = Owner {
-    bead: "cfunc-m3.19",
+    bead: "dc-uar",
     behaviour: "FIELDVALUE of a number, which holds no data type, which Excel gives #FIELD!",
 };
 /// A row that reads a source cell: its value rests on the error the reader holds for the source.
 const SOURCE_READ: Owner = Owner {
-    bead: "cfunc-m3.16, cfml-m3.4, cfunc-m3.19",
+    bead: "dc-j9k, dc-m3u, dc-uar",
     behaviour: "a value conditional on the errors Excel gives the source formulas it reads (FILTER, SEQUENCE and FIELDVALUE), which the reader holds",
 };
 
@@ -15813,12 +15813,12 @@ fn cfunc_m3_6__lookup_edges() {
     );
 
     // Through the call interface alone (no row of the workbook): the formula's own cell, which
-    // ROW() and COLUMN() need, is not among the services (dc-ebla); regex matching (match_mode 3,
-    // cfunc-m3.20), an array index_num (cfml-m3.4) and a read past LOOKUP's result reference
-    // (dc-1mc8) are refused; so is a text comparison calc_func's comparison cannot decide (text
-    // beyond the repertoire of cdoc-jpha's collation, whose replacement cfml-m2.6 owns),
+    // ROW() and COLUMN() need, is not among the services (dc-m3u); regex matching (match_mode 3,
+    // dc-uar), an array index_num (dc-m3u) and a read past LOOKUP's result reference
+    // (dc-m3u) are refused; so is a text comparison calc_func's comparison cannot decide (text
+    // beyond the repertoire of cdoc-jpha's collation, whose replacement dc-uar owns),
     // and an order between #BUSY!, #BLOCKED! or #CONNECT! and another error, which no formula on
-    // this machine gives offline (dc-tt73).
+    // this machine gives offline (dc-uar).
     let refusals: [(&str, Vec<CalcValue>, Option<usize>); 7] = [
         ("ROW", vec![], None),
         ("COLUMN", vec![], None),
@@ -15891,7 +15891,7 @@ fn cfunc_m3_6__lookup_edges() {
         );
     }
     note!(
-        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; cfunc-m3.20), CHOOSE({{1}},\"a\") (lifted; cfml-m3.4), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"\u{3b1}\",B1:B6,-1) (text beyond the repertoire of calc_func's collation; cfml-m2.6), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-tt73)",
+        "ACCEPT-NOTE: {CASE}: refused with NotImplemented: ROW() and COLUMN() (the formula's own cell is not supplied; owned by {}: {}), XMATCH(2,A1:A6,3) (regex; dc-uar), CHOOSE({{1}},\"a\") (lifted; dc-m3u), LOOKUP(3,A1:A6,B1) (Excel reads past B1; owned by {}: {}), XMATCH(\"\u{3b1}\",B1:B6,-1) (text beyond the repertoire of calc_func's collation; dc-uar), XMATCH(TRUE,{{#BUSY!,#N/A}},1) (an order of #BUSY! no formula on this machine gives offline; dc-uar)",
         CALLER_OWNER.bead,
         CALLER_OWNER.behaviour,
         READ_PAST_OWNER.bead,
@@ -15978,7 +15978,7 @@ fn cfunc_m3_6__lookup_edges() {
     );
 
     // ROW and COLUMN of an area of several rows or columns: refused, since the result depends on
-    // the formula's array context, which the call does not see (cfml-m3.4); whole columns and rows
+    // the formula's array context, which the call does not see (dc-m3u); whole columns and rows
     // included, so no array of their numbers is built.
     for (spelling, area) in [
         ("ROW", "B2:C3"),
@@ -16565,7 +16565,7 @@ fn cfunc_m3_6__excel_comparison() {
 // meet = a number. The words the rule lets Excel read inside number text, as measured in Excel on
 // this machine under the Windows locale en-ZA, are the month names and their prefixes of three
 // letters or more, A, P, AM, PM, E and R (en-ZA's currency symbol); text holding only those words,
-// or none, and text beyond printable ASCII stay refused as not modelled, owned by cfml-m2.6.
+// or none, and text beyond printable ASCII stay refused as not modelled, owned by dc-uar.
 //
 // Each hand-written row asserts the value Excel gives, as captured, or, for a form the rule leaves
 // undecided, the refusal beside the value Excel gives (1/2+0 states none: Excel reads 1/2 as a
@@ -17786,10 +17786,10 @@ const NOT_CELL: &str =
 const BLANK_DIRECT: &str = "a blank cell's value given directly (IFNA and IFERROR return it as it is) is a FALSE, as an omitted argument is";
 const NOT_BLANK_DIRECT: &str = "NOT reads a blank cell's value given directly (through IFNA or IFERROR) as FALSE, as it reads a blank cell";
 
-/// NOT applied to an array lifts over its elements, which cfml-m3.4 owns. Excel loads the oracle
+/// NOT applied to an array lifts over its elements, which dc-m3u owns. Excel loads the oracle
 /// workbook's NOT({TRUE,FALSE}) as the legacy formula =NOT(@{TRUE,FALSE}).
 const LEGACY_ARRAY_NOT: Owner = Owner {
-    bead: "cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "an array argument of NOT in a legacy formula, which Excel loads as =NOT(@{TRUE,FALSE})",
 };
 
@@ -18550,9 +18550,9 @@ fn dc_fwpz__logical_functions() {
 
     // Through the call interface alone. What is no worksheet value, or what another bead owns, is
     // refused naming the argument: a number that is no worksheet value (NaN and an infinity, and a
-    // subnormal, which cfunc-m3.23 owns), directly or in an array; an array or a reference inside
-    // an array (array evaluation, cfml-m3.4); and a callable, directly or in an array, whose core
-    // is #CALC! but which is no worksheet error until it reaches a cell (LAMBDA, cfml-m2.3). No
+    // subnormal, which dc-6qki owns), directly or in an array; an array or a reference inside
+    // an array (array evaluation, dc-m3u); and a callable, directly or in an array, whose core
+    // is #CALC! but which is no worksheet error until it reaches a cell (LAMBDA, dc-m3u). No
     // oracle row measures these. NOT's parameter takes a value, so a reference is refused at
     // admission.
     let lambda = CalcValue::callable(CallableValue::new(
@@ -18989,14 +18989,14 @@ const REWRITTEN_FORMULA: (&str, &str) = ("=1+1E-15=1", "=1+0.000000000000001=1")
 
 /// Text beyond the collation's repertoire, which the comparison refuses.
 const BEYOND_REPERTOIRE: Owner = Owner {
-    bead: "cfml-m2.6",
+    bead: "dc-uar",
     behaviour: "Excel's collation of characters beyond calc_func's collation repertoire (locale services)",
 };
 
 /// Nearly equal numbers in the bands where Excel's rounding departs from the exact one, which the
 /// comparison refuses.
 const NUMBER_BANDS: Owner = Owner {
-    bead: "dc-n8n7",
+    bead: "dc-j9k",
     behaviour: "Excel's near-equality of numbers in the bands cdoc-jpha refuses",
 };
 
@@ -19913,7 +19913,7 @@ const INFO_SOURCES: [InfoSource; 3] = [
         formula: "=FILTER(C9:C10,C9:C10>100)",
         assumed: WorksheetErrorCode::Calc,
         owner: Owner {
-            bead: "cfunc-m3.16",
+            bead: "dc-j9k",
             behaviour: "FILTER (no row matches: #CALC!)",
         },
     },
@@ -19923,7 +19923,7 @@ const INFO_SOURCES: [InfoSource; 3] = [
         formula: "=SEQUENCE(2)",
         assumed: WorksheetErrorCode::Spill,
         owner: Owner {
-            bead: "cfunc-m3.16, cfml-m3.4",
+            bead: "dc-j9k, dc-m3u",
             behaviour: "SEQUENCE and its spill (blocked by F3: #SPILL!)",
         },
     },
@@ -19933,7 +19933,7 @@ const INFO_SOURCES: [InfoSource; 3] = [
         formula: "=FIELDVALUE(A3,\"x\")",
         assumed: WorksheetErrorCode::Field,
         owner: Owner {
-            bead: "cfunc-m3.19",
+            bead: "dc-uar",
             behaviour: "FIELDVALUE (A3 holds no data type: #FIELD!)",
         },
     },
@@ -19941,23 +19941,23 @@ const INFO_SOURCES: [InfoSource; 3] = [
 
 /// The behaviours refused rows of dc-nzpw show, by the bead that owns each.
 const ARRAY_ARGUMENT: Owner = Owner {
-    bead: "cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "an array given to a value argument, which Excel loads in a legacy formula with @ (its first element) and which array evaluation applies the function to in a dynamic-array formula",
 };
 const RANGE_TO_TYPE: Owner = Owner {
-    bead: "cfml-m3.3, cfml-m3.4",
+    bead: "dc-m3u",
     behaviour: "a range of several cells given to TYPE, which Excel loads in a legacy formula with @ (implicit intersection); its dynamic-array result is unmeasured",
 };
 const FORMULA_FACT: Owner = Owner {
-    bead: "cfunc-m3.18",
+    bead: "dc-uar",
     behaviour: "whether a cell holds a formula, a host fact the cell reader does not supply",
 };
 const RANGE_TO_VALUE: Owner = Owner {
-    bead: "cfml-m3.3",
+    bead: "dc-m3u",
     behaviour: "a range given to a value argument in a legacy formula, which Excel loads with @ (implicit intersection) and the caller intersects before the call",
 };
 const BUSY_RAW: Owner = Owner {
-    bead: "dc-tt73",
+    bead: "dc-uar",
     behaviour: "#BUSY! as Excel's raw value: its CVErr code 2051 is none the capture's value model holds, so the comparison checks Excel's saved cache of the cell",
 };
 

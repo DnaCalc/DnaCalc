@@ -13,8 +13,8 @@
 //! An array argument is refused as not modelled, except by TYPE (64) and ISREF (FALSE), before
 //! which Excel inserts no `@`: Excel loads it in a legacy formula with `@` (its first element),
 //! and in a dynamic-array formula array evaluation applies the function to it; both are array
-//! evaluation's (dc-mzk). So is a callable argument, whose worksheet-visible core is #CALC! but
-//! which no cell holds (LAMBDA, cfml-m2.3), and an omitted one: Excel refuses `=ISBLANK()`,
+//! evaluation's (dc-m3u). So is a callable argument, whose worksheet-visible core is #CALC! but
+//! which no cell holds (LAMBDA, dc-m3u), and an omitted one: Excel refuses `=ISBLANK()`,
 //! `=ISEVEN()`, `=TYPE()` and such calls with nothing between the parentheses at entry, so no Excel
 //! result exists for one. A number that is not finite is no worksheet value and is refused.
 //!
@@ -320,8 +320,8 @@ fn odd(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) -
 /// for an error and 64 for an array; Microsoft's page lists all but the blank cell. A reference to
 /// one cell gives the type of the cell's value, and a reference of several areas is 16. A reference
 /// to one area of several cells is refused as not modelled: Excel loads it in a legacy formula
-/// with `@`, whose implicit intersection calc-fml evaluates (dc-mzk), and its result in a
-/// dynamic-array formula is unknown (dc-mzk). Compound data (128) is not modelled: a callable
+/// with `@`, whose implicit intersection calc-fml evaluates (dc-m3u), and its result in a
+/// dynamic-array formula is unknown (dc-m3u). Compound data (128) is not modelled: a callable
 /// is refused. #BLOCKED!
 /// and #CONNECT! are refused (see [`known`]).
 fn type_of(

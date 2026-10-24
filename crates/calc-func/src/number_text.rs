@@ -23,9 +23,9 @@
 //!
 //! Excel's own first rounding departs from the exact one near a tie at the 16th significant
 //! digit, in both directions and with no rule found, and every departure measured lies within a
-//! relative 2^-60 of the tie (dc-rkzm records the counts). So a number within a relative 2^-59
+//! relative 2^-60 of the tie (dc-uar records the counts). So a number within a relative 2^-59
 //! of a 16th-digit tie (an exact tie included) has no text here when the side of the tie decides
-//! its text: [`text`] refuses it, and dc-rkzm owns Excel's rule there. Such a number whose text is
+//! its text: [`text`] refuses it, and dc-uar owns Excel's rule there. Such a number whose text is
 //! the same on either side of the tie (a second rounding to 14 digits can absorb the 15th) gets
 //! that text.
 //!

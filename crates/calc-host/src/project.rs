@@ -40,7 +40,7 @@ pub enum StaleCause {
     /// cache of a formula the package still holds there once such an edit commits, whether the
     /// edit reached it or not, until the first recalculation publishes. Each cell with this cause
     /// is such a file cache, labelled stale without reach information; those among them that no
-    /// edit reached are the conservative broadening. dc-f92f (open) is to expose an edit's reach
+    /// edit reached are the conservative broadening. dc-35p (open) is to expose an edit's reach
     /// from open and retire this cause.
     FileCacheUnverified,
 }

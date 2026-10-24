@@ -26,7 +26,9 @@
 //! ([`CaptureSession`], `session.rs`): a `session` member after `environment`, an optional
 //! `"formula": "<formula text>"` on each `formulas` entry, an optional `"dynamic_array": true` on
 //! an ordinary entry the workbook saves as a dynamic-array formula over its own cell
-//! ([`FormulaCell::dynamic_array`]; written only when true), and three lists:
+//! ([`FormulaCell::dynamic_array`]; written only when true), the two kinds of a legacy array
+//! formula's cells (`"kind": "legacy_array_anchor"` with `"ref": "L1:L3"`, and
+//! `"kind": "legacy_array_member"` with `"anchor": "L1"`; [`FormulaKind`]), and three lists:
 //!
 //! ```text
 //!  "session": {"revision": <authored revision observed>, "operations": ["<operation>", ...],
@@ -47,7 +49,9 @@
 //! `<value>` is the canonical typed value of `typed.rs` (numbers as binary64 bits in hex). Rows and
 //! columns are 1-based. Each formula cell of the workbook is listed once, hidden sheets, every cell
 //! of a shared-formula group (its master and each child) and error-valued formulas included: the
-//! list is enumerated from the workbook itself, never from what an evaluator returned.
+//! list is enumerated from the workbook itself, never from what an evaluator returned. Every cell
+//! of a legacy array formula's range (its anchor and each member) is listed too, as Excel lists
+//! each among its formula cells.
 
 use crate::DecodeError;
 use crate::json::{self, Fields, Node, Out};
@@ -355,35 +359,157 @@ pub struct SheetEntry {
 
 /// How a formula cell holds its formula in the workbook. A shared formula's group is its `si`,
 /// which is scoped to its sheet; its master holds the formula text and each child refers to it.
+///
+/// A legacy array formula (one entered with Ctrl+Shift+Enter, which the package holds as
+/// `<f t="array" ref="L1:L3">` without the dynamic-array cell metadata XLDAPR) is held on its
+/// anchor, the top-left cell of its range, while each other cell of the range holds only its
+/// value. Excel lists every cell of the range among its formula cells, each showing its own
+/// element of the array, so each is one formula cell of the inventory: the anchor with its
+/// range, and each member naming its anchor (on the same sheet). Each is compared like an
+/// ordinary formula cell, by its own value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FormulaKind {
     Ordinary,
-    SharedMaster { group: u64 },
-    SharedChild { group: u64 },
+    SharedMaster {
+        group: u64,
+    },
+    SharedChild {
+        group: u64,
+    },
+    /// The anchor of a legacy array formula whose range starts at the cell and spans `rows` rows
+    /// and `columns` columns (both at least 1). JSON: `"kind": "legacy_array_anchor"` with
+    /// `"ref"`, the range in relative A1 form (`"L1:L3"`, or `"N1"` for a range of one cell).
+    LegacyArrayAnchor {
+        rows: u32,
+        columns: u32,
+    },
+    /// A cell of a legacy array formula's range other than its anchor, which is at `anchor_row`
+    /// and `anchor_column` of the same sheet. JSON: `"kind": "legacy_array_member"` with
+    /// `"anchor"`, the anchor's relative A1 reference (`"L1"`).
+    LegacyArrayMember {
+        anchor_row: u32,
+        anchor_column: u32,
+    },
 }
 
 impl FormulaKind {
-    fn decode(fields: &Fields<'_>) -> Result<FormulaKind, DecodeError> {
+    /// The kind of the formula cell `cell` from the members `kind`, `group`, `ref` and `anchor`
+    /// of its entry.
+    fn decode(fields: &Fields<'_>, cell: &CellAddress) -> Result<FormulaKind, DecodeError> {
         let kind = json::text(fields.required("kind")?, &fields.at("kind"))?;
         let group = fields
             .optional("group")
             .map(|node| json::unsigned(node, &fields.at("group")))
             .transpose()?;
-        match (kind, group) {
-            ("ordinary", None) => Ok(Self::Ordinary),
-            ("shared_master", Some(group)) => Ok(Self::SharedMaster { group }),
-            ("shared_child", Some(group)) => Ok(Self::SharedChild { group }),
-            ("ordinary", Some(_)) => Err(DecodeError::new(
-                &fields.at("group"),
-                "is given for an ordinary formula",
-            )),
-            ("shared_master" | "shared_child", None) => Err(DecodeError::new(
+        let reference = fields
+            .optional("ref")
+            .map(|node| json::text(node, &fields.at("ref")))
+            .transpose()?;
+        let anchor = fields
+            .optional("anchor")
+            .map(|node| json::text(node, &fields.at("anchor")))
+            .transpose()?;
+        // Each member belongs to one kind: group to the shared kinds, ref to an anchor, anchor to
+        // a member.
+        for (member, given, owner) in [
+            (
+                "group",
+                group.is_some(),
+                matches!(kind, "shared_master" | "shared_child"),
+            ),
+            ("ref", reference.is_some(), kind == "legacy_array_anchor"),
+            ("anchor", anchor.is_some(), kind == "legacy_array_member"),
+        ] {
+            if given && !owner && KINDS.contains(&kind) {
+                let article = if kind.starts_with('o') { "an" } else { "a" };
+                return Err(DecodeError::new(
+                    &fields.at(member),
+                    format!("is given for {article} {kind} formula"),
+                ));
+            }
+        }
+        match kind {
+            "ordinary" => Ok(Self::Ordinary),
+            "shared_master" | "shared_child" => {
+                let group = group.ok_or_else(|| {
+                    DecodeError::new(&fields.at("kind"), format!("is {kind} and has no group"))
+                })?;
+                Ok(if kind == "shared_master" {
+                    Self::SharedMaster { group }
+                } else {
+                    Self::SharedChild { group }
+                })
+            }
+            "legacy_array_anchor" => {
+                let at = fields.at("ref");
+                let reference = reference.ok_or_else(|| {
+                    DecodeError::new(&fields.at("kind"), format!("is {kind} and has no ref"))
+                })?;
+                let (first, last) = match reference.split_once(':') {
+                    Some((first, last)) => (parse_a1(first), parse_a1(last)),
+                    None => (parse_a1(reference), parse_a1(reference)),
+                };
+                let (Some(first), Some(last)) = (first, last) else {
+                    return Err(DecodeError::new(
+                        &at,
+                        format!(
+                            "{reference:?} is not a range of relative A1 references within Excel's grid"
+                        ),
+                    ));
+                };
+                if first != (cell.row(), cell.column()) || last.0 < first.0 || last.1 < first.1 {
+                    return Err(DecodeError::new(
+                        &at,
+                        format!(
+                            "{reference:?} does not start at the anchor {} and extend down and right from it",
+                            cell.a1()
+                        ),
+                    ));
+                }
+                let kind = Self::LegacyArrayAnchor {
+                    rows: last.0 - first.0 + 1,
+                    columns: last.1 - first.1 + 1,
+                };
+                let written = kind.legacy_reference(cell).expect("an anchor has a range");
+                if written != reference {
+                    return Err(DecodeError::new(
+                        &at,
+                        format!("is {reference:?}; this range is written {written:?}"),
+                    ));
+                }
+                Ok(kind)
+            }
+            "legacy_array_member" => {
+                let at = fields.at("anchor");
+                let anchor = anchor.ok_or_else(|| {
+                    DecodeError::new(&fields.at("kind"), format!("is {kind} and has no anchor"))
+                })?;
+                let (anchor_row, anchor_column) = parse_a1(anchor).ok_or_else(|| {
+                    DecodeError::new(
+                        &at,
+                        format!("{anchor:?} is not a relative A1 reference within Excel's grid"),
+                    )
+                })?;
+                if anchor_row > cell.row()
+                    || anchor_column > cell.column()
+                    || (anchor_row, anchor_column) == (cell.row(), cell.column())
+                {
+                    return Err(DecodeError::new(
+                        &at,
+                        format!(
+                            "{anchor:?} is not above or left of the member {}, as the top-left cell of its range is",
+                            cell.a1()
+                        ),
+                    ));
+                }
+                Ok(Self::LegacyArrayMember {
+                    anchor_row,
+                    anchor_column,
+                })
+            }
+            other => Err(DecodeError::new(
                 &fields.at("kind"),
-                format!("is {kind} and has no group"),
-            )),
-            (other, _) => Err(DecodeError::new(
-                &fields.at("kind"),
-                format!("{other:?} is not ordinary, shared_master or shared_child"),
+                format!("{other:?} is not one of {}", KINDS.join(", ")),
             )),
         }
     }
@@ -393,16 +519,69 @@ impl FormulaKind {
             FormulaKind::Ordinary => "ordinary",
             FormulaKind::SharedMaster { .. } => "shared_master",
             FormulaKind::SharedChild { .. } => "shared_child",
+            FormulaKind::LegacyArrayAnchor { .. } => "legacy_array_anchor",
+            FormulaKind::LegacyArrayMember { .. } => "legacy_array_member",
         }
     }
 
     pub(crate) fn group(self) -> Option<u64> {
         match self {
-            FormulaKind::Ordinary => None,
             FormulaKind::SharedMaster { group } | FormulaKind::SharedChild { group } => Some(group),
+            FormulaKind::Ordinary
+            | FormulaKind::LegacyArrayAnchor { .. }
+            | FormulaKind::LegacyArrayMember { .. } => None,
         }
     }
+
+    /// The first and last cell (row, column) of the legacy array range of an anchor at `cell`,
+    /// or `None` for any other kind. The last cell may lie outside Excel's grid in a record built
+    /// in memory; [`crate::judge`] refuses such a record.
+    pub fn legacy_range(self, cell: &CellAddress) -> Option<((u32, u32), (u32, u32))> {
+        match self {
+            FormulaKind::LegacyArrayAnchor { rows, columns } => Some((
+                (cell.row(), cell.column()),
+                (
+                    (cell.row() - 1).saturating_add(rows),
+                    (cell.column() - 1).saturating_add(columns),
+                ),
+            )),
+            _ => None,
+        }
+    }
+
+    /// The legacy-array member of a formula entry, as the record writes it: `("ref", "L1:L3")`
+    /// for an anchor at `cell` (`"N1"` for one cell), `("anchor", "L1")` for a member, `None` for
+    /// any other kind.
+    pub(crate) fn legacy_member(self, cell: &CellAddress) -> Option<(&'static str, String)> {
+        match self {
+            FormulaKind::LegacyArrayAnchor { .. } => Some(("ref", self.legacy_reference(cell)?)),
+            FormulaKind::LegacyArrayMember {
+                anchor_row,
+                anchor_column,
+            } => Some(("anchor", a1_text(anchor_row, anchor_column))),
+            _ => None,
+        }
+    }
+
+    /// The relative A1 range of an anchor at `cell`: `L1:L3`, or `N1` for a range of one cell.
+    fn legacy_reference(self, cell: &CellAddress) -> Option<String> {
+        let (first, last) = self.legacy_range(cell)?;
+        Some(if first == last {
+            a1_text(first.0, first.1)
+        } else {
+            format!("{}:{}", a1_text(first.0, first.1), a1_text(last.0, last.1))
+        })
+    }
 }
+
+/// The kinds a formula entry names.
+const KINDS: [&str; 5] = [
+    "ordinary",
+    "shared_master",
+    "shared_child",
+    "legacy_array_anchor",
+    "legacy_array_member",
+];
 
 /// One formula cell of the inventory.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -426,6 +605,9 @@ impl FormulaCell {
         members.push(("kind", Out::text(self.kind.name())));
         if let Some(group) = self.kind.group() {
             members.push(("group", Out::Unsigned(group)));
+        }
+        if let Some((name, reference)) = self.kind.legacy_member(&self.cell) {
+            members.push((name, Out::text(reference.as_str())));
         }
         if let Some(formula) = &self.formula {
             members.push(("formula", Out::text(formula.as_str())));
@@ -811,6 +993,8 @@ impl CaptureRecord {
                 "column",
                 "kind",
                 "group",
+                "ref",
+                "anchor",
                 "formula",
                 "dynamic_array",
             ]
@@ -822,7 +1006,8 @@ impl CaptureRecord {
             .map(|(i, node)| {
                 let path = format!("{formulas_at}[{i}]");
                 let formula = Fields::new(node, &path, formula_members)?;
-                let kind = FormulaKind::decode(&formula)?;
+                let cell = CellAddress::decode(&formula)?;
+                let kind = FormulaKind::decode(&formula, &cell)?;
                 // Written only when true, so a record has one form; only an ordinary formula can
                 // be a dynamic-array formula over its own cell.
                 let dynamic_array = match formula.optional("dynamic_array") {
@@ -845,7 +1030,7 @@ impl CaptureRecord {
                     }
                 };
                 Ok(FormulaCell {
-                    cell: CellAddress::decode(&formula)?,
+                    cell,
                     kind,
                     formula: formula
                         .optional("formula")

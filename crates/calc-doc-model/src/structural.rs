@@ -448,7 +448,8 @@ mod tests {
 
     /// Rows inserted move the cells, the table, the array formula, the unloaded cell and the
     /// hidden rows below them; rows deleted remove those inside them.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn definitions_move_with_the_rows() {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let s = ids.issue().unwrap();
