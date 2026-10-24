@@ -128,8 +128,9 @@ fn real_days_in_year(year: i64) -> f64 {
     }
 }
 
-/// Excel's actual/actual year fraction (YEARFRAC basis 1, and ACCRINTM basis 1), for
-/// `start <= end` serials. Not the ISDA per-year split:
+/// Excel's actual/actual day count (YEARFRAC basis 1, and ACCRINTM basis 1) for `start <= end`
+/// serials, as the pair (days, year length) whose quotient is the year fraction. Not the ISDA
+/// per-year split:
 ///
 /// * if the dates are at most a year apart (same year, or the next year on an earlier or
 ///   equal month/day), the year length is 366 when both dates are in one leap year or a Feb 29
@@ -141,7 +142,7 @@ fn real_days_in_year(year: i64) -> f64 {
 ///
 /// The rule is David Wheeler's YEARFRAC analysis (used by Gnumeric and LibreOffice);
 /// reproduced on live Excel 20430 on two fresh corpora (W111-5 G8-05, G8-06).
-pub fn excel_actual_actual_fraction(start: i64, end: i64) -> Result<f64, WorksheetErrorCode> {
+pub fn excel_actual_actual_year(start: i64, end: i64) -> Result<(f64, f64), WorksheetErrorCode> {
     let ymd = |serial: i64| {
         ymd_from_excel_serial(WorkbookDateSystem::System1900, serial as f64)
             .ok_or(WorksheetErrorCode::Value)
@@ -165,9 +166,15 @@ pub fn excel_actual_actual_fraction(start: i64, end: i64) -> Result<f64, Workshe
         } else {
             365.0
         };
-        return Ok(days / year_length);
+        return Ok((days, year_length));
     }
     let years = (ey - sy + 1) as f64;
     let days_in_years: f64 = (sy..=ey).map(real_days_in_year).sum();
-    Ok(days / (days_in_years / years))
+    Ok((days, days_in_years / years))
+}
+
+/// [`excel_actual_actual_year`]'s days divided by its year length.
+pub fn excel_actual_actual_fraction(start: i64, end: i64) -> Result<f64, WorksheetErrorCode> {
+    let (days, year_length) = excel_actual_actual_year(start, end)?;
+    Ok(days / year_length)
 }

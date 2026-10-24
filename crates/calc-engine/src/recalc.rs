@@ -57,7 +57,7 @@
 //! (`src/oxcalc-core/src/recalc.rs`, `Stage1RecalcTracker`: a node reads only published or
 //! verified values, and one whose dependency shape changed re-enters the schedule) and its spill
 //! invalidation (`src/oxcalc-core/src/grid/machine.rs`, `grid_vacated_spill_extent_dirty_seeds`),
-//! at OxCalc commit 1bd514ef, rewritten on this engine's one graph; OxCalc's tree-reference
+//! at OxCalc commit 1bd514ef, rewritten on this engine's one graph; OxCalc's own reference
 //! language and consumer layer are left behind.
 
 use crate::graph::{AxisInterval, Prerequisite};

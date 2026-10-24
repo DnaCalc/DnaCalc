@@ -81,8 +81,8 @@ pub use calc_doc::{
 };
 pub use calc_doc_model::value;
 pub use calc_doc_model::{
-    AuthoredRevision, CachedValue, CellInput, CellText, FileCached, FiniteNumber, FormulaText,
-    SheetEntry, SourcePart,
+    ArrayFormula, ArrayKind, AuthoredRevision, CachedValue, CellInput, CellText, FileCached,
+    FiniteNumber, FormulaText, SheetEntry, SourcePart,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

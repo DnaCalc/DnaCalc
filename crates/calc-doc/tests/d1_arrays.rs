@@ -328,3 +328,76 @@ fn d1_arrays__part_of_an_array_is_refused() {
         assert_eq!(refused(vec![op]), Ok(()));
     }
 }
+
+/// dc-35p (D2): an authored array formula. A legacy array over a free area is saved as Excel
+/// saves one (`<f t="array" ref="..">` without cell metadata); one that changes part of a legacy
+/// array is refused, and one that meets a dynamic array without replacing it overlaps it.
+#[test]
+fn d1_arrays__an_authored_array_formula_saves_and_is_checked() {
+    let bytes = fixture(FIXTURE);
+    let loaded = load(&bytes);
+    let calc = sheet(&loaded, "Calc");
+    let model = loaded.model();
+    let set_array = |area: GridArea, kind: ArrayKind, text: &str| WorkbookOp::SetArray {
+        array: calc_doc::model::ArrayFormula::new(area, kind),
+        input: formula(text),
+    };
+    let authored = edited(
+        &loaded,
+        vec![set_array(
+            area(calc, "Y1", "Y3"),
+            ArrayKind::Legacy,
+            "Data!A1:A3+1",
+        )],
+    );
+    let array = authored
+        .definitions()
+        .array(at(calc, "Y1"))
+        .expect("the authored array");
+    assert_eq!(array.area(), area(calc, "Y1", "Y3"));
+    let (saved, _) = save_model(&loaded, &authored);
+    let sheet_xml = part_text(&saved, "xl/worksheets/sheet2.xml");
+    assert!(
+        sheet_xml.contains(r#"<c r="Y1"><f t="array" ref="Y1:Y3">Data!A1:A3+1</f></c>"#),
+        "{sheet_xml}"
+    );
+    let refused = |operation: WorkbookOp| {
+        prepare_edit(
+            model,
+            &OpBatch {
+                base: model.revision(),
+                operations: vec![operation],
+            },
+        )
+        .map(|_| ())
+    };
+    assert_eq!(
+        refused(set_array(area(calc, "L2", "L4"), ArrayKind::Legacy, "1")),
+        Err(EditError::ArrayPart {
+            operation: 0,
+            anchor: at(calc, "L1"),
+        })
+    );
+    assert_eq!(
+        refused(set_array(
+            area(calc, "B2", "B2"),
+            ArrayKind::Dynamic { collapsed: false },
+            "1"
+        )),
+        Err(EditError::Model(
+            calc_doc::model::ApplyError::ArrayOverlap {
+                operation: 0,
+                anchor: at(calc, "A1"),
+            }
+        ))
+    );
+    assert_eq!(
+        refused(WorkbookOp::SetArray {
+            array: calc_doc::model::ArrayFormula::new(area(calc, "Y1", "Y1"), ArrayKind::Legacy),
+            input: number(1.0),
+        }),
+        Err(EditError::Model(calc_doc::model::ApplyError::ArrayInput {
+            operation: 0
+        }))
+    );
+}

@@ -29,7 +29,7 @@ mod names;
 use crate::decimal::{Direction, ExactDecimal};
 use crate::locale::{
     CurrencyNegativePattern, CurrencyPlacement, CurrencySpacing, DateSystem, FormatProfile,
-    LocaleProfileId,
+    LocaleId,
 };
 
 /// Why a value has no text under a code.
@@ -47,7 +47,7 @@ type Rendered = Result<String, Failure>;
 pub(crate) fn designator(profile: &FormatProfile, am: bool) -> &'static str {
     let lower = matches!(
         profile.id,
-        LocaleProfileId::EnZa | LocaleProfileId::CurrentExcelHost
+        LocaleId::EnZa | LocaleId::CurrentExcelHost
     );
     match (am, lower) {
         (true, true) => "am",
@@ -870,7 +870,7 @@ mod tests {
     use crate::locale::format_profile;
 
     fn host() -> FormatProfile {
-        format_profile(LocaleProfileId::CurrentExcelHost)
+        format_profile(LocaleId::CurrentExcelHost)
             .with_separators(".", " ")
             .expect("separators")
     }

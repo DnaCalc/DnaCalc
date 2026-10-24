@@ -16,10 +16,9 @@ use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId};
 use calc_host::{
     CachedValue, CalcMode, CellEdit, CellInput, CellText, DeltaCause, DeltaMirror, EntryRefusal,
     FiniteNumber, FormulaText, HostCommand, HostDelta, HostOptions, HostProgress, HostSession,
-    HostState, IntentError, IntentReceipt, Interest, Irreversible, IrreversibleReason,
-    MemorySource, OpenPolicy, PackageRead, ProjectedCell, ProjectedValue, ProjectionRequest,
-    SavePolicy, Selection, SkinIntent, SubscriptionId, Unobserved, WorkBudget, dispatch, project,
-    replay, save, step,
+    HostState, IntentError, IntentReceipt, Interest, MemorySource, OpenPolicy, PackageRead,
+    ProjectedCell, ProjectedValue, ProjectionRequest, SavePolicy, Selection, SkinIntent,
+    SubscriptionId, Unobserved, WorkBudget, dispatch, project, replay, save, step,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -456,21 +455,92 @@ fn d2_session__clear_and_undo_restore_formulas_and_values() {
 }
 
 #[test]
-fn d2_session__an_edit_that_removes_an_array_cannot_be_undone() {
+fn d2_session__undo_restores_an_array_formula() {
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
+    // Replacing the anchor of the dynamic array A1:B3 removes the array; undo authors it again.
     enter(&mut session, at_(calc, "A1"), "5");
-    let revision = session.host().revision();
-    let receipt = session.dispatch(SkinIntent::Undo);
     assert_eq!(
-        receipt.error,
-        Some(IntentError::Irreversible(Irreversible {
-            at: at_(calc, "A1"),
-            reason: IrreversibleReason::ArrayFormula,
-        }))
+        session_value(&session, at_(calc, "B2")),
+        ProjectedValue::Empty
     );
-    assert_eq!(session.host().revision(), revision);
-    assert_eq!(session.history_depth(), (1, 0));
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    let page = project(
+        session.host(),
+        &ProjectionRequest {
+            cells: vec![at_(calc, "A1")],
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        page.cells()[0].input(),
+        Some(&formula("_xlfn.SEQUENCE(3,2)"))
+    );
+    let mut saved = Vec::new();
+    session
+        .save(&SavePolicy::default(), &mut saved)
+        .expect("saved");
+    let xml = part_text(&saved, "xl/worksheets/sheet2.xml");
+    assert!(
+        xml.contains(r#"<f t="array" ref="A1:B3">_xlfn.SEQUENCE(3,2)</f>"#),
+        "{xml}"
+    );
+    // Clearing the legacy array L1:L3 whole, then undoing, restores it with its values.
+    let legacy = GridArea::new(at_(calc, "L1"), at_(calc, "L3")).unwrap();
+    assert!(
+        session
+            .dispatch(SkinIntent::Edit {
+                edits: vec![CellEdit::Clear { area: legacy }],
+            })
+            .accepted()
+    );
+    assert_eq!(
+        session_value(&session, at_(calc, "L2")),
+        ProjectedValue::Empty
+    );
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_calculated(&session, at_(calc, "L2")),
+        Some(CalcValue::number(20.0))
+    );
+}
+
+#[test]
+fn d2_session__an_entered_array_formula_spills() {
+    let mut session = session(&fixture());
+    let calc = sheet(session.host(), "Calc");
+    // Entered into one cell, a formula that can return an array is a dynamic array, as Excel
+    // stores it, and its result spills.
+    enter(&mut session, at_(calc, "Z5"), "=Data!A1:A3*2");
+    assert_eq!(
+        session_calculated(&session, at_(calc, "Z5")),
+        Some(CalcValue::number(2.0))
+    );
+    assert_eq!(
+        session_calculated(&session, at_(calc, "Z7")),
+        Some(CalcValue::number(6.0))
+    );
+    let mut saved = Vec::new();
+    session
+        .save(&SavePolicy::default(), &mut saved)
+        .expect("saved");
+    let xml = part_text(&saved, "xl/worksheets/sheet2.xml");
+    assert!(
+        xml.contains(r#"<c r="Z5" cm="1"><f t="array" ref="Z5:Z7">Data!A1:A3*2</f><v>2</v></c>"#),
+        "{xml}"
+    );
+    assert!(xml.contains(r#"<c r="Z6"><v>4</v></c>"#), "{xml}");
+    // Undo takes the array and its spill away; redo brings them back.
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(
+        session_value(&session, at_(calc, "Z6")),
+        ProjectedValue::Empty
+    );
+    assert!(session.dispatch(SkinIntent::Redo).accepted());
+    assert_eq!(
+        session_calculated(&session, at_(calc, "Z6")),
+        Some(CalcValue::number(4.0))
+    );
 }
 
 #[test]

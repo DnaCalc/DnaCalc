@@ -22,7 +22,9 @@
 //! test (`cargo xtask onecalc smoke`) sees it.
 
 use crate::display;
-use crate::editor::{BracketPair, Popup, PopupKey, bracket_pair_at, popup_key};
+use crate::editor::{
+    BracketPair, Popup, PopupKey, bracket_pair_at, browse, insert_call, popup_key,
+};
 use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
@@ -43,6 +45,9 @@ const FIRST_SHEET: &str = "Sheet1";
 /// The cell a new surface's formula is entered in: the grid's top right cell.
 const FIRST_FORMULA_CELL: &str = "H1";
 
+/// The most functions the function list shows at once.
+const MAX_LISTED_FUNCTIONS: usize = 60;
+
 /// The kinds of value an input row holds: the selector's value and its label.
 const KINDS: [(&str, &str); 5] = [
     ("number", "Number"),
@@ -58,7 +63,8 @@ pub const SURFACE_CSS: &str = r#"
 .oc h1{font-size:20px;margin:0 0 4px}
 .oc .oc-sub{color:#57606a;margin:0 0 16px;font-size:13px}
 .oc-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-.oc-col{flex:1 1 420px;min-width:300px}
+.oc-col{flex:1 1 420px;min-width:0}
+.oc-gridwrap{overflow-x:auto;max-width:100%}
 .oc-editor{position:relative;font:15px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace;border:1px solid #8c959f;border-radius:6px;background:#fff;min-height:3em}
 .oc-editor pre,.oc-editor textarea{margin:0;padding:8px 10px;white-space:pre-wrap;word-break:break-all;font:inherit;letter-spacing:normal;tab-size:4;box-sizing:border-box;width:100%;min-height:3em;border:0}
 .oc-editor pre{position:absolute;inset:0;pointer-events:none;color:#1b1f24;overflow:hidden}
@@ -93,7 +99,7 @@ pub const SURFACE_CSS: &str = r#"
 .oc-grid{border-collapse:collapse;font:13px ui-monospace,Consolas,monospace}
 .oc-grid th{background:#f6f8fa;color:#57606a;font-weight:400;border:1px solid #d0d7de;padding:0 6px;min-width:20px}
 .oc-grid td{border:1px solid #d0d7de;padding:0}
-.oc-grid input{border:0;width:84px;padding:2px 4px;font:inherit;box-sizing:border-box;background:transparent}
+.oc-grid input{border:0;width:64px;padding:2px 4px;font:inherit;box-sizing:border-box;background:transparent}
 .oc-grid input:focus{outline:2px solid #0969da}
 .oc-grid td.oc-formula{background:#fff8c5}
 .oc-grid td.oc-formula input{font-weight:600}
@@ -101,6 +107,10 @@ pub const SURFACE_CSS: &str = r#"
 .oc-grid input[data-kind=number]{text-align:right}
 .oc-grid input[data-kind=error]{color:#cf222e}
 .oc-panel{margin:12px 0}
+.oc-fns{list-style:none;margin:6px 0;padding:0;max-height:320px;overflow:auto;border:1px solid #d0d7de;border-radius:6px}
+.oc-fns li{padding:3px 8px;border-bottom:1px solid #eaeef2;font-size:12px}
+.oc-fns small{display:block;color:#57606a}
+.oc-fn{border:0;background:none;padding:0;cursor:pointer;color:#8250df;font:600 12px ui-monospace,Consolas,monospace;text-align:left}
 .oc-panel h2{font-size:14px;margin:0 0 6px;color:#424a53}
 .oc table.oc-inputs{border-collapse:collapse;font-size:13px}
 .oc table.oc-inputs td,.oc table.oc-inputs th{padding:2px 4px;text-align:left}
@@ -611,6 +621,67 @@ fn surface() -> impl IntoView {
         formula.set(next);
         caret.set(at);
     };
+    // Inserts a call of `name` at the field's selection (a click in the function list).
+    let insert_function = move |name: &'static str| {
+        let text = formula.get_untracked();
+        let (start, end) = match editor.get_untracked() {
+            Some(field) => (
+                field.selection_start().ok().flatten().unwrap_or(0) as usize,
+                field.selection_end().ok().flatten().unwrap_or(0) as usize,
+            ),
+            None => (0, 0),
+        };
+        let (next, at) = insert_call(&text, start, end, name);
+        if let Some(field) = editor.get_untracked() {
+            field.set_value(&next);
+            let _ = field.focus();
+            let _ = field.set_selection_range(at as u32, at as u32);
+        }
+        popup.set(Popup::Hidden);
+        formula.set(next);
+        caret.set(at);
+    };
+    let filter = RwSignal::new(String::new());
+    let functions = Memo::new(move |_| filter.with(|filter| browse(filter)));
+    let function_list = move || {
+        functions.with(|found| {
+            let total = found.len();
+            let items = found
+                .iter()
+                .take(MAX_LISTED_FUNCTIONS)
+                .map(|target| {
+                    let name = target.spelling();
+                    let signature = target.signature_help().display;
+                    let description = help::description(*target).unwrap_or("").to_owned();
+                    view! {
+                        <li>
+                            <button
+                                type="button"
+                                class="oc-fn"
+                                data-onecalc="function-entry"
+                                data-name=name
+                                title=description.clone()
+                                on:mousedown=move |ev| ev.prevent_default()
+                                on:click=move |_| insert_function(name)
+                            >
+                                <code>{signature}</code>
+                            </button>
+                            <small>{description}</small>
+                        </li>
+                    }
+                })
+                .collect_view();
+            let count = if total > MAX_LISTED_FUNCTIONS {
+                format!("{total} functions; the first {MAX_LISTED_FUNCTIONS} listed")
+            } else {
+                format!("{total} functions")
+            };
+            view! {
+                <p class="oc-prov" data-onecalc="function-count">{count}</p>
+                <ul class="oc-fns" data-onecalc="functions">{items}</ul>
+            }
+        })
+    };
     let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
         if !popup.with_untracked(Popup::is_open) {
             return;
@@ -980,14 +1051,28 @@ fn surface() -> impl IntoView {
                         </ol>
                     </div>
                     {help_panel}
+                    <div class="oc-panel">
+                        <h2>"Functions"</h2>
+                        <input
+                            type="search"
+                            data-onecalc="function-filter"
+                            placeholder="Find a function by name or description"
+                            aria-label="Find a function"
+                            size="34"
+                            on:input=move |ev| filter.set(event_target_value(&ev))
+                        />
+                        {function_list}
+                    </div>
                 </div>
                 <div class="oc-col">
                     <div class="oc-panel">
                         <h2>{format!("Scratch grid: {FIRST_SHEET}!A1:{}", grid::address(grid::ROWS, grid::COLUMNS))}</h2>
-                        <table class="oc-grid" data-onecalc="grid">
-                            <thead><tr><th></th>{grid_header}</tr></thead>
-                            <tbody>{grid_body}</tbody>
-                        </table>
+                        <div class="oc-gridwrap">
+                            <table class="oc-grid" data-onecalc="grid">
+                                <thead><tr><th></th>{grid_header}</tr></thead>
+                                <tbody>{grid_body}</tbody>
+                            </table>
+                        </div>
                     </div>
                     <div class="oc-panel">
                         <h2>"Sheets"</h2>

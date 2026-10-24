@@ -30,7 +30,7 @@ mod distributions;
 mod engineering;
 mod error_fallback;
 mod financial;
-mod host_reference;
+mod host_facts;
 mod information;
 mod lambda_helpers;
 mod logical;
@@ -74,7 +74,7 @@ const FAMILIES: [&Family; 29] = [
     &logical_more::FAMILY,
     &text_format::FAMILY,
     &dates::FAMILY,
-    &host_reference::FAMILY,
+    &host_facts::FAMILY,
     &database::FAMILY,
     &financial::FAMILY,
     &bonds::FAMILY,

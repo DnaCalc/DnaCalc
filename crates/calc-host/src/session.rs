@@ -37,8 +37,8 @@ use crate::recalc::{HostProgress, calculate, step};
 use crate::save::{SaveFailed, save};
 use crate::state::{HostOptions, HostState, OpenFailure};
 use calc_doc::{CalcMode, OpenPolicy, PackageRead, PackageWrite, SavePolicy, SaveReceipt};
-use calc_doc_model::AuthoredRevision;
 use calc_doc_model::value::{CellKey, GridArea, SheetId};
+use calc_doc_model::{ArrayFormula, ArrayKind, AuthoredRevision, CellInput};
 use calc_engine::{CalcTick, Unobserved, WorkBudget};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -357,7 +357,10 @@ impl HostSession {
         };
         let outcome = match intent.clone() {
             SkinIntent::EnterCell { at, text } => match interpret_entry(&text) {
-                Ok(Some(input)) => self.edit(vec![CellEdit::Set { at, input }], &mut receipt),
+                Ok(Some(input)) => {
+                    let edit = self.entry_edit(at, input);
+                    self.edit(vec![edit], &mut receipt)
+                }
                 Ok(None) => self.edit(
                     vec![CellEdit::Clear {
                         area: GridArea::cell(at),
@@ -396,6 +399,25 @@ impl HostSession {
             revision: receipt.revision,
         });
         receipt
+    }
+
+    /// The edit an entry makes: a formula that can return an array (its file form is a
+    /// dynamic-array formula, [`calc_doc::file_form`]) is authored as a dynamic array over its
+    /// cell, as Excel stores it, so the engine spills its result; any other input sets the cell.
+    fn entry_edit(&self, at: CellKey, input: CellInput) -> CellEdit {
+        if let CellInput::Formula(formula) = &input
+            && calc_doc::file_form(formula, self.host.model.definitions().names())
+                .is_ok_and(|form| form.dynamic)
+        {
+            return CellEdit::SetArray {
+                array: ArrayFormula::new(
+                    GridArea::cell(at),
+                    ArrayKind::Dynamic { collapsed: false },
+                ),
+                formula: formula.clone(),
+            };
+        }
+        CellEdit::Set { at, input }
     }
 
     fn check_interest(&self, interest: &Interest) -> Result<(), IntentError> {

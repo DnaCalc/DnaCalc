@@ -381,15 +381,24 @@ impl Definitions {
     /// answers true: an array formula whose anchor was touched is gone (the anchor now holds what
     /// the edit put there, and the area it filled is free), and so is an unloaded cell that was
     /// touched. `None` when nothing changed.
-    pub(crate) fn after_edits(&self, touched: impl Fn(CellKey) -> bool) -> Option<Definitions> {
+    ///
+    /// The arrays of `added`, which the edits authored, are then added.
+    pub(crate) fn after_edits(
+        &self,
+        touched: impl Fn(CellKey) -> bool,
+        added: &[ArrayFormula],
+    ) -> Option<Definitions> {
         let arrays_gone = self.arrays.keys().any(|at| touched(*at));
         let unloaded_gone = self.unloaded.keys().any(|at| touched(*at));
-        if !arrays_gone && !unloaded_gone {
+        if !arrays_gone && !unloaded_gone && added.is_empty() {
             return None;
         }
         let mut next = self.clone();
         next.arrays.retain(|at, _| !touched(*at));
         next.unloaded.retain(|at, _| !touched(*at));
+        for array in added {
+            next.arrays.insert(array.anchor(), *array);
+        }
         Some(next)
     }
 }

@@ -37,7 +37,7 @@ mod json;
 mod value;
 
 use crate::input::FormulaTextError;
-use crate::op::{AxisEditError, OpBatch};
+use crate::op::{AxisEditError, OpBatch, WorkbookOp};
 use crate::revision::AuthoredRevision;
 use crate::root::ModelRoot;
 use crate::sheet::{SheetKey, SheetNameError};
@@ -224,6 +224,9 @@ pub enum EncodeError {
     /// An inserted sheet's key belongs to a sheet of the root or to an earlier insert of the
     /// batch.
     SheetKeyInUse { key: SheetKey },
+    /// The operation at this index authors an array formula, which wire version 1 has no form
+    /// for.
+    ArrayFormula { operation: usize },
 }
 
 impl fmt::Display for EncodeError {
@@ -235,6 +238,10 @@ impl fmt::Display for EncodeError {
             EncodeError::SheetKeyInUse { key } => {
                 write!(f, "the sheet key {} is in use", key.get())
             }
+            EncodeError::ArrayFormula { operation } => write!(
+                f,
+                "operation {operation} authors an array formula, which wire version 1 has no form for"
+            ),
         }
     }
 }
@@ -250,7 +257,10 @@ impl std::error::Error for EncodeError {}
 pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, EncodeError> {
     let mut claimed = Vec::new();
     let mut operations = Vec::with_capacity(batch.operations.len());
-    for operation in &batch.operations {
+    for (index, operation) in batch.operations.iter().enumerate() {
+        if matches!(operation, WorkbookOp::SetArray { .. }) {
+            return Err(EncodeError::ArrayFormula { operation: index });
+        }
         operations.push(WireOp::from_op(operation, root, &mut claimed)?);
     }
     let mut out = String::new();

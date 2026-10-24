@@ -9,7 +9,7 @@ use crate::call::EvalServices;
 use crate::ported::text_kernels as tk;
 use crate::ported::text_more::{self as k, Delimited, Side};
 use crate::value::{CalcArray, ExcelText};
-use crate::locale::LocaleProfileId;
+use crate::locale::LocaleId;
 use crate::format::{self, Failure};
 use crate::locale::{CalcEnvironment, FormatProfile};
 use crate::coerce::{self, Numeric};
@@ -438,7 +438,7 @@ fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let (_, profile) = profile(site)?;
     if matches!(
         profile.id,
-        LocaleProfileId::JaJp | LocaleProfileId::KoKr | LocaleProfileId::ZhCn
+        LocaleId::JaJp | LocaleId::KoKr | LocaleId::ZhCn
     ) {
         return Err(site.not_modelled(None));
     }
@@ -450,7 +450,7 @@ fn width_conversion(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 /// oracle's capture). Under Japanese it is not modelled.
 fn phonetic(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let (_, profile) = profile(site)?;
-    if matches!(profile.id, LocaleProfileId::JaJp) {
+    if matches!(profile.id, LocaleId::JaJp) {
         return Err(site.not_modelled(None));
     }
     let _ = (a, sv);

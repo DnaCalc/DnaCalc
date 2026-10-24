@@ -559,6 +559,9 @@ impl WireOp {
             }
             WorkbookOp::EditSheet(edit) => WireOp::Sheets(Sheets::from_edit(edit, root, claimed)?),
             WorkbookOp::EditSkinLayout(edit) => WireOp::Layouts(Layouts::from_edit(edit, root)?),
+            WorkbookOp::SetArray { .. } => {
+                unreachable!("encode_batch refuses an array formula before it reaches here")
+            }
         })
     }
 

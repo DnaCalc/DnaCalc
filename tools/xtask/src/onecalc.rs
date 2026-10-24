@@ -512,6 +512,10 @@ enum Action {
     Keys(&'static str),
     /// Chooses the option with this value in the select element with this role.
     Choose(&'static str, &'static str),
+    /// Clears the field with this role and types this into it.
+    Into(&'static str, &'static str),
+    /// Clicks the element this selector selects.
+    Click(&'static str),
 }
 
 /// What a case expects the page to show.
@@ -713,6 +717,28 @@ const CASES: &[Case] = &[
         checks: &[Check::Array(&[&["10", "20"], &["30", "40"]])],
     },
     Case {
+        name: "the function list finds ROUND by name and MROUND too",
+        actions: &[
+            Action::Formula("=1+"),
+            Action::Into("function-filter", "round"),
+        ],
+        checks: &[
+            Check::Contains("functions", "ROUND(number, num_digits)"),
+            Check::Contains("functions", "MROUND(number, multiple)"),
+        ],
+    },
+    Case {
+        name: "a click in the function list inserts the call at the caret",
+        actions: &[Action::Click(
+            "[data-onecalc=\"function-entry\"][data-name=\"ROUND\"]",
+        )],
+        checks: &[
+            Check::Field("=1+ROUND("),
+            Check::Text("active-parameter", "number"),
+            Check::Text("help-name", "ROUND"),
+        ],
+    },
+    Case {
         name: "Escape dismisses the completion list",
         actions: &[Action::Formula("=AVER"), Action::Keys(ESCAPE)],
         checks: &[Check::Absent("completions"), Check::Field("=AVER")],
@@ -825,6 +851,15 @@ fn act(session: &Session, action: &Action) -> Result<(), String> {
             session.keys(&role("formula"), text)
         }
         Action::Keys(keys) => session.keys(&role("formula"), keys),
+        Action::Into(name, text) => {
+            session.clear(&role(name))?;
+            session.keys(&role(name), text)
+        }
+        Action::Click(css) => {
+            let element = session.element(css)?;
+            session.post(&format!("/element/{element}/click"), json!({}))?;
+            Ok(())
+        }
         Action::Choose(name, value) => {
             let option = session.element(&format!("{} option[value=\"{value}\"]", role(name)))?;
             session.post(&format!("/element/{option}/click"), json!({}))?;
