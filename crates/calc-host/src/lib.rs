@@ -66,7 +66,7 @@ pub use project::{
     ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,
     StaleValue, project,
 };
-pub use recalc::{HostProgress, RecalcFailed, calculate, step};
+pub use recalc::{HostProgress, RecalcFailed, calculate, calculate_full, step};
 pub use save::{SaveFailed, save};
 pub use session::{
     DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, IntentError,

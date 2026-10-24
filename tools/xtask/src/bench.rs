@@ -1,0 +1,797 @@
+//! `cargo xtask bench <dir> [--runs <n>] [--out <dir>] [--cache <dir>] [--edit
+//! <workbook>=<sheet>!<cell>]... [--excel] [--no-dna] [--timeout <s>]`: the time and memory DNA
+//! Calc and Excel take to open and calculate each workbook of a folder (bead dc-10d9), built on
+//! `cargo xtask corpus`: the same listing of workbooks, the same cached captures, and the same
+//! release xtask, in which each DNA Calc run is its own process.
+//!
+//! **DNA Calc**, `--runs` times per workbook (default 5), each run in a new release xtask process
+//! (`bench --one`), through calc-host's product calls with no read observer
+//! ([`calc_host::Unobserved`]):
+//!
+//! 1. open: [`HostState::open`] of the workbook's bytes, read before the clock starts, with the
+//!    options `cargo xtask compare` opens it with (the capture's locale, automatic calculation);
+//! 2. rebuild: the first recalculation, which compiles every formula, builds the graph, orders and
+//!    evaluates every formula (Excel's `CalculateFullRebuild`), timed as its first [`step`] with a
+//!    budget of no evaluations (binding and ordering) and the step that evaluates and publishes;
+//! 3. project: [`project`] of every formula cell of the capture's inventory, counting the cells
+//!    projected as calculated by the engine. A run in which any is not counts as failed: a file
+//!    cache, a stale value or a refusal is never timed as a calculation;
+//! 4. full: [`calculate_full`] and the recalculation of every formula with the plans and the graph
+//!    kept (Excel's `CalculateFull`), timed the same way, and projected and counted again;
+//! 5. edit, when `--edit` names a cell of the workbook holding a number: the cell set to that
+//!    number times 1.01 (1 when it holds 0) by [`dispatch`], then the recalculation of the dirty
+//!    closure, then the cell set back and recalculated, each timed (commit and recalculation) with
+//!    the number of formulas the recalculation published;
+//! 6. memory: the process's peak working set and peak private bytes (`GetProcessMemoryInfo`).
+//!
+//! **Excel**, with `--excel`: one new Excel instance per workbook, started and stopped by
+//! calc-oracle-excel's timing worker under the capture isolation ([`time_workbook`]), which opens
+//! the workbook `--runs` times without calculating (manual calculation), and times
+//! `CalculateFullRebuild`, `CalculateFull` and the same one-cell edits (assignment and
+//! `Calculate`), and reads the instance's peak working set and peak private bytes.
+//!
+//! **Load.** The machine is shared, so the command reads, before and after each workbook's runs,
+//! the processor load (`Win32_Processor.LoadPercentage`) and how many cargo, rustc and Excel
+//! processes are running, and records them beside the times.
+//!
+//! It writes `bench.json` (every sample) and `bench.md` (per workbook and metric: the median, the
+//! lowest and highest sample, and the number of samples) to `--out`, by default `target/bench`.
+//! Exit codes: 0 when both were written; 1 when they cannot be, or the release build fails; 2 on
+//! a usage error.
+
+use crate::corpus::{Cache, DEFAULT_CACHE, Entry, compare_program, excel_build, folder_workbooks};
+use calc_host::value::{CellKey, SheetId};
+use calc_host::{
+    CalcMode, CellEdit, CellInput, FiniteNumber, HostCommand, HostOptions, HostProgress,
+    HostState, MemorySource, OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest,
+    Unobserved, WorkBudget, calculate_full, dispatch, project, step,
+};
+use calc_oracle_excel::{TimedEdit, TimingRequest, time_workbook, windows_powershell};
+use calc_verdict::{CaptureRecord, sha256_hex};
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitCode};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+pub const USAGE: &str = "usage: cargo xtask bench <dir> [--runs <n>] [--out <dir>] [--cache <dir>] [--edit <workbook>=<sheet>!<cell>]... [--excel] [--no-dna] [--timeout <s>]";
+
+const EXIT_FAILED: u8 = 1;
+const EXIT_USAGE: u8 = 2;
+const DEFAULT_RUNS: u32 = 5;
+const DEFAULT_OUT: &str = "target/bench";
+/// The timeout of one workbook's Excel timing.
+const DEFAULT_TIMEOUT_S: u64 = 3600;
+/// The prefix of the line a `bench --one` process prints its run on.
+const LINE: &str = "dnacalc-bench/1 ";
+
+#[derive(Debug, PartialEq)]
+struct Args {
+    dir: PathBuf,
+    runs: u32,
+    out: PathBuf,
+    cache: PathBuf,
+    edits: Vec<(String, String)>,
+    excel: bool,
+    dna: bool,
+    timeout: Duration,
+}
+
+fn parse_args(args: &[String]) -> Result<Args, String> {
+    let (mut dir, mut runs, mut out, mut cache, mut timeout) = (None, None, None, None, None);
+    let mut parsed = Args {
+        dir: PathBuf::new(),
+        runs: DEFAULT_RUNS,
+        out: PathBuf::from(DEFAULT_OUT),
+        cache: PathBuf::from(DEFAULT_CACHE),
+        edits: Vec::new(),
+        excel: false,
+        dna: true,
+        timeout: Duration::from_secs(DEFAULT_TIMEOUT_S),
+    };
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let mut value = |flag: &str| {
+            rest.next()
+                .cloned()
+                .ok_or_else(|| format!("{flag} needs a value"))
+        };
+        let once = |slot: &mut Option<String>, flag: &str, value: String| {
+            if slot.replace(value).is_some() {
+                Err(format!("{flag} is given twice"))
+            } else {
+                Ok(())
+            }
+        };
+        match arg.as_str() {
+            "--excel" => parsed.excel = true,
+            "--no-dna" => parsed.dna = false,
+            "--runs" => once(&mut runs, "--runs", value("--runs")?)?,
+            "--out" => once(&mut out, "--out", value("--out")?)?,
+            "--cache" => once(&mut cache, "--cache", value("--cache")?)?,
+            "--timeout" => once(&mut timeout, "--timeout", value("--timeout")?)?,
+            "--edit" => {
+                let text = value("--edit")?;
+                let (workbook, cell) = text
+                    .split_once('=')
+                    .ok_or_else(|| format!("--edit {text:?} is not <workbook>=<sheet>!<cell>"))?;
+                split_cell(cell)?;
+                parsed.edits.push((workbook.to_owned(), cell.to_owned()));
+            }
+            flag if flag.starts_with("--") => return Err(format!("unknown argument {flag:?}")),
+            folder => once(&mut dir, "the workbook folder", folder.to_owned())?,
+        }
+    }
+    parsed.dir = PathBuf::from(dir.ok_or("give a workbook folder")?);
+    if let Some(text) = runs {
+        parsed.runs = text
+            .parse::<u32>()
+            .ok()
+            .filter(|runs| *runs > 0)
+            .ok_or_else(|| format!("--runs {text:?} is not a positive number"))?;
+    }
+    if let Some(out) = out {
+        parsed.out = PathBuf::from(out);
+    }
+    if let Some(cache) = cache {
+        parsed.cache = PathBuf::from(cache);
+    }
+    if let Some(text) = timeout {
+        let seconds = text
+            .parse::<u64>()
+            .ok()
+            .filter(|seconds| *seconds > 0)
+            .ok_or_else(|| format!("--timeout {text:?} is not a positive number of seconds"))?;
+        parsed.timeout = Duration::from_secs(seconds);
+    }
+    if !parsed.dna && !parsed.excel {
+        return Err("--no-dna without --excel times nothing".to_owned());
+    }
+    Ok(parsed)
+}
+
+/// `<sheet>!<cell>` as the sheet's name and the cell's row and column (1-based); the sheet is
+/// everything before the last `!`.
+fn split_cell(text: &str) -> Result<(String, u32, u32), String> {
+    let (sheet, cell) = text
+        .rsplit_once('!')
+        .ok_or_else(|| format!("{text:?} is not <sheet>!<cell>"))?;
+    let digits = cell
+        .find(|c: char| c.is_ascii_digit())
+        .ok_or_else(|| format!("{cell:?} is not an A1 cell"))?;
+    let (letters, number) = cell.split_at(digits);
+    if letters.is_empty() || letters.len() > 3 || !letters.bytes().all(|b| b.is_ascii_uppercase())
+    {
+        return Err(format!("{cell:?} is not an A1 cell"));
+    }
+    let column = letters
+        .bytes()
+        .fold(0u32, |n, b| n * 26 + u32::from(b - b'A' + 1));
+    let row = number
+        .parse::<u32>()
+        .ok()
+        .filter(|row| *row > 0)
+        .ok_or_else(|| format!("{cell:?} is not an A1 cell"))?;
+    Ok((sheet.to_owned(), row, column))
+}
+
+/// The number an edit sets a cell holding `held` to.
+fn edited(held: f64) -> f64 {
+    if held != 0.0 { held * 1.01 } else { 1.0 }
+}
+
+/// The peak working set and the peak private bytes of this process, in bytes.
+#[cfg(windows)]
+fn peak_memory() -> Option<(u64, u64)> {
+    use windows_sys::Win32::System::ProcessStatus::{
+        GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    let mut counters: PROCESS_MEMORY_COUNTERS = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+    counters.cb = size;
+    // SAFETY: the pseudo-handle of this process needs no closing, and the counters are a
+    // structure of the size passed.
+    let ok = unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, size) };
+    (ok != 0).then(|| {
+        (
+            counters.PeakWorkingSetSize as u64,
+            counters.PeakPagefileUsage as u64,
+        )
+    })
+}
+
+#[cfg(not(windows))]
+fn peak_memory() -> Option<(u64, u64)> {
+    None
+}
+
+/// The formulas a published recalculation calculated, or why it did not publish.
+fn recalculate(host: &mut HostState) -> Result<(f64, f64, usize), String> {
+    let started = Instant::now();
+    let mut progress = step(host, WorkBudget::evaluations(0), &mut Unobserved);
+    let order = started.elapsed().as_secs_f64();
+    let started = Instant::now();
+    while let HostProgress::Calculating { .. } = progress {
+        progress = step(host, WorkBudget::UNLIMITED, &mut Unobserved);
+    }
+    let evaluate = started.elapsed().as_secs_f64();
+    match progress {
+        HostProgress::Published(delta) => Ok((order, evaluate, delta.changes().len())),
+        other => Err(format!("the recalculation did not publish: {other:?}")),
+    }
+}
+
+/// Projects `cells` and counts those the engine calculated; the seconds it took.
+fn calculated(host: &HostState, request: &ProjectionRequest) -> Result<(f64, usize), String> {
+    let started = Instant::now();
+    let page = project(host, request).map_err(|e| format!("the projection was refused: {e}"))?;
+    let seconds = started.elapsed().as_secs_f64();
+    let count = page
+        .cells()
+        .iter()
+        .filter(|cell| matches!(cell.value(), ProjectedValue::Calculated { .. }))
+        .count();
+    Ok((seconds, count))
+}
+
+/// One DNA Calc run of `fixture` (the module documentation, steps 1 to 6).
+fn run_one(fixture: &Path, capture: &Path, edit: Option<&str>) -> Result<Value, String> {
+    let bytes = fs::read(fixture).map_err(|e| format!("cannot read {}: {e}", fixture.display()))?;
+    let record = fs::read(capture)
+        .map_err(|e| format!("cannot read {}: {e}", capture.display()))
+        .and_then(|bytes| {
+            CaptureRecord::decode(&bytes).map_err(|e| format!("the capture is refused: {e}"))
+        })?;
+    if record.source != format!("sha256:{}", sha256_hex(&bytes)) {
+        return Err("the capture is not of this workbook".to_owned());
+    }
+    let started = Instant::now();
+    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+    let mut host = HostState::open(
+        source,
+        &OpenPolicy::default(),
+        HostOptions {
+            calc_mode: Some(CalcMode::Automatic),
+            locale: crate::compare::capture_locale(&record),
+            ..HostOptions::default()
+        },
+    )
+    .map_err(|e| format!("HostState::open refused the package: {e}"))?;
+    let open = started.elapsed().as_secs_f64();
+
+    let ids: HashMap<String, SheetId> = host
+        .sheets()
+        .iter()
+        .map(|sheet| (sheet.name().text().to_string_lossy(), sheet.id()))
+        .collect();
+    let key = |sheet: &str, row: u32, column: u32| -> Option<CellKey> {
+        CellKey::new(*ids.get(sheet)?, row, column).ok()
+    };
+    let cells: Vec<CellKey> = record
+        .formulas
+        .iter()
+        .map(|formula| {
+            key(formula.cell.sheet(), formula.cell.row(), formula.cell.column()).ok_or_else(|| {
+                format!(
+                    "the workbook holds no cell {}!{}",
+                    formula.cell.sheet(),
+                    formula.cell.a1()
+                )
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    let inventory = ProjectionRequest { cells };
+    let total = inventory.cells.len();
+    let all_calculated = |count: usize, what: &str| -> Result<(), String> {
+        if count == total {
+            Ok(())
+        } else {
+            Err(format!(
+                "after the {what}, {count} of the {total} formula cells project as calculated"
+            ))
+        }
+    };
+
+    let (rebuild_order, rebuild_evaluate, rebuild_published) = recalculate(&mut host)?;
+    let (project_s, count) = calculated(&host, &inventory)?;
+    all_calculated(count, "rebuild")?;
+
+    calculate_full(&mut host);
+    let (full_order, full_evaluate, full_published) = recalculate(&mut host)?;
+    let (full_project, count) = calculated(&host, &inventory)?;
+    all_calculated(count, "full recalculation")?;
+
+    let mut edits = Vec::new();
+    if let Some(text) = edit {
+        let (sheet, row, column) = split_cell(text)?;
+        let at = key(&sheet, row, column).ok_or_else(|| format!("the workbook holds no {text}"))?;
+        let page = project(&host, &ProjectionRequest { cells: vec![at] })
+            .map_err(|e| format!("the projection was refused: {e}"))?;
+        let held = match page.cells()[0].input() {
+            Some(CellInput::Number(number)) => number.get(),
+            other => return Err(format!("{text} holds {other:?}, not a number")),
+        };
+        for to in [edited(held), held] {
+            let number = FiniteNumber::new(to).ok_or("the edited number is not finite")?;
+            let base = host.revision();
+            let started = Instant::now();
+            dispatch(
+                &mut host,
+                HostCommand {
+                    base,
+                    edits: vec![CellEdit::Set {
+                        at,
+                        input: CellInput::Number(number),
+                    }],
+                },
+            )
+            .map_err(|e| format!("the edit of {text} was refused: {e}"))?;
+            let commit = started.elapsed().as_secs_f64();
+            let (order, evaluate, published) = recalculate(&mut host)?;
+            let (_, count) = calculated(&host, &inventory)?;
+            all_calculated(count, "edit")?;
+            edits.push(json!({
+                "from_bits": format!("{:016x}", held.to_bits()),
+                "to_bits": format!("{:016x}", to.to_bits()),
+                "commit_s": commit,
+                "order_s": order,
+                "evaluate_s": evaluate,
+                "edit_s": commit + order + evaluate,
+                "published": published,
+            }));
+        }
+    }
+    let memory = peak_memory();
+    Ok(json!({
+        "formula_cells": total,
+        "open_s": open,
+        "rebuild_order_s": rebuild_order,
+        "rebuild_evaluate_s": rebuild_evaluate,
+        "rebuild_s": rebuild_order + rebuild_evaluate,
+        "rebuild_published": rebuild_published,
+        "project_s": project_s,
+        "full_order_s": full_order,
+        "full_evaluate_s": full_evaluate,
+        "full_s": full_order + full_evaluate,
+        "full_published": full_published,
+        "full_project_s": full_project,
+        "edits": edits,
+        "peak_working_set": memory.map(|m| m.0),
+        "peak_private": memory.map(|m| m.1),
+    }))
+}
+
+/// The processor load and the cargo, rustc and Excel processes running now.
+fn machine_load() -> Value {
+    let script = "$l = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average; $p = Get-Process; $c = @($p | Where-Object { $_.ProcessName -in @('cargo','rustc') }).Count; $e = @($p | Where-Object { $_.ProcessName -eq 'EXCEL' }).Count; Write-Output \"$l $c $e\"";
+    let output = Command::new(windows_powershell())
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .output();
+    let text = output
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+        .unwrap_or_default();
+    let parts: Vec<&str> = text.split_whitespace().collect();
+    match parts.as_slice() {
+        [load, cargo, excel] => json!({
+            "cpu_load_percent": load.parse::<f64>().ok(),
+            "cargo_rustc_processes": cargo.parse::<u64>().ok(),
+            "excel_processes": excel.parse::<u64>().ok(),
+        }),
+        _ => json!({ "unread": text }),
+    }
+}
+
+/// The median, lowest and highest of `samples`, and how many there are.
+fn stats(samples: &[f64]) -> Option<Value> {
+    if samples.is_empty() {
+        return None;
+    }
+    let mut sorted = samples.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let n = sorted.len();
+    let median = if n % 2 == 1 {
+        sorted[n / 2]
+    } else {
+        (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
+    };
+    Some(json!({ "median": median, "min": sorted[0], "max": sorted[n - 1], "n": n }))
+}
+
+/// The samples of `field` over `runs`, and over each of their edits when `edits` is set.
+fn samples(runs: &[Value], field: &str, edits: bool) -> Vec<f64> {
+    if edits {
+        runs.iter()
+            .flat_map(|run| run["edits"].as_array().cloned().unwrap_or_default())
+            .filter_map(|edit| edit[field].as_f64())
+            .collect()
+    } else {
+        runs.iter().filter_map(|run| run[field].as_f64()).collect()
+    }
+}
+
+/// One workbook's DNA Calc runs, each in its own process.
+fn dna_runs(
+    program: &Path,
+    entry: &Entry,
+    capture: &Path,
+    edit: Option<&str>,
+    runs: u32,
+) -> Vec<Value> {
+    (0..runs)
+        .map(|_| {
+            let mut command = Command::new(program);
+            command
+                .args(["bench", "--one", "--fixture"])
+                .arg(&entry.path)
+                .arg("--capture")
+                .arg(capture);
+            if let Some(edit) = edit {
+                command.args(["--edit", edit]);
+            }
+            match command.output() {
+                Ok(output) => String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .find_map(|line| line.strip_prefix(LINE))
+                    .and_then(|text| serde_json::from_str::<Value>(text).ok())
+                    .unwrap_or_else(|| {
+                        json!({ "failed": format!(
+                            "the run ended with {} and printed no result: {}",
+                            output.status,
+                            crate::cargo::tail(&output.stderr, 3).trim()
+                        ) })
+                    }),
+                Err(e) => json!({ "failed": format!("cannot start {}: {e}", program.display()) }),
+            }
+        })
+        .collect()
+}
+
+/// One workbook's Excel timing.
+fn excel_timing(args: &Args, entry: &Entry, edit: Option<&str>) -> Value {
+    let edit = match edit.map(split_cell).transpose() {
+        Ok(edit) => edit.map(|(sheet, row, column)| TimedEdit { sheet, row, column }),
+        Err(e) => return json!({ "failed": e }),
+    };
+    let work_dir = args.out.join("excel-work").join(format!(
+        "{}-{}",
+        crate::corpus::file_safe(&entry.name),
+        crate::accept::utc_now().replace(':', "")
+    ));
+    match time_workbook(&TimingRequest {
+        fixture: entry.path.clone(),
+        work_dir,
+        runs: args.runs,
+        edit,
+        timeout: args.timeout,
+    }) {
+        Ok(outcome) => {
+            let mut result = outcome.result;
+            result["excel"] = json!(outcome.run.excel.describe(outcome.run.excel_pid));
+            for run in result["runs"].as_array_mut().into_iter().flatten() {
+                for edit in run["edits"].as_array_mut().into_iter().flatten() {
+                    let total = edit["assign_s"].as_f64().unwrap_or(0.0)
+                        + edit["calculate_s"].as_f64().unwrap_or(0.0);
+                    edit["edit_s"] = json!(total);
+                }
+            }
+            result
+        }
+        Err(e) => json!({ "failed": e.to_string() }),
+    }
+}
+
+const MB: f64 = 1024.0 * 1024.0;
+
+/// A table cell for `stats` of seconds or bytes.
+fn cell(stats: &Option<Value>, scale: f64, digits: usize) -> String {
+    match stats {
+        None => "-".to_owned(),
+        Some(s) => {
+            let get = |k: &str| s[k].as_f64().unwrap_or(f64::NAN) / scale;
+            format!(
+                "{:.digits$} ({:.digits$}–{:.digits$}, n={})",
+                get("median"),
+                get("min"),
+                get("max"),
+                s["n"]
+            )
+        }
+    }
+}
+
+/// The per-workbook statistics of both systems.
+fn workbook_stats(dna: &[Value], excel: &Value) -> Value {
+    let ok: Vec<Value> = dna
+        .iter()
+        .filter(|run| run.get("failed").is_none())
+        .cloned()
+        .collect();
+    let excel_runs: Vec<Value> = excel["runs"].as_array().cloned().unwrap_or_default();
+    let one = |field: &str| excel[field].as_f64().map(|v| json!({ "median": v, "min": v, "max": v, "n": 1 }));
+    json!({
+        "dna": {
+            "runs": dna.len(),
+            "failed_runs": dna.len() - ok.len(),
+            "open_s": stats(&samples(&ok, "open_s", false)),
+            "rebuild_s": stats(&samples(&ok, "rebuild_s", false)),
+            "rebuild_order_s": stats(&samples(&ok, "rebuild_order_s", false)),
+            "rebuild_evaluate_s": stats(&samples(&ok, "rebuild_evaluate_s", false)),
+            "full_s": stats(&samples(&ok, "full_s", false)),
+            "full_order_s": stats(&samples(&ok, "full_order_s", false)),
+            "full_evaluate_s": stats(&samples(&ok, "full_evaluate_s", false)),
+            "project_s": stats(&samples(&ok, "project_s", false)),
+            "edit_s": stats(&samples(&ok, "edit_s", true)),
+            "edit_published": stats(&samples(&ok, "published", true)),
+            "peak_working_set": stats(&samples(&ok, "peak_working_set", false)),
+            "peak_private": stats(&samples(&ok, "peak_private", false)),
+        },
+        "excel": {
+            "open_s": stats(&samples(&excel_runs, "open_s", false)),
+            "rebuild_s": stats(&samples(&excel_runs, "rebuild_s", false)),
+            "full_s": stats(&samples(&excel_runs, "full_s", false)),
+            "edit_s": stats(&samples(&excel_runs, "edit_s", true)),
+            "peak_working_set": one("peak_working_set"),
+            "peak_private": one("peak_private"),
+            "empty_working_set": one("empty_working_set"),
+        },
+    })
+}
+
+fn markdown(run: &Value, workbooks: &[Value]) -> String {
+    let mut out = String::from("# DNA Calc and Excel: open, calculation and memory\n\n");
+    out.push_str("Each cell: median (lowest–highest, n = samples). Seconds, or MB of 2^20 bytes. The method is in `tools/xtask/src/bench.rs` and `platform/calc-oracle-excel/worker/timing-worker.ps1`.\n\n");
+    for (key, value) in run.as_object().into_iter().flatten() {
+        out.push_str(&format!("- {key}: {value}\n"));
+    }
+    out.push('\n');
+    out.push_str("| Workbook | System | Open s | Full rebuild s | Full recalculation s | One-cell edit s | Formulas the edit recalculated | Peak working set MB | Peak private MB |\n|---|---|---|---|---|---|---|---|---|\n");
+    for workbook in workbooks {
+        let name = workbook["name"].as_str().unwrap_or("?");
+        let s = &workbook["stats"];
+        for system in ["dna", "excel"] {
+            let m = &s[system];
+            let get = |k: &str| -> Option<Value> { m.get(k).cloned().filter(|v| !v.is_null()) };
+            out.push_str(&format!(
+                "| {name} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                if system == "dna" { "DNA Calc" } else { "Excel" },
+                cell(&get("open_s"), 1.0, 3),
+                cell(&get("rebuild_s"), 1.0, 3),
+                cell(&get("full_s"), 1.0, 3),
+                cell(&get("edit_s"), 1.0, 4),
+                cell(&get("edit_published"), 1.0, 0),
+                cell(&get("peak_working_set"), MB, 0),
+                cell(&get("peak_private"), MB, 0),
+            ));
+        }
+    }
+    out.push_str("\n## DNA Calc phases\n\n| Workbook | Rebuild: bind and order s | Rebuild: evaluate and publish s | Full: order s | Full: evaluate and publish s | Project inventory s |\n|---|---|---|---|---|---|\n");
+    for workbook in workbooks {
+        let m = &workbook["stats"]["dna"];
+        let get = |k: &str| -> Option<Value> { m.get(k).cloned().filter(|v| !v.is_null()) };
+        out.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} |\n",
+            workbook["name"].as_str().unwrap_or("?"),
+            cell(&get("rebuild_order_s"), 1.0, 3),
+            cell(&get("rebuild_evaluate_s"), 1.0, 3),
+            cell(&get("full_order_s"), 1.0, 3),
+            cell(&get("full_evaluate_s"), 1.0, 3),
+            cell(&get("project_s"), 1.0, 3),
+        ));
+    }
+    out.push_str("\n## Load and failures\n\n");
+    for workbook in workbooks {
+        out.push_str(&format!(
+            "- {}: load {}; edit {}; Excel {}; DNA Calc runs failed: {}\n",
+            workbook["name"].as_str().unwrap_or("?"),
+            workbook["load"],
+            workbook["edit"],
+            workbook["excel"]
+                .get("failed")
+                .map_or_else(
+                    || format!(
+                        "build {}, multi-threaded {} with {} threads; {}",
+                        workbook["excel"]["excel_build"],
+                        workbook["excel"]["multithreaded"],
+                        workbook["excel"]["thread_count"],
+                        workbook["excel"]["excel"]
+                    ),
+                    |failed| format!("failed: {failed}")
+                ),
+            workbook["dna"]
+                .as_array()
+                .map(|runs| runs
+                    .iter()
+                    .filter_map(|run| run.get("failed"))
+                    .map(Value::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; "))
+                .filter(|text| !text.is_empty())
+                .unwrap_or_else(|| "none".to_owned()),
+        ));
+    }
+    out
+}
+
+fn run_bench(args: &Args) -> u8 {
+    let started = Instant::now();
+    let entries = match folder_workbooks(&args.dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            eprintln!("xtask bench: {e}");
+            return EXIT_FAILED;
+        }
+    };
+    if let Err(e) = fs::create_dir_all(&args.out) {
+        eprintln!("xtask bench: cannot create {}: {e}", args.out.display());
+        return EXIT_FAILED;
+    }
+    let (program, program_note) = if args.dna {
+        match compare_program() {
+            Ok(program) => program,
+            Err(e) => {
+                eprintln!("xtask bench: {e}");
+                return EXIT_FAILED;
+            }
+        }
+    } else {
+        (PathBuf::new(), "none run".to_owned())
+    };
+    let cache = Cache {
+        root: args.cache.clone(),
+    };
+    let build = excel_build().ok();
+    let mut workbooks = Vec::new();
+    for entry in &entries {
+        let edit = args
+            .edits
+            .iter()
+            .find(|(workbook, _)| *workbook == entry.name)
+            .map(|(_, cell)| cell.as_str());
+        println!("xtask bench: {}", entry.name);
+        let mut load = vec![machine_load()];
+        let dna = if args.dna {
+            let sha256 = match fs::read(&entry.path) {
+                Ok(bytes) => sha256_hex(&bytes),
+                Err(e) => {
+                    eprintln!("xtask bench: cannot read {}: {e}", entry.path.display());
+                    return EXIT_FAILED;
+                }
+            };
+            match cache.find(&sha256, build.as_deref()) {
+                Some((capture, _)) => dna_runs(&program, entry, &capture, edit, args.runs),
+                None => vec![json!({ "failed": "no capture is cached for this workbook; run cargo xtask corpus first" })],
+            }
+        } else {
+            Vec::new()
+        };
+        load.push(machine_load());
+        let excel = if args.excel {
+            let excel = excel_timing(args, entry, edit);
+            load.push(machine_load());
+            excel
+        } else {
+            Value::Null
+        };
+        let stats = workbook_stats(&dna, &excel);
+        println!(
+            "xtask bench:   DNA Calc open {} rebuild {} full {} edit {}; Excel open {} rebuild {} full {} edit {}",
+            cell(&Some(stats["dna"]["open_s"].clone()).filter(|v| !v.is_null()), 1.0, 3),
+            cell(&Some(stats["dna"]["rebuild_s"].clone()).filter(|v| !v.is_null()), 1.0, 3),
+            cell(&Some(stats["dna"]["full_s"].clone()).filter(|v| !v.is_null()), 1.0, 3),
+            cell(&Some(stats["dna"]["edit_s"].clone()).filter(|v| !v.is_null()), 1.0, 4),
+            cell(&Some(stats["excel"]["open_s"].clone()).filter(|v| !v.is_null()), 1.0, 3),
+            cell(&Some(stats["excel"]["rebuild_s"].clone()).filter(|v| !v.is_null()), 1.0, 3),
+            cell(&Some(stats["excel"]["full_s"].clone()).filter(|v| !v.is_null()), 1.0, 3),
+            cell(&Some(stats["excel"]["edit_s"].clone()).filter(|v| !v.is_null()), 1.0, 4),
+        );
+        workbooks.push(json!({
+            "name": entry.name,
+            "edit": edit,
+            "load": load,
+            "dna": dna,
+            "excel": excel,
+            "stats": stats,
+        }));
+    }
+    let mut command = vec!["cargo xtask bench".to_owned()];
+    command.extend(std::env::args().skip(2));
+    let run = json!({
+        "command": command.join(" "),
+        "finished_utc": crate::accept::utc_now(),
+        "repository": crate::capture::repository_revision(),
+        "dna_process": program_note,
+        "excel_build": build,
+        "wall_time_s": started.elapsed().as_secs_f64(),
+    });
+    let document = json!({ "format": "dnacalc-bench", "version": 1, "run": run, "workbooks": workbooks });
+    let text = serde_json::to_string_pretty(&document).unwrap_or_default() + "\n";
+    for (name, text) in [("bench.json", text), ("bench.md", markdown(&run, &workbooks))] {
+        let path = args.out.join(name);
+        if let Err(e) = fs::write(&path, text) {
+            eprintln!("xtask bench: cannot write {}: {e}", path.display());
+            return EXIT_FAILED;
+        }
+    }
+    println!("xtask bench: wrote bench.md and bench.json to {}", args.out.display());
+    0
+}
+
+/// `bench --one --fixture <xlsx> --capture <capture.json> [--edit <sheet>!<cell>]`: one DNA Calc
+/// run, printed on one line.
+fn one(args: &[String]) -> u8 {
+    let (mut fixture, mut capture, mut edit) = (None, None, None);
+    let mut rest = args.iter();
+    while let Some(flag) = rest.next() {
+        let Some(value) = rest.next() else {
+            eprintln!("xtask bench: {flag} needs a value");
+            return EXIT_USAGE;
+        };
+        match flag.as_str() {
+            "--fixture" => fixture = Some(PathBuf::from(value)),
+            "--capture" => capture = Some(PathBuf::from(value)),
+            "--edit" => edit = Some(value.clone()),
+            other => {
+                eprintln!("xtask bench: unknown argument {other:?}");
+                return EXIT_USAGE;
+            }
+        }
+    }
+    let (Some(fixture), Some(capture)) = (fixture, capture) else {
+        eprintln!("xtask bench: --one needs --fixture and --capture");
+        return EXIT_USAGE;
+    };
+    let result = run_one(&fixture, &capture, edit.as_deref())
+        .unwrap_or_else(|failed| json!({ "failed": failed }));
+    println!("{LINE}{result}");
+    0
+}
+
+pub fn run(raw: &[String]) -> ExitCode {
+    if let Some(("--one", rest)) = raw.split_first().map(|(first, rest)| (first.as_str(), rest)) {
+        return ExitCode::from(one(rest));
+    }
+    match parse_args(raw) {
+        Ok(args) => ExitCode::from(run_bench(&args)),
+        Err(e) => {
+            eprintln!("xtask bench: {e}\n{USAGE}");
+            ExitCode::from(EXIT_USAGE)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(text: &str) -> Vec<String> {
+        text.split_whitespace().map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn arguments_and_cells_parse() {
+        let parsed = parse_args(&args("corpus --runs 3 --edit a.xlsx=Inputs!AB12 --excel")).unwrap();
+        assert_eq!(parsed.runs, 3);
+        assert!(parsed.excel && parsed.dna);
+        assert_eq!(parsed.edits, vec![("a.xlsx".to_owned(), "Inputs!AB12".to_owned())]);
+        assert_eq!(split_cell("3g CPIH!B7").unwrap(), ("3g CPIH".to_owned(), 7, 2));
+        assert_eq!(split_cell("A!B!AB12").unwrap(), ("A!B".to_owned(), 12, 28));
+        assert!(split_cell("Inputs!12").is_err());
+        assert!(split_cell("Inputs!B0").is_err());
+        assert!(parse_args(&args("corpus --runs 0")).is_err());
+        assert!(parse_args(&args("corpus --no-dna")).is_err());
+    }
+
+    #[test]
+    fn statistics_are_the_median_and_the_extremes() {
+        assert_eq!(stats(&[]), None);
+        let s = stats(&[3.0, 1.0, 2.0]).unwrap();
+        assert_eq!((s["median"].as_f64(), s["min"].as_f64(), s["max"].as_f64()), (Some(2.0), Some(1.0), Some(3.0)));
+        let s = stats(&[4.0, 1.0, 2.0, 3.0]).unwrap();
+        assert_eq!(s["median"].as_f64(), Some(2.5));
+        assert_eq!(edited(0.0), 1.0);
+        assert_eq!(edited(2.0), 2.0 * 1.01);
+    }
+}

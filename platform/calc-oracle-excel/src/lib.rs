@@ -97,6 +97,9 @@
 //!   runners are read only by converters.
 //! - [`run_isolated`]: the isolation every capture runs under ([`Worker`], [`WorkerRun`],
 //!   [`ReportedExcel`], [`TimeoutReport`]).
+//! - [`time_workbook`]: Excel's own open, `CalculateFullRebuild`, `CalculateFull` and one-cell
+//!   edit times for one workbook, in an Excel instance started under the same isolation
+//!   ([`TIMING_SCRIPT`], bead dc-10d9); `cargo xtask bench` calls it.
 //! - [`excel_available`]: whether this host can run a capture at all; the acceptance runner's
 //!   excel route asks the same probe.
 //!
@@ -114,6 +117,7 @@ compile_error!(
 mod capture;
 mod convert;
 mod isolation;
+mod timing;
 #[cfg(all(test, windows))]
 mod worker_tests;
 
@@ -126,11 +130,16 @@ pub use convert::STAGE_SPILL;
 pub use isolation::{
     EXCEL_IMAGE, PROTOCOL, ReportedExcel, TimeoutReport, Worker, WorkerRun, run_isolated,
 };
+pub use timing::{TimedEdit, TimingOutcome, TimingRequest, time_workbook};
 
 use std::fmt;
 
 /// The worker script every capture runs (`worker/capture-worker.ps1`).
 pub const WORKER_SCRIPT: &str = include_str!("../worker/capture-worker.ps1");
+
+/// The worker that times Excel's own calculation of a workbook (`worker/timing-worker.ps1`, bead
+/// dc-10d9), which runs under the same isolation and uses the capture worker's functions.
+pub const TIMING_SCRIPT: &str = include_str!("../worker/timing-worker.ps1");
 
 /// Why a capture did not produce a record.
 #[derive(Clone, Debug, PartialEq, Eq)]

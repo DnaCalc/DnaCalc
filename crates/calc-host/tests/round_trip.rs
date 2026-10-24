@@ -576,6 +576,33 @@ fn d2_session__refused_entries_change_nothing() {
     assert!(session.intent_log().iter().all(|record| !record.accepted));
 }
 
+/// dc-10d9: a full recalculation (Excel's `CalculateFull`) calculates every formula again, under a
+/// new tick, with the plans and the graph kept, and gives the values the first one gave.
+#[test]
+fn dc_10d9__a_full_recalculation_calculates_every_formula_again() {
+    let mut host = open(&fixture());
+    let first = match step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved) {
+        HostProgress::Published(delta) => delta,
+        other => panic!("the first recalculation publishes: {other:?}"),
+    };
+    assert!(matches!(
+        step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved),
+        HostProgress::Current
+    ));
+    calc_host::calculate_full(&mut host);
+    let full = match step(&mut host, WorkBudget::UNLIMITED, &mut Unobserved) {
+        HostProgress::Published(delta) => delta,
+        other => panic!("the full recalculation publishes: {other:?}"),
+    };
+    assert!(full.tick() > first.tick());
+    assert_eq!(full.changes().len(), first.changes().len());
+    let calc = sheet(&host, "Calc");
+    assert_eq!(
+        calculated(&host, at_(calc, "U3")),
+        Some(CalcValue::number(21.0))
+    );
+}
+
 #[test]
 fn d2_session__manual_mode_recalculates_when_asked() {
     let mut session = session(&fixture());

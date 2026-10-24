@@ -121,6 +121,17 @@ pub fn calculate(host: &mut HostState) {
     host.calculate_requested = true;
 }
 
+/// Asks for a full recalculation, as Excel's `CalculateFull` (Ctrl+Alt+F9) does: every formula
+/// is made pending and the next [`step`] begins a recalculation that calculates every formula,
+/// whatever the calculation mode. The compiled plans and the dependency graph are kept, so
+/// nothing is compiled again. A recalculation in progress is cancelled, since it would clear the
+/// nodes it calculates from pending when it published; the full one replaces it.
+pub fn calculate_full(host: &mut HostState) {
+    host.work = None;
+    host.engine.mark_all_pending();
+    host.calculate_requested = true;
+}
+
 fn failed(host: &mut HostState, failure: RecalcFailed) -> HostProgress {
     // A recalculation in progress is always of the current revision: a commit cancels it.
     host.last_failure = Some((host.model.revision(), failure.clone()));

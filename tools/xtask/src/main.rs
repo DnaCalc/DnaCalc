@@ -51,6 +51,14 @@
 //! compare` process, and summarised in `summary.md` and `summary.json` with the failures grouped
 //! by root cause across the corpus (`corpus.rs`, `corpus_summary.rs`).
 //!
+//! `cargo xtask bench <dir> [--runs <n>] [--out <dir>] [--cache <dir>] [--edit
+//! <workbook>=<sheet>!<cell>]... [--excel] [--no-dna] [--timeout <s>]` times DNA Calc's open, full
+//! rebuild, full recalculation and a one-cell edit's recalculation of every workbook of a folder,
+//! each run in its own release process through calc-host, and with `--excel` Excel's own open,
+//! `CalculateFullRebuild`, `CalculateFull` and the same edit in an isolated Excel instance, with
+//! peak memory and the machine's load, writing the medians and spreads to `bench.md` and every
+//! sample to `bench.json` (`bench.rs`, bead dc-10d9).
+//!
 //! `cargo xtask onecalc bundle [--out <dir>]` builds DNA OneCalc's browser bundle (the app's wasm
 //! entry through wasm-bindgen, and its page) into a folder, and `cargo xtask onecalc smoke
 //! [--bundle <dir>] [--browser chromium|firefox]` serves it on 127.0.0.1 and drives it in headless
@@ -67,6 +75,9 @@ compile_error!(
 
 mod accept;
 mod arch;
+// The bench command times Excel through calc-oracle-excel, like the capture command.
+#[cfg(not(target_arch = "wasm32"))]
+mod bench;
 // calc-oracle-excel, which the capture command calls, is not a dependency of a wasm32 build of
 // xtask (it refuses wasm32 itself), so neither is this command: such a build then fails through
 // xtask's own refusal alone, and compiles when that refusal is disabled.
@@ -110,6 +121,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "capture" => capture::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "corpus" => corpus::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "bench" => bench::run(rest),
         _ => {
             #[allow(unused_mut)]
             let mut usages = vec![
@@ -126,6 +139,8 @@ fn main() -> ExitCode {
             usages.push(capture::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(corpus::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(bench::USAGE);
             eprintln!(
                 "xtask: unknown or missing command {args:?}\n{}",
                 usages.join("\n")

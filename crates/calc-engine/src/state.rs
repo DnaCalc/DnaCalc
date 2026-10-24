@@ -409,6 +409,14 @@ impl EngineState {
         }
     }
 
+    /// Makes every formula node pending, so that the next recalculation calculates every formula,
+    /// as Excel's full calculation (`CalculateFull`, Ctrl+Alt+F9) does. Each node keeps its bound
+    /// plan and its edges: nothing is compiled again and the graph is not rebuilt.
+    pub fn mark_all_pending(&mut self) {
+        let nodes: Vec<NodeId> = self.by_anchor.values().copied().collect();
+        self.pending.extend(nodes);
+    }
+
     /// Replaces the dynamic prerequisites of a live node and files them in the graph.
     pub(crate) fn set_dynamic(&mut self, node: NodeId, dynamic: Vec<Prerequisite>) {
         if let Some(record) = self
