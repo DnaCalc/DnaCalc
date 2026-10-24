@@ -127,6 +127,43 @@ pub fn popup_key(key: &str) -> Option<PopupKey> {
     }
 }
 
+/// `text` with the UTF-16 range `start..end` replaced by a call of `name`: its name and opening
+/// parenthesis, after a `=` when the text is empty. Returns the new text and the caret after the
+/// insertion. Offsets past the text are taken as its end.
+pub fn insert_call(text: &str, start: usize, end: usize, name: &str) -> (String, usize) {
+    let units: Vec<u16> = text.encode_utf16().collect();
+    let end = end.min(units.len());
+    let start = start.min(end);
+    let insert = if text.trim().is_empty() {
+        format!("={name}(")
+    } else {
+        format!("{name}(")
+    };
+    let mut out: Vec<u16> = units[..start].to_vec();
+    out.extend(insert.encode_utf16());
+    let caret = out.len();
+    out.extend_from_slice(&units[end..]);
+    (String::from_utf16_lossy(&out), caret)
+}
+
+/// The catalogue's named functions whose name contains `filter` (in any ASCII case) or whose
+/// description contains it (in any case), in name order.
+pub fn browse(filter: &str) -> Vec<calc_func::FunctionCallTarget<'static>> {
+    let filter = filter.trim();
+    let upper = filter.to_ascii_uppercase();
+    let lower = filter.to_lowercase();
+    calc_func::catalogue()
+        .surfaces()
+        .filter(|target| target.notation() == calc_func::Notation::Call)
+        .filter(|target| {
+            filter.is_empty()
+                || target.spelling().contains(upper.as_str())
+                || calc_func::help::description(*target)
+                    .is_some_and(|text| text.to_lowercase().contains(lower.as_str()))
+        })
+        .collect()
+}
+
 /// The offsets of a matched bracket pair, in UTF-16 code units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BracketPair {
@@ -276,6 +313,30 @@ mod tests {
         assert!(!popup.is_open(), "no proposals hide it");
         popup.sync(None, None);
         assert!(!popup.is_open());
+    }
+
+    #[test]
+    fn calls_insert_at_the_selection_and_functions_filter() {
+        assert_eq!(insert_call("", 0, 0, "SUM"), ("=SUM(".to_owned(), 5));
+        assert_eq!(insert_call("=1+", 3, 3, "PI"), ("=1+PI(".to_owned(), 6));
+        assert_eq!(
+            insert_call("=1+XX*2", 3, 5, "PI"),
+            ("=1+PI(*2".to_owned(), 6)
+        );
+        assert_eq!(insert_call("=1", 9, 9, "PI"), ("=1PI(".to_owned(), 5));
+        let rounds: Vec<&str> = browse("round").iter().map(|t| t.spelling()).collect();
+        assert!(
+            rounds.contains(&"ROUND") && rounds.contains(&"MROUND"),
+            "{rounds:?}"
+        );
+        // A word of the description finds a function too.
+        let absolute: Vec<&str> = browse("absolute value")
+            .iter()
+            .map(|t| t.spelling())
+            .collect();
+        assert!(absolute.contains(&"ABS"), "{absolute:?}");
+        assert!(browse("").len() > 300);
+        assert!(browse("zzzqqq").is_empty());
     }
 
     #[test]
