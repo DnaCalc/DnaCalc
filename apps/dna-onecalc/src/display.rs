@@ -367,7 +367,8 @@ pub fn sheet_error(error: &SheetError) -> String {
 mod tests {
     use super::quoted_sheet;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sheet_names_that_need_quotes_are_quoted() {
         for (name, text) in [
             ("Sheet1", "Sheet1"),

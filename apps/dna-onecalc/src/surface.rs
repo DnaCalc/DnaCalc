@@ -1185,7 +1185,8 @@ mod tests {
     use super::*;
     use calc_func::{Notation, catalogue};
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn signature_pieces_mark_the_active_parameter() {
         let sum = catalogue()
             .resolve_surface(Notation::Call, "SUM")
@@ -1218,7 +1219,8 @@ mod tests {
         entries
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_grid_supplies_cells_and_shows_the_formula_cell() {
         let mut session = Session::new(FIRST_SHEET).expect("a session");
         // A1 = 1.5, A2 = 2, A3 typed nothing (blank); the formula in H1.
@@ -1299,7 +1301,8 @@ mod tests {
         assert_eq!(shown.diagnostic_spans, [TextSpan::new(4, 0)]);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn highlight_classes_mark_diagnostics_and_brackets() {
         let runs = assist::highlight("=SUM(1,2)");
         let pair = bracket_pair_at("=SUM(1,2)", 4);
