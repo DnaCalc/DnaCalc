@@ -138,11 +138,12 @@ pub enum ApplyError {
     RevisionExhausted,
     /// The operation at this index of the batch names a sheet the root does not hold.
     UnknownSheet { operation: usize, sheet: SheetId },
-    /// The operation at this index inserts or deletes rows or columns. This package does not
-    /// apply axis edits to its pages; dc-m3u's axis maps do.
+    /// The operation at this index inserts or deletes rows or columns, which
+    /// [`ModelRoot::apply`] does not apply: [`ModelRoot::apply_structural`] does, with a formula
+    /// rewriter.
     AxisEdit { operation: usize },
-    /// The operation at this index inserts, renames, moves, removes, shows or hides a sheet. This
-    /// package does not apply sheet edits; dc-m3u authors the sheet lifecycle.
+    /// The operation at this index inserts, renames, moves, removes, shows or hides a sheet,
+    /// which [`ModelRoot::apply`] does not apply: [`ModelRoot::apply_structural`] does.
     SheetEdit { operation: usize },
     /// The skin layout edit at this index is refused, against the layout the batch's earlier
     /// operations leave.
@@ -150,6 +151,12 @@ pub enum ApplyError {
         operation: usize,
         error: LayoutError,
     },
+    /// The array formula the operation at this index authors has an input that is not a
+    /// formula.
+    ArrayInput { operation: usize },
+    /// The array formula the operation at this index authors meets the area of the array formula
+    /// anchored at `anchor`, which it does not replace (its anchor lies outside the area).
+    ArrayOverlap { operation: usize, anchor: CellKey },
 }
 
 impl fmt::Display for ApplyError {
@@ -179,6 +186,16 @@ impl fmt::Display for ApplyError {
             ApplyError::Layout { operation, error } => {
                 write!(f, "operation {operation} edits the skin layout: {error}")
             }
+            ApplyError::ArrayInput { operation } => write!(
+                f,
+                "operation {operation} authors an array formula whose input is not a formula"
+            ),
+            ApplyError::ArrayOverlap { operation, anchor } => write!(
+                f,
+                "operation {operation} authors an array formula that meets the array anchored at row {} column {}",
+                anchor.row(),
+                anchor.column()
+            ),
         }
     }
 }
@@ -464,50 +481,39 @@ impl ModelRoot {
 
         // A working copy of each page the batch touches, by (sheet position, page row, page
         // column), made from this root's page the first time an operation changes the block.
-        let mut touched: BTreeMap<(usize, u32, u32), BTreeMap<u16, CellInput>> = BTreeMap::new();
+        let mut touched: Touched = BTreeMap::new();
         // A working copy of the layout, made from this root's the first time an operation edits it.
         let mut layout: Option<SkinLayout> = None;
         // The areas the batch's cell operations set or cleared.
         let mut edited: Vec<GridArea> = Vec::new();
+        // The array formulas the batch authors, with the operation that authored each, less those
+        // a later operation of the batch set or cleared the anchor of.
+        let mut added: Vec<(usize, ArrayFormula)> = Vec::new();
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetCell { at, input } => {
                     edited.push(GridArea::cell(*at));
+                    added.retain(|(_, array)| array.anchor() != *at);
                     let sheet = self.position_of(operation, at.sheet())?;
-                    let (page_row, page_column, place) = locate(*at);
-                    touched
-                        .entry((sheet, page_row, page_column))
-                        .or_insert_with(|| self.working_copy(sheet, page_row, page_column))
-                        .insert(place, input.clone());
+                    self.set_into(&mut touched, sheet, *at, input);
                 }
                 WorkbookOp::Clear { area } => {
                     edited.push(*area);
+                    added.retain(|(_, array)| !area.contains(array.anchor()));
                     let sheet = self.position_of(operation, area.sheet())?;
-                    let (first, last) = (area.first(), area.last());
-                    let bounds = Bounds {
-                        top: first.row(),
-                        left: first.column(),
-                        bottom: last.row(),
-                        right: last.column(),
-                    };
-                    for page in self.cells[sheet].pages_meeting(bounds) {
-                        let key = (sheet, page.page_row_index(), page.page_column_index());
-                        if !touched.contains_key(&key) && page.has_cell_in(bounds) {
-                            touched.insert(key, page.working_copy());
-                        }
+                    self.clear_into(&mut touched, sheet, *area);
+                }
+                WorkbookOp::SetArray { array, input } => {
+                    if !matches!(input, CellInput::Formula(_)) {
+                        return Err(ApplyError::ArrayInput { operation });
                     }
-                    let (first_page_row, first_page_column, _) = locate(first);
-                    let (last_page_row, last_page_column, _) = locate(last);
-                    let span = (sheet, first_page_row, 0)..=(sheet, last_page_row, u32::MAX);
-                    for ((_, page_row, page_column), cells) in touched.range_mut(span) {
-                        if (first_page_column..=last_page_column).contains(page_column) {
-                            cells.retain(|place, _| {
-                                let (row, column) =
-                                    CellPage::position(*page_row, *page_column, *place);
-                                !bounds.contains(row, column)
-                            });
-                        }
-                    }
+                    let area = array.area();
+                    edited.push(area);
+                    added.retain(|(_, earlier)| !meets(earlier.area(), area));
+                    let sheet = self.position_of(operation, area.sheet())?;
+                    self.clear_into(&mut touched, sheet, area);
+                    self.set_into(&mut touched, sheet, array.anchor(), input);
+                    added.push((operation, *array));
                 }
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
@@ -537,10 +543,22 @@ impl ModelRoot {
             Some(layout) if layout != *self.layout => Arc::new(layout),
             _ => Arc::clone(&self.layout),
         };
-        let definitions = match self
-            .definitions
-            .after_edits(|at| edited.iter().any(|area| area.contains(at)))
-        {
+        // An authored array must not meet an array the batch keeps.
+        let touched_anchor = |at: CellKey| edited.iter().any(|area| area.contains(at));
+        for (operation, array) in &added {
+            if let Some(kept) = self
+                .definitions
+                .arrays_meeting(array.area())
+                .find(|kept| !touched_anchor(kept.anchor()))
+            {
+                return Err(ApplyError::ArrayOverlap {
+                    operation: *operation,
+                    anchor: kept.anchor(),
+                });
+            }
+        }
+        let added: Vec<ArrayFormula> = added.into_iter().map(|(_, array)| array).collect();
+        let definitions = match self.definitions.after_edits(touched_anchor, &added) {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
@@ -554,6 +572,100 @@ impl ModelRoot {
         }))
     }
 
+    /// The root's contents taken apart: its sheets, every cell of each, its layout and its
+    /// definitions (L3's structural edits work on them).
+    pub(crate) fn parts(&self) -> crate::structural::Parts {
+        let cells = self
+            .sheets
+            .iter()
+            .map(|sheet| {
+                let held = self
+                    .sheet_cells(sheet.id)
+                    .into_iter()
+                    .flatten()
+                    .map(|(at, input)| (at, input.clone()))
+                    .collect();
+                (sheet.id, held)
+            })
+            .collect();
+        crate::structural::Parts {
+            sheets: self.sheets.clone(),
+            cells,
+            layout: SkinLayout::clone(&self.layout),
+            definitions: Definitions::clone(&self.definitions),
+        }
+    }
+
+    /// The root of `parts` at `revision`, of this root's lineage. Each sheet's pages are built
+    /// again from its cells.
+    pub(crate) fn rebuilt(
+        &self,
+        parts: crate::structural::Parts,
+        revision: AuthoredRevision,
+    ) -> Arc<ModelRoot> {
+        let mut pages = vec![SheetPages::default(); parts.sheets.len()];
+        for (position, sheet) in parts.sheets.iter().enumerate() {
+            let mut blocks: BTreeMap<(u32, u32), BTreeMap<u16, CellInput>> = BTreeMap::new();
+            for (at, input) in parts.cells.get(&sheet.id).into_iter().flatten() {
+                let (page_row, page_column, place) = locate(*at);
+                blocks
+                    .entry((page_row, page_column))
+                    .or_default()
+                    .insert(place, input.clone());
+            }
+            for ((page_row, page_column), cells) in blocks {
+                let page = CellPage::build(page_row, page_column, cells).map(Arc::new);
+                pages[position].set_page(page_row, page_column, page);
+            }
+        }
+        Arc::new(ModelRoot {
+            revision,
+            sheets: parts.sheets,
+            cells: pages,
+            layout: Arc::new(parts.layout),
+            definitions: Arc::new(parts.definitions),
+            lineage: self.lineage,
+        })
+    }
+
+    /// Sets `at` (on the sheet at position `sheet`) to `input` in the working copies `touched`.
+    fn set_into(&self, touched: &mut Touched, sheet: usize, at: CellKey, input: &CellInput) {
+        let (page_row, page_column, place) = locate(at);
+        touched
+            .entry((sheet, page_row, page_column))
+            .or_insert_with(|| self.working_copy(sheet, page_row, page_column))
+            .insert(place, input.clone());
+    }
+
+    /// Empties every cell of `area` (on the sheet at position `sheet`) in the working copies
+    /// `touched`.
+    fn clear_into(&self, touched: &mut Touched, sheet: usize, area: GridArea) {
+        let (first, last) = (area.first(), area.last());
+        let bounds = Bounds {
+            top: first.row(),
+            left: first.column(),
+            bottom: last.row(),
+            right: last.column(),
+        };
+        for page in self.cells[sheet].pages_meeting(bounds) {
+            let key = (sheet, page.page_row_index(), page.page_column_index());
+            if !touched.contains_key(&key) && page.has_cell_in(bounds) {
+                touched.insert(key, page.working_copy());
+            }
+        }
+        let (first_page_row, first_page_column, _) = locate(first);
+        let (last_page_row, last_page_column, _) = locate(last);
+        let span = (sheet, first_page_row, 0)..=(sheet, last_page_row, u32::MAX);
+        for ((_, page_row, page_column), cells) in touched.range_mut(span) {
+            if (first_page_column..=last_page_column).contains(page_column) {
+                cells.retain(|place, _| {
+                    let (row, column) = CellPage::position(*page_row, *page_column, *place);
+                    !bounds.contains(row, column)
+                });
+            }
+        }
+    }
+
     fn working_copy(
         &self,
         sheet: usize,
@@ -565,6 +677,18 @@ impl ModelRoot {
             .map(|page| page.working_copy())
             .unwrap_or_default()
     }
+}
+
+/// The working copies of the pages a batch touches, by (sheet position, page row, page column).
+type Touched = BTreeMap<(usize, u32, u32), BTreeMap<u16, CellInput>>;
+
+/// Whether two areas share a cell.
+fn meets(a: GridArea, b: GridArea) -> bool {
+    a.sheet() == b.sheet()
+        && a.first().row() <= b.last().row()
+        && b.first().row() <= a.last().row()
+        && a.first().column() <= b.last().column()
+        && b.first().column() <= a.last().column()
 }
 
 #[cfg(test)]

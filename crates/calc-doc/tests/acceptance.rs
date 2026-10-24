@@ -479,6 +479,16 @@ fn describe(op: &WorkbookOp) -> String {
             area.last().row(),
             area.last().column()
         ),
+        WorkbookOp::SetArray { array, input } => format!(
+            "array {:?} R{}C{}:R{}C{} {:?} {}",
+            array.area().sheet(),
+            array.area().first().row(),
+            array.area().first().column(),
+            array.area().last().row(),
+            array.area().last().column(),
+            array.kind(),
+            describe_input(input)
+        ),
         WorkbookOp::EditAxis(edit) => format!(
             "axis {:?} {:?} {:?} first {} count {} last {}",
             edit.sheet(),
@@ -591,6 +601,9 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
             }
         }
         WorkbookOp::Clear { .. } => "op:clear".to_owned(),
+        // Wire version 1 has no form for an authored array formula (EncodeError::ArrayFormula),
+        // so no fixture holds one and it is not among the required features.
+        WorkbookOp::SetArray { .. } => "op:set_array".to_owned(),
         WorkbookOp::EditAxis(edit) => {
             out.insert("op:edit_axis".to_owned());
             let axis = match edit.axis() {

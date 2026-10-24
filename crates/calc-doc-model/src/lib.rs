@@ -60,6 +60,7 @@ mod op;
 mod revision;
 mod root;
 mod sheet;
+mod structural;
 mod style;
 mod wire;
 
@@ -67,7 +68,8 @@ pub use cache::{CachedValue, FileCached, SourcePart};
 pub use calc_value as value;
 pub use cells::{CellPage, OccupiedCells, PAGE_COLUMNS, PAGE_ROWS};
 pub use definitions::{
-    ArrayFormula, ArrayKind, DefinedName, Definitions, NameScope, RowHidden, Table, UnloadedCell,
+    ArrayFormula, ArrayKind, DefinedName, Definitions, IterationSettings, NameScope, RowHidden,
+    Table, UnloadedCell,
 };
 pub use input::{CellInput, CellText, FiniteNumber, FormulaText, FormulaTextError};
 pub use layout::{
@@ -77,6 +79,9 @@ pub use layout::{
 pub use op::{Axis, AxisChange, AxisEdit, AxisEditError, OpBatch, SheetEdit, WorkbookOp};
 pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};
+pub use structural::{
+    FormulaRewriter, StructuralChange, moved_area, moved_cell, moved_position, moved_run,
+};
 pub use sheet::{
     SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetName, SheetNameError, SheetVisibility,
 };

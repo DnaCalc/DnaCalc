@@ -2465,11 +2465,10 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         NotModeled::Evaluation(EvalFault::AreaAsValue { .. })
     ));
 
-    // 5. A cycle in the dirty closure refuses the recalculation: Calc!B1 and Calc!B2 read each
-    //    other and Calc!B3 reads Calc!B2. The published generation stays as it was and the nodes
-    //    stay pending, so the next recalculation is refused the same way. Replacing Calc!B2's
-    //    formula by a literal breaks the cycle.
-    let before_cycle = generation(&state);
+    // 5. A cycle in the dirty closure: Calc!B1 and Calc!B2 read each other and Calc!B3 reads
+    //    Calc!B2. With iteration off (the snapshot's default) the recalculation publishes, at tick
+    //    6, the two formulas on the cycle as refused and Calc!B3 as refused for reading one (L3,
+    //    dc-m3u); nothing stays pending. Replacing Calc!B2's formula by a literal breaks the cycle.
     let root3 = edit(
         &mut state,
         &root2,
@@ -2479,26 +2478,26 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(3, 2), formula("B2*2")),
         ],
     );
-    let cycle = Some(StartError::Cycle {
-        cells: vec![c(1, 2), c(2, 2), c(3, 2)],
-    });
-    assert_eq!(
-        begin_recalc(&mut state, &root3, NumericMode::Fast).err(),
-        cycle
-    );
-    assert_eq!(generation(&state), before_cycle);
-    assert_eq!(state.pending().count(), 3);
     assert_eq!(state.stale(&root3), Some(vec![c(1, 2), c(2, 2), c(3, 2)]));
+    let delta = recalc(&mut state, &root3, &mut Unobserved);
+    assert_eq!(delta.tick().get(), 6);
+    let circular = NotModeled::Evaluation(EvalFault::NotModelled {
+        construct: "a circular reference with iterative calculation off (Excel keeps each cell's previous value)",
+        owner: "dc-m3u",
+    });
+    assert_eq!(refusal(&state, c(1, 2), 3, 6), circular);
+    assert_eq!(refusal(&state, c(2, 2), 3, 6), circular);
     assert_eq!(
-        begin_recalc(&mut state, &root3, NumericMode::Fast).err(),
-        cycle
+        refusal(&state, c(3, 2), 3, 6),
+        NotModeled::Evaluation(EvalFault::MissingInput { cell: c(2, 2) })
     );
+    assert_eq!(state.pending().count(), 0);
     let root4 = edit(&mut state, &root3, vec![set(c(2, 2), number(1.0))]);
     let delta = recalc(&mut state, &root4, &mut Unobserved);
-    // Hand-derived: Calc!B1 = 1+1, Calc!B3 = 1*2; the refused recalculations used no tick.
-    assert_eq!(delta.tick().get(), 6);
-    assert_eq!(calculated(&state, c(1, 2)), (CalcValue::number(2.0), 4, 6));
-    assert_eq!(calculated(&state, c(3, 2)), (CalcValue::number(2.0), 4, 6));
+    // Hand-derived: Calc!B1 = 1+1, Calc!B3 = 1*2.
+    assert_eq!(delta.tick().get(), 7);
+    assert_eq!(calculated(&state, c(1, 2)), (CalcValue::number(2.0), 4, 7));
+    assert_eq!(calculated(&state, c(3, 2)), (CalcValue::number(2.0), 4, 7));
 
     // 6. A recalculation publishes nothing when it is finished before it evaluated everything,
     //    when an edit is committed before a step, when an edit is committed after its last step
@@ -2546,7 +2545,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     assert_eq!(generation(&state), before);
     let mut first = begin_recalc(&mut state, &root7, NumericMode::Fast).unwrap();
     let mut second = begin_recalc(&mut state, &root7, NumericMode::Fast).unwrap();
-    assert_eq!((first.tick().get(), second.tick().get()), (10, 11));
+    assert_eq!((first.tick().get(), second.tick().get()), (11, 12));
     for work in [&mut first, &mut second] {
         assert_eq!(
             step(&state, &root7, work, WorkBudget::UNLIMITED, &mut Unobserved),
@@ -2563,18 +2562,18 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     // Hand-derived: Calc!A1 = 5*8, Calc!A2 = 40+5, Calc!C1 = 45*2, by the second work's tick.
     assert_eq!(
         calculated(&state, c(1, 1)),
-        (CalcValue::number(40.0), 7, 11)
+        (CalcValue::number(40.0), 7, 12)
     );
     assert_eq!(
         calculated(&state, c(2, 1)),
-        (CalcValue::number(45.0), 7, 11)
+        (CalcValue::number(45.0), 7, 12)
     );
     assert_eq!(
         calculated(&state, c(1, 3)),
-        (CalcValue::number(90.0), 7, 11)
+        (CalcValue::number(90.0), 7, 12)
     );
     note!(
-        "{CASE}: a cycle (refused twice), an unfinished work, works superseded by an edit before a step and after the last step, and a work superseded by another's publication were refused with the generation unchanged"
+        "{CASE}: a cycle (its formulas refused, iteration off), an unfinished work, works superseded by an edit before a step and after the last step, and a work superseded by another's publication were refused with the generation unchanged"
     );
 
     // 7. One state, two numeric modes. Calc!A10 = A1 enters, reading Calc!A1, which was
@@ -2608,11 +2607,11 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     );
     let delta = finish(&mut state, work).unwrap();
     assert_eq!(
-        refusal(&state, c(10, 1), 8, 12),
+        refusal(&state, c(10, 1), 8, 13),
         NotModeled::Evaluation(EvalFault::MissingInput { cell: c(1, 1) }),
         "Calc!A10 under Exact read Calc!A1's Fast result"
     );
-    let NotModeled::Evaluation(EvalFault::Function(fault)) = refusal(&state, c(1, 1), 8, 12) else {
+    let NotModeled::Evaluation(EvalFault::Function(fault)) = refusal(&state, c(1, 1), 8, 13) else {
         panic!("Calc!A1 under Exact: {:?}", state.result(c(1, 1)));
     };
     assert!(
@@ -2641,7 +2640,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
                 calculation.tick().get(),
                 calculation.mode()
             ),
-            (rev(8), 12, &exact),
+            (rev(8), 13, &exact),
             "{at:?}"
         );
     }
@@ -2662,15 +2661,15 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     finish(&mut state, work).unwrap();
     assert_eq!(
         calculated(&state, c(1, 1)),
-        (CalcValue::number(40.0), 8, 13)
+        (CalcValue::number(40.0), 8, 14)
     );
     assert_eq!(
         calculated(&state, c(10, 1)),
-        (CalcValue::number(40.0), 8, 13)
+        (CalcValue::number(40.0), 8, 14)
     );
     assert_eq!(
         calculated(&state, c(11, 1)),
-        (CalcValue::number(5.0), 8, 13)
+        (CalcValue::number(5.0), 8, 14)
     );
     assert!(
         state
@@ -4066,4 +4065,262 @@ fn dc_m3u__tables_and_3d_through_the_engine() {
     assert_eq!(l1_value(&state, at(f, 1, 1)), n(24.0));
     assert_eq!(l1_value(&state, at(f, 2, 1)), n(9.0));
     assert_eq!(l1_value(&state, at(tab, 3, 3)), n(70.0));
+}
+
+/// One sheet, Calc, of `cells`, with the iteration settings `iteration`, calculated once.
+fn l3_iterated(
+    cells: Vec<(CellKey, CellInput)>,
+    calc: SheetId,
+    iteration: calc_doc_model::IterationSettings,
+) -> (EngineState, Arc<ModelRoot>) {
+    let root = l3_root(
+        &[(calc, "Calc")],
+        cells,
+        Definitions::new(vec![], vec![], vec![], []).with_iteration(iteration),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    (state, root)
+}
+
+/// Iterative calculation with Excel's default limits (100 iterations, maximum change 0.001),
+/// against Excel 16.0 measured through COM on 2026-10-23 (module documentation of the engine's
+/// recalc.rs): each recalculation of A1 `=B1+1` and B1 `=A1+1` adds 200 to both, A1 first; C1
+/// `=C1+1` adds 100; D1 `=E1/2+1` with E1 `=D1` and F1 `=F1*0.5+5` settle at 2 and 10. From
+/// cells that start at 0: A1 199, B1 200, C1 100 after the first recalculation, 399, 400 and 200
+/// after a second one that an unrelated edit starts. G1 `=SUM(A1:B1)` reads the cycle. With
+/// iteration off the formulas on the cycles are refused and G1 too; H1 is calculated either way.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_m3u__iteration() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let calc = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (c(1, 1), formula("B1+1")),
+        (c(1, 2), formula("A1+1")),
+        (c(1, 3), formula("C1+1")),
+        (c(1, 4), formula("E1/2+1")),
+        (c(1, 5), formula("D1")),
+        (c(1, 6), formula("F1*0.5+5")),
+        (c(1, 7), formula("SUM(A1:B1)")),
+        (c(1, 8), formula("I1*2")),
+        (c(1, 9), number(3.0)),
+    ];
+    let on = calc_doc_model::IterationSettings::new(true, 100, 0.001);
+    let (mut state, root) = l3_iterated(cells.clone(), calc, on);
+    let n = CalcValue::number;
+    for (at, value) in [
+        (c(1, 1), 199.0),
+        (c(1, 2), 200.0),
+        (c(1, 3), 100.0),
+        (c(1, 4), 2.0),
+        (c(1, 5), 2.0),
+        (c(1, 6), 10.0),
+        (c(1, 7), 399.0),
+        (c(1, 8), 6.0),
+    ] {
+        assert_eq!(l1_value(&state, at), n(value), "{at:?}");
+    }
+    // An edit no cycle reads: every recalculation calculates the cycles again.
+    let root = edit(&mut state, &root, vec![set(c(1, 9), number(4.0))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    for (at, value) in [
+        (c(1, 1), 399.0),
+        (c(1, 2), 400.0),
+        (c(1, 3), 200.0),
+        (c(1, 7), 799.0),
+        (c(1, 8), 8.0),
+    ] {
+        assert_eq!(l1_value(&state, at), n(value), "{at:?}");
+    }
+
+    // Iteration off: the cycles and their reader are refused; H1 is calculated.
+    let (state, _) = l3_iterated(
+        cells,
+        calc,
+        calc_doc_model::IterationSettings::EXCEL_DEFAULT,
+    );
+    for at in [c(1, 1), c(1, 2), c(1, 3), c(1, 4), c(1, 5), c(1, 6)] {
+        assert_eq!(l2_refusal_owner(&state, at), "dc-m3u", "{at:?}");
+    }
+    assert!(matches!(
+        state.result(c(1, 7)),
+        Some(FormulaResult::NotModeled {
+            refusal: NotModeled::Evaluation(EvalFault::MissingInput { .. }),
+            ..
+        })
+    ));
+    assert_eq!(l1_value(&state, c(1, 8)), n(6.0));
+}
+
+/// Derived from Microsoft's documented rule (iteration stops when no value changes by the maximum
+/// change or more, or after the maximum number of iterations), not measured: F1 `=F1*0.5+5` alone
+/// from 0 changes by 5, 2.5, 1.25, ...; the 14th pass changes it by 5*0.5^13 < 0.001, so it stops
+/// at 10-10*0.5^14. With at most 10 iterations C1 `=C1+1` stops at 10. A cycle that only an
+/// evaluation finds (INDIRECTs naming each other) iterates like one the order finds.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_m3u__iteration_limits_and_dynamic_cycles() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let calc = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let n = CalcValue::number;
+    let (state, _) = l3_iterated(
+        vec![(c(1, 6), formula("F1*0.5+5"))],
+        calc,
+        calc_doc_model::IterationSettings::new(true, 100, 0.001),
+    );
+    assert_eq!(l1_value(&state, c(1, 6)), n(10.0 - 10.0 * 0.5f64.powi(14)));
+    let (state, _) = l3_iterated(
+        vec![(c(1, 3), formula("C1+1"))],
+        calc,
+        calc_doc_model::IterationSettings::new(true, 10, 0.001),
+    );
+    assert_eq!(l1_value(&state, c(1, 3)), n(10.0));
+    let (state, _) = l3_iterated(
+        vec![
+            (c(1, 1), formula("INDIRECT(\"B1\")+1")),
+            (c(1, 2), formula("INDIRECT(\"A1\")+1")),
+        ],
+        calc,
+        calc_doc_model::IterationSettings::new(true, 100, 0.001),
+    );
+    assert_eq!(l1_value(&state, c(1, 1)), n(199.0));
+    assert_eq!(l1_value(&state, c(1, 2)), n(200.0));
+}
+
+/// Commits a structural batch: the engine stages it, the model applies it with CalcEngine's
+/// reference rewriter (CalcFml's transform), and the staged change commits.
+fn l3_structural(
+    state: &mut EngineState,
+    root: &Arc<ModelRoot>,
+    operations: Vec<WorkbookOp>,
+    ids: &mut IdAllocator<SheetId>,
+) -> Arc<ModelRoot> {
+    let change = batch(root.revision().get(), operations);
+    let prepared = prepare_edit(state, root, &change).unwrap();
+    let next = root
+        .apply_structural(&change, &calc_engine::ReferenceRewriter, &mut || {
+            ids.issue().unwrap()
+        })
+        .unwrap();
+    commit_edit(prepared);
+    next
+}
+
+/// The text of the formula in `at`.
+fn l3_text(root: &ModelRoot, at: CellKey) -> String {
+    match root.cell(at) {
+        Some(CellInput::Formula(text)) => String::from_utf16(text.text().utf16_code_units()).unwrap(),
+        other => panic!("{at:?} holds {other:?}"),
+    }
+}
+
+/// Structural edits through the model and the engine, each value hand-derived from Excel's
+/// documented adjustment rules (a reference moves with its cells, a range grows by rows inserted
+/// inside it, a deleted cell's reference is #REF!, a renamed sheet is renamed in every
+/// reference, a removed sheet's references are #REF!): the formula texts are rewritten, the
+/// formulas keep their node IDs as they move, the defined names and tables move with the cells,
+/// and the next recalculation calculates every formula from its new text.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_m3u__structural_edits() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let (data, calc) = (ids.issue().unwrap(), ids.issue().unwrap());
+    let d = |row, column| CellKey::new(data, row, column).unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let cells = vec![
+        (d(1, 1), number(1.0)),
+        (d(2, 1), number(2.0)),
+        (d(3, 1), number(3.0)),
+        (c(1, 1), formula("SUM(Data!A1:A3)")),
+        (c(2, 1), formula("Data!A2*10")),
+        (c(3, 1), formula("A1+A2")),
+        (c(1, 2), formula("Data!$A$3")),
+        (c(1, 3), formula("SUM(Total)")),
+    ];
+    let names = vec![l1_name("Total", NameScope::Workbook, "Data!$A$1:$A$3")];
+    let root = l3_root(
+        &[(data, "Data"), (calc, "Calc")],
+        cells,
+        Definitions::new(vec![], names, vec![], []),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let n = CalcValue::number;
+    assert_eq!(l1_value(&state, c(3, 1)), n(26.0));
+    let a2 = state.node_at(c(2, 1)).unwrap();
+
+    // A row inserted at Data!2.
+    let insert = AxisEdit::new(data, Axis::Rows, AxisChange::Insert, 2, 1).unwrap();
+    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditAxis(insert)], &mut ids);
+    assert_eq!(l3_text(&root, c(1, 1)), "SUM(Data!A1:A4)");
+    assert_eq!(l3_text(&root, c(2, 1)), "Data!A3*10");
+    assert_eq!(l3_text(&root, c(1, 2)), "Data!$A$4");
+    assert_eq!(root.definitions().names()[0].formula, "Data!$A$1:$A$4");
+    assert_eq!(root.cell(d(4, 1)), Some(&number(3.0)));
+    assert_eq!(root.cell(d(2, 1)), None);
+    recalc(&mut state, &root, &mut Unobserved);
+    for (at, value) in [(c(1, 1), 6.0), (c(2, 1), 20.0), (c(3, 1), 26.0), (c(1, 2), 3.0), (c(1, 3), 6.0)] {
+        assert_eq!(l1_value(&state, at), n(value), "{at:?}");
+    }
+
+    // Calc's row 1 deleted: its formulas go; Calc!A2 and A3 move up, and A3's reference to the
+    // deleted A1 is #REF!.
+    let delete = AxisEdit::new(calc, Axis::Rows, AxisChange::Delete, 1, 1).unwrap();
+    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditAxis(delete)], &mut ids);
+    assert_eq!(state.node_at(c(1, 1)), Some(a2), "the node keeps its ID as it moves");
+    assert_eq!(l3_text(&root, c(1, 1)), "Data!A3*10");
+    assert_eq!(l3_text(&root, c(2, 1)), "#REF!+A1");
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(1, 1)), n(20.0));
+    assert_eq!(
+        l1_value(&state, c(2, 1)),
+        CalcValue::error(calc_doc_model::value::WorksheetErrorCode::Ref)
+    );
+    assert_eq!(state.node_count(), 2);
+
+    // Data renamed "Q Data": the references follow, quoted.
+    let rename = SheetEdit::Rename {
+        sheet: data,
+        name: SheetName::new(ExcelText::from_interop_assignment("Q Data")).unwrap(),
+    };
+    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditSheet(rename)], &mut ids);
+    assert_eq!(l3_text(&root, c(1, 1)), "'Q Data'!A3*10");
+    assert_eq!(root.definitions().names()[0].formula, "'Q Data'!$A$1:$A$4");
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(1, 1)), n(20.0));
+
+    // A sheet inserted after it, and a 3-D sum over both.
+    let insert_sheet = SheetEdit::Insert {
+        key: SheetKey::new(3),
+        name: SheetName::new(ExcelText::from_interop_assignment("More")).unwrap(),
+        position: NonZeroU32::new(2).unwrap(),
+    };
+    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditSheet(insert_sheet)], &mut ids);
+    let more = root.sheets()[1].id();
+    let root = edit(
+        &mut state,
+        &root,
+        vec![
+            set(CellKey::new(more, 3, 1).unwrap(), number(100.0)),
+            set(c(5, 1), formula("SUM('Q Data:More'!A3)")),
+        ],
+    );
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(5, 1)), n(102.0));
+
+    // Q Data removed: its references are #REF!, and the run of sheets keeps More alone.
+    let remove = SheetEdit::Remove { sheet: data };
+    let root = l3_structural(&mut state, &root, vec![WorkbookOp::EditSheet(remove)], &mut ids);
+    assert_eq!(l3_text(&root, c(1, 1)), "#REF!A3*10");
+    assert_eq!(l3_text(&root, c(5, 1)), "SUM(More:More!A3)");
+    assert_eq!(root.definitions().names()[0].formula, "#REF!$A$1:$A$4");
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(
+        l1_value(&state, c(1, 1)),
+        CalcValue::error(calc_doc_model::value::WorksheetErrorCode::Ref)
+    );
+    assert_eq!(l1_value(&state, c(5, 1)), n(100.0));
 }

@@ -36,28 +36,31 @@ pub struct HostOptions {
 /// package's `workbookPr` and `calcPr` may name other settings
 /// ([`HostState::declared_date1904`]).
 ///
-/// Only the numeric mode varies today. calc-doc does not read the workbook part's `calcPr`, and
-/// [`calc_engine::begin_recalc`] takes the numeric mode and no date system, iteration or precision
-/// setting, so whatever the package declares, no recalculation follows a 1904 date system, a
-/// circular reference is refused rather than iterated ([`calc_engine::StartError::Cycle`]), and
-/// every result is published at full precision whatever its number format displays. The host
-/// does not iterate, so it applies no iteration count or maximum change and reports none; a
-/// comparison names Excel's default limits for a context without iteration. `date1904 = false`
-/// follows from the engine taking no date system; no calculation observes it until a function
-/// that reads or returns a serial date is calculated.
+/// The numeric mode and the iteration settings vary. calc-doc reads the workbook part's
+/// `calcPr` iteration settings (`iterate`, `iterateCount`, `iterateDelta`) into the model, and
+/// [`calc_engine::begin_recalc`] applies them (L3, dc-m3u): with iteration on, the formulas on a
+/// cycle are calculated in passes up to `max_iterations` until no value changes by `max_change`
+/// or more; with it off, each formula on a cycle is refused. Whatever the package declares, no
+/// recalculation follows a 1904 date system, and every result is published at full precision
+/// whatever its number format displays. `date1904 = false` follows from the engine taking no date
+/// system; no calculation observes it until a function that reads or returns a serial date is
+/// calculated.
 ///
-/// dc-35p carries the workbook's date system, iteration settings and precision as displayed
-/// into the engine; `date1904` and `precision_as_displayed` then come from the engine's settings
-/// and change with the workbook. `iteration` also waits on dc-m3u, which calculates circular
-/// references iteratively: until then the engine refuses every cycle, so this reports `false`
-/// even for a workbook whose settings ask for iteration. A host that applies iteration must also
-/// report the iteration count and maximum change it applies, which this struct does not hold.
+/// dc-35p carries the workbook's date system and precision as displayed into the engine;
+/// `date1904` and `precision_as_displayed` then come from the engine's settings and change with
+/// the workbook.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RecalcContext {
     /// Serial dates count in the 1904 date system; `false`: the 1900 date system.
     pub date1904: bool,
     /// Circular references are calculated iteratively; `false`: they are refused.
     pub iteration: bool,
+    /// The most passes an iterating recalculation runs (`calcPr`'s `iterateCount`; Excel's
+    /// default, 100, when the package declares none).
+    pub max_iterations: u32,
+    /// The change below which an iterating recalculation stops, as binary64 bits (`calcPr`'s
+    /// `iterateDelta`; Excel's default, 0.001, when the package declares none).
+    pub max_change_bits: u64,
     /// Results are rounded to the precision their number format displays; `false`: full
     /// precision.
     pub precision_as_displayed: bool,
@@ -189,13 +192,17 @@ impl HostState {
             .unwrap_or_else(|| self.loaded.calc_mode())
     }
 
-    /// The calculation context every recalculation of this host applies: the 1900 date system,
-    /// no iteration and full precision, whatever the package declares, under the numeric mode the
-    /// host was opened with ([`RecalcContext`] says why, and that dc-35p changes these).
+    /// The calculation context every recalculation of this host applies: the 1900 date system
+    /// and full precision, whatever the package declares, the iteration settings the current
+    /// revision holds, under the numeric mode the host was opened with ([`RecalcContext`] says
+    /// why, and that dc-35p changes the others).
     pub fn recalc_context(&self) -> RecalcContext {
+        let iteration = self.model.definitions().iteration();
         RecalcContext {
             date1904: false,
-            iteration: false,
+            iteration: iteration.enabled(),
+            max_iterations: iteration.max_iterations(),
+            max_change_bits: iteration.max_change().to_bits(),
             precision_as_displayed: false,
             numeric: self.options.numeric.clone(),
         }
@@ -203,8 +210,8 @@ impl HostState {
 
     /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s
     /// `date1904`), as calc-doc loaded it; no command changes it. Recalculation does not apply it
-    /// ([`HostState::recalc_context`]). calc-doc does not read `calcPr`, so the host has no
-    /// record of the iteration or precision a package declares.
+    /// ([`HostState::recalc_context`]). calc-doc reads `calcPr`'s iteration settings, which the
+    /// host applies, and not its precision as displayed.
     pub fn declared_date1904(&self) -> bool {
         match self.loaded.date_system() {
             DateSystem::Date1900 => false,

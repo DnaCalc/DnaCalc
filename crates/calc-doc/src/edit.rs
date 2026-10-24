@@ -142,10 +142,14 @@ pub fn prepare_edit(model: &ModelRoot, batch: &OpBatch) -> Result<PreparedEdit, 
                 code: *code,
             });
         }
-        let WorkbookOp::SetCell {
+        let (WorkbookOp::SetCell {
             input: CellInput::Formula(formula),
             ..
-        } = op
+        }
+        | WorkbookOp::SetArray {
+            input: CellInput::Formula(formula),
+            ..
+        }) = op
         else {
             continue;
         };
@@ -165,6 +169,7 @@ fn check_arrays(model: &ModelRoot, batch: &OpBatch) -> Result<(), EditError> {
         let area = match op {
             WorkbookOp::SetCell { at, .. } => GridArea::cell(*at),
             WorkbookOp::Clear { area } => *area,
+            WorkbookOp::SetArray { array, .. } => array.area(),
             _ => continue,
         };
         for array in definitions.arrays_meeting(area) {

@@ -12,8 +12,8 @@
 //! commits forward, so an entry here carries the inverse edits instead.
 
 use crate::command::CellEdit;
-use calc_doc_model::ModelRoot;
 use calc_doc_model::value::{CellKey, GridArea};
+use calc_doc_model::{CellInput, ModelRoot};
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -37,9 +37,6 @@ impl Selection {
 /// Why an edit cannot be undone: what it removed that no cell edit can put back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum IrreversibleReason {
-    /// The edit set or cleared the anchor of an array formula, which removed the array; no cell
-    /// edit authors an array formula (the operation that does belongs to this package, dc-35p).
-    ArrayFormula,
     /// The edit set or cleared a cell whose content the model does not represent (a rich value, a
     /// data table's cell), so what it held cannot be authored again.
     UnloadedCell,
@@ -55,7 +52,6 @@ pub struct Irreversible {
 impl fmt::Display for Irreversible {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let what = match self.reason {
-            IrreversibleReason::ArrayFormula => "an array formula",
             IrreversibleReason::UnloadedCell => "a cell whose content is not modelled",
         };
         write!(
@@ -83,6 +79,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
         let area = match edit {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
+            CellEdit::SetArray { array, .. } => array.area(),
         };
         if !areas.contains(&area) {
             areas.push(area);
@@ -92,23 +89,24 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
 }
 
 /// The edits that restore every cell `edits` touches to what `model` (the revision they are
-/// committed against) holds: each touched area cleared, then each touched cell that held an input
-/// set to it again. Refused when an edit touches an array formula's anchor or an unloaded cell.
+/// committed against) holds: each touched area cleared, then each array formula whose anchor an
+/// edit touches authored again over its area, then each other touched cell that held an input set
+/// to it again. Refused when an edit touches an unloaded cell, whose content no edit authors.
 pub(crate) fn inverse(
     model: &ModelRoot,
     edits: &[CellEdit],
 ) -> Result<Vec<CellEdit>, Irreversible> {
     let areas = touched(edits);
     let definitions = model.definitions();
+    let mut arrays = Vec::new();
     for area in &areas {
-        if let Some(array) = definitions
+        for array in definitions
             .arrays_meeting(*area)
-            .find(|array| area.contains(array.anchor()))
+            .filter(|array| area.contains(array.anchor()))
         {
-            return Err(Irreversible {
-                at: array.anchor(),
-                reason: IrreversibleReason::ArrayFormula,
-            });
+            if !arrays.contains(array) {
+                arrays.push(*array);
+            }
         }
         if let Some((at, _)) = definitions.unloaded_in(*area).next() {
             return Err(Irreversible {
@@ -127,6 +125,15 @@ pub(crate) fn inverse(
         .into_iter()
         .map(|area| CellEdit::Clear { area })
         .collect();
+    for array in &arrays {
+        let Some(CellInput::Formula(formula)) = prior.remove(&array.anchor()) else {
+            unreachable!("a model's array formula's anchor holds its formula");
+        };
+        inverse.push(CellEdit::SetArray {
+            array: *array,
+            formula,
+        });
+    }
     inverse.extend(
         prior
             .into_iter()

@@ -31,6 +31,13 @@ mod tests {
         assert_eq!(cosh_kernel(0.01).to_bits(), 0x3ff000346de27852);
         assert_eq!(cosh_kernel(10.0).to_bits(), 0x40c5829dd053712e);
         assert_eq!(cosh_kernel(-10.0).to_bits(), 0x40c5829dd053712e);
+    }
+
+    /// The libm misses are those of the MSVC runtime's `cosh`: glibc's `cosh` returns Excel's
+    /// bits at 0.001 (Linux sweep, dc-ns0), so `f64::cosh` is no witness on other targets.
+    #[cfg(target_env = "msvc")]
+    #[test]
+    fn cosh_differs_from_the_msvc_libm_where_excel_does() {
         assert_ne!(cosh_kernel(0.001).to_bits(), 0.001_f64.cosh().to_bits());
         assert_ne!(cosh_kernel(10.0).to_bits(), 10.0_f64.cosh().to_bits());
     }

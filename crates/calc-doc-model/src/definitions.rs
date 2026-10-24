@@ -113,6 +113,53 @@ pub enum UnloadedCell {
     DataTable,
 }
 
+/// A workbook's iterative-calculation settings: the workbook part's `calcPr` attributes
+/// `iterate`, `iterateCount` and `iterateDelta` (L3, dc-m3u). With iteration off a circular
+/// reference is not calculated; with it on, the formulas on a cycle are calculated over and over,
+/// at most `max_iterations` times, until no value changes by `max_change` or more.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct IterationSettings {
+    enabled: bool,
+    max_iterations: u32,
+    max_change_bits: u64,
+}
+
+impl IterationSettings {
+    /// Excel's defaults, which a `calcPr` without the attributes means: off, 100 iterations, a
+    /// maximum change of 0.001.
+    pub const EXCEL_DEFAULT: IterationSettings = IterationSettings {
+        enabled: false,
+        max_iterations: 100,
+        max_change_bits: 0x3f50_624d_d2f1_a9fc,
+    };
+
+    pub fn new(enabled: bool, max_iterations: u32, max_change: f64) -> Self {
+        IterationSettings {
+            enabled,
+            max_iterations,
+            max_change_bits: max_change.to_bits(),
+        }
+    }
+
+    pub fn enabled(self) -> bool {
+        self.enabled
+    }
+
+    pub fn max_iterations(self) -> u32 {
+        self.max_iterations
+    }
+
+    pub fn max_change(self) -> f64 {
+        f64::from_bits(self.max_change_bits)
+    }
+}
+
+impl Default for IterationSettings {
+    fn default() -> Self {
+        IterationSettings::EXCEL_DEFAULT
+    }
+}
+
 /// Why a row is hidden.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RowHidden {
@@ -135,6 +182,7 @@ pub struct Definitions {
     hidden_rows: BTreeMap<(SheetId, u32), RowHidden>,
     /// The workbook is macro-enabled (`.xlsm`, `.xltm`), so a VBA project may define functions.
     macro_enabled: bool,
+    iteration: IterationSettings,
 }
 
 impl Definitions {
@@ -154,7 +202,19 @@ impl Definitions {
             unloaded: unloaded.into_iter().collect(),
             hidden_rows: BTreeMap::new(),
             macro_enabled: false,
+            iteration: IterationSettings::EXCEL_DEFAULT,
         }
+    }
+
+    /// These definitions with the workbook's iterative-calculation settings.
+    pub fn with_iteration(mut self, iteration: IterationSettings) -> Self {
+        self.iteration = iteration;
+        self
+    }
+
+    /// The workbook's iterative-calculation settings ([`IterationSettings`]).
+    pub fn iteration(&self) -> IterationSettings {
+        self.iteration
     }
 
     /// These definitions of a macro-enabled workbook (`.xlsm`, `.xltm`) when `macro_enabled`: a
@@ -181,6 +241,31 @@ impl Definitions {
             .into_iter()
             .map(|(sheet, row, why)| ((sheet, row), why))
             .collect();
+        self
+    }
+
+    /// Every hidden row, by sheet and row, with why.
+    pub fn hidden_rows_all(&self) -> impl Iterator<Item = (SheetId, u32, RowHidden)> + '_ {
+        self.hidden_rows
+            .iter()
+            .map(|((sheet, row), why)| (*sheet, *row, *why))
+    }
+
+    /// These definitions with `names` as the defined names.
+    pub fn with_names(mut self, names: Vec<DefinedName>) -> Self {
+        self.names = names;
+        self
+    }
+
+    /// These definitions without anything of `sheet`: its array formulas, tables, unloaded
+    /// cells, hidden rows and the names scoped to it (a removed sheet).
+    pub fn without_sheet(mut self, sheet: SheetId) -> Self {
+        self.arrays.retain(|at, _| at.sheet() != sheet);
+        self.tables.retain(|table| table.sheet != sheet);
+        self.unloaded.retain(|at, _| at.sheet() != sheet);
+        self.hidden_rows.retain(|(held, _), _| *held != sheet);
+        self.names
+            .retain(|name| name.scope != NameScope::Sheet(sheet));
         self
     }
 
@@ -296,15 +381,24 @@ impl Definitions {
     /// answers true: an array formula whose anchor was touched is gone (the anchor now holds what
     /// the edit put there, and the area it filled is free), and so is an unloaded cell that was
     /// touched. `None` when nothing changed.
-    pub(crate) fn after_edits(&self, touched: impl Fn(CellKey) -> bool) -> Option<Definitions> {
+    ///
+    /// The arrays of `added`, which the edits authored, are then added.
+    pub(crate) fn after_edits(
+        &self,
+        touched: impl Fn(CellKey) -> bool,
+        added: &[ArrayFormula],
+    ) -> Option<Definitions> {
         let arrays_gone = self.arrays.keys().any(|at| touched(*at));
         let unloaded_gone = self.unloaded.keys().any(|at| touched(*at));
-        if !arrays_gone && !unloaded_gone {
+        if !arrays_gone && !unloaded_gone && added.is_empty() {
             return None;
         }
         let mut next = self.clone();
         next.arrays.retain(|at, _| !touched(*at));
         next.unloaded.retain(|at, _| !touched(*at));
+        for array in added {
+            next.arrays.insert(array.anchor(), *array);
+        }
         Some(next)
     }
 }

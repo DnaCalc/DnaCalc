@@ -270,6 +270,9 @@ pub(crate) struct RecalcView<'a> {
     pub(crate) progress: &'a Progress,
     /// The spills of the anchors this recalculation evaluated whose results fill cells.
     pub(crate) spills: &'a SpillIndex,
+    /// With iteration on, the value each formula on a cycle holds as the recalculation stands
+    /// (L3, dc-m3u): one not yet evaluated in this pass reads as it, and no read of it waits.
+    pub(crate) iterates: Option<&'a BTreeMap<NodeId, Option<CalcValue>>>,
 }
 
 /// Where each node stands in one recalculation, by its ID's slot, which no node of the state
@@ -437,6 +440,10 @@ impl<'a> WorkbookReader<'a> {
         let node = self.view.state.node_at(at)?;
         let result = match self.view.standing(node) {
             NodeStanding::Pending => {
+                if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node))
+                {
+                    return value.as_ref();
+                }
                 self.wait(at, node);
                 return None;
             }
