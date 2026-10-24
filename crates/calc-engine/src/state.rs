@@ -1,7 +1,7 @@
 //! The caller-owned engine state: interned node IDs, the formula-node records and the one
 //! workbook graph.
 
-use crate::graph::{Prerequisite, ReverseIndex};
+use crate::graph::{BlockHasher, Prerequisite, ReverseIndex};
 use crate::recalc::{dirty_closure, live_anchor, published_areas};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
@@ -9,6 +9,7 @@ use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
 use calc_fml::{CalcEnvironment, CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
 use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::hash::BuildHasherDefault;
 use std::fmt;
 use std::sync::Arc;
 
@@ -133,6 +134,11 @@ pub struct EngineState {
     revision: AuthoredRevision,
     pub(crate) ids: IdAllocator<NodeId>,
     pub(crate) by_anchor: BTreeMap<CellKey, NodeId>,
+    /// The same entries as `by_anchor`, hashed (dc-10d9): [`EngineState::node_at`], which every
+    /// read of a formula cell asks, looks here; `by_anchor` keeps them in cell order for the
+    /// callers that walk or range over them. Both change together, in [`EngineState::add_node`],
+    /// [`EngineState::remove_node`] and [`EngineState::apply_moves`] alone.
+    anchor_index: HashMap<CellKey, NodeId, BuildHasherDefault<BlockHasher>>,
     /// Node records by ID slot.
     pub(crate) nodes: Vec<Option<FormulaNode>>,
     pub(crate) index: ReverseIndex,
@@ -191,6 +197,7 @@ impl EngineState {
             revision: inputs.revision(),
             ids: IdAllocator::new(),
             by_anchor: BTreeMap::new(),
+            anchor_index: HashMap::default(),
             nodes: Vec::new(),
             index: ReverseIndex::default(),
             plans: PlanCache::new(),
@@ -284,7 +291,7 @@ impl EngineState {
 
     /// The node whose formula is in the cell `at`.
     pub fn node_at(&self, at: CellKey) -> Option<NodeId> {
-        self.by_anchor.get(&at).copied()
+        self.anchor_index.get(&at).copied()
     }
 
     /// The record of a live node.
@@ -537,6 +544,7 @@ impl EngineState {
             self.pending.remove(&node);
             self.retired.insert(record.anchor);
             self.by_anchor.remove(&record.anchor);
+            self.anchor_index.remove(&record.anchor);
             let released = self.ids.release(node);
             debug_assert_eq!(
                 released,
@@ -597,6 +605,7 @@ impl EngineState {
             }
         }
         self.by_anchor.clear();
+        self.anchor_index.clear();
         for (node, at) in anchors {
             if let Some(record) = self
                 .nodes
@@ -607,6 +616,7 @@ impl EngineState {
                 record.anchor = at;
             }
             self.by_anchor.insert(at, node);
+            self.anchor_index.insert(at, node);
         }
         self.results = results;
         self.retired.clear();
@@ -630,6 +640,7 @@ impl EngineState {
             dynamic: Vec::new(),
         });
         self.by_anchor.insert(anchor, id);
+        self.anchor_index.insert(anchor, id);
     }
 }
 
