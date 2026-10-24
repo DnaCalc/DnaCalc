@@ -362,19 +362,23 @@ pub fn begin_recalc(
             inputs: inputs.revision(),
         });
     }
-    let mut unbound: Vec<(NodeId, CellKey, &FormulaText)> = Vec::new();
+    let mut unbound: Vec<(NodeId, CellKey, Option<&FormulaText>)> = Vec::new();
     for &node in &state.pending {
         if state.bindings.contains_key(&node) {
             continue;
         }
         let at = live_anchor(state, node);
         match inputs.cell(at) {
-            Some(CellInput::Formula(text)) => unbound.push((node, at, text)),
+            Some(CellInput::Formula(text)) => unbound.push((node, at, Some(text))),
+            None if crate::data_table::is_table_cell(inputs, at) => unbound.push((node, at, None)),
             _ => return Err(StartError::ForeignInputs { node, at }),
         }
     }
     for (node, at, text) in unbound {
-        bind(state, inputs, node, at, text);
+        match text {
+            Some(text) => bind(state, inputs, node, at, text),
+            None => bind_table_cell(state, inputs, node, at),
+        }
     }
     let iteration = inputs.definitions().iteration();
     let roots = match &state.published_mode {
@@ -382,6 +386,22 @@ pub fn begin_recalc(
         _ => {
             let mut roots = state.pending.clone();
             roots.extend(state.volatile.iter().copied());
+            if state.tables_deferred {
+                // The table cells the recalculation would reach stay pending, for the
+                // recalculation that calculates tables.
+                state.tables_deferred = false;
+                let reached: Vec<NodeId> = dirty_closure(state, inputs, roots.clone(), &|node| {
+                    published_areas(state, inputs, node)
+                })
+                .into_keys()
+                .filter(|node| crate::data_table::is_table_cell(inputs, live_anchor(state, *node)))
+                .collect();
+                state.tables_deferred = true;
+                state.pending.extend(reached);
+                roots.retain(|node| {
+                    !crate::data_table::is_table_cell(inputs, live_anchor(state, *node))
+                });
+            }
             // With iteration on, the formulas on a cycle are calculated by every recalculation.
             if iteration.enabled() {
                 roots.extend(
@@ -637,12 +657,39 @@ fn bind(
             }
             prerequisites(instance)
         }
-        Binding::Refused(_) => Vec::new(),
+        Binding::Refused(_) | Binding::DataTable(_) => Vec::new(),
     };
     state
         .set_prerequisites(inputs, node, prerequisites)
         .expect("the snapshot is at the state's revision, the node is live, and every sheet came from the snapshot");
     state.bindings.insert(node, binding);
+}
+
+/// Binds the cell `at` of a what-if data table: it reads its formula cell, the cells its row and
+/// column values stand in, and its table's input cells.
+fn bind_table_cell(state: &mut EngineState, inputs: &ModelRoot, node: NodeId, at: CellKey) {
+    let table = *inputs
+        .definitions()
+        .data_table_containing(at)
+        .expect("a table cell lies in a table");
+    let mut prerequisites = Vec::new();
+    if let Some((formula, pairs)) = table.what_if(at) {
+        let mut cells = vec![formula];
+        for (input, from) in pairs {
+            cells.push(input);
+            cells.push(from);
+        }
+        for cell in cells {
+            let prerequisite = Prerequisite::Cell(cell);
+            if !prerequisites.contains(&prerequisite) {
+                prerequisites.push(prerequisite);
+            }
+        }
+    }
+    state
+        .set_prerequisites(inputs, node, prerequisites)
+        .expect("the snapshot is at the state's revision and the node is live");
+    state.bindings.insert(node, Binding::DataTable(table));
 }
 
 /// What a placed formula reads: one prerequisite per distinct placed reference.
@@ -731,6 +778,11 @@ fn readers(
         .index
         .dependents_of_cell(inputs, live_anchor(state, node), &mut readers);
     readers.append(&mut area_readers);
+    if state.tables_deferred {
+        readers.retain(|reader| {
+            !crate::data_table::is_table_cell(inputs, live_anchor(state, *reader))
+        });
+    }
     readers
 }
 
@@ -1402,6 +1454,36 @@ fn evaluate_node(
     {
         Binding::Placed(instance, role) => (instance, *role),
         Binding::Refused(refusal) => return Ok(Attempt::Done(refused(work, refusal.clone()))),
+        Binding::DataTable(table) => {
+            let view = work.view(state, inputs);
+            return Ok(
+                match crate::data_table::evaluate_cell(
+                    state,
+                    inputs,
+                    view,
+                    calculation.mode(),
+                    table,
+                    formula,
+                ) {
+                    crate::data_table::TableOutcome::Value(value) => {
+                        match NotModeled::publishable(value) {
+                            Ok(value) => Attempt::Done(Done {
+                                result: FormulaResult::Calculated { value, calculation },
+                                spill: None,
+                                dynamic: Vec::new(),
+                            }),
+                            Err(refusal) => Attempt::Done(refused(work, refusal)),
+                        }
+                    }
+                    crate::data_table::TableOutcome::Refused(refusal) => {
+                        Attempt::Done(refused(work, refusal))
+                    }
+                    crate::data_table::TableOutcome::Waits { on, cell } => {
+                        Attempt::Waits { on, cell }
+                    }
+                },
+            );
+        }
     };
     let uncomputed = Cell::new(None);
     let footprint = RefCell::new(Vec::new());

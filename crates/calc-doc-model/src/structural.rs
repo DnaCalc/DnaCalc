@@ -318,7 +318,16 @@ impl ModelRoot {
         let next = Definitions::new(arrays, names, tables, unloaded)
             .with_hidden_rows(hidden.collect::<Vec<_>>())
             .with_macro_enabled(definitions.macro_enabled())
-            .with_iteration(definitions.iteration());
+            .with_iteration(definitions.iteration())
+            .with_data_tables(
+                definitions
+                    .data_tables()
+                    .iter()
+                    .filter_map(|table| {
+                        table.moved(|area| moved_area(edit, area), |at| moved_cell(edit, at))
+                    })
+                    .collect(),
+            );
         let layout = parts.layout.with_anchors(|area| moved_area(edit, area));
         self.rebuilt(
             Parts {

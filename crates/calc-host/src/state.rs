@@ -183,9 +183,9 @@ impl HostState {
     /// The calculation mode [`crate::step`] follows: the host's option, or else the mode the
     /// package's `calcPr` declares (automatic when it declares none). Under
     /// [`CalcMode::Manual`] a step begins a recalculation only after [`crate::calculate`] asks for
-    /// one. [`CalcMode::AutomaticExceptTables`] recalculates as [`CalcMode::Automatic`] does: the
-    /// cells of a what-if data table are not calculated in either mode (they are unloaded cells,
-    /// read as not available; data tables are L3's, dc-m3u).
+    /// one. [`CalcMode::AutomaticExceptTables`] recalculates as [`CalcMode::Automatic`] does,
+    /// except that the cells of what-if data tables, and the formulas that read only through
+    /// them, wait for a recalculation asked for (L3, dc-m3u).
     pub fn calc_mode(&self) -> CalcMode {
         self.options
             .calc_mode

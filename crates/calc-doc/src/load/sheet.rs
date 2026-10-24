@@ -37,6 +37,8 @@ pub(super) struct SheetLoad {
     pub(super) formulas: BTreeMap<(u32, u32), FormulaRecord>,
     /// The sheet's array formulas.
     pub(super) arrays: Vec<ArrayFormula>,
+    /// The sheet's what-if data tables (L3, dc-m3u).
+    pub(super) data_tables: Vec<calc_doc_model::DataTable>,
     /// The cells the model holds no input for, with why.
     pub(super) unloaded: Vec<(CellKey, UnloadedCell)>,
     /// What the file cached for cells the model holds no input for: the cells an array formula
@@ -103,6 +105,8 @@ struct Formula {
     kind: Option<String>,
     index: Option<String>,
     area: Option<String>,
+    /// A data table's `dt2D`, `dtr`, `r1` and `r2`.
+    data_table: [Option<String>; 4],
     text: String,
 }
 
@@ -349,6 +353,12 @@ impl Sheet<'_> {
                     kind: attribute("t"),
                     index: attribute("si"),
                     area: attribute("ref"),
+                    data_table: [
+                        attribute("dt2D"),
+                        attribute("dtr"),
+                        attribute("r1"),
+                        attribute("r2"),
+                    ],
                     text,
                 });
                 if previous.is_some() {
@@ -477,6 +487,34 @@ impl Sheet<'_> {
 
     /// Records a formula cell: its input now, or, for a shared formula's member, once the
     /// sheet's masters are known.
+    /// A data table's definition from its `<f t="dataTable">` attributes over `area`; `None`
+    /// when they do not name its input cells (the table's cells are then not calculated).
+    fn data_table(
+        &self,
+        formula: &Formula,
+        area: (u32, u32, u32, u32),
+    ) -> Option<calc_doc_model::DataTable> {
+        let flag = |value: &Option<String>| matches!(value.as_deref(), Some("1" | "true"));
+        let [two, row, r1, r2] = &formula.data_table;
+        let cell = |text: &Option<String>| {
+            let (row, column) = address::cell(text.as_deref()?.trim())?;
+            Some(self.key(row, column))
+        };
+        let inputs = if flag(two) {
+            calc_doc_model::DataTableInputs::Both {
+                row: cell(r1)?,
+                column: cell(r2)?,
+            }
+        } else if flag(row) {
+            calc_doc_model::DataTableInputs::Row(cell(r1)?)
+        } else {
+            calc_doc_model::DataTableInputs::Column(cell(r1)?)
+        };
+        let (top, left, bottom, right) = area;
+        let area = GridArea::new(self.key(top, left), self.key(bottom, right)).ok()?;
+        calc_doc_model::DataTable::new(area, inputs)
+    }
+
     fn formula(
         &mut self,
         row: u32,
@@ -499,6 +537,11 @@ impl Sheet<'_> {
                 let (top, left, bottom, right) = area;
                 let key = self.key(row, column);
                 if kind == "dataTable" {
+                    // L3 (dc-m3u): the table's definition, which the engine calculates; its
+                    // cells stay unloaded inputs, whose bytes a save keeps.
+                    if let Some(table) = self.data_table(&formula, area) {
+                        self.load.data_tables.push(table);
+                    }
                     self.load.unloaded.push((key, UnloadedCell::DataTable));
                     if let Some(cache) = cache {
                         let cache = FileCached::new(cache, Arc::clone(&self.part));
@@ -719,6 +762,7 @@ pub(super) fn load_sheet(
             styles: BTreeMap::new(),
             formulas: BTreeMap::new(),
             arrays: Vec::new(),
+            data_tables: Vec::new(),
             unloaded: Vec::new(),
             value_caches: BTreeMap::new(),
             hidden_rows: Vec::new(),

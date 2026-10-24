@@ -399,6 +399,15 @@ impl<'a> RecalcView<'a> {
     }
 }
 
+/// Whether two areas share a cell.
+fn areas_meet(a: GridArea, b: GridArea) -> bool {
+    a.sheet() == b.sheet()
+        && a.first().row() <= b.last().row()
+        && b.first().row() <= a.last().row()
+        && a.first().column() <= b.last().column()
+        && b.first().column() <= a.last().column()
+}
+
 /// What the reader reports for a cell that holds no input.
 enum Overlay<'a> {
     /// A value an array formula's result fills the cell with.
@@ -457,6 +466,13 @@ impl<'a> WorkbookReader<'a> {
     fn overlay(&mut self, at: CellKey) -> Overlay<'a> {
         let view = self.view;
         let definitions = view.inputs.definitions();
+        // L3 (dc-m3u): a data table's cell reads as its node's result.
+        if definitions.data_table_containing(at).is_some() && view.state.node_at(at).is_some() {
+            return match self.formula_value(at) {
+                Some(value) => Overlay::Value(value),
+                None => Overlay::Missing,
+            };
+        }
         if definitions.unloaded(at).is_some() {
             return Overlay::Missing;
         }
@@ -503,6 +519,10 @@ impl<'a> WorkbookReader<'a> {
             && view.state.spills.is_empty()
             && definitions.arrays_meeting(area).next().is_none()
             && definitions.unloaded_in(area).next().is_none()
+            && !definitions
+                .data_tables()
+                .iter()
+                .any(|table| areas_meet(table.area(), area))
         {
             return BTreeMap::new();
         }
@@ -534,6 +554,19 @@ impl<'a> WorkbookReader<'a> {
             add(array.area());
         }
         candidates.extend(definitions.unloaded_in(area).map(|(at, _)| at));
+        for table in definitions.data_tables() {
+            let held = table.area();
+            if !areas_meet(held, area) {
+                continue;
+            }
+            let (a, b) = (held.first(), held.last());
+            for row in a.row().max(first.row())..=b.row().min(area.last().row()) {
+                for column in a.column().max(first.column())..=b.column().min(area.last().column()) {
+                    candidates
+                        .insert(CellKey::new(area.sheet(), row, column).expect("a cell of the area"));
+                }
+            }
+        }
         let mut out = BTreeMap::new();
         for at in candidates {
             if inputs.cell(at).is_some() {

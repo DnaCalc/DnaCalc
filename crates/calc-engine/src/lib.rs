@@ -50,6 +50,7 @@
 //!   ([`calc_fml::reference::template_key`]) lets the copies of a filled formula share one plan
 //!   without each being parsed.
 
+mod data_table;
 mod edit;
 mod graph;
 mod random;

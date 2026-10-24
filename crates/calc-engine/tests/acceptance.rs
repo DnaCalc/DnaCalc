@@ -4324,3 +4324,94 @@ fn dc_m3u__structural_edits() {
     );
     assert_eq!(l1_value(&state, c(5, 1)), n(100.0));
 }
+
+/// What-if data tables, against Excel 16.0 measured through COM on 2026-10-23 (`Range.Table`; the
+/// values in calc-doc-model's `DataTable` documentation): one-variable tables by column and by
+/// row, a two-variable table, a formula reading table cells, an edit of an input the tables'
+/// formulas read, and tables left uncalculated while deferred (Excel's "Automatic except for data
+/// tables": `TABLE(,B1)` stayed 15 and `=SUM(B4:B6)` 75 after C1 changed, until `Calculate`).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_m3u__data_tables() {
+    use calc_doc_model::{DataTable, DataTableInputs};
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(s, row, column).unwrap();
+    let cells = vec![
+        (c(1, 2), number(2.0)),
+        (c(1, 3), number(5.0)),
+        (c(3, 2), formula("B1*10+C1")),
+        (c(3, 3), formula("B1^2")),
+        (c(4, 1), number(1.0)),
+        (c(5, 1), number(2.0)),
+        (c(6, 1), number(3.0)),
+        (c(2, 5), number(1.0)),
+        (c(2, 6), number(2.0)),
+        (c(2, 7), number(3.0)),
+        (c(3, 4), formula("C1*100")),
+        (c(10, 1), formula("B1*1000+C1")),
+        (c(10, 2), number(7.0)),
+        (c(10, 3), number(8.0)),
+        (c(11, 1), number(1.0)),
+        (c(12, 1), number(2.0)),
+        (c(10, 5), formula("SUM(B4:B6)")),
+    ];
+    let tables = vec![
+        DataTable::new(area(s, 4, 2, 6, 3), DataTableInputs::Column(c(1, 2))).unwrap(),
+        DataTable::new(area(s, 3, 5, 3, 7), DataTableInputs::Row(c(1, 3))).unwrap(),
+        DataTable::new(
+            area(s, 11, 2, 12, 3),
+            DataTableInputs::Both {
+                row: c(1, 2),
+                column: c(1, 3),
+            },
+        )
+        .unwrap(),
+    ];
+    let root = l3_root(
+        &[(s, "DT")],
+        cells,
+        Definitions::new(vec![], vec![], vec![], []).with_data_tables(tables),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let n = CalcValue::number;
+    for (at, value) in [
+        (c(4, 2), 15.0),
+        (c(5, 2), 25.0),
+        (c(6, 2), 35.0),
+        (c(4, 3), 1.0),
+        (c(5, 3), 4.0),
+        (c(6, 3), 9.0),
+        (c(3, 5), 100.0),
+        (c(3, 6), 200.0),
+        (c(3, 7), 300.0),
+        (c(11, 2), 7001.0),
+        (c(11, 3), 8001.0),
+        (c(12, 2), 7002.0),
+        (c(12, 3), 8002.0),
+        (c(10, 5), 75.0),
+    ] {
+        assert_eq!(l1_value(&state, at), n(value), "{at:?}");
+    }
+    // C1 = 6, calculated automatically.
+    let root = edit(&mut state, &root, vec![set(c(1, 3), number(6.0))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(4, 2)), n(16.0));
+    assert_eq!(l1_value(&state, c(10, 5)), n(78.0));
+    assert_eq!(l1_value(&state, c(3, 5)), n(100.0));
+    // Tables deferred: C1 = 7 calculates B3 and leaves the table and its reader.
+    state.set_tables_deferred(true);
+    let root = edit(&mut state, &root, vec![set(c(1, 3), number(7.0))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(3, 2)), n(27.0));
+    assert_eq!(l1_value(&state, c(4, 2)), n(16.0));
+    assert_eq!(l1_value(&state, c(10, 5)), n(78.0));
+    assert!(!state.needs_recalc(&root));
+    // A recalculation asked for calculates them.
+    state.set_tables_deferred(false);
+    assert!(state.needs_recalc(&root));
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(4, 2)), n(17.0));
+    assert_eq!(l1_value(&state, c(10, 5)), n(81.0));
+}
