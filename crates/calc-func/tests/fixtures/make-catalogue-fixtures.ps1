@@ -257,6 +257,7 @@ $FormulaSheets += , @('dcj9k_regression', 'sheet-dcj9k_regression.txt')
 $FormulaSheets += , @('dcj9k_closed_form', 'sheet-dcj9k_closed_form.txt')
 $FormulaSheets += , @('dcuar_text', 'sheet-dcuar_text.txt')
 $FormulaSheets += , @('dcj9k_annuity', 'sheet-dcj9k_annuity.txt')
+$FormulaSheets += , @('dcj9k_statistics', 'sheet-dcj9k_statistics.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),
