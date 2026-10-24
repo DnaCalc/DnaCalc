@@ -5,8 +5,9 @@ use crate::fixture::{Fixture, Read, TracingReader};
 use calc_fml::reference::{BindError, FormulaAnchor, ReferenceNotation, ReferenceShape};
 use calc_fml::syntax::SyntaxDiagnostic;
 use calc_fml::{
-    CompileError, EvalFault, EvalFrame, EvalScratch, EvaluationServices, PlanCache,
-    ReferenceCatalog, bind_references, compile, evaluate, instantiate, parse_formula,
+    CalcEnvironment, CompileError, EvalFault, EvalFrame, EvalScratch, EvaluationServices,
+    FormulaForm, PlanCache,
+    ReferenceCatalog, bind_references, compile_with, evaluate, instantiate, parse_formula,
 };
 use calc_func::value::{
     CalcValue, CellKey, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, NumericMode, SheetId,
@@ -139,9 +140,15 @@ pub struct Session {
     formula_cell: CellKey,
     plans: PlanCache,
     scratch: EvalScratch,
+    /// The calculation environment: the date system, the locale profile and the clock the date,
+    /// time and number-format functions read. None until set, which refuses those functions.
+    environment: Option<CalcEnvironment>,
     /// Every calculation runs under Fast, the default numeric mode (plan section 5); calc-func
     /// has no Exact implementation, so a mode choice belongs with it.
     numeric: NumericMode,
+    /// The form the formula is entered in: dynamic-array, as Excel 365 enters a formula, unless
+    /// set otherwise.
+    form: FormulaForm,
 }
 
 /// Sheet names Excel reserves; matched regardless of case.
@@ -166,7 +173,9 @@ impl Session {
             formula_cell: CellKey::new(sheet, 1, 1).expect("A1 is on the grid"),
             plans: PlanCache::new(),
             scratch: EvalScratch::new(),
+            environment: None,
             numeric: NumericMode::Fast,
+            form: FormulaForm::Dynamic,
         })
     }
 
@@ -240,6 +249,30 @@ impl Session {
         Ok(cell)
     }
 
+    /// The calculation environment, when one is set.
+    pub fn environment(&self) -> Option<CalcEnvironment> {
+        self.environment
+    }
+
+    /// Sets the calculation environment the date, time and number-format functions read: the
+    /// workbook's date system, the locale profile (separators, currency, date order) and the clock
+    /// (`now`, a serial date number) NOW and TODAY return.
+    pub fn set_environment(&mut self, environment: Option<CalcEnvironment>) {
+        self.environment = environment;
+    }
+
+    /// The form the formula is entered in.
+    pub fn form(&self) -> FormulaForm {
+        self.form
+    }
+
+    /// Enters the formula in `form`: [`FormulaForm::Dynamic`] as Excel 365 enters a formula (a
+    /// function of single values lifts over an array, and an array result is the result), or
+    /// [`FormulaForm::Legacy`] as an older Excel does (implicit intersection, one value).
+    pub fn set_form(&mut self, form: FormulaForm) {
+        self.form = form;
+    }
+
     pub fn formula(&self) -> &str {
         &self.formula
     }
@@ -258,6 +291,15 @@ impl Session {
         }
         self.fixture.inputs_mut().insert(cell, value);
         Ok(cell)
+    }
+
+    /// Sets the input of `cell`, replacing any it held. The formula's own cell holds no input.
+    pub fn set_input_at(&mut self, cell: CellKey, value: InputValue) -> Result<(), InputError> {
+        if cell == self.formula_cell {
+            return Err(InputError::FormulaCell { cell });
+        }
+        self.fixture.inputs_mut().insert(cell, value);
+        Ok(())
     }
 
     /// Removes the input of the cell `address` names and returns it; the cell then has no input.
@@ -302,12 +344,13 @@ impl Session {
             };
         }
         let anchor = FormulaAnchor::new(self.formula_cell);
-        let plan = match compile(
+        let plan = match compile_with(
             &tree,
             ReferenceNotation::A1,
             anchor,
             &self.fixture,
             &mut self.plans,
+            self.form,
         ) {
             Ok(plan) => plan,
             Err(error) => {
@@ -319,7 +362,7 @@ impl Session {
             }
         };
         let instance = instantiate(&plan, anchor);
-        let mut reader = TracingReader::new(&self.fixture);
+        let mut reader = TracingReader::new(&self.fixture, self.environment);
         // The session's sheets are the workbook context INDIRECT's text is bound in.
         let outcome = evaluate(
             EvalFrame::new(&instance, &mut self.scratch),

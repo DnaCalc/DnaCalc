@@ -179,8 +179,10 @@ pub(crate) fn dollar(profile: &FormatProfile, value: f64, places: i32) -> String
 
 // --- General --------------------------------------------------------------------------------------
 
-/// The General format's text: at most 11 characters besides the sign.
-pub(crate) fn general(profile: &FormatProfile, value: f64) -> String {
+/// The General format's text: at most 11 characters besides the sign, as a cell of Excel's
+/// standard column width shows a number. Public as [`crate::general_format`] for an app that
+/// shows a value as a cell would.
+pub fn general(profile: &FormatProfile, value: f64) -> String {
     const WIDTH: i64 = 11;
     if value == 0.0 || value.is_subnormal() {
         return "0".to_owned();

@@ -583,7 +583,7 @@ pub(crate) fn find_on_path(program: &str) -> Option<PathBuf> {
 }
 
 /// The file a driver variable names, when it is set and names a file.
-fn variable_file(variable: &str) -> Option<PathBuf> {
+pub(crate) fn variable_file(variable: &str) -> Option<PathBuf> {
     std::env::var_os(variable)
         .map(PathBuf::from)
         .filter(|path| path.is_file())

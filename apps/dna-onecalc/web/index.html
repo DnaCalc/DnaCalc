@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNA OneCalc</title>
+<style>
+  html, body { margin: 0; background: #fff; }
+  #onecalc-loading { font-family: system-ui, sans-serif; color: #57606a; padding: 16px; }
+</style>
+<script>
+  // Every uncaught error and unhandled rejection is recorded, so a trap the app cannot report
+  // itself (a panic in a reactive effect shows only as "RuntimeError: unreachable") is still
+  // seen by the browser smoke test (`cargo xtask onecalc smoke`), which reads this list.
+  window.__onecalcFaults = [];
+  window.addEventListener("error", function (event) {
+    window.__onecalcFaults.push("error: " + (event.error && event.error.stack ? event.error.stack : event.message));
+  });
+  window.addEventListener("unhandledrejection", function (event) {
+    var reason = event.reason;
+    window.__onecalcFaults.push("unhandledrejection: " + (reason && reason.stack ? reason.stack : String(reason)));
+  });
+</script>
+</head>
+<body>
+<div id="onecalc"><p id="onecalc-loading">Loading DNA OneCalc…</p></div>
+<script type="module">
+  import init from "./dna-onecalc-web.js";
+  init({ module_or_path: new URL("./dna-onecalc-web_bg.wasm", import.meta.url) })
+    .then(function () {
+      var loading = document.getElementById("onecalc-loading");
+      if (loading) { loading.remove(); }
+    })
+    .catch(function (error) {
+      window.__onecalcFaults.push("load: " + (error && error.stack ? error.stack : String(error)));
+      var loading = document.getElementById("onecalc-loading");
+      if (loading) { loading.textContent = "DNA OneCalc did not load: " + error; }
+    });
+</script>
+</body>
+</html>

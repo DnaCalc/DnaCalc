@@ -3,7 +3,7 @@
 
 use crate::session::InputValue;
 use calc_fml::reference::CellRun;
-use calc_fml::{ReferenceCatalog, ReferenceReader};
+use calc_fml::{CalcEnvironment, ReferenceCatalog, ReferenceReader};
 use calc_func::value::{CalcValue, CellKey, GridArea, IdAllocator, SheetId};
 use std::collections::BTreeMap;
 use std::ops::ControlFlow;
@@ -92,13 +92,17 @@ pub enum RunCells {
 /// and each run it returns.
 pub(crate) struct TracingReader<'f> {
     fixture: &'f Fixture,
+    environment: Option<CalcEnvironment>,
     reads: Vec<Read>,
 }
 
 impl<'f> TracingReader<'f> {
-    pub(crate) fn new(fixture: &'f Fixture) -> Self {
+    /// A reader over `fixture` whose calculation environment is `environment`: without one, the
+    /// date, time and number-format functions are refused.
+    pub(crate) fn new(fixture: &'f Fixture, environment: Option<CalcEnvironment>) -> Self {
         TracingReader {
             fixture,
+            environment,
             reads: Vec::new(),
         }
     }
@@ -115,6 +119,10 @@ enum Stored<'a> {
 }
 
 impl ReferenceReader for TracingReader<'_> {
+    fn environment(&self) -> Option<CalcEnvironment> {
+        self.environment
+    }
+
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         let first = area.first();
         let last = area.last();

@@ -24,3 +24,11 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 license = "MIT"
+
+# The DNA OneCalc browser bundle (`cargo xtask onecalc bundle`): release code optimised for size,
+# with link-time optimisation in one codegen unit, because the wasm module is downloaded.
+[profile.web]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
