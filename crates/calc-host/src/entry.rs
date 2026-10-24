@@ -218,7 +218,7 @@ fn number_shaped(text: &str) -> bool {
         })
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -233,7 +233,8 @@ mod tests {
     }
 
     // Ported from OxFml's authored_input_returns_calc_value_for_cell_entry_literals.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn entry_literals() {
         assert_eq!(interpret_entry(""), Ok(None));
         assert_eq!(interpret_entry("123.4"), Ok(number(123.4)));
@@ -259,7 +260,8 @@ mod tests {
         assert_eq!(interpret_entry("1.50000000000000000"), Ok(number(1.5)));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn entry_formulas_and_refusals() {
         let Ok(Some(CellInput::Formula(formula))) = interpret_entry("=SUM(1,2)") else {
             panic!("a formula");
