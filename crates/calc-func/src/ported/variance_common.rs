@@ -49,7 +49,8 @@ pub fn stdev_from_values(
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn variance_population_and_sample_split_basic_lane() {
         let values = vec![2.0, 3.0, 4.0];
         let pop = variance_from_values(&values, VarianceDivisor::Population).unwrap();
@@ -58,7 +59,8 @@ mod tests {
         assert!((sample - 1.0).abs() < 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sample_variance_requires_two_values() {
         let err = variance_from_values(&[1.0], VarianceDivisor::Sample).unwrap_err();
         assert_eq!(err, WorksheetErrorCode::Div0);

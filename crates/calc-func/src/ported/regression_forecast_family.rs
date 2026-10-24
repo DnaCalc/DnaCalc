@@ -818,7 +818,8 @@ mod tests {
     /// W109 sweep pins — live Excel 16.0 build 20131 (65/65 discovery +
     /// adversarial rows replay bit-exactly through this kernel; corpora at
     /// smart-fuzzer/work/w109/G3-03-answers-forecast.json / -fc-adv.json).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn forecast_matches_live_excel_pinned_witnesses() {
         let cases: [(f64, Vec<f64>, Vec<f64>, u64); 3] = [
             (
@@ -927,7 +928,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_defaults_known_x_to_sequence_and_preserves_row_shape() {
         let got = eval_trend_surface(
             &[row(&[2.0, 4.0, 6.0])]
@@ -940,7 +942,8 @@ mod tests {
         assert_close(values[2], 6.0);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_projects_column_vector() {
         let got = eval_trend_surface(
             &[
@@ -960,7 +963,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn growth_projects_exponential_sequence() {
         let got = eval_growth_surface(
             &[
@@ -979,7 +983,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn growth_projects_multivariate_rows_to_column_result() {
         let got = eval_growth_surface(
             &[
@@ -1008,7 +1013,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn forecast_and_forecast_linear_match_seed_lanes() {
         let forecast = eval_forecast_surface(
             &[num(3.0), row(&[1.0, 2.0]), row(&[2.0, 4.0])]
@@ -1022,7 +1028,8 @@ mod tests {
         assert_close(expect_number(forecast_linear), 1.5);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn linest_returns_single_predictor_coefficients() {
         let got = eval_linest_surface(
             &[col(&[3.0, 5.0, 7.0]), col(&[1.0, 2.0, 3.0])]
@@ -1034,7 +1041,8 @@ mod tests {
         assert_close(coeffs[1], 1.0);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn linest_without_const_keeps_trailing_zero_intercept_cell() {
         let got = eval_linest_surface(
             &[
@@ -1050,7 +1058,8 @@ mod tests {
         assert_eq!(coeffs, vec![2.0000000000000004, 0.0]);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn linest_returns_reversed_multivariate_coefficients() {
         let got = eval_linest_surface(
             &[
@@ -1071,7 +1080,8 @@ mod tests {
         assert_close(coeffs[2], 1.0);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn logest_returns_growth_factor_and_base() {
         let got = eval_logest_surface(
             &[col(&[3.0, 6.0, 12.0]), col(&[1.0, 2.0, 3.0])]
@@ -1083,7 +1093,8 @@ mod tests {
         assert_close(coeffs[1], 1.5);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn logest_without_const_keeps_trailing_one_base_cell() {
         let got = eval_logest_surface(
             &[
@@ -1098,7 +1109,8 @@ mod tests {
         assert_close(coeffs[1], 1.0);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn logest_returns_reversed_multivariate_factors() {
         let got = eval_logest_surface(
             &[
@@ -1119,7 +1131,8 @@ mod tests {
         assert_close(coeffs[2], 2.01941161117829);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn scalar_new_x_returns_scalar_trend_result() {
         let got = eval_trend_surface(
             &[col(&[2.0, 4.0, 6.0]), col(&[1.0, 2.0, 3.0]), num(4.0)]
@@ -1127,7 +1140,8 @@ mod tests {
         .unwrap();
         assert_close(expect_number(got), 8.0);
     }
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_projects_matrix_shape_for_single_predictor_new_x() {
         let got = eval_trend_surface(
             &[
@@ -1149,7 +1163,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn trend_projects_multivariate_rows_to_column_result() {
         let got = eval_trend_surface(
             &[

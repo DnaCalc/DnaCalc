@@ -21,12 +21,14 @@ pub fn sinh_kernel(n: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sinh_kernel_matches_std() {
         assert_eq!(sinh_kernel(1.0), 1.0f64.sinh());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sinh_matches_live_excel_expm1_pair_pins() {
         // Live Excel 16.0 b20326 Range.Value2 SINH bits.
         let pins = [
@@ -76,6 +78,7 @@ mod tests {
     /// The libm misses are those of the MSVC runtime's `sinh`: glibc's `sinh` returns Excel's
     /// bits at 0.01 (Linux sweep, dc-ns0), so `f64::sinh` is no witness on other targets.
     #[cfg(target_env = "msvc")]
+    /// Native-only: the MSVC runtime's libm is its witness, so it runs on Windows only.
     #[test]
     fn sinh_differs_from_the_msvc_libm_where_excel_does() {
         assert_ne!(sinh_kernel(0.01).to_bits(), 0.01_f64.sinh().to_bits());
@@ -83,7 +86,8 @@ mod tests {
     }
 
     // BUG-FUNC-027 CLASS-A3: live Excel 16.0 b20026 SINH(-326648.33)=#NUM!.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sinh_overflow_maps_to_num() {
         assert_eq!(
             ExcelRealPolicy::FINITE

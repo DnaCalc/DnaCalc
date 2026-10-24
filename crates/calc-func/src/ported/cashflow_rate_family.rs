@@ -725,7 +725,8 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn irr_values_collection_matches_excel_skip_and_error_rules() {
         use crate::value::ExcelText;
         let col = |cells: Vec<CalcValue>| {
@@ -788,7 +789,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn irr_exactness_witness_matches_excel_target() {
         let actual = irr_kernel(&[-10000.0, 3000.0, 4200.0, 6800.0], None).expect("irr witness");
         let prior_local = 0.1634056006889894_f64;
@@ -798,13 +800,15 @@ mod tests {
         assert_ne!(actual.to_bits(), prior_local.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn irr_matches_simple_two_cashflow_identity() {
         let got = irr_kernel(&[-100.0, 121.0], None).unwrap();
         assert_close(got, 0.21);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn irr_representable_root_is_bit_exact_after_polish() {
         // G6 solver substrate: IRR({1,-2}) has the exact representable root 1.0.
         // The gentle NPV slope left the pre-polish seed ~114720 ULP short (|NPV|<1e-8
@@ -814,7 +818,8 @@ mod tests {
         assert_bits(irr_kernel(&[1.0, -2.0], None).unwrap(), 1.0);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_matches_one_year_discount_identity() {
         let got = xnpv_kernel(0.1, &[-100.0, 121.0], &[45000, 45365]).unwrap();
         assert_close(got, 10.0);
@@ -827,6 +832,7 @@ mod tests {
     /// the forward per-step-stored x87 accumulation loop. The broader
     /// 1,530-row live sweep is replayed by
     /// `calc_graph_racer verify_xnpv_promotion` over the oracle cache.
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn xnpv_matches_live_excel_pinned_witnesses() {
         struct Pin {
@@ -917,13 +923,15 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_matches_simple_one_year_identity() {
         let got = xirr_kernel(&[-100.0, 121.0], &[45000, 45365], None).unwrap();
         assert_close(got, 0.21);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_simple_positive_root_matches_exact_excel_publication_witnesses() {
         assert_close(
             xirr_kernel(&[-100.0, 121.0], &[45000, 45365], None).unwrap(),
@@ -935,7 +943,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_rejects_dates_before_anchor() {
         assert_eq!(
             xnpv_kernel(0.1, &[-100.0, 121.0], &[45000, 44999]),
@@ -943,7 +952,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_requires_sign_change() {
         assert_eq!(
             xirr_kernel(&[100.0, 121.0], &[45000, 45365], None),
@@ -951,7 +961,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_finds_negative_root_when_it_is_the_only_root() {
         let got = xirr_kernel(
             &[206_101_714.849_377, -156_650_972.542_65],
@@ -962,7 +973,8 @@ mod tests {
         assert_close(got, -0.960_452_189_296_483_9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_negative_guess_does_not_jump_to_positive_root_only_domain() {
         assert_eq!(
             xirr_kernel(
@@ -974,7 +986,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_two_cashflow_positive_root_matches_excel_guess_matrix() {
         let values = [15_108_163.384_092_3, -75_382_259.662_842_4];
         let dates = [36585, 36616];
@@ -994,7 +1007,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_general_positive_root_matches_excel_guess_matrix() {
         let values = [-10_000.0, 2_750.0, 4_250.0, 3_250.0, 2_750.0];
         let dates = [44927, 45108, 45292, 45473, 45658];
@@ -1018,7 +1032,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xirr_general_positive_root_matches_widened_excel_value2_matrix() {
         let cases: &[(&[f64], &[i64], f64, f64, &str)] = &[
             (
@@ -1197,7 +1212,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_rejects_length_mismatch() {
         assert_eq!(
             xnpv_kernel(0.1, &[-100.0, 121.0], &[45000]),
@@ -1207,21 +1223,24 @@ mod tests {
 
     // Live Excel 16.0 probe: =XNPV(0.1,{100,200},{45000,45100}) → 294.8451203808644
     // Verifies that XNPV no longer requires a sign change (all-positive series).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_live_excel_probe_all_positive_two_cashflows() {
         let got = xnpv_kernel(0.1, &[100.0, 200.0], &[45000, 45100]).unwrap();
         assert_bits(got, 294.8451203808644_f64);
     }
 
     // XNPV of a single cashflow at the anchor date equals that cashflow (rate has no effect).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_single_element_equals_anchor_cashflow() {
         let got = xnpv_kernel(0.1, &[500.0], &[45000]).unwrap();
         assert_bits(got, 500.0_f64);
     }
 
     // All-negative series: pure discounting still works (no sign-change requirement).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_all_negative_series_accepted() {
         // −100 at anchor + −110 one year later at 10% discount: −100 + −110/1.1 = −200
         let got = xnpv_kernel(0.1, &[-100.0, -110.0], &[45000, 45365]).unwrap();

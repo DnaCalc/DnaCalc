@@ -67,13 +67,15 @@ pub fn acoth_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acoth_kernel_rejects_abs_one() {
         assert_eq!(acoth_kernel(1.0), Err(WorksheetErrorCode::Num));
         assert_eq!(acoth_kernel(-1.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acoth_just_above_one_is_finite_matching_excel() {
         // BUG-FUNC-027 C5: the "Excel #NUM!" near-1 witness was a formula-literal
         // artifact (the parser rounded 1+ULP down to 1.0). With the exact input
@@ -87,7 +89,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acoth_large_and_negative_args_bit_exact() {
         // BUG-FUNC-027 C5: the direct ratio form loses the reciprocal tail for
         // large |x|. W109 identified Excel's far-field inverse-power series.
@@ -108,7 +111,8 @@ mod tests {
     }
 
     /// W109: pinned witnesses for both identified calculation graphs.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acoth_two_regime_matches_live_excel_pinned_witnesses() {
         assert_eq!(acoth_kernel(2.0).unwrap().to_bits(), 0x3fe1_93ea_7aad_030b); // ratio branch
         assert_eq!(acoth_kernel(20.0).unwrap().to_bits(), 0x3fa9_9f11_cd5f_7091); // series branch
@@ -118,7 +122,8 @@ mod tests {
         ); // odd
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acoth_switch_and_series_staging_match_live_excel() {
         // Last ratio-only discriminator and first series-only discriminator.
         assert_eq!(
@@ -145,7 +150,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acoth_reciprocal_flush_publishes_positive_zero_for_both_signs() {
         let magnitude = f64::from_bits(0x7fd1_7e73_a05c_2b97);
         assert_eq!(acoth_kernel(magnitude).unwrap().to_bits(), 0);

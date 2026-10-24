@@ -30,7 +30,8 @@ pub fn asinh_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn asinh_kernel_matches_worksheet_ln_identity() {
         for x in [0.0_f64, 1e-10, 0.5, 1.0, -1.0, 2.0, 10.0] {
             let a = x.abs();
@@ -43,7 +44,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn asinh_kernel_matches_pinned_excel_publication_on_disputed_rows() {
         assert_eq!(asinh_kernel(1.0), Ok(0.8813735870195429));
         assert_eq!(asinh_kernel(-1.0), Ok(-0.8813735870195429));
@@ -57,7 +59,8 @@ mod tests {
     /// overflows. Probed live against Excel 16.0 build 20026 (.tmp/asinh-sqrtpi-oracle4.ps1):
     /// Excel returns finite at and below `0x5fefffffffffffff` and `#NUM!` at and above
     /// `0x5ff0000000000000`, on both signs. OxFunc must flip at the SAME input.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn asinh_kernel_matches_excel_num_on_internal_x_squared_overflow() {
         // Last finite input (|x| = sqrt(f64::MAX)); `x*x` is finite (== f64::MAX).
         let last_finite = f64::from_bits(0x5fef_ffff_ffff_ffff);

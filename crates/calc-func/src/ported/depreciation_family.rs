@@ -485,7 +485,8 @@ mod tests {
         CalcValue::text(ExcelText::from_utf16_code_units(s.encode_utf16().collect()))
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sln_and_syd_match_support_examples() {
         assert_eq!(sln_kernel(30000.0, 7500.0, 10.0), Ok(2250.0));
         match syd_kernel(30000.0, 7500.0, 10.0, 1.0).unwrap() {
@@ -496,7 +497,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn db_matches_support_examples() {
         assert!(
             (db_kernel(1_000_000.0, 100_000.0, 6.0, 1.0, 7.0).unwrap() - 186083.33333333334).abs()
@@ -512,7 +514,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ddb_and_vdb_match_seeded_examples() {
         assert_eq!(ddb_kernel(2400.0, 300.0, 10.0, 1.0, 2.0), Ok(480.0));
         assert_eq!(ddb_kernel(2400.0, 300.0, 10.0, 2.0, 2.0), Ok(384.0));
@@ -542,7 +545,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn no_switch_flag_seed_lane_is_currently_equal() {
         let switched = vdb_kernel(2400.0, 300.0, 10.0, 6.0, 8.0, 2.0, false).unwrap();
         let pure_declining = vdb_kernel(2400.0, 300.0, 10.0, 6.0, 8.0, 2.0, true).unwrap();

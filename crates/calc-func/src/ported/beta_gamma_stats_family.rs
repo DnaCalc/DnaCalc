@@ -170,7 +170,8 @@ mod tests {
     use super::*;
 
     // BUG-FUNC-039 item 3: GAMMA.INV p=0 and p=1 boundary cases.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_inv_boundary_cases() {
         // p=0 -> 0 (Excel: GAMMA.INV(0,..) returns the support lower bound; live
         // Excel 16.0 build 20026 GAMMA.INV(0,3,2)=0).
@@ -193,7 +194,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gamma_dist_half_shape_scale_two_matches_erf_sqrt_half_x() {
         use crate::ported::special_dist_family::erf_precise_kernel;
         for (x, beta) in [

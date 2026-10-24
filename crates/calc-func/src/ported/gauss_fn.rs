@@ -12,7 +12,8 @@ pub fn gauss_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gauss_matches_exact_excel_value_witness() {
         let got = gauss_kernel(1.0).unwrap();
         assert!(
@@ -21,7 +22,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gauss_wrapper_pins_live_excel_20228() {
         // Live Excel 16.0 b20228 Value2. GAUSS(1) is bit-exact through the
         // G-F3 complement path even while the ERFC body is 1 ULP high at

@@ -9,13 +9,15 @@ pub fn degrees_kernel(n: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn degrees_kernel_maps_pi_to_180() {
         assert_eq!(degrees_kernel(std::f64::consts::PI), 180.0);
     }
 
     // BUG-FUNC-027 / oxf-vgxs: live Excel DEGREES(1E307)=#NUM! (overflow guard on surface).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn degrees_overflow_maps_to_num() {
         assert_eq!(
             ExcelRealPolicy::FINITE

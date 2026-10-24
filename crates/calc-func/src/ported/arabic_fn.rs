@@ -41,7 +41,8 @@ mod tests {
         ExcelText::from_utf16_code_units(s.encode_utf16().collect())
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn arabic_kernel_matches_excel_seed_rows() {
         assert_eq!(arabic_kernel(&txt("LVII")), Ok(57.0));
         assert_eq!(arabic_kernel(&txt("mcmxii")), Ok(1912.0));

@@ -270,7 +270,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cumipmt_matches_microsoft_seed_rows() {
         let rate = 0.09 / 12.0;
         let periods = 30.0 * 12.0;
@@ -287,7 +288,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cumprinc_matches_microsoft_seed_rows() {
         let rate = 0.09 / 12.0;
         let periods = 30.0 * 12.0;
@@ -304,7 +306,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cumulative_interest_and_principal_partition_total_payment() {
         let rate = 0.09 / 12.0;
         let periods = 30.0 * 12.0;
@@ -318,7 +321,8 @@ mod tests {
         assert_close(interest + principal, payment * 12.0, 1.0e-8);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn type_one_has_zero_interest_in_first_period() {
         let rate = 0.09 / 12.0;
         let periods = 30.0 * 12.0;
@@ -333,7 +337,8 @@ mod tests {
     // BUG-FUNC-034: annuity-due (type=1) interest for ranges touching per>=2 must
     // subtract the beginning-of-period payment. Closed-form pins are derived from
     // the corrected per-period formula; fixed-pending Excel bit-pinning.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn type_one_range_witness_candidates_pending_excel_bit_pinning() {
         let rate = 0.09 / 12.0;
         let periods = 360.0;
@@ -372,7 +377,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn type_one_interest_and_principal_partition_total_payment() {
         let rate = 0.09 / 12.0;
         let periods = 360.0;
@@ -385,7 +391,8 @@ mod tests {
         assert_close(interest + principal, payment * 2.0, 1.0e-8);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn invalid_type_is_num_error() {
         assert_eq!(
             cumipmt_kernel(0.09 / 12.0, 360.0, 125000.0, 1.0, 1.0, 2.0),
@@ -393,7 +400,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn period_arguments_truncate_toward_zero() {
         let exact = cumipmt_kernel(0.09 / 12.0, 360.8, 125000.0, 13.9, 24.9, 0.0)
             .expect("truncated periods should succeed");
@@ -402,7 +410,8 @@ mod tests {
         assert_close(exact, seeded, 1.0e-8);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cumipmt_and_cumprinc_exactness_witness_rows_match_excel_targets() {
         // W108 Bead C: CUMIPMT is now the direct sum of IPMT (CR core), and matches
         // live Excel (CUMIPMT-0003) bit-for-bit at 0xc0c3667e7f577146.

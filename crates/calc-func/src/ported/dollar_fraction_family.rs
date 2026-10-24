@@ -87,7 +87,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dollarde_kernel_matches_native_seed_rows() {
         assert_close(dollarde_kernel(1.02, 16.0).unwrap(), 1.125);
         assert_close(dollarde_kernel(1.02, 8.0).unwrap(), 1.025);
@@ -101,7 +102,8 @@ mod tests {
     /// W111-5 G8-01 live Excel 20430 bits: the decimal scale is 10^ceil(log10(d)), so a
     /// power-of-ten or unit denominator leaves the number unchanged, and a huge denominator
     /// must not saturate.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dollarde_power_of_ten_and_huge_denominators_match_excel_bits() {
         let b = |h: u64| f64::from_bits(h);
         for (number, fraction) in [
@@ -117,7 +119,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn dollarfr_kernel_matches_native_seed_rows() {
         assert_close(dollarfr_kernel(1.125, 16.0).unwrap(), 1.02);
         assert_close(dollarfr_kernel(1.125, 8.0).unwrap(), 1.1);

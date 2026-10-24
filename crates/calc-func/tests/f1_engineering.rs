@@ -8,7 +8,8 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{NA, Num, Value};
 use f1_support::*;
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn radix_conversions() {
     exact(call("BIN2DEC", vec![t("1100100")]), 100.0);
     exact(call("BIN2DEC", vec![t("1111111111")]), -1.0);
@@ -27,7 +28,8 @@ fn radix_conversions() {
     error(call("BIN2DEC", vec![t("102")]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bit_functions() {
     exact(call("BITAND", vec![n(13.0), n(25.0)]), 9.0);
     exact(call("BITOR", vec![n(23.0), n(10.0)]), 31.0);
@@ -38,7 +40,8 @@ fn bit_functions() {
     error(call("BITAND", vec![n(-1.0), n(1.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn complex_numbers() {
     text(call("COMPLEX", vec![n(3.0), n(4.0)]), "3+4i");
     text(call("COMPLEX", vec![n(3.0), n(4.0), t("j")]), "3+4j");
@@ -58,7 +61,8 @@ fn complex_numbers() {
     error(call("IMSUM", vec![t("1+i"), t("1+j")]), Value);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn bessel_functions() {
     // OxFunc's seed row for BESSELJ(1.9,2) is 0.329925829, which its kernel reproduces; the
     // documented example (0.329925728) is the mathematical value to nine digits.
@@ -69,7 +73,8 @@ fn bessel_functions() {
     error(call("BESSELJ", vec![n(1.9), n(-1.0)]), Num);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delta_gestep_and_convert() {
     exact(call("DELTA", vec![n(5.0), n(4.0)]), 0.0);
     exact(call("DELTA", vec![n(5.0), n(5.0)]), 1.0);

@@ -28,7 +28,8 @@ pub fn sqrtpi_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sqrtpi_kernel_negative_is_num() {
         assert_eq!(sqrtpi_kernel(-1.0), Err(WorksheetErrorCode::Num));
     }
@@ -39,7 +40,8 @@ mod tests {
     /// (`0x7fd45f306dc9c883`) overflows. Probed live against Excel 16.0 build 20026
     /// (.tmp/asinh-sqrtpi-oracle4.ps1): Excel returns finite at and below `0x7fd45f306dc9c882`
     /// and `#NUM!` at and above `0x7fd45f306dc9c883`. OxFunc must flip at the SAME input.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sqrtpi_kernel_matches_excel_num_on_internal_n_pi_overflow() {
         // Last finite input (n*π == f64::MAX, finite). Excel publishes 0x5ff0000000000000 here
         // via its `(n·π)^0.5` pow path; `powf(0.5)` matches it bit-exactly, where IEEE `sqrt`
@@ -86,6 +88,7 @@ mod tests {
     /// 0x5fefffffffffffff (Linux sweep, dc-ns0), so off MSVC this kernel is one ULP from Excel at
     /// this input; dc-sbo owns a portable form of Excel's `pow`.
     #[cfg(target_env = "msvc")]
+    /// Native-only: Excel's bits here are the MSVC runtime's pow; off Windows they wait for dc-sbo.
     #[test]
     fn sqrtpi_kernel_matches_excel_bits_at_the_last_finite_input() {
         let last_finite = f64::from_bits(0x7fd4_5f30_6dc9_c882);

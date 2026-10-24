@@ -43,7 +43,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn permutationa_kernel_matches_excel_lanes() {
         assert_eq!(permutationa_kernel(3.0, 2.0), Ok(9.0));
         assert_eq!(permutationa_kernel(3.9, 2.1), Ok(9.0));
@@ -57,7 +58,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn permutationa_exact_publication_controls_remain_exact() {
         assert_bits(
             permutationa_kernel(3.0, 2.0).expect("permutationa(3,2)"),

@@ -671,7 +671,8 @@ mod tests {
     const V: Result<f64, Unread> = Err(Unread::Rejected);
 
     /// Every row is Excel's VALUE of the text on this machine (16.0.20430, en-ZA), read ad hoc.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn value_reads_as_excel_did() {
         let rows: &[(&str, Result<f64, Unread>)] = &[
             ("12", Ok(12.0)),
@@ -809,7 +810,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_date_without_a_year_needs_a_clock() {
         let profile = format_profile(LocaleId::CurrentExcelHost);
         let context = ReadContext {

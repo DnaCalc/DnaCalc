@@ -14,7 +14,8 @@ pub fn phi_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn phi_matches_exact_excel_value_witness() {
         let got = phi_kernel(0.0).unwrap();
         assert!(

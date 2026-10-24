@@ -187,7 +187,8 @@ mod tests {
         assert_eq!(inverse[row][col].to_bits(), expected_bits);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn minverse_full_x87_publication_graph_exact_pins() {
         // One fresh build-20228/CV2 NoCache discriminator per arithmetic site,
         // followed by the independently selected +0 publication witness.

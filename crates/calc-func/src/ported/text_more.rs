@@ -736,7 +736,8 @@ mod tests {
         ExcelText::from_interop_assignment(s)
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn regex_slice_matches_and_refuses_the_rest() {
         let (h, m) = regex_matches("ab12cd345", "[0-9]+", true, false).unwrap();
         let found: Vec<String> = m.iter().map(|&(s, e)| h[s..e].iter().collect()).collect();
@@ -746,7 +747,8 @@ mod tests {
         assert!(regex_matches("ABC", "b", false, true).unwrap().1.len() == 1);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn delimiters_before_and_after() {
         let text = t("a-b-c");
         let dash = [t("-")];

@@ -433,7 +433,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yearfrac_us30_360_same_month_forward_range_is_non_negative() {
         let start = serial(2024, 1, 15);
         let end = serial(2024, 1, 31);
@@ -449,7 +450,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn days360_us_rolls_end_day_31_into_next_month() {
         assert_eq!(
             days360_us(serial(2023, 11, 15) as i64, serial(2024, 1, 31) as i64),
@@ -459,7 +461,8 @@ mod tests {
 
     /// W111-5 G8-05, live Excel 20430: basis 1 is Excel's actual/actual rule (not the ISDA
     /// split); the multi-year average uses the real calendar; negative serials are #NUM!.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yearfrac_basis_one_follows_excel_actual_actual() {
         // within a year, span ends on a Feb 29: 314 / 366
         assert_eq!(yearfrac_kernel(71335.0, 71649.0, Some(1.0)).unwrap(), 314.0 / 366.0);
@@ -480,7 +483,8 @@ mod tests {
         ));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yearfrac_matches_microsoft_examples() {
         let start = serial(2012, 1, 1);
         let end = serial(2012, 7, 30);
@@ -501,7 +505,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn yearfrac_is_nonnegative_and_order_independent() {
         // Excel YEARFRAC is always non-negative: reversing the date order
         // yields the same positive fraction (verified vs Excel, run yf-rev-001:
@@ -518,7 +523,8 @@ mod tests {
         assert_close(forward, 0.5765027322404371, 1.0e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pricedisc_matches_microsoft_example() {
         let got = pricedisc_kernel(
             serial(2008, 2, 16),
@@ -531,7 +537,8 @@ mod tests {
         assert_close(got, 99.795_833_333_333_33, 1.0e-10);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn intrate_matches_microsoft_example() {
         let got = intrate_kernel(
             serial(2008, 2, 15),
@@ -544,7 +551,8 @@ mod tests {
         assert_close(got, 0.057_68, 1.0e-5);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn received_matches_microsoft_example() {
         let got = received_kernel(
             serial(2008, 2, 15),
@@ -557,7 +565,8 @@ mod tests {
         assert_close(got, 1_014_584.654_407_102, 1.0e-6);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tbill_functions_match_microsoft_examples() {
         let settlement = serial(2008, 3, 31);
         let maturity = serial(2008, 6, 1);
@@ -581,7 +590,8 @@ mod tests {
     /// W111-5 G8-02/G8-03, live Excel 20430 bits: the long-bill (> 182 days) TBILLEQ branch,
     /// the 366-day year for a 366-day bill, the DATE-rollover one-year limit, and TBILLPRICE's
     /// #NUM! for a non-positive price.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tbill_long_bills_and_one_year_limit_match_excel() {
         let b = f64::from_bits;
         // 365-day bill, long-bill quadratic
@@ -598,7 +608,8 @@ mod tests {
         assert!(tbillprice_kernel(serial(2020, 1, 1), serial(2020, 12, 1), 2.0).is_err());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tbillyield_groups_day_scale_like_excel() {
         let actual = tbillyield_kernel(36526.0, 36533.0, 98.45).unwrap();
         let excel = f64::from_bits(0x3fe9_e901_8124_6c32);
@@ -608,7 +619,8 @@ mod tests {
         assert_eq!(prior_left_associative.to_bits(), 0x3fe9_e901_8124_6c31);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn disc_round_trips_pricedisc_in_bounded_slice() {
         let settlement = serial(2008, 2, 16);
         let maturity = serial(2008, 3, 1);
@@ -617,7 +629,8 @@ mod tests {
         assert_close(recovered, 0.0525, 1.0e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn disc_exactness_witness_matches_excel_target_and_fraction_is_unity() {
         let settlement = 44927.0_f64;
         let maturity = 45292.0_f64;
@@ -631,7 +644,8 @@ mod tests {
         assert_ne!(actual.to_bits(), prior_local.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tbill_rejects_maturities_more_than_one_calendar_year_out() {
         assert_eq!(
             tbillprice_kernel(serial(2024, 1, 1), serial(2025, 1, 2), 0.05),
@@ -641,7 +655,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn invalid_basis_is_num_error() {
         assert_eq!(
             yearfrac_kernel(serial(2012, 1, 1), serial(2012, 7, 30), Some(9.0)),

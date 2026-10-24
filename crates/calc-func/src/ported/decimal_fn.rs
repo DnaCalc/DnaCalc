@@ -39,7 +39,8 @@ pub fn decimal_kernel(text: &str, radix: f64) -> Result<f64, WorksheetErrorCode>
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn decimal_kernel_matches_excel_seed_rows() {
         assert_eq!(decimal_kernel("FF", 16.0), Ok(255.0));
         assert_eq!(decimal_kernel("111", 2.0), Ok(7.0));
