@@ -270,7 +270,8 @@ mod tests {
     use super::*;
     use calc_fml::assist::complete;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_popup_opens_moves_wraps_and_accepts() {
         let mut popup = Popup::default();
         popup.sync(complete("=SU", 3), None);
@@ -302,7 +303,8 @@ mod tests {
         assert_eq!(popup.accept("=SUM"), None);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_dismissed_popup_stays_hidden_until_the_prefix_changes() {
         let mut popup = Popup::default();
         popup.sync(complete("=SU", 3), Some("SU"));
@@ -315,7 +317,8 @@ mod tests {
         assert!(!popup.is_open());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn calls_insert_at_the_selection_and_functions_filter() {
         assert_eq!(insert_call("", 0, 0, "SUM"), ("=SUM(".to_owned(), 5));
         assert_eq!(insert_call("=1+", 3, 3, "PI"), ("=1+PI(".to_owned(), 6));
@@ -339,7 +342,8 @@ mod tests {
         assert!(browse("zzzqqq").is_empty());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn popup_keys() {
         assert_eq!(popup_key("ArrowDown"), Some(PopupKey::Next));
         assert_eq!(popup_key("ArrowUp"), Some(PopupKey::Previous));
@@ -350,7 +354,8 @@ mod tests {
     }
 
     // DnaOneCalc's bracket matcher cases, unchanged.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn brackets_match_at_and_after_the_caret() {
         let text = "=SUM(1,2)";
         for caret in [4, 8, 9] {

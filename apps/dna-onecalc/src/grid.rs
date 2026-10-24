@@ -124,7 +124,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn entries_read_as_excel_reads_typed_constants() {
         assert_eq!(entry(""), Entry::Blank);
         assert_eq!(entry("   "), Entry::Blank);
@@ -159,7 +160,8 @@ mod tests {
         assert!(matches!(entry("1e400"), Entry::Refused(_)));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn addresses() {
         assert_eq!(address(1, 1), "A1");
         assert_eq!(address(12, 8), "H12");

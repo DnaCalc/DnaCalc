@@ -282,7 +282,8 @@ mod tests {
         .expect("a rectangular array")
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn values_and_arrays_project_with_their_types() {
         let array = CalcArray::from_rows(vec![
             vec![CalcValue::number(1.0), CalcValue::logical(true)],
@@ -334,7 +335,8 @@ mod tests {
         assert_eq!(ResultView::of(&none, None), ResultView::NotCalculated);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn numbers_show_as_a_cell_shows_them_with_the_exact_decimal_beside() {
         let profile = FormatProfile::for_culture("en-US").expect("en-US");
         let view = |value: f64| {
@@ -379,7 +381,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn array_windows_stay_bounded() {
         let large = numbers(100, 100);
         let first = first_window(&large, None);
