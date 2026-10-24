@@ -3296,9 +3296,17 @@ fn cdoc_m0_1__no_engine_dependency() {
         .iter()
         .map(|(name, _)| name.as_str())
         .collect();
+    // wasm-bindgen and wasm-bindgen-test are wasm32-only dev-dependencies: they run
+    // calc-doc-model's unit tests in the browsers (dc-msg). The closure below follows them too.
     assert_eq!(
         direct,
-        BTreeSet::from(["calc-value", "serde", "serde_json"]),
+        BTreeSet::from([
+            "calc-value",
+            "serde",
+            "serde_json",
+            "wasm-bindgen",
+            "wasm-bindgen-test"
+        ]),
         "calc-doc-model's direct edges in Cargo.lock"
     );
     let closure = lock_closure(&packages, "calc-doc-model");

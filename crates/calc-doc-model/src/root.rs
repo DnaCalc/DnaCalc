@@ -754,7 +754,8 @@ mod tests {
     /// the root's sheet, rectangle and cell reads equal the map's, every page is non-empty and
     /// holds only cells of its block, and every page whose cells did not change is the old
     /// root's allocation.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn pages_match_an_ordered_map_under_random_batches() {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let sheets: Vec<SheetId> = (0..2).map(|_| ids.issue().expect("an ID")).collect();
@@ -868,7 +869,8 @@ mod tests {
     /// A root built with its cells holds the same pages as one made by applying them to an empty
     /// root, at the revision it was given; a later input for a cell replaces an earlier one, and
     /// a cell on a sheet the root does not hold is refused.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn with_cells_matches_apply() {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         let sheets: Vec<SheetId> = (0..3).map(|_| ids.issue().expect("an ID")).collect();

@@ -151,6 +151,8 @@ dependencies = [
  "calc-value",
  "serde",
  "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]
