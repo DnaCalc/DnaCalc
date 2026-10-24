@@ -3,6 +3,11 @@
 //! deliberately wrong, a function no catalogue holds and a reader of it (the table in
 //! `dc_kt3l.rs`). The acceptance cases and `cargo xtask compare`'s unit tests (`src/compare.rs`)
 //! build their workbooks with it.
+//!
+//! The package is a macro-enabled workbook (its workbook part has the `macroEnabled` content type,
+//! and it holds no VBA project): in such a workbook a VBA function could hold any name, so CalcFml
+//! refuses a call of a name no function or defined name holds instead of giving #NAME?, and B1
+//! stays a function-missing root. Excel gives #NAME? there, as no VBA project defines the name.
 
 // Each includer uses part of it.
 #![allow(dead_code)]
@@ -98,7 +103,7 @@ pub fn calc_sheet(extra: &str) -> String {
 /// The package with sheets Inputs (`inputs`) and Calc (`calc`), in that order, and the workbook
 /// part's `workbook_pr` (a `workbookPr` element, or nothing) before its sheets.
 pub fn package_with(inputs: &str, calc: &str, workbook_pr: &str) -> Vec<u8> {
-    let content_types = r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"#;
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"#;
     let relationships = format!(
         r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{RELATIONSHIPS}"><Relationship Id="rId1" Type="{OFFICE_DOCUMENT}" Target="xl/workbook.xml"/></Relationships>"#
     );
