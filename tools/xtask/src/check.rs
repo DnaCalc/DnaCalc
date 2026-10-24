@@ -1,6 +1,9 @@
 //! `cargo xtask check [--wasm]`: the per-commit check on this host.
 //!
-//! It builds the workspace (`cargo build --workspace`), then runs `cargo test -p <package>` for
+//! It first runs the five architecture checks `cargo xtask accept` runs (`arch::run_all`:
+//! dependencies, os-imports, wasm-refusal, tree-reference-tokens and word-scan), one line each
+//! with its findings, so a lane sees a layering, portability or wording finding before it pushes.
+//! Then it builds the workspace (`cargo build --workspace`), then runs `cargo test -p <package>` for
 //! every workspace member, one after the other, and prints one line per package: `passed` with
 //! the test count, `zero tests` when its harnesses ran no test, or `failed` with the tail of its
 //! log. xtask itself runs only its binary and library unit tests (`--bins`, plus `--lib` when it
@@ -9,9 +12,11 @@
 //! under wasm-bindgen-test-runner in headless Chrome and Firefox (`ci.rs`).
 //!
 //! Every cargo it starts uses `target/xtask-accept`, like `accept` and `ci`, so it never rebuilds
-//! the running xtask binary. Logs go to `target/check/<package>.log`. The exit code is 1 when the
-//! build, any package or the wasm run failed, 2 for a usage error, and 0 otherwise.
+//! the running xtask binary. Logs go to `target/check/<package>.log` (the architecture checks' cargo
+//! logs to `target/check/arch/`). The exit code is 1 when an architecture check, the build, any
+//! package or the wasm run failed, 2 for a usage error, and 0 otherwise.
 
+use crate::arch;
 use crate::cargo::{self, Member, Workspace};
 use crate::ci;
 use std::fs;
@@ -145,6 +150,25 @@ pub fn run(raw: &[String]) -> ExitCode {
         return ExitCode::from(1);
     }
 
+    let mut failed: Vec<String> = Vec::new();
+    println!("CHECK running the architecture checks");
+    let checks = arch::run_all(&ws, &log_dir.join("arch"));
+    let architecture = checks.len();
+    for check in checks {
+        println!(
+            "CHECK {} architecture {}: {}",
+            if check.passed { "passed" } else { "failed" },
+            check.name,
+            check.summary
+        );
+        for finding in &check.findings {
+            println!("  {finding}");
+        }
+        if !check.passed {
+            failed.push(format!("architecture {}", check.name));
+        }
+    }
+
     println!("CHECK running cargo build --workspace");
     let build_log = log_dir.join("build.log");
     let mut build = cargo_command(&ws, "build");
@@ -154,7 +178,8 @@ pub fn run(raw: &[String]) -> ExitCode {
         Ok((code, text)) => {
             println!("CHECK failed build: cargo exited with {code:?}");
             println!("{}", tail(&text, FAILURE_TAIL));
-            println!("CHECK RESULT failed: the workspace does not build");
+            failed.push("build".to_owned());
+            println!("CHECK RESULT failed: {}", failed.join(", "));
             return ExitCode::from(1);
         }
         Err(e) => {
@@ -163,10 +188,9 @@ pub fn run(raw: &[String]) -> ExitCode {
         }
     }
 
-    let mut failed: Vec<&str> = Vec::new();
     for member in &ws.members {
         if check_package(&ws, member, &log_dir) {
-            failed.push(&member.name);
+            failed.push(member.name.clone());
         }
     }
 
@@ -182,7 +206,7 @@ pub fn run(raw: &[String]) -> ExitCode {
 
     if failed.is_empty() && !wasm_failed {
         println!(
-            "CHECK RESULT passed: build and {} packages{}",
+            "CHECK RESULT passed: {architecture} architecture checks, build and {} packages{}",
             ws.members.len(),
             if wasm {
                 ", and wasm in Chrome and Firefox"
@@ -192,7 +216,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         );
         ExitCode::SUCCESS
     } else {
-        let mut what: Vec<String> = failed.iter().map(|name| (*name).to_owned()).collect();
+        let mut what = failed;
         if wasm_failed {
             what.push("wasm".to_owned());
         }
