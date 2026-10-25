@@ -37,6 +37,11 @@
 //! `CalculateFullRebuild`, `CalculateFull` and the same one-cell edits (assignment and
 //! `Calculate`), and reads the instance's peak working set and peak private bytes.
 //!
+//! With `--excel-check` (bead dc-dxm) the timing worker also shows what CalculateFull calculates:
+//! on a copy of the workbook whose formula cells all cache the sentinel -987654321, it counts the
+//! cells showing the sentinel after opening, after Calculate and after CalculateFull, with
+//! multi-threaded calculation as Excel has it and switched off (and set back before Excel quits).
+//!
 //! **Load.** The machine is shared, so the command reads, before and after each workbook's runs,
 //! the processor load (`Win32_Processor.LoadPercentage`) and how many cargo, rustc and Excel
 //! processes are running, and records them beside the times.
@@ -63,7 +68,7 @@ use std::process::{Command, ExitCode};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask bench <dir> [--runs <n>] [--repeat <k>] [--out <dir>] [--cache <dir>] [--edit <workbook>=<sheet>!<cell>]... [--excel] [--no-dna] [--timeout <s>]";
+pub const USAGE: &str = "usage: cargo xtask bench <dir> [--runs <n>] [--repeat <k>] [--out <dir>] [--cache <dir>] [--edit <workbook>=<sheet>!<cell>]... [--excel] [--excel-check] [--no-dna] [--timeout <s>]";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -83,6 +88,7 @@ struct Args {
     cache: PathBuf,
     edits: Vec<(String, String)>,
     excel: bool,
+    excel_check: bool,
     dna: bool,
     timeout: Duration,
 }
@@ -98,6 +104,7 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
         cache: PathBuf::from(DEFAULT_CACHE),
         edits: Vec::new(),
         excel: false,
+        excel_check: false,
         dna: true,
         timeout: Duration::from_secs(DEFAULT_TIMEOUT_S),
     };
@@ -117,6 +124,10 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
         };
         match arg.as_str() {
             "--excel" => parsed.excel = true,
+            "--excel-check" => {
+                parsed.excel = true;
+                parsed.excel_check = true;
+            }
             "--no-dna" => parsed.dna = false,
             "--runs" => once(&mut runs, "--runs", value("--runs")?)?,
             "--repeat" => once(&mut repeat, "--repeat", value("--repeat")?)?,
@@ -612,6 +623,7 @@ fn excel_timing(args: &Args, entry: &Entry, edit: Option<&str>) -> Value {
         work_dir,
         runs: args.runs,
         edit,
+        check_full: args.excel_check,
         timeout: args.timeout,
     }) {
         Ok(outcome) => {
@@ -752,6 +764,23 @@ fn markdown(run: &Value, workbooks: &[Value]) -> String {
             cell(&get("full_evaluate_gcycles"), 1.0, 3),
             cell(&get("edit_gcycles"), 1.0, 4),
         ));
+    }
+    out.push_str("\n## Excel: what CalculateFull calculates (--excel-check)\n\nA copy of the workbook with every formula cell's cached value set to -987654321 is opened; the cells showing it are counted after opening, after Calculate and after CalculateFull. 0 after CalculateFull: every formula cell was calculated in the time measured.\n\n| Workbook | Multi-threaded | Threads | Showing after open | Calculate s | After Calculate | CalculateFull s | After CalculateFull | CalculateFull again s |\n|---|---|---|---|---|---|---|---|---|\n");
+    for workbook in workbooks {
+        for check in workbook["excel"]["check"].as_array().into_iter().flatten() {
+            out.push_str(&format!(
+                "| {} | {} | {} | {} | {:.3} | {} | {:.3} | {} | {:.3} |\n",
+                workbook["name"].as_str().unwrap_or("?"),
+                check["multithreaded"],
+                check["thread_count"],
+                check["sentinels_opened"],
+                check["calculate_s"].as_f64().unwrap_or(f64::NAN),
+                check["sentinels_after_calculate"],
+                check["full_s"].as_f64().unwrap_or(f64::NAN),
+                check["sentinels_after_full"],
+                check["full_again_s"].as_f64().unwrap_or(f64::NAN),
+            ));
+        }
     }
     out.push_str("\n## Load and failures\n\n");
     for workbook in workbooks {
