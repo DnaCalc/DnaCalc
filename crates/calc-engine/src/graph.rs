@@ -339,10 +339,10 @@ struct SpanEdge {
 /// span edges are kept once each and resolved against the snapshot's sheet order.
 #[derive(Debug, Default)]
 pub(crate) struct ReverseIndex {
-    cells: BTreeMap<CellKey, BTreeSet<NodeId>>,
+    cells: BTreeMap<CellKey, NodeSet>,
     /// Each block's rectangles, each with the nodes that read it. A rectangle is filed in every
     /// block of its level it meets (at most four).
-    rect_blocks: BlockMap<BTreeMap<Rect, BTreeSet<NodeId>>>,
+    rect_blocks: BlockMap<BTreeMap<Rect, NodeSet>>,
     /// The levels at which a rectangle has been filed (bit `l` for level `l`), so a cell's query
     /// looks only in those; a level whose last rectangle was removed keeps its bit.
     rect_levels: u8,
@@ -588,13 +588,77 @@ fn covers(inputs: &ModelRoot, edge: &SpanEdge, sheet: SheetId) -> bool {
         .is_some_and(|members| members.iter().any(|member| member.id() == sheet))
 }
 
-fn update<K: Ord, V: Ord>(map: &mut BTreeMap<K, BTreeSet<V>>, key: K, value: V, insert: bool) {
+fn update<K: Ord, V, S: Members<V>>(map: &mut BTreeMap<K, S>, key: K, value: V, insert: bool) {
     if insert {
-        map.entry(key).or_default().insert(value);
+        map.entry(key).or_default().add(value);
     } else if let Some(values) = map.get_mut(&key) {
-        values.remove(&value);
+        values.take(&value);
         if values.is_empty() {
             map.remove(&key);
         }
+    }
+}
+
+/// A set the reverse index keeps its edges in.
+trait Members<V>: Default {
+    fn add(&mut self, value: V);
+    fn take(&mut self, value: &V);
+    fn is_empty(&self) -> bool;
+}
+
+impl<V: Ord> Members<V> for BTreeSet<V> {
+    fn add(&mut self, value: V) {
+        self.insert(value);
+    }
+
+    fn take(&mut self, value: &V) {
+        self.remove(value);
+    }
+
+    fn is_empty(&self) -> bool {
+        BTreeSet::is_empty(self)
+    }
+}
+
+/// The nodes reading one cell or one rectangle, in ID order, as a sorted Vec (dc-dxm): most cells
+/// are read by one formula or a few, which a BTreeSet holds in a node of eleven slots of its own
+/// (about 120 bytes each, for the DTC model's 196,000 cells read).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct NodeSet(Vec<NodeId>);
+
+impl NodeSet {
+    pub(crate) fn insert(&mut self, node: NodeId) {
+        if let Err(at) = self.0.binary_search(&node) {
+            self.0.insert(at, node);
+        }
+    }
+
+    pub(crate) fn iter(&self) -> std::slice::Iter<'_, NodeId> {
+        self.0.iter()
+    }
+}
+
+impl Members<NodeId> for NodeSet {
+    fn add(&mut self, value: NodeId) {
+        self.insert(value);
+    }
+
+    fn take(&mut self, value: &NodeId) {
+        if let Ok(at) = self.0.binary_search(value) {
+            self.0.remove(at);
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<'a> IntoIterator for &'a NodeSet {
+    type Item = &'a NodeId;
+    type IntoIter = std::slice::Iter<'a, NodeId>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
