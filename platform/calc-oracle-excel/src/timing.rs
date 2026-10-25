@@ -45,6 +45,9 @@ pub struct TimingRequest {
     pub runs: u32,
     /// The one-cell edit each run times, if any.
     pub edit: Option<TimedEdit>,
+    /// Whether to show what CalculateFull calculates, with multi-threaded calculation as the
+    /// instance has it and switched off (the worker's step 5, bead dc-dxm).
+    pub check_full: bool,
     /// How long the worker may run before it and its Excel are terminated.
     pub timeout: Duration,
 }
@@ -108,6 +111,7 @@ pub fn time_workbook(request: &TimingRequest) -> Result<TimingOutcome, CaptureEr
         "input": input_copy.to_string_lossy(),
         "runs": request.runs,
         "edit": edit,
+        "check_full": request.check_full,
     });
     fs::write(&request_file, worker_request.to_string())
         .map_err(|e| setup(format!("cannot write {}: {e}", request_file.display())))?;

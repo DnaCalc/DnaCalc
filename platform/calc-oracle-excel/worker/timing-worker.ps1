@@ -25,7 +25,17 @@
 #      CalculationState to read xlDone (0) inside each timed call; then closes the workbook without
 #      saving;
 #   4. reads the Excel process's peak working set and peak private bytes (PeakWorkingSet64 and
-#      PeakPagedMemorySize64 of Get-Process), quits Excel, writes the result file and prints "done".
+#      PeakPagedMemorySize64 of Get-Process);
+#   5. with the request's check_full (bead dc-dxm), shows what CalculateFull calculates: it writes a
+#      copy of the input in which every formula cell's cached value is the sentinel number
+#      -987654321 (Write-SentinelCopy), and, with multi-threaded calculation as the instance has
+#      it and then switched off, opens the copy, counts the cells showing the sentinel (every
+#      formula cell, when opening calculated nothing), times Calculate (nothing is dirty, so the
+#      count stays) and CalculateFull, and counts again: a count of 0 after CalculateFull shows it
+#      calculated every formula cell in the time measured. MultiThreadedCalculation.Enabled is
+#      an option Excel keeps in the user's profile, so the value read before is set back in a
+#      finally block before Excel quits;
+#   6. quits Excel, writes the result file and prints "done".
 #
 # Times are of a [System.Diagnostics.Stopwatch] around the one COM call, in seconds. The script is
 # ASCII and runs under Windows PowerShell 5.1.
@@ -64,6 +74,52 @@ $Output = [ordered]@{
     peak_private = $null
     runs = (New-Object System.Collections.ArrayList)
     failures = $Failures
+}
+
+$Sentinel = [double]-987654321
+
+# A copy of the package at $Path, at $Out, in which every formula cell's cached value is $Sentinel
+# (a number: any t attribute of the cell is dropped). Only worksheet parts change.
+function Write-SentinelCopy([string]$Path, [string]$Out) {
+    [System.IO.File]::Copy($Path, $Out, $true)
+    $zip = [System.IO.Compression.ZipFile]::Open($Out, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $names = @($zip.Entries | Where-Object { $_.FullName -like 'xl/worksheets/*.xml' } | ForEach-Object { $_.FullName })
+        $cell = New-Object System.Text.RegularExpressions.Regex('<c( [^>]*?)?>(<f[^>]*/>|<f[^>]*>[^<]*</f>)(<v>[^<]*</v>|<v/>)?</c>')
+        $type = New-Object System.Text.RegularExpressions.Regex(' t="[^"]*"')
+        foreach ($name in $names) {
+            $entry = $zip.GetEntry($name)
+            $reader = New-Object System.IO.StreamReader($entry.Open(), (New-Object System.Text.UTF8Encoding($false)))
+            $text = $reader.ReadToEnd()
+            $reader.Close()
+            $changed = $cell.Replace($text, [System.Text.RegularExpressions.MatchEvaluator] {
+                param($m)
+                '<c' + $type.Replace($m.Groups[1].Value, '') + '>' + $m.Groups[2].Value + '<v>-987654321</v></c>'
+            })
+            $entry.Delete()
+            $entry = $zip.CreateEntry($name)
+            $writer = New-Object System.IO.StreamWriter($entry.Open(), (New-Object System.Text.UTF8Encoding($false)))
+            $writer.Write($changed)
+            $writer.Close()
+        }
+    } finally {
+        $zip.Dispose()
+    }
+}
+
+# How many cells of the workbook's worksheets show $Sentinel, read through each used range's
+# Value2 (one call per sheet).
+function Get-SentinelCount($Workbook) {
+    $count = 0
+    foreach ($sheet in $Workbook.Worksheets) {
+        $values = Get-ComProperty (Get-ComProperty $sheet 'UsedRange') 'Value2'
+        if ($values -is [array]) {
+            foreach ($value in $values) { if ($value -is [double] -and $value -eq $Sentinel) { $count++ } }
+        } elseif ($values -is [double] -and $values -eq $Sentinel) {
+            $count++
+        }
+    }
+    return $count
 }
 
 # Calls $Action, then waits for Application.CalculationState to read xlDone (0), and returns the
@@ -171,6 +227,31 @@ try {
     $process.Refresh()
     $Output.peak_working_set = $process.PeakWorkingSet64
     $Output.peak_private = $process.PeakPagedMemorySize64
+
+    if ($req.check_full) {
+        $copy = Join-Path (Split-Path -Parent $req.input) ('sentinel-' + (Split-Path -Leaf $req.input))
+        Write-SentinelCopy $req.input $copy
+        $Output.check = (New-Object System.Collections.ArrayList)
+        $threaded = Get-Flag $mtc 'Enabled'
+        try {
+            foreach ($enabled in @($threaded, $false)) {
+                $mtc.Enabled = $enabled
+                $workbook = Open-Workbook $excel $copy
+                $opened = Get-SentinelCount $workbook
+                $calculate = Measure-Calculation $excel { $excel.Calculate() }
+                $afterCalculate = Get-SentinelCount $workbook
+                $full = Measure-Calculation $excel { $excel.CalculateFull() }
+                $afterFull = Get-SentinelCount $workbook
+                $again = Measure-Calculation $excel { $excel.CalculateFull() }
+                [void]$Output.check.Add([ordered]@{ multithreaded = (Get-Flag $mtc 'Enabled'); thread_count = (Get-ComProperty $mtc 'ThreadCount'); sentinels_opened = $opened; calculate_s = $calculate; sentinels_after_calculate = $afterCalculate; full_s = $full; sentinels_after_full = $afterFull; full_again_s = $again })
+                $workbook.Close($false)
+                $workbook = $null
+            }
+        } finally {
+            $mtc.Enabled = $threaded
+        }
+        $Output.multithreaded_restored = Get-Flag $mtc 'Enabled'
+    }
 } catch {
     $Output.fatal = "$($_.Exception.Message) (timing-worker.ps1 line $($_.InvocationInfo.ScriptLineNumber))"
 } finally {
