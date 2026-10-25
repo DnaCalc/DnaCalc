@@ -836,8 +836,11 @@ fn readers_into(
 pub(crate) struct Closure {
     /// The members, in ID order.
     members: Vec<NodeId>,
-    /// Each member's readers, in ID order, at the member's slot; empty at any other slot.
-    readers: Vec<Vec<NodeId>>,
+    /// Where each member's readers lie in `edges` (start and count), at the member's slot; no
+    /// readers at any other slot.
+    readers: Vec<(u32, u32)>,
+    /// Every member's readers, each member's run in ID order, one after the other.
+    edges: Vec<NodeId>,
 }
 
 impl Closure {
@@ -848,7 +851,8 @@ impl Closure {
 
     /// The readers of the member `node`, in ID order.
     fn readers(&self, node: NodeId) -> &[NodeId] {
-        &self.readers[node.slot() as usize]
+        let (start, count) = self.readers[node.slot() as usize];
+        &self.edges[start as usize..(start + count) as usize]
     }
 
     /// The members with their readers, as a map.
@@ -871,8 +875,8 @@ pub(crate) fn dirty_closure(
 ) -> Closure {
     let slots = state.nodes.len();
     let mut member = vec![false; slots];
-    let mut readers: Vec<Vec<NodeId>> = Vec::new();
-    readers.resize_with(slots, Vec::new);
+    let mut readers: Vec<(u32, u32)> = vec![(0, 0); slots];
+    let mut edges: Vec<NodeId> = Vec::new();
     let mut members: Vec<NodeId> = Vec::with_capacity(roots.len());
     for node in &roots {
         member[node.slot() as usize] = true;
@@ -890,10 +894,17 @@ pub(crate) fn dirty_closure(
                 stack.push(reader);
             }
         }
-        readers[node.slot() as usize] = std::mem::take(&mut found);
+        let start = u32::try_from(edges.len()).expect("fewer than 2^32 edges in a closure");
+        let count = u32::try_from(found.len()).expect("fewer than 2^32 readers of a node");
+        readers[node.slot() as usize] = (start, count);
+        edges.extend_from_slice(&found);
     }
     members.sort_unstable();
-    Closure { members, readers }
+    Closure {
+        members,
+        readers,
+        edges,
+    }
 }
 
 /// The order a recalculation evaluates its nodes in, and the nodes on a cycle.
