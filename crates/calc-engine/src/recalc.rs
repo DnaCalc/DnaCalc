@@ -456,9 +456,12 @@ pub fn begin_recalc(
             roots
         }
     };
-    let Scheduled { order, cyclic } = schedule(state, inputs, roots, &|node| {
+    let mut cache = std::mem::take(&mut state.readers_cache);
+    cache.validate(state, inputs);
+    let Scheduled { order, cyclic } = schedule(state, inputs, roots, Some(&mut cache), &|node| {
         published_areas(state, inputs, node)
     });
+    state.readers_cache = cache;
     let mut progress = Progress::new(state.nodes.len());
     for node in &order {
         progress.schedule(*node);
@@ -615,6 +618,9 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
             }
             changes.push((at, ValueChange::Removed { at, node }));
         }
+    }
+    if !spill_changes.is_empty() {
+        state.spill_epoch += 1;
     }
     state.cycle_members = work.cyclic;
     state.generation += 1;
@@ -873,6 +879,86 @@ pub(crate) fn dirty_closure(
     roots: BTreeSet<NodeId>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Closure {
+    closure_with(state, inputs, roots, None, areas)
+}
+
+/// What the readers of every node depend on beside the node itself: the graph's edges, the
+/// published spills' areas and the nodes' anchors, the snapshot's array formulas (the
+/// definitions, shared unchanged from one revision to the next until an edit changes them), the
+/// sheet order (a span's sheets) and whether data tables wait.
+#[derive(Debug, Clone)]
+struct ReadersKey {
+    index_epoch: u64,
+    spill_epoch: u64,
+    definitions: Arc<calc_doc_model::Definitions>,
+    sheets: Vec<calc_value::SheetId>,
+    tables_deferred: bool,
+}
+
+impl PartialEq for ReadersKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.index_epoch == other.index_epoch
+            && self.spill_epoch == other.spill_epoch
+            && Arc::ptr_eq(&self.definitions, &other.definitions)
+            && self.sheets == other.sheets
+            && self.tables_deferred == other.tables_deferred
+    }
+}
+
+/// Each node's readers, as [`readers_into`] found them with the published areas of the node, by
+/// the node's slot, with the node and its anchor (dc-10d9). Ordering a closure of every formula
+/// asked the reverse index for every formula's readers anew each recalculation; while the key
+/// (everything the readers depend on beside the node: [`ReadersKey`]) is unchanged, the readers
+/// found before stand, and a recalculation after a change of literal inputs, or a full one,
+/// reads them from here. Any change of the key empties it. A debug build checks every reader list
+/// it hands out against the reverse index.
+#[derive(Debug, Default)]
+pub(crate) struct ReadersCache {
+    key: Option<ReadersKey>,
+    entries: Vec<Option<(NodeId, CellKey, Box<[NodeId]>)>>,
+}
+
+impl ReadersCache {
+    /// Empties the cache unless it was filled under what `state` and `inputs` now hold.
+    pub(crate) fn validate(&mut self, state: &EngineState, inputs: &ModelRoot) {
+        let key = ReadersKey {
+            index_epoch: state.index.epoch(),
+            spill_epoch: state.spill_epoch,
+            definitions: Arc::clone(inputs.definitions()),
+            sheets: inputs.sheets().iter().map(|sheet| sheet.id()).collect(),
+            tables_deferred: state.tables_deferred,
+        };
+        if self.key.as_ref() != Some(&key) {
+            self.entries.clear();
+            self.key = Some(key);
+        }
+    }
+
+    fn get(&self, node: NodeId, anchor: CellKey) -> Option<&[NodeId]> {
+        match self.entries.get(node.slot() as usize) {
+            Some(Some((held, at, readers))) if *held == node && *at == anchor => Some(readers),
+            _ => None,
+        }
+    }
+
+    fn insert(&mut self, node: NodeId, anchor: CellKey, readers: &[NodeId]) {
+        let slot = node.slot() as usize;
+        if slot >= self.entries.len() {
+            self.entries.resize_with(slot + 1, || None);
+        }
+        self.entries[slot] = Some((node, anchor, readers.into()));
+    }
+}
+
+/// [`dirty_closure`], reading and filling `cache` when one is given, which only the ordering of a
+/// recalculation's first wave does, with the published areas as `areas`.
+fn closure_with(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    roots: BTreeSet<NodeId>,
+    mut cache: Option<&mut ReadersCache>,
+    areas: &dyn Fn(NodeId) -> Vec<GridArea>,
+) -> Closure {
     let slots = state.nodes.len();
     let mut member = vec![false; slots];
     let mut readers: Vec<(u32, u32)> = vec![(0, 0); slots];
@@ -885,7 +971,25 @@ pub(crate) fn dirty_closure(
     let mut stack = members.clone();
     let mut found = Vec::new();
     while let Some(node) = stack.pop() {
-        readers_into(state, inputs, node, &areas(node), &mut found);
+        let anchor = live_anchor(state, node);
+        match cache.as_deref().and_then(|cache| cache.get(node, anchor)) {
+            Some(cached) => {
+                found.clear();
+                found.extend_from_slice(cached);
+                #[cfg(debug_assertions)]
+                {
+                    let mut fresh = Vec::new();
+                    readers_into(state, inputs, node, &areas(node), &mut fresh);
+                    debug_assert_eq!(found, fresh, "the cached readers of {node:?} stand");
+                }
+            }
+            None => {
+                readers_into(state, inputs, node, &areas(node), &mut found);
+                if let Some(cache) = cache.as_deref_mut() {
+                    cache.insert(node, anchor, &found);
+                }
+            }
+        }
         for &reader in &found {
             let slot = reader.slot() as usize;
             if !member[slot] {
@@ -921,9 +1025,13 @@ fn schedule(
     state: &EngineState,
     inputs: &ModelRoot,
     roots: BTreeSet<NodeId>,
+    cache: Option<&mut ReadersCache>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Scheduled {
-    let closure = dirty_closure(state, inputs, roots, areas);
+    let closure = match cache {
+        Some(cache) => closure_with(state, inputs, roots, Some(cache), areas),
+        None => dirty_closure(state, inputs, roots, areas),
+    };
     let acyclic = |order| Scheduled {
         order,
         cyclic: BTreeSet::new(),
@@ -1284,7 +1392,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     let ordered = if work.waves > MAX_WAVES {
         Err(())
     } else {
-        Ok(schedule(state, inputs, roots.clone(), &areas))
+        Ok(schedule(state, inputs, roots.clone(), None, &areas))
     };
     match ordered {
         Ok(Scheduled { order, cyclic }) => {
