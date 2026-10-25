@@ -81,8 +81,8 @@ pub use calc_doc_model as model;
 pub use edit::{EditError, PreparedEdit, prepare_edit};
 pub use error::{OpenError, PartReadError, UnsafeName};
 pub use load::{
-    CalcMode, CellError, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LayoutWarning,
-    LoadError, LoadedSheet, LoadedWorkbook, SharedFormula, load,
+    CalcMode, CellError, ColumnSpan, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LayoutWarning,
+    LoadError, LoadedSheet, LoadedWorkbook, RowFormat, SharedFormula, SheetGeometry, load,
 };
 pub use opc::{
     CONTENT_TYPES_ENTRY, CONTENT_TYPES_NAMESPACE, ContentTypes, Package, Part,
