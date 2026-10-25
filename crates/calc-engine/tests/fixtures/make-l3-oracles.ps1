@@ -36,7 +36,12 @@
 # dc-10y measured what Excel does with one (sheet ThreeD, over sheets Ja, Fe and Ma holding 1, 2
 # and 3 in A1; calc-fml's compile.rs, THREE_D_TAKEN); and a range expression at each parameter
 # that takes a reference, where dc-10y measured whether Excel intersects it (sheet Lg, over A1:A3
-# holding 1, 2 and 3; calc-fml's legacy.rs, AGGREGATE).
+# holding 1, 2 and 3; calc-fml's legacy.rs, AGGREGATE); and dc-6au's rows (sheet Er, over A1:A3
+# holding 1, 2 and 3 and B1:B3 holding 2, with Ja, Fe and Ma holding 10, 20, 30 in B1 and 100,
+# 200, 300 in A2): the order of argument errors in the COUP functions, WORKDAY.INTL,
+# NETWORKDAYS.INTL, CHISQ.TEST, ARRAYTOTEXT and SORTBY, the LAMBDA helpers given no LAMBDA,
+# TRIMMEAN's percent, regression with one known y, Z.TEST, TOCOL and TOROW over a 3-D reference,
+# TEXTJOIN's delimiters, SHEETS of a value and AGGREGATE's reference form given values.
 #
 # dc_10y_iteration/oracle.xlsx (iteration on, at most 50 iterations, maximum change 0.0001):
 # circular references that converge, that do not, that only INDIRECT's text makes, and formulas
@@ -179,7 +184,7 @@ try {
     if ($Workbooks -contains 'dc_10y') {
     $wb = $xl.Workbooks.Add()
     $xl.Iteration = $false
-    Add-Sheets $wb @('Ind', 'Sp ace', 'DT', 'ThreeD', 'Ja', 'Fe', 'Ma', 'Lg')
+    Add-Sheets $wb @('Ind', 'Sp ace', 'DT', 'ThreeD', 'Ja', 'Fe', 'Ma', 'Lg', 'Er')
     $i = $wb.Worksheets.Item('Ind')
     $i.Range('A1').Value2 = 42; $i.Range('B1').Value2 = 1; $i.Range('A2').Value2 = 2; $i.Range('B2').Value2 = 3
     $wb.Worksheets.Item('Sp ace').Range('A1').Value2 = 7
@@ -1255,6 +1260,135 @@ try {
     '=ZTEST(Ja:Ma!A1,1)',
     '=ZTEST(1,Ja:Ma!A1)',
     '=ZTEST(1,1,Ja:Ma!A1)'
+    )
+    $k = 1
+    foreach ($name in @('Ja', 'Fe', 'Ma')) {
+        $wb.Worksheets.Item($name).Range('B1').Value2 = 10 * $k
+        $wb.Worksheets.Item($name).Range('A2').Value2 = 100 * $k
+        $k++
+    }
+    $er = $wb.Worksheets.Item('Er')
+    $er.Range('A1').Value2 = 1; $er.Range('A2').Value2 = 2; $er.Range('A3').Value2 = 3
+    $er.Range('B1').Value2 = 2; $er.Range('B2').Value2 = 2; $er.Range('B3').Value2 = 2
+    Set-Formulas $er 4 5 @(
+    '=COUPDAYBS(1,1,#REF!)',
+    '=COUPDAYBS(1,2,#REF!)',
+    '=COUPDAYBS(#REF!,1,2)',
+    '=COUPDAYBS(1,#REF!,2)',
+    '=COUPDAYBS(2,1,3)',
+    '=COUPDAYBS(1,2,3)',
+    '=COUPDAYBS(1,2,2,#REF!)',
+    '=COUPDAYBS(1,1,2,#REF!)',
+    '=COUPDAYBS(1,1,2,9)',
+    '=COUPDAYBS(1,2,"a")',
+    '=COUPDAYBS(1,1,"a")',
+    '=COUPDAYBS(1,1,#DIV/0!)',
+    '=COUPDAYBS(1,1,2,#DIV/0!)',
+    '=COUPDAYBS(1,2,2,9)',
+    '=COUPDAYBS(2,1,#N/A,#DIV/0!)',
+    '=COUPDAYBS(1,100,#REF!)',
+    '=COUPDAYBS(-1,1,#REF!)',
+    '=COUPDAYBS("a",1,2)',
+    '=COUPDAYBS(1,"a",2)',
+    '=COUPDAYBS(2,1,"a")',
+    '=COUPNUM(1,1,#REF!)',
+    '=COUPNCD(1,1,#REF!)',
+    '=COUPPCD(1,1,#REF!)',
+    '=COUPDAYS(1,1,#REF!)',
+    '=COUPDAYSNC(1,1,#REF!)',
+    '=COUPNUM(1,100,#REF!)',
+    '=COUPNUM(1,100,2,#REF!)',
+    '=COUPNUM(1,100,3)',
+    '=COUPNUM(100,1,3)',
+    '=COUPNUM(100,1,2,9)',
+    '=WORKDAY.INTL(1,1,#REF!)',
+    '=WORKDAY.INTL(1,1,#DIV/0!)',
+    '=WORKDAY.INTL(1,1,"x")',
+    '=WORKDAY.INTL(1,1,1,#REF!)',
+    '=WORKDAY.INTL(1,2,#REF!)',
+    '=WORKDAY.INTL(#REF!,1,1)',
+    '=WORKDAY.INTL(1,#REF!,1)',
+    '=WORKDAY.INTL(1,1,99)',
+    '=WORKDAY.INTL(1,1,TRUE)',
+    '=WORKDAY.INTL(1,1,"0000000")',
+    '=NETWORKDAYS.INTL(1,1,#REF!)',
+    '=NETWORKDAYS.INTL(1,2,#REF!)',
+    '=NETWORKDAYS.INTL(1,1,#DIV/0!)',
+    '=NETWORKDAYS.INTL(1,1,"x")',
+    '=NETWORKDAYS.INTL(1,1,1,#REF!)',
+    '=NETWORKDAYS.INTL(#REF!,1,1)',
+    '=NETWORKDAYS.INTL(1,1,99)',
+    '=NETWORKDAYS.INTL(1,1,TRUE)',
+    '=WORKDAY(1,1,#REF!)',
+    '=NETWORKDAYS(1,1,#REF!)',
+    '=CHISQ.TEST(#REF!,1)',
+    '=CHISQ.TEST(1,#REF!)',
+    '=CHISQ.TEST(1,1)',
+    '=CHISQ.TEST(A1:A2,#REF!)',
+    '=CHISQ.TEST(#DIV/0!,A1:A2)',
+    '=CHITEST(#REF!,1)',
+    '=CHISQ.TEST(A1:A2,B1:B3)',
+    '=CHISQ.TEST({1,#N/A},{1,2})',
+    '=ARRAYTOTEXT(#REF!)',
+    '=ARRAYTOTEXT(#DIV/0!,1)',
+    '=ARRAYTOTEXT({1,#N/A})',
+    '=ARRAYTOTEXT(1,#REF!)',
+    '=ARRAYTOTEXT(1,5)',
+    '=SORTBY(1,#REF!)',
+    '=SORTBY(1,#DIV/0!)',
+    '=SORTBY({3;1;2},{3;1;2},#REF!)',
+    '=SORTBY(#REF!,1)',
+    '=SORTBY(1,1,#REF!)',
+    '=SORTBY(1,"a")',
+    '=BYCOL(1,#REF!)',
+    '=BYCOL(1,1)',
+    '=BYCOL(#REF!,LAMBDA(x,x))',
+    '=BYCOL(1,#DIV/0!)',
+    '=BYROW(1,#REF!)',
+    '=MAP(1,#REF!)',
+    '=MAP(1,1,#REF!)',
+    '=MAKEARRAY(1,1,#REF!)',
+    '=MAKEARRAY(1,1,1)',
+    '=MAKEARRAY(#REF!,1,LAMBDA(r,c,1))',
+    '=REDUCE(1,1,#REF!)',
+    '=REDUCE(1,1,1)',
+    '=SCAN(1,1,#REF!)',
+    '=MAP(#REF!,LAMBDA(x,x))',
+    '=REDUCE(#REF!,1,LAMBDA(a,b,a+b))',
+    '=SCAN(1,#REF!,LAMBDA(a,b,a+b))',
+    '=BYCOL(1,"x")',
+    '=TRIMMEAN(A1:A3,1)',
+    '=TRIMMEAN(A1:A3,0.99)',
+    '=TRIMMEAN(A1:A3,1.5)',
+    '=TRIMMEAN(A1:A3,-0.1)',
+    '=TRIMMEAN(A1:A3,0.9999999999)',
+    '=LINEST(1,{1;2;3})',
+    '=INDEX(LINEST(1,{1;2;3}),1,2)',
+    '=TREND(1,{1;2;3})',
+    '=GROWTH(1,{1;2;3})',
+    '=LOGEST(1,{1;2;3})',
+    '=INDEX(LOGEST(1,{1;2;3}),1,2)',
+    '=LINEST(5,{1;2;3})',
+    '=INDEX(LINEST(5,{1;2;3}),1,2)',
+    '=TREND(5,{1;2;3},4)',
+    '=ROWS(TREND(1,{1;2;3}))',
+    '=LINEST({1;2},{1;2;3})',
+    '=LINEST(5,2)',
+    '=INDEX(LINEST(5,2),1,2)',
+    '=LINEST(1,{1,2,3})',
+    '=TREND(1,{1;2;3},{4;5})',
+    '=INDEX(LINEST(5,{1;2;3},TRUE,TRUE),3,1)',
+    '=LINEST(5)',
+    '=INDEX(LINEST({2;4;6},{1;2;3}),1,1)',
+    '=Z.TEST({1;2;3},1)',
+    '=ZTEST(A1:A3,1)',
+    '=1-NORM.S.DIST(SQRT(3),TRUE)',
+    '=NORM.S.DIST(-SQRT(3),TRUE)',
+    '=MAP({1,2},#N/A)',
+    '=BYCOL({1,2},#N/A)',
+    '=MAKEARRAY(1,1,#N/A)',
+    '=REDUCE(0,{1,2},#N/A)',
+    '=SCAN(0,{1,2},#N/A)'
     )
     Set-Formulas $lg 4 1 @(
     '=AGGREGATE(1,1,A1:A3*1)',

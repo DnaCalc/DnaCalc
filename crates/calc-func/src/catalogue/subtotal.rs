@@ -207,6 +207,16 @@ ported_family! {
             errors: matches!(options, 2 | 3 | 6 | 7),
         };
         if function <= 13 {
+            // The reference form reads references only: a value there (a number, an array) is
+            // #VALUE! (Excel 16.0.20430, 2026-10-25, dc-6au: `=AGGREGATE(1,1,{1,2})`,
+            // `=AGGREGATE(9,0,1)` and `=AGGREGATE(1,1,A1:A3*1)` are #VALUE!). An error value
+            // there is not measured and stays refused.
+            if a[2..].iter().any(|argument| {
+                !matches!(argument.core(), CoreValue::Reference(_) | CoreValue::Error(_))
+                    && !argument.is_missing()
+            }) {
+                return fail(WorksheetErrorCode::Value);
+            }
             let values = held_values(s, a, 2, sv, rule)?;
             return compute(s, function, &values);
         }

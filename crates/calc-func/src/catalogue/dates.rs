@@ -105,6 +105,11 @@ fn weekend(site: &Site<'_>, a: &[CalcValue], index: usize, workday: bool) -> Ste
     };
     match value.core() {
         CoreValue::Missing | CoreValue::Empty => Ok(WeekendMask::saturday_sunday()),
+        // An error value is no weekend: WORKDAY.INTL's #NUM!, NETWORKDAYS.INTL's #VALUE! (Excel
+        // 16.0.20430, 2026-10-25, dc-6au: `=WORKDAY.INTL(1,1,#REF!)` and `(1,1,#DIV/0!)` #NUM!,
+        // `=NETWORKDAYS.INTL(1,1,#REF!)` and `(1,1,#DIV/0!)` #VALUE!).
+        CoreValue::Error(_) if workday => fail(W::Num),
+        CoreValue::Error(_) => fail(W::Value),
         CoreValue::Text(text) => {
             let raw = text.to_string_lossy();
             if raw.len() == 7 && raw.chars().all(|ch| ch == '0' || ch == '1') {

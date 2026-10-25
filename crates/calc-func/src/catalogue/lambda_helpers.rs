@@ -6,8 +6,11 @@
 //!
 //! OxFunc's rules are kept. A reference argument is read as the array of its values (a single
 //! cell as its value); the items are taken in row-major order, a blank cell as an empty value.
-//! The last argument must be a LAMBDA: an error there is the result, any other value #VALUE!, and
-//! a LAMBDA that does not take the number of arguments the helper passes is #VALUE!. MAP pads a
+//! The last argument must be a LAMBDA: any other value, an error included, is #VALUE! (Excel
+//! 16.0.20430, 2026-10-25, dc-6au: `=BYCOL(1,#REF!)`, `=MAP(1,1,#REF!)`, `=MAKEARRAY(1,1,#REF!)`,
+//! `=REDUCE(1,1,#REF!)` and `=BYCOL(1,#DIV/0!)` are #VALUE!, where OxFunc gave the error), and a
+//! LAMBDA that does not take the number of arguments the helper passes is #VALUE!. An error among
+//! the other arguments is the result (`=BYCOL(#REF!,LAMBDA(x,x))` is #REF!). MAP pads a
 //! shorter array with #N/A and takes the shape of its first array when that holds every item (a
 //! row otherwise). MAP, BYROW and BYCOL give #CALC! when a call returns an array; SCAN and
 //! MAKEARRAY give #VALUE!. REDUCE's accumulator may be an array. MAKEARRAY's dimensions are
@@ -38,17 +41,13 @@ fn prepared(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalService
         .ok_or_else(|| site.not_modelled(Some(index)))
 }
 
-/// The LAMBDA at argument `index`: an error value is the result, any other value #VALUE!, and a
-/// LAMBDA that does not take `count` arguments #VALUE!.
+/// The LAMBDA at argument `index`: any other value, an error included, is #VALUE!, and so is a
+/// LAMBDA that does not take `count` arguments.
 fn lambda<'v>(a: &'v [CalcValue], index: usize, count: usize) -> Step<&'v CalcValue> {
     let value = &a[index];
     match value.callable_value() {
         Some(callable) if callable.arity().accepts(count) => Ok(value),
-        Some(_) => fail(W::Value),
-        None => match value.core() {
-            CoreValue::Error(code) => fail(*code),
-            _ => fail(W::Value),
-        },
+        _ => fail(W::Value),
     }
 }
 
@@ -159,6 +158,11 @@ fn reduce(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, scan: boo
 fn by(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, columns: bool) -> Step<CalcValue> {
     let source = prepared(site, a, 0, sv)?;
     let f = lambda(a, 1, 1)?;
+    // An array argument that is one error value is the result (Excel 16.0.20430, 2026-10-25,
+    // dc-6au: `=BYCOL(#REF!,LAMBDA(x,x))` is #REF!, not the #CALC! of a LAMBDA returning a row).
+    if let CoreValue::Error(code) = source.core() {
+        return fail(*code);
+    }
     let source = match source.as_array() {
         Some(array) if source.callable_value().is_none() => array.clone(),
         _ => CalcArray::from_scalar(item(&source)),

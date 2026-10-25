@@ -143,7 +143,13 @@ fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
             sheets.dedup();
             return site.number(sheets.len() as f64);
         }
-        return site.number(1.0);
+        // A value that is no reference is #N/A, an error value the result (Excel 16.0.20430,
+        // 2026-10-25, dc-6au: `=SHEETS(1)`, `=SHEETS("a")`, `=SHEETS({1,2})` and
+        // `=SHEETS(A1:A3*1)` are #N/A, `=SHEETS(#REF!)` #REF!).
+        return match a[0].core() {
+            CoreValue::Error(code) => fail(*code),
+            _ => fail(WorksheetErrorCode::NA),
+        };
     }
     match sv.host().and_then(|host| host.sheet_count()) {
         Some(count) => site.number(f64::from(count)),
@@ -241,7 +247,7 @@ ported_family! {
     1 cell_fn "CELL" (1, 2) [V "info_type", F "reference"] |s, a, sv| { cell(s, a, sv) }
     2 info_fn "INFO" (1, 1) [V "type_text"] |s, a, sv| { info(s, a) }
     3 sheet_fn "SHEET" (0, 1) [R "value"] |s, a, sv| { sheet(s, a, sv) }
-    4 sheets_fn "SHEETS" (0, 1) [F "reference"] |s, a, sv| { sheets(s, a, sv) }
+    4 sheets_fn "SHEETS" (0, 1) [R "reference"] |s, a, sv| { sheets(s, a, sv) }
     5 formulatext_fn "FORMULATEXT" (1, 1) [F "reference"] |s, a, sv| { formulatext(s, a, sv) }
     6 address_entry "ADDRESS" (2, 5) [V "row_num", V "column_num", V "abs_num", V "a1", V "sheet_text"] |s, a, sv| { address_fn(s, a) }
     7 getpivotdata_fn "GETPIVOTDATA" (2, 254) [V "data_field", F "pivot_table", V "field1", V "item1"] |s, a, sv| {

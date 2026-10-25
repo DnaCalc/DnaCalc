@@ -131,7 +131,9 @@ pub(crate) fn trimmean_kernel(values: &mut [f64], percent: f64) -> Result<f64, W
     if !percent.is_finite() {
         return Err(WorksheetErrorCode::Value);
     }
-    if !(0.0..=1.0).contains(&percent) {
+    // A percent of 1 is #NUM! too, though Microsoft's page names only one above 1 (Excel
+    // 16.0.20430, 2026-10-25, dc-6au: `=TRIMMEAN(A1:A3,1)` #NUM!, `=TRIMMEAN(A1:A3,0.9999999999)` 2).
+    if !(0.0..1.0).contains(&percent) {
         return Err(WorksheetErrorCode::Num);
     }
     if values.is_empty() {

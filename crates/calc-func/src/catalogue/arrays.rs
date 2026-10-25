@@ -55,6 +55,61 @@ fn prepared_one(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalSer
         .ok_or_else(|| site.not_modelled(Some(index)))
 }
 
+/// TOCOL (`column`) or TOROW of a reference of several areas (a 3-D reference): each area flattened
+/// by the call's own ignore and scan arguments, in the reference's order (sheet by sheet), the
+/// results joined into one column or row; `None` for any other first argument. Excel 16.0.20430
+/// (2026-10-25, dc-6au), sheets Ja, Fe and Ma holding 1, 10 / 100 at A1, B1 / A2 (times 1, 2, 3):
+/// `=TOCOL(Ja:Ma!A1:B1)` and `=TOROW(..)` give 1,10,2,20,3,30, and `=TOCOL(Ja:Ma!A1:B2,1)`, blanks
+/// ignored, 1,10,100,2,20,200,3,30,300 (9 rows). An area whose cells are all left out adds
+/// nothing; when every area does, the result is the kernel's own for an empty one.
+fn by_area(
+    site: &Site<'_>,
+    a: &[CalcValue],
+    sv: &mut EvalServices<'_>,
+    kernel: fn(&[CalcValue]) -> Result<CalcValue, E>,
+    column: bool,
+) -> Step<Option<CalcValue>> {
+    let Some(reference) = a[0].as_reference() else {
+        return Ok(None);
+    };
+    if reference.areas().len() < 2 {
+        return Ok(None);
+    }
+    let mut cells = Vec::new();
+    let mut empty = None;
+    for &area in reference.areas() {
+        let mut args = a.to_vec();
+        args[0] = CalcValue::reference(ReferenceLike::area(area));
+        args[0] = prepared_one(site, &args, 0, sv)?;
+        match result(site, kernel(&args)) {
+            Ok(value) => match value.as_array() {
+                Some(array) => cells.extend(array.iter_row_major().cloned()),
+                None => cells.push(value),
+            },
+            // An area whose every cell is left out (#CALC!, an empty array).
+            Err(Exit::Error(WorksheetErrorCode::Calc)) => {
+                empty.get_or_insert(WorksheetErrorCode::Calc);
+            }
+            Err(other) => return Err(other),
+        }
+    }
+    if cells.is_empty() {
+        return match empty {
+            Some(code) => fail(code),
+            None => Ok(None),
+        };
+    }
+    let count = cells.len();
+    let shape = if column {
+        ArrayShape { rows: count, cols: 1 }
+    } else {
+        ArrayShape { rows: 1, cols: count }
+    };
+    Ok(Some(CalcValue::array(
+        CalcArray::new(shape, cells).expect("one cell per item of the shape"),
+    )))
+}
+
 /// A kernel's result: its array, or its failure as a worksheet error (a coercion calc-func does
 /// not model is refused).
 fn result(site: &Site<'_>, r: Result<CalcValue, E>) -> Step<CalcValue> {
@@ -318,6 +373,14 @@ fn sort(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
 /// when the array is one row and a key is a row), with its order.
 fn sortby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
     let args = prepared(site, a, sv)?;
+    // An argument that is one error value is the result (Excel 16.0.20430, 2026-10-25, dc-6au:
+    // `=SORTBY(1,#REF!)` #REF!, `=SORTBY(1,#DIV/0!)` #DIV/0!, `=SORTBY({3;1;2},{3;1;2},#REF!)`
+    // and `=SORTBY(1,1,#REF!)` #REF!).
+    for argument in &args {
+        if let CoreValue::Error(code) = argument.core() {
+            return fail(*code);
+        }
+    }
     let array = as_array(&args[0]);
     let ArrayShape { rows, cols } = array.shape();
     let mut keys: Vec<(Vec<CalcValue>, bool)> = Vec::new();
@@ -486,10 +549,16 @@ ported_family! {
         run(s, a, sv, k::eval_hstack_prepared)
     }
     12 tocol_fn "TOCOL" (1, 3) [R "array", V "ignore", V "scan_by_column"] |s, a, sv| {
-        run(s, a, sv, k::eval_tocol_prepared)
+        match by_area(s, a, sv, k::eval_tocol_prepared, true)? {
+            Some(value) => Ok(value),
+            None => run(s, a, sv, k::eval_tocol_prepared),
+        }
     }
     13 torow_fn "TOROW" (1, 3) [R "array", V "ignore", V "scan_by_column"] |s, a, sv| {
-        run(s, a, sv, k::eval_torow_prepared)
+        match by_area(s, a, sv, k::eval_torow_prepared, false)? {
+            Some(value) => Ok(value),
+            None => run(s, a, sv, k::eval_torow_prepared),
+        }
     }
     14 wraprows_fn "WRAPROWS" (2, 3) [R "vector", V "wrap_count", V "pad_with"] |s, a, sv| {
         run(s, a, sv, k::eval_wraprows_prepared)

@@ -1328,7 +1328,7 @@ const THREE_D_TAKEN: &[(&str, &[usize])] = &[
     ("STDEVPA", &[]),
     ("SUM", &[]),
     ("SUMSQ", &[]),
-    ("TEXTJOIN", &[2, TAIL]),
+    ("TEXTJOIN", &[0, 2, TAIL]),
     ("TOCOL", &[0]),
     ("TOROW", &[0]),
     ("TRIMMEAN", &[0]),

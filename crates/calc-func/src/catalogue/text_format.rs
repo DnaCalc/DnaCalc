@@ -299,6 +299,12 @@ fn valuetotext(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 }
 
 fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    // An array that is one error value is the result; an error inside an array is shown (Excel
+    // 16.0.20430, 2026-10-25, dc-6au: `=ARRAYTOTEXT(#REF!)` #REF!, `=ARRAYTOTEXT(#DIV/0!,1)`
+    // #DIV/0!, `=ARRAYTOTEXT({1,#N/A})` "1, #N/A").
+    if let CoreValue::Error(code) = a[0].core() {
+        return fail(*code);
+    }
     let strict = binary_flag(site, a, 1)?;
     let g = grid(site, a, 0, sv)?;
     let mut parts = Vec::with_capacity(g.cells.len());
