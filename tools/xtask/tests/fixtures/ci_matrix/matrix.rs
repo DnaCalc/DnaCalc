@@ -5,6 +5,7 @@
 //! agent of whatever executed it. Either shows, independently of the CI manifest, that this build
 //! of the test ran, and where.
 
+/// Native-only: it writes a marker file; its browser twin is `wasm::ci_matrix_wasm`.
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn ci_matrix_native() {
