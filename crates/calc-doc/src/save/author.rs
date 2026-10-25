@@ -11,6 +11,7 @@ use super::parts::{self, NameChanges, NewRelationship};
 use super::reader::Reader;
 use super::sheet::{self, Job};
 use super::strings::{self, SharedStrings, read_part};
+use super::structural::{self, SheetMoves};
 use super::{Edited, SaveRefusal};
 use crate::edit::{FormulaCheck, check_formula};
 use crate::load::address::column_letters;
@@ -20,7 +21,7 @@ use crate::load::{self, LoadError, SHARED_STRINGS};
 use crate::opc::{Package, TargetMode};
 use crate::xml::XmlElement;
 use calc_doc_model::value::{CellKey, GridArea, WorksheetErrorCode};
-use calc_doc_model::{CachedValue, CellInput, DefinedName, SheetName};
+use calc_doc_model::{CachedValue, CellInput, DefinedName, NameScope, SheetName};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -87,6 +88,7 @@ fn check_tables(
     package: &Package,
     sheet_part: &str,
     changes: &SheetChanges,
+    moves: Option<&SheetMoves>,
 ) -> Result<(), SaveRefusal> {
     let Some(relationships) = package.relationships_of(Some(sheet_part)) else {
         return Ok(());
@@ -106,6 +108,15 @@ fn check_tables(
             .attribute("ref")
             .and_then(load::address::area)
             .ok_or_else(|| reader.invalid("a table without a ref that is an area"))?;
+        // On a sheet whose rows or columns were inserted or deleted, the table's area moved with
+        // them; the changes are by position after the edits.
+        let area = match moves {
+            Some(moves) => match moves.area(area) {
+                Some(area) => area,
+                None => continue,
+            },
+            None => area,
+        };
         let (top, left, bottom, right) = area;
         let rows = header_and_totals(&reader, &root, top, bottom)?;
         if let Some(&(row, column)) = changes.keys().find(|(row, column)| {
@@ -318,18 +329,31 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         model,
         values,
         spills,
+        structural,
         ..
     } = edit;
     if !model.same_lineage(base) || model.sheets() != base.sheets() {
         return Err(SaveRefusal::ForeignModel);
     }
-    let changes: Vec<SheetChanges> = base
-        .sheets()
-        .iter()
-        .map(|sheet| sheet_changes(base, model, sheet.id()))
+    // Rows or columns inserted or deleted: the package's parts moved with them first, and each
+    // moved sheet's changes found against the cells its cells moved from.
+    let mut moved = match structural {
+        Some(structural) => Some(structural::moved(package, sheets, base, structural)?),
+        None => None,
+    };
+    let moves: Vec<Option<SheetMoves>> = (0..sheets.len())
+        .map(|index| moved.as_mut().and_then(|moved| moved.moves[index].take()))
         .collect();
-    let cells_changed = !changes.iter().all(SheetChanges::is_empty);
-    let layout = layout_changes(package, edit)?;
+    let changes: Vec<SheetChanges> = sheets
+        .iter()
+        .zip(&moves)
+        .map(|(sheet, moves)| match moves {
+            Some(moves) => structural::sheet_changes(base, model, sheet.id(), moves),
+            None => sheet_changes(base, model, sheet.id()),
+        })
+        .collect();
+    let cells_changed = !changes.iter().all(SheetChanges::is_empty) || moved.is_some();
+    let mut layout = layout_changes(package, edit)?;
     let mut out = Changes::default();
     if !cells_changed && layout.is_none() {
         return Ok(out);
@@ -342,10 +366,10 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     let mut array_without_value = false;
     if cells_changed {
         let mut forms = Vec::with_capacity(sheets.len());
-        for (sheet, changes) in sheets.iter().zip(&changes) {
+        for ((sheet, changes), moves) in sheets.iter().zip(&changes).zip(&moves) {
             if !changes.is_empty() {
                 check_formulas(sheet.part().name(), changes)?;
-                check_tables(package, sheet.part().name(), changes)?;
+                check_tables(package, sheet.part().name(), changes, moves.as_ref())?;
             }
             forms.push(file_forms(
                 sheet.part().name(),
@@ -464,15 +488,25 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         // The areas the loaded array formulas of each sheet fill, whose cells beside the anchor
         // hold the arrays' cached results (or, for an array whose anchor changed, belong to no
         // formula any more).
+        // On a moved sheet, each area where its cells moved, and none for an array whose anchor
+        // was deleted.
         let cleared: Vec<Vec<(u32, u32, u32, u32)>> = sheets
             .iter()
-            .map(|sheet| {
+            .zip(&moves)
+            .map(|(sheet, moves)| {
                 base.definitions()
                     .arrays()
                     .filter(|array| array.anchor().sheet() == sheet.id())
-                    .map(|array| {
+                    .filter_map(|array| {
                         let (first, last) = (array.area().first(), array.area().last());
-                        (first.row(), first.column(), last.row(), last.column())
+                        let area = (first.row(), first.column(), last.row(), last.column());
+                        match moves {
+                            Some(moves) => {
+                                moves.forward((area.0, area.1))?;
+                                moves.area(area)
+                            }
+                            None => Some(area),
+                        }
                     })
                     .filter(|(top, left, bottom, right)| (top, left) != (bottom, right))
                     .collect()
@@ -483,15 +517,21 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         // a cached result.
         let rewritten: Vec<bool> = sheets
             .iter()
+            .enumerate()
             .zip(&changes)
             .zip(&cleared)
-            .map(|((sheet, changes), cleared)| {
+            .map(|(((index, sheet), changes), cleared)| {
+                let moved_part = moved
+                    .as_ref()
+                    .is_some_and(|moved| moved.sheets[index].is_some());
                 let formulas = model
                     .sheet_cells(sheet.id())
                     .into_iter()
                     .flatten()
                     .any(|(_, input)| matches!(input, CellInput::Formula(_)));
                 !changes.is_empty()
+                    || moved_part
+                    || moves[index].is_some()
                     || !cleared.is_empty()
                     || sheet
                         .formulas()
@@ -513,20 +553,30 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         let strings_part = load::workbook_part_of(package, workbook_part, SHARED_STRINGS)
             .map_err(|error| load_refusal(workbook_part, error))?;
         let mut strings = SharedStrings::read(package, strings_part.as_deref())?;
-        for ((((((sheet, changes), rewrite), cleared), forms), sheet_values), spills) in sheets
-            .iter()
-            .zip(&changes)
-            .zip(&rewritten)
-            .zip(&cleared)
-            .zip(&forms)
-            .zip(&sheet_values)
-            .zip(&sheet_spills)
+        if let Some(moved) = &moved {
+            strings.removed += moved.strings_removed;
+        }
+        let no_groups = BTreeSet::new();
+        for (index, ((((((sheet, changes), rewrite), cleared), forms), sheet_values), spills)) in
+            sheets
+                .iter()
+                .zip(&changes)
+                .zip(&rewritten)
+                .zip(&cleared)
+                .zip(&forms)
+                .zip(&sheet_values)
+                .zip(&sheet_spills)
+                .enumerate()
         {
             if !rewrite {
                 continue;
             }
             let name = sheet.part().name();
-            let xml = read_part(package, name)?;
+            let moved_xml = moved.as_mut().and_then(|moved| moved.sheets[index].take());
+            let xml = match moved_xml {
+                Some(xml) => xml,
+                None => read_part(package, name)?,
+            };
             let job = Job {
                 changes,
                 cleared,
@@ -537,6 +587,10 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 error_vm: &metadata.vm,
                 loaded: sheet,
                 model,
+                moves: moves[index].as_ref(),
+                cut_groups: moved
+                    .as_ref()
+                    .map_or(&no_groups, |moved| &moved.unshared[index]),
             };
             let rewritten = sheet::rewrite(&xml, &job, &mut strings)?;
             out.rewritten.insert(name.to_owned(), rewritten.bytes);
@@ -563,7 +617,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         });
         // The chain also marks array formulas' anchors, so it goes when the arrays changed too.
         let arrays_changed = base.definitions().arrays().ne(model.definitions().arrays());
-        if formulas_changed || arrays_changed {
+        if formulas_changed || arrays_changed || moved.is_some() {
             chain = load::workbook_part_of(package, workbook_part, CALC_CHAIN)
                 .map_err(|error| load_refusal(workbook_part, error))?;
         }
@@ -594,13 +648,46 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         .unloaded_cells()
         .any(|(_, why)| matches!(why, calc_doc_model::UnloadedCell::DataTable));
     let full_calc = cells_changed && (data_tables || array_without_value);
-    let no_names = NameChanges::default();
-    let names = layout.as_ref().map_or(&no_names, |layout| &layout.names);
+    let mut names = layout
+        .as_mut()
+        .map(|layout| std::mem::take(&mut layout.names))
+        .unwrap_or_default();
+    // Rows or columns inserted or deleted: each defined name whose formula the edits rewrote, and
+    // the other parts the edits' passes moved.
+    if let Some(moved) = moved.as_mut() {
+        for (loaded, now) in base
+            .definitions()
+            .names()
+            .iter()
+            .zip(model.definitions().names())
+        {
+            if loaded.formula == now.formula {
+                continue;
+            }
+            let sheet = match now.scope {
+                NameScope::Workbook => None,
+                NameScope::Sheet(id) => {
+                    match model.sheets().iter().position(|entry| entry.id() == id) {
+                        Some(position) => Some(position as u32),
+                        None => continue,
+                    }
+                }
+            };
+            names.replaced.push((
+                now.name.clone(),
+                sheet,
+                now.formula.encode_utf16().collect(),
+            ));
+        }
+        for (part, content) in std::mem::take(&mut moved.parts) {
+            out.rewritten.insert(part, content);
+        }
+    }
     if full_calc || !names.is_empty() {
         let workbook = read_part(package, workbook_part)?;
         out.rewritten.insert(
             workbook_part.clone(),
-            parts::workbook(&workbook, full_calc, names)?,
+            parts::workbook(&workbook, full_calc, &names)?,
         );
     }
 

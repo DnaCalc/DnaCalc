@@ -30,11 +30,14 @@ pub(super) struct NameChanges {
     pub(super) removed: Vec<String>,
     /// Each name added, hidden and workbook-scoped, with its formula text as UTF-16 code units.
     pub(super) added: Vec<(String, Vec<u16>)>,
+    /// Each name whose formula changed (rows or columns were inserted or deleted): its name, its
+    /// `localSheetId` (`None` for a workbook-scoped name) and its new formula text.
+    pub(super) replaced: Vec<(String, Option<u32>, Vec<u16>)>,
 }
 
 impl NameChanges {
     pub(super) fn is_empty(&self) -> bool {
-        self.removed.is_empty() && self.added.is_empty()
+        self.removed.is_empty() && self.added.is_empty() && self.replaced.is_empty()
     }
 }
 
@@ -44,6 +47,10 @@ struct NameScope {
     name: String,
     workbook_scoped: bool,
     hidden: bool,
+    /// Its `localSheetId`, when it has one that is a number.
+    local_sheet: Option<u32>,
+    /// The range of its start tag.
+    tag: (usize, usize),
 }
 
 /// The workbook part's `definedNames` element as read: the ranges of its start tag and end tag,
@@ -71,6 +78,10 @@ fn defined_names(
                         name: child.attribute("name").unwrap_or_default().to_owned(),
                         workbook_scoped: child.attribute("localSheetId").is_none(),
                         hidden: crate::load::manifest::is_true(child.attribute("hidden")),
+                        local_sheet: child
+                            .attribute("localSheetId")
+                            .and_then(|id| crate::load::sheet::collapsed(id).parse().ok()),
+                        tag: span,
                     });
                 children.push(((span.0, end), name));
             }
@@ -216,6 +227,35 @@ pub(super) fn workbook(
                     for (range, child) in &defined.children {
                         if dropped(child) {
                             changes.push((*range, 0, Vec::new()));
+                            continue;
+                        }
+                        let Some(scope) = child else {
+                            continue;
+                        };
+                        let replaced = names.replaced.iter().find(|(name, sheet, _)| {
+                            name.eq_ignore_ascii_case(&scope.name)
+                                && *sheet == scope.local_sheet
+                                && scope.workbook_scoped == sheet.is_none()
+                        });
+                        let Some((_, _, text)) = replaced else {
+                            continue;
+                        };
+                        let mut content = Vec::new();
+                        xstring(text, &mut content);
+                        let child_tag = RawTag::parse(&source[scope.tag.0..scope.tag.1]);
+                        if child_tag.is_empty() {
+                            let mut bytes = child_tag.rebuilt(&[], false);
+                            bytes.extend_from_slice(&content);
+                            bytes.extend_from_slice(b"</");
+                            bytes.extend_from_slice(child_tag.prefix());
+                            bytes.extend_from_slice(b"definedName>");
+                            changes.push((*range, 0, bytes));
+                        } else {
+                            let end_tag = source[..range.1]
+                                .windows(2)
+                                .rposition(|window| window == b"</")
+                                .expect("an element that is not empty has an end tag");
+                            changes.push(((scope.tag.1, end_tag), 0, content));
                         }
                     }
                     let at = defined.end_tag.0;
