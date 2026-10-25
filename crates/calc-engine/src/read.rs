@@ -589,6 +589,21 @@ impl ReferenceReader for WorkbookReader<'_> {
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         let total = area.cell_count();
         let inputs = self.view.inputs;
+        // One cell that holds an input (most reads; dc-10d9): its value, read straight from its
+        // page, as the walk below would give it without building the walk. An empty cell, which
+        // an overlay may fill, takes the walk.
+        if total == 1
+            && let Some(input) = inputs.cell(area.first())
+        {
+            let _ = match literal_value(input) {
+                Some(value) => sink(CellRun::Values(&[value])),
+                None => match self.formula_value(area.first()) {
+                    Some(value) => sink(CellRun::Values(std::slice::from_ref(value))),
+                    None => sink(CellRun::Missing(1)),
+                },
+            };
+            return;
+        }
         let Some(occupied) = inputs.cells(area) else {
             let _ = sink(CellRun::Missing(total));
             return;

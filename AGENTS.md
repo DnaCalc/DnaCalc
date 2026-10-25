@@ -51,7 +51,12 @@ DnaTreeCalc, DnaOneCalc and the others) are read-only inputs: port from them, ne
    `cargo xtask check` runs the five architecture checks (dependencies, os-imports,
    wasm-refusal, tree-reference-tokens, word-scan), builds the workspace and tests every package
    (one line each), and fails on any of them; `--wasm` adds the portable packages' tests in
-   headless Chrome and Firefox.
+   headless Chrome and Firefox. A portable package's test runs in both: give it
+   `#[cfg_attr(not(target_arch = "wasm32"), test)]` with
+   `#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]`, and embed its data
+   with `include_bytes!` in test code. A test that cannot (it drives Excel or the file system)
+   keeps `#[test]` and a `/// Native-only: <reason>` doc line; `--wasm` prints both counts per
+   package and fails on a test that is neither.
 4. **Measure.** Run the corpus comparison (`cargo xtask corpus`, or `cargo xtask compare` per
    workbook until it lands) before and after the package, and record the summary.
 5. **Close.**

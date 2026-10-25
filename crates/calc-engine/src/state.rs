@@ -434,6 +434,11 @@ impl EngineState {
             .and_then(Option::as_mut)
             .filter(|record| record.id == node)
         {
+            // Most evaluations read nothing beyond their placed references, so the edges are
+            // unchanged and the index is left as it is (dc-10d9).
+            if record.dynamic == dynamic {
+                return;
+            }
             let old = std::mem::replace(&mut record.dynamic, dynamic);
             self.index.remove(node, &old);
             self.index.insert(node, &record.dynamic);
