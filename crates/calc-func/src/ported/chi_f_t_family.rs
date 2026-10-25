@@ -1,6 +1,7 @@
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{bisect_inverse, bratio, gamma, regularized_gamma_q};
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_pow;
 
 fn truncate_positive_integer(value: f64) -> Result<f64, WorksheetErrorCode> {
     let truncated = value.trunc();
@@ -46,7 +47,7 @@ pub fn chisq_pdf_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorC
         };
     }
     let half_k = k / 2.0;
-    Ok(x.powf(half_k - 1.0) * (-x / 2.0).exp() / (2.0_f64.powf(half_k) * gamma(half_k)))
+    Ok(crt_pow(x, half_k - 1.0) * (-x / 2.0).exp() / (crt_pow(2.0_f64, half_k) * gamma(half_k)))
 }
 
 pub fn chisq_dist_kernel(
@@ -157,9 +158,9 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
     }
     let half_d1 = d1 / 2.0;
     let half_d2 = d2 / 2.0;
-    let num = (d1 / d2).powf(half_d1) * x.powf(half_d1 - 1.0);
+    let num = crt_pow(d1 / d2, half_d1) * crt_pow(x, half_d1 - 1.0);
     let den = gamma(half_d1) * gamma(half_d2) / gamma(half_d1 + half_d2)
-        * (1.0 + d1 * x / d2).powf((d1 + d2) / 2.0);
+        * crt_pow(1.0 + d1 * x / d2, (d1 + d2) / 2.0);
     Ok(num / den)
 }
 
@@ -239,7 +240,7 @@ fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let numerator = gamma((v + 1.0) / 2.0);
     let denominator = (v * std::f64::consts::PI).sqrt()
         * gamma(v / 2.0)
-        * (1.0 + x * x / v).powf((v + 1.0) / 2.0);
+        * crt_pow(1.0 + x * x / v, (v + 1.0) / 2.0);
     Ok(numerator / denominator)
 }
 

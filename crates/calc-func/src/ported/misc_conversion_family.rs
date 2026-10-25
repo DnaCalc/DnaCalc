@@ -1,6 +1,7 @@
 use crate::value::ExcelText;
 use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::{excel_x87_div, excel_x87_mul};
+use crate::ported::excel_numeric::crt_pow;
 
 const THAI_DIGITS: [&str; 10] = [
     "ศูนย์",
@@ -443,7 +444,7 @@ fn round_to_significant_digits(value: f64, digits: usize) -> f64 {
         return 0.0;
     }
     let exponent = value.abs().log10().floor();
-    let scale = 10_f64.powf((digits as f64) - exponent - 1.0);
+    let scale = crt_pow(10_f64, (digits as f64) - exponent - 1.0);
     (value * scale).round() / scale
 }
 

@@ -1,4 +1,5 @@
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_pow;
 
 pub fn sqrtpi_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     if n < 0.0 {
@@ -8,20 +9,19 @@ pub fn sqrtpi_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
     // correctly-rounded `sqrt` — and publishes `#NUM!` once the `n·π` intermediate overflows
     // f64. Reproduce BOTH: form the same `n*π` product, reject (`#NUM!`) when it is non-finite
     // (the overflow flips at exactly Excel's input, n > f64::MAX/π ≈ 5.7222122209853366e307,
-    // 0x7fd45f306dc9c882↔0x7fd45f306dc9c883), and take `powf(0.5)` rather than `sqrt`. `powf`
-    // matches Excel bit-exactly across the whole range INCLUDING the scattered 1-ULP points
-    // near overflow where correctly-rounded `sqrt` differs from Excel's `pow` — e.g. the
-    // n*π==f64::MAX input 0x7fd45f306dc9c882: `sqrt`→0x5fefffffffffffff, but Excel and `powf`
-    // both →0x5ff0000000000000. (This is `pow` vs `sqrt`, not x87/extended precision: 64-bit
-    // Excel and Rust are both SSE2; the difference is the non-correctly-rounded pow path.)
+    // 0x7fd45f306dc9c882↔0x7fd45f306dc9c883), and take the MSVC runtime's `pow(·, 0.5)` rather
+    // than `sqrt`. That `pow` matches Excel bit-exactly across the whole range INCLUDING the
+    // scattered 1-ULP points where correctly-rounded `sqrt` differs from it — e.g. the
+    // n*π==f64::MAX input 0x7fd45f306dc9c882: `sqrt`→0x5fefffffffffffff, but Excel and `pow`
+    // both →0x5ff0000000000000. (This is `pow` vs `sqrt`, not x87/extended precision.)
     // Verified live Excel 16.0 build 20026 (.tmp/sqrtpi-broad-oracle.ps1 + sqrtpi-boundary-
-    // oracle.ps1): 30/30 sampled inputs, `powf(0.5)` == Excel; `sqrt` missed the 2 near-overflow
-    // points. Resolves oxf-quxx.
+    // oracle.ps1): 30/30 sampled inputs, the runtime's `pow` == Excel; `sqrt` missed the 2
+    // near-overflow points. Resolves oxf-quxx. [`crt_pow`] is that `pow` on every target (dc-sbo).
     let product = n * std::f64::consts::PI;
     if !product.is_finite() {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(product.powf(0.5))
+    Ok(crt_pow(product, 0.5))
 }
 
 #[cfg(test)]
@@ -84,12 +84,11 @@ mod tests {
     }
 
     /// At the last finite input Excel's `(n·π)^0.5` gives 0x5ff0000000000000, as the MSVC
-    /// runtime's `pow` does. glibc's `pow` is correctly rounded there and gives the `sqrt` bits
-    /// 0x5fefffffffffffff (Linux sweep, dc-ns0), so off MSVC this kernel is one ULP from Excel at
-    /// this input; dc-sbo owns a portable form of Excel's `pow`.
-    #[cfg(target_env = "msvc")]
-    /// Native-only: Excel's bits here are the MSVC runtime's pow; off Windows they wait for dc-sbo.
-    #[test]
+    /// runtime's `pow` does, where glibc's `pow` and the correctly rounded `sqrt` give
+    /// 0x5fefffffffffffff (Linux sweep, dc-ns0). dc-sbo: [`crt_pow`] gives the runtime's bits on
+    /// every target.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sqrtpi_kernel_matches_excel_bits_at_the_last_finite_input() {
         let last_finite = f64::from_bits(0x7fd4_5f30_6dc9_c882);
         assert_eq!(

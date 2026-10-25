@@ -1,5 +1,6 @@
 use crate::value::WorksheetErrorCode;
 use std::cmp::Ordering;
+use crate::ported::excel_numeric::crt_pow;
 
 const EXCEL_COMPARE_SIGNIFICANT_DIGITS: usize = 15;
 
@@ -9,7 +10,7 @@ fn truncate_to_significant_digits(value: f64, digits: usize) -> f64 {
     }
 
     let exponent = value.abs().log10().floor();
-    let scale = 10_f64.powf((digits as f64) - exponent - 1.0);
+    let scale = crt_pow(10_f64, (digits as f64) - exponent - 1.0);
     (value * scale).trunc() / scale
 }
 

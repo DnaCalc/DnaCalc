@@ -1,5 +1,6 @@
 use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
 use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::ported::excel_numeric::crt_pow;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BondCoreEvalError {
@@ -337,7 +338,7 @@ fn pcomp_disc(
         if binexp {
             excel_bond_pow(b, ex)
         } else {
-            b.powf(ex)
+            crt_pow(b, ex)
         }
     };
     let dirty = if p.n == 1 {
