@@ -552,17 +552,28 @@ fn numeric(
         .unwrap_or(first);
     let integer_end = point_at.unwrap_or(mantissa_last + 1);
     let integer: Vec<&Item> = items[first..integer_end.max(first)].iter().collect();
+    let mut fraction_literals: Vec<(usize, String)> = Vec::new();
     let fraction: Vec<char> = match point_at {
-        Some(p) => items[p + 1..mantissa_end]
-            .iter()
-            .filter_map(|i| match i {
-                Item::Digit(c) => Some(Ok(*c)),
-                Item::Group => None,
-                _ => Some(Err(Failure::NotModelled)),
-            })
-            .collect::<Result<Vec<char>, Failure>>()?,
+        Some(p) => {
+            let mut places = Vec::new();
+            for item in &items[p + 1..mantissa_end] {
+                match item {
+                    Item::Digit(c) => places.push(*c),
+                    Item::Group => {}
+                    Item::Literal(text) => fraction_literals.push((places.len(), text.clone())),
+                    _ => return Err(Failure::NotModelled),
+                }
+            }
+            places
+        }
         None => Vec::new(),
     };
+    // A literal among the decimal places stands after as many of them as precede it in the code
+    // (Excel 16.0.20430, dc-uar: TEXT(1234567.891,"# ##0.0,0") is 1 234 567.8,9); modelled for
+    // `0` places only.
+    if !fraction_literals.is_empty() && fraction.iter().any(|c| *c != '0') {
+        return Err(Failure::NotModelled);
+    }
     let grouping = integer
         .iter()
         .enumerate()
@@ -592,7 +603,10 @@ fn numeric(
             let (whole, frac) = digits(scaled, places);
             let nonzero = whole.chars().chain(frac.chars()).any(|c| c != '0');
             let whole_text = integer_part(profile, &whole, &integer, grouping)?;
-            let frac_text = fraction_part(&frac, &fraction);
+            let mut frac_text = fraction_part(&frac, &fraction);
+            for (after, text) in fraction_literals.iter().rev() {
+                frac_text.insert_str((*after).min(frac_text.len()), text);
+            }
             let mut body = whole_text;
             if point_at.is_some() {
                 body.push_str(profile.decimal_separator);
@@ -636,12 +650,31 @@ fn integer_part(
         })
         .collect();
     if grouping {
-        // Literals between placeholders are not modelled together with grouping.
-        if pattern
-            .iter()
-            .any(|i| !matches!(i, Item::Digit(_) | Item::Group))
-        {
+        // A literal among grouped placeholders stands where as many digits are to its right as
+        // there are placeholders to its right in the code, the grouping counted on the digits
+        // alone (Excel 16.0.20430, dc-uar: TEXT(1234567.891,"# ##0,0") is 1 234 56,8, and
+        // TEXT(12,"#-# ##0") is -12). Modelled for `0` and `#` placeholders and literals that do
+        // not fall beside a group separator.
+        // A group separator beside a literal (`##- 0`, `0, 0#`) is not modelled: Excel writes some
+        // as spaces and drops others.
+        let beside_literal = pattern.iter().enumerate().any(|(at, item)| {
+            **item == Item::Group
+                && (at == 0
+                    || !matches!(pattern[at - 1], Item::Digit(_))
+                    || !matches!(pattern.get(at + 1), Some(Item::Digit(_))))
+        });
+        if beside_literal && pattern.iter().any(|i| matches!(i, Item::Literal(_))) {
             return Err(Failure::NotModelled);
+        }
+        let mut literals: Vec<(usize, String)> = Vec::new();
+        let mut right = 0;
+        for item in pattern.iter().rev() {
+            match item {
+                Item::Digit('?') => return Err(Failure::NotModelled),
+                Item::Digit(_) => right += 1,
+                Item::Group => {}
+                other => literals.push((right, literal_text(other, profile)?)),
+            }
         }
         let zeros = placeholders
             .iter()
@@ -656,7 +689,31 @@ fn integer_part(
         while digits.len() < zeros {
             digits.insert(0, '0');
         }
-        return Ok(grouped(&digits, profile.thousands_separator));
+        let mut text = grouped(&digits, profile.thousands_separator);
+        // Literals nearest the right first; each goes left of its digits.
+        for (count, literal) in &literals {
+            let mut seen = 0;
+            let mut at = text.len();
+            if *count > 0 {
+                at = 0;
+                for (index, c) in text.char_indices().rev() {
+                    if c.is_ascii_digit() {
+                        seen += 1;
+                        if seen == *count {
+                            at = index;
+                            break;
+                        }
+                    }
+                }
+                if seen < *count {
+                    at = 0;
+                } else if text[..at].ends_with(profile.thousands_separator) && !profile.thousands_separator.is_empty() {
+                    return Err(Failure::NotModelled);
+                }
+            }
+            text.insert_str(at, literal);
+        }
+        return Ok(text);
     }
     let chars: Vec<char> = whole.chars().collect();
     let mut next = chars.len();
