@@ -25,10 +25,12 @@ edition = "2024"
 publish = false
 license = "MIT"
 
-# The DNA OneCalc browser bundle (`cargo xtask onecalc bundle`): release code optimised for size,
-# with link-time optimisation in one codegen unit, because the wasm module is downloaded.
+# The browser bundles of DNA OneCalc and DNA Calc (`cargo xtask app bundle`): release code
+# optimised for speed (opt-level 3), with link-time optimisation in one codegen unit. Speed over
+# download size (decided for dc-09v, 2026-10-25); the sizes and open times are in the commit that
+# set it.
 [profile.web]
 inherits = "release"
-opt-level = "s"
+opt-level = 3
 lto = true
 codegen-units = 1

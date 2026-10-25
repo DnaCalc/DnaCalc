@@ -52,6 +52,21 @@ pub struct Timings {
     pub last_intent_ms: Option<f64>,
 }
 
+/// The bytes of the wasm instance's linear memory; `None` off the browser.
+pub fn memory_bytes() -> Option<f64> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::JsCast;
+        let memory: js_sys::WebAssembly::Memory = wasm_bindgen::memory().dyn_into().ok()?;
+        let buffer: js_sys::ArrayBuffer = memory.buffer().dyn_into().ok()?;
+        Some(f64::from(buffer.byte_length()))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        None
+    }
+}
+
 /// Milliseconds on a clock: the browser's, or off the browser the time since the first call.
 pub fn now_ms() -> f64 {
     #[cfg(target_arch = "wasm32")]
@@ -213,6 +228,7 @@ impl Controller {
     pub fn open(&self, name: &str, bytes: Vec<u8>) -> Result<(), OpenRefused> {
         let started = now_ms();
         let size = bytes.len();
+        crate::workbook::reserve_for_open(size);
         match Workbook::open(name, bytes) {
             Ok(book) => {
                 let elapsed = now_ms() - started;

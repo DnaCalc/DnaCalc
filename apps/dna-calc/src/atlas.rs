@@ -130,6 +130,7 @@ fn atlas_view(controller: Controller) -> impl IntoView {
                 <li>{format!("Workbook {name}{}", if changed { ", changed since opened or saved" } else { "" })}</li>
                 <li data-dnacalc="atlas-mode">{format!("Calculation: {}", mode_name(mode))}</li>
                 <li>{format!("Authored revision {revision}; {undo} steps to undo, {redo} to redo; {intents} intents logged")}</li>
+                <li data-dnacalc="atlas-memory">{crate::controller::memory_bytes().map_or_else(|| "Memory: not in a browser".to_owned(), |bytes| format!("Memory: {:.0} MB of wasm linear memory", bytes / 1_048_576.0))}</li>
                 <li data-dnacalc="atlas-timings">{format!("Open and first calculation: {}; last intent (an edit, undo, selection or recalculation): {}", ms(timings.open_ms), ms(timings.last_intent_ms))}</li>
             </ul>
         }

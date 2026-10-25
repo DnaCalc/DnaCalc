@@ -39,6 +39,33 @@ pub fn host_options() -> HostOptions {
     }
 }
 
+/// The linear memory reserved before a workbook is opened in the browser, per byte of its
+/// package, and at most (dc-26q). The allocator a wasm module brings (dlmalloc) grows linear memory
+/// in small steps as the open allocates, and Chrome's memory growth is slow enough that, before
+/// this reservation, it took about half of the default tariff cap workbook's open (4.2 of 8.4
+/// seconds in a CPU profile). One allocation of the expected size, freed at once, grows the
+/// memory in one step and leaves it to the allocator. That workbook (5.3 MB) used 276 MB.
+pub const OPEN_RESERVE_PER_BYTE: usize = 64;
+pub const OPEN_RESERVE_MAX: usize = 1 << 30;
+
+/// Grows the browser's linear memory for opening a package of `bytes` bytes
+/// ([`OPEN_RESERVE_PER_BYTE`]); nothing when the memory cannot grow that far, and nothing off the
+/// browser, whose allocator gets memory from the system.
+pub fn reserve_for_open(bytes: usize) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let want = bytes
+            .saturating_mul(OPEN_RESERVE_PER_BYTE)
+            .min(OPEN_RESERVE_MAX);
+        let mut reserve: Vec<u8> = Vec::new();
+        let _ = reserve.try_reserve_exact(want);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = bytes;
+    }
+}
+
 /// Why a workbook did not open.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenRefused(pub String);
