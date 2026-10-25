@@ -447,6 +447,12 @@ fn cached_value(value: &CachedValue) -> CalcValue {
 /// group separators it recorded, which the host's TEXT, VALUE and number text read with.
 /// `None` when the capture records no culture or separators the profile table cannot hold.
 pub(crate) fn capture_locale(capture: &CaptureRecord) -> Option<calc_host::FormatProfile> {
+    let [culture, decimal, thousands] = capture_locale_settings(capture)?;
+    locale_profile(culture, decimal, thousands)
+}
+
+/// The user culture and the decimal and group separators `capture` recorded.
+pub(crate) fn capture_locale_settings(capture: &CaptureRecord) -> Option<[&str; 3]> {
     let environment = capture.environment.as_ref()?;
     let setting = |name: &str| {
         environment
@@ -455,8 +461,20 @@ pub(crate) fn capture_locale(capture: &CaptureRecord) -> Option<calc_host::Forma
             .find(|(key, _)| key == name)
             .map(|(_, value)| value.as_str())
     };
-    calc_host::FormatProfile::for_culture(setting("user_culture")?)?
-        .with_separators(setting("decimal_separator")?, setting("thousands_separator")?)
+    Some([
+        setting("user_culture")?,
+        setting("decimal_separator")?,
+        setting("thousands_separator")?,
+    ])
+}
+
+/// The locale profile of a user culture with these separators ([`capture_locale`]).
+pub(crate) fn locale_profile(
+    culture: &str,
+    decimal: &str,
+    thousands: &str,
+) -> Option<calc_host::FormatProfile> {
+    calc_host::FormatProfile::for_culture(culture)?.with_separators(decimal, thousands)
 }
 
 /// The run of the workbook in `fixture` for `capture`: open, step, project.
