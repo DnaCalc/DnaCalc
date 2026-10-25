@@ -19,9 +19,9 @@
 //!   * `4.0 <= x < 8.0`  B4       : SPECFUN P4/Q4, x87 **continuous** (one final round).
 //!   * `x >= 8.0`        STIRLING : fdlibm w-tail, worksheet LN + x87 DR q.
 //!
-//! The B2/B4 bands use the real x87 80-bit hardware ops (`super::x87::raw`) on
-//! `x86_64`; a plain-`f64` fallback keeps the crate building on other targets
-//! (not bit-exact there — the identified host is `x86_64`).
+//! The B2/B4 bands run in the x87 80-bit registers: the hardware ops (`super::x87::raw`) on
+//! `x86_64`, the software x87 (`super::soft87`, the same operations exactly) elsewhere.
+use crate::ported::excel_numeric::crt_log;
 
 // ---- band anchors (correctly-rounded transcendentals) --------------------
 const D2: f64 = f64::from_bits(0x3FDB_0EE6_0720_93CE); // 1 - EulerGamma
@@ -157,69 +157,47 @@ fn stirl8(x: f64) -> f64 {
 /// earlier "spill each Horner store" tag is superseded (W109 lane 4: the
 /// held-blind noise floor picks continuous, 1.077 vs 1.113, and the fresh
 /// b32 check confirms 549 vs 518 / 1,200).
-#[cfg(target_arch = "x86_64")]
 fn b2(x: f64) -> f64 {
-    use super::x87::raw::{CW_PC64_RN as CW, ext_add, ext_div, ext_from_f64, ext_mul, ext_to_f64};
+    b2_with::<super::Native>(x)
+}
+
+fn b2_with<F: super::Fpu>(x: f64) -> f64 {
+    use super::soft87::{CW_PC64_RN as CW, ext_from_f64};
 
     let t = ext_from_f64(x - 2.0);
     let mut xnum = ext_from_f64(0.0);
     let mut xden = ext_from_f64(1.0);
     for i in 0..8 {
-        xnum = ext_add(&ext_mul(&xnum, &t, CW), &ext_from_f64(P2[i]), CW);
-        xden = ext_add(&ext_mul(&xden, &t, CW), &ext_from_f64(Q2[i]), CW);
+        xnum = F::add(&F::mul(&xnum, &t, CW), &ext_from_f64(P2[i]), CW);
+        xden = F::add(&F::mul(&xden, &t, CW), &ext_from_f64(Q2[i]), CW);
     }
-    let r = ext_div(&xnum, &xden, CW);
-    let t1 = ext_mul(&t, &r, CW); // t * r
-    let t2 = ext_add(&ext_from_f64(D2), &t1, CW); // D2 + t*r
-    let t3 = ext_mul(&t, &t2, CW); // t * (D2 + t*r)
-    ext_to_f64(&t3, CW)
+    let r = F::div(&xnum, &xden, CW);
+    let t1 = F::mul(&t, &r, CW); // t * r
+    let t2 = F::add(&ext_from_f64(D2), &t1, CW); // D2 + t*r
+    let t3 = F::mul(&t, &t2, CW); // t * (D2 + t*r)
+    F::store(&t3, CW)
 }
 
 /// B4 band `[4.0, 8.0)`: `D4 + u*(XNUM/XDEN)`, `u = x-4`. Everything extended
 /// (x87 continuous), one final round. `XDEN` leading coefficient is `-1`.
-#[cfg(target_arch = "x86_64")]
 fn b4(x: f64) -> f64 {
-    use super::x87::raw::{CW_PC64_RN as CW, ext_add, ext_div, ext_from_f64, ext_mul, ext_to_f64};
+    b4_with::<super::Native>(x)
+}
+
+fn b4_with<F: super::Fpu>(x: f64) -> f64 {
+    use super::soft87::{CW_PC64_RN as CW, ext_from_f64};
 
     let u = ext_from_f64(x - 4.0);
     let mut xnum = ext_from_f64(0.0);
     let mut xden = ext_from_f64(-1.0);
     for i in 0..8 {
-        xnum = ext_add(&ext_mul(&xnum, &u, CW), &ext_from_f64(P4[i]), CW);
-        xden = ext_add(&ext_mul(&xden, &u, CW), &ext_from_f64(Q4[i]), CW);
+        xnum = F::add(&F::mul(&xnum, &u, CW), &ext_from_f64(P4[i]), CW);
+        xden = F::add(&F::mul(&xden, &u, CW), &ext_from_f64(Q4[i]), CW);
     }
-    let r = ext_div(&xnum, &xden, CW);
-    let t1 = ext_mul(&u, &r, CW); // u * r
-    let t2 = ext_add(&ext_from_f64(D4), &t1, CW); // D4 + u*r
-    ext_to_f64(&t2, CW)
-}
-
-/// Portable fallback for non-`x86_64` targets: same op-graph in plain `f64`
-/// (double-rounded, not the x87 extended path — not bit-exact off `x86_64`).
-#[cfg(not(target_arch = "x86_64"))]
-fn b2(x: f64) -> f64 {
-    let t = x - 2.0;
-    let mut xnum = 0.0_f64;
-    let mut xden = 1.0_f64;
-    for i in 0..8 {
-        xnum = xnum * t + P2[i];
-        xden = xden * t + Q2[i];
-    }
-    let r = xnum / xden;
-    t * (D2 + t * r)
-}
-
-#[cfg(not(target_arch = "x86_64"))]
-fn b4(x: f64) -> f64 {
-    let u = x - 4.0;
-    let mut xnum = 0.0_f64;
-    let mut xden = -1.0_f64;
-    for i in 0..8 {
-        xnum = xnum * u + P4[i];
-        xden = xden * u + Q4[i];
-    }
-    let r = xnum / xden;
-    D4 + u * r
+    let r = F::div(&xnum, &xden, CW);
+    let t1 = F::mul(&u, &r, CW); // u * r
+    let t2 = F::add(&ext_from_f64(D4), &t1, CW); // D4 + u*r
+    F::store(&t2, CW)
 }
 
 /// Direct core for `x` in `[0.7, 8.0)`: dispatch by band.
@@ -241,7 +219,7 @@ pub(crate) fn gammaln_excel(x: f64) -> f64 {
     if x < THR07 {
         let xp = x + 1.0;
         let inner = if xp < 8.0 { core(xp) } else { stirl8(xp) };
-        inner - x.ln()
+        inner - crt_log(x)
     } else if x < 8.0 {
         core(x)
     } else {
@@ -282,9 +260,29 @@ mod tests {
         close(gammaln_excel(1e-300), 690.7755278982137, 1e-9); // composed, xp->1
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    /// dc-8dg: the B2/B4 bands give the same bits on the software x87 as on the hardware.
     #[cfg(target_arch = "x86_64")]
+    /// Native-only: it runs the x87 hardware, which only x86_64 has.
+    #[test]
+    fn extended_bands_equal_on_the_software_x87() {
+        use super::super::{Hard, Soft};
+        let mut s = 0x0123_4567_89ab_cdefu64;
+        for i in 0..100_000 {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            let unit = (s >> 11) as f64 / (1u64 << 53) as f64;
+            let x = if i % 2 == 0 { 1.5 + 2.5 * unit } else { 4.0 + 4.0 * unit };
+            if x < 4.0 {
+                assert_eq!(b2_with::<Hard>(x).to_bits(), b2_with::<Soft>(x).to_bits(), "B2 {x:e}");
+            } else {
+                assert_eq!(b4_with::<Hard>(x).to_bits(), b4_with::<Soft>(x).to_bits(), "B4 {x:e}");
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn stirling_ln87_dr_matches_current_build_hits_and_keeps_two_open() {
         // Current-build discovery (build 20228, Value2). Native ln missed
         // old-resid-00/08; LN87+DR matches Excel.

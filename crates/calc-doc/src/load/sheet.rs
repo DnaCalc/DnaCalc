@@ -48,6 +48,8 @@ pub(super) struct SheetLoad {
     pub(super) hidden_rows: Vec<u32>,
     /// The sheet's `<autoFilter ref>` range, (top, left, bottom, right).
     pub(super) auto_filter: Option<(u32, u32, u32, u32)>,
+    /// The rows' and columns' sizes and hidden flags (dc-09v).
+    pub(super) geometry: super::geometry::SheetGeometry,
 }
 
 /// An area some of whose cells are still to be read, whose cells are not inputs: what an array
@@ -708,6 +710,7 @@ impl Sheet<'_> {
             if super::manifest::is_true(row.attribute("hidden")) {
                 self.load.hidden_rows.push(number);
             }
+            self.load.geometry.read_row(number, &row);
             let mut previous_column = 0u32;
             loop {
                 match events.next()? {
@@ -767,6 +770,7 @@ pub(super) fn load_sheet(
             value_caches: BTreeMap::new(),
             hidden_rows: Vec::new(),
             auto_filter: None,
+            geometry: super::geometry::SheetGeometry::default(),
         },
         groups: BTreeMap::new(),
         members: Vec::new(),
@@ -786,6 +790,22 @@ pub(super) fn load_sheet(
                 sheet.load.auto_filter = element.attribute("ref").and_then(address::area);
                 events.skip()?;
             }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetFormatPr") => {
+                sheet.load.geometry.read_format(&element);
+                events.skip()?;
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "cols") => loop {
+                match events.next()? {
+                    Some(XmlEvent::Start(col)) if col.name.is(MAIN_NAMESPACE, "col") => {
+                        sheet.load.geometry.read_column(&col);
+                        events.skip()?;
+                    }
+                    Some(XmlEvent::Start(_)) => events.skip()?,
+                    Some(XmlEvent::Text(_)) => {}
+                    Some(XmlEvent::End(_)) => break,
+                    None => return Err(events.invalid("the part ends inside cols")),
+                }
+            },
             Some(XmlEvent::Start(_)) => events.skip()?,
             Some(XmlEvent::Text(text)) if text.trim().is_empty() => {}
             Some(XmlEvent::Text(_)) => return Err(events.invalid("worksheet holds text")),

@@ -604,6 +604,7 @@ const TAB: &str = "\u{E004}";
 const ENTER: &str = "\u{E007}";
 const ESCAPE: &str = "\u{E00C}";
 const DELETE: &str = "\u{E017}";
+const F2: &str = "\u{E032}";
 
 /// The selector of an element: a selector as written when `name` starts with `[`, otherwise the
 /// element whose role attribute is `name`.
@@ -1119,12 +1120,170 @@ const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "an undo of an edit on another sheet shows that sheet and the restored cell",
+        actions: &[
+            Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Data\"]"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "5"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Calc\"]"),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=\"sheet-tab\"][data-sheet=\"Data\"]",
+                "aria-selected",
+                "true",
+            ),
+            Check::Value("name-box", "A1"),
+            Check::Text(cell!("A1"), "1"),
+            Check::Value(BAR, "1"),
+            Check::Starts("cell-provenance", "Data!A1: a literal value"),
+        ],
+    },
+    Case {
+        name: "F2 and Enter on the restored cell enter its own text again",
+        actions: &[Action::Keys("grid", F2), Action::Keys("cell-editor", ENTER)],
+        checks: &[Check::Text(cell!("A1"), "1"), Check::Value("name-box", "A2")],
+    },
+    Case {
         name: "New makes an empty workbook",
         actions: &[Action::Click("new")],
         checks: &[
             Check::Text("document", "Book1.xlsx"),
             Check::Absent("[data-dnacalc=\"cell\"]"),
             Check::Value("name-box", "A1"),
+        ],
+    },
+    Case {
+        name: "the grid scrolls past its first block of rows and enters a cell there",
+        actions: &[
+            Action::Into("name-box", "B200\u{E007}"),
+            Action::Keys("grid", "9"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("B200"), "9"), Check::Value("name-box", "B201")],
+    },
+    Case {
+        name: "back at the top, row 200 is out of view",
+        actions: &[Action::Into("name-box", "A1\u{E007}")],
+        checks: &[Check::Absent(cell!("B200")), Check::Value("name-box", "A1")],
+    },
+    Case {
+        name: "at row 200 again, the entry is there",
+        actions: &[Action::Into("name-box", "B200\u{E007}")],
+        checks: &[Check::Text(cell!("B200"), "9")],
+    },
+    Case {
+        name: "a spill fills E1:E3",
+        actions: &[
+            Action::Into("name-box", "E1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "{1;2;3}"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("E3"), "3")],
+    },
+    Case {
+        name: "the spill shrinks to E1:E2 and E3 is empty again",
+        actions: &[
+            Action::Into("name-box", "E1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "{1;2}"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("E2"), "2"), Check::Absent(cell!("E3"))],
+    },
+    Case {
+        name: "a new workbook for the range cases: A1 1, A2 2, B1 =A1*10",
+        actions: &[
+            Action::Click("new"),
+            Action::Keys("grid", "1"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Keys("grid", "2"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "A1*10"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("B1"), "10")],
+    },
+    Case {
+        name: "Shift+Down selects a range and Ctrl+D fills it down, formulas relocated",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            // Shift down, Down twice, every key released (WebDriver's modifier and NULL keys).
+            Action::Keys("grid", concat!("\u{E008}", "\u{E015}", "\u{E015}", "\u{E000}")),
+            Action::Keys("grid", concat!("\u{E009}", "d", "\u{E000}")),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "B1:B3"),
+            Check::Text(cell!("B2"), "20"),
+            Check::Text(cell!("B3"), "0"),
+        ],
+    },
+    Case {
+        name: "Ctrl+C copies a range and Ctrl+V pastes it with its formula relocated",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", concat!("\u{E008}", "\u{E014}", "\u{E000}")),
+            Action::Keys("grid", concat!("\u{E009}", "c", "\u{E000}")),
+            Action::Into("name-box", "D5\u{E007}"),
+            Action::Keys("grid", concat!("\u{E009}", "v", "\u{E000}")),
+        ],
+        checks: &[
+            Check::Text(cell!("D5"), "1"),
+            Check::Text(cell!("E5"), "10"),
+            Check::Value(BAR, "1"),
+        ],
+    },
+    Case {
+        name: "a click on a column header selects the column; Delete clears it",
+        actions: &[
+            Action::Click("[data-dnacalc=\"column-header\"][data-column=\"D\"]"),
+            Action::Keys("grid", DELETE),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "D1:D1048576"),
+            Check::Absent(cell!("D5")),
+            Check::Text(cell!("E5"), "0"),
+        ],
+    },
+    Case {
+        name: "Undo brings the column's cell back",
+        actions: &[Action::Click("undo")],
+        checks: &[Check::Text(cell!("D5"), "1"), Check::Text(cell!("E5"), "10")],
+    },
+    Case {
+        name: "a workbook's number formats show as Excel shows them",
+        actions: &[Action::Upload(
+            "open-file",
+            "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
+        )],
+        checks: &[
+            Check::Text("document", "formats.xlsx"),
+            Check::Text(cell!("A1"), "1,234.50"),
+            Check::Attr(cell!("A1"), "data-format", "applied"),
+            Check::Text(cell!("A2"), "25%"),
+            Check::Text(cell!("A3"), "2024-01-31"),
+            Check::Text(cell!("A4"), "(5.00)"),
+            Check::Text(cell!("A10"), "1.50E+06"),
+            Check::Text(cell!("A11"), "Qty 12"),
+        ],
+    },
+    Case {
+        name: "its column widths, row heights and hidden column and row lay out the grid",
+        actions: &[],
+        checks: &[
+            // A is 117 px (16.71 characters), B 180 px (25.71), C hidden, D the default 64 px;
+            // row 3 is 40 px (30 points), row 13 hidden, the others 20 px (15 points).
+            Check::Attr(cell!("B1"), "style", "left:165px;top:22px;width:180px;height:20px"),
+            Check::Attr(cell!("D1"), "style", "left:345px;top:22px;width:64px;height:20px"),
+            Check::Attr(cell!("A3"), "style", "left:48px;top:62px;width:117px;height:40px"),
+            Check::Attr(cell!("A14"), "style", "left:48px;top:282px;width:117px;height:20px"),
+            // A4's negative section is [Red].
+            Check::Attr(cell!("A4"), "style", "left:48px;top:102px;width:117px;height:20px;color:#ff0000"),
         ],
     },
 ];

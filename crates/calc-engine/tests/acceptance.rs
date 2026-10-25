@@ -1686,16 +1686,14 @@ fn ceng_m1_2__chain_recalculates() {
         ]
     );
     for change in delta.changes() {
-        let ValueChange::Published {
-            at,
-            node: n,
-            result,
-        } = change
-        else {
+        let ValueChange::Published { at, node: n } = change else {
             panic!("unexpected {change:?}");
         };
         assert_eq!(Some(*n), state.node_at(*at));
-        assert_eq!(Some(result), state.result(*at));
+        assert!(
+            matches!(state.result(*at), Some(FormulaResult::Calculated { .. })),
+            "the published result of {at:?} stands"
+        );
     }
     assert_eq!(state.pending().count(), 0);
     // Work!A2's bound plan, placed at its anchor. Steps 2, 3 and 7 evaluate it again; none binds

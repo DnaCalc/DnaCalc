@@ -9,6 +9,11 @@ description = "The package for CalcFunc: the worksheet function catalogue and se
 [package.metadata.dnacalc]
 portability = "portable"
 
+[features]
+# Runs the software x87 (dc-8dg) on x86_64 too, where the entry points otherwise run the x87
+# instructions: the wasm32 route's x87 chains, measured natively (catalogue oracle, corpus).
+soft-x87 = []
+
 [dependencies]
 calc-value = { path = "../calc-value" }
 libm = "0.2"

@@ -54,6 +54,7 @@
 //! no way around these calls to change the authored revision or the engine state.
 
 mod command;
+mod copy;
 mod entry;
 mod history;
 mod project;
@@ -62,6 +63,7 @@ mod save;
 mod session;
 mod state;
 
+pub use copy::{COPY_LIMIT, CopyRefusal};
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
 pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};
 pub use history::{Irreversible, IrreversibleReason, Selection};
@@ -72,13 +74,14 @@ pub use project::{
 pub use recalc::{HostProgress, RecalcFailed, calculate, calculate_full, step};
 pub use save::{SaveFailed, save};
 pub use session::{
-    DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, IntentError,
-    IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId, UNDO_LIMIT,
-    replay,
+    DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, INTENT_LOG_LIMIT,
+    IntentError, IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId,
+    UNDO_LIMIT, replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
 pub use calc_doc::blank_package;
+pub use calc_doc::{ColumnSpan, RowFormat, SheetGeometry};
 pub use calc_doc::{
     CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,

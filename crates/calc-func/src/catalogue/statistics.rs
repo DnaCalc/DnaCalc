@@ -21,6 +21,7 @@ use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, varianc
 use crate::ported::{self as k};
 use crate::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
 use std::collections::BTreeMap;
+use crate::ported::excel_numeric::{crt_exp, crt_log};
 
 const CODE: u16 = 103;
 
@@ -225,8 +226,8 @@ ported_family! {
         if product.is_normal() {
             s.number(k::excel_numeric::excel_root_x87(&values))
         } else {
-            let ln = values.iter().map(|v| v.ln()).sum::<f64>();
-            s.number((ln / n).exp())
+            let ln = values.iter().map(|v| crt_log(*v)).sum::<f64>();
+            s.number(crt_exp(ln / n))
         }
     }
     4 harmean "HARMEAN" (1, 255) [R "number1", R "number2"] |s, a, sv| {

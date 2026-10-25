@@ -1,6 +1,8 @@
 use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{bisect_inverse, bratio, gamma, regularized_gamma_q};
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_pow;
+use crate::ported::excel_numeric::crt_exp;
 
 fn truncate_positive_integer(value: f64) -> Result<f64, WorksheetErrorCode> {
     let truncated = value.trunc();
@@ -46,7 +48,7 @@ pub fn chisq_pdf_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorC
         };
     }
     let half_k = k / 2.0;
-    Ok(x.powf(half_k - 1.0) * (-x / 2.0).exp() / (2.0_f64.powf(half_k) * gamma(half_k)))
+    Ok(crt_pow(x, half_k - 1.0) * crt_exp(-x / 2.0) / (crt_pow(2.0_f64, half_k) * gamma(half_k)))
 }
 
 pub fn chisq_dist_kernel(
@@ -157,9 +159,9 @@ pub fn f_pdf_kernel(x: f64, deg1: f64, deg2: f64) -> Result<f64, WorksheetErrorC
     }
     let half_d1 = d1 / 2.0;
     let half_d2 = d2 / 2.0;
-    let num = (d1 / d2).powf(half_d1) * x.powf(half_d1 - 1.0);
+    let num = crt_pow(d1 / d2, half_d1) * crt_pow(x, half_d1 - 1.0);
     let den = gamma(half_d1) * gamma(half_d2) / gamma(half_d1 + half_d2)
-        * (1.0 + d1 * x / d2).powf((d1 + d2) / 2.0);
+        * crt_pow(1.0 + d1 * x / d2, (d1 + d2) / 2.0);
     Ok(num / den)
 }
 
@@ -239,7 +241,7 @@ fn t_pdf(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorCode> {
     let numerator = gamma((v + 1.0) / 2.0);
     let denominator = (v * std::f64::consts::PI).sqrt()
         * gamma(v / 2.0)
-        * (1.0 + x * x / v).powf((v + 1.0) / 2.0);
+        * crt_pow(1.0 + x * x / v, (v + 1.0) / 2.0);
     Ok(numerator / denominator)
 }
 
@@ -439,8 +441,8 @@ mod tests {
         );
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_inv_2t_df1_matches_live_excel_tan_pins() {
         // Live Excel 16.0 build 20326 / CV2, Value2 cell-ref injection.
         // T.INV.2T(p,1)=1/TAN(PI()*p/2), with p=0.5 published as exact 1.
@@ -514,8 +516,8 @@ mod tests {
         assert!((f_inv_kernel(0.99, 6.0, 4.0).unwrap() - 15.20686).abs() < 1e-4);
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_dist_df2_pdf_matches_live_excel_pow_chain_pins() {
         let pins = [
             (-8.0_f64, 0x3f5e8e78c21b35f0u64),

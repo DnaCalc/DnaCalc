@@ -20,6 +20,9 @@ portability = "portable"
 # on every target and run only in a browser.
 [dependencies]
 calc-host = { path = "../../crates/calc-host" }
+# The one number-format renderer (calc-func's cell_text, which TEXT renders with), for cells' number
+# formats (dc-09v).
+calc-func = { path = "../../crates/calc-func" }
 dna-onecalc = { path = "../dna-onecalc" }
 leptos = { version = "=0.8.19", default-features = false, features = ["csr"] }
 # The browser entry's start function (src/bin/dna-calc-web.rs) and the panic hook (src/web.rs).

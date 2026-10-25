@@ -283,6 +283,43 @@ impl HostState {
         Some(GridArea::new(first, last).expect("both corners are on the sheet"))
     }
 
+    /// Whether `at` is a formula cell as Excel counts them (`Range.HasFormula`), which is the cell
+    /// set a comparison's inventory holds: a cell whose input is a formula, every cell of a legacy
+    /// (Ctrl+Shift+Enter) array formula's area, and every cell of a what-if data table's results.
+    /// The cells a dynamic array spills into beside its anchor are not formula cells (dc-rif).
+    pub fn holds_formula(&self, at: CellKey) -> bool {
+        if matches!(
+            self.model.cell(at),
+            Some(calc_doc_model::CellInput::Formula(_))
+        ) {
+            return true;
+        }
+        let definitions = self.model.definitions();
+        definitions
+            .array_containing(at)
+            .is_some_and(|array| array.kind() == calc_doc_model::ArrayKind::Legacy)
+            || definitions.data_table_containing(at).is_some()
+    }
+
+    /// The row heights, column widths and hidden rows and columns of `sheet` as the file stated
+    /// them when the workbook was opened (dc-09v); `None` for a sheet the file did not hold. No
+    /// command changes them yet, and a structural edit does not move them.
+    pub fn sheet_geometry(&self, sheet: SheetId) -> Option<&calc_doc::SheetGeometry> {
+        self.loaded.sheet(sheet).map(|loaded| loaded.geometry())
+    }
+
+    /// The number format code of the cell at `at`: the code of the cell format the file gave the
+    /// cell when the workbook was opened (`General` when it gave none), or `None` when the file
+    /// names a format the styles part neither declares nor builds in (dc-09v). A cell an edit
+    /// sets keeps the format of its place; no command changes formats yet.
+    pub fn number_format(&self, at: CellKey) -> Option<&str> {
+        let style = self
+            .loaded
+            .sheet(at.sheet())
+            .map_or(0, |sheet| sheet.style(at.row(), at.column()));
+        self.loaded.styles().number_format_code(style)
+    }
+
     /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s
     /// `date1904`), as calc-doc loaded it; no command changes it. Every recalculation applies it
     /// ([`HostState::recalc_context`]). calc-doc reads `calcPr`'s iteration settings, which the

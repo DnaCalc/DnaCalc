@@ -148,12 +148,9 @@ impl FormulaResult {
 /// One change a finished recalculation published, at a formula cell.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ValueChange {
-    /// The node at `at` was evaluated and `result` is now its published result.
-    Published {
-        at: CellKey,
-        node: NodeId,
-        result: FormulaResult,
-    },
+    /// The node at `at` was evaluated, and [`crate::EngineState::result`] gives its result now
+    /// published (dc-dxm: the delta names the cell, and no longer holds a copy of every result).
+    Published { at: CellKey, node: NodeId },
     /// The formula at `at` was removed by an edit committed before the recalculation; its result
     /// is no longer published.
     Removed { at: CellKey, node: NodeId },

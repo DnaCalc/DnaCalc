@@ -1,6 +1,7 @@
 use crate::ported::normal_dist_common::{erf_approx, phi_kernel, stored_normal_z, FRAC_1_SQRT_2_BITS, GAM1_HALF_H_BITS, GAUSS_TINY_MAX_BITS};
 use crate::ported::special_dist_family::erfc_precise_kernel;
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_log;
 
 fn erf_based_cdf(x: f64) -> f64 {
     0.5 * (1.0 + erf_approx(x / std::f64::consts::SQRT_2))
@@ -216,7 +217,7 @@ fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
     const P_HIGH: f64 = 1.0 - P_LOW;
 
     let x = if p < P_LOW {
-        let q = (-2.0 * p.ln()).sqrt();
+        let q = (-2.0 * crt_log(p)).sqrt();
         (((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
             / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
     } else if p <= P_HIGH {
@@ -225,7 +226,7 @@ fn inverse_standard_normal_acklam_refined(p: f64) -> f64 {
         (((((A[0] * r + A[1]) * r + A[2]) * r + A[3]) * r + A[4]) * r + A[5]) * q
             / (((((B[0] * r + B[1]) * r + B[2]) * r + B[3]) * r + B[4]) * r + 1.0)
     } else {
-        let q = (-2.0 * (1.0 - p).ln()).sqrt();
+        let q = (-2.0 * crt_log(1.0 - p)).sqrt();
         -(((((C[0] * q + C[1]) * q + C[2]) * q + C[3]) * q + C[4]) * q + C[5])
             / ((((D[0] * q + D[1]) * q + D[2]) * q + D[3]) * q + 1.0)
     };
@@ -456,7 +457,7 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn lognorm_family_matches_excel_probe_lanes() {
-        let mean = 4.0_f64.ln();
+        let mean = crt_log(4.0_f64);
         assert!(
             (lognorm_dist_kernel(4.0, mean, 0.2, false).unwrap() - 0.498677850501791).abs() < 1e-12
         );

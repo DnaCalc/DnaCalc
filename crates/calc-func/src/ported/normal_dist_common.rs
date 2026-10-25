@@ -55,9 +55,8 @@ mod tests {
     /// W109 PHI identification pins — live Excel 16.0 build 20131 (unique
     /// surviving staging; 764/764 answered rows replay via
     /// `verify_phi_promotion`).
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
-    #[cfg(target_arch = "x86_64")]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn phi_matches_live_excel_pinned_witnesses() {
         // PHI(0) publishes the reciprocal constant bits exactly.
         assert_eq!(phi_kernel(0.0).to_bits(), 0x3fd9884533d43651);

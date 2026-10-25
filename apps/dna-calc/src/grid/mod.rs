@@ -38,8 +38,8 @@ use geometry::{
 use leptos::prelude::*;
 use render_plan::build_render_plan;
 use selection::{
-    ActionAvailability, GridExtent, KeyChord, NavAction, SheetAction, action_availability,
-    next_active, resolve_action, sheet_keymap, typed_char,
+    GridExtent, KeyChord, NavAction, SheetAction, next_active, resolve_action, sheet_keymap,
+    typed_char,
 };
 
 /// Rows and columns the extent reaches past the used area and the view, so there is room to type.
@@ -56,6 +56,8 @@ pub const GRID_CSS: &str = r#"
 .dc-grid{position:relative;overflow:auto;flex:1 1 auto;min-height:200px;outline:none;background:#fff;border-top:1px solid #d0d7de}
 .dc-grid:focus{box-shadow:inset 0 0 0 1px #0969da55}
 .dc-layer{position:sticky;top:0;left:0;overflow:hidden;font:13px/1 system-ui,"Segoe UI",sans-serif;color:#1b1f24}
+.dc-line{position:absolute;background:#e1e4e8}
+.dc-cell[data-format=unshowable]{justify-content:flex-start}
 .dc-cell{position:absolute;box-sizing:border-box;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:clip;display:flex;align-items:center}
 .dc-cell[data-kind=number]{justify-content:flex-end}
 .dc-cell[data-kind=logical],.dc-cell[data-kind=error]{justify-content:center}
@@ -66,6 +68,7 @@ pub const GRID_CSS: &str = r#"
 .dc-head{position:absolute;box-sizing:border-box;background:#f6f8fa;color:#57606a;border-right:1px solid #d0d7de;border-bottom:1px solid #d0d7de;display:flex;align-items:center;justify-content:center;font-size:12px}
 .dc-head.dc-on{background:#dbe9f9;color:#0550ae;font-weight:600}
 .dc-corner{position:absolute;left:0;top:0;background:#eaeef2;border-right:1px solid #d0d7de;border-bottom:1px solid #d0d7de;box-sizing:border-box}
+.dc-selection{position:absolute;box-sizing:border-box;background:#1a7f3722;border:1px solid #1a7f37;pointer-events:none}
 .dc-active{position:absolute;box-sizing:border-box;border:2px solid #1a7f37;pointer-events:none}
 .dc-cell-editor{position:absolute;box-sizing:border-box;border:2px solid #1a7f37;font:13px system-ui,"Segoe UI",sans-serif;padding:0 3px;margin:0;outline:none;background:#fff;z-index:2;min-width:120px}
 "#;
@@ -73,6 +76,65 @@ pub const GRID_CSS: &str = r#"
 /// The grid skin.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GridSkin;
+
+/// The last row and column of the grid: a whole column or row selected reaches them.
+const MAX_ROW: u32 = 1_048_576;
+const MAX_COLUMN: u32 = 16_384;
+
+/// The maximum digit width of Excel's default font (Calibri 11) at 100%, in pixels: a column's
+/// width in characters, as the file writes it, times this is its width in pixels.
+const DIGIT_PX: f64 = 7.0;
+
+/// A sheet's metrics from its geometry as the file states it (calc-host's `sheet_geometry`):
+/// Excel's default 64-pixel column and 20-pixel (15-point) row unless the sheet states other
+/// defaults, each sized column and row at its size, and a hidden one at 0.
+pub fn sheet_metrics(geometry: Option<&calc_host::SheetGeometry>) -> GridMetrics {
+    let column_px = |chars: f64| (chars * DIGIT_PX).round();
+    let row_px = |points: f64| (points * 96.0 / 72.0).round();
+    let col_width = geometry
+        .and_then(|g| g.default_column_width)
+        .map_or(64.0, column_px);
+    let row_height = geometry
+        .and_then(|g| g.default_row_height)
+        .map_or(20.0, row_px);
+    let (columns, rows) = match geometry {
+        Some(geometry) => (
+            geometry
+                .columns
+                .iter()
+                .flat_map(|span| {
+                    let size = if span.hidden {
+                        0.0
+                    } else {
+                        span.width.map_or(col_width, column_px)
+                    };
+                    (span.first..=span.last.min(16_384)).map(move |column| (column, size))
+                })
+                .collect::<Vec<_>>(),
+            geometry
+                .rows
+                .iter()
+                .map(|(&row, format)| {
+                    let size = if format.hidden {
+                        0.0
+                    } else {
+                        format.height.map_or(row_height, row_px)
+                    };
+                    (row, size)
+                })
+                .collect::<Vec<_>>(),
+        ),
+        None => (Vec::new(), Vec::new()),
+    };
+    GridMetrics {
+        row_height,
+        col_width,
+        header_h: 22.0,
+        header_w: 48.0,
+        rows: geometry::Sizes::new(row_height, rows),
+        cols: geometry::Sizes::new(col_width, columns),
+    }
+}
 
 impl Skin for GridSkin {
     fn id(&self) -> SkinId {
@@ -135,13 +197,20 @@ fn grid_view(controller: Controller) -> impl IntoView {
         width: 1000.0,
         height: 560.0,
     });
-    let metrics = Memo::new(move |_| GridMetrics::default().scaled(zoom.get()));
+    let sheet_metrics = Memo::new(move |_| {
+        let sheet = controller.sheet.get();
+        controller
+            .with(|book| sheet_metrics(sheet.and_then(|sheet| book.host().sheet_geometry(sheet))))
+    });
+    let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
     let mirror = RwSignal::new(DeltaMirror::default());
     let subscription: StoredValue<Option<(u64, SubscriptionId)>> = StoredValue::new(None);
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();
     let editor: NodeRef<leptos::html::Input> = NodeRef::new();
     let note = RwSignal::new(String::new());
+    // Whether a press on a cell is being dragged to extend the selection.
+    let dragging = StoredValue::new(false);
 
     let used = Memo::new(move |_| {
         let sheet = controller.sheet.get()?;
@@ -186,12 +255,19 @@ fn grid_view(controller: Controller) -> impl IntoView {
     });
 
     let plan = Memo::new(move |_| {
-        let profile = controller.with(|book| book.profile().copied());
-        let shown: Vec<cells::CellShown> = mirror.with(|mirror| {
-            mirror
-                .cells()
-                .map(|cell| cells::shown(cell, profile.as_ref()))
-                .collect()
+        let sheet = controller.sheet.get();
+        // Only the shown sheet's cells: until the interest moves to a sheet just shown, the
+        // mirror still holds the previous sheet's. Each in its number format.
+        let shown: Vec<cells::CellShown> = controller.with(|book| {
+            mirror.with(|mirror| {
+                mirror
+                    .cells()
+                    .filter(|cell| Some(cell.at().sheet()) == sheet)
+                    .map(|cell| {
+                        cells::shown(cell, book.profile(), book.host().number_format(cell.at()))
+                    })
+                    .collect()
+            })
         });
         let extent = grid_extent.get();
         build_render_plan(
@@ -240,8 +316,20 @@ fn grid_view(controller: Controller) -> impl IntoView {
         };
         let m = metrics.get_untracked();
         let v = viewport.get_untracked();
-        let x = viewport::reveal_scroll(col, m.col_width, m.header_w, v.width, v.scroll_x);
-        let y = viewport::reveal_scroll(row, m.row_height, m.header_h, v.height, v.scroll_y);
+        let x = viewport::reveal_span(
+            m.col_start(col),
+            m.col_start(col) + m.width(col),
+            m.header_w,
+            v.width,
+            v.scroll_x,
+        );
+        let y = viewport::reveal_span(
+            m.row_start(row),
+            m.row_start(row) + m.height(row),
+            m.header_h,
+            v.height,
+            v.scroll_y,
+        );
         if x != v.scroll_x {
             element.set_scroll_left(x as i32);
         }
@@ -297,6 +385,26 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     controller.redo();
                     return;
                 }
+                "c" => {
+                    ev.prevent_default();
+                    controller.copy();
+                    return;
+                }
+                "v" => {
+                    ev.prevent_default();
+                    controller.paste();
+                    return;
+                }
+                "d" => {
+                    ev.prevent_default();
+                    controller.fill(true);
+                    return;
+                }
+                "r" => {
+                    ev.prevent_default();
+                    controller.fill(false);
+                    return;
+                }
                 _ => {}
             }
         }
@@ -307,16 +415,21 @@ fn grid_view(controller: Controller) -> impl IntoView {
         }
         if let Some(action) = resolve_action(&sheet_keymap(), &chord) {
             ev.prevent_default();
-            if let ActionAvailability::DisabledWithReason(reason) = action_availability(action) {
-                note.set(reason.to_owned());
-                return;
-            }
             note.set(String::new());
             match action {
                 SheetAction::Move(nav) => go(nav),
+                SheetAction::Extend(nav) => {
+                    let corner = next_active(
+                        controller.corner.get_untracked(),
+                        nav,
+                        grid_extent.get_untracked(),
+                    );
+                    controller.extend(corner);
+                    reveal(corner.0, corner.1);
+                }
                 SheetAction::BeginEdit => controller.begin_edit(EditOrigin::Cell, None),
                 SheetAction::Clear => controller.clear_active(),
-                SheetAction::Cancel | SheetAction::ExtendSelection => {}
+                SheetAction::Cancel => {}
             }
             return;
         }
@@ -330,7 +443,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
 
     // A press on the grid: the cell under it becomes active (an edit in progress is entered
-    // first); a header or the corner says what is not built.
+    // first), or with Shift the selection's corner; a column or row header selects the column
+    // or row, the corner the sheet; dragging moves the selection's corner.
     let point = move |ev: &leptos::ev::MouseEvent| -> Option<HitTarget> {
         let rect = layer.get_untracked()?.get_bounding_client_rect();
         let x = f64::from(ev.client_x()) - rect.left();
@@ -358,22 +472,46 @@ fn grid_view(controller: Controller) -> impl IntoView {
         {
             return;
         }
+        let Some(target) = target else {
+            return;
+        };
+        if matches!(target, HitTarget::Outside) {
+            return;
+        }
+        if controller.editing.get_untracked().is_some() && !controller.commit_edit() {
+            return;
+        }
+        ev.prevent_default();
+        note.set(String::new());
+        let shift = ev.shift_key();
         match target {
-            Some(HitTarget::Cell { row, col }) => {
-                if controller.editing.get_untracked().is_some() && !controller.commit_edit() {
-                    return;
-                }
-                ev.prevent_default();
-                note.set(String::new());
+            HitTarget::Cell { row, col } if shift => controller.extend((row, col)),
+            HitTarget::Cell { row, col } => {
                 move_to(row, col);
-                focus_grid();
+                dragging.set_value(true);
             }
-            Some(
-                HitTarget::ColumnHeader { .. } | HitTarget::RowHeader { .. } | HitTarget::Corner,
-            ) => {
-                note.set(selection::ROW_COL_SELECT_DEFERRED_REASON.to_owned());
+            HitTarget::ColumnHeader { col } if shift => {
+                controller.select_range((1, controller.active.get_untracked().1), (MAX_ROW, col))
             }
-            _ => {}
+            HitTarget::ColumnHeader { col } => controller.select_range((1, col), (MAX_ROW, col)),
+            HitTarget::RowHeader { row } if shift => {
+                controller.select_range((controller.active.get_untracked().0, 1), (row, MAX_COLUMN))
+            }
+            HitTarget::RowHeader { row } => controller.select_range((row, 1), (row, MAX_COLUMN)),
+            HitTarget::Corner => controller.select_range((1, 1), (MAX_ROW, MAX_COLUMN)),
+            HitTarget::Outside => {}
+        }
+        focus_grid();
+    };
+    let on_mousemove = move |ev: leptos::ev::MouseEvent| {
+        if !dragging.get_value() || ev.buttons() & 1 == 0 {
+            dragging.set_value(false);
+            return;
+        }
+        if let Some(HitTarget::Cell { row, col }) = point(&ev)
+            && controller.corner.get_untracked() != (row, col)
+        {
+            controller.extend((row, col));
         }
     };
     let on_dblclick = move |ev: leptos::ev::MouseEvent| {
@@ -438,7 +576,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
-                    let style = rect_style(&cell.rect);
+                    let style = match cell.shown.color {
+                        Some(color) => format!("{};color:{color}", rect_style(&cell.rect)),
+                        None => rect_style(&cell.rect),
+                    };
                     let shown = cell.shown.clone();
                     view! {
                         <div
@@ -447,6 +588,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                             data-cell=address
                             data-kind=shown.kind
                             data-provenance=shown.provenance.name()
+                            data-format=shown.format.name()
                             data-formula=if shown.formula { "true" } else { "false" }
                             style=style
                         >
@@ -459,21 +601,24 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
     let headers_view = move || {
         let (row, col) = controller.active.get();
+        let (corner_row, corner_col) = controller.corner.get();
+        let rows = row.min(corner_row)..=row.max(corner_row);
+        let cols = col.min(corner_col)..=col.max(corner_col);
         plan.with(|plan| {
             let columns = plan
                 .col_headers
                 .iter()
                 .map(|header| {
-                    let class = if header.col == col { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class style=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    let class = if cols.contains(&header.col) { "dc-head dc-on" } else { "dc-head" };
+                    view! { <div class=class data-dnacalc="column-header" data-column=header.label.clone() style=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
             let rows = plan
                 .row_headers
                 .iter()
                 .map(|header| {
-                    let class = if header.row == row { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class style=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    let class = if rows.contains(&header.row) { "dc-head dc-on" } else { "dc-head" };
+                    view! { <div class=class data-dnacalc="row-header" data-row=header.label.clone() style=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
             (columns, rows)
@@ -482,6 +627,33 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let active_rect = move || {
         let (row, col) = controller.active.get();
         cell_rect(&metrics.get(), &viewport.get(), row, col)
+    };
+    // The selected range, clipped to what a rectangle in the layer can hold.
+    let selection_view = move || {
+        let area = controller.selected_area()?;
+        if area.cell_count() == 1 {
+            return None;
+        }
+        let m = metrics.get();
+        let v = viewport.get();
+        let (first, last) = (area.first(), area.last());
+        let top_left = cell_rect(&m, &v, first.row(), first.column());
+        let bottom_right = cell_rect(&m, &v, last.row(), last.column());
+        let clip = |near: f64, far: f64, len: f64| (near.max(-2.0), far.min(len + 2.0));
+        let (x0, x1) = clip(top_left.x, bottom_right.x + bottom_right.w, v.width);
+        let (y0, y1) = clip(top_left.y, bottom_right.y + bottom_right.h, v.height);
+        let label = controller.with_untracked(|book| cells::area_label(book.host(), area));
+        let label = label.rsplit('!').next().unwrap_or_default().to_owned();
+        let style = format!(
+            "left:{};top:{};width:{};height:{}",
+            px(x0),
+            px(y0),
+            px((x1 - x0).max(0.0)),
+            px((y1 - y0).max(0.0))
+        );
+        Some(
+            view! { <div class="dc-selection" data-dnacalc="selection" data-area=label style=style></div> },
+        )
     };
     let active_view = move || {
         let rect = active_rect();
@@ -511,23 +683,50 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let extent = grid_extent.get();
         format!(
             "position:relative;width:{};height:{}",
-            px(m.header_w + f64::from(extent.cols) * m.col_width),
-            px(m.header_h + f64::from(extent.rows) * m.row_height)
+            px(m.header_w + m.col_start(extent.cols) + m.width(extent.cols)),
+            px(m.header_h + m.row_start(extent.rows) + m.height(extent.rows))
         )
     };
     let layer_style = move || {
-        let m = metrics.get();
         let v = viewport.get();
-        // Gridlines as a background, shifted with the scroll.
         format!(
-            "width:{};height:{};background-color:#fff;background-image:linear-gradient(to right,#e1e4e8 1px,transparent 1px),linear-gradient(to bottom,#e1e4e8 1px,transparent 1px);background-size:{} {};background-position:{} {}",
+            "width:{};height:{};background-color:#fff",
             px(v.width),
-            px(v.height),
-            px(m.col_width),
-            px(m.row_height),
-            px(m.header_w - v.scroll_x - 1.0),
-            px(m.header_h - v.scroll_y - 1.0),
+            px(v.height)
         )
+    };
+    // The gridlines: one line after each visible column and row.
+    let gridlines = move || {
+        let v = viewport.get();
+        plan.with(|plan| {
+            let columns = plan
+                .col_headers
+                .iter()
+                .filter(|header| header.rect.w > 0.0)
+                .map(|header| {
+                    let style = format!(
+                        "left:{};top:0;width:1px;height:{}",
+                        px(header.rect.x + header.rect.w - 1.0),
+                        px(v.height)
+                    );
+                    view! { <div class="dc-line" style=style></div> }
+                })
+                .collect_view();
+            let rows = plan
+                .row_headers
+                .iter()
+                .filter(|header| header.rect.h > 0.0)
+                .map(|header| {
+                    let style = format!(
+                        "left:0;top:{};width:{};height:1px",
+                        px(header.rect.y + header.rect.h - 1.0),
+                        px(v.width)
+                    );
+                    view! { <div class="dc-line" style=style></div> }
+                })
+                .collect_view();
+            (columns, rows)
+        })
     };
     let corner_style = move || {
         let m = metrics.get();
@@ -546,10 +745,14 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 on:keydown=on_keydown
                 on:mousedown=on_mousedown
                 on:dblclick=on_dblclick
+                on:mousemove=on_mousemove
+                on:mouseup=move |_| dragging.set_value(false)
             >
                 <div style=space_style>
                     <div class="dc-layer" node_ref=layer style=layer_style>
+                        {gridlines}
                         {cells_view}
+                        {selection_view}
                         {active_view}
                         {move || {
                             let (columns, rows) = headers_view();

@@ -4,7 +4,7 @@
 //! starts its first pass from (CalcEngine's recalculation, dc-10y).
 
 use crate::input::{CellText, FiniteNumber};
-use calc_value::WorksheetErrorCode;
+use calc_value::{CalcValue, WorksheetErrorCode};
 use std::sync::Arc;
 
 /// The identity of the package part a value was read from: its part name (its ZIP item name,
@@ -43,6 +43,19 @@ pub enum CachedValue {
     Text(CellText),
     Logical(bool),
     Error(WorksheetErrorCode),
+}
+
+impl CachedValue {
+    /// The cached value as a value: what a reader that takes a file cache as a value (an
+    /// iterating formula's start, a comparison, a skin) reads. Nothing here makes it calculated.
+    pub fn to_value(&self) -> CalcValue {
+        match self {
+            CachedValue::Number(number) => CalcValue::number(number.get()),
+            CachedValue::Text(text) => CalcValue::text(text.text().clone()),
+            CachedValue::Logical(logical) => CalcValue::logical(*logical),
+            CachedValue::Error(code) => CalcValue::error(*code),
+        }
+    }
 }
 
 /// A formula result whose provenance is a file cache: the value a package stored beside the

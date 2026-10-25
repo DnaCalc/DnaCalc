@@ -11,6 +11,7 @@ use crate::kernel::{Exit, Site, Step};
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
+use crate::ported::excel_numeric::crt_pow;
 
 /// F1's families take codes from 100 up, clear of the other lanes' families.
 const CODE: u16 = 100;
@@ -189,7 +190,7 @@ ported_family! {
                 CoreValue::Error(code) => return fail(*code),
                 _ => return fail(WorksheetErrorCode::Value),
             };
-            sum += c * x.powf(n + (i as f64) * m);
+            sum += c * crt_pow(x, n + (i as f64) * m);
         }
         s.number(sum)
     }

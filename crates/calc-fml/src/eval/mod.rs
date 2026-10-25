@@ -599,6 +599,8 @@ pub struct EvalScratch {
     /// The locals of every frame of the evaluation (LET names, LAMBDA parameters and captures),
     /// each frame above its caller's.
     locals: Vec<CalcValue>,
+    /// The argument storage eager calls reuse (dc-dxm: kept between evaluations).
+    arguments: Vec<CalcValue>,
 }
 
 impl EvalScratch {

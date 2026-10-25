@@ -1002,6 +1002,110 @@ fn convergent(x: f64, largest: u64) -> Option<(u64, u64)> {
     best
 }
 
+/// Why a value has no text as a cell shows it under a number format ([`cell_text`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CellFormatError {
+    /// The value cannot be shown under the code: a negative number or one past 9999-12-31 under
+    /// a date or time code, which Excel's cell shows as a row of `#`.
+    Unshowable,
+    /// The text under this code is not modelled (the cases [`text`] refuses).
+    NotModelled,
+}
+
+/// A cell's value as the cell shows it under the number format `code` (dc-09v): a number or a
+/// text through the one renderer TEXT uses ([`text`], [`text_of_text`]); a logical as it is, which
+/// no format changes. An error or an array gets no text here (`NotModelled`): the caller shows it
+/// as it shows it unformatted. The column's width is not applied: a skin that clips or shows `#`
+/// for a number wider than its column does so itself.
+pub fn cell_text(
+    profile: &FormatProfile,
+    system: DateSystem,
+    value: &crate::value::CalcValue,
+    code: &str,
+) -> Result<String, CellFormatError> {
+    use crate::value::CoreValue;
+    let failure = |failure: Failure| match failure {
+        Failure::Value => CellFormatError::Unshowable,
+        Failure::NotModelled => CellFormatError::NotModelled,
+    };
+    match value.core() {
+        CoreValue::Number(number) => text(profile, system, *number, code).map_err(failure),
+        CoreValue::Text(text) => {
+            text_of_text(&text.to_string_lossy(), code, profile).map_err(failure)
+        }
+        CoreValue::Logical(true) => Ok("TRUE".to_owned()),
+        CoreValue::Logical(false) => Ok("FALSE".to_owned()),
+        CoreValue::Empty => Ok(String::new()),
+        _ => Err(CellFormatError::NotModelled),
+    }
+}
+
+/// The color a number format's section gives the text a cell shows (`[Red]`), one of the eight
+/// Excel names in a format code; `[ColorN]` (a workbook palette index) is not read here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormatColor {
+    Black,
+    Blue,
+    Cyan,
+    Green,
+    Magenta,
+    Red,
+    White,
+    Yellow,
+}
+
+impl FormatColor {
+    /// The color's RGB in Excel's default palette, as `#rrggbb`.
+    pub const fn rgb(self) -> &'static str {
+        match self {
+            FormatColor::Black => "#000000",
+            FormatColor::Blue => "#0000ff",
+            FormatColor::Cyan => "#00ffff",
+            FormatColor::Green => "#00ff00",
+            FormatColor::Magenta => "#ff00ff",
+            FormatColor::Red => "#ff0000",
+            FormatColor::White => "#ffffff",
+            FormatColor::Yellow => "#ffff00",
+        }
+    }
+}
+
+/// The color the section of `code` that shows `value` names (dc-09v): the section [`text`] or
+/// [`text_of_text`] would render it with, read up to its first character that is not in a
+/// bracketed token; `None` when the section names none or the value takes no section.
+pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatColor> {
+    use crate::value::CoreValue;
+    let sections = sections(code);
+    let section = match value.core() {
+        CoreValue::Number(number) => choose(&sections, *number).ok()?.0,
+        CoreValue::Text(_) => match sections.get(3) {
+            Some(section) => section.clone(),
+            None if sections.len() == 1 && sections[0].contains('@') => sections[0].clone(),
+            None => return None,
+        },
+        _ => return None,
+    };
+    let mut rest = section.as_str();
+    while let Some((token, after)) = bracket(rest) {
+        let color = match token.to_ascii_lowercase().as_str() {
+            "black" => Some(FormatColor::Black),
+            "blue" => Some(FormatColor::Blue),
+            "cyan" => Some(FormatColor::Cyan),
+            "green" => Some(FormatColor::Green),
+            "magenta" => Some(FormatColor::Magenta),
+            "red" => Some(FormatColor::Red),
+            "white" => Some(FormatColor::White),
+            "yellow" => Some(FormatColor::Yellow),
+            _ => None,
+        };
+        if color.is_some() {
+            return color;
+        }
+        rest = after;
+    }
+    None
+}
+
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
     let sections = sections(code);
@@ -1178,4 +1282,21 @@ mod tests {
         assert_eq!(dollar(&p, 1234.567, -2), "R1 200");
         assert_eq!(dollar(&p, 0.5, 0), "R1");
     }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_section_names_the_color_of_the_value_it_shows() {
+        use crate::value::CalcValue;
+        let code = "#,##0;[Red]-#,##0;[Blue]0;[Green]@";
+        assert_eq!(cell_color(code, &CalcValue::number(5.0)), None);
+        assert_eq!(cell_color(code, &CalcValue::number(-5.0)), Some(FormatColor::Red));
+        assert_eq!(cell_color(code, &CalcValue::number(0.0)), Some(FormatColor::Blue));
+        assert_eq!(
+            cell_color(code, &CalcValue::text(crate::value::ExcelText::from_utf16_code_units("x".encode_utf16().collect()))),
+            Some(FormatColor::Green)
+        );
+        assert_eq!(cell_color("[>100][Magenta]0;0", &CalcValue::number(500.0)), Some(FormatColor::Magenta));
+        assert_eq!(FormatColor::Red.rgb(), "#ff0000");
+    }
+
 }

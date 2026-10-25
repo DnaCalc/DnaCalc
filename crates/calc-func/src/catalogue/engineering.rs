@@ -16,6 +16,7 @@ use crate::ported::complex_family::{
 use crate::ported::engineering_radix_family as radix;
 use crate::ported::{self as k};
 use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
+use crate::ported::excel_numeric::crt_log;
 
 const CODE: u16 = 105;
 
@@ -195,13 +196,13 @@ ported_family! {
     43 imlog10 "IMLOG10" (1, 1) [V "inumber"] |s, a, sv| {
         unary_complex(s, a, |z| {
             let ln = z.ln()?;
-            Ok(ParsedComplex::new(ln.re / 10.0_f64.ln(), ln.im / 10.0_f64.ln(), None))
+            Ok(ParsedComplex::new(ln.re / crt_log(10.0), ln.im / crt_log(10.0), None))
         })
     }
     44 imlog2 "IMLOG2" (1, 1) [V "inumber"] |s, a, sv| {
         unary_complex(s, a, |z| {
             let ln = z.ln()?;
-            Ok(ParsedComplex::new(ln.re / 2.0_f64.ln(), ln.im / 2.0_f64.ln(), None))
+            Ok(ParsedComplex::new(ln.re / crt_log(2.0), ln.im / crt_log(2.0), None))
         })
     }
     45 imsec "IMSEC" (1, 1) [V "inumber"] |s, a, sv| { unary_complex(s, a, |z| z.sec()) }

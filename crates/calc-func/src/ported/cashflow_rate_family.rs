@@ -1,5 +1,6 @@
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreValue};
+use crate::ported::excel_numeric::crt_pow;
 
 const ROOT_TOLERANCE: f64 = 1e-8;
 const ROOT_DERIVATIVE_EPS: f64 = 1e-12;
@@ -202,7 +203,7 @@ fn periodic_npv_with_t0(rate: f64, cashflows: &[f64]) -> Result<f64, WorksheetEr
     let base = 1.0 + rate;
     let mut total = 0.0;
     for (idx, cashflow) in cashflows.iter().enumerate() {
-        total += *cashflow / base.powf(idx as f64);
+        total += *cashflow / crt_pow(base, idx as f64);
     }
     if total.is_finite() {
         Ok(total)
@@ -220,7 +221,7 @@ fn periodic_npv_derivative(rate: f64, cashflows: &[f64]) -> Result<f64, Workshee
     let mut total = 0.0;
     for (idx, cashflow) in cashflows.iter().enumerate().skip(1) {
         let period = idx as f64;
-        total += -period * *cashflow / base.powf(period + 1.0);
+        total += -period * *cashflow / crt_pow(base, period + 1.0);
     }
     if total.is_finite() {
         Ok(total)
@@ -239,7 +240,7 @@ fn xnpv_kernel_raw(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, Work
     let mut total = 0.0;
     for (value, date) in values.iter().zip(dates.iter()) {
         let years = (*date - anchor) as f64 / 365.0;
-        total += *value / base.powf(years);
+        total += *value / crt_pow(base, years);
     }
     if total.is_finite() {
         Ok(total)
@@ -261,7 +262,7 @@ fn xnpv_derivative(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, Work
         if years == 0.0 {
             continue;
         }
-        total += -years * *value / base.powf(years + 1.0);
+        total += -years * *value / crt_pow(base, years + 1.0);
     }
     if total.is_finite() {
         Ok(total)
@@ -537,7 +538,7 @@ fn xirr_two_cashflow_root(values: &[f64], dates: &[i64]) -> Result<f64, Workshee
     if !ratio.is_finite() || ratio <= 0.0 {
         return Err(WorksheetErrorCode::Num);
     }
-    let root = ratio.powf(1.0 / years) - 1.0;
+    let root = crt_pow(ratio, 1.0 / years) - 1.0;
     if root.is_finite() && root > MIN_VALID_RATE {
         Ok(root)
     } else {
@@ -832,8 +833,8 @@ mod tests {
     /// the forward per-step-stored x87 accumulation loop. The broader
     /// 1,530-row live sweep is replayed by
     /// `calc_graph_racer verify_xnpv_promotion` over the oracle cache.
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_matches_live_excel_pinned_witnesses() {
         struct Pin {
             rate_bits: u64,

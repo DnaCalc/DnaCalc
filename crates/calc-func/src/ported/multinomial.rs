@@ -1,5 +1,7 @@
 use crate::ported::factorial_common::{factorial_of_int, trunc_nonnegative};
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_log;
+use crate::ported::excel_numeric::crt_exp;
 
 const MULTINOMIAL_LANCZOS_G: f64 = 7.0;
 const MULTINOMIAL_LANCZOS_COEFFS: [f64; 9] = [
@@ -62,12 +64,12 @@ fn multinomial_exact_candidate(positive_items: &[i64]) -> f64 {
 
 fn multinomial_log_factorial_candidate(positive_items: &[i64]) -> f64 {
     let total = positive_items.iter().sum::<i64>();
-    let numerator_ln = factorial_of_int(total).ln();
+    let numerator_ln = crt_log(factorial_of_int(total));
     let denominator_ln = positive_items
         .iter()
-        .map(|item| factorial_of_int(*item).ln())
+        .map(|item| crt_log(factorial_of_int(*item)))
         .sum::<f64>();
-    (numerator_ln - denominator_ln).exp()
+    crt_exp(numerator_ln - denominator_ln)
 }
 
 fn lanczos_ln_gamma(x: f64) -> f64 {
@@ -78,7 +80,7 @@ fn lanczos_ln_gamma(x: f64) -> f64 {
     }
 
     let t = z + MULTINOMIAL_LANCZOS_G + 0.5;
-    0.5 * (2.0 * std::f64::consts::PI).ln() + (z + 0.5) * t.ln() - t + acc.ln()
+    0.5 * crt_log(2.0 * std::f64::consts::PI) + (z + 0.5) * crt_log(t) - t + crt_log(acc)
 }
 
 fn multinomial_descending_log_numerator_lanczos_denominator_candidate(
@@ -87,13 +89,13 @@ fn multinomial_descending_log_numerator_lanczos_denominator_candidate(
     let total = positive_items.iter().sum::<i64>();
     let numerator_ln = (2..=total)
         .rev()
-        .map(|value| (value as f64).ln())
+        .map(|value| crt_log(value as f64))
         .sum::<f64>();
     let denominator_ln = positive_items
         .iter()
         .map(|item| lanczos_ln_gamma((*item + 1) as f64))
         .sum::<f64>();
-    (numerator_ln - denominator_ln).exp()
+    crt_exp(numerator_ln - denominator_ln)
 }
 
 fn multinomial_lanczos_candidate(positive_items: &[i64]) -> f64 {
@@ -103,7 +105,7 @@ fn multinomial_lanczos_candidate(positive_items: &[i64]) -> f64 {
         .iter()
         .map(|item| lanczos_ln_gamma((*item + 1) as f64))
         .sum::<f64>();
-    (numerator_ln - denominator_ln).exp()
+    crt_exp(numerator_ln - denominator_ln)
 }
 
 fn multinomial_publication_candidate(positive_items: &[i64], exact_candidate: f64) -> f64 {

@@ -172,7 +172,7 @@ pub fn evaluate(
         base: 0,
         depth: 0,
         budget: 0,
-        arguments: Vec::new(),
+        arguments: &mut scratch.arguments,
         numeric: services.numeric,
         reader: &reader,
         catalog: services.catalog,
@@ -227,7 +227,7 @@ struct Run<'a, 'r> {
     /// The recursion budget the LAMBDA calls in progress use.
     budget: usize,
     /// Argument storage reused by eager calls.
-    arguments: Vec<CalcValue>,
+    arguments: &'a mut Vec<CalcValue>,
     numeric: &'a NumericMode,
     reader: &'a SharedReader<'r>,
     /// The source of RAND, RANDBETWEEN and RANDARRAY, when the caller gave one.
@@ -437,16 +437,23 @@ impl Run<'_, '_> {
             lifted |= is_lifted(target, index, &admitted);
             self.stack[start + index] = admitted;
         }
-        let mut arguments = std::mem::take(&mut self.arguments);
+        let mut arguments = std::mem::take(&mut *self.arguments);
         arguments.clear();
-        arguments.extend_from_slice(&self.stack[start..]);
+        // A call that does not keep its arguments on the stack moves them out instead of copying
+        // them (dc-dxm); a failed call's arguments are gone either way, as `block` truncates the
+        // stack on a fault.
+        if retain {
+            arguments.extend_from_slice(&self.stack[start..]);
+        } else {
+            arguments.extend(self.stack.drain(start..));
+        }
         let value = if lifted {
             self.lifted(target, &arguments, synthetic)
         } else {
             self.eager(target, &arguments, synthetic)
         };
         arguments.clear();
-        self.arguments = arguments;
+        *self.arguments = arguments;
         let value = value?;
         if !retain {
             self.stack.truncate(start);

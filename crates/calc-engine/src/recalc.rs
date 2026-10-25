@@ -80,7 +80,7 @@ use crate::result::{
 use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{
-    ArrayKind, AuthoredRevision, Axis, CachedValue, CellInput, FormulaText, IterationSettings,
+    ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, IterationSettings,
     ModelRoot,
 };
 use calc_fml::reference::{
@@ -289,6 +289,11 @@ pub struct RecalcWork {
     rewave: BTreeSet<NodeId>,
     waves: u32,
     scratch: EvalScratch,
+    /// The areas the evaluation in progress read, kept between evaluations so that each does
+    /// not allocate its own list (dc-dxm).
+    footprint: Vec<GridArea>,
+    /// The storage the engine's reader gathers a read's values in, kept between evaluations.
+    read_batch: Vec<CalcValue>,
     failure: Option<RecalcFailure>,
     /// The workbook's iteration settings.
     iteration: IterationSettings,
@@ -385,12 +390,7 @@ fn starting_value(state: &EngineState, node: NodeId) -> CalcValue {
     let at = live_anchor(state, node);
     match state.result(at) {
         Some(FormulaResult::Calculated { value, .. }) => value.clone(),
-        Some(FormulaResult::FileCached(cache)) => match cache.value() {
-            CachedValue::Number(number) => CalcValue::number(number.get()),
-            CachedValue::Text(text) => CalcValue::text(text.text().clone()),
-            CachedValue::Logical(logical) => CalcValue::logical(*logical),
-            CachedValue::Error(code) => CalcValue::error(*code),
-        },
+        Some(FormulaResult::FileCached(cache)) => cache.value().to_value(),
         _ => CalcValue::number(0.0),
     }
 }
@@ -515,6 +515,8 @@ pub fn begin_recalc(
         rewave: BTreeSet::new(),
         waves: 0,
         scratch: EvalScratch::new(),
+        footprint: Vec::new(),
+        read_batch: Vec::new(),
         failure: None,
         iteration,
         cyclic: BTreeSet::new(),
@@ -629,19 +631,16 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
                 after: after_area,
             });
         }
-        state.results.insert(at, (node, result.clone()));
+        state.results.publish(node, at, result);
         state.pending.remove(&node);
         state.entered.remove(&node);
-        changes.push((at, ValueChange::Published { at, node, result }));
+        changes.push((at, ValueChange::Published { at, node }));
     }
     for (node, dynamic) in std::mem::take(&mut work.dynamic).into_entries() {
         state.set_dynamic(node, dynamic);
     }
     for at in std::mem::take(&mut state.retired) {
-        if let Some(&(node, _)) = state.results.get(&at)
-            && state.node_at(at) != Some(node)
-        {
-            state.results.remove(&at);
+        if let Some((node, _)) = state.results.take_orphan(at) {
             if let Some(spill) = state.spills.remove(at) {
                 spill_changes.push(SpillChange {
                     anchor: at,
@@ -923,6 +922,9 @@ pub(crate) fn dirty_closure(
 struct ReadersKey {
     index_epoch: u64,
     spill_epoch: u64,
+    /// Counts the nodes added and removed (dc-dxm): a node with no edges (a formula of
+    /// constants) changes no edge.
+    anchor_epoch: u64,
     definitions: Arc<calc_doc_model::Definitions>,
     sheets: Vec<calc_value::SheetId>,
     tables_deferred: bool,
@@ -932,6 +934,7 @@ impl PartialEq for ReadersKey {
     fn eq(&self, other: &Self) -> bool {
         self.index_epoch == other.index_epoch
             && self.spill_epoch == other.spill_epoch
+            && self.anchor_epoch == other.anchor_epoch
             && Arc::ptr_eq(&self.definitions, &other.definitions)
             && self.sheets == other.sheets
             && self.tables_deferred == other.tables_deferred
@@ -949,6 +952,13 @@ impl PartialEq for ReadersKey {
 pub(crate) struct ReadersCache {
     key: Option<ReadersKey>,
     entries: Vec<Option<(NodeId, CellKey, Box<[NodeId]>)>>,
+    /// Each live node's place in cell order (sheet ID, then row, then column), by slot: the ready
+    /// queue orders by it (dc-dxm: a u32 compares faster than a cell, and the order is the same).
+    ranks: Vec<u32>,
+    /// The order of the last recalculation of every formula, when it found no cycle (dc-dxm):
+    /// with the key unchanged, the next one of every formula has the same closure and the same
+    /// order.
+    full_order: Option<Vec<NodeId>>,
 }
 
 impl ReadersCache {
@@ -960,11 +970,24 @@ impl ReadersCache {
             definitions: Arc::clone(inputs.definitions()),
             sheets: inputs.sheets().iter().map(|sheet| sheet.id()).collect(),
             tables_deferred: state.tables_deferred,
+            anchor_epoch: state.anchor_epoch,
         };
         if self.key.as_ref() != Some(&key) {
             self.entries.clear();
+            self.full_order = None;
+            self.ranks.clear();
+            self.ranks.resize(state.nodes.len(), u32::MAX);
+            for (rank, node) in state.by_anchor.values().enumerate() {
+                self.ranks[node.slot() as usize] =
+                    u32::try_from(rank).expect("fewer than 2^32 formula nodes");
+            }
             self.key = Some(key);
         }
+    }
+
+    /// The place of the live node `node` in cell order.
+    fn rank(&self, node: NodeId) -> u32 {
+        self.ranks[node.slot() as usize]
     }
 
     fn get(&self, node: NodeId, anchor: CellKey) -> Option<&[NodeId]> {
@@ -1061,15 +1084,42 @@ fn schedule(
     cache: Option<&mut ReadersCache>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Scheduled {
-    let closure = match cache {
-        Some(cache) => closure_with(state, inputs, roots, Some(cache), areas),
-        None => dirty_closure(state, inputs, roots, areas),
-    };
     let acyclic = |order| Scheduled {
         order,
         cyclic: BTreeSet::new(),
     };
-    match order(state, &closure) {
+    let every = roots.len() == state.node_count();
+    let (closure, ordered) = match cache {
+        Some(cache) => {
+            if every && let Some(kept) = &cache.full_order {
+                #[cfg(debug_assertions)]
+                {
+                    let closure = dirty_closure(state, inputs, roots.clone(), areas);
+                    let fresh = order(&closure, |node| live_anchor(state, node), |node| {
+                        live_anchor(state, node)
+                    });
+                    debug_assert_eq!(fresh.as_ref(), Ok(kept), "the kept order stands");
+                }
+                return acyclic(kept.clone());
+            }
+            let closure = closure_with(state, inputs, roots, Some(&mut *cache), areas);
+            let ordered = order(&closure, |node| cache.rank(node), |node| {
+                live_anchor(state, node)
+            });
+            if every && let Ok(kept) = &ordered {
+                cache.full_order = Some(kept.clone());
+            }
+            (closure, ordered)
+        }
+        None => {
+            let closure = dirty_closure(state, inputs, roots, areas);
+            let ordered = order(&closure, |node| live_anchor(state, node), |node| {
+                live_anchor(state, node)
+            });
+            (closure, ordered)
+        }
+    };
+    match ordered {
         Ok(order) => acyclic(order),
         Err(_) => {
             let readers_of = closure.to_map();
@@ -1237,18 +1287,22 @@ fn tarjan(edges: &[Vec<usize>]) -> Vec<usize> {
 /// it reads is ordered, and of the ready nodes the one whose anchor comes first is ordered next),
 /// or the anchors of those a cycle leaves unordered, in cell order. The counts are kept by slot
 /// and the ready queue is a heap (dc-10d9); the order is the one a map and an ordered set gave.
-fn order(state: &EngineState, closure: &Closure) -> Result<Vec<NodeId>, Vec<CellKey>> {
+fn order<K: Ord + Copy>(
+    closure: &Closure,
+    key: impl Fn(NodeId) -> K,
+    anchor: impl Fn(NodeId) -> CellKey,
+) -> Result<Vec<NodeId>, Vec<CellKey>> {
     let mut waiting = vec![0u32; closure.readers.len()];
     for node in closure.members() {
         for reader in closure.readers(*node) {
             waiting[reader.slot() as usize] += 1;
         }
     }
-    let mut ready: BinaryHeap<Reverse<(CellKey, NodeId)>> = closure
+    let mut ready: BinaryHeap<Reverse<(K, NodeId)>> = closure
         .members()
         .iter()
         .filter(|node| waiting[node.slot() as usize] == 0)
-        .map(|node| Reverse((live_anchor(state, *node), *node)))
+        .map(|node| Reverse((key(*node), *node)))
         .collect();
     let mut order = Vec::with_capacity(closure.members().len());
     while let Some(Reverse((_, node))) = ready.pop() {
@@ -1257,7 +1311,7 @@ fn order(state: &EngineState, closure: &Closure) -> Result<Vec<NodeId>, Vec<Cell
             let count = &mut waiting[reader.slot() as usize];
             *count -= 1;
             if *count == 0 {
-                ready.push(Reverse((live_anchor(state, reader), reader)));
+                ready.push(Reverse((key(reader), reader)));
             }
         }
     }
@@ -1266,7 +1320,7 @@ fn order(state: &EngineState, closure: &Closure) -> Result<Vec<NodeId>, Vec<Cell
             .members()
             .iter()
             .filter(|node| waiting[node.slot() as usize] > 0)
-            .map(|node| live_anchor(state, *node))
+            .map(|node| anchor(*node))
             .collect();
         cells.sort();
         return Err(cells);
@@ -1816,7 +1870,7 @@ fn evaluate_node(
         }
     };
     let uncomputed = Cell::new(None);
-    let footprint = RefCell::new(Vec::new());
+    let footprint = RefCell::new(std::mem::take(&mut work.footprint));
     work.kept_read.set(false);
     let view = RecalcView {
         inputs,
@@ -1826,7 +1880,8 @@ fn evaluate_node(
         iterates: work.iterating().then_some(&work.iterates),
         kept: (!work.iteration.enabled()).then_some((&work.kept, &work.kept_read)),
     };
-    let mut cells = WorkbookReader::new(view, &uncomputed);
+    let mut cells =
+        WorkbookReader::new(view, &uncomputed).with_batch(std::mem::take(&mut work.read_batch));
     let catalog = SnapshotCatalog(inputs);
     let mut random = RandomStream::new(state.random_seed, calculation.tick().get(), formula);
     let observer = RefCell::new(observer);
@@ -1855,6 +1910,7 @@ fn evaluate_node(
         };
         (outcome, observed.stopped)
     };
+    work.read_batch = cells.into_batch();
     if let Some(area) = stopped {
         return Err(RecalcFailure::ReadFailed { formula, area });
     }
@@ -1877,7 +1933,10 @@ fn evaluate_node(
         }
         return Ok(Attempt::Waits { on, cell });
     }
-    let mut dynamic = dynamic_prerequisites(state, node, instance, footprint.into_inner());
+    let mut areas = footprint.into_inner();
+    let mut dynamic = dynamic_prerequisites(state, node, instance, &areas);
+    areas.clear();
+    work.footprint = areas;
     let value = match outcome {
         Ok(value) => value,
         Err(EvalFault::ReadContract(error)) => {
@@ -1958,17 +2017,19 @@ fn dynamic_prerequisites(
     state: &EngineState,
     node: NodeId,
     instance: &FormulaInstance,
-    footprint: Vec<GridArea>,
+    footprint: &[GridArea],
 ) -> Vec<Prerequisite> {
     let placed = state
         .node(node)
         .and_then(|record| record.prerequisites())
         .unwrap_or(&[]);
     let mut out: Vec<Prerequisite> = Vec::new();
-    for area in footprint {
-        let held = placed
-            .iter()
-            .any(|prerequisite| prerequisite.contains_area(area))
+    for &area in footprint {
+        // Most reads are of a placed reference's own area, found first (dc-dxm).
+        let held = instance.areas().iter().any(|placed| *placed == Ok(area))
+            || placed
+                .iter()
+                .any(|prerequisite| prerequisite.contains_area(area))
             || instance.areas().iter().any(|placed| {
                 placed.is_ok_and(|placed| {
                     placed.contains(area.first()) && placed.contains(area.last())

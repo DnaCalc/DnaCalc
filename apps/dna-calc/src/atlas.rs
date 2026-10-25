@@ -4,8 +4,10 @@
 //! the file's stored value, stale) with the refusals grouped by reason. The skin only reads: it
 //! dispatches no intent.
 //!
-//! The counts follow the corpus rule: a refused formula is a failure, never left out, so the atlas
-//! shows calculated against all formula cells.
+//! A formula cell is one Excel counts as holding a formula (calc-host's `holds_formula`: legacy
+//! array members and data-table cells included, a dynamic array's spilled cells not), the set a
+//! corpus comparison's inventory holds. The counts follow the corpus rule: a refused formula is a
+//! failure, never left out, so the atlas shows calculated against all formula cells.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-atlas/src/lib.rs` (the structure
 //! map and the calculation panel, each derived from the workbook on every change and never
@@ -128,7 +130,7 @@ fn atlas_view(controller: Controller) -> impl IntoView {
                 <li>{format!("Workbook {name}{}", if changed { ", changed since opened or saved" } else { "" })}</li>
                 <li data-dnacalc="atlas-mode">{format!("Calculation: {}", mode_name(mode))}</li>
                 <li>{format!("Authored revision {revision}; {undo} steps to undo, {redo} to redo; {intents} intents logged")}</li>
-                <li data-dnacalc="atlas-timings">{format!("Open and first calculation: {}; last change: {}", ms(timings.open_ms), ms(timings.last_intent_ms))}</li>
+                <li data-dnacalc="atlas-timings">{format!("Open and first calculation: {}; last intent (an edit, undo, selection or recalculation): {}", ms(timings.open_ms), ms(timings.last_intent_ms))}</li>
             </ul>
         }
     };

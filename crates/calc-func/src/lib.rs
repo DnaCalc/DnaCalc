@@ -61,3 +61,6 @@ pub fn read_number_text(text: &[u16], environment: &locale::CalcEnvironment) -> 
 
 /// A number in Excel's General format under a locale profile, as a cell shows it.
 pub use format::general as general_format;
+
+/// A cell's value as the cell shows it under a number format code, by TEXT's renderer (dc-09v).
+pub use format::{CellFormatError, FormatColor, cell_color, cell_text};

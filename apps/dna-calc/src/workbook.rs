@@ -56,6 +56,9 @@ pub struct Workbook {
     name: String,
     changed: bool,
     inbox: Rc<RefCell<Vec<HostDelta>>>,
+    /// How long opening recalculated the workbook, in milliseconds of the browser's clock;
+    /// `None` when it did not (the file calculates manually).
+    calculated_on_open: Option<f64>,
 }
 
 impl std::fmt::Debug for Workbook {
@@ -87,11 +90,21 @@ impl Workbook {
             name: name.to_owned(),
             changed: false,
             inbox: Rc::default(),
+            calculated_on_open: None,
         };
         if workbook.session.calc_mode() != CalcMode::Manual {
+            let started = crate::controller::now_ms();
             workbook.session.dispatch(SkinIntent::Recalculate);
+            workbook.calculated_on_open = Some(crate::controller::now_ms() - started);
         }
         Ok(workbook)
+    }
+
+    /// How long opening recalculated the workbook, in milliseconds (0 off the browser); `None`
+    /// for a file that calculates manually, whose formulas show the values the file stored, as
+    /// file caches, until Calculate.
+    pub fn calculated_on_open(&self) -> Option<f64> {
+        self.calculated_on_open
     }
 
     pub fn name(&self) -> &str {
@@ -206,7 +219,10 @@ impl Workbook {
         cells
     }
 
-    /// The workbook's formula cells by provenance, per sheet, and the refusals by reason.
+    /// The workbook's formula cells by provenance, per sheet, and the refusals by reason. A
+    /// formula cell is one Excel counts as holding a formula ([`HostState::holds_formula`]: legacy
+    /// array members and data-table cells included, a dynamic array's spilled cells not), the set
+    /// `cargo xtask compare`'s inventory holds.
     pub fn census(&mut self) -> Census {
         let mut census = Census::default();
         for tab in self.sheets() {
@@ -221,8 +237,8 @@ impl Workbook {
                 if cell.input().is_some() {
                     sheet.inputs += 1;
                 }
-                let shown = cells::shown(&cell, None);
-                if !shown.formula {
+                let shown = cells::shown(&cell, None, None);
+                if !self.host().holds_formula(cell.at()) {
                     continue;
                 }
                 sheet.formulas += 1;

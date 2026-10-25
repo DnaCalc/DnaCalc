@@ -10,8 +10,7 @@
 
 use calc_host::value::{CalcValue, CellKey, CoreValue, ExcelText, GridArea, SheetId};
 use calc_host::{
-    CachedValue, CellInput, FormatProfile, HostState, NotModeled, ProjectedCell, ProjectedValue,
-    StaleCause,
+    CellInput, FormatProfile, HostState, NotModeled, ProjectedCell, ProjectedValue, StaleCause,
 };
 use dna_onecalc::display::{self, SheetNames};
 use dna_onecalc::result;
@@ -59,6 +58,10 @@ pub struct CellShown {
     pub provenance: Provenance,
     /// Whether the cell's input is a formula.
     pub formula: bool,
+    /// How the cell's number format applied.
+    pub format: FormatShown,
+    /// The color the number format gives the text (`[Red]`), as `#rrggbb`.
+    pub color: Option<&'static str>,
 }
 
 /// The sheet names of a host, for DNA OneCalc's labels.
@@ -84,16 +87,7 @@ pub fn area_label(host: &HostState, area: GridArea) -> String {
     display::area(&WorkbookNames(host), area)
 }
 
-/// A column's letters: 1 is `A`, 27 `AA`.
-pub fn column_letters(mut column: u32) -> String {
-    let mut letters = Vec::new();
-    while column > 0 {
-        let digit = (column - 1) % 26;
-        letters.push(char::from(b'A' + digit as u8));
-        column = (column - 1) / 26;
-    }
-    letters.iter().rev().collect()
-}
+pub use dna_onecalc::display::column_letters;
 
 /// A cell's address without its sheet: `B3`.
 pub fn address(row: u32, column: u32) -> String {
@@ -116,16 +110,6 @@ pub fn parse_address(text: &str) -> Option<(u32, u32)> {
     ((1..=1_048_576).contains(&row) && (1..=16_384).contains(&column)).then_some((row, column))
 }
 
-/// The value of a file cache, as a value.
-fn cached(value: &CachedValue) -> CalcValue {
-    match value {
-        CachedValue::Number(number) => CalcValue::number(number.get()),
-        CachedValue::Text(text) => CalcValue::text(text.text().clone()),
-        CachedValue::Logical(logical) => CalcValue::logical(*logical),
-        CachedValue::Error(code) => CalcValue::error(*code),
-    }
-}
-
 fn kind(value: &CalcValue) -> &'static str {
     match value.core() {
         CoreValue::Empty => "",
@@ -133,42 +117,101 @@ fn kind(value: &CalcValue) -> &'static str {
     }
 }
 
-/// A projected cell as the grid shows it, numbers under `profile`.
-pub fn shown(cell: &ProjectedCell, profile: Option<&FormatProfile>) -> CellShown {
-    let formula = matches!(cell.input(), Some(CellInput::Formula(_)));
-    let (text, kind, provenance) = match cell.value() {
-        ProjectedValue::Empty => (String::new(), "", Provenance::Empty),
-        ProjectedValue::Literal(value) => (
-            result::shown(value, profile),
-            self::kind(value),
-            Provenance::Literal,
-        ),
-        ProjectedValue::FileCached(cache) => {
-            let value = cached(cache.value());
-            (
-                result::shown(&value, profile),
-                self::kind(&value),
-                Provenance::FileCache,
-            )
+/// How a cell's number format applied to what it shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FormatShown {
+    /// The General format (or no value to format).
+    General,
+    /// The cell's format code, rendered by calc-func's TEXT renderer.
+    Applied,
+    /// The renderer does not model the code: the value is shown in General instead.
+    NotModelled,
+    /// The value cannot be shown under the code (a negative date): `#` as Excel's cell shows it.
+    Unshowable,
+}
+
+impl FormatShown {
+    /// The name the page carries in `data-format`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            FormatShown::General => "general",
+            FormatShown::Applied => "applied",
+            FormatShown::NotModelled => "not-modelled",
+            FormatShown::Unshowable => "unshowable",
         }
-        ProjectedValue::Calculated { value, .. } => (
-            result::shown(value, profile),
-            self::kind(value),
-            Provenance::Calculated,
+    }
+}
+
+/// A value as a cell shows it under `format` (the cell's number format code, `None` or
+/// `General` for General): numbers and text through calc-func's [`calc_func::cell_text`], the one
+/// renderer TEXT uses, in the 1900 date system calc-host calculates in.
+fn formatted(
+    value: &CalcValue,
+    profile: Option<&FormatProfile>,
+    format: Option<&str>,
+) -> (String, FormatShown) {
+    let general = || result::shown(value, profile);
+    let (Some(code), Some(profile)) = (format, profile) else {
+        return (general(), FormatShown::General);
+    };
+    if code.eq_ignore_ascii_case("general")
+        || !matches!(value.core(), CoreValue::Number(_) | CoreValue::Text(_))
+    {
+        return (general(), FormatShown::General);
+    }
+    match calc_func::cell_text(
+        profile,
+        calc_func::locale::DateSystem::System1900,
+        value,
+        code,
+    ) {
+        Ok(text) => (text, FormatShown::Applied),
+        Err(calc_func::CellFormatError::Unshowable) => {
+            ("#####".to_owned(), FormatShown::Unshowable)
+        }
+        Err(calc_func::CellFormatError::NotModelled) => (general(), FormatShown::NotModelled),
+    }
+}
+
+/// A projected cell as the grid shows it, numbers under `profile` and the cell's number format
+/// code `format` (calc-host's `HostState::number_format`).
+pub fn shown(
+    cell: &ProjectedCell,
+    profile: Option<&FormatProfile>,
+    format: Option<&str>,
+) -> CellShown {
+    let formula = matches!(cell.input(), Some(CellInput::Formula(_)));
+    let mut color = None;
+    let mut value_of = |value: &CalcValue, provenance: Provenance| {
+        let (text, shown) = formatted(value, profile, format);
+        if shown == FormatShown::Applied {
+            color = format
+                .and_then(|code| calc_func::cell_color(code, value))
+                .map(|color| color.rgb());
+        }
+        (text, self::kind(value), provenance, shown)
+    };
+    let (text, kind, provenance, format) = match cell.value() {
+        ProjectedValue::Empty => (String::new(), "", Provenance::Empty, FormatShown::General),
+        ProjectedValue::Literal(value) => value_of(value, Provenance::Literal),
+        ProjectedValue::FileCached(cache) => {
+            value_of(&cache.value().to_value(), Provenance::FileCache)
+        }
+        ProjectedValue::Calculated { value, .. } => value_of(value, Provenance::Calculated),
+        ProjectedValue::NotModeled { .. } => (
+            "refused".to_owned(),
+            "",
+            Provenance::Refused,
+            FormatShown::General,
         ),
-        ProjectedValue::NotModeled { .. } => ("refused".to_owned(), "", Provenance::Refused),
         ProjectedValue::Stale(stale) => {
             let last = stale
                 .last_value()
                 .cloned()
-                .or_else(|| stale.file_cache().map(|cache| cached(cache.value())));
+                .or_else(|| stale.file_cache().map(|cache| cache.value().to_value()));
             match last {
-                Some(value) => (
-                    result::shown(&value, profile),
-                    self::kind(&value),
-                    Provenance::Stale,
-                ),
-                None => (String::new(), "", Provenance::Stale),
+                Some(value) => value_of(&value, Provenance::Stale),
+                None => (String::new(), "", Provenance::Stale, FormatShown::General),
             }
         }
     };
@@ -178,6 +221,8 @@ pub fn shown(cell: &ProjectedCell, profile: Option<&FormatProfile>) -> CellShown
         kind,
         provenance,
         formula,
+        format,
+        color,
     }
 }
 

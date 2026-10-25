@@ -25,6 +25,33 @@ pub fn clamp_zoom(factor: f64) -> f64 {
     factor.clamp(ZOOM_MIN, ZOOM_MAX)
 }
 
+/// The scroll offset along one axis that brings the content span `[near, far)` (a row or column of
+/// any size) fully into the viewport's data area, moving as little as possible: back to `near`
+/// when it starts before the view, forward so `far` meets the view's far edge when it ends after
+/// it, and not at all when it is in view (dc-09v: [`reveal_scroll`] for sized bands).
+#[must_use]
+pub fn reveal_span(near: f64, far: f64, header: f64, viewport_len: f64, scroll: f64) -> f64 {
+    if !scroll.is_finite() {
+        return 0.0;
+    }
+    let scroll = scroll.max(0.0);
+    let data_len = if viewport_len.is_finite() && header.is_finite() {
+        (viewport_len - header).max(0.0)
+    } else {
+        0.0
+    };
+    if data_len <= 0.0 || !near.is_finite() || !far.is_finite() {
+        return scroll;
+    }
+    if near < scroll {
+        near.max(0.0)
+    } else if far > scroll + data_len {
+        (far - data_len).max(0.0)
+    } else {
+        scroll
+    }
+}
+
 /// The scroll offset along one axis that brings the 1-based `band` (a row or a
 /// column) fully into the viewport's data area, moving the viewport **as little
 /// as possible** (Excel's minimal-scroll reveal) — the pure core of the

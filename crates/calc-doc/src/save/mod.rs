@@ -449,6 +449,46 @@ impl Written {
     }
 }
 
+/// The end-of-central-directory record of an archive of `count` entries whose central directory
+/// is `size` bytes at `offset`, with the archive's `comment`.
+fn end_record(count: u16, size: u32, offset: u32, comment: &[u8]) -> Vec<u8> {
+    let mut end = Vec::with_capacity(22 + comment.len());
+    end.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+    end.extend_from_slice(&[0, 0, 0, 0]);
+    end.extend_from_slice(&count.to_le_bytes());
+    end.extend_from_slice(&count.to_le_bytes());
+    end.extend_from_slice(&size.to_le_bytes());
+    end.extend_from_slice(&offset.to_le_bytes());
+    end.extend_from_slice(&(comment.len() as u16).to_le_bytes());
+    end.extend_from_slice(comment);
+    end
+}
+
+/// A new archive of `entries` (name, content), in order, each written as a save writes a part it
+/// adds ([`Written::added`]); `None` when an entry or the archive is too large for a ZIP without
+/// ZIP64 records. The package of a new workbook ([`crate::blank_package`]) is made with it.
+pub(crate) fn new_archive(entries: &[(&str, &[u8])]) -> Option<Vec<u8>> {
+    let written: Vec<Written> = entries
+        .iter()
+        .map(|(name, content)| Written::added(name, content))
+        .collect::<Option<_>>()?;
+    let mut out = Vec::new();
+    let mut offsets = Vec::with_capacity(written.len());
+    for entry in &written {
+        offsets.push(u32::try_from(out.len()).ok()?);
+        out.extend_from_slice(&entry.local_header());
+        out.extend_from_slice(&entry.payload);
+    }
+    let directory_offset = u32::try_from(out.len()).ok()?;
+    for (entry, offset) in written.iter().zip(offsets) {
+        out.extend_from_slice(&entry.central_record(offset));
+    }
+    let directory_size = u32::try_from(out.len()).ok()? - directory_offset;
+    let count = u16::try_from(written.len()).ok()?;
+    out.extend_from_slice(&end_record(count, directory_size, directory_offset, &[]));
+    Some(out)
+}
+
 /// One entry of the saved package.
 enum Planned {
     /// The source entry at this index, copied as its stored bytes.
@@ -757,18 +797,13 @@ pub fn write(plan: SavePlan, out: &mut dyn PackageWrite) -> Result<SaveReceipt, 
         }
     }
     let directory_size = sink.written - directory_offset;
-    let count = plan.entries.len() as u16;
-    let mut end = Vec::with_capacity(22 + archive.comment.len());
-    end.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
-    end.extend_from_slice(&[0, 0, 0, 0]);
-    end.extend_from_slice(&count.to_le_bytes());
-    end.extend_from_slice(&count.to_le_bytes());
     // prepare_save refused a package past 4 GiB - 1 byte, so both fit the 32-bit fields.
-    end.extend_from_slice(&(directory_size as u32).to_le_bytes());
-    end.extend_from_slice(&(directory_offset as u32).to_le_bytes());
-    end.extend_from_slice(&(archive.comment.len() as u16).to_le_bytes());
-    end.extend_from_slice(&archive.comment);
-    sink.put(&end)?;
+    sink.put(&end_record(
+        plan.entries.len() as u16,
+        directory_size as u32,
+        directory_offset as u32,
+        &archive.comment,
+    ))?;
     let entries_copied = plan.copied_entries();
     Ok(SaveReceipt {
         bytes_written: sink.written,

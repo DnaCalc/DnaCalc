@@ -48,6 +48,11 @@ use std::sync::Arc;
 /// The number of undo steps a session keeps (Excel's default).
 pub const UNDO_LIMIT: usize = 100;
 
+/// The intent log keeps at least this many of the latest records and at most twice as many, so
+/// the selection and interest moves a skin dispatches as it is used do not grow it without bound
+/// (dc-rif): when it reaches twice this many, the older half is dropped.
+pub const INTENT_LOG_LIMIT: usize = 10_000;
+
 /// What a subscription watches.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Interest {
@@ -134,6 +139,11 @@ pub enum SkinIntent {
         subscription: SubscriptionId,
         interest: Interest,
     },
+    /// Copies the cells of `from` into `to` as Excel's copy and paste does: values as they are,
+    /// formulas relocated, `to` filled by repeating `from` (a fill down or right is the copy of
+    /// its first row or column over the rest), a single cell taking `from`'s shape
+    /// ([`crate::CopyRefusal`] says what is refused). One transaction, one undo step (dc-09v).
+    Copy { from: GridArea, to: GridArea },
 }
 
 /// Why an intent changed nothing.
@@ -151,6 +161,8 @@ pub enum IntentError {
     UnknownSubscription(SubscriptionId),
     /// The workbook holds no sheet with this identity.
     UnknownSheet(SheetId),
+    /// The copy was refused; the workbook is as it was.
+    Copy(crate::copy::CopyRefusal),
 }
 
 impl fmt::Display for IntentError {
@@ -167,6 +179,7 @@ impl fmt::Display for IntentError {
                 write!(f, "the session has no subscription {}", id.get())
             }
             IntentError::UnknownSheet(sheet) => write!(f, "the workbook holds no sheet {sheet:?}"),
+            IntentError::Copy(refusal) => write!(f, "the copy was refused: {refusal}"),
         }
     }
 }
@@ -249,6 +262,8 @@ pub struct HostSession {
     subscriptions: BTreeMap<SubscriptionId, Subscription>,
     next_subscription: u64,
     log: Vec<IntentRecord>,
+    /// The sequence number of the next intent.
+    next_seq: u64,
 }
 
 impl fmt::Debug for HostSession {
@@ -273,6 +288,7 @@ impl HostSession {
             subscriptions: BTreeMap::new(),
             next_subscription: 1,
             log: Vec::new(),
+            next_seq: 1,
         }
     }
 
@@ -309,7 +325,9 @@ impl HostSession {
         (self.history.undo_depth(), self.history.redo_depth())
     }
 
-    /// Every intent dispatched so far, with its outcome.
+    /// The latest intents dispatched, with their outcomes, in order: every one while fewer than
+    /// twice [`INTENT_LOG_LIMIT`] have been dispatched, and never fewer than the last
+    /// [`INTENT_LOG_LIMIT`]. A record's `seq` counts every intent the session dispatched.
     pub fn intent_log(&self) -> &[IntentRecord] {
         &self.log
     }
@@ -352,7 +370,8 @@ impl HostSession {
 
     /// Carries out `intent` and logs it.
     pub fn dispatch(&mut self, intent: SkinIntent) -> IntentReceipt {
-        let seq = self.log.len() as u64 + 1;
+        let seq = self.next_seq;
+        self.next_seq += 1;
         let mut receipt = IntentReceipt {
             seq,
             error: None,
@@ -380,6 +399,15 @@ impl HostSession {
             SkinIntent::Edit { edits } => {
                 let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
                 self.edit(edits, &mut receipt)
+            }
+            SkinIntent::Copy { from, to } => {
+                match crate::copy::copy_edits(&self.host, from, to) {
+                    Ok(edits) => {
+                        let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                        self.edit(edits, &mut receipt)
+                    }
+                    Err(refusal) => Err(IntentError::Copy(refusal)),
+                }
             }
             SkinIntent::Undo => self.undo(&mut receipt),
             SkinIntent::Redo => self.redo(&mut receipt),
@@ -409,6 +437,9 @@ impl HostSession {
             accepted: receipt.error.is_none(),
             revision: receipt.revision,
         });
+        if self.log.len() >= 2 * INTENT_LOG_LIMIT {
+            self.log.drain(..INTENT_LOG_LIMIT);
+        }
         receipt
     }
 
