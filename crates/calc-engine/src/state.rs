@@ -100,6 +100,42 @@ pub(crate) enum Binding {
     DataTable(calc_doc_model::DataTable),
 }
 
+/// Each bound node's binding, at the node's slot (dc-dxm: every evaluation looked its node's
+/// binding up in a BTreeMap). The methods are the map's that the engine uses.
+#[derive(Debug, Default)]
+pub(crate) struct Bindings {
+    slots: Vec<Option<(NodeId, Binding)>>,
+}
+
+impl Bindings {
+    pub(crate) fn get(&self, node: &NodeId) -> Option<&Binding> {
+        match self.slots.get(node.slot() as usize) {
+            Some(Some((held, binding))) if held == node => Some(binding),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn contains_key(&self, node: &NodeId) -> bool {
+        self.get(node).is_some()
+    }
+
+    pub(crate) fn insert(&mut self, node: NodeId, binding: Binding) {
+        let slot = node.slot() as usize;
+        if slot >= self.slots.len() {
+            self.slots.resize_with(slot + 1, || None);
+        }
+        self.slots[slot] = Some((node, binding));
+    }
+
+    pub(crate) fn remove(&mut self, node: &NodeId) {
+        if let Some(entry) = self.slots.get_mut(node.slot() as usize)
+            && entry.as_ref().is_some_and(|(held, _)| held == node)
+        {
+            *entry = None;
+        }
+    }
+}
+
 /// How a bound formula's result fills cells.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ArrayRole {
@@ -147,7 +183,7 @@ pub struct EngineState {
     /// The plans of every formula the state has compiled, one per normal form.
     pub(crate) plans: PlanCache,
     /// Each bound node's plan; a node without an entry is unbound, and pending.
-    pub(crate) bindings: BTreeMap<NodeId, Binding>,
+    pub(crate) bindings: Bindings,
     /// The published generation: each formula cell's result, with the node it belongs to.
     /// Hashed by cell (dc-dxm): an evaluation reads the result of every formula cell it reads
     /// that the recalculation does not calculate, and the ordered walk is only for
@@ -217,7 +253,7 @@ impl EngineState {
             nodes: Vec::new(),
             index: ReverseIndex::default(),
             plans: PlanCache::new(),
-            bindings: BTreeMap::new(),
+            bindings: Bindings::default(),
             results: HashMap::default(),
             pending: BTreeSet::new(),
             retired: BTreeSet::new(),
