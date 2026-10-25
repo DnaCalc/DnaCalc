@@ -14,7 +14,7 @@
 use crate::command::CellEdit;
 use calc_doc_model::value::{CellKey, GridArea};
 use calc_doc_model::{AxisEdit, CellInput, ModelRoot};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
@@ -94,7 +94,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
-            CellEdit::Axis(_) => continue,
+            CellEdit::Axis(_) | CellEdit::SetFormat { .. } => continue,
         };
         if !areas.contains(&area) {
             areas.push(area);
@@ -107,8 +107,9 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
 /// committed against) holds: each touched area cleared, then each array formula whose anchor an
 /// edit touches authored again over its area, then each cell of the touched areas and of those
 /// arrays' areas that held an input set to it again (re-authoring an array clears its area, a
-/// value blocking a dynamic array's spill included). Refused when an edit touches an unloaded
-/// cell, whose content no edit authors.
+/// value blocking a dynamic array's spill included), then each cell format an edit sets returned to
+/// the one the cell held. Refused when an edit touches an unloaded cell, whose content no edit
+/// authors.
 pub(crate) fn inverse(
     model: &Arc<ModelRoot>,
     axis_edits: &[AxisEdit],
@@ -169,6 +170,17 @@ pub(crate) fn inverse(
             .into_iter()
             .map(|(at, input)| CellEdit::Set { at, input }),
     );
+    let mut formatted = BTreeSet::new();
+    for edit in edits {
+        if let CellEdit::SetFormat { at, .. } = edit
+            && formatted.insert(*at)
+        {
+            inverse.push(CellEdit::SetFormat {
+                at: *at,
+                format: definitions.cell_format(*at),
+            });
+        }
+    }
     Ok(Inverse::Edits(inverse))
 }
 

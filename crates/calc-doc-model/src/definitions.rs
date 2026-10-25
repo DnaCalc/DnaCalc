@@ -270,6 +270,9 @@ pub struct Definitions {
     data_tables: Vec<DataTable>,
     /// The workbook's file name (`Book1.xlsx`), when the package's source knows it.
     workbook_name: Option<String>,
+    /// The cell formats edits gave cells (dc-09v): each an index into the workbook's cell formats
+    /// (a cell's `s`), over the format the file gave the cell.
+    formats: BTreeMap<CellKey, u32>,
 }
 
 impl Definitions {
@@ -292,7 +295,39 @@ impl Definitions {
             iteration: IterationSettings::EXCEL_DEFAULT,
             data_tables: Vec::new(),
             workbook_name: None,
+            formats: BTreeMap::new(),
         }
+    }
+
+    /// These definitions with the cell formats edits gave cells (index into the workbook's cell
+    /// formats), in place of those they held.
+    pub fn with_formats(mut self, formats: impl IntoIterator<Item = (CellKey, u32)>) -> Self {
+        self.formats = formats.into_iter().collect();
+        self
+    }
+
+    /// The cell format an edit gave `at` ([`crate::WorkbookOp::SetFormat`]); `None` when no edit
+    /// did, and the cell keeps the format the file gave it.
+    pub fn cell_format(&self, at: CellKey) -> Option<u32> {
+        self.formats.get(&at).copied()
+    }
+
+    /// Every cell format edits gave, in cell order.
+    pub fn cell_formats(&self) -> impl Iterator<Item = (CellKey, u32)> + '_ {
+        self.formats.iter().map(|(at, format)| (*at, *format))
+    }
+
+    /// These definitions with `at`'s format set to `format`, or returned to the file's for `None`.
+    pub(crate) fn with_format_of(mut self, at: CellKey, format: Option<u32>) -> Self {
+        match format {
+            Some(format) => {
+                self.formats.insert(at, format);
+            }
+            None => {
+                self.formats.remove(&at);
+            }
+        }
+        self
     }
 
     /// These definitions of the workbook whose file name is `name` (`Book1.xlsx`, without its
@@ -384,6 +419,7 @@ impl Definitions {
         self.names
             .retain(|name| name.scope != NameScope::Sheet(sheet));
         self.data_tables.retain(|table| table.area.sheet() != sheet);
+        self.formats.retain(|at, _| at.sheet() != sheet);
         self
     }
 

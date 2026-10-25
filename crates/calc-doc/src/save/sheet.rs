@@ -85,6 +85,9 @@ pub(super) struct Job<'a> {
     /// The shared formula groups the edits' passes found cut or grown, written as individual
     /// formulas.
     pub(super) cut_groups: &'a BTreeSet<u32>,
+    /// The cell formats edits gave the sheet's cells (dc-09v), by (row, column): each cell's `s`
+    /// over the one the part gave it.
+    pub(super) formats: &'a BTreeMap<(u32, u32), u32>,
 }
 
 impl Job<'_> {
@@ -96,6 +99,26 @@ impl Job<'_> {
             None => Some((row, column)),
         }
     }
+
+    /// The `s` an edit gave the cell: `None` when no edit did and the cell keeps its own,
+    /// `Some(None)` for format 0, which is written as no `s`.
+    fn style(&self, row: u32, column: u32) -> Option<Option<String>> {
+        self.formats
+            .get(&(row, column))
+            .map(|&format| (format != 0).then(|| format.to_string()))
+    }
+}
+
+/// `changes` to a start tag, with the `s` an edit gave the cell when one did.
+fn with_style<'s>(
+    changes: &[(&'s str, Option<&'s str>)],
+    style: &'s Option<Option<String>>,
+) -> Vec<(&'s str, Option<&'s str>)> {
+    let mut changes = changes.to_vec();
+    if let Some(style) = style {
+        changes.push(("s", style.as_deref()));
+    }
+    changes
 }
 
 /// The area of the cells written, as (top, left, bottom, right).
@@ -167,6 +190,9 @@ enum Change<'c> {
     /// The cell shows a value of an array formula's result beside its anchor: the caller's value
     /// for it.
     Spilled,
+    /// Only the cell's format changed (dc-09v): it keeps what it holds, with the `s` an edit gave
+    /// it.
+    Restyle,
 }
 
 /// A cell's changes, by column, of one row.
@@ -373,6 +399,13 @@ impl<'j> Rewrite<'_, 'j> {
                 }
             }
         }
+        // The cells whose format alone an edit changed.
+        for &(row, column) in self.job.formats.keys() {
+            rows.entry(row)
+                .or_default()
+                .entry(column)
+                .or_insert(Change::Restyle);
+        }
         let mut pending = rows.into_iter().peekable();
         let tag = RawTag::parse(&self.source()[span.0..span.1]);
         let prefix = tag.prefix().to_vec();
@@ -435,25 +468,37 @@ impl<'j> Rewrite<'_, 'j> {
         }
     }
 
-    /// Appends a row the part did not hold, with the cells set in it.
+    /// Appends a row the part did not hold, with the cells set in it; nothing when none of them
+    /// is written.
     fn new_row(&mut self, row: u32, cells: &RowChanges<'_>, prefix: &[u8], out: &mut Vec<u8>) {
-        if cells
-            .values()
-            .all(|change| matches!(change, Change::Emptied))
-        {
+        let mut written = Vec::new();
+        for (&column, change) in cells {
+            self.new_cell(None, prefix, row, column, *change, &mut written);
+        }
+        if written.is_empty() {
             return;
         }
         out.push(b'<');
         out.extend_from_slice(prefix);
         out.extend_from_slice(format!("row r=\"{row}\">").as_bytes());
-        for (&column, change) in cells {
-            self.new_cell(None, prefix, row, column, *change, out);
-        }
+        out.extend_from_slice(&written);
         end_tag(prefix, b"row", out);
     }
 
-    /// Appends a cell holding what `change` gives it (nothing for [`Change::Emptied`]), its start
-    /// tag rebuilt from `source` (the cell it replaces) or new.
+    /// Appends an empty cell the part did not hold, when an edit gave it a format other than 0.
+    fn styled_empty(&mut self, prefix: &[u8], row: u32, column: u32, out: &mut Vec<u8>) {
+        if let Some(Some(style)) = self.job.style(row, column) {
+            let at = a1(row, column);
+            out.push(b'<');
+            out.extend_from_slice(prefix);
+            out.extend_from_slice(format!("c r=\"{at}\" s=\"{style}\"/>").as_bytes());
+            self.bounds.add(row, column);
+        }
+    }
+
+    /// Appends a cell holding what `change` gives it (for [`Change::Emptied`] and
+    /// [`Change::Restyle`], which come without a `source`, at most an empty cell with its format),
+    /// its start tag rebuilt from `source` (the cell it replaces) or new.
     fn new_cell(
         &mut self,
         source: Option<&RawTag<'_>>,
@@ -465,10 +510,13 @@ impl<'j> Rewrite<'_, 'j> {
     ) {
         let input = match change {
             Change::Set(input) => input,
-            Change::Emptied => return,
+            Change::Emptied | Change::Restyle => {
+                return self.styled_empty(prefix, row, column, out);
+            }
             Change::Spilled => return self.spilled_cell(source, prefix, row, column, out),
         };
         let at = a1(row, column);
+        let style = self.job.style(row, column);
         let kind = match input {
             CellInput::Number(_) | CellInput::Formula(_) => None,
             CellInput::Text(_) => Some("s"),
@@ -516,18 +564,24 @@ impl<'j> Rewrite<'_, 'j> {
         let prefix = source.map_or(prefix, |tag| tag.prefix());
         match source {
             Some(tag) => out.extend(tag.rebuilt(
-                &[
-                    ("r", Some(&at)),
-                    ("t", kind),
-                    ("cm", cm.as_deref()),
-                    ("vm", vm.as_deref()),
-                ],
+                &with_style(
+                    &[
+                        ("r", Some(&at)),
+                        ("t", kind),
+                        ("cm", cm.as_deref()),
+                        ("vm", vm.as_deref()),
+                    ],
+                    &style,
+                ),
                 false,
             )),
             None => {
                 out.push(b'<');
                 out.extend_from_slice(prefix);
                 out.extend_from_slice(format!("c r=\"{at}\"").as_bytes());
+                if let Some(Some(style)) = &style {
+                    out.extend_from_slice(format!(" s=\"{style}\"").as_bytes());
+                }
                 if let Some(kind) = kind {
                     out.extend_from_slice(format!(" t=\"{kind}\"").as_bytes());
                 }
@@ -609,33 +663,47 @@ impl<'j> Rewrite<'_, 'j> {
         else {
             // A value Excel holds only with value metadata the save has none for: the cell is
             // left out, for Excel to fill when it calculates the anchor.
-            if let Some(tag) = source {
-                let at = a1(row, column);
-                out.extend(tag.rebuilt(
-                    &[("r", Some(&at)), ("t", None), ("cm", None), ("vm", None)],
-                    true,
-                ));
-                self.bounds.add(row, column);
+            match source {
+                Some(tag) => {
+                    let at = a1(row, column);
+                    let style = self.job.style(row, column);
+                    out.extend(tag.rebuilt(
+                        &with_style(
+                            &[("r", Some(&at)), ("t", None), ("cm", None), ("vm", None)],
+                            &style,
+                        ),
+                        true,
+                    ));
+                    self.bounds.add(row, column);
+                }
+                None => self.styled_empty(prefix, row, column, out),
             }
             return;
         };
         let at = a1(row, column);
+        let style = self.job.style(row, column);
         let vm = vm.map(|vm| vm.to_string());
         let prefix = source.map_or(prefix, |tag| tag.prefix());
         match source {
             Some(tag) => out.extend(tag.rebuilt(
-                &[
-                    ("r", Some(&at)),
-                    ("t", kind),
-                    ("cm", None),
-                    ("vm", vm.as_deref()),
-                ],
+                &with_style(
+                    &[
+                        ("r", Some(&at)),
+                        ("t", kind),
+                        ("cm", None),
+                        ("vm", vm.as_deref()),
+                    ],
+                    &style,
+                ),
                 false,
             )),
             None => {
                 out.push(b'<');
                 out.extend_from_slice(prefix);
                 out.extend_from_slice(format!("c r=\"{at}\"").as_bytes());
+                if let Some(Some(style)) = &style {
+                    out.extend_from_slice(format!(" s=\"{style}\"").as_bytes());
+                }
                 if let Some(kind) = kind {
                     out.extend_from_slice(format!(" t=\"{kind}\"").as_bytes());
                 }
@@ -783,6 +851,9 @@ impl<'j> Rewrite<'_, 'j> {
         };
         let shared_string = element.attribute("t") == Some("s");
         let at = a1(row, column);
+        // A cell whose format alone changed is written as an unchanged one, with its `s`.
+        let change = change.filter(|change| !matches!(change, Change::Restyle));
+        let style = self.job.style(row, column);
         let cleared = change.is_none()
             && self.job.cleared.iter().any(|&(top, left, bottom, right)| {
                 (top..=bottom).contains(&row)
@@ -802,7 +873,7 @@ impl<'j> Rewrite<'_, 'j> {
             change
         };
         match change {
-            Some(change @ (Change::Set(_) | Change::Spilled)) => {
+            Some(change @ (Change::Set(_) | Change::Spilled | Change::Restyle)) => {
                 let mut bytes = Vec::new();
                 self.new_cell(Some(tag), b"", row, column, change, &mut bytes);
                 self.splice.replace((span.0, end), &bytes);
@@ -811,10 +882,17 @@ impl<'j> Rewrite<'_, 'j> {
                 }
             }
             Some(Change::Emptied) => {
-                let bytes = if styled(element) {
+                let keeps_style = match &style {
+                    Some(style) => style.is_some(),
+                    None => styled(element),
+                };
+                let bytes = if keeps_style {
                     self.bounds.add(row, column);
                     tag.rebuilt(
-                        &[("r", Some(&at)), ("t", None), ("cm", None), ("vm", None)],
+                        &with_style(
+                            &[("r", Some(&at)), ("t", None), ("cm", None), ("vm", None)],
+                            &style,
+                        ),
                         true,
                     )
                 } else {
@@ -833,17 +911,22 @@ impl<'j> Rewrite<'_, 'j> {
                     element: formula_element,
                 }) = formula
                 else {
-                    if element.attribute("r").is_none() {
-                        self.splice
-                            .replace(span, &tag.rebuilt(&[("r", Some(&at))], tag.is_empty()));
+                    if element.attribute("r").is_none() || style.is_some() {
+                        self.splice.replace(
+                            span,
+                            &tag.rebuilt(&with_style(&[("r", Some(&at))], &style), tag.is_empty()),
+                        );
                     }
                     return Ok(());
                 };
-                // A data table's cells are kept as the part wrote them.
+                // A data table's cells are kept as the part wrote them, but for a format an edit
+                // gave them.
                 if formula_read.attribute("t") == Some("dataTable") {
-                    if element.attribute("r").is_none() {
-                        self.splice
-                            .replace(span, &tag.rebuilt(&[("r", Some(&at))], tag.is_empty()));
+                    if element.attribute("r").is_none() || style.is_some() {
+                        self.splice.replace(
+                            span,
+                            &tag.rebuilt(&with_style(&[("r", Some(&at))], &style), tag.is_empty()),
+                        );
                     }
                     return Ok(());
                 }
@@ -858,7 +941,10 @@ impl<'j> Rewrite<'_, 'j> {
                 self.splice.replace(
                     span,
                     &tag.rebuilt(
-                        &[("r", Some(&at)), ("t", kind), ("vm", vm.as_deref())],
+                        &with_style(
+                            &[("r", Some(&at)), ("t", kind), ("vm", vm.as_deref())],
+                            &style,
+                        ),
                         false,
                     ),
                 );

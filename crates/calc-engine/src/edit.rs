@@ -277,7 +277,8 @@ pub fn prepare_edit<'s, 'r>(
                     unreachable!("structural batches are staged above")
                 }
             },
-            WorkbookOp::EditSkinLayout(_) => {}
+            // A cell format (dc-09v) changes no input and no calculation.
+            WorkbookOp::EditSkinLayout(_) | WorkbookOp::SetFormat { .. } => {}
         }
     }
 
@@ -460,16 +461,15 @@ fn structural_moves(
     let Some(structural) = structural else {
         return Ok(None);
     };
-    if change
-        .operations
-        .iter()
-        .any(|op| {
-            matches!(
-                op,
-                WorkbookOp::SetCell { .. } | WorkbookOp::Clear { .. } | WorkbookOp::SetArray { .. }
-            )
-        })
-    {
+    if change.operations.iter().any(|op| {
+        matches!(
+            op,
+            WorkbookOp::SetCell { .. }
+                | WorkbookOp::Clear { .. }
+                | WorkbookOp::SetArray { .. }
+                | WorkbookOp::SetFormat { .. }
+        )
+    }) {
         return Err(PrepareError::StructuralEdit {
             operation: structural,
         });
@@ -481,9 +481,10 @@ fn structural_moves(
         .collect();
     for (operation, op) in change.operations.iter().enumerate() {
         match op {
-            WorkbookOp::SetCell { .. } | WorkbookOp::Clear { .. } | WorkbookOp::SetArray { .. } => {
-                unreachable!("refused above")
-            }
+            WorkbookOp::SetCell { .. }
+            | WorkbookOp::Clear { .. }
+            | WorkbookOp::SetArray { .. }
+            | WorkbookOp::SetFormat { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;
                 for (_, anchor) in &mut moves {
