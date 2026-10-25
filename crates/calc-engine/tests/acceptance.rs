@@ -1599,7 +1599,8 @@ fn ceng_m1_2__chain_recalculates() {
     // The reads, hand-derived: Report!C1 reads only a literal and is ready first (Report's sheet
     // ID is the smallest); then Work!A1 and Work!B1 (row 1 before row 2); Work!A2 once Work!A1
     // is evaluated; Report!A1 once Work!A2 and Work!B1 are; Work!C1 after Report!A1; Report!B1
-    // last. Each formula cell read hands over the value just calculated. Report!A1's IF reads
+    // last. Each formula cell read hands over the value just calculated. The values of
+    // consecutive occupied cells come as one run (dc-dxm). Report!A1's IF reads
     // Work!A2 for its condition and again for the branch it takes (240 > 100); it never reads
     // Work!B1. The whole column C of Inputs is read as its two values and blank runs.
     let first_reads = vec![
@@ -1607,7 +1608,7 @@ fn ceng_m1_2__chain_recalculates() {
         read(
             w(1, 1),
             area(inputs, 1, 1, 3, 1),
-            vec![values(&[10.0]), values(&[20.0]), values(&[30.0])],
+            vec![values(&[10.0, 20.0, 30.0])],
         ),
         read(
             w(1, 2),
@@ -1627,7 +1628,7 @@ fn ceng_m1_2__chain_recalculates() {
         read(
             r(1, 2),
             area(work_sheet, 1, 1, 2, 1),
-            vec![values(&[60.0]), values(&[240.0])],
+            vec![values(&[60.0, 240.0])],
         ),
         read(r(1, 2), cell_area(w(1, 3)), vec![values(&[141.0])]),
     ];
@@ -1756,7 +1757,7 @@ fn ceng_m1_2__chain_recalculates() {
             read(
                 w(1, 1),
                 area(inputs, 1, 1, 3, 1),
-                vec![values(&[10.0]), values(&[70.0]), values(&[30.0])],
+                vec![values(&[10.0, 70.0, 30.0])],
             ),
             read(w(2, 1), cell_area(w(1, 1)), vec![values(&[110.0])]),
             read(w(2, 1), cell_area(i(1, 2)), vec![values(&[4.0])]),
@@ -1766,7 +1767,7 @@ fn ceng_m1_2__chain_recalculates() {
             read(
                 r(1, 2),
                 area(work_sheet, 1, 1, 2, 1),
-                vec![values(&[110.0]), values(&[440.0])],
+                vec![values(&[110.0, 440.0])],
             ),
             read(r(1, 2), cell_area(w(1, 3)), vec![values(&[341.0])]),
         ]
@@ -1908,7 +1909,7 @@ fn ceng_m1_2__chain_recalculates() {
             read(
                 r(1, 2),
                 area(work_sheet, 1, 1, 2, 1),
-                vec![values(&[110.0]), values(&[55.0])],
+                vec![values(&[110.0, 55.0])],
             ),
             read(r(1, 2), cell_area(w(1, 3)), vec![values(&[5.0])]),
             read(r(1, 4), cell_area(w(1, 3)), vec![values(&[5.0])]),
@@ -2008,7 +2009,7 @@ fn ceng_m1_2__chain_recalculates() {
             read(
                 r(1, 2),
                 area(work_sheet, 1, 1, 2, 1),
-                vec![values(&[110.0]), values(&[55.0])],
+                vec![values(&[110.0, 55.0])],
             ),
             read(r(1, 2), cell_area(w(1, 3)), vec![values(&[6.0])]),
             read(

@@ -446,20 +446,34 @@ impl<'a> WorkbookReader<'a> {
     /// differs from the published generation's, [`crate::begin_recalc`] schedules every formula
     /// node, and no published value is handed out at all.
     fn formula_value(&mut self, at: CellKey) -> Option<&'a CalcValue> {
-        let node = self.view.state.node_at(at)?;
+        match self.formula_lookup(at) {
+            Ok(value) => value,
+            Err(node) => {
+                self.wait(at, node);
+                None
+            }
+        }
+    }
+
+    /// [`WorkbookReader::formula_value`] without its one effect: `Err` with the node, where it
+    /// would make the evaluation wait for that node.
+    fn formula_lookup(&self, at: CellKey) -> Result<Option<&'a CalcValue>, NodeId> {
+        let Some(node) = self.view.state.node_at(at) else {
+            return Ok(None);
+        };
         let result = match self.view.standing(node) {
             NodeStanding::Pending => {
                 if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node))
                 {
-                    return value.as_ref();
+                    return Ok(value.as_ref());
                 }
-                self.wait(at, node);
-                return None;
+                return Err(node);
             }
             NodeStanding::Staged(result) => result,
-            NodeStanding::Published(result) => result?,
+            NodeStanding::Published(None) => return Ok(None),
+            NodeStanding::Published(Some(result)) => result,
         };
-        result.calculated().map(|(value, _)| value)
+        Ok(result.calculated().map(|(value, _)| value))
     }
 
     /// What the cell `at`, which holds no input, reads as.
@@ -613,23 +627,59 @@ impl ReferenceReader for WorkbookReader<'_> {
             u64::from(at.row() - first.row()) * width + u64::from(at.column() - first.column())
         };
         let overlays = self.overlays(area);
+        // Consecutive cells' values go to the sink as one run (dc-dxm), up to BATCH of them. A
+        // cell this recalculation has yet to calculate ends the run before its wait is noted, so
+        // a sink that stops reading earlier notes no wait for it, as with one run per cell.
+        const BATCH: usize = 256;
+        let mut batch: Vec<CalcValue> = Vec::new();
+        let flush = |batch: &mut Vec<CalcValue>,
+                     sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>| {
+            if batch.is_empty() {
+                return ControlFlow::Continue(());
+            }
+            let flow = sink(CellRun::Values(batch));
+            batch.clear();
+            flow
+        };
         let mut covered = 0u64;
         for (at, input) in occupied {
             let index = index_of(at);
-            if index > covered && gap(covered, index, &overlays, sink).is_break() {
+            if index > covered
+                && (flush(&mut batch, sink).is_break()
+                    || gap(covered, index, &overlays, sink).is_break())
+            {
                 return;
             }
             covered = index + 1;
             let flow = match literal_value(input) {
-                Some(value) => sink(CellRun::Values(&[value])),
-                None => match self.formula_value(at) {
-                    Some(value) => sink(CellRun::Values(std::slice::from_ref(value))),
-                    None => sink(CellRun::Missing(1)),
+                Some(value) => {
+                    batch.push(value);
+                    ControlFlow::Continue(())
+                }
+                None => match self.formula_lookup(at) {
+                    Ok(Some(value)) => {
+                        batch.push(value.clone());
+                        ControlFlow::Continue(())
+                    }
+                    Ok(None) => match flush(&mut batch, sink) {
+                        ControlFlow::Continue(()) => sink(CellRun::Missing(1)),
+                        stop => stop,
+                    },
+                    Err(node) => match flush(&mut batch, sink) {
+                        ControlFlow::Continue(()) => {
+                            self.wait(at, node);
+                            sink(CellRun::Missing(1))
+                        }
+                        stop => stop,
+                    },
                 },
             };
-            if flow.is_break() {
+            if flow.is_break() || (batch.len() >= BATCH && flush(&mut batch, sink).is_break()) {
                 return;
             }
+        }
+        if flush(&mut batch, sink).is_break() {
+            return;
         }
         if total > covered {
             let _ = gap(covered, total, &overlays, sink);
