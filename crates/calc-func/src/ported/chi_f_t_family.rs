@@ -439,8 +439,8 @@ mod tests {
         );
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_inv_2t_df1_matches_live_excel_tan_pins() {
         // Live Excel 16.0 build 20326 / CV2, Value2 cell-ref injection.
         // T.INV.2T(p,1)=1/TAN(PI()*p/2), with p=0.5 published as exact 1.
@@ -514,8 +514,8 @@ mod tests {
         assert!((f_inv_kernel(0.99, 6.0, 4.0).unwrap() - 15.20686).abs() < 1e-4);
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_dist_df2_pdf_matches_live_excel_pow_chain_pins() {
         let pins = [
             (-8.0_f64, 0x3f5e8e78c21b35f0u64),

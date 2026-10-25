@@ -45,7 +45,7 @@ pub enum EditOrigin {
     Bar,
 }
 
-/// How long the last open and the last change took, in milliseconds of the browser's clock.
+/// How long the last open and the last intent took, in milliseconds of the browser's clock.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Timings {
     pub open_ms: Option<f64>,

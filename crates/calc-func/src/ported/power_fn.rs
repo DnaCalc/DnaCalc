@@ -191,8 +191,8 @@ mod tests {
         );
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn power_kernel_matches_excel_negative_base_reciprocal_odd_root_rows() {
         // Reciprocal odd-integer roots of negative bases: bit-exact Excel publication
         // via -exp(power * ln(-base)). 1/3 and its 16/17-digit decimal literals
@@ -235,8 +235,8 @@ mod tests {
 
     // W108 Phase D: fractional-path witnesses pinned to live Excel (the previously
     // 1-ULP "DIVERGE" rows, now bit-exact via the y<0 reciprocal staging).
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn power_kernel_fractional_pins_live_excel() {
         let rows: &[(u64, u64, u64)] = &[
             // base_bits, exp_bits, excel_result_bits

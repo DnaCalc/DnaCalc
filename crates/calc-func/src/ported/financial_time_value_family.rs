@@ -1148,8 +1148,8 @@ mod tests {
     /// final divide, double-rounded linear zero-rate branch) plus the
     /// live-probed error lanes. The 1,729-row live sweep is replayed by the
     /// racer's oracle-cache verifier.
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn nper_matches_live_excel_pinned_witnesses() {
         let rows: &[(u64, u64, u64, u64, PaymentTiming, u64)] = &[
             // NPER-0000 — the former 1-ULP catalog witness, now Excel-exact.
@@ -1418,8 +1418,8 @@ mod tests {
         }
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rri_uses_raw_x87_pow_chain_and_x87_spill_wrapper() {
         // BUG-FUNC-044 / G6-13. The first three rows pin the cancellation ladder;
         // the fourth separates reciprocal-multiply from `ln(base)/n`; the fifth
@@ -1504,8 +1504,8 @@ mod tests {
         }
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rri_matches_excel_daz_guard_order_and_exact_period_identity() {
         // BUG-FUNC-044 / G6-13. Live Excel 16.0 build 20228 x64, CV2,
         // NoCache. These rows represent the 60-row edge-domain, 35-row blind
@@ -1579,8 +1579,8 @@ mod tests {
         }
     }
 
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn nominal_uses_direct_x87_then_raw_pow_routes_with_stored_power() {
         // BUG-FUNC-045 / G6-14. These pins cover: native-powf cancellation;
         // the same-effect n=2/n=3 route boundary; x87-DR stored base creation;

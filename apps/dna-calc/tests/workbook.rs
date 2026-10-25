@@ -216,3 +216,30 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         assert!(controller.sheets().iter().any(|tab| tab.name == "Calc"));
     });
 }
+
+/// Native-only: it writes the saved workbook to the folder `DNACALC_RIF_SAVE_DIR` names, for Excel
+/// to open (calc-host's `tests/fixtures/d2/measure-saved-open.ps1`); without the variable it only
+/// saves.
+#[test]
+fn dc_rif__a_new_workbook_saves_for_excel() {
+    let mut book = Workbook::new_blank();
+    let sheet1 = sheet(&book, "Sheet1");
+    for (address, text) in [
+        ("A1", "2"),
+        ("A2", "3"),
+        ("A3", "=A1*A2+1"),
+        ("B1", "rate"),
+        ("C1", "={1;2;3}"),
+        ("D1", "TRUE"),
+    ] {
+        assert!(
+            book.enter(at(sheet1, address), text).accepted(),
+            "{address}"
+        );
+    }
+    let (bytes, _) = book.save().expect("saved");
+    if let Ok(dir) = std::env::var("DNACALC_RIF_SAVE_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(std::path::Path::new(&dir).join("dc_rif_book1.xlsx"), &bytes).unwrap();
+    }
+}

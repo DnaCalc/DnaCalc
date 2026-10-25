@@ -218,21 +218,9 @@ pub(super) mod raw {
     /// PC=24 (single), round-to-nearest-even, all exceptions masked.
     pub const CW_PC24_RN: u16 = 0x103F;
 
-    /// An x87 80-bit extended-precision value parked in memory. `fld tbyte` /
-    /// `fstp tbyte` move the full register image with no rounding, so this is
-    /// a faithful stand-in for "the value stayed on the x87 stack".
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    pub struct Ext80(pub [u8; 10]);
-
-    impl core::fmt::Debug for Ext80 {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            let mut hex = String::with_capacity(20);
-            for b in self.0.iter().rev() {
-                hex.push_str(&format!("{b:02x}"));
-            }
-            write!(f, "Ext80(0x{hex})")
-        }
-    }
+    /// The extended value's memory image, shared with the software x87 (`fld tbyte` /
+    /// `fstp tbyte` move the full register image with no rounding).
+    pub use super::super::soft87::Ext80;
 
     /// `f64 -> Ext80` — exact (every binary64 is representable in extended).
     pub fn ext_from_f64(x: f64) -> Ext80 {
@@ -436,6 +424,30 @@ pub(super) mod raw {
                 "fld tbyte ptr [{y}]",
                 "fld tbyte ptr [{x}]",
                 "fyl2xp1",
+                "fstp tbyte ptr [{out}]",
+                "fldcw word ptr [{save}]",
+                y = in(reg) y.0.as_ptr(),
+                x = in(reg) x.0.as_ptr(),
+                out = in(reg) out.0.as_mut_ptr(),
+                cw = in(reg) &cw,
+                save = in(reg) &mut cw_save,
+            );
+        }
+        out
+    }
+
+    /// The angle of `(x, y)`, `atan(y / x)` in the operands' quadrant — x87 `FPATAN`.
+    pub fn ext_fpatan(y: &Ext80, x: &Ext80, cw: u16) -> Ext80 {
+        let mut out = Ext80([0u8; 10]);
+        let mut cw_save: u16 = 0;
+        // SAFETY: two pushes; fpatan pops one, the tbyte store pops the other.
+        unsafe {
+            asm!(
+                "fnstcw word ptr [{save}]",
+                "fldcw word ptr [{cw}]",
+                "fld tbyte ptr [{y}]",
+                "fld tbyte ptr [{x}]",
+                "fpatan",
                 "fstp tbyte ptr [{out}]",
                 "fldcw word ptr [{save}]",
                 y = in(reg) y.0.as_ptr(),
