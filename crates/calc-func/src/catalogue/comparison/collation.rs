@@ -566,7 +566,8 @@ mod tests {
         text.encode_utf16().collect()
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_table_is_in_code_order_and_indexed_directly() {
         assert!(WEIGHTS.windows(2).all(|pair| pair[0].0 < pair[1].0));
         for (index, &(code, weights)) in WEIGHTS.iter().enumerate() {
@@ -579,7 +580,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn the_passes_decide_as_the_module_states() {
         let order = |a: &str, b: &str| compare(&units_of(a), &units_of(b));
         assert_eq!(order("w", "w\u{ad}"), Ok(Ordering::Less));

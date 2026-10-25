@@ -52,7 +52,8 @@ pub fn base_kernel(
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn base_kernel_matches_excel_seed_rows() {
         let plain = base_kernel(31.0, 16.0, None).unwrap();
         assert_eq!(String::from_utf16_lossy(plain.utf16_code_units()), "1F");

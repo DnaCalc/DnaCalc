@@ -16,13 +16,15 @@ pub fn coth_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn coth_kernel_zero_is_div0() {
         assert_eq!(coth_kernel(0.0), Err(WorksheetErrorCode::Div0));
     }
 
     // BUG-FUNC-027 CLASS-C3.h: large |n| saturates to ±1 (live Excel COTH(800)=1).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn coth_kernel_large_argument_saturates() {
         assert_eq!(coth_kernel(800.0), Ok(1.0));
         assert_eq!(coth_kernel(-800.0), Ok(-1.0));

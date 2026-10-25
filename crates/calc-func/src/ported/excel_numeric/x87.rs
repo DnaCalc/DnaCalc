@@ -615,6 +615,7 @@ pub(super) mod raw {
     );
 }
 
+/// Native-only: the x87 assembly these tests run compiles only on x86_64.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -632,7 +633,8 @@ mod tests {
         u64::from_str_radix(hex, 16).expect("hex")
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn matches_live_excel_bit_for_bit() {
         let (mut n, mut bad) = (0u32, Vec::new());
         for line in GROUND_TRUTH.lines() {
@@ -670,7 +672,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn spot_values() {
         // exp(0)=1, exp(1)=E (both exact-agreeing with Excel and CR here).
         assert_eq!(exp(0.0).to_bits(), 1.0f64.to_bits());
@@ -681,7 +684,8 @@ mod tests {
         assert_eq!(log10(1000.0), 3.0);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn double_rounded_mul_and_recip() {
         // Exact cases.
         assert_eq!(mul(2.0, 3.0), 6.0);
@@ -695,7 +699,8 @@ mod tests {
         assert_ne!((1.0 / p).to_bits(), 0.5f64.to_bits());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn control_word_is_restored() {
         // A benign x87 op after our calls must see the caller's CW again; we
         // can at least confirm repeated calls stay stable and don't drift.

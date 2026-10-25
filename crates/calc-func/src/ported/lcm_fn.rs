@@ -19,7 +19,8 @@ pub fn lcm_kernel(items: &[i64]) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn lcm_kernel_matches_excel_seed_rows() {
         assert_eq!(lcm_kernel(&[6, 8]), Ok(24.0));
         assert_eq!(lcm_kernel(&[0, 5]), Ok(0.0));

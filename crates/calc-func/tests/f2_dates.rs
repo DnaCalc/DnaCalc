@@ -31,14 +31,16 @@ fn c(env: &CalcEnvironment, spelling: &str, args: Vec<CalcValue>) -> Result<Calc
     call_in(env, None, None, spelling, args)
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dates_without_an_environment_are_refused() {
     refused(call("DATE", vec![n(2024.0), n(1.0), n(15.0)]));
     refused(call("YEAR", vec![n(45000.0)]));
     refused(call("TEXT", vec![n(1.0), t("0.00")]));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn date_parts_and_serials() {
     let e = host();
     exact(c(&e, "DATE", vec![n(2024.0), n(1.0), n(15.0)]), 45306.0);
@@ -78,7 +80,8 @@ fn date_parts_and_serials() {
     exact(c(&e, "NOW", vec![]), 46318.6);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn the_1904_date_system() {
     let mut e = host();
     e.date_system = DateSystem::System1904;
@@ -94,7 +97,8 @@ fn the_1904_date_system() {
     exact(c(&e, "TODAY", vec![]), 46318.0 - 1462.0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn value_datevalue_timevalue() {
     let e = host();
     // Excel: VALUE("1 234.5") 1234.5, VALUE("R 12") 12, VALUE("12:30") 0.520833..., VALUE("1/2")
@@ -119,7 +123,8 @@ fn value_datevalue_timevalue() {
     exact(c(&e, "NUMBERVALUE", vec![t("1,5"), t(","), t(".")]), 1.5);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn text_fixed_dollar() {
     let e = host();
     text(c(&e, "TEXT", vec![n(1234.5), t("#,##0.00")]), "1,234.50");
@@ -137,7 +142,8 @@ fn text_fixed_dollar() {
     text(c(&e, "DOLLAR", vec![n(-1234.567)]), "-R1 234.57");
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn delimited_split_regex_and_conversions() {
     let e = host();
     text(c(&e, "TEXTBEFORE", vec![t("a-b-c"), t("-")]), "a");
@@ -193,7 +199,8 @@ fn e_na() -> CalcValue {
     e(NA)
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn address_formats_references() {
     text(call("ADDRESS", vec![n(2.0), n(3.0)]), "$C$2");
     text(call("ADDRESS", vec![n(2.0), n(3.0), n(2.0)]), "C$2");
@@ -226,7 +233,8 @@ impl HostFacts for Host {
     }
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn host_facts() {
     let e = host();
     let mut sheet = Sheet::new();
@@ -266,7 +274,8 @@ fn host_facts() {
 }
 
 /// Microsoft's DSUM page example: a tree database and criteria.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn database_functions() {
     let mut sheet = Sheet::new();
     // A1:E7 database, A9:F11 criteria.

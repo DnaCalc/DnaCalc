@@ -104,21 +104,24 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn correlation_seed_lane_matches_excel_probe() {
         let pairs = vec![(1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)];
         let got = correlation_from_pairs(&pairs).unwrap();
         assert!((got - 1.0).abs() < 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn covariance_population_seed_lane_matches_excel_probe() {
         let pairs = vec![(1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)];
         let got = covariance_from_pairs(&pairs, CovarianceDivisor::Population).unwrap();
         assert!((got - 2.5).abs() < 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn slope_intercept_and_rsq_seed_lanes_match_excel_probe() {
         let pairs = vec![(1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0)];
         assert!((slope_from_pairs(&pairs).unwrap() - 2.0).abs() < 1e-12);
@@ -126,7 +129,8 @@ mod tests {
         assert!((rsq_from_pairs(&pairs).unwrap() - 1.0).abs() < 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn correl_and_rsq_exactness_witness_rows_match_excel_targets() {
         let positive_pairs = vec![(1.0, 2.0), (2.0, 4.0), (3.0, 6.0), (4.0, 8.0), (5.0, 10.0)];
         let negative_pairs = vec![(1.0, 10.0), (2.0, 8.0), (3.0, 6.0), (4.0, 4.0), (5.0, 2.0)];

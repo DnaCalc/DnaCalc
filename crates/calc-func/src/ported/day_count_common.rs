@@ -80,7 +80,8 @@ mod tests {
         ((ey - sy) * 360 + (em - sm) * 30 + (ed - sd)) as f64
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn end_day_31_rolls_into_next_month() {
         assert_eq!(
             us_30_360(serial(2023, 11, 15), serial(2024, 1, 31)),
@@ -88,7 +89,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn same_month_forward_range_is_non_negative() {
         assert_eq!(
             us_30_360(serial(2024, 1, 15), serial(2024, 1, 31)),
@@ -96,7 +98,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn start_at_least_30_matches_amor_in_place_form() {
         for (s, e) in [
             (serial(2024, 1, 30), serial(2024, 3, 31)),
@@ -111,7 +114,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn december_31_end_rolls_across_year_boundary() {
         assert_eq!(
             us_30_360(serial(2023, 11, 15), serial(2023, 12, 31)),

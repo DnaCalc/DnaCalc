@@ -83,7 +83,8 @@ pub fn floor_precise_kernel(number: f64, significance: f64) -> Result<f64, Works
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn ceiling_legacy_seed_lanes_match_excel_probe() {
         assert_eq!(ceiling_kernel(4.3, 2.0), Ok(6.0));
         assert_eq!(ceiling_kernel(-4.3, 2.0), Ok(-4.0));
@@ -92,7 +93,8 @@ mod tests {
         assert_eq!(ceiling_kernel(5.0, 0.0), Ok(0.0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn floor_legacy_seed_lanes_match_excel_probe() {
         assert_eq!(floor_kernel(4.3, 2.0), Ok(4.0));
         assert_eq!(floor_kernel(-4.3, 2.0), Ok(-6.0));
@@ -101,7 +103,8 @@ mod tests {
         assert_eq!(floor_kernel(5.0, 0.0), Err(WorksheetErrorCode::Div0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn math_and_precise_seed_lanes_match_excel_probe() {
         assert_eq!(ceiling_math_kernel(-4.3, 2.0, 0.0), Ok(-4.0));
         assert_eq!(ceiling_math_kernel(-4.3, 2.0, 1.0), Ok(-6.0));

@@ -16,12 +16,14 @@ pub fn acos_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acos_kernel_rejects_out_of_domain() {
         assert_eq!(acos_kernel(2.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn acos_matches_live_excel_pi2_asin_pins() {
         assert_eq!(acos_kernel(0.5).unwrap().to_bits(), 0x3ff0c152382d7365);
         assert_eq!(acos_kernel(0.75).unwrap().to_bits(), 0x3fe720a392c1d954);

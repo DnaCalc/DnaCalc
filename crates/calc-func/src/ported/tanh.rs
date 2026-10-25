@@ -22,7 +22,8 @@ pub fn tanh_kernel(n: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tanh_matches_live_excel_sinh_cosh_pins() {
         // Live Excel 16.0 b20326: TANH(x)=SINH(x)/COSH(x) 8/8.
         assert_eq!(tanh_kernel(0.5).to_bits(), 0x3fdd9353d7568af4);
@@ -30,7 +31,8 @@ mod tests {
         assert_eq!(tanh_kernel(-0.5).to_bits(), 0xbfdd9353d7568af4);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tanh_kernel_matches_std() {
         assert_eq!(tanh_kernel(1.0), 1.0f64.tanh());
     }

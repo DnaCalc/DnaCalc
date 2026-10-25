@@ -485,6 +485,7 @@ mod tests {
     /// over random operands of mixed magnitudes, among which a few hundred per operation are the
     /// near-midpoint cases where the double rounding moves the result.
     #[cfg(target_arch = "x86_64")]
+    /// Native-only: it runs the x87 hardware, which only x86_64 has.
     #[test]
     fn pc64_emulation_matches_the_x87_hardware() {
         let mut state = 0x9e37_79b9_7f4a_7c15_u64;
@@ -548,7 +549,8 @@ mod tests {
         ("LOG1P", 0xbf9462c5719f45e5, 0xbf94976b3dc504e8),
     ];
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn golden_matches_cr() {
         for &(f, xb, crb) in GOLDEN {
             let x = f64::from_bits(xb);
@@ -569,7 +571,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn expm1_edge_cases() {
         assert_eq!(excel_expm1(0.0).to_bits(), 0.0f64.to_bits()); // +0
         assert_eq!(excel_expm1(-0.0).to_bits(), (-0.0f64).to_bits()); // -0 preserved
@@ -588,7 +591,8 @@ mod tests {
         assert_eq!(excel_expm1(1.0).to_bits(), 0x3ffb7e151628aed3);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn log1p_edge_cases() {
         assert_eq!(excel_log1p(0.0).to_bits(), 0.0f64.to_bits()); // +0
         assert_eq!(excel_log1p(-0.0).to_bits(), (-0.0f64).to_bits()); // -0 preserved
@@ -605,6 +609,7 @@ mod tests {
     /// W109 G4-01 trig identification pins — live Excel 16.0 build 20131.
     /// One row per identified chain plus the bit-resolution COS threshold.
     /// The 5,425-row live sweep is replayed by `verify_trig_promotion`.
+    /// Native-only: it runs the x87 hardware, which only x86_64 has.
     #[test]
     #[cfg(target_arch = "x86_64")]
     fn trig_matches_live_excel_pinned_witnesses() {
@@ -658,7 +663,8 @@ mod tests {
         assert_eq!(excel_x87_recip(excel_cos(x)).to_bits(), 0xbff0029eabb0db59); // SEC
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn edge_cases() {
         assert_eq!(excel_exp(0.0).to_bits(), 1.0f64.to_bits());
         assert_eq!(excel_exp(-0.0).to_bits(), 1.0f64.to_bits());

@@ -85,7 +85,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_kernel_matches_excel_truncation_and_num_lanes() {
         assert_eq!(combin_kernel(5.0, 2.0), Ok(10.0));
         assert_eq!(combin_kernel(5.9, 2.2), Ok(10.0));
@@ -93,7 +94,8 @@ mod tests {
         assert_eq!(combin_kernel(-1.0, 1.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_exact_publication_controls_remain_exact() {
         assert_bits(combin_kernel(10.0, 3.0).expect("combin(10,3)"), 120.0_f64);
         assert_bits(combin_kernel(9.0, 2.0).expect("combin(9,2)"), 36.0_f64);
@@ -102,7 +104,8 @@ mod tests {
     /// W109 current-build discovery pins. These representable integers are
     /// published one ULP away from the correctly rounded value, which rules
     /// out the former multiply-first kernel.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_matches_live_excel_cyclic_spill_pins() {
         assert_eq!(
             combin_kernel(9.0, 3.0).unwrap().to_bits(),
@@ -124,7 +127,8 @@ mod tests {
 
     /// Frozen 1,024-row publication-heldout discriminator. The plain RN53
     /// recurrence is one ULP low here; the selected stored-x87 graph matches.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_matches_frozen_publication_heldout_pin() {
         assert_eq!(
             combin_kernel(258.0, 49.0).unwrap().to_bits(),
@@ -134,7 +138,8 @@ mod tests {
 
     /// Paired current-build COMBIN controls for the COMBINA wrapper campaign
     /// locate the inherited signed-32-bit admission ceiling exactly.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_matches_live_excel_integer_ceiling() {
         assert_eq!(combin_kernel(2_147_483_646.0, 0.0), Ok(1.0));
         assert_eq!(combin_kernel(2_147_483_646.0, 1.0), Ok(2_147_483_646.0));
@@ -145,7 +150,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_large_central_overflow_short_circuits_to_num() {
         assert_eq!(
             combin_kernel(2_000_000_000.0, 1_000_000_000.0),
@@ -153,7 +159,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_direct_nonfinite_inputs_are_defensively_num() {
         for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert_eq!(combin_kernel(value, 0.0), Err(WorksheetErrorCode::Num));
@@ -161,7 +168,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn combin_matches_live_excel_daz_boundary() {
         assert_eq!(combin_kernel(-f64::from_bits(1), 0.25), Ok(1.0));
         assert_eq!(combin_kernel(1.25, -f64::from_bits(1)), Ok(1.0));

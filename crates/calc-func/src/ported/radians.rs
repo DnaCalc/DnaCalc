@@ -9,7 +9,8 @@ pub fn radians_kernel(n: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn radians_kernel_maps_180_to_pi() {
         assert_eq!(radians_kernel(180.0), std::f64::consts::PI);
     }

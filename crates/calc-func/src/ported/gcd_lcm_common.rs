@@ -33,7 +33,8 @@ mod tests {
     use super::*;
 
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gcd_and_lcm_basic_lanes() {
         assert_eq!(gcd_int(24, 36), 12);
         assert_eq!(gcd_int(0, 5), 5);

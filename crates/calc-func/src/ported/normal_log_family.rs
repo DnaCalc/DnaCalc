@@ -354,7 +354,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn normsdist_gf3_wrapper_pins_live_excel_20228() {
         // Live Excel 16.0 b20228 G-F3 ladder. NS(-1) = RN53(0.5*Q) transports
         // the still-open ERFC body (1 ULP high at this z, same witness as
@@ -391,7 +392,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn norm_family_matches_excel_probe_lanes() {
         assert!(
             (norm_dist_kernel(42.0, 40.0, 1.5, false).unwrap() - 0.109340049783996).abs() < 1e-12
@@ -408,7 +410,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn norm_family_matches_exact_excel_value_witnesses() {
         assert_eq!(norm_dist_kernel(0.0, 0.0, 1.0, true).unwrap(), 0.5);
         assert_eq!(norm_s_dist_kernel(0.0, true).unwrap(), 0.5);
@@ -419,7 +422,8 @@ mod tests {
         assert_bits(norm_s_inv_kernel(0.975).unwrap(), 0x3fff_5c03_31ee_ff82);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn norm_inv_tail_witnesses_match_excel_bits() {
         for (p, expected_bits) in [
             (0.0001_f64, 0xc00d_c08b_b712_893a),
@@ -434,7 +438,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn norm_inv_central_witnesses_keep_existing_excel_matches() {
         for (p, expected_bits) in [
             (0.15_f64, 0xbff0_953b_2d85_bb6c),
@@ -448,7 +453,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn lognorm_family_matches_excel_probe_lanes() {
         let mean = 4.0_f64.ln();
         assert!(
@@ -458,7 +464,8 @@ mod tests {
         assert!((lognorm_inv_kernel(0.9, mean, 0.2).unwrap() - 5.16861455178106).abs() < 1e-6);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn family_domain_errors_match_excel_probe_lanes() {
         assert_eq!(
             norm_dist_kernel(1.0, 0.0, 0.0, true),
@@ -481,7 +488,8 @@ mod tests {
     }
 
     // BUG-FUNC-039 item 4: CONFIDENCE size truncation and size<1 rejection.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn confidence_size_truncation_and_sub1_rejection() {
         // Fractional size: result should match the integer-truncated value.
         let with_fraction = confidence_norm_kernel(0.05, 2.5, 100.9).unwrap();

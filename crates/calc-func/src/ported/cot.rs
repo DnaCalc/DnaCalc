@@ -16,20 +16,23 @@ pub fn cot_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cot_kernel_zero_is_div0() {
         assert_eq!(cot_kernel(0.0), Err(WorksheetErrorCode::Div0));
     }
 
     // BUG-FUNC-027 CLASS-B2: |x| >= 2^27 -> #NUM! (live Excel COT(2^27)=#NUM!).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cot_kernel_large_argument_is_num() {
         assert_eq!(cot_kernel(134_217_728.0), Err(WorksheetErrorCode::Num));
         assert_eq!(cot_kernel(-134_217_728.0), Err(WorksheetErrorCode::Num));
         assert!(cot_kernel(1.0).is_ok());
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cot_matches_live_excel_recip_tan_pins() {
         // Live Excel 16.0 b20326: COT(x)=1/TAN(x) 10/10.
         assert_eq!(cot_kernel(0.5).unwrap().to_bits(), 0x3ffd49ad7e47c0a3);

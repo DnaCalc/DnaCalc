@@ -14,12 +14,14 @@ pub fn csch_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn csch_kernel_zero_is_div0() {
         assert_eq!(csch_kernel(0.0), Err(WorksheetErrorCode::Div0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn csch_matches_live_excel_one_over_sinh_pins() {
         // Live Excel 16.0 b20326: CSCH(x)=1/SINH(x) 5/5.
         assert_eq!(csch_kernel(0.5).unwrap().to_bits(), 0x3ffeb45dc88defed);

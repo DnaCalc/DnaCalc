@@ -46,13 +46,15 @@ pub fn z_test_kernel(
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn confidence_t_matches_known_lane() {
         let got = confidence_t_kernel(0.05, 2.5, 50.0).unwrap();
         assert!((got - 0.7104921387393248).abs() < 1e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn confidence_t_rejects_invalid_domain() {
         assert_eq!(
             confidence_t_kernel(1.0, 2.0, 10.0),
@@ -68,14 +70,16 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn z_test_matches_seed_lane_with_supplied_sigma() {
         let values = [3.0, 6.0, 7.0, 8.0, 6.0];
         let got = z_test_kernel(&values, 4.0, Some(1.5)).unwrap();
         assert!((got - 0.0014345563960383074).abs() < 1e-12);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn z_test_omitted_sigma_matches_normsdist_stdev_s_identity() {
         // Live Excel 16.0 b20326 Value2: Z.TEST = NORMSDIST((x-mean)/(STDEV.S/√n)).
         assert_eq!(

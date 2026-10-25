@@ -32,21 +32,24 @@ pub fn rank_avg(number: f64, values: &[f64], order: RankOrder) -> Result<f64, Wo
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rank_eq_descending_basic_lane() {
         let values = vec![30.0, 20.0, 20.0, 10.0];
         let got = rank_eq(20.0, &values, RankOrder::Descending).unwrap();
         assert_eq!(got, 2.0);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rank_avg_descending_duplicate_lane() {
         let values = vec![30.0, 20.0, 20.0, 10.0];
         let got = rank_avg(20.0, &values, RankOrder::Descending).unwrap();
         assert_eq!(got, 2.5);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn rank_eq_ascending_basic_lane() {
         let values = vec![30.0, 20.0, 20.0, 10.0];
         let got = rank_eq(20.0, &values, RankOrder::Ascending).unwrap();

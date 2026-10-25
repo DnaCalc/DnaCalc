@@ -157,7 +157,8 @@ pub fn power_kernel(number: f64, power: f64) -> Result<f64, WorksheetErrorCode> 
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn power_kernel_matches_excel_domain_lanes() {
         assert_eq!(power_kernel(2.0, 3.0), Ok(8.0));
         assert_eq!(power_kernel(2.0, -3.0), Ok(0.125));
@@ -171,14 +172,16 @@ mod tests {
 
     // BUG-FUNC-027 CLASS-A4: live Excel 16.0 b20026 POWER(10,700)=#NUM!,
     // POWER(0.001,-700)=#DIV/0!, POWER(10,-700)=0.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn power_kernel_overflow_maps_to_excel_error_codes() {
         assert_eq!(power_kernel(10.0, 700.0), Err(WorksheetErrorCode::Num));
         assert_eq!(power_kernel(0.001, -700.0), Err(WorksheetErrorCode::Div0));
         assert_eq!(power_kernel(10.0, -700.0), Ok(0.0));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn power_kernel_matches_excel_integer_publication_rows() {
         assert_eq!(power_kernel(1.05, 10.0), Ok(1.6288946267774416));
         assert_eq!(power_kernel(1.01, 48.0), Ok(1.6122260776824653));
@@ -188,6 +191,7 @@ mod tests {
         );
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn power_kernel_matches_excel_negative_base_reciprocal_odd_root_rows() {
         // Reciprocal odd-integer roots of negative bases: bit-exact Excel publication
@@ -212,7 +216,8 @@ mod tests {
 
     // W108 Phase D: Excel special-cases exponent 0.5 to the correctly-rounded
     // hardware sqrt, NOT exp(0.5·ln x). Pinned to live Excel 16.0 build 20131.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn power_kernel_exponent_half_is_sqrt() {
         // POWER(2, 0.5) = √2 exactly (0x…bcd); exp(0.5·ln2) is 1 ULP low (0x…bcc).
         assert_eq!(power_kernel(2.0, 0.5), Ok(2.0f64.sqrt()));
@@ -230,6 +235,7 @@ mod tests {
 
     // W108 Phase D: fractional-path witnesses pinned to live Excel (the previously
     // 1-ULP "DIVERGE" rows, now bit-exact via the y<0 reciprocal staging).
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn power_kernel_fractional_pins_live_excel() {
         let rows: &[(u64, u64, u64)] = &[

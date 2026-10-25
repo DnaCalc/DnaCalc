@@ -64,7 +64,8 @@ fn truncate_to_decimal_places(value: f64, places: i64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn percentrank_inc_seed_lane() {
         let mut values = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         assert_eq!(
@@ -73,7 +74,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn percentrank_exc_seed_lane() {
         let mut values = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         assert_eq!(
@@ -82,7 +84,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn percentrank_truncates_default_significance_like_excel() {
         let mut values = vec![1.0, 2.0, 2.0, 4.0, 5.0];
         assert_eq!(

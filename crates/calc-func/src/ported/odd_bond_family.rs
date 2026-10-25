@@ -746,7 +746,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn days360_us_rolls_end_day_31_into_next_month() {
         assert_eq!(
             days360_us(serial(2023, 11, 15) as i64, serial(2024, 1, 31) as i64),
@@ -754,7 +755,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn days360_us_start_at_least_30_collapses_end_in_place() {
         assert_eq!(
             days360_us(serial(2024, 1, 30) as i64, serial(2024, 3, 31) as i64),
@@ -762,7 +764,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn oddfprice_matches_bounded_microsoft_lane() {
         let got = oddfprice_kernel(
             serial(2008, 11, 11),
@@ -779,7 +782,8 @@ mod tests {
         assert_close(got, 113.597_717_474_079, 1.0e-9);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn oddfyield_inverts_bounded_price_lane() {
         let got = oddfyield_kernel(
             serial(2008, 11, 11),
@@ -796,7 +800,8 @@ mod tests {
         assert_close(got, 0.0625, 1.0e-10);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn oddlprice_matches_bounded_example_lane() {
         let got = oddlprice_kernel(
             serial(2008, 2, 7),
@@ -812,7 +817,8 @@ mod tests {
         assert_close(got, 99.878_286_014_721_34, 1.0e-10);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn oddlyield_inverts_bounded_price_lane() {
         let got = oddlyield_kernel(
             serial(2008, 2, 7),
@@ -828,7 +834,8 @@ mod tests {
         assert_close(got, 0.0405, 1.0e-10);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn long_odd_first_coupon_now_computes() {
         // BUG-FUNC-032: a long (multi-quasi-coupon-period) odd first coupon is valid
         // in Excel; the kernel no longer rejects it with #NUM!. The witness (basis 0,
@@ -849,7 +856,8 @@ mod tests {
         assert!((price - 98.512_878_788_572_08).abs() < 1e-9, "got {price}");
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn oddfprice_actual_bases_bit_exact_vs_excel() {
         // BUG-FUNC-032 / G6 three-way: a long odd first coupon over the actual-day
         // bases (1=act/act, 2=act/360, 3=act/365) was materially wrong under the old
@@ -881,7 +889,8 @@ mod tests {
     // (same as PRICE, G6-03b). Before the `excel_bond_pow` fix these drifted 1-2 ULP; now
     // bit-exact vs live Excel (build 20131). settle 44013, mat 44562, issue 43831,
     // first_coupon 44197, rate 5%, red 100, freq 2, basis 0.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn oddfprice_us30360_integer_exponents_bit_exact_vs_excel() {
         let ladder: [(f64, u64); 5] = [
             (0.04, 0x40595925a26f8cfb),
@@ -912,7 +921,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn invalid_frequency_and_basis_are_rejected() {
         assert_eq!(
             oddlprice_kernel(

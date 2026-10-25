@@ -329,7 +329,8 @@ mod tests {
     use super::*;
     use crate::value::WorksheetErrorCode;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn chisq_df1_matches_published_erf_erfc_sqrt_half_x() {
         use crate::ported::special_dist_family::{erf_of_sqrt_half_x, erfc_of_sqrt_half_x};
         for x in [0.0, 0.25, 0.5, 1.0, 2.0, 3.841458820694124, 10.0, 20.0] {
@@ -366,7 +367,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn even_df_chidist_matches_poisson_cdf_identity() {
         // Live Excel 16.0 b20228: CHIDIST(x, 2(k+1)) == POISSON.DIST(k, x/2, TRUE).
         // After the Poisson CDF dispatch, OxFunc reproduces that identity.
@@ -385,7 +387,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn chisq_cdf_matches_gamma_scale_two_identity() {
         for df in [1.0, 2.0, 3.0, 4.0, 5.0, 10.0] {
             for x in [0.0, 0.5, 1.0, 2.0, 8.0, 20.0] {
@@ -402,7 +405,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn chisq_inv_matches_gamma_inv_scale_two_identity() {
         for df in [1.0, 2.0, 3.0, 4.0, 5.0, 10.0] {
             for p in [0.01, 0.05, 0.25, 0.5, 0.9, 0.99] {
@@ -417,7 +421,8 @@ mod tests {
         assert_eq!(chisq_inv_kernel(1.0, 2.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn chisq_dist_rt_df2_matches_live_excel_exp_pins() {
         // Live Excel 16.0 b20326: CHISQ.DIST.RT(x,2)=EXP(-x/2) 7/7.
         assert_eq!(
@@ -434,6 +439,7 @@ mod tests {
         );
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn t_inv_2t_df1_matches_live_excel_tan_pins() {
         // Live Excel 16.0 build 20326 / CV2, Value2 cell-ref injection.
@@ -458,7 +464,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_inv_df1_matches_two_tail_double_prob() {
         for p in [0.6, 0.75, 0.9, 0.95, 0.99, 0.995] {
             let one = t_inv_kernel(p, 1.0).unwrap();
@@ -487,7 +494,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn chisq_family_matches_known_rows() {
         assert!((chisq_dist_kernel(0.5, 1.0, true).unwrap() - 0.520_499_88).abs() < 1e-8);
         assert!(
@@ -497,7 +505,8 @@ mod tests {
         assert!((chisq_inv_rt_kernel(0.0500006, 10.0).unwrap() - 18.307).abs() < 1e-4);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn f_family_matches_known_rows() {
         assert!((f_dist_kernel(15.2069, 6.0, 4.0, true).unwrap() - 0.99).abs() < 5e-5);
         assert!((f_dist_kernel(15.2069, 6.0, 4.0, false).unwrap() - 0.001_223_8).abs() < 5e-7);
@@ -505,6 +514,7 @@ mod tests {
         assert!((f_inv_kernel(0.99, 6.0, 4.0).unwrap() - 15.20686).abs() < 1e-4);
     }
 
+    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
     #[test]
     fn t_dist_df2_pdf_matches_live_excel_pow_chain_pins() {
         let pins = [
@@ -533,7 +543,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_dist_df1_pdf_matches_live_excel_pins() {
         assert_eq!(
             t_dist_kernel(0.0, 1.0, false).unwrap().to_bits(),
@@ -553,7 +564,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn t_family_matches_known_rows() {
         assert!((t_dist_kernel(60.0, 1.0, true).unwrap() - 0.994_695_33).abs() < 1e-8);
         assert!((t_dist_kernel(8.0, 3.0, false).unwrap() - 0.000_736_91).abs() < 1e-8);
@@ -562,14 +574,16 @@ mod tests {
         assert!((t_inv_2t_kernel(0.054_644_93, 60.0).unwrap() - 1.959_999_998).abs() < 1e-6);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn compatibility_aliases_follow_modern_functions() {
         assert!((chisq_dist_rt_kernel(18.307, 10.0).unwrap() - 0.050_000_589_130_671).abs() < 1e-8);
         assert!((f_dist_rt_kernel(15.2069, 6.0, 4.0).unwrap() - 0.01).abs() < 5e-5);
         assert!((t_dist_2t_kernel(1.959_999_998, 60.0).unwrap() - 0.054_644_93).abs() < 1e-7);
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn invalid_domains_return_num_errors() {
         assert_eq!(
             chisq_dist_kernel(-1.0, 1.0, true),
@@ -584,7 +598,8 @@ mod tests {
     }
 
     // BUG-FUNC-039 item 1: x=0 divergence published as #NUM!, not +inf.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn chisq_pdf_x0_df1_returns_num_not_inf() {
         assert_eq!(chisq_pdf_kernel(0.0, 1.0), Err(WorksheetErrorCode::Num));
         // df=2 at x=0 is finite (0.5); must not be broken by the fix.
@@ -594,7 +609,8 @@ mod tests {
     }
 
     // BUG-FUNC-039 item 1: F.DIST(0, d1<2, d2, FALSE) -> #NUM!.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn f_pdf_x0_d1lt2_returns_num_not_inf() {
         assert_eq!(f_pdf_kernel(0.0, 1.0, 5.0), Err(WorksheetErrorCode::Num));
         // d1=2 at x=0 is finite (1.0); must not be broken.
@@ -604,7 +620,8 @@ mod tests {
     }
 
     // BUG-FUNC-039 item 2: df exactly 1e10 must be admitted; df > 1e10 rejected.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn df_boundary_at_1e10_is_admitted() {
         // df = 1e10 exactly: should succeed (just needs to parse without error).
         assert!(chisq_dist_kernel(1.0, 1e10, false).is_ok());

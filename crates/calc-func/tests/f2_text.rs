@@ -9,7 +9,8 @@ mod f1_support;
 use calc_func::value::WorksheetErrorCode::{Blocked, Calc, Connect, Div0, NA, Value};
 use f1_support::*;
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn char_code_unichar_unicode() {
     text(call("CHAR", vec![n(65.0)]), "A");
     // Excel: CHAR(128) is the euro sign, CHAR(150) an en dash (code page 1252).
@@ -33,7 +34,8 @@ fn char_code_unichar_unicode() {
     error(call("UNICODE", vec![t("")]), Value);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn slices_and_lengths() {
     exact(call("LEN", vec![t("abc")]), 3.0);
     exact(call("LEN", vec![n(12.5)]), 4.0);
@@ -53,7 +55,8 @@ fn slices_and_lengths() {
     error(call("LEN", vec![e(Div0)]), Div0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn casing_trim_clean_rept_exact() {
     text(call("UPPER", vec![t("straße")]), "STRAßE");
     text(call("LOWER", vec![t("ABC")]), "abc");
@@ -72,7 +75,8 @@ fn casing_trim_clean_rept_exact() {
     assert_eq!(same.as_logical(), Some(true));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn find_search_replace_substitute() {
     exact(call("FIND", vec![t("y"), t("xyz")]), 2.0);
     error(call("FIND", vec![t("Y"), t("xyz")]), Value);
@@ -93,7 +97,8 @@ fn find_search_replace_substitute() {
     error(call("SUBSTITUTE", vec![t("a-b-c"), t("-"), t("+"), n(0.0)]), Value);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn joins_and_t() {
     text(call("CONCATENATE", vec![t("a"), n(1.0), b(false)]), "a1FALSE");
     error(call("CONCATENATE", vec![t("a"), e(NA)]), NA);
@@ -117,7 +122,8 @@ fn joins_and_t() {
     error(call("T", vec![e(Div0)]), Div0);
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn ifs_and_switch() {
     exact(call("IFS", vec![b(false), n(1.0), b(true), n(2.0)]), 2.0);
     error(call("IFS", vec![b(false), n(1.0)]), NA);
@@ -132,7 +138,8 @@ fn ifs_and_switch() {
 
 /// Folded in from dc-fwpz and cfunc-m1.2: digit text in a logical position is #VALUE! (Excel:
 /// NOT("1") and IF("1",1,2) are #VALUE! in the committed captures).
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn digit_text_is_no_logical() {
     error(call("NOT", vec![t("1")]), Value);
     error(call("NOT", vec![t("2020/01/02")]), Value);
@@ -141,7 +148,8 @@ fn digit_text_is_no_logical() {
 
 /// Folded in from dc-tt73: #BLOCKED! and #CONNECT! are errors like any other to the IS
 /// functions, TYPE, N, ERROR.TYPE and IFERROR.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn blocked_and_connect_are_errors() {
     for code in [Blocked, Connect] {
         assert_eq!(call("ISERROR", vec![e(code)]).unwrap().as_logical(), Some(true));
@@ -158,7 +166,8 @@ fn blocked_and_connect_are_errors() {
 /// Folded in from dc-uhdh: a blank cell's value given directly (IFNA over a blank cell gives it
 /// as it is) is read as Excel reads it. Excel: COUNT(IFNA(Z7,0)) 1, COUNTA 1, AVERAGE(1,..) 0.5,
 /// MIN(5,..) 0, MAX(-5,..) 0, PRODUCT(3,..) 0, SUM(3,..) 3, SUMPRODUCT(..) #VALUE!.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn a_direct_blank_in_the_sum_and_count_family() {
     let blank = calc_func::value::CalcValue::empty();
     exact(call("COUNT", vec![blank.clone()]), 1.0);

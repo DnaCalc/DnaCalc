@@ -107,7 +107,8 @@ mod tests {
         cannot_be_number(&text.encode_utf16().collect::<Vec<u16>>())
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_word_no_number_text_holds_decides_the_text() {
         for text in [
             "2016-17 Winter",
@@ -126,7 +127,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn text_holding_only_words_excel_reads_is_undecided() {
         for text in [
             "",
@@ -149,7 +151,8 @@ mod tests {
         }
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn text_beyond_printable_ascii_is_undecided() {
         for text in [
             "2016\u{2013}17 Winter",

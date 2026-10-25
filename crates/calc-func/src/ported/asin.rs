@@ -26,7 +26,8 @@ pub fn asin_kernel(n: f64) -> Result<f64, WorksheetErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn asin_matches_live_excel_pins() {
         assert_eq!(asin_kernel(0.5).unwrap().to_bits(), 0x3fe0c152382d7366);
         assert_eq!(asin_kernel(1.0).unwrap().to_bits(), 0x3ff921fb54442d18);

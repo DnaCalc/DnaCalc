@@ -37,7 +37,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn permut_kernel_matches_excel_lanes() {
         assert_eq!(permut_kernel(10.0, 3.0), Ok(720.0));
         assert_eq!(permut_kernel(10.9, 3.2), Ok(720.0));
@@ -46,7 +47,8 @@ mod tests {
         assert_eq!(permut_kernel(-1.0, 1.0), Err(WorksheetErrorCode::Num));
     }
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn permut_exact_publication_controls_remain_exact() {
         assert_bits(permut_kernel(10.0, 3.0).expect("permut(10,3)"), 720.0_f64);
         assert_bits(permut_kernel(9.0, 2.0).expect("permut(9,2)"), 72.0_f64);
@@ -55,7 +57,8 @@ mod tests {
     /// W109 PERMUT identification pin — live Excel 16.0 build 20131. The
     /// former catalog witness PERMUT(61,20) was 1 ULP off under the factorial
     /// ratio; the ascending spill-loop product matches Excel's bits.
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn permut_matches_live_excel_pinned_witnesses() {
         assert_eq!(
             permut_kernel(61.0, 20.0).unwrap().to_bits(),

@@ -9,7 +9,8 @@ pub fn tan_kernel(n: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn tan_kernel_matches_std() {
         assert_eq!(tan_kernel(1.0), 1.0f64.tan());
     }

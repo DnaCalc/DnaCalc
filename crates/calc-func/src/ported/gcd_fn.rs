@@ -9,7 +9,8 @@ pub fn gcd_kernel(items: &[i64]) -> f64 {
 mod tests {
     use super::*;
 
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn gcd_kernel_matches_excel_seed_rows() {
         assert_eq!(gcd_kernel(&[24, 36]), 12.0);
         assert_eq!(gcd_kernel(&[0, 5]), 5.0);
