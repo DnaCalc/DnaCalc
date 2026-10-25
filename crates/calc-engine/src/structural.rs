@@ -9,12 +9,17 @@
 //! moves the nodes and their published results, keeps their IDs, and leaves every node unbound
 //! and pending: the next recalculation binds each formula's rewritten text and calculates it.
 //! Nothing of the graph is patched in place; that refinement (ceng-m4.1's) is not done.
+//!
+//! [`relocate_formula`] is the text a copy of a formula cell writes in another cell (dc-09v).
 
 use crate::read::SnapshotCatalog;
 use calc_doc_model::{
     Axis, AxisChange, FormulaRewriter, FormulaText, ModelRoot, NameScope, StructuralChange,
 };
-use calc_fml::reference::{EditAxis, StructuralEdit, transform_formula, transform_name};
+use calc_fml::reference::{
+    EditAxis, ReferenceNotation, StructuralEdit, convert_notation, transform_formula,
+    transform_name,
+};
 use calc_value::{CellKey, ExcelText};
 
 /// The formula rewriter of structural edits: CalcFml's reference transform over the root before
@@ -90,4 +95,38 @@ impl FormulaRewriter for ReferenceRewriter {
         let text = formula.strip_prefix('=').unwrap_or(formula);
         transform_name(text, sheet, &fml_edit(root, change), &SnapshotCatalog(root))
     }
+}
+
+/// The formula a copy of the cell `from` writes in the cell `to`, as Excel's copy and paste and its
+/// fill write it ("Move or copy cells"): every relative row or column keeps its offset from the
+/// formula's cell and every absolute one (`$`) stays, through CalcFml's A1 and R1C1 spellings of
+/// the formula's references (the formula read in R1C1 at `from`, then written in A1 at `to`); a
+/// relative reference the copy moves off the grid is `#REF!`. A reference qualified with a sheet
+/// keeps its sheet. `None` when the formula's text does not parse (dc-09v).
+pub fn relocate_formula(
+    root: &ModelRoot,
+    formula: &FormulaText,
+    from: CellKey,
+    to: CellKey,
+) -> Option<FormulaText> {
+    let text = String::from_utf16(formula.text().utf16_code_units()).ok()?;
+    let catalog = SnapshotCatalog(root);
+    let relative = convert_notation(
+        &text,
+        from,
+        ReferenceNotation::A1,
+        ReferenceNotation::R1C1,
+        &catalog,
+    )?;
+    let placed = convert_notation(
+        &relative,
+        to,
+        ReferenceNotation::R1C1,
+        ReferenceNotation::A1,
+        &catalog,
+    )?;
+    FormulaText::new(ExcelText::from_utf16_code_units(
+        placed.encode_utf16().collect(),
+    ))
+    .ok()
 }
