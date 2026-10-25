@@ -274,6 +274,54 @@ fn dc_rif__a_new_workbook_saves_for_excel() {
     }
 }
 
+/// Native-only: it writes the saved workbooks to the folder `DNACALC_RIF_SAVE_DIR` names, for
+/// Excel to open (calc-host's `tests/fixtures/d2/measure-saved-open.ps1`): a new workbook edited
+/// by a fill down and a copy and paste, and calc-host's `dc_09v/formats.xlsx` with formatted
+/// cells edited, whose formats a save keeps (dc-09v). Without the variable it only saves.
+#[test]
+fn dc_09v__edited_workbooks_save_for_excel() {
+    let mut book = Workbook::new_blank();
+    let sheet1 = sheet(&book, "Sheet1");
+    for (address, text) in [("A1", "1"), ("A2", "2"), ("A3", "3"), ("B1", "=A1*10")] {
+        assert!(
+            book.enter(at(sheet1, address), text).accepted(),
+            "{address}"
+        );
+    }
+    let area = |s: SheetId, a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    let fill = book.dispatch(SkinIntent::Copy {
+        from: area(sheet1, "B1", "B1"),
+        to: area(sheet1, "B2", "B3"),
+    });
+    assert!(fill.accepted(), "{:?}", fill.error);
+    let paste = book.dispatch(SkinIntent::Copy {
+        from: area(sheet1, "A1", "B3"),
+        to: area(sheet1, "D5", "D5"),
+    });
+    assert!(paste.accepted(), "{:?}", paste.error);
+    assert_eq!(shown(&book, at(sheet1, "E7")).text, "30");
+    let (copied, _) = book.save().expect("saved");
+
+    let mut formats = Workbook::open(
+        "formats.xlsx",
+        include_bytes!("../../../crates/calc-host/tests/fixtures/dc_09v/formats.xlsx").to_vec(),
+    )
+    .expect("it opens");
+    let sheet = sheet(&formats, "Formats");
+    assert!(formats.enter(at(sheet, "A1"), "9876.5").accepted());
+    assert!(formats.enter(at(sheet, "A2"), "0.125").accepted());
+    assert_eq!(shown(&formats, at(sheet, "A1")).text, "9,876.50");
+    assert_eq!(shown(&formats, at(sheet, "A2")).text, "13%");
+    let (edited, _) = formats.save().expect("saved");
+
+    if let Ok(dir) = std::env::var("DNACALC_RIF_SAVE_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        let dir = std::path::Path::new(&dir);
+        std::fs::write(dir.join("dc_09v_copied.xlsx"), &copied).unwrap();
+        std::fs::write(dir.join("dc_09v_formats_edited.xlsx"), &edited).unwrap();
+    }
+}
+
 /// Native-only: it reads the workbook the environment variable `DNACALC_OPEN_TIMING` names from
 /// the file system and prints how long DNA Calc's open took, read and calculated apart (dc-09v
 /// compares it with the browser's); without the variable it does nothing.
