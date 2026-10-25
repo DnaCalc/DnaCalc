@@ -12,33 +12,134 @@
 //! offset, because both share one half-open banding of the plane (each cell owns
 //! `[left, right) x [top, bottom)`).
 //!
-//! Every row is [`GridMetrics::row_height`] tall and every column [`GridMetrics::col_width`] wide.
-//! Excel's own row heights and column widths are not read from the workbook yet; they would
-//! replace the multiplication here with a prefix-sum lookup behind the same signatures.
+//! A row is [`GridMetrics::row_height`] tall and a column [`GridMetrics::col_width`] wide unless
+//! the workbook sizes it otherwise ([`Sizes`]: Excel's own row heights and column widths, and a
+//! hidden row or column as size 0, dc-09v). A band's position is the default size times its
+//! index plus the differences of the sized bands before it, found by binary search, so the
+//! forward map and the hit test stay exact inverses over any sizes.
 //!
 //! All coordinates are `f64` CSS pixels. [`hit_test`] takes pointer coordinates, so it refuses
 //! negative and non-finite inputs and never panics.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-sheet/src/geometry.rs`, whole, with
-//! its tests.
+//! its tests; the sized bands are dc-09v's.
 
-/// Uniform grid metrics in CSS pixels.
+/// The bands of one axis whose size differs from the default: a row's height or a column's
+/// width in pixels, 0 for a hidden one.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Sizes {
+    /// (1-based index, size), ascending by index, each different from the default.
+    sized: Vec<(u32, f64)>,
+    /// `before[i]`: the sum of (size - default) over `sized[..i]`.
+    before: Vec<f64>,
+}
+
+impl Sizes {
+    /// The sizes of the bands `bands` names (index, size), over `default`; a band whose size is
+    /// the default, or not finite, or negative, is left at the default.
+    pub fn new(default: f64, bands: impl IntoIterator<Item = (u32, f64)>) -> Sizes {
+        let mut sized: Vec<(u32, f64)> = bands
+            .into_iter()
+            .filter(|&(index, size)| {
+                index >= 1 && size.is_finite() && size >= 0.0 && size != default
+            })
+            .collect();
+        sized.sort_by_key(|&(index, _)| index);
+        sized.dedup_by_key(|&mut (index, _)| index);
+        let mut sizes = Sizes {
+            sized,
+            before: Vec::new(),
+        };
+        sizes.rebuild(default);
+        sizes
+    }
+
+    fn rebuild(&mut self, default: f64) {
+        let mut total = 0.0;
+        self.before = self
+            .sized
+            .iter()
+            .map(|&(_, size)| {
+                let here = total;
+                total += size - default;
+                here
+            })
+            .collect();
+    }
+
+    /// The sizes times `factor`, over a default times `factor`.
+    fn scaled(&self, default: f64, factor: f64) -> Sizes {
+        let mut sizes = Sizes {
+            sized: self
+                .sized
+                .iter()
+                .map(|&(index, size)| (index, size * factor))
+                .collect(),
+            before: Vec::new(),
+        };
+        sizes.rebuild(default * factor);
+        sizes
+    }
+
+    /// The size of band `index`.
+    fn size(&self, default: f64, index: u32) -> f64 {
+        match self.sized.binary_search_by_key(&index, |&(at, _)| at) {
+            Ok(at) => self.sized[at].1,
+            Err(_) => default,
+        }
+    }
+
+    /// The content offset of band `index`'s near edge (band 1 starts at 0).
+    fn start(&self, default: f64, index: u32) -> f64 {
+        let before = self.sized.partition_point(|&(at, _)| at < index);
+        let delta = match before {
+            0 => 0.0,
+            n => self.before[n - 1] + (self.sized[n - 1].1 - default),
+        };
+        (f64::from(index) - 1.0) * default + delta
+    }
+
+    /// The band in `[1, extent]` that holds content offset `offset` (`[start, start + size)`), or
+    /// `None` before the first band or past the last.
+    fn band_at(&self, default: f64, offset: f64, extent: u32) -> Option<u32> {
+        if extent == 0 || !offset.is_finite() || offset < 0.0 || default <= 0.0 {
+            return None;
+        }
+        // The last band whose start is at or before the offset.
+        let (mut low, mut high) = (1u32, extent);
+        while low < high {
+            let middle = low + (high - low).div_ceil(2);
+            if self.start(default, middle) <= offset {
+                low = middle;
+            } else {
+                high = middle - 1;
+            }
+        }
+        (offset < self.start(default, low) + self.size(default, low)).then_some(low)
+    }
+}
+
+/// Grid metrics in CSS pixels: the default row height and column width, the bands the workbook
+/// sizes otherwise, and the two header strips.
 ///
 /// The [`Default`] is Excel-like at 100%: a 22 px row, an 80 px column, a 22 px
 /// column-header strip along the top, and a 48 px row-header strip down the
-/// left. All four are cell/header *extents*, never positions — the grid origin
-/// (top-left of cell `R1C1`) sits at `(header_w, header_h)` in the unscrolled
-/// viewport.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// left, with no band sized otherwise. The grid origin (top-left of cell `R1C1`)
+/// sits at `(header_w, header_h)` in the unscrolled viewport.
+#[derive(Debug, Clone, PartialEq)]
 pub struct GridMetrics {
-    /// Height of every data row, in pixels.
+    /// Height of a data row the workbook does not size, in pixels.
     pub row_height: f64,
-    /// Width of every data column, in pixels.
+    /// Width of a data column the workbook does not size, in pixels.
     pub col_width: f64,
     /// Height of the top column-header strip, in pixels.
     pub header_h: f64,
     /// Width of the left row-header strip, in pixels.
     pub header_w: f64,
+    /// The rows the workbook sizes otherwise.
+    pub rows: Sizes,
+    /// The columns the workbook sizes otherwise.
+    pub cols: Sizes,
 }
 
 impl Default for GridMetrics {
@@ -48,6 +149,8 @@ impl Default for GridMetrics {
             col_width: 80.0,
             header_h: 22.0,
             header_w: 48.0,
+            rows: Sizes::default(),
+            cols: Sizes::default(),
         }
     }
 }
@@ -55,25 +158,43 @@ impl Default for GridMetrics {
 impl GridMetrics {
     /// The metrics scaled proportionally by a zoom `factor` (the grid skin's zoom).
     ///
-    /// A pure, total multiply of all four cell/header extents — so `scaled(1.0)`
-    /// is exactly the input (`22.0 * 1.0 == 22.0`), the property the default-zoom
-    /// geometry relies on to reproduce today's unscaled grid bit-for-bit. A
-    /// non-finite or non-positive `factor` is a guard case that returns the
-    /// metrics unchanged, so a bad zoom value never yields `NaN`/zero pixels that
-    /// would break [`hit_test`] or [`cell_rect`]. The caller clamps `factor` to a
-    /// legible range ([`super::viewport::clamp_zoom`]); this method itself
-    /// applies no floor, so the scaling is faithfully proportional.
+    /// A pure, total multiply of every extent, so `scaled(1.0)` is exactly the input. A
+    /// non-finite or non-positive `factor` returns the metrics unchanged, so a bad zoom value
+    /// never yields `NaN` or zero pixels that would break [`hit_test`] or [`cell_rect`]. The
+    /// caller clamps `factor` to a legible range ([`super::viewport::clamp_zoom`]).
     #[must_use]
     pub fn scaled(&self, factor: f64) -> Self {
         if !factor.is_finite() || factor <= 0.0 {
-            return *self;
+            return self.clone();
         }
         Self {
             row_height: self.row_height * factor,
             col_width: self.col_width * factor,
             header_h: self.header_h * factor,
             header_w: self.header_w * factor,
+            rows: self.rows.scaled(self.row_height, factor),
+            cols: self.cols.scaled(self.col_width, factor),
         }
+    }
+
+    /// Row `row`'s height (0 when hidden).
+    pub fn height(&self, row: u32) -> f64 {
+        self.rows.size(self.row_height, row)
+    }
+
+    /// Column `col`'s width (0 when hidden).
+    pub fn width(&self, col: u32) -> f64 {
+        self.cols.size(self.col_width, col)
+    }
+
+    /// The content offset of row `row`'s top edge (row 1 at 0).
+    pub fn row_start(&self, row: u32) -> f64 {
+        self.rows.start(self.row_height, row)
+    }
+
+    /// The content offset of column `col`'s left edge (column 1 at 0).
+    pub fn col_start(&self, col: u32) -> f64 {
+        self.cols.start(self.col_width, col)
     }
 }
 
@@ -112,10 +233,6 @@ impl Default for Viewport {
 /// A viewport-local pixel rectangle: `(x, y)` is the top-left corner and `w`/`h`
 /// the size, all in the viewport's own coordinate space (so `(0, 0)` is the
 /// viewport's top-left, and a cell scrolled off the top has a negative `y`).
-///
-/// Derives `PartialEq` so geometry is directly assertable (`cell_rect` is stable
-/// — equal inputs yield an equal rect — and a scroll shift is exactly a
-/// translation), rather than comparing four floats by hand.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CellRect {
     pub x: f64,
@@ -124,13 +241,8 @@ pub struct CellRect {
     pub h: f64,
 }
 
-/// What a viewport-local point lands on, as classified by [`hit_test`].
-///
-/// The four non-`Cell` variants partition the chrome around the data area: the
-/// top-left [`Corner`](HitTarget::Corner), the top [`ColumnHeader`](HitTarget::ColumnHeader)
-/// strip, the left [`RowHeader`](HitTarget::RowHeader) strip, and everything that
-/// is neither a valid in-extent cell nor chrome, which is
-/// [`Outside`](HitTarget::Outside). Rows/cols are 1-based, matching the projection.
+/// What a viewport-local point lands on, as classified by [`hit_test`]. Rows and columns are
+/// 1-based.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HitTarget {
     /// A data cell at 1-based `(row, col)`, inside the grid extent.
@@ -145,36 +257,38 @@ pub enum HitTarget {
     Outside,
 }
 
-/// The viewport-local rectangle of the 1-based cell at `(row, col)`.
-///
-/// `x = header_w + (col - 1) * col_width - scroll_x`, and symmetrically for `y`;
-/// `w`/`h` are the column width / row height. The `(col - 1)` term is computed in
-/// `f64` (via [`f64::from`]), so `col == 0` — an invalid 1-based address a caller
-/// might pass — yields a rect one column to the left of the origin rather than a
-/// `u32` underflow panic. This is the exact forward inverse of [`hit_test`].
+/// The viewport-local rectangle of the 1-based cell at `(row, col)`: its bands' starts past the
+/// header strips, less the scroll, sized by its row's height and its column's width. A `col` or
+/// `row` of 0 (no cell) gives the rectangle of one default band before the first.
 #[must_use]
 pub fn cell_rect(m: &GridMetrics, v: &Viewport, row: u32, col: u32) -> CellRect {
+    let (x, w) = if col == 0 {
+        (-m.col_width, m.col_width)
+    } else {
+        (m.col_start(col), m.width(col))
+    };
+    let (y, h) = if row == 0 {
+        (-m.row_height, m.row_height)
+    } else {
+        (m.row_start(row), m.height(row))
+    };
     CellRect {
-        x: m.header_w + (f64::from(col) - 1.0) * m.col_width - v.scroll_x,
-        y: m.header_h + (f64::from(row) - 1.0) * m.row_height - v.scroll_y,
-        w: m.col_width,
-        h: m.row_height,
+        x: m.header_w + x - v.scroll_x,
+        y: m.header_h + y - v.scroll_y,
+        w,
+        h,
     }
 }
 
-/// Classify a viewport-local point into a [`HitTarget`] — the exact inverse of
-/// [`cell_rect`].
+/// Classify a viewport-local point into a [`HitTarget`], the exact inverse of [`cell_rect`].
 ///
-/// Regions (each half-open, so a cell owns its left/top edge but not its
-/// right/bottom, matching [`cell_rect`]'s banding):
-/// - a negative or non-finite `x`/`y` → [`HitTarget::Outside`] (guarded first, so
-///   the function never panics on pointer noise);
+/// Regions (each half-open, so a cell owns its left/top edge but not its right/bottom, matching
+/// [`cell_rect`]'s banding; a hidden band, of size 0, owns no point):
+/// - a negative or non-finite `x`/`y` → [`HitTarget::Outside`];
 /// - `x < header_w && y < header_h` → [`HitTarget::Corner`];
-/// - `y < header_h` (and past the corner) → [`HitTarget::ColumnHeader`], the
-///   column being the one under `x + scroll_x`;
-/// - `x < header_w` (and past the corner) → [`HitTarget::RowHeader`], symmetrically;
-/// - otherwise the data cell under the point — or [`HitTarget::Outside`] when the
-///   resolved row/col is `< 1` or exceeds `extent_rows`/`extent_cols`.
+/// - `y < header_h` → [`HitTarget::ColumnHeader`] of the column under `x + scroll_x`;
+/// - `x < header_w` → [`HitTarget::RowHeader`], symmetrically;
+/// - otherwise the data cell under the point, or [`HitTarget::Outside`] past the extent.
 #[must_use]
 pub fn hit_test(
     m: &GridMetrics,
@@ -184,92 +298,70 @@ pub fn hit_test(
     x: f64,
     y: f64,
 ) -> HitTarget {
-    // Guard pointer noise up front: non-finite or negative coordinates are
-    // never a cell or a header — they are above/left of the whole surface.
     if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 {
         return HitTarget::Outside;
     }
-
-    let in_row_header = x < m.header_w; // left strip
-    let in_col_header = y < m.header_h; // top strip
-
+    let in_row_header = x < m.header_w;
+    let in_col_header = y < m.header_h;
+    let col = || {
+        m.cols
+            .band_at(m.col_width, x - m.header_w + v.scroll_x, extent_cols)
+    };
+    let row = || {
+        m.rows
+            .band_at(m.row_height, y - m.header_h + v.scroll_y, extent_rows)
+    };
     match (in_row_header, in_col_header) {
         (true, true) => HitTarget::Corner,
-        (false, true) => match band_index(m.header_w, m.col_width, v.scroll_x, x, extent_cols) {
-            Some(col) => HitTarget::ColumnHeader { col },
-            None => HitTarget::Outside,
+        (false, true) => col().map_or(HitTarget::Outside, |col| HitTarget::ColumnHeader { col }),
+        (true, false) => row().map_or(HitTarget::Outside, |row| HitTarget::RowHeader { row }),
+        (false, false) => match (row(), col()) {
+            (Some(row), Some(col)) => HitTarget::Cell { row, col },
+            _ => HitTarget::Outside,
         },
-        (true, false) => match band_index(m.header_h, m.row_height, v.scroll_y, y, extent_rows) {
-            Some(row) => HitTarget::RowHeader { row },
-            None => HitTarget::Outside,
-        },
-        (false, false) => {
-            let col = band_index(m.header_w, m.col_width, v.scroll_x, x, extent_cols);
-            let row = band_index(m.header_h, m.row_height, v.scroll_y, y, extent_rows);
-            match (row, col) {
-                (Some(row), Some(col)) => HitTarget::Cell { row, col },
-                _ => HitTarget::Outside,
-            }
-        }
     }
 }
 
-/// The 1-based band index (column or row) a viewport-local coordinate falls in,
-/// or `None` when it resolves before the first band, past the last band (i.e.
-/// outside `[1, extent]`), or when the metric is degenerate. (Out-of-range
-/// resolves to `None`, not a clamped boundary index — the caller treats that as
-/// `Outside`.)
-///
-/// `content = coord - header + scroll` is the coordinate in grid-content space
-/// (measured from the origin of the first data band); `floor(content / size)` is
-/// its 0-based band, `+ 1` makes it 1-based. This is the exact inverse of the
-/// `header + (index - 1) * size - scroll` term in [`cell_rect`].
-fn band_index(header: f64, size: f64, scroll: f64, coord: f64, extent: u32) -> Option<u32> {
-    if size <= 0.0 || !size.is_finite() {
-        return None;
-    }
-    let content = coord - header + scroll;
-    if !content.is_finite() || content < 0.0 {
-        return None;
-    }
-    // `content >= 0` and `size > 0`, so `zero_based >= 0` and is integer-valued.
-    let one_based = (content / size).floor() + 1.0;
-    if one_based < 1.0 || one_based > f64::from(extent) {
-        return None;
-    }
-    // Bounded to `[1, extent]` and integer-valued: the cast is exact.
-    Some(one_based as u32)
-}
-
-/// The inclusive 1-based range of columns whose bands intersect the viewport,
-/// clamped to `[1, extent_cols]`; `None` when the viewport has no data area or
-/// the extent is empty. Used by the RenderPlan to lay down exactly the visible
-/// column headers (and, symmetrically, [`visible_row_range`] the row headers).
+/// The inclusive 1-based range of columns whose bands meet the viewport, clamped to
+/// `[1, extent_cols]`; `None` when the viewport has no data area or the extent is empty.
 #[must_use]
 pub fn visible_col_range(m: &GridMetrics, v: &Viewport, extent_cols: u32) -> Option<(u32, u32)> {
-    band_range(m.header_w, m.col_width, v.scroll_x, v.width, extent_cols)
+    band_range(
+        &m.cols,
+        m.col_width,
+        m.header_w,
+        v.scroll_x,
+        v.width,
+        extent_cols,
+    )
 }
 
-/// The inclusive 1-based range of rows whose bands intersect the viewport,
-/// clamped to `[1, extent_rows]`; `None` when the viewport has no data area or
-/// the extent is empty. The vertical twin of [`visible_col_range`].
+/// The inclusive 1-based range of rows whose bands meet the viewport, clamped to
+/// `[1, extent_rows]`; the vertical twin of [`visible_col_range`].
 #[must_use]
 pub fn visible_row_range(m: &GridMetrics, v: &Viewport, extent_rows: u32) -> Option<(u32, u32)> {
-    band_range(m.header_h, m.row_height, v.scroll_y, v.height, extent_rows)
+    band_range(
+        &m.rows,
+        m.row_height,
+        m.header_h,
+        v.scroll_y,
+        v.height,
+        extent_rows,
+    )
 }
 
-/// The inclusive 1-based `[first, last]` band range whose cells intersect the
-/// viewport's data area (`viewport_len - header` pixels past the header strip),
-/// clamped to `[1, extent]`. `None` for a degenerate metric, an empty extent, a
-/// header wider than the viewport (no data area), or a range that clamps empty.
+/// The bands `[first, last]` whose cells meet the data area (`viewport_len - header` pixels past
+/// the header strip), clamped to `[1, extent]`; `None` for a degenerate size, an empty extent, a
+/// header as wide as the viewport, or a range that clamps empty.
 fn band_range(
+    sizes: &Sizes,
+    default: f64,
     header: f64,
-    size: f64,
     scroll: f64,
     viewport_len: f64,
     extent: u32,
 ) -> Option<(u32, u32)> {
-    if extent == 0 || size <= 0.0 || !size.is_finite() {
+    if extent == 0 || default <= 0.0 || !default.is_finite() {
         return None;
     }
     if !header.is_finite() || !scroll.is_finite() || !viewport_len.is_finite() {
@@ -279,20 +371,22 @@ fn band_range(
     if data_len <= 0.0 {
         return None;
     }
-    // First band: the one containing the left content edge (`scroll`), clamped
-    // to the origin so a negative scroll starts at band 1.
-    let first_zero = (scroll / size).floor().max(0.0);
-    // Last band: `ceil` of the right content edge yields the 1-based index of
-    // the last band the viewport touches (a trailing partial band included).
-    let last_ceil = ((scroll + data_len) / size).ceil();
-
-    let first = (first_zero + 1.0).max(1.0);
-    let last = last_ceil.min(f64::from(extent));
-    if last < first {
+    let scroll = scroll.max(0.0);
+    let content_end = sizes.start(default, extent) + sizes.size(default, extent);
+    if scroll >= content_end {
         return None;
     }
-    // Both are integer-valued and within `[1, extent]`: the casts are exact.
-    Some((first as u32, last as u32))
+    let first = sizes.band_at(default, scroll, extent).unwrap_or(1);
+    // The band holding the last pixel in view, or the extent's last when the view reaches past it.
+    let end = scroll + data_len;
+    let last = if end >= content_end {
+        extent
+    } else {
+        sizes
+            .band_at(default, end - f64::EPSILON * end.max(1.0), extent)
+            .unwrap_or(extent)
+    };
+    (last >= first).then_some((first, last))
 }
 
 #[cfg(test)]
@@ -321,6 +415,7 @@ mod tests {
                 col_width: 80.0,
                 header_h: 22.0,
                 header_w: 48.0,
+                ..GridMetrics::default()
             }
         );
     }
@@ -345,6 +440,7 @@ mod tests {
                 col_width: 160.0,
                 header_h: 44.0,
                 header_w: 96.0,
+                ..GridMetrics::default()
             }
         );
         let floor = m.scaled(0.6);
@@ -727,5 +823,63 @@ mod tests {
             !on_screen(last + 1),
             "the column after the last is off screen"
         );
+    }
+
+    /// dc-09v: sized and hidden bands. Column B is 200 px, C hidden, the rest 80; row 3 is 40 px.
+    fn sized() -> GridMetrics {
+        GridMetrics {
+            cols: Sizes::new(80.0, [(2, 200.0), (3, 0.0)]),
+            rows: Sizes::new(22.0, [(3, 40.0)]),
+            ..GridMetrics::default()
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn sized_bands_place_and_hit_their_cells() {
+        let m = sized();
+        let v = unscrolled(2000.0, 1000.0);
+        // A at 48, B at 128 (200 wide), C hidden at 328 (0 wide), D at 328.
+        assert_eq!(
+            cell_rect(&m, &v, 1, 2),
+            CellRect {
+                x: 128.0,
+                y: 22.0,
+                w: 200.0,
+                h: 22.0
+            }
+        );
+        assert_eq!(cell_rect(&m, &v, 1, 3).w, 0.0);
+        assert_eq!(cell_rect(&m, &v, 1, 4).x, 328.0);
+        assert_eq!(cell_rect(&m, &v, 4, 1).y, 22.0 + 22.0 * 2.0 + 40.0);
+        // Every point inside a visible cell hits it; the hidden column owns no point.
+        for row in 1..=6u32 {
+            for col in 1..=6u32 {
+                let r = cell_rect(&m, &v, row, col);
+                if r.w == 0.0 {
+                    continue;
+                }
+                for (dx, dy) in [(0.0, 0.0), (r.w - 0.01, r.h - 0.01), (r.w / 2.0, r.h / 2.0)] {
+                    assert_eq!(
+                        hit_test(&m, &v, 100, 100, r.x + dx, r.y + dy),
+                        HitTarget::Cell { row, col },
+                        "row {row} col {col}"
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            hit_test(&m, &v, 100, 100, 328.0, 30.0),
+            HitTarget::Cell { row: 1, col: 4 }
+        );
+        // Scrolled 250 px right, the first visible column is B (128-48=80..280 in content).
+        let scrolled = Viewport {
+            scroll_x: 250.0,
+            ..v
+        };
+        assert_eq!(visible_col_range(&m, &scrolled, 100).map(|r| r.0), Some(2));
+        // Scaled, the sized bands scale too.
+        assert_eq!(m.scaled(0.5).width(2), 100.0);
+        assert_eq!(m.scaled(0.5).col_start(4), 140.0);
     }
 }

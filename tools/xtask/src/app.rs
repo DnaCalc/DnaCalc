@@ -1194,6 +1194,35 @@ const CALC_CASES: &[Case] = &[
         ],
         checks: &[Check::Text(cell!("E2"), "2"), Check::Absent(cell!("E3"))],
     },
+    Case {
+        name: "a workbook's number formats show as Excel shows them",
+        actions: &[Action::Upload(
+            "open-file",
+            "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
+        )],
+        checks: &[
+            Check::Text("document", "formats.xlsx"),
+            Check::Text(cell!("A1"), "1,234.50"),
+            Check::Attr(cell!("A1"), "data-format", "applied"),
+            Check::Text(cell!("A2"), "25%"),
+            Check::Text(cell!("A3"), "2024-01-31"),
+            Check::Text(cell!("A4"), "(5.00)"),
+            Check::Text(cell!("A10"), "1.50E+06"),
+            Check::Text(cell!("A11"), "Qty 12"),
+        ],
+    },
+    Case {
+        name: "its column widths, row heights and hidden column and row lay out the grid",
+        actions: &[],
+        checks: &[
+            // A is 117 px (16.71 characters), B 180 px (25.71), C hidden, D the default 64 px;
+            // row 3 is 40 px (30 points), row 13 hidden, the others 20 px (15 points).
+            Check::Attr(cell!("B1"), "style", "left:165px;top:22px;width:180px;height:20px"),
+            Check::Attr(cell!("D1"), "style", "left:345px;top:22px;width:64px;height:20px"),
+            Check::Attr(cell!("A3"), "style", "left:48px;top:62px;width:117px;height:40px"),
+            Check::Attr(cell!("A14"), "style", "left:48px;top:282px;width:117px;height:20px"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.

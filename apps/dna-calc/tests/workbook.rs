@@ -31,7 +31,11 @@ fn sheet(book: &Workbook, name: &str) -> SheetId {
 }
 
 fn shown(book: &Workbook, at: CellKey) -> cells::CellShown {
-    cells::shown(&book.cell(at).expect("projected"), book.profile())
+    cells::shown(
+        &book.cell(at).expect("projected"),
+        book.profile(),
+        book.host().number_format(at),
+    )
 }
 
 fn apply(book: &mut Workbook, mirror: &mut DeltaMirror) {
@@ -70,6 +74,7 @@ fn dc_rif__a_new_workbook_is_edited_through_the_session_and_its_subscription() {
         cells::shown(
             mirror.cell(at(sheet1, address)).expect("in the mirror"),
             profile.as_ref(),
+            None,
         )
     };
     let a3 = seen(&mirror, "A3");
@@ -182,7 +187,7 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
             .with_untracked(|mirror| mirror.cell(at(sheet1, "A3")).cloned())
             .expect("the selection holds A3");
         assert!(matches!(a3.value(), ProjectedValue::Calculated { .. }));
-        assert_eq!(cells::shown(&a3, None).text, "8");
+        assert_eq!(cells::shown(&a3, None, None).text, "8");
         // A refused entry keeps the edit open and says why.
         controller.begin_edit(EditOrigin::Cell, Some("=".to_owned()));
         assert!(!controller.commit_edit());
@@ -266,5 +271,62 @@ fn dc_rif__a_new_workbook_saves_for_excel() {
     if let Ok(dir) = std::env::var("DNACALC_RIF_SAVE_DIR") {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(std::path::Path::new(&dir).join("dc_rif_book1.xlsx"), &bytes).unwrap();
+    }
+}
+
+/// Native-only: it reads the workbook the environment variable `DNACALC_OPEN_TIMING` names from
+/// the file system and prints how long DNA Calc's open took, read and calculated apart (dc-09v
+/// compares it with the browser's); without the variable it does nothing.
+#[test]
+fn dc_09v__open_timing() {
+    let Ok(path) = std::env::var("DNACALC_OPEN_TIMING") else {
+        return;
+    };
+    let bytes = std::fs::read(&path).expect("the workbook");
+    let started = dna_calc::controller::now_ms();
+    let book = Workbook::open("timed.xlsx", bytes).expect("it opens");
+    let total = dna_calc::controller::now_ms() - started;
+    let calculated = book.calculated_on_open().unwrap_or(0.0);
+    println!(
+        "DC09V native open: {total:.0} ms: read {:.0} ms, calculated {calculated:.0} ms",
+        total - calculated
+    );
+}
+
+/// dc-09v (D4b): cells show their number formats through calc-func's one renderer. The expected
+/// texts are those Excel 16.0.20430 showed for calc-host's `tests/fixtures/dc_09v/formats.xlsx`
+/// (`excel-shown.json`, Range.Text), except A8, whose AM/PM designator Excel took from this
+/// machine's locale (`pm`); DNA Calc shows numbers under en-US, whose designator is `PM`.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_09v__cells_show_their_number_formats() {
+    let book = Workbook::open(
+        "formats.xlsx",
+        include_bytes!("../../../crates/calc-host/tests/fixtures/dc_09v/formats.xlsx").to_vec(),
+    )
+    .expect("it opens");
+    let formats = sheet(&book, "Formats");
+    for (address, text) in [
+        ("A1", "1,234.50"),
+        ("A2", "25%"),
+        ("A3", "2024-01-31"),
+        ("A4", "(5.00)"),
+        ("A5", "text"),
+        ("A6", "1234,567"),
+        ("A7", "2469.0"),
+        ("A8", "12:00 PM"),
+        ("A9", "3.142"),
+        ("A10", "1.50E+06"),
+        ("A11", "Qty 12"),
+        ("A12", "0.333333333"),
+    ] {
+        let cell = shown(&book, at(formats, address));
+        assert_eq!(cell.text, text, "{address}");
+        let expected = if address == "A12" {
+            cells::FormatShown::General
+        } else {
+            cells::FormatShown::Applied
+        };
+        assert_eq!(cell.format, expected, "{address}");
     }
 }

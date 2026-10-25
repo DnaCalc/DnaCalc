@@ -175,6 +175,7 @@ mod tests {
             kind: "number",
             provenance: Provenance::Calculated,
             formula: true,
+            format: crate::cells::FormatShown::General,
         }
     }
 

@@ -56,8 +56,9 @@ pub struct Workbook {
     name: String,
     changed: bool,
     inbox: Rc<RefCell<Vec<HostDelta>>>,
-    /// Whether opening recalculated the workbook (it does unless the file calculates manually).
-    calculated_on_open: bool,
+    /// How long opening recalculated the workbook, in milliseconds of the browser's clock;
+    /// `None` when it did not (the file calculates manually).
+    calculated_on_open: Option<f64>,
 }
 
 impl std::fmt::Debug for Workbook {
@@ -89,18 +90,20 @@ impl Workbook {
             name: name.to_owned(),
             changed: false,
             inbox: Rc::default(),
-            calculated_on_open: false,
+            calculated_on_open: None,
         };
         if workbook.session.calc_mode() != CalcMode::Manual {
+            let started = crate::controller::now_ms();
             workbook.session.dispatch(SkinIntent::Recalculate);
-            workbook.calculated_on_open = true;
+            workbook.calculated_on_open = Some(crate::controller::now_ms() - started);
         }
         Ok(workbook)
     }
 
-    /// Whether opening recalculated the workbook: `false` for a file that calculates manually,
-    /// whose formulas show the values the file stored, as file caches, until Calculate.
-    pub fn calculated_on_open(&self) -> bool {
+    /// How long opening recalculated the workbook, in milliseconds (0 off the browser); `None`
+    /// for a file that calculates manually, whose formulas show the values the file stored, as
+    /// file caches, until Calculate.
+    pub fn calculated_on_open(&self) -> Option<f64> {
         self.calculated_on_open
     }
 
@@ -234,7 +237,7 @@ impl Workbook {
                 if cell.input().is_some() {
                     sheet.inputs += 1;
                 }
-                let shown = cells::shown(&cell, None);
+                let shown = cells::shown(&cell, None, None);
                 if !self.host().holds_formula(cell.at()) {
                     continue;
                 }

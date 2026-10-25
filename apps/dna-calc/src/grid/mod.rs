@@ -56,6 +56,8 @@ pub const GRID_CSS: &str = r#"
 .dc-grid{position:relative;overflow:auto;flex:1 1 auto;min-height:200px;outline:none;background:#fff;border-top:1px solid #d0d7de}
 .dc-grid:focus{box-shadow:inset 0 0 0 1px #0969da55}
 .dc-layer{position:sticky;top:0;left:0;overflow:hidden;font:13px/1 system-ui,"Segoe UI",sans-serif;color:#1b1f24}
+.dc-line{position:absolute;background:#e1e4e8}
+.dc-cell[data-format=unshowable]{justify-content:flex-start}
 .dc-cell{position:absolute;box-sizing:border-box;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:clip;display:flex;align-items:center}
 .dc-cell[data-kind=number]{justify-content:flex-end}
 .dc-cell[data-kind=logical],.dc-cell[data-kind=error]{justify-content:center}
@@ -73,6 +75,61 @@ pub const GRID_CSS: &str = r#"
 /// The grid skin.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GridSkin;
+
+/// The maximum digit width of Excel's default font (Calibri 11) at 100%, in pixels: a column's
+/// width in characters, as the file writes it, times this is its width in pixels.
+const DIGIT_PX: f64 = 7.0;
+
+/// A sheet's metrics from its geometry as the file states it (calc-host's `sheet_geometry`):
+/// Excel's default 64-pixel column and 20-pixel (15-point) row unless the sheet states other
+/// defaults, each sized column and row at its size, and a hidden one at 0.
+pub fn sheet_metrics(geometry: Option<&calc_host::SheetGeometry>) -> GridMetrics {
+    let column_px = |chars: f64| (chars * DIGIT_PX).round();
+    let row_px = |points: f64| (points * 96.0 / 72.0).round();
+    let col_width = geometry
+        .and_then(|g| g.default_column_width)
+        .map_or(64.0, column_px);
+    let row_height = geometry
+        .and_then(|g| g.default_row_height)
+        .map_or(20.0, row_px);
+    let (columns, rows) = match geometry {
+        Some(geometry) => (
+            geometry
+                .columns
+                .iter()
+                .flat_map(|span| {
+                    let size = if span.hidden {
+                        0.0
+                    } else {
+                        span.width.map_or(col_width, column_px)
+                    };
+                    (span.first..=span.last.min(16_384)).map(move |column| (column, size))
+                })
+                .collect::<Vec<_>>(),
+            geometry
+                .rows
+                .iter()
+                .map(|(&row, format)| {
+                    let size = if format.hidden {
+                        0.0
+                    } else {
+                        format.height.map_or(row_height, row_px)
+                    };
+                    (row, size)
+                })
+                .collect::<Vec<_>>(),
+        ),
+        None => (Vec::new(), Vec::new()),
+    };
+    GridMetrics {
+        row_height,
+        col_width,
+        header_h: 22.0,
+        header_w: 48.0,
+        rows: geometry::Sizes::new(row_height, rows),
+        cols: geometry::Sizes::new(col_width, columns),
+    }
+}
 
 impl Skin for GridSkin {
     fn id(&self) -> SkinId {
@@ -135,7 +192,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
         width: 1000.0,
         height: 560.0,
     });
-    let metrics = Memo::new(move |_| GridMetrics::default().scaled(zoom.get()));
+    let sheet_metrics = Memo::new(move |_| {
+        let sheet = controller.sheet.get();
+        controller
+            .with(|book| sheet_metrics(sheet.and_then(|sheet| book.host().sheet_geometry(sheet))))
+    });
+    let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
     let mirror = RwSignal::new(DeltaMirror::default());
     let subscription: StoredValue<Option<(u64, SubscriptionId)>> = StoredValue::new(None);
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
@@ -186,16 +248,19 @@ fn grid_view(controller: Controller) -> impl IntoView {
     });
 
     let plan = Memo::new(move |_| {
-        let profile = controller.with(|book| book.profile().copied());
         let sheet = controller.sheet.get();
         // Only the shown sheet's cells: until the interest moves to a sheet just shown, the
-        // mirror still holds the previous sheet's.
-        let shown: Vec<cells::CellShown> = mirror.with(|mirror| {
-            mirror
-                .cells()
-                .filter(|cell| Some(cell.at().sheet()) == sheet)
-                .map(|cell| cells::shown(cell, profile.as_ref()))
-                .collect()
+        // mirror still holds the previous sheet's. Each in its number format.
+        let shown: Vec<cells::CellShown> = controller.with(|book| {
+            mirror.with(|mirror| {
+                mirror
+                    .cells()
+                    .filter(|cell| Some(cell.at().sheet()) == sheet)
+                    .map(|cell| {
+                        cells::shown(cell, book.profile(), book.host().number_format(cell.at()))
+                    })
+                    .collect()
+            })
         });
         let extent = grid_extent.get();
         build_render_plan(
@@ -244,8 +309,20 @@ fn grid_view(controller: Controller) -> impl IntoView {
         };
         let m = metrics.get_untracked();
         let v = viewport.get_untracked();
-        let x = viewport::reveal_scroll(col, m.col_width, m.header_w, v.width, v.scroll_x);
-        let y = viewport::reveal_scroll(row, m.row_height, m.header_h, v.height, v.scroll_y);
+        let x = viewport::reveal_span(
+            m.col_start(col),
+            m.col_start(col) + m.width(col),
+            m.header_w,
+            v.width,
+            v.scroll_x,
+        );
+        let y = viewport::reveal_span(
+            m.row_start(row),
+            m.row_start(row) + m.height(row),
+            m.header_h,
+            v.height,
+            v.scroll_y,
+        );
         if x != v.scroll_x {
             element.set_scroll_left(x as i32);
         }
@@ -451,6 +528,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                             data-cell=address
                             data-kind=shown.kind
                             data-provenance=shown.provenance.name()
+                            data-format=shown.format.name()
                             data-formula=if shown.formula { "true" } else { "false" }
                             style=style
                         >
@@ -515,23 +593,50 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let extent = grid_extent.get();
         format!(
             "position:relative;width:{};height:{}",
-            px(m.header_w + f64::from(extent.cols) * m.col_width),
-            px(m.header_h + f64::from(extent.rows) * m.row_height)
+            px(m.header_w + m.col_start(extent.cols) + m.width(extent.cols)),
+            px(m.header_h + m.row_start(extent.rows) + m.height(extent.rows))
         )
     };
     let layer_style = move || {
-        let m = metrics.get();
         let v = viewport.get();
-        // Gridlines as a background, shifted with the scroll.
         format!(
-            "width:{};height:{};background-color:#fff;background-image:linear-gradient(to right,#e1e4e8 1px,transparent 1px),linear-gradient(to bottom,#e1e4e8 1px,transparent 1px);background-size:{} {};background-position:{} {}",
+            "width:{};height:{};background-color:#fff",
             px(v.width),
-            px(v.height),
-            px(m.col_width),
-            px(m.row_height),
-            px(m.header_w - v.scroll_x - 1.0),
-            px(m.header_h - v.scroll_y - 1.0),
+            px(v.height)
         )
+    };
+    // The gridlines: one line after each visible column and row.
+    let gridlines = move || {
+        let v = viewport.get();
+        plan.with(|plan| {
+            let columns = plan
+                .col_headers
+                .iter()
+                .filter(|header| header.rect.w > 0.0)
+                .map(|header| {
+                    let style = format!(
+                        "left:{};top:0;width:1px;height:{}",
+                        px(header.rect.x + header.rect.w - 1.0),
+                        px(v.height)
+                    );
+                    view! { <div class="dc-line" style=style></div> }
+                })
+                .collect_view();
+            let rows = plan
+                .row_headers
+                .iter()
+                .filter(|header| header.rect.h > 0.0)
+                .map(|header| {
+                    let style = format!(
+                        "left:0;top:{};width:{};height:1px",
+                        px(header.rect.y + header.rect.h - 1.0),
+                        px(v.width)
+                    );
+                    view! { <div class="dc-line" style=style></div> }
+                })
+                .collect_view();
+            (columns, rows)
+        })
     };
     let corner_style = move || {
         let m = metrics.get();
@@ -553,6 +658,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
             >
                 <div style=space_style>
                     <div class="dc-layer" node_ref=layer style=layer_style>
+                        {gridlines}
                         {cells_view}
                         {active_view}
                         {move || {
