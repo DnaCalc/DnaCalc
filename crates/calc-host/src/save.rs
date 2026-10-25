@@ -16,6 +16,10 @@ pub enum SaveFailed {
     Refused(SaveRefusal),
     /// The write failed.
     Write(WriteError),
+    /// Rows or columns were inserted or deleted since the workbook was opened (this many axis
+    /// edits lead to the current revision), and the save does not yet move the package's rows,
+    /// columns and what lies on them (dc-jhn); nothing was written.
+    StructuralEdits { count: usize },
 }
 
 impl fmt::Display for SaveFailed {
@@ -23,6 +27,10 @@ impl fmt::Display for SaveFailed {
         match self {
             SaveFailed::Refused(refusal) => write!(f, "the save was refused: {refusal}"),
             SaveFailed::Write(error) => write!(f, "the write failed: {error}"),
+            SaveFailed::StructuralEdits { count } => write!(
+                f,
+                "{count} row or column insertions or deletions are not yet written by a save"
+            ),
         }
     }
 }
@@ -57,6 +65,11 @@ pub fn save(
     policy: &SavePolicy,
     out: &mut dyn PackageWrite,
 ) -> Result<SaveReceipt, SaveFailed> {
+    if !host.axis_edits.is_empty() {
+        return Err(SaveFailed::StructuralEdits {
+            count: host.axis_edits.len(),
+        });
+    }
     let stale = host
         .engine
         .stale(&host.model)

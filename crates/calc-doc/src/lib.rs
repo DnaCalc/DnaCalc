@@ -78,7 +78,7 @@ mod zip;
 
 pub use blank::blank_package;
 pub use calc_doc_model as model;
-pub use edit::{EditError, PreparedEdit, prepare_edit};
+pub use edit::{EditError, PreparedEdit, prepare_edit, prepare_structural_edit};
 pub use error::{OpenError, PartReadError, UnsafeName};
 pub use load::{
     CalcMode, CellError, ColumnSpan, DateSystem, FORMULA_MAX_UTF16_CODE_UNITS, FormulaRecord, LayoutWarning,

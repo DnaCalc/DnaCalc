@@ -13,9 +13,10 @@
 
 use crate::command::CellEdit;
 use calc_doc_model::value::{CellKey, GridArea};
-use calc_doc_model::{CellInput, ModelRoot};
+use calc_doc_model::{AxisEdit, CellInput, ModelRoot};
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 /// A cell or area selection: the active cell and the selected areas.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -63,11 +64,24 @@ impl fmt::Display for Irreversible {
     }
 }
 
+/// What undoes a step.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Inverse {
+    /// The edits that restore every cell the step touched.
+    Edits(Vec<CellEdit>),
+    /// The revision before the step, brought back whole ([`crate::command::restore`]), with the
+    /// axis edits that led to it.
+    Restore {
+        model: Arc<ModelRoot>,
+        axis_edits: Vec<AxisEdit>,
+    },
+}
+
 /// One undo step: a committed edit, the edits that undo it, and the selection before and after.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Step {
     pub(crate) forward: Vec<CellEdit>,
-    pub(crate) inverse: Result<Vec<CellEdit>, Irreversible>,
+    pub(crate) inverse: Result<Inverse, Irreversible>,
     pub(crate) before: Selection,
     pub(crate) after: Selection,
 }
@@ -80,6 +94,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
+            CellEdit::Axis(_) => continue,
         };
         if !areas.contains(&area) {
             areas.push(area);
@@ -95,9 +110,18 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
 /// value blocking a dynamic array's spill included). Refused when an edit touches an unloaded
 /// cell, whose content no edit authors.
 pub(crate) fn inverse(
-    model: &ModelRoot,
+    model: &Arc<ModelRoot>,
+    axis_edits: &[AxisEdit],
     edits: &[CellEdit],
-) -> Result<Vec<CellEdit>, Irreversible> {
+) -> Result<Inverse, Irreversible> {
+    // A structural edit drops what it deletes and the references to it: the revision before it
+    // is brought back whole.
+    if edits.iter().any(|edit| matches!(edit, CellEdit::Axis(_))) {
+        return Ok(Inverse::Restore {
+            model: Arc::clone(model),
+            axis_edits: axis_edits.to_vec(),
+        });
+    }
     let areas = touched(edits);
     let definitions = model.definitions();
     let mut arrays = Vec::new();
@@ -145,11 +169,11 @@ pub(crate) fn inverse(
             .into_iter()
             .map(|(at, input)| CellEdit::Set { at, input }),
     );
-    Ok(inverse)
+    Ok(Inverse::Edits(inverse))
 }
 
 /// The undo and redo stacks.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct History {
     undo: Vec<Step>,
     redo: Vec<Step>,

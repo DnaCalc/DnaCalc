@@ -13,12 +13,14 @@ pub fn cosh_kernel(n: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ported::excel_numeric::crt_cosh;
 
-    /// Native-only: its witness is the platform libm's cosh, one ULP from Excel at 1 on wasm32.
-    #[test]
+    /// The witness is the Windows runtime's cosh, ported (dc-twc), so the test runs on every target.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cosh_kernel_matches_std_at_one() {
         // x=1 is on the EXP identity and also matches libm.
-        assert_eq!(cosh_kernel(1.0), 1.0f64.cosh());
+        assert_eq!(cosh_kernel(1.0), crt_cosh(1.0f64));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -35,14 +37,13 @@ mod tests {
         assert_eq!(cosh_kernel(-10.0).to_bits(), 0x40c5829dd053712e);
     }
 
-    /// The libm misses are those of the MSVC runtime's `cosh`: glibc's `cosh` returns Excel's
-    /// bits at 0.001 (Linux sweep, dc-ns0), so `f64::cosh` is no witness on other targets.
-    #[cfg(target_env = "msvc")]
-    /// Native-only: the MSVC runtime's libm is its witness, so it runs on Windows only.
-    #[test]
+    /// The libm misses are those of the MSVC runtime's `cosh` (glibc's returns Excel's bits at 0.001,
+    /// Linux sweep, dc-ns0): the witness is that runtime's `cosh`, ported (`crt_cosh`, dc-twc).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cosh_differs_from_the_msvc_libm_where_excel_does() {
-        assert_ne!(cosh_kernel(0.001).to_bits(), 0.001_f64.cosh().to_bits());
-        assert_ne!(cosh_kernel(10.0).to_bits(), 10.0_f64.cosh().to_bits());
+        assert_ne!(cosh_kernel(0.001).to_bits(), crt_cosh(0.001_f64).to_bits());
+        assert_ne!(cosh_kernel(10.0).to_bits(), crt_cosh(10.0_f64).to_bits());
     }
 
     // BUG-FUNC-027 CLASS-A3: live Excel 16.0 b20026 COSH(-24230)=#NUM!.

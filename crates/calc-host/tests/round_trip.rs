@@ -13,11 +13,12 @@
 
 use calc_host::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId};
 use calc_host::{
-    CachedValue, CalcMode, CellEdit, CellInput, CellText, DeltaCause, DeltaMirror, EntryRefusal,
-    FiniteNumber, FormulaText, HostCommand, HostDelta, HostOptions, HostProgress, HostSession,
-    HostState, IntentError, IntentReceipt, Interest, MemorySource, OpenPolicy, PackageRead,
-    ProjectedCell, ProjectedValue, ProjectionRequest, SavePolicy, Selection, SkinIntent,
-    SubscriptionId, Unobserved, WorkBudget, dispatch, project, replay, save, step,
+    Axis, AxisChange, AxisEdit, CachedValue, CalcMode, CellEdit, CellInput, CellText, DeltaCause,
+    DeltaMirror, EntryRefusal, FiniteNumber, FormulaText, HostCommand, HostDelta, HostOptions,
+    HostProgress, HostSession, HostState, IntentError, IntentReceipt, Interest, MemorySource,
+    OpenPolicy, PackageRead, ProjectedCell, ProjectedValue, ProjectionRequest, SavePolicy,
+    Selection, SkinIntent, SubscriptionId, Unobserved, WorkBudget, dispatch, project, replay, save,
+    step,
 };
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -1064,7 +1065,8 @@ fn dc_rif__a_new_workbook_is_edited_saved_and_reopened() {
 
 // ---------------------------------------------------------------------------------------------
 // dc-35p review: the reviewer's differential, made a test. A random run of entries, clears, undo,
-// redo, calculation-mode switches, recalculations and saves over Calc!AA1:AF10 (empty in the
+// redo, calculation-mode switches, row and column insertions and deletions (dc-jhn), recalculations
+// and saves over Calc!AA1:AF10, moving within AA1:AF30 (empty in the
 // fixture) checks after every intent that
 // 1. a mirror fed by an area subscription's deltas, and one fed by a sheet subscription's, hold
 //    exactly what a fresh projection of every cell of the area shows;
@@ -1171,11 +1173,17 @@ const FORMULAS: [&str; 10] = [
 ];
 
 /// One random run; the problems it found.
-fn differential_run(seed: u64, steps: usize, contested: &mut usize) -> Vec<String> {
+fn differential_run(
+    seed: u64,
+    steps: usize,
+    contested: &mut usize,
+    structural: &mut usize,
+) -> Vec<String> {
     let mut rng = Rng(seed);
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
-    let region = GridArea::new(at_(calc, "AA1"), at_(calc, "AF10")).unwrap();
+    // The cells of AA1:AF10 move within AA1:AF30 when rows or columns there are inserted.
+    let region = GridArea::new(at_(calc, "AA1"), at_(calc, "AF30")).unwrap();
     let (_, by_area) = subscribe(&mut session, Interest::Area(region));
     let (_, by_sheet) = subscribe(&mut session, Interest::Sheet(calc));
     let mut undo: Vec<BTreeMap<CellKey, CellInput>> = Vec::new();
@@ -1228,6 +1236,19 @@ fn differential_run(seed: u64, steps: usize, contested: &mut usize) -> Vec<Strin
             } else {
                 CalcMode::Automatic
             })
+        } else if roll < 95 {
+            // dc-jhn: a row or column of the region inserted or deleted.
+            let (axis, first) = if rng.below(2) == 0 {
+                (Axis::Rows, 1 + rng.below(10) as u32)
+            } else {
+                (Axis::Columns, 27 + rng.below(6) as u32)
+            };
+            let change = if rng.below(2) == 0 {
+                AxisChange::Insert
+            } else {
+                AxisChange::Delete
+            };
+            SkinIntent::EditAxis(AxisEdit::new(calc, axis, change, first, 1).unwrap())
         } else {
             SkinIntent::Recalculate
         };
@@ -1241,7 +1262,12 @@ fn differential_run(seed: u64, steps: usize, contested: &mut usize) -> Vec<Strin
         };
         if receipt.accepted() {
             match &intent {
-                SkinIntent::EnterCell { .. } | SkinIntent::Edit { .. } => {
+                SkinIntent::EnterCell { .. }
+                | SkinIntent::Edit { .. }
+                | SkinIntent::EditAxis(_) => {
+                    if matches!(intent, SkinIntent::EditAxis(_)) {
+                        *structural += 1;
+                    }
                     undo.push(before.clone());
                     redo.clear();
                 }
@@ -1348,14 +1374,18 @@ fn differential_run(seed: u64, steps: usize, contested: &mut usize) -> Vec<Strin
         // 4. A save's caches.
         if step % 10 == 9 {
             let mut saved = Vec::new();
-            session
-                .save(&SavePolicy::default(), &mut saved)
-                .expect("saved");
+            match session.save(&SavePolicy::default(), &mut saved) {
+                Ok(_) => {}
+                // A save after rows or columns were inserted or deleted is refused until the
+                // save writes them.
+                Err(calc_host::SaveFailed::StructuralEdits { .. }) => continue,
+                Err(other) => panic!("the save failed: {other}"),
+            }
             let reopened = open(&saved);
             let reopened_calc = sheet(&reopened, "Calc");
             let reopened_region = GridArea::new(
                 CellKey::new(reopened_calc, 1, 27).unwrap(),
-                CellKey::new(reopened_calc, 10, 32).unwrap(),
+                CellKey::new(reopened_calc, 30, 32).unwrap(),
             )
             .unwrap();
             for (at, cell) in fresh_cells(&reopened, reopened_region) {
@@ -1386,16 +1416,22 @@ fn differential_run(seed: u64, steps: usize, contested: &mut usize) -> Vec<Strin
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_review__random_sessions_agree_with_fresh_projections_and_calculations() {
     let mut problems = Vec::new();
-    let mut contested = 0;
+    let (mut contested, mut structural) = (0, 0);
     for seed in 1..=12u64 {
-        problems.extend(differential_run(seed * 7919 + 13, 60, &mut contested));
+        problems.extend(differential_run(
+            seed * 7919 + 13,
+            60,
+            &mut contested,
+            &mut structural,
+        ));
     }
     assert!(problems.is_empty(), "{problems:#?}");
-    // Measured 2026-10-25: 67 of the 720 steps hold arrays contesting a spill area; the rest are
+    // Measured 2026-10-26: 37 of the 720 steps hold arrays contesting a spill area; the rest are
     // compared. The bound keeps a change that makes most steps contested from passing unseen.
     assert!(contested <= 108, "{contested} of 720 steps not compared");
+    assert!(structural > 0, "no row or column was inserted or deleted");
     println!(
-        "ACCEPT-NOTE: 12 runs of 60 steps; {contested} steps with a contested spill not compared"
+        "ACCEPT-NOTE: 12 runs of 60 steps, {structural} rows or columns inserted or deleted; {contested} steps with a contested spill not compared"
     );
 }
 
@@ -1724,4 +1760,207 @@ fn dc_09v__copy_relocates_formulas_and_fills() {
         value(session.host(), at(s, "A2")),
         ProjectedValue::Literal(_)
     ));
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-jhn (D2b): rows and columns inserted and deleted through the session, against Excel making
+// the same edits (tests/fixtures/d2/make-structural.ps1: structural-base.xlsx before,
+// structural-after.xlsx after, its capture structural-after.capture.json).
+
+/// The edits make-structural.ps1 makes, in order: sheet, rows or columns, insert or delete, first
+/// position, count.
+const D2B_STEPS: [(&str, Axis, AxisChange, u32, u32); 8] = [
+    ("S", Axis::Rows, AxisChange::Insert, 4, 2),
+    ("S", Axis::Rows, AxisChange::Delete, 9, 1),
+    ("S", Axis::Columns, AxisChange::Insert, 2, 1),
+    ("S", Axis::Columns, AxisChange::Delete, 5, 1),
+    ("S", Axis::Rows, AxisChange::Delete, 2, 1),
+    ("T", Axis::Rows, AxisChange::Insert, 3, 1),
+    ("U", Axis::Rows, AxisChange::Insert, 1, 1),
+    ("U", Axis::Columns, AxisChange::Insert, 1, 2),
+];
+
+fn d2b_fixture(name: &str) -> Vec<u8> {
+    match name {
+        "base" => include_bytes!("fixtures/d2/structural-base.xlsx").to_vec(),
+        "after" => include_bytes!("fixtures/d2/structural-after.xlsx").to_vec(),
+        other => panic!("no fixture {other}"),
+    }
+}
+
+/// Each sheet's A1:J16 as a host projects it, by sheet name and (row, column).
+fn d2b_cells(host: &HostState) -> BTreeMap<(String, u32, u32), ProjectedCell> {
+    let mut cells = BTreeMap::new();
+    for entry in host.sheets() {
+        let name = entry.name().text().to_string_lossy();
+        let area = GridArea::new(at_(entry.id(), "A1"), at_(entry.id(), "J16")).unwrap();
+        for (at, cell) in fresh_cells(host, area) {
+            cells.insert((name.clone(), at.row(), at.column()), cell);
+        }
+    }
+    cells
+}
+
+fn d2b_inputs(host: &HostState) -> BTreeMap<(String, u32, u32), CellInput> {
+    d2b_cells(host)
+        .into_iter()
+        .filter_map(|(key, cell)| cell.input().cloned().map(|input| (key, input)))
+        .collect()
+}
+
+fn d2b_apply(session: &mut HostSession) {
+    for (name, axis, change, first, count) in D2B_STEPS {
+        let sheet = sheet(session.host(), name);
+        let edit = AxisEdit::new(sheet, axis, change, first, count).unwrap();
+        let receipt = session.dispatch(SkinIntent::EditAxis(edit));
+        assert!(
+            receipt.accepted(),
+            "{name} {axis:?} {change:?} {first} {count}: {:?}",
+            receipt.error
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2b_structural__edits_match_excel_and_undo_restores() {
+    let mut session = session(&d2b_fixture("base"));
+    let base_inputs = d2b_inputs(session.host());
+    d2b_apply(&mut session);
+    let excel_after = open(&d2b_fixture("after"));
+
+    // The inputs, each formula's references adjusted as Excel's (#REF! for a deleted target
+    // included), are those of the package Excel saved after the same edits.
+    assert_eq!(d2b_inputs(session.host()), d2b_inputs(&excel_after));
+    // The defined name and the table moved as Excel moved them.
+    let names = |host: &HostState| -> Vec<String> {
+        host.defined_names()
+            .iter()
+            .map(|name| format!("{} {}", name.name, name.formula))
+            .collect()
+    };
+    assert_eq!(names(session.host()), names(&excel_after));
+
+    // Every formula cell calculates Excel's value (capture of structural-after.xlsx).
+    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
+        "fixtures/d2/structural-after.capture.json"
+    ))
+    .expect("the capture decodes");
+    let ours = d2b_cells(session.host());
+    let mut compared = 0;
+    for observed in &capture.observations {
+        let calc_verdict::Observation::ExcelRaw(excel) = &observed.observation else {
+            continue;
+        };
+        let key = (
+            observed.cell.sheet().to_owned(),
+            observed.cell.row(),
+            observed.cell.column(),
+        );
+        match ours.get(&key).map(|cell| cell.value()) {
+            Some(ProjectedValue::Calculated { value, .. }) => {
+                assert_eq!(value, excel, "{key:?}");
+                compared += 1;
+            }
+            other => panic!("{key:?} is {other:?}, Excel shows {excel:?}"),
+        }
+    }
+    assert_eq!(compared, 15, "every formula cell of the capture");
+
+    // Number formats, row heights and column widths moved with the edits, the inserted ones
+    // taking the row above's or the column to the left's, as Excel's insertion does.
+    for entry in session.host().sheets() {
+        let name = entry.name().text().to_string_lossy();
+        let mine = entry.id();
+        let theirs = sheet(&excel_after, &name);
+        for row in 1..=16 {
+            for column in 1..=10 {
+                assert_eq!(
+                    session
+                        .host()
+                        .number_format(CellKey::new(mine, row, column).unwrap()),
+                    excel_after.number_format(CellKey::new(theirs, row, column).unwrap()),
+                    "{name} row {row} column {column}"
+                );
+            }
+        }
+        let (ours, excel) = (
+            session.host().sheet_geometry(mine).unwrap(),
+            excel_after.sheet_geometry(theirs).unwrap(),
+        );
+        for row in 1..=16 {
+            assert_eq!(
+                ours.row(row).and_then(|format| format.height),
+                excel.row(row).and_then(|format| format.height),
+                "{name} row {row} height"
+            );
+            assert_eq!(
+                ours.row(row).is_some_and(|format| format.hidden),
+                excel.row(row).is_some_and(|format| format.hidden),
+                "{name} row {row} hidden"
+            );
+        }
+        for column in 1..=10 {
+            assert_eq!(
+                ours.column(column).and_then(|span| span.width),
+                excel.column(column).and_then(|span| span.width),
+                "{name} column {column} width"
+            );
+        }
+    }
+
+    // Undo takes the edits back one at a time, to the workbook as opened; redo makes them again.
+    for _ in D2B_STEPS {
+        assert!(session.dispatch(SkinIntent::Undo).accepted());
+    }
+    assert_eq!(d2b_inputs(session.host()), base_inputs);
+    for _ in D2B_STEPS {
+        assert!(session.dispatch(SkinIntent::Redo).accepted());
+    }
+    assert_eq!(d2b_inputs(session.host()), d2b_inputs(&excel_after));
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2b_structural__edits_excel_refuses_are_refused() {
+    let mut session = session(&fixture());
+    let calc = sheet(session.host(), "Calc");
+    let data = sheet(session.host(), "Data");
+    let revision = session.host().revision();
+    let refused = |session: &mut HostSession, edit: AxisEdit| {
+        let receipt = session.dispatch(SkinIntent::EditAxis(edit));
+        match receipt.error {
+            Some(IntentError::Command(calc_host::CommandError::Document(error))) => error,
+            other => panic!("{edit:?}: {other:?}"),
+        }
+    };
+    // Deleting one row of the legacy array L1:L3 changes part of it.
+    let error = refused(
+        &mut session,
+        AxisEdit::new(calc, Axis::Rows, AxisChange::Delete, 2, 1).unwrap(),
+    );
+    assert!(
+        matches!(error, calc_host::EditError::ArrayPart { .. }),
+        "{error:?}"
+    );
+    // The table Sales (Data!D1:E6 with its header in row 1): deleting the header row, or
+    // inserting a column inside it, is refused.
+    let error = refused(
+        &mut session,
+        AxisEdit::new(data, Axis::Rows, AxisChange::Delete, 1, 1).unwrap(),
+    );
+    assert!(
+        matches!(error, calc_host::EditError::TablePart { .. }),
+        "{error:?}"
+    );
+    let error = refused(
+        &mut session,
+        AxisEdit::new(data, Axis::Columns, AxisChange::Insert, 5, 1).unwrap(),
+    );
+    assert!(
+        matches!(error, calc_host::EditError::TablePart { .. }),
+        "{error:?}"
+    );
+    assert_eq!(session.host().revision(), revision);
+    assert_eq!(session.history_depth(), (0, 0));
 }

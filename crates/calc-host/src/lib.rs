@@ -63,8 +63,8 @@ mod save;
 mod session;
 mod state;
 
-pub use copy::{COPY_LIMIT, CopyRefusal};
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
+pub use copy::{COPY_LIMIT, CopyRefusal};
 pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};
 pub use history::{Irreversible, IrreversibleReason, Selection};
 pub use project::{
@@ -81,15 +81,16 @@ pub use session::{
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
 pub use calc_doc::blank_package;
-pub use calc_doc::{ColumnSpan, RowFormat, SheetGeometry};
 pub use calc_doc::{
     CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
 };
+pub use calc_doc::{ColumnSpan, RowFormat, SheetGeometry};
 pub use calc_doc_model::value;
 pub use calc_doc_model::{
-    ArrayFormula, ArrayKind, AuthoredRevision, CachedValue, CellInput, CellText, FileCached,
-    FiniteNumber, FormulaText, SheetEntry, SourcePart,
+    ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
+    CachedValue, CellInput, CellText, DefinedName, FileCached, FiniteNumber, FormulaText,
+    NameScope, SheetEntry, SourcePart,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

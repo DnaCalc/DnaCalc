@@ -104,3 +104,113 @@ impl SheetGeometry {
         }
     }
 }
+
+impl SheetGeometry {
+    /// The geometry after `edit` inserts or deletes rows or columns of the sheet: rows and column
+    /// spans after the edit's first position shift with it, deleted ones go, a span the edit cuts
+    /// shrinks or is split around the inserted columns, and each inserted row or column takes the
+    /// height or width of the one before the inserted band, as Excel's insertion does by default
+    /// (measured, calc-host's tests/fixtures/d2/structural-excel.json: heights and widths, not
+    /// the hidden flag). An inserted band at the start of the axis takes none.
+    pub fn moved(&self, edit: calc_doc_model::AxisEdit) -> SheetGeometry {
+        use calc_doc_model::{Axis, AxisChange, moved_position};
+        let mut moved = self.clone();
+        let (first, last, count) = (edit.first(), edit.last(), edit.count());
+        match edit.axis() {
+            Axis::Rows => {
+                let mut rows = BTreeMap::new();
+                for (&row, format) in &self.rows {
+                    if let Some(to) = moved_position(edit, row) {
+                        rows.insert(to, *format);
+                    }
+                }
+                if edit.change() == AxisChange::Insert
+                    && first > 1
+                    && let Some(height) = self.rows.get(&(first - 1)).and_then(|row| row.height)
+                {
+                    for row in first..=last {
+                        rows.insert(
+                            row,
+                            RowFormat {
+                                height: Some(height),
+                                hidden: false,
+                            },
+                        );
+                    }
+                }
+                moved.rows = rows;
+            }
+            Axis::Columns => {
+                let max = calc_doc_model::value::MAX_COLUMNS;
+                let mut columns = Vec::new();
+                for span in &self.columns {
+                    match edit.change() {
+                        AxisChange::Insert => {
+                            if span.last < first {
+                                columns.push(*span);
+                            } else if span.first >= first {
+                                if span.first + count <= max {
+                                    columns.push(ColumnSpan {
+                                        first: span.first + count,
+                                        last: (span.last + count).min(max),
+                                        ..*span
+                                    });
+                                }
+                            } else {
+                                columns.push(ColumnSpan {
+                                    last: first - 1,
+                                    ..*span
+                                });
+                                if last < max {
+                                    columns.push(ColumnSpan {
+                                        first: last + 1,
+                                        last: (span.last + count).min(max),
+                                        ..*span
+                                    });
+                                }
+                            }
+                        }
+                        AxisChange::Delete => {
+                            // The span's columns before the deleted band, and those after it
+                            // moved back by the band.
+                            let before = (span.first < first)
+                                .then(|| (span.first, span.last.min(first - 1)));
+                            let after = (span.last > last)
+                                .then(|| (span.first.max(last + 1) - count, span.last - count));
+                            match (before, after) {
+                                (Some((a, _)), Some((_, d))) => columns.push(ColumnSpan {
+                                    first: a,
+                                    last: d,
+                                    ..*span
+                                }),
+                                (Some((a, b)), None) | (None, Some((a, b))) => {
+                                    columns.push(ColumnSpan {
+                                        first: a,
+                                        last: b,
+                                        ..*span
+                                    })
+                                }
+                                (None, None) => {}
+                            }
+                        }
+                    }
+                }
+                if edit.change() == AxisChange::Insert
+                    && first > 1
+                    && let Some(source) = self.column(first - 1)
+                    && source.width.is_some()
+                {
+                    columns.push(ColumnSpan {
+                        first,
+                        last,
+                        width: source.width,
+                        hidden: false,
+                    });
+                }
+                columns.sort_by_key(|span| span.first);
+                moved.columns = columns;
+            }
+        }
+        moved
+    }
+}
