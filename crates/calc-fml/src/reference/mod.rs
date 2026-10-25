@@ -40,7 +40,9 @@ pub use bind::{
 pub use read::{CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells};
 pub use structured::{TableInfo, TableLookup};
 pub use template::template_key;
-pub use transform::{EditAxis, StructuralEdit, convert_notation, transform_formula};
+pub use transform::{
+    EditAxis, StructuralEdit, convert_notation, transform_formula, transform_name,
+};
 pub(crate) use text::bind_text;
 
 use calc_func::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId, WorksheetErrorCode};

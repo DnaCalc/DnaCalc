@@ -2133,11 +2133,12 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(7, 1), unpaired),
             set(c(8, 1), formula("0.1+0.2-0.3")),
             // A range where a legacy formula takes one value at a place whose evaluation is not
-            // measured (CHISQ.TEST's actual range; XLOOKUP's lookup array, which this row used
-            // before, was measured by L3 and lifts): a typed refusal. (A range at the formula's
-            // root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9 is
-            // #VALUE!.)
-            set(c(9, 1), formula("_xlfn.CHISQ.TEST(Data!A1:A2*1,Data!A1:A2)")),
+            // measured (COUNTIF's range, which takes only a reference: Excel refuses to enter the
+            // formula; XLOOKUP's lookup array and CHISQ.TEST's ranges, which this row used
+            // before, were measured by L3 and dc-10y and lift): a typed refusal. (A range at the
+            // formula's root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9
+            // is #VALUE!.)
+            set(c(9, 1), formula("COUNTIF(Data!A1:A2*1,1)")),
             set(c(1, 3), formula("A2*2")),
         ],
     );
@@ -2466,9 +2467,11 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     ));
 
     // 5. A cycle in the dirty closure: Calc!B1 and Calc!B2 read each other and Calc!B3 reads
-    //    Calc!B2. With iteration off (the snapshot's default) the recalculation publishes, at tick
-    //    6, the two formulas on the cycle as refused and Calc!B3 as refused for reading one (L3,
-    //    dc-m3u); nothing stays pending. Replacing Calc!B2's formula by a literal breaks the cycle.
+    //    Calc!B2. With iteration off (the snapshot's default) Excel calculates none of them, and
+    //    each, entered by this edit, shows 0 (dc-10y, measured: see
+    //    dc_10y__circular_references_with_iteration_off): the recalculation publishes the three
+    //    at tick 6 as 0; nothing stays pending. Replacing Calc!B2's formula by a literal breaks the
+    //    cycle.
     let root3 = edit(
         &mut state,
         &root2,
@@ -2481,16 +2484,9 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     assert_eq!(state.stale(&root3), Some(vec![c(1, 2), c(2, 2), c(3, 2)]));
     let delta = recalc(&mut state, &root3, &mut Unobserved);
     assert_eq!(delta.tick().get(), 6);
-    let circular = NotModeled::Evaluation(EvalFault::NotModelled {
-        construct: "a circular reference with iterative calculation off (Excel keeps each cell's previous value)",
-        owner: "dc-m3u",
-    });
-    assert_eq!(refusal(&state, c(1, 2), 3, 6), circular);
-    assert_eq!(refusal(&state, c(2, 2), 3, 6), circular);
-    assert_eq!(
-        refusal(&state, c(3, 2), 3, 6),
-        NotModeled::Evaluation(EvalFault::MissingInput { cell: c(2, 2) })
-    );
+    for at in [c(1, 2), c(2, 2), c(3, 2)] {
+        assert_eq!(calculated(&state, at), (CalcValue::number(0.0), 3, 6), "{at:?}");
+    }
     assert_eq!(state.pending().count(), 0);
     let root4 = edit(&mut state, &root3, vec![set(c(2, 2), number(1.0))]);
     let delta = recalc(&mut state, &root4, &mut Unobserved);
@@ -3672,8 +3668,8 @@ fn dc_0k9__offset_into_a_later_formula_cell() {
 }
 
 /// Two formulas that read each other only through INDIRECT are a circular reference the order
-/// cannot see: the one that would wait on itself is refused (circular references are L3's), the
-/// other reads it as a cell the reader cannot supply, and the recalculation completes.
+/// cannot see: with iteration off neither is calculated, and with no value of this engine's to
+/// keep both are refused (dc-10y), and the recalculation completes.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_0k9__circular_through_indirect() {
@@ -3686,14 +3682,8 @@ fn dc_0k9__circular_through_indirect() {
         (c(3, 1), formula("1+2")),
     ];
     let state = l1_calculated(cells, vec![], (data, calc));
-    assert_eq!(l2_refusal_owner(&state, c(2, 1)), "dc-m3u");
-    assert!(matches!(
-        state.result(c(1, 1)),
-        Some(FormulaResult::NotModeled {
-            refusal: NotModeled::Evaluation(EvalFault::MissingInput { .. }),
-            ..
-        })
-    ));
+    assert_eq!(l2_refusal_owner(&state, c(2, 1)), "dc-10y");
+    assert_eq!(l2_refusal_owner(&state, c(1, 1)), "dc-10y");
     assert_eq!(l1_value(&state, c(3, 1)), CalcValue::number(3.0));
 }
 
@@ -4135,23 +4125,104 @@ fn dc_m3u__iteration() {
         assert_eq!(l1_value(&state, at), n(value), "{at:?}");
     }
 
-    // Iteration off: the cycles and their reader are refused; H1 is calculated.
+    // Iteration off: the cycles and their reader are refused, each cell holding a value this
+    // engine never calculated (dc-10y); H1 is calculated.
     let (state, _) = l3_iterated(
         cells,
         calc,
         calc_doc_model::IterationSettings::EXCEL_DEFAULT,
     );
-    for at in [c(1, 1), c(1, 2), c(1, 3), c(1, 4), c(1, 5), c(1, 6)] {
-        assert_eq!(l2_refusal_owner(&state, at), "dc-m3u", "{at:?}");
+    for at in [c(1, 1), c(1, 2), c(1, 3), c(1, 4), c(1, 5), c(1, 6), c(1, 7)] {
+        assert_eq!(l2_refusal_owner(&state, at), "dc-10y", "{at:?}");
     }
-    assert!(matches!(
-        state.result(c(1, 7)),
-        Some(FormulaResult::NotModeled {
-            refusal: NotModeled::Evaluation(EvalFault::MissingInput { .. }),
-            ..
-        })
-    ));
     assert_eq!(l1_value(&state, c(1, 8)), n(6.0));
+}
+
+/// Circular references with iteration off, edited in a session, against Excel 16.0.20430 through
+/// COM (2026-10-25, each value read after the edit named; Excel recalculates automatically): Excel
+/// calculates no formula whose evaluation meets the circular reference, nor one that reads such a
+/// formula; each keeps the value its cell held, and a formula entered (or entered again) shows 0.
+/// From C1 1, B1 2, A1 `=B1+1`, G1 `=A1*10`, G2 `=A1+C1`, G3 `=G2*2` and H1 `=C1*100`
+/// (3, 30, 4, 8, 100): B1 `=A1+1` gives B1 0 and keeps A1, G1, G2 and G3; C1 5 gives H1 500 and
+/// keeps G2 4 and G3 8; G2 entered again as `=A1+C1+0` gives 0, and A1 entered again as `=B1+1`
+/// 0; B1 3 breaks the cycle: A1 4, G1 40, G2 9, G3 18. D1 `=INDIRECT("E1")+1` gives 1, and then E1
+/// `=INDIRECT("D1")+1` gives E1 0 and keeps D1 1. F5 `=IF(TRUE,"x",F5)` and F6 `=IF(FALSE,F6,"y")`,
+/// on a cycle of their references that their evaluations do not meet, are calculated: x and y.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_10y__circular_references_with_iteration_off() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let calc = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let n = CalcValue::number;
+    let (mut state, root) = l3_iterated(
+        vec![
+            (c(1, 3), number(1.0)),
+            (c(1, 2), number(2.0)),
+            (c(1, 1), formula("B1+1")),
+            (c(1, 7), formula("A1*10")),
+            (c(2, 7), formula("A1+C1")),
+            (c(3, 7), formula("G2*2")),
+            (c(1, 8), formula("C1*100")),
+        ],
+        calc,
+        calc_doc_model::IterationSettings::EXCEL_DEFAULT,
+    );
+    let values = |state: &EngineState, expected: &[(CellKey, f64)]| {
+        for (at, value) in expected {
+            assert_eq!(l1_value(state, *at), n(*value), "{at:?}");
+        }
+    };
+    values(
+        &state,
+        &[(c(1, 1), 3.0), (c(1, 7), 30.0), (c(2, 7), 4.0), (c(3, 7), 8.0), (c(1, 8), 100.0)],
+    );
+    let step = |state: &mut EngineState, root: &Arc<ModelRoot>, op: WorkbookOp| {
+        let root = edit(state, root, vec![op]);
+        recalc(state, &root, &mut Unobserved);
+        root
+    };
+    let root = step(&mut state, &root, set(c(1, 2), formula("A1+1")));
+    values(
+        &state,
+        &[
+            (c(1, 1), 3.0),
+            (c(1, 2), 0.0),
+            (c(1, 7), 30.0),
+            (c(2, 7), 4.0),
+            (c(3, 7), 8.0),
+            (c(1, 8), 100.0),
+        ],
+    );
+    let root = step(&mut state, &root, set(c(1, 3), number(5.0)));
+    values(
+        &state,
+        &[
+            (c(1, 1), 3.0),
+            (c(1, 2), 0.0),
+            (c(1, 7), 30.0),
+            (c(2, 7), 4.0),
+            (c(3, 7), 8.0),
+            (c(1, 8), 500.0),
+        ],
+    );
+    let root = step(&mut state, &root, set(c(2, 7), formula("A1+C1+0")));
+    values(&state, &[(c(1, 1), 3.0), (c(2, 7), 0.0), (c(3, 7), 8.0)]);
+    let root = step(&mut state, &root, set(c(1, 1), formula("B1+1")));
+    values(&state, &[(c(1, 1), 0.0), (c(1, 2), 0.0), (c(1, 7), 30.0)]);
+    let root = step(&mut state, &root, set(c(1, 2), number(3.0)));
+    values(
+        &state,
+        &[(c(1, 1), 4.0), (c(1, 7), 40.0), (c(2, 7), 9.0), (c(3, 7), 18.0), (c(1, 8), 500.0)],
+    );
+    let root = step(&mut state, &root, set(c(1, 4), formula("INDIRECT(\"E1\")+1")));
+    values(&state, &[(c(1, 4), 1.0)]);
+    let root = step(&mut state, &root, set(c(1, 5), formula("INDIRECT(\"D1\")+1")));
+    values(&state, &[(c(1, 4), 1.0), (c(1, 5), 0.0)]);
+    let root = step(&mut state, &root, set(c(5, 6), formula("IF(TRUE,\"x\",F5)")));
+    let _ = step(&mut state, &root, set(c(6, 6), formula("IF(FALSE,F6,\"y\")")));
+    assert_eq!(l1_value(&state, c(5, 6)), excel_text("x"));
+    assert_eq!(l1_value(&state, c(6, 6)), excel_text("y"));
 }
 
 /// Derived from Microsoft's documented rule (iteration stops when no value changes by the maximum

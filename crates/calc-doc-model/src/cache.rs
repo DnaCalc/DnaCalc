@@ -1,6 +1,7 @@
-//! Values a file stored as formula results. A cached value is never a calculation input and never
-//! counts as calculated: each one is [`FileCached`], carrying the identity of the package part it
-//! was read from.
+//! Values a file stored as formula results. A cached value never counts as calculated: each one is
+//! [`FileCached`], carrying the identity of the package part it was read from. It is a calculation
+//! input in one place only, as Excel's: the value an iterating formula on a circular reference
+//! starts its first pass from (CalcEngine's recalculation, dc-10y).
 
 use crate::input::{CellText, FiniteNumber};
 use calc_value::WorksheetErrorCode;

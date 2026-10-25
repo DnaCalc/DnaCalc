@@ -12,7 +12,9 @@
 //! instance (a connected COM add-in is recorded by name, not refused and never switched off, and
 //! the verdict counts it and certifies no raw comparison against the record), links and
 //! connections recorded and never refreshed, the calculation policy set, a full rebuild, save and
-//! reopen. It always keeps the CaptureRecord version 2 in the work directory as `capture.json`,
+//! reopen. A workbook whose `calcPr` turns iteration on is captured with its iteration settings
+//! under manual calculation, so its one full rebuild calculates from the values it stored
+//! ([`with_workbook_iteration`], dc-10y). It always keeps the CaptureRecord version 2 in the work directory as `capture.json`,
 //! and computes the record's file-cache replay (`calc_verdict::file_cache_replay` of the record as
 //! written and read back). It refuses the capture, writing neither `--out` nor `--verdict`, when
 //! the record's session carries an isolation failure (a refresh-on-open connection or an OLE or
@@ -159,6 +161,36 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
     })
 }
 
+/// `policy` for a capture of the workbook whose bytes are `bytes`: as given for a workbook whose
+/// `calcPr` does not turn iteration on, and for one that does, its iteration settings under manual
+/// calculation (dc-10y). Excel calculates a workbook that iterates when an automatic Excel opens it,
+/// so the capture of such a workbook opens it under manual calculation and its full rebuild is its
+/// one calculation from the values the package stored, as DNA Calc's recalculation after opening
+/// it is (calc-oracle-excel's worker). The settings are read as calc-host reads them; a package
+/// calc-host cannot open keeps `policy`.
+pub(crate) fn with_workbook_iteration(
+    mut policy: CalculationPolicy,
+    bytes: &[u8],
+) -> CalculationPolicy {
+    let source: std::sync::Arc<dyn calc_host::PackageRead> =
+        std::sync::Arc::new(calc_host::MemorySource::new(bytes.to_vec()));
+    let Ok(host) = calc_host::HostState::open(
+        source,
+        &calc_host::OpenPolicy::default(),
+        calc_host::HostOptions::default(),
+    ) else {
+        return policy;
+    };
+    let context = host.recalc_context();
+    if context.iteration {
+        policy.mode = CalculationMode::Manual;
+        policy.iteration = true;
+        policy.max_iterations = context.max_iterations;
+        policy.max_change = f64::from_bits(context.max_change_bits);
+    }
+    policy
+}
+
 /// The repository's commit, with `+dirty` when the tree has changes, or `None` when git cannot
 /// tell.
 pub(crate) fn repository_revision() -> Option<String> {
@@ -206,13 +238,17 @@ fn run_code(raw: &[String]) -> u8 {
             utc_now().replace(':', "")
         ))
     });
+    let policy = match fs::read(&args.fixture) {
+        Ok(bytes) => with_workbook_iteration(args.policy, &bytes),
+        Err(_) => args.policy,
+    };
     let request = CaptureRequest {
         case: args.case.clone(),
         fixture: args.fixture.clone(),
         companions: args.companions.clone(),
         work_dir: work_dir.clone(),
         timeout: args.timeout,
-        policy: args.policy,
+        policy,
         revision: args.revision,
         operations: args.operations.clone(),
         repository: repository_revision(),

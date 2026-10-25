@@ -40,7 +40,9 @@
 //! STDEV's, VAR's, STDEVP's, VARP's, MINA's, GEOMEAN's, HARMEAN's, DEVSQ's, AVEDEV's, KURT's and
 //! SKEW's numbers, LARGE's and SMALL's array, PERCENTILE's, QUARTILE's, PERCENTRANK's and
 //! TRIMMEAN's array, CONCAT's and TEXTJOIN's texts, NPV's values and TRANSPOSE's array
-//! (`=@TRANSPOSE(@A1:A3*1)`); each is #VALUE! in those rows, below A1:A3.
+//! (`=@TRANSPOSE(@A1:A3*1)`); each is #VALUE! in those rows, below A1:A3. dc-10y measured every
+//! parameter of the catalogue that takes a reference the same way on 2026-10-25 ([`AGGREGATE`]),
+//! CHISQ.TEST's among them (no `@`: its ranges lift).
 //!
 //! From these rows a place is one of four kinds ([`Place`]). The formula's root, and every
 //! single-value parameter and operand on the way down from it, is a [`Place::Value`]: a range
@@ -66,74 +68,170 @@ pub(super) enum Place {
 }
 
 /// The parameters that take a reference and do not spill, by function: a range expression
-/// written there is intersected. Each is either measured (see the module documentation) or of the
-/// family of one that is (the aggregates' number and value lists).
+/// written there is intersected. dc-10y measured every parameter of the catalogue that takes a
+/// reference, at its first positions (up to four), on Excel 16.0.20430 through COM on 2026-10-25:
+/// the call with `A1:A3*1` there and 1 at its other arguments, entered through `Range.Formula`,
+/// `Range.Formula2` read back; an `@` written before `A1:A3` puts the parameter here, none puts it
+/// in [`ARRAY`]. A function of 250 parameters or more whose measured positions all agree takes
+/// every position ([`ALL`]). A parameter whose call Excel refused to enter (one that takes only a
+/// reference) is in neither.
 const AGGREGATE: &[(&str, &[usize])] = &[
+    ("AGGREGATE", &[3]),
     ("AND", ALL),
+    ("AVEDEV", ALL),
     ("AVERAGE", ALL),
     ("AVERAGEA", ALL),
+    ("BYCOL", &[1]),
+    ("BYROW", &[1]),
+    ("CHOOSECOLS", &[1, 2]),
+    ("CHOOSEROWS", &[1, 2]),
+    ("CONCAT", ALL),
     ("COUNT", ALL),
     ("COUNTA", ALL),
+    ("DEVSQ", ALL),
+    ("FILTER", &[2]),
+    ("FVSCHEDULE", &[1]),
+    ("GCD", ALL),
+    ("GEOMEAN", ALL),
+    ("HARMEAN", ALL),
     ("HLOOKUP", &[1]),
+    ("IMPRODUCT", ALL),
+    ("IMSUM", ALL),
+    ("ISEVEN", &[0]),
+    ("ISODD", &[0]),
+    ("ISREF", &[0]),
+    ("KURT", ALL),
+    ("LARGE", &[0]),
+    ("LCM", ALL),
+    ("MAKEARRAY", &[2]),
+    ("MAP", &[1, 2]),
     ("MATCH", &[1]),
     ("MAX", ALL),
     ("MAXA", ALL),
+    ("MEDIAN", ALL),
     ("MIN", ALL),
     ("MINA", ALL),
+    ("MULTINOMIAL", ALL),
+    ("N", &[0]),
+    ("NETWORKDAYS", &[2]),
+    ("NPV", ALL),
     ("OR", ALL),
+    ("PERCENTILE", &[0]),
+    ("PERCENTILE.EXC", &[0]),
+    ("PERCENTILE.INC", &[0]),
+    ("PERCENTRANK", &[0]),
+    ("PERCENTRANK.EXC", &[0]),
+    ("PERCENTRANK.INC", &[0]),
     ("PRODUCT", ALL),
+    ("QUARTILE", &[0]),
+    ("QUARTILE.EXC", &[0]),
+    ("QUARTILE.INC", &[0]),
+    ("REDUCE", &[0, 2]),
+    ("SCAN", &[0, 2]),
+    ("SERIESSUM", &[3]),
+    ("SHEET", &[0]),
+    ("SKEW", ALL),
+    ("SKEW.P", ALL),
+    ("SMALL", &[0]),
+    ("SORTBY", &[2]),
+    ("STDEV", ALL),
+    ("STDEV.P", ALL),
+    ("STDEV.S", ALL),
+    ("STDEVA", ALL),
+    ("STDEVP", ALL),
+    ("STDEVPA", ALL),
     ("SUM", ALL),
     ("SUMSQ", ALL),
-    ("VLOOKUP", &[1]),
-    // L3 (dc-m3u), measured (see the module documentation).
-    ("AVEDEV", ALL),
-    ("CONCAT", ALL),
-    ("DEVSQ", ALL),
-    ("GEOMEAN", ALL),
-    ("HARMEAN", ALL),
-    ("KURT", ALL),
-    ("LARGE", &[0]),
-    ("MEDIAN", ALL),
-    ("NPV", ALL),
-    ("PERCENTILE", &[0]),
-    ("PERCENTRANK", &[0]),
-    ("QUARTILE", &[0]),
-    ("SKEW", ALL),
-    ("SMALL", &[0]),
-    ("STDEV", ALL),
-    ("STDEVP", ALL),
+    ("TEXTAFTER", &[1]),
+    ("TEXTBEFORE", &[1]),
     ("TEXTJOIN", ALL),
+    ("TEXTSPLIT", &[1, 2]),
     ("TRANSPOSE", &[0]),
     ("TRIMMEAN", &[0]),
+    ("TYPE", &[0]),
     ("VAR", ALL),
+    ("VAR.P", ALL),
+    ("VAR.S", ALL),
+    ("VARA", ALL),
     ("VARP", ALL),
+    ("VARPA", ALL),
+    ("VLOOKUP", &[1]),
+    ("WORKDAY", &[2]),
+    ("XIRR", &[0, 1]),
+    ("XLOOKUP", &[3]),
+    ("XNPV", &[1, 2]),
+    ("XOR", ALL),
+    ("Z.TEST", &[0]),
+    ("ZTEST", &[0]),
 ];
 
-/// The array parameters, by function: a range expression written there lifts. FILTER's include
-/// is measured by the catalogue oracle's capture (F3 dc-728): `=_xlfn._xlws.FILTER(Data!A1:A3,
-/// Data!A1:A3>1)` entered as a legacy formula gives 5, the first of FILTER's rows {5;3}.
+/// The array parameters, by function: a range expression written there lifts (measured as
+/// [`AGGREGATE`] says). FILTER's include, for one, was measured by the catalogue oracle's capture
+/// too (F3 dc-728): `=_xlfn._xlws.FILTER(Data!A1:A3,Data!A1:A3>1)` entered as a legacy formula
+/// gives 5, the first of FILTER's rows {5;3}.
 const ARRAY: &[(&str, &[usize])] = &[
+    ("AGGREGATE", &[2]),
+    ("ARRAYTOTEXT", &[0]),
+    ("BYCOL", &[0]),
+    ("BYROW", &[0]),
+    ("CHISQ.TEST", &[0, 1]),
+    ("CHITEST", &[0, 1]),
+    ("CHOOSECOLS", &[0]),
+    ("CHOOSEROWS", &[0]),
     ("COLUMNS", &[0]),
-    ("FILTER", &[1]),
-    ("INDEX", &[0]),
-    ("LOOKUP", &[1, 2]),
-    ("ROWS", &[0]),
-    ("SUMPRODUCT", ALL),
-    // L3 (dc-m3u), measured (see the module documentation).
-    ("CORREL", ALL),
-    ("COVAR", ALL),
+    ("CORREL", &[0, 1]),
+    ("COVAR", &[0, 1]),
+    ("COVARIANCE.P", &[0, 1]),
+    ("COVARIANCE.S", &[0, 1]),
+    ("DROP", &[0]),
+    ("EXPAND", &[0]),
+    ("F.TEST", &[0, 1]),
+    ("FILTER", &[0, 1]),
     ("FORECAST", &[1, 2]),
-    ("FREQUENCY", ALL),
-    ("INTERCEPT", ALL),
+    ("FORECAST.LINEAR", &[1, 2]),
+    ("FREQUENCY", &[0, 1]),
+    ("FTEST", &[0, 1]),
+    ("GROWTH", &[0, 1]),
+    ("HSTACK", ALL),
+    ("INDEX", &[0]),
+    ("INTERCEPT", &[0, 1]),
     ("IRR", &[0]),
-    ("MMULT", ALL),
+    ("LINEST", &[0, 1]),
+    ("LOGEST", &[0, 1]),
+    ("LOOKUP", &[1, 2]),
+    ("MAP", &[0]),
+    ("MDETERM", &[0]),
+    ("MINVERSE", &[0]),
+    ("MIRR", &[0]),
+    ("MMULT", &[0, 1]),
     ("MODE", ALL),
-    ("PEARSON", ALL),
-    ("RSQ", ALL),
-    ("SLOPE", ALL),
-    ("STEYX", ALL),
-    ("SUMX2MY2", ALL),
-    ("SUMXMY2", ALL),
+    ("MODE.MULT", ALL),
+    ("MODE.SNGL", ALL),
+    ("PEARSON", &[0, 1]),
+    ("PROB", &[0, 1]),
+    ("REDUCE", &[1]),
+    ("ROWS", &[0]),
+    ("RSQ", &[0, 1]),
+    ("SCAN", &[1]),
+    ("SHEETS", &[0]),
+    ("SLOPE", &[0, 1]),
+    ("SORT", &[0, 1]),
+    ("SORTBY", &[0, 1]),
+    ("STEYX", &[0, 1]),
+    ("SUMPRODUCT", ALL),
+    ("SUMX2MY2", &[0, 1]),
+    ("SUMX2PY2", &[0, 1]),
+    ("SUMXMY2", &[0, 1]),
+    ("T.TEST", &[0, 1]),
+    ("TAKE", &[0]),
+    ("TOCOL", &[0]),
+    ("TOROW", &[0]),
+    ("TREND", &[0, 1]),
+    ("TTEST", &[0, 1]),
+    ("UNIQUE", &[0]),
+    ("VSTACK", ALL),
+    ("WRAPCOLS", &[0]),
+    ("WRAPROWS", &[0]),
     ("XLOOKUP", &[1, 2]),
     ("XMATCH", &[1]),
 ];
@@ -227,9 +325,14 @@ mod tests {
         // =ABS({-1,-2}) at the root: intersected.
         assert_eq!(Place::Value.argument("ABS", 0, v, false), Place::Value);
         assert_eq!(Place::Value.admission(), Admission::IntersectAll);
-        // A parameter not measured: refused.
+        // dc-10y: CHISQ.TEST's ranges lift (no `@` written); a parameter not measured (a
+        // function absent from both tables) is refused.
         assert_eq!(
             Place::Value.argument("CHISQ.TEST", 0, r, false),
+            Place::Array
+        );
+        assert_eq!(
+            Place::Value.argument("NO.SUCH.FUNCTION", 0, r, false),
             Place::Unknown
         );
         // L3: XLOOKUP's lookup array lifts; MEDIAN's numbers are intersected.

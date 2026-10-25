@@ -30,7 +30,7 @@
 //! identities, candidates, scenarios, sweeps, personas and Leptos signals.
 
 use crate::command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
-use crate::entry::{EntryRefusal, interpret_entry};
+use crate::entry::{EntryRefusal, interpret_entry_in};
 use crate::history::{History, Irreversible, Selection, Step, inverse};
 use crate::project::{ProjectedCell, ProjectedValue, ProjectionRequest, project};
 use crate::recalc::{HostProgress, calculate, step};
@@ -356,7 +356,10 @@ impl HostSession {
             deltas: 0,
         };
         let outcome = match intent.clone() {
-            SkinIntent::EnterCell { at, text } => match interpret_entry(&text) {
+            SkinIntent::EnterCell { at, text } => match interpret_entry_in(
+                &text,
+                Some(&self.host.entry_environment()),
+            ) {
                 Ok(Some(input)) => {
                     let edit = self.entry_edit(at, input);
                     self.edit(vec![edit], &mut receipt)

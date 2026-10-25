@@ -39,5 +39,25 @@ pub use catalogue::{
     ParameterClass, RegistrationError, SignatureHelp, catalogue,
 };
 pub use file_prefix::FilePrefix;
+
+/// What `text` (UTF-16 code units) reads as under `environment`'s locale profile, date system and
+/// clock, by the grammar VALUE reads text with: the number, date or time it is; `Ok(None)` when the
+/// grammar does not read it (VALUE's #VALUE!); `Err(())` when the reading is not modelled (no
+/// locale profile, a date without a year and no clock, and the other cases `value_text` lists).
+/// Excel reads a cell entry typed under a locale the same way (dc-10y).
+pub fn read_number_text(text: &[u16], environment: &locale::CalcEnvironment) -> Result<Option<f64>, ()> {
+    let profile = environment.profile.as_ref().ok_or(())?;
+    let context = value_text::ReadContext {
+        profile,
+        date_system: environment.date_system,
+        now: environment.now,
+    };
+    match value_text::read(text, &context) {
+        Ok(reading) => Ok(Some(reading.value())),
+        Err(value_text::Unread::Rejected) => Ok(None),
+        Err(value_text::Unread::NotModelled) => Err(()),
+    }
+}
+
 /// A number in Excel's General format under a locale profile, as a cell shows it.
 pub use format::general as general_format;

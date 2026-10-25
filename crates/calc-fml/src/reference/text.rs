@@ -120,7 +120,7 @@ fn bind_str(
         return TextReference::NotModelled;
     }
     let text = text.trim_end_matches(' ');
-    let (qualifier, rest) = match split_qualifier(text) {
+    let (qualifier, rest) = match split_qualifier(text, catalog) {
         Ok(split) => split,
         Err(outcome) => return outcome,
     };
@@ -289,15 +289,30 @@ enum Target {
 /// The text's sheet name, unquoted, when it has a qualifier, and the text after the qualifier,
 /// without the spaces that may follow its `!`; or the outcome when the qualifier already decides
 /// it.
-fn split_qualifier(text: &str) -> Result<(Option<String>, &str), TextReference> {
-    if text.starts_with('[') {
-        return Err(TextReference::NotModelled);
+fn split_qualifier<'t>(
+    text: &'t str,
+    catalog: &dyn ReferenceCatalog,
+) -> Result<(Option<String>, &'t str), TextReference> {
+    if let Some(bracketed) = text.strip_prefix('[') {
+        let (book, after) = book_name(bracketed)?;
+        own_workbook(book, catalog)?;
+        // This workbook, named before a sheet qualifier that is not quoted: the text after the
+        // name reads as text without it, but must name a sheet (`[Book1.xlsx]A1`,
+        // `[Book1.xlsx]Sheet1` and `[Book1.xlsx]'Sheet1'!A1` are #REF!).
+        if after.starts_with('\'') || after.starts_with('[') {
+            return Err(TextReference::Invalid);
+        }
+        return match split_qualifier(after, catalog)? {
+            (None, _) => Err(TextReference::Invalid),
+            split => Ok(split),
+        };
     }
     if let Some(quoted) = text.strip_prefix('\'') {
         let (name, after) = quoted_name(quoted).ok_or(TextReference::Invalid)?;
         let rest = after.strip_prefix('!').ok_or(TextReference::Invalid)?;
         if name.contains(['[', ']']) {
-            return Err(TextReference::NotModelled);
+            let sheet = quoted_book_sheet(&name, catalog)?;
+            return Ok((Some(sheet), rest.trim_start_matches(' ')));
         }
         return Ok((Some(name), rest.trim_start_matches(' ')));
     }
@@ -305,9 +320,6 @@ fn split_qualifier(text: &str) -> Result<(Option<String>, &str), TextReference> 
         return Ok((None, text));
     };
     let (name, rest) = (&text[..bang], &text[bang + 1..]);
-    if name.contains(['[', ']']) {
-        return Err(TextReference::NotModelled);
-    }
     if name.is_empty()
         || name.starts_with('.')
         || name.eq_ignore_ascii_case("TRUE")
@@ -316,12 +328,63 @@ fn split_qualifier(text: &str) -> Result<(Option<String>, &str), TextReference> 
     {
         return Err(TextReference::Invalid);
     }
-    // A tab, a carriage return (bead dc-m3u) or a non-ASCII character that is neither a letter
-    // nor `€` (work package dc-m3u): not measured in an unquoted name.
-    if !name.chars().all(in_unquoted_name) {
+    // A workbook name inside the sheet name (`Sheet[1]!A1`), a tab, a carriage return or a
+    // non-ASCII character that is neither a letter nor `€` (dc-10y): not measured in an unquoted
+    // name. A space before a workbook name names no reference (` [Book1.xlsx]Sheet1!A1`, Excel
+    // 16.0.20430, 2026-10-25), as a space anywhere in an unquoted name does.
+    if name.contains(['[', ']']) || !name.chars().all(in_unquoted_name) {
         return Err(TextReference::NotModelled);
     }
     Ok((Some(name.to_owned()), rest.trim_start_matches(' ')))
+}
+
+/// The workbook name inside `[...]` at the start of `text` (after its `[`), and the text after the
+/// `]`. A name holding another `[` names no reference (`[[Book1.xlsx]]Sheet1!A1` is #REF!, Excel
+/// 16.0.20430, 2026-10-25); one with no `]` is not measured.
+fn book_name(text: &str) -> Result<(&str, &str), TextReference> {
+    let close = text.find(']').ok_or(TextReference::NotModelled)?;
+    let book = &text[..close];
+    if book.contains('[') {
+        return Err(TextReference::Invalid);
+    }
+    Ok((book, &text[close + 1..]))
+}
+
+/// `Ok` when the workbook name `book` names the formula's own workbook. No other workbook is open
+/// beside it in this product, and INDIRECT of text naming a workbook that is not open is #REF!
+/// (Microsoft's INDIRECT page). Excel 16.0.20430 (2026-10-25), in a saved `p5.xlsx`:
+/// `[Book1]data!A1`, `[1]Sheet1!A1`, `[]Sheet1!A1`, `[p5]Sheet1!A1` and `'[Book1]x y'!A1` are
+/// #REF!, while `[p5.xlsx]Sheet1!A1` and `[P5.XLSX]Sheet1!A1` name the cell. A catalogue that does
+/// not know the workbook's file name cannot tell, and the text is not modelled.
+fn own_workbook(book: &str, catalog: &dyn ReferenceCatalog) -> Result<(), TextReference> {
+    let own = catalog.workbook_name().ok_or(TextReference::NotModelled)?;
+    let same = book == own
+        || book
+            .chars()
+            .flat_map(char::to_uppercase)
+            .eq(own.chars().flat_map(char::to_uppercase));
+    if same {
+        Ok(())
+    } else {
+        Err(TextReference::Invalid)
+    }
+}
+
+/// The sheet a quoted qualifier holding a workbook name names (`'[Book1.xlsx]Sheet 2'!A1`): the
+/// sheet after the formula's own workbook's name. Another workbook's name names no reference. A
+/// qualifier with a folder before this workbook's name (`'C:\Data\[Book1.xlsx]Sheet1'!A1`), which
+/// Excel resolved against the folder the workbook was opened from, is not modelled: the catalogue
+/// knows no folder.
+fn quoted_book_sheet(name: &str, catalog: &dyn ReferenceCatalog) -> Result<String, TextReference> {
+    let Some(open) = name.find('[') else {
+        return Err(TextReference::NotModelled);
+    };
+    let (book, sheet) = book_name(&name[open + 1..])?;
+    own_workbook(book, catalog)?;
+    if open > 0 || sheet.is_empty() || sheet.contains(['[', ']']) {
+        return Err(TextReference::NotModelled);
+    }
+    Ok(sheet.to_owned())
 }
 
 /// The name inside a quoted qualifier, each doubled quote one quote, and the text after its
@@ -791,6 +854,75 @@ mod tests {
             assert_eq!(bound(text, R1C1), TextReference::Invalid, "{text:?}");
         }
         assert_eq!(bound("Foo", R1C1), TextReference::NotModelled);
+    }
+
+    /// The sheets of [`fixture`] in a workbook whose file name is `p5.xlsx`.
+    struct NamedBook(Sheets);
+
+    impl ReferenceCatalog for NamedBook {
+        fn sheet_named(&self, name: &str) -> Option<SheetId> {
+            self.0.sheet_named(name)
+        }
+
+        fn workbook_name(&self) -> Option<&str> {
+            Some("p5.xlsx")
+        }
+    }
+
+    /// Text naming a workbook, against Excel 16.0.20430 (2026-10-25) in a saved `p5.xlsx` with the
+    /// sheets Sheet1 and `Sheet 2` (see `own_workbook`): this workbook's name before a sheet
+    /// qualifier names that sheet's cells, any other workbook's name, or this one's without a
+    /// sheet, names none. A catalogue that does not know the workbook's name refuses all of it.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn text_naming_a_workbook() {
+        use ReferenceNotation::{A1, R1C1};
+        let (sheets, s, anchor) = fixture();
+        let (data, spaced) = (s[1], s[2]);
+        let named = NamedBook(sheets);
+        let bound_in = |catalog: &dyn ReferenceCatalog, text: &str, notation| {
+            let units: Vec<u16> = text.encode_utf16().collect();
+            bind_text(&units, notation, anchor, catalog)
+        };
+        for (text, notation, expected) in [
+            ("[p5.xlsx]data!A1", A1, area(data, 1, 1, 1, 1)),
+            ("[P5.XLSX]data!A1", A1, area(data, 1, 1, 1, 1)),
+            ("[p5.xlsx]DATA!a1", A1, area(data, 1, 1, 1, 1)),
+            ("[p5.xlsx]data!$A$1", A1, area(data, 1, 1, 1, 1)),
+            ("[p5.xlsx]data! A1", A1, area(data, 1, 1, 1, 1)),
+            ("[p5.xlsx]data!A1:B2", A1, area(data, 1, 1, 2, 2)),
+            ("[p5.xlsx]data!R1C1", R1C1, area(data, 1, 1, 1, 1)),
+            ("'[p5.xlsx]Q2 Data'!A1", A1, area(spaced, 1, 1, 1, 1)),
+            ("'[p5.xlsx]data'! A1", A1, area(data, 1, 1, 1, 1)),
+            ("[Book1]data!A1", A1, TextReference::Invalid),
+            ("[1]data!A1", A1, TextReference::Invalid),
+            ("[]data!A1", A1, TextReference::Invalid),
+            ("[p5]data!A1", A1, TextReference::Invalid),
+            ("'[Book1]x y'!A1", A1, TextReference::Invalid),
+            ("'C:\\x\\[Book1.xlsx]data'!A1", A1, TextReference::Invalid),
+            ("[Book1.xlsx]data!R1C1", R1C1, TextReference::Invalid),
+            ("[p5.xlsx]A1", A1, TextReference::Invalid),
+            ("[p5.xlsx]data", A1, TextReference::Invalid),
+            ("[p5.xlsx]'data'!A1", A1, TextReference::Invalid),
+            ("[p5.xlsx] data!A1", A1, TextReference::Invalid),
+            ("[p5.xlsx]Q2 Data!A1", A1, TextReference::Invalid),
+            ("[p5.xlsx]data!here!A1", A1, TextReference::Invalid),
+            ("[[p5.xlsx]]data!A1", A1, TextReference::Invalid),
+            (" [p5.xlsx]data!A1", A1, TextReference::Invalid),
+            // The folder the workbook was opened from is not known.
+            ("'C:\\x\\[p5.xlsx]data'!A1", A1, TextReference::NotModelled),
+            ("[p5.xlsx data!A1", A1, TextReference::NotModelled),
+        ] {
+            assert_eq!(bound_in(&named, text, notation), expected, "{text:?}");
+        }
+        let (unnamed, _, _) = fixture();
+        for text in ["[p5.xlsx]data!A1", "[Book1]data!A1", "'[Book1]x y'!A1"] {
+            assert_eq!(
+                bound_in(&unnamed, text, A1),
+                TextReference::NotModelled,
+                "{text:?}"
+            );
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

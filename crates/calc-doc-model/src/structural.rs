@@ -319,6 +319,7 @@ impl ModelRoot {
             .with_hidden_rows(hidden.collect::<Vec<_>>())
             .with_macro_enabled(definitions.macro_enabled())
             .with_iteration(definitions.iteration())
+            .with_workbook_name(definitions.workbook_name().map(str::to_owned))
             .with_data_tables(
                 definitions
                     .data_tables()

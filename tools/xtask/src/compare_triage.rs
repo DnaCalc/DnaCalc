@@ -257,7 +257,7 @@ const CALC_ENGINE: &str = "no package named (calc-engine refused)";
 
 /// The owner CalcFml's documentation gives `CompileError::NumberLiteral`, which the variant does
 /// not carry.
-const NUMBER_LITERAL_OWNER: &str = "dc-m3u";
+const NUMBER_LITERAL_OWNER: &str = "dc-10y";
 
 /// The class, key and owner of the engine's typed refusal `refusal`, with `address` naming a cell
 /// for CalcFml's `MissingInput`.
@@ -1874,11 +1874,11 @@ mod tests {
                 NotModeled::Compile(CompileError::Unsupported {
                     span,
                     construct: "a defined name",
-                    owner: "dc-m3u",
+                    owner: "dc-10y",
                 }),
                 Class::Formula,
-                "Compile:Unsupported:a defined name (dc-m3u)",
-                "dc-m3u",
+                "Compile:Unsupported:a defined name (dc-10y)",
+                "dc-10y",
             ),
             (
                 NotModeled::Compile(CompileError::NumberLiteral { span }),

@@ -179,9 +179,14 @@ pub struct EngineState {
     /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and
     /// number-format functions.
     pub(crate) environment: Option<CalcEnvironment>,
-    /// The formulas the last published recalculation found on a cycle (L3, dc-m3u); with
-    /// iteration on, every recalculation calculates them again.
+    /// The formulas the last published recalculation found on a cycle (L3, dc-m3u), and with
+    /// iteration off those that read one (dc-10y); every recalculation calculates them again, as
+    /// Excel calculates such a cell whenever it calculates (it saves each with `ca="1"`).
     pub(crate) cycle_members: BTreeSet<NodeId>,
+    /// The formula nodes a cell edit added or replaced since their last published result
+    /// (dc-10y): with iteration off, such a formula on a circular reference shows 0, where one
+    /// that was not entered again keeps its value.
+    pub(crate) entered: BTreeSet<NodeId>,
     /// Whether recalculations leave the cells of data tables, and the formulas that read only
     /// through them, uncalculated (L3, dc-m3u): Excel's "Automatic except for data tables".
     pub(crate) tables_deferred: bool,
@@ -208,6 +213,7 @@ impl EngineState {
             last_tick: 0,
             generation: 0,
             published_mode: None,
+            entered: BTreeSet::new(),
             volatile: BTreeSet::new(),
             subtotal_cells: BTreeSet::new(),
             spills: SpillIndex::default(),
@@ -540,6 +546,7 @@ impl EngineState {
             self.index.remove(node, &record.dynamic);
             self.bindings.remove(&node);
             self.volatile.remove(&node);
+            self.entered.remove(&node);
             self.subtotal_cells.remove(&record.anchor);
             self.pending.remove(&node);
             self.retired.insert(record.anchor);

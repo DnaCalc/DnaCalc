@@ -14,9 +14,10 @@
 //!   reference, database, web and cube functions, and the concatenation and comparison operators.
 //! - F3's categories, exactness `dc-j9k`: financial functions, the dynamic-array functions and the
 //!   LAMBDA helpers.
-//! - L1's, L3 `dc-m3u`: LET and LAMBDA, which the plan puts in the formula language.
-//! - L2's, L3 `dc-m3u`: INDIRECT and OFFSET, whose dynamic dependencies the plan puts in the
-//!   engine.
+//! - L1's, the language remainder `dc-10y` (after L3 `dc-m3u`): LET and LAMBDA, which the plan
+//!   puts in the formula language.
+//! - L2's, the language remainder `dc-10y`: INDIRECT and OFFSET, whose dynamic dependencies the
+//!   plan puts in the engine.
 //!
 //! The table is this repository's reading of the plan, not a statement the refusal makes, and a
 //! name in no list (a user-defined or add-in function, or a name Excel does not know) is owned by
@@ -28,8 +29,8 @@ pub(crate) const UNASSIGNED: &str = "no package (a name in no function category)
 const F1: &str = "exactness dc-j9k";
 const F2: &str = "exactness dc-uar";
 const F3: &str = "exactness dc-j9k";
-const L1: &str = "L3 dc-m3u";
-const L2: &str = "L3 dc-m3u";
+const L1: &str = "language dc-10y";
+const L2: &str = "language dc-10y";
 
 const MATH: &str = "ABS ACOS ACOSH ACOT ACOTH AGGREGATE ARABIC ASIN ASINH ATAN ATAN2 ATANH BASE \
     CEILING CEILING.MATH CEILING.PRECISE COMBIN COMBINA COS COSH COT COTH CSC CSCH DECIMAL DEGREES \

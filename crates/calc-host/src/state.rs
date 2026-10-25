@@ -176,6 +176,16 @@ impl HostState {
         self.model.sheets()
     }
 
+    /// The environment a cell entry is read in ([`crate::interpret_entry_in`]): the 1900 date
+    /// system, the options' locale profile and no clock, as the recalculations' (dc-10y).
+    pub fn entry_environment(&self) -> CalcEnvironment {
+        CalcEnvironment {
+            date_system: FmlDateSystem::System1900,
+            profile: self.options.locale,
+            now: None,
+        }
+    }
+
     pub fn options(&self) -> &HostOptions {
         &self.options
     }

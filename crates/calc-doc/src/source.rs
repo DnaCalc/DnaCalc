@@ -65,6 +65,13 @@ pub trait PackageRead: Send + Sync {
 
     /// Fills `buf` with the bytes starting at `offset`, or fails without a partial result.
     fn read_at(&self, offset: u64, buf: &mut [u8]) -> Result<(), SourceError>;
+
+    /// The file name the package is known by (`Book1.xlsx`), without its folder, when the source
+    /// knows it: Excel names the workbook so in reference text (`[Book1.xlsx]Sheet1!A1`). `None`
+    /// by default.
+    fn name(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// The sink a saved package is written to, front to back.
@@ -77,13 +84,21 @@ pub trait PackageWrite {
 #[derive(Clone, Debug)]
 pub struct MemorySource {
     bytes: Arc<[u8]>,
+    name: Option<Arc<str>>,
 }
 
 impl MemorySource {
     pub fn new(bytes: impl Into<Arc<[u8]>>) -> Self {
         MemorySource {
             bytes: bytes.into(),
+            name: None,
         }
+    }
+
+    /// This source known by the file name `name` ([`PackageRead::name`]).
+    pub fn named(mut self, name: impl Into<Arc<str>>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 }
 
@@ -106,6 +121,10 @@ impl PackageRead for MemorySource {
             })?;
         buf.copy_from_slice(&self.bytes[range]);
         Ok(())
+    }
+
+    fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
 }
 

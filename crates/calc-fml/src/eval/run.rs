@@ -240,7 +240,7 @@ struct Run<'a, 'r> {
 fn not_modelled(construct: &'static str) -> EvalFault {
     EvalFault::NotModelled {
         construct,
-        owner: "dc-m3u",
+        owner: "dc-10y",
     }
 }
 
@@ -498,7 +498,7 @@ impl Run<'_, '_> {
             // modelled, by the work package that owns them.
             Err(_) if external => Err(EvalFault::NotModelled {
                 construct: "reference text naming another workbook (an external reference)",
-                owner: "dc-m3u",
+                owner: "dc-10y",
             }),
             result => result.map_err(|fault| self.function_fault(fault)),
         }
@@ -767,7 +767,7 @@ impl Run<'_, '_> {
         if self.depth >= MAX_CALL_DEPTH {
             return Err(EvalFault::NotModelled {
                 construct: "LAMBDA calls or defined names nested more deeply than this package evaluates",
-                owner: "dc-m3u",
+                owner: "dc-10y",
             });
         }
         let frame = self.locals.len();
@@ -792,7 +792,7 @@ impl Run<'_, '_> {
         if self.depth >= MAX_CALL_DEPTH {
             return Err(EvalFault::NotModelled {
                 construct: "LAMBDA calls or defined names nested more deeply than this package evaluates",
-                owner: "dc-m3u",
+                owner: "dc-10y",
             });
         }
         let frame = self.locals.len();
@@ -818,7 +818,7 @@ impl Run<'_, '_> {
                     SpillExtent::NotModelled => {
                         return Err(EvalFault::NotModelled {
                             construct: "a spilled range reference (#) the reader does not know",
-                            owner: "dc-m3u",
+                            owner: "dc-10y",
                         });
                     }
                 },
@@ -1246,12 +1246,13 @@ mod tests {
                 Ok(CalcValue::number(4.0)),
             ),
             // An argument the evaluation cannot supply stops the call before its function runs: a
-            // range at a place of a legacy formula whose evaluation is not modelled.
+            // range at a place of a legacy formula whose evaluation is not modelled (COUNTIF's
+            // range, which takes only a reference: Excel refuses to enter the formula).
             (
-                "=CHISQ.TEST(A1:A2+1,A1:A2)",
+                "=COUNTIF(A1:A2+1,1)",
                 three.clone(),
                 &[],
-                evaluated("=CHISQ.TEST(A1:A2+1,A1:A2)", three.clone()),
+                evaluated("=COUNTIF(A1:A2+1,1)", three.clone()),
             ),
             // A function that refuses still ran (a product below the normal range, which
             // calc-func refuses as not modelled).

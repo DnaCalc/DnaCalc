@@ -573,10 +573,12 @@ pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
             NodeChange::Added { node, at } => {
                 state.add_node(node, at);
                 state.pending.insert(node);
+                state.entered.insert(node);
                 added.push((at, node));
             }
             NodeChange::Replaced { node, .. } => {
                 state.unbind_node(node);
+                state.entered.insert(node);
                 replaced.push(node);
             }
             NodeChange::Removed { node, .. } => {

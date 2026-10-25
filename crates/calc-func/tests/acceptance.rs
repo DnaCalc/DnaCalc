@@ -1911,7 +1911,7 @@ const NUMBER_TEXT: Owner = Owner {
 /// =@IF({TRUE,FALSE},1,2) and gives 1, so its row measures that legacy formula, not IF lifted over
 /// the array; calc_func refuses the array condition.
 const LEGACY_ARRAY_IF: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)",
 };
 const SUBNORMAL: Owner = Owner {
@@ -8815,7 +8815,7 @@ const SEVERAL_AREAS: Owner = Owner {
     behaviour: "a range of several areas in the conditional aggregates",
 };
 const SHAPED_PAST: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "a SUMIF or AVERAGEIF sum range shaped past the reference the formula gives, as a recalculation prerequisite",
 };
 
@@ -11345,7 +11345,7 @@ const CAPTURED_COM_ADD_IN: &str = "VS15ExcelAdaptor";
 /// records it. That package holds the cells the subnormal and -0 rows read as 0; it was read when
 /// the capture was taken and is not retained.
 const CAPTURED_OUTPUT_PACKAGE: &str =
-    "sha256:99dc773ac5189a5e97c9a51c2279d318ba4386cf074faeae6572ec6004f192b3";
+    "sha256:a13dc22ed4a7c6dca1268654f62ddc089200b3e6854a10780be6e7eaab14751e";
 
 /// The behaviour the refused dc-q9rb rows show.
 const NEAR_TIE: Owner = Owner {
@@ -12187,19 +12187,19 @@ enum Seen {
 }
 
 const SPILL_OWNER: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "an array result published in a cell",
 };
 const AREA_OWNER: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "a reference to several cells as a cell's value (implicit intersection)",
 };
 const BLANK_OWNER: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "a blank function result published in a cell as 0",
 };
 const LIFT_OWNER: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "a function lifted over an array argument",
 };
 /// The rows that stand in for calc-fml: a reference result dereferenced at the formula's root, or
@@ -12210,12 +12210,12 @@ const ENGINE_ROUTE: Owner = Owner {
 };
 /// The calling cell, which ROW() and COLUMN() without an argument need.
 const CALLER_OWNER: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "the calling cell supplied to a kernel",
 };
 /// A read past the reference a formula gives, which the engine does not see as a prerequisite.
 const READ_PAST_OWNER: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "cells read past the reference given, as prerequisites of the formula",
 };
 
@@ -12233,7 +12233,7 @@ const XLOOKUP_PART: &str = "the row (a vertical lookup array) or column (a horiz
 /// context: a legacy formula (an xlsx cell without dynamic-array metadata, as the oracle workbook
 /// stores its formulas) gives the first number, a dynamic-array formula the array of every number.
 const LEGACY_ARRAY: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "ROW or COLUMN of several rows or columns in the formula's array context",
 };
 
@@ -12269,7 +12269,7 @@ const SOURCE_CALC: Owner = Owner {
     behaviour: "FILTER, here with no cell of A1:A6 above 100, which Excel gives #CALC!",
 };
 const SOURCE_SPILL: Owner = Owner {
-    bead: "dc-j9k, dc-m3u",
+    bead: "dc-j9k, dc-10y",
     behaviour: "SEQUENCE(1,2), whose spill the filled cell to its right blocks, which Excel gives #SPILL!",
 };
 const SOURCE_FIELD: Owner = Owner {
@@ -12278,7 +12278,7 @@ const SOURCE_FIELD: Owner = Owner {
 };
 /// A row that reads a source cell: its value rests on the error the reader holds for the source.
 const SOURCE_READ: Owner = Owner {
-    bead: "dc-j9k, dc-m3u, dc-uar",
+    bead: "dc-j9k, dc-10y, dc-uar",
     behaviour: "a value conditional on the errors Excel gives the source formulas it reads (FILTER, SEQUENCE and FIELDVALUE), which the reader holds",
 };
 
@@ -17789,7 +17789,7 @@ const NOT_BLANK_DIRECT: &str = "NOT reads a blank cell's value given directly (t
 /// NOT applied to an array lifts over its elements, which dc-m3u owns. Excel loads the oracle
 /// workbook's NOT({TRUE,FALSE}) as the legacy formula =NOT(@{TRUE,FALSE}).
 const LEGACY_ARRAY_NOT: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "an array argument of NOT in a legacy formula, which Excel loads as =NOT(@{TRUE,FALSE})",
 };
 
@@ -19923,7 +19923,7 @@ const INFO_SOURCES: [InfoSource; 3] = [
         formula: "=SEQUENCE(2)",
         assumed: WorksheetErrorCode::Spill,
         owner: Owner {
-            bead: "dc-j9k, dc-m3u",
+            bead: "dc-j9k, dc-10y",
             behaviour: "SEQUENCE and its spill (blocked by F3: #SPILL!)",
         },
     },
@@ -19941,11 +19941,11 @@ const INFO_SOURCES: [InfoSource; 3] = [
 
 /// The behaviours refused rows of dc-nzpw show, by the bead that owns each.
 const ARRAY_ARGUMENT: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "an array given to a value argument, which Excel loads in a legacy formula with @ (its first element) and which array evaluation applies the function to in a dynamic-array formula",
 };
 const RANGE_TO_TYPE: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "a range of several cells given to TYPE, which Excel loads in a legacy formula with @ (implicit intersection); its dynamic-array result is unmeasured",
 };
 const FORMULA_FACT: Owner = Owner {
@@ -19953,7 +19953,7 @@ const FORMULA_FACT: Owner = Owner {
     behaviour: "whether a cell holds a formula, a host fact the cell reader does not supply",
 };
 const RANGE_TO_VALUE: Owner = Owner {
-    bead: "dc-m3u",
+    bead: "dc-10y",
     behaviour: "a range given to a value argument in a legacy formula, which Excel loads with @ (implicit intersection) and the caller intersects before the call",
 };
 const BUSY_RAW: Owner = Owner {

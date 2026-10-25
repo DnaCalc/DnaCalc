@@ -97,6 +97,8 @@ pub trait ReadObserver {
 pub struct ObservedEvaluation<'a> {
     calculation: &'a Calculation,
     report: EvaluationReport<'a>,
+    /// The cell of a what-if data table whose value the evaluation gave, when it was one.
+    table_cell: Option<CellKey>,
 }
 
 impl<'a> ObservedEvaluation<'a> {
@@ -104,12 +106,29 @@ impl<'a> ObservedEvaluation<'a> {
         ObservedEvaluation {
             calculation,
             report,
+            table_cell: None,
         }
     }
 
-    /// The formula cell evaluated: the anchor of the instance CalcFml's evaluator ran.
+    /// The evaluation of a data table's formula under the substitution of the table cell `cell`
+    /// (dc-10y): the cell's value is the value it returned.
+    pub(crate) fn for_table_cell(
+        calculation: &'a Calculation,
+        report: EvaluationReport<'a>,
+        cell: CellKey,
+    ) -> Self {
+        ObservedEvaluation {
+            calculation,
+            report,
+            table_cell: Some(cell),
+        }
+    }
+
+    /// The formula cell evaluated: the anchor of the instance CalcFml's evaluator ran, or for a
+    /// data table's cell, that cell, whose value the evaluation of the table's formula under its
+    /// substitution gave.
     pub fn formula(&self) -> CellKey {
-        self.report.anchor().cell()
+        self.table_cell.unwrap_or_else(|| self.report.anchor().cell())
     }
 
     pub fn calculation(&self) -> &'a Calculation {
@@ -145,6 +164,10 @@ impl ReadObserver for Unobserved {
 pub(crate) struct SnapshotCatalog<'r>(pub(crate) &'r ModelRoot);
 
 impl ReferenceCatalog for SnapshotCatalog<'_> {
+    fn workbook_name(&self) -> Option<&str> {
+        self.0.definitions().workbook_name()
+    }
+
     fn sheet_named(&self, name: &str) -> Option<SheetId> {
         let wanted: Vec<u16> = name.encode_utf16().collect();
         self.0
@@ -273,6 +296,11 @@ pub(crate) struct RecalcView<'a> {
     /// With iteration on, the value each formula on a cycle holds as the recalculation stands
     /// (L3, dc-m3u): one not yet evaluated in this pass reads as it, and no read of it waits.
     pub(crate) iterates: Option<&'a BTreeMap<NodeId, Option<CalcValue>>>,
+    /// With iteration off, the formulas a circular reference left uncalculated, and the flag a
+    /// read of one sets (dc-10y): such a formula's staged value is what its cell holds, not a
+    /// value this recalculation calculated, so a read of it gives no value and marks the reading
+    /// formula as reading a circular reference.
+    pub(crate) kept: Option<(&'a BTreeSet<NodeId>, &'a Cell<bool>)>,
 }
 
 /// Where each node stands in one recalculation, by its ID's slot, which no node of the state
@@ -456,7 +484,15 @@ impl<'a> WorkbookReader<'a> {
                 self.wait(at, node);
                 return None;
             }
-            NodeStanding::Staged(result) => result,
+            NodeStanding::Staged(result) => {
+                if let Some((kept, read)) = self.view.kept
+                    && kept.contains(&node)
+                {
+                    read.set(true);
+                    return None;
+                }
+                result
+            }
             NodeStanding::Published(result) => result?,
         };
         result.calculated().map(|(value, _)| value)
