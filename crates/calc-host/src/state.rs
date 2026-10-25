@@ -116,6 +116,11 @@ pub struct HostState {
     /// The serial date and time NOW and TODAY read ([`HostState::set_clock`]); `None` refuses
     /// them.
     pub(crate) clock: Option<f64>,
+    /// The row and column insertions and deletions that lead from the workbook as opened to the
+    /// current revision, in order: what moves the sizes and formats the file gave
+    /// ([`HostState::sheet_geometry`], [`HostState::number_format`]) and what a save moves the
+    /// package's rows and columns by.
+    pub(crate) axis_edits: Vec<calc_doc_model::AxisEdit>,
 }
 
 impl HostState {
@@ -154,6 +159,7 @@ impl HostState {
             inputs_changed_since_open: false,
             calculate_requested: false,
             clock: None,
+            axis_edits: Vec::new(),
         };
         // The package's date system, the options' locale profile, and no clock until one is set:
         // NOW, TODAY and a date read without a year are refused.
@@ -301,22 +307,56 @@ impl HostState {
             || definitions.data_table_containing(at).is_some()
     }
 
-    /// The row heights, column widths and hidden rows and columns of `sheet` as the file stated
-    /// them when the workbook was opened (dc-09v); `None` for a sheet the file did not hold. No
-    /// command changes them yet, and a structural edit does not move them.
-    pub fn sheet_geometry(&self, sheet: SheetId) -> Option<&calc_doc::SheetGeometry> {
-        self.loaded.sheet(sheet).map(|loaded| loaded.geometry())
+    /// The workbook's defined names at the current revision, their formulas as the file form
+    /// holds them (a structural edit adjusts their references).
+    pub fn defined_names(&self) -> &[calc_doc_model::DefinedName] {
+        self.model.definitions().names()
+    }
+
+    /// The row heights, column widths and hidden rows and columns of `sheet`: as the file stated
+    /// them when the workbook was opened (dc-09v), moved by the rows and columns inserted and
+    /// deleted since ([`calc_doc::SheetGeometry::moved`]); `None` for a sheet the file did not
+    /// hold. No command sets a size yet.
+    pub fn sheet_geometry(&self, sheet: SheetId) -> Option<calc_doc::SheetGeometry> {
+        let mut geometry = self.loaded.sheet(sheet)?.geometry().clone();
+        for edit in self.axis_edits.iter().filter(|edit| edit.sheet() == sheet) {
+            geometry = geometry.moved(*edit);
+        }
+        Some(geometry)
+    }
+
+    /// Where the cell at `at` was when the workbook was opened, through the rows and columns
+    /// inserted and deleted since: an inserted cell's source is the cell before the inserted band
+    /// ([`calc_doc_model::source_position`]); `None` for one inserted at the start of an axis.
+    pub(crate) fn opened_position(&self, at: CellKey) -> Option<(u32, u32)> {
+        let (mut row, mut column) = (at.row(), at.column());
+        for edit in self
+            .axis_edits
+            .iter()
+            .rev()
+            .filter(|edit| edit.sheet() == at.sheet())
+        {
+            match edit.axis() {
+                calc_doc_model::Axis::Rows => row = calc_doc_model::source_position(*edit, row)?,
+                calc_doc_model::Axis::Columns => {
+                    column = calc_doc_model::source_position(*edit, column)?
+                }
+            }
+        }
+        Some((row, column))
     }
 
     /// The number format code of the cell at `at`: the code of the cell format the file gave the
     /// cell when the workbook was opened (`General` when it gave none), or `None` when the file
     /// names a format the styles part neither declares nor builds in (dc-09v). A cell an edit
-    /// sets keeps the format of its place; no command changes formats yet.
+    /// sets keeps the format of its place; a cell moved by an inserted or deleted row or column
+    /// keeps its own, and an inserted one takes the format of the cell before the inserted band
+    /// ([`HostState::opened_position`]); no command sets a format yet.
     pub fn number_format(&self, at: CellKey) -> Option<&str> {
-        let style = self
-            .loaded
-            .sheet(at.sheet())
-            .map_or(0, |sheet| sheet.style(at.row(), at.column()));
+        let style = match (self.loaded.sheet(at.sheet()), self.opened_position(at)) {
+            (Some(sheet), Some((row, column))) => sheet.style(row, column),
+            _ => 0,
+        };
         self.loaded.styles().number_format_code(style)
     }
 

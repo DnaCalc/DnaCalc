@@ -77,6 +77,32 @@ pub fn moved_position(edit: AxisEdit, index: u32) -> Option<u32> {
     }
 }
 
+/// The position before `edit` whose format the position `index` after it has: the position it
+/// moved from, or, for a position `edit` inserted, the position just before the inserted band
+/// (Excel's default for an insertion: the format of the row above or the column to the left;
+/// measured, calc-host's tests/fixtures/d2/structural-excel.json). `None` for a position inserted
+/// at the start of the axis, which takes no format.
+pub fn source_position(edit: AxisEdit, index: u32) -> Option<u32> {
+    match edit.change() {
+        AxisChange::Insert => {
+            if index < edit.first() {
+                Some(index)
+            } else if index <= edit.last() {
+                (edit.first() > 1).then(|| edit.first() - 1)
+            } else {
+                Some(index - edit.count())
+            }
+        }
+        AxisChange::Delete => {
+            if index < edit.first() {
+                Some(index)
+            } else {
+                index.checked_add(edit.count())
+            }
+        }
+    }
+}
+
 /// Where a run of positions goes: grown by positions inserted inside it, shrunk by those deleted
 /// from it, cut at the grid's edge; `None` when all of it is deleted or pushed past the edge.
 pub fn moved_run(edit: AxisEdit, start: u32, end: u32) -> Option<(u32, u32)> {

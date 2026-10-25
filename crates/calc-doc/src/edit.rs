@@ -3,9 +3,10 @@
 //! write.
 
 use crate::load::FORMULA_MAX_UTF16_CODE_UNITS;
-use calc_doc_model::value::{CellKey, GridArea};
+use calc_doc_model::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS, SheetId};
 use calc_doc_model::{
-    ApplyError, ArrayKind, CellInput, FormulaText, ModelRoot, OpBatch, WorkbookOp,
+    ApplyError, ArrayKind, Axis, AxisChange, AxisEdit, CellInput, FormulaRewriter, FormulaText,
+    ModelRoot, OpBatch, WorkbookOp,
 };
 use std::fmt;
 use std::sync::Arc;
@@ -60,6 +61,14 @@ pub enum EditError {
         operation: usize,
         code: calc_doc_model::value::WorksheetErrorCode,
     },
+    /// The operation at this index of a structural batch ([`prepare_structural_edit`]) is not
+    /// an insertion or deletion of rows or columns.
+    NotAxisEdit { operation: usize },
+    /// The axis edit at this index changes the header or totals row of the table `table`,
+    /// inserts or deletes columns inside it, or deletes all of it.
+    TablePart { operation: usize, table: String },
+    /// The insertion at this index would push cells that hold an input off the grid.
+    PushedOffGrid { operation: usize },
 }
 
 /// Whether Excel holds `code` as a constant in a cell: the seven classic errors.
@@ -89,6 +98,18 @@ impl fmt::Display for EditError {
                 "operation {operation} changes part of the array formula anchored at row {} column {}",
                 anchor.row(),
                 anchor.column()
+            ),
+            Self::NotAxisEdit { operation } => write!(
+                f,
+                "operation {operation} of a structural batch is not a row or column edit"
+            ),
+            Self::TablePart { operation, table } => write!(
+                f,
+                "operation {operation} changes the header, totals or columns of the table {table}"
+            ),
+            Self::PushedOffGrid { operation } => write!(
+                f,
+                "operation {operation} would push cells that hold an input off the grid"
             ),
         }
     }
@@ -184,6 +205,141 @@ fn check_arrays(model: &ModelRoot, batch: &OpBatch) -> Result<(), EditError> {
                     anchor: array.anchor(),
                 });
             }
+        }
+    }
+    Ok(())
+}
+
+/// No sheet is issued by an axis edit.
+fn no_sheet() -> SheetId {
+    unreachable!("an axis edit issues no sheet")
+}
+
+/// [`prepare_edit`] for a batch of row and column insertions and deletions
+/// ([`WorkbookOp::EditAxis`]): the next revision as [`ModelRoot::apply_structural`] makes it,
+/// moving the cells, array formulas, tables, hidden rows and unloaded cells, and with `rewriter`
+/// rewriting every formula's and defined name's references (calc-engine's
+/// `ReferenceRewriter`). Refused, with nothing made, as Excel refuses the same edit:
+///
+/// - an operation that is not an axis edit ([`EditError::NotAxisEdit`]): sheet edits and cell
+///   edits are not admitted in a structural batch here;
+/// - an edit that changes part of a legacy array formula, inserting inside it or deleting some but
+///   not all of its rows or columns ([`EditError::ArrayPart`]);
+/// - an edit that changes a table's header or totals row, inserts or deletes columns inside a
+///   table, or deletes the whole table ([`EditError::TablePart`]): the table part records its
+///   columns and those rows, which this edit would contradict;
+/// - an insertion that would push cells holding an input off the grid
+///   ([`EditError::PushedOffGrid`]).
+///
+/// Each edit is checked against the revision the batch's earlier edits leave.
+pub fn prepare_structural_edit(
+    model: &ModelRoot,
+    batch: &OpBatch,
+    rewriter: &dyn FormulaRewriter,
+) -> Result<PreparedEdit, EditError> {
+    let mut current: Option<Arc<ModelRoot>> = None;
+    for (operation, op) in batch.operations.iter().enumerate() {
+        let WorkbookOp::EditAxis(edit) = op else {
+            return Err(EditError::NotAxisEdit { operation });
+        };
+        let next = {
+            let root: &ModelRoot = current.as_deref().unwrap_or(model);
+            check_axis_edit(root, operation, *edit)?;
+            let single = OpBatch {
+                base: root.revision(),
+                operations: vec![op.clone()],
+            };
+            root.apply_structural(&single, rewriter, &mut no_sheet)
+                .map_err(EditError::Model)?
+        };
+        current = Some(next);
+    }
+    let edited = model
+        .apply_structural(batch, rewriter, &mut no_sheet)
+        .map_err(EditError::Model)?;
+    Ok(PreparedEdit { model: edited })
+}
+
+/// The first and last positions of an area on an axis.
+fn span(area: GridArea, axis: Axis) -> (u32, u32) {
+    match axis {
+        Axis::Rows => (area.first().row(), area.last().row()),
+        Axis::Columns => (area.first().column(), area.last().column()),
+    }
+}
+
+/// Refuses an axis edit Excel refuses on `root` (see [`prepare_structural_edit`]).
+fn check_axis_edit(root: &ModelRoot, operation: usize, edit: AxisEdit) -> Result<(), EditError> {
+    let (first, last) = (edit.first(), edit.last());
+    let definitions = root.definitions();
+    let on_sheet = |area: GridArea| area.sheet() == edit.sheet();
+    // Whether the edit changes part of the span [top, bottom]: an insertion strictly inside it,
+    // or a deletion that meets it without covering it.
+    let splits = |(top, bottom): (u32, u32)| match edit.change() {
+        AxisChange::Insert => top < first && first <= bottom,
+        AxisChange::Delete => first <= bottom && top <= last && !(first <= top && bottom <= last),
+    };
+    for array in definitions.arrays() {
+        if on_sheet(array.area())
+            && array.kind() == ArrayKind::Legacy
+            && splits(span(array.area(), edit.axis()))
+        {
+            return Err(EditError::ArrayPart {
+                operation,
+                anchor: array.anchor(),
+            });
+        }
+    }
+    for table in definitions.tables() {
+        if !on_sheet(table.area) {
+            continue;
+        }
+        let (top, bottom) = span(table.area, Axis::Rows);
+        let (left, right) = span(table.area, Axis::Columns);
+        let refused = match (edit.axis(), edit.change()) {
+            (Axis::Columns, AxisChange::Insert) => left < first && first <= right,
+            (Axis::Columns, AxisChange::Delete) => first <= right && left <= last,
+            (Axis::Rows, AxisChange::Insert) => {
+                // Inside the data rows the table grows; a row inserted at its header or between
+                // its data and its totals row would change those rows.
+                let header = top + table.header_rows;
+                let totals = bottom + 1 - table.totals_rows;
+                top < first
+                    && (first < header
+                        || (table.totals_rows > 0 && first > totals - 1 && first <= bottom))
+            }
+            (Axis::Rows, AxisChange::Delete) => {
+                let header_last = top + table.header_rows - 1;
+                let totals_first = bottom + 1 - table.totals_rows;
+                let meets = |a: u32, b: u32| a <= b && first <= b && a <= last;
+                (table.header_rows > 0 && meets(top, header_last))
+                    || (table.totals_rows > 0 && meets(totals_first, bottom))
+                    || (first <= top && bottom <= last)
+            }
+        };
+        if refused {
+            return Err(EditError::TablePart {
+                operation,
+                table: table.display_name.clone(),
+            });
+        }
+    }
+    if edit.change() == AxisChange::Insert {
+        let size = edit.axis().size();
+        let band_first = size - edit.count() + 1;
+        let band = match edit.axis() {
+            Axis::Rows => GridArea::new(
+                CellKey::new(edit.sheet(), band_first, 1).expect("in the grid"),
+                CellKey::new(edit.sheet(), size, MAX_COLUMNS).expect("in the grid"),
+            ),
+            Axis::Columns => GridArea::new(
+                CellKey::new(edit.sheet(), 1, band_first).expect("in the grid"),
+                CellKey::new(edit.sheet(), MAX_ROWS, size).expect("in the grid"),
+            ),
+        }
+        .expect("one sheet");
+        if root.cells(band).into_iter().flatten().next().is_some() {
+            return Err(EditError::PushedOffGrid { operation });
         }
     }
     Ok(())

@@ -1,0 +1,122 @@
+{
+  "format": "dnacalc-d2-ofgem-round-trip",
+  "what": "Each Ofgem workbook opened in a calc-host HostSession, the steps entered as SkinIntent::EnterCell (undo as SkinIntent::Undo), each recalculated in automatic mode, saved with HostSession::save; the saved package captured in Excel (cargo xtask capture, a full rebuild) and compared (cargo xtask compare). saved_values_equal_excel is the capture's count of saved cached values equal to what Excel calculated from the saved package. Fail = mismatched + refused + failed or missing (unproven counts as failed).",
+  "code": "57bd9cb",
+  "excel": "16.0.20430.20182",
+  "workbooks": [
+    {
+      "workbook": "Annex-4-policy-cost-allowance-methodology-v1.25.xlsx",
+      "source_sha256": "1f75eb46e93e54b486542025de142abd2d036255d8c9c1effa34b4a624ff06e5",
+      "steps": [
+        "3a Demand!C9=3.3",
+        "3i New FIT methodology!F45=300000000",
+        "3a Demand!N2==C9*1000+'3i New FIT methodology'!F45/1000000",
+        "3a Demand!N4==SEQUENCE(3)*C9",
+        "3a Demand!L9=99",
+        "undo"
+      ],
+      "step_results": [
+        "3a Demand!C9=3.3: revision 1, 10582 results published",
+        "3i New FIT methodology!F45=300000000: revision 2, 3452 results published",
+        "3a Demand!N2==C9*1000+'3i New FIT methodology'!F45/1000000: revision 3, 1 results published",
+        "3a Demand!N4==SEQUENCE(3)*C9: revision 4, 1 results published",
+        "3a Demand!L9=99: revision 5, 252 results published",
+        "undo: revision 6, 252 results published"
+      ],
+      "save": "SaveReceipt { bytes_written: 463770, entries_copied: 104, parts_written: 15, revision: Some(AuthoredRevision(6)), caches_dropped: 0, sheets_rewritten_for_caches: 10, values_written: 10584, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+      "saved_sha256": "bd83a403aba465c6493c00de259310dbd614a3d01201cf57a190f14a94977595",
+      "excel_opened_without_repair": true,
+      "capture": "10584 formula cells, 10583 raw observations, 10583 saved caches, 10583 reopened values, 1 capture failures",
+      "capture_failures": [
+        [
+          "spill",
+          "3a Demand!N4: Excel reports a spill over 3a Demand!N4:N6 (3 rows by 1 column)"
+        ]
+      ],
+      "saved_values_equal_excel": 10583,
+      "formula_cells": 10584,
+      "pass": 10583,
+      "fail": 1,
+      "mismatched": 0,
+      "refused": 0,
+      "failed_or_missing": 1,
+      "pass_rate": "99.991%"
+    },
+    {
+      "workbook": "Annex-9-Levelisation-allowance-methodology-and-levelised-cap-levels-v1.11.xlsx",
+      "source_sha256": "5a7277ca7af148d1b918d87a29fab5fa9100e8764a88b9042d7969b7dbe1a6f8",
+      "steps": [
+        "1c Consumption adjusted levels!C7=2.6",
+        "3a DTC_Other!AF12=180",
+        "3a DTC_Other!BH12==AF12+AG12",
+        "3a DTC_Other!BH14==AF12:AF14*2",
+        "1c Consumption adjusted levels!C8=5",
+        "undo"
+      ],
+      "step_results": [
+        "1c Consumption adjusted levels!C7=2.6: revision 1, 32880 results published",
+        "3a DTC_Other!AF12=180: revision 2, 313 results published",
+        "3a DTC_Other!BH12==AF12+AG12: revision 3, 1 results published",
+        "3a DTC_Other!BH14==AF12:AF14*2: revision 4, 1 results published",
+        "1c Consumption adjusted levels!C8=5: revision 5, 1400 results published",
+        "undo: revision 6, 1400 results published"
+      ],
+      "save": "SaveReceipt { bytes_written: 1209302, entries_copied: 91, parts_written: 12, revision: Some(AuthoredRevision(6)), caches_dropped: 0, sheets_rewritten_for_caches: 7, values_written: 32882, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+      "saved_sha256": "bd22c399319c06352cabb82dc8b5ecaa2522ceec31df106f763fcb9d7f9cc034",
+      "excel_opened_without_repair": true,
+      "capture": "32882 formula cells, 32881 raw observations, 32881 saved caches, 32881 reopened values, 1 capture failures",
+      "capture_failures": [
+        [
+          "spill",
+          "3a DTC_Other!BH14: Excel reports a spill over 3a DTC_Other!BH14:BH16 (3 rows by 1 column)"
+        ]
+      ],
+      "saved_values_equal_excel": 32881,
+      "formula_cells": 32882,
+      "pass": 32881,
+      "fail": 1,
+      "mismatched": 0,
+      "refused": 0,
+      "failed_or_missing": 1,
+      "pass_rate": "99.997%"
+    },
+    {
+      "workbook": "Default-tariff-cap-level-v1.31.xlsx",
+      "source_sha256": "f3635a64e583a9031ec0ed9aea636709cc6117f3719e9a29d1174917aa3da0ae",
+      "steps": [
+        "3l HAP!E9=0.015",
+        "3h OC !E8=80",
+        "3h OC !AH8==E8*2+'3l HAP'!E9",
+        "3h OC !AH10==XLOOKUP(80,E7:E12,E7:E12)",
+        "1c Consumption adjusted levels!C7=9",
+        "undo"
+      ],
+      "step_results": [
+        "3l HAP!E9=0.015: revision 1, 165810 results published",
+        "3h OC !E8=80: revision 2, 48487 results published",
+        "3h OC !AH8==E8*2+'3l HAP'!E9: revision 3, 385 results published",
+        "3h OC !AH10==XLOOKUP(80,E7:E12,E7:E12): revision 4, 385 results published",
+        "1c Consumption adjusted levels!C7=9: revision 5, 3072 results published",
+        "undo: revision 6, 3072 results published"
+      ],
+      "save": "SaveReceipt { bytes_written: 4091063, entries_copied: 208, parts_written: 29, revision: Some(AuthoredRevision(6)), caches_dropped: 0, sheets_rewritten_for_caches: 25, values_written: 165812, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+      "saved_sha256": "0f0cdbf95c40766c527fe63a68a7af0ba5f58f2edda4a465ae93a0d3e572e373",
+      "excel_opened_without_repair": true,
+      "capture": "165812 formula cells, 165812 raw observations, 165812 saved caches, 165812 reopened values, 0 capture failures",
+      "capture_failures": [],
+      "saved_values_equal_excel": 165812,
+      "formula_cells": 165812,
+      "pass": 165812,
+      "fail": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "failed_or_missing": 0,
+      "pass_rate": "100.000%"
+    }
+  ],
+  "notes": [
+    "The spilled anchors (Annex 4 3a Demand!N4, Annex 9 3a DTC_Other!BH14) count as failed: Excel reports the same spill range as the save's ref, but CaptureRecord version 2 holds no array, so the anchor is not compared (dc-dw44).",
+    "The first two captures of the Annex 9 save failed to open it (\"Open method of Workbooks class failed\"): the capture's work directory made the copied input's path longer than Excel opens; with a short --work-dir the same package opened and captured. The package also opened through measure-saved-open.ps1.",
+    "The packages are kept outside the repository at C:/Work/DnaCalc/corpus/d2-roundtrip-final with their captures and compare outputs."
+  ]
+}

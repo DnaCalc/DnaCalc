@@ -5,9 +5,13 @@
 use crate::state::HostState;
 use calc_doc::EditError;
 use calc_doc_model::value::{CellKey, GridArea};
-use calc_doc_model::{ArrayFormula, AuthoredRevision, CellInput, FormulaText, OpBatch, WorkbookOp};
+use calc_doc_model::{
+    ArrayFormula, AuthoredRevision, AxisEdit, CellInput, FormulaText, ModelRoot, OpBatch,
+    WorkbookOp,
+};
 use calc_engine::{CalcTick, FormulaNode, InputSeed, NodeChange, PrepareError};
 use std::fmt;
+use std::sync::Arc;
 
 /// One edit of a cell-editing command.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,6 +28,10 @@ pub enum CellEdit {
         array: ArrayFormula,
         formula: FormulaText,
     },
+    /// Inserts or deletes rows or columns of a sheet ([`calc_doc::prepare_structural_edit`]):
+    /// the cells and what moves with them shift, and every formula's and defined name's
+    /// references adjust as Excel's do. A command holding one holds only axis edits.
+    Axis(AxisEdit),
 }
 
 impl CellEdit {
@@ -35,6 +43,7 @@ impl CellEdit {
                 array,
                 input: CellInput::Formula(formula),
             },
+            CellEdit::Axis(edit) => WorkbookOp::EditAxis(edit),
         }
     }
 }
@@ -183,7 +192,20 @@ pub fn dispatch(
         operations: command.edits.into_iter().map(CellEdit::operation).collect(),
     };
 
-    let document = calc_doc::prepare_edit(&host.model, &batch).map_err(CommandError::Document)?;
+    let axis_edits: Vec<AxisEdit> = batch
+        .operations
+        .iter()
+        .filter_map(|op| match op {
+            WorkbookOp::EditAxis(edit) => Some(*edit),
+            _ => None,
+        })
+        .collect();
+    let document = if axis_edits.is_empty() {
+        calc_doc::prepare_edit(&host.model, &batch)
+    } else {
+        calc_doc::prepare_structural_edit(&host.model, &batch, &calc_engine::ReferenceRewriter)
+    }
+    .map_err(CommandError::Document)?;
 
     let formula_cells_before = host.engine.node_count();
     let pending_before = host.engine.pending().count();
@@ -230,14 +252,20 @@ pub fn dispatch(
     }
     // After the commit the pending nodes are those pending before, the added and replaced nodes
     // and the seeds' dependents, less the removed ones: at most this many.
-    let mut pending = Vec::with_capacity(pending_before + added + replaced + seeded);
+    // A structural edit leaves every node pending.
+    let mut pending = Vec::with_capacity(if axis_edits.is_empty() {
+        pending_before + added + replaced + seeded
+    } else {
+        formula_cells
+    });
 
     let committed = calc_engine::commit_edit(engine);
     host.model = document.into_model();
     let cancelled_recalc = host.work.take().map(|work| work.tick());
-    if changes_inputs {
+    if changes_inputs || !axis_edits.is_empty() {
         host.inputs_changed_since_open = true;
     }
+    host.axis_edits.extend(axis_edits);
 
     for node in host.engine.pending() {
         if let Some(record) = host.engine.node(node) {
@@ -250,6 +278,43 @@ pub fn dispatch(
         revision: committed.revision(),
         changed_cells,
         cleared_areas,
+        pending,
+        cancelled_recalc,
+    })
+}
+
+/// Brings back the revision `earlier` (of this host's lineage) as the next revision
+/// ([`calc_doc_model::ModelRoot::restored`]), with the engine state built afresh for it
+/// ([`calc_engine::EngineState::rebuilt`]: every formula pending, nothing published) and
+/// `axis_edits` as the axis edits since the workbook was opened that lead to it. This undoes an
+/// edit no batch inverts, a structural one. A recalculation in progress is cancelled.
+pub(crate) fn restore(
+    host: &mut HostState,
+    earlier: &Arc<ModelRoot>,
+    axis_edits: Vec<AxisEdit>,
+) -> Result<CommandReceipt, CommandError> {
+    let base = host.model.revision();
+    let model = host
+        .model
+        .restored(earlier)
+        .map_err(|error| CommandError::Document(EditError::Model(error)))?;
+    let engine = host.engine.rebuilt(&model);
+    host.model = model;
+    host.engine = engine;
+    let cancelled_recalc = host.work.take().map(|work| work.tick());
+    host.inputs_changed_since_open = true;
+    host.axis_edits = axis_edits;
+    let mut pending: Vec<CellKey> = host
+        .engine
+        .pending()
+        .filter_map(|node| host.engine.node(node).map(FormulaNode::anchor))
+        .collect();
+    pending.sort_unstable();
+    Ok(CommandReceipt {
+        base,
+        revision: host.model.revision(),
+        changed_cells: Vec::new(),
+        cleared_areas: Vec::new(),
         pending,
         cancelled_recalc,
     })

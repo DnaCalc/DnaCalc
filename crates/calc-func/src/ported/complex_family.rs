@@ -3,8 +3,9 @@
 
 use crate::ported::complex_decimal;
 use crate::value::WorksheetErrorCode;
-use crate::ported::excel_numeric::crt_pow;
-use crate::ported::excel_numeric::{crt_exp, crt_log};
+use crate::ported::excel_numeric::{
+    crt_atan2, crt_cos, crt_cosh, crt_exp, crt_hypot, crt_log, crt_pow, crt_sin, crt_sinh,
+};
 
 /// Decimal text of digits with at most one point and an optional exponent, read to its 15 leading
 /// significant digits and converted to the nearest binary64; `None` outside that form or with a
@@ -125,7 +126,7 @@ impl ParsedComplex {
         Self::new(self.re, -self.im, None)
     }
     pub(crate) fn abs(self) -> f64 {
-        self.re.hypot(self.im)
+        crt_hypot(self.re, self.im)
     }
     pub(crate) fn argument(self) -> Result<f64, WorksheetErrorCode> {
         let re = normalize_zero(self.re);
@@ -149,14 +150,14 @@ impl ParsedComplex {
     }
     pub(crate) fn exp(self) -> Self {
         let s = crt_exp(self.re);
-        Self::new(s * self.im.cos(), s * self.im.sin(), None)
+        Self::new(s * crt_cos(self.im), s * crt_sin(self.im), None)
     }
     pub(crate) fn ln(self) -> Result<Self, WorksheetErrorCode> {
         let mag = self.abs();
         if mag == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
-        Ok(Self::new(crt_log(mag), self.im.atan2(self.re), None))
+        Ok(Self::new(crt_log(mag), crt_atan2(self.im, self.re), None))
     }
     pub(crate) fn sqrt(self) -> Self {
         // IMSQRT has a distinct magnitude graph from IMABS: square each component with
@@ -209,38 +210,38 @@ impl ParsedComplex {
         )
     }
     pub(crate) fn tan(self) -> Result<Self, WorksheetErrorCode> {
-        let denom = (2.0 * self.re).cos() + (2.0 * self.im).cosh();
+        let denom = crt_cos(2.0 * self.re) + crt_cosh(2.0 * self.im);
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
         Ok(Self::new(
-            (2.0 * self.re).sin() / denom,
-            (2.0 * self.im).sinh() / denom,
+            crt_sin(2.0 * self.re) / denom,
+            crt_sinh(2.0 * self.im) / denom,
             None,
         ))
     }
     pub(crate) fn sinh(self) -> Self {
         Self::new(
-            self.re.sinh() * self.im.cos(),
-            self.re.cosh() * self.im.sin(),
+            crt_sinh(self.re) * crt_cos(self.im),
+            crt_cosh(self.re) * crt_sin(self.im),
             None,
         )
     }
     pub(crate) fn cosh(self) -> Self {
         Self::new(
-            self.re.cosh() * self.im.cos(),
-            self.re.sinh() * self.im.sin(),
+            crt_cosh(self.re) * crt_cos(self.im),
+            crt_sinh(self.re) * crt_sin(self.im),
             None,
         )
     }
     pub(crate) fn cot(self) -> Result<Self, WorksheetErrorCode> {
-        let denom = (2.0 * self.im).cosh() - (2.0 * self.re).cos();
+        let denom = crt_cosh(2.0 * self.im) - crt_cos(2.0 * self.re);
         if denom == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
         Ok(Self::new(
-            (2.0 * self.re).sin() / denom,
-            -(2.0 * self.im).sinh() / denom,
+            crt_sin(2.0 * self.re) / denom,
+            -crt_sinh(2.0 * self.im) / denom,
             None,
         ))
     }
@@ -267,8 +268,8 @@ impl ParsedComplex {
             return Ok(Self::new(0.0, 0.0, None));
         }
         let scale = crt_pow(self.abs(), exponent);
-        let angle = self.im.atan2(self.re) * exponent;
-        Ok(Self::new(scale * angle.cos(), scale * angle.sin(), None))
+        let angle = crt_atan2(self.im, self.re) * exponent;
+        Ok(Self::new(scale * crt_cos(angle), scale * crt_sin(angle), None))
     }
 }
 

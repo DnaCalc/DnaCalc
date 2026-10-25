@@ -20,11 +20,12 @@ pub fn sinh_kernel(n: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ported::excel_numeric::crt_sinh;
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sinh_kernel_matches_std() {
-        assert_eq!(sinh_kernel(1.0), 1.0f64.sinh());
+        assert_eq!(sinh_kernel(1.0), crt_sinh(1.0f64));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -75,14 +76,13 @@ mod tests {
         }
     }
 
-    /// The libm misses are those of the MSVC runtime's `sinh`: glibc's `sinh` returns Excel's
-    /// bits at 0.01 (Linux sweep, dc-ns0), so `f64::sinh` is no witness on other targets.
-    #[cfg(target_env = "msvc")]
-    /// Native-only: the MSVC runtime's libm is its witness, so it runs on Windows only.
-    #[test]
+    /// The libm misses are those of the MSVC runtime's `sinh` (glibc's returns Excel's bits at 0.01,
+    /// Linux sweep, dc-ns0): the witness is that runtime's `sinh`, ported (`crt_sinh`, dc-twc).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn sinh_differs_from_the_msvc_libm_where_excel_does() {
-        assert_ne!(sinh_kernel(0.01).to_bits(), 0.01_f64.sinh().to_bits());
-        assert_ne!(sinh_kernel(2.0).to_bits(), 2.0_f64.sinh().to_bits());
+        assert_ne!(sinh_kernel(0.01).to_bits(), crt_sinh(0.01_f64).to_bits());
+        assert_ne!(sinh_kernel(2.0).to_bits(), crt_sinh(2.0_f64).to_bits());
     }
 
     // BUG-FUNC-027 CLASS-A3: live Excel 16.0 b20026 SINH(-326648.33)=#NUM!.
@@ -96,7 +96,7 @@ mod tests {
         );
         assert_eq!(
             ExcelRealPolicy::FINITE.publish(1.0, sinh_kernel(1.0)),
-            Ok(1.0f64.sinh())
+            Ok(crt_sinh(1.0f64))
         );
     }
 }

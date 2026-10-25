@@ -31,7 +31,7 @@
 
 use crate::command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
 use crate::entry::{EntryRefusal, interpret_entry_in};
-use crate::history::{History, Irreversible, Selection, Step, inverse};
+use crate::history::{History, Inverse, Irreversible, Selection, Step, inverse};
 use crate::project::{ProjectedCell, ProjectedValue, ProjectionRequest, project};
 use crate::recalc::{HostProgress, calculate, step};
 use crate::save::{SaveFailed, save};
@@ -39,7 +39,7 @@ use crate::state::{HostOptions, HostState, OpenFailure};
 use calc_doc::{CalcMode, OpenPolicy, PackageRead, PackageWrite, SavePolicy, SaveReceipt};
 use calc_doc_model::value::ExcelText;
 use calc_doc_model::value::{CellKey, GridArea, SheetId};
-use calc_doc_model::{ArrayFormula, ArrayKind, AuthoredRevision, CellInput, FormulaText};
+use calc_doc_model::{ArrayFormula, ArrayKind, AuthoredRevision, AxisEdit, CellInput, FormulaText};
 use calc_engine::{CalcTick, Unobserved, WorkBudget};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -123,6 +123,10 @@ pub enum SkinIntent {
     /// Cell edits (values, formulas and clears, over any cells) applied in order as one
     /// transaction and one undo step.
     Edit { edits: Vec<CellEdit> },
+    /// Inserts or deletes rows or columns of a sheet, as one transaction and one undo step: the
+    /// cells and what moves with them shift, and references adjust as Excel's do (a reference
+    /// to a deleted cell becomes #REF!). Undo brings back the revision before it.
+    EditAxis(AxisEdit),
     /// Takes back the last edit not yet undone, as a new transaction.
     Undo,
     /// Commits again the last edit undone, as a new transaction.
@@ -400,15 +404,14 @@ impl HostSession {
                 let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
                 self.edit(edits, &mut receipt)
             }
-            SkinIntent::Copy { from, to } => {
-                match crate::copy::copy_edits(&self.host, from, to) {
-                    Ok(edits) => {
-                        let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
-                        self.edit(edits, &mut receipt)
-                    }
-                    Err(refusal) => Err(IntentError::Copy(refusal)),
+            SkinIntent::EditAxis(edit) => self.edit(vec![CellEdit::Axis(edit)], &mut receipt),
+            SkinIntent::Copy { from, to } => match crate::copy::copy_edits(&self.host, from, to) {
+                Ok(edits) => {
+                    let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                    self.edit(edits, &mut receipt)
                 }
-            }
+                Err(refusal) => Err(IntentError::Copy(refusal)),
+            },
             SkinIntent::Undo => self.undo(&mut receipt),
             SkinIntent::Redo => self.redo(&mut receipt),
             SkinIntent::Recalculate => {
@@ -510,7 +513,7 @@ impl HostSession {
         edits: Vec<CellEdit>,
         receipt: &mut IntentReceipt,
     ) -> Result<(), IntentError> {
-        let inverse = inverse(&self.host.model, &edits);
+        let inverse = inverse(&self.host.model, &self.host.axis_edits, &edits);
         self.commit(edits.clone(), receipt)?;
         self.history.record(Step {
             forward: edits,
@@ -552,7 +555,21 @@ impl HostSession {
                 return Err(IntentError::Irreversible(irreversible));
             }
         };
-        if let Err(error) = self.commit(inverse, receipt) {
+        let undone = match inverse {
+            Inverse::Edits(edits) => self.commit(edits, receipt),
+            Inverse::Restore { model, axis_edits } => {
+                match crate::command::restore(&mut self.host, &model, axis_edits) {
+                    Ok(committed) => {
+                        let revision = committed.revision();
+                        receipt.committed = Some(committed);
+                        receipt.deltas += self.deliver_changes(DeltaCause::Committed { revision });
+                        Ok(())
+                    }
+                    Err(error) => Err(IntentError::Command(error)),
+                }
+            }
+        };
+        if let Err(error) = undone {
             self.history.restore_undo(step);
             return Err(error);
         }
