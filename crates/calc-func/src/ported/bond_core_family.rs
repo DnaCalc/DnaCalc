@@ -1477,8 +1477,8 @@ mod tests {
     // `dsc = E - A` discount-fraction rule + the fractional x87 `pow` chain
     // (`excel_pow_chain`). Held out: b37 bases 2/3 3656+3658 (14 open ±1-ULP
     // extreme-yield residuals), b38 fresh 945/945 all bases. Bits from answers-b37-price.json.
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn price_dsc_e_minus_a_and_x87_pow_chain_pins() {
         // (settle, mat, rate, yld, red, freq, basis, excel_bits)
         let rows: &[(f64, f64, f64, f64, f64, f64, f64, u64)] = &[
@@ -1549,8 +1549,8 @@ mod tests {
     // Macaulay body op-graph. b44 6,360 live witnesses: 2247 -> 6217 exact
     // (bases 2/3 0/1272 -> 1239/1242; on-coupon 100%). Remaining 143 are the
     // shared fractional x87 pow-chain ±1-2 ULP wall (same as PRICE b37 bases 2/3).
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn duration_matches_live_excel_pinned_witnesses() {
         // settlement, maturity, coupon, yld bits; freq; basis; excel bits
         let rows: &[(u64, u64, u64, u64, f64, f64, u64)] = &[

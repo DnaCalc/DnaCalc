@@ -832,8 +832,8 @@ mod tests {
     /// the forward per-step-stored x87 accumulation loop. The broader
     /// 1,530-row live sweep is replayed by
     /// `calc_graph_racer verify_xnpv_promotion` over the oracle cache.
-    /// Native-only: pins Excel's x87 bits; wasm32 has no x87 route yet (dc-8dg).
-    #[test]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn xnpv_matches_live_excel_pinned_witnesses() {
         struct Pin {
             rate_bits: u64,
