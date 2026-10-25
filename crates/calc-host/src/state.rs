@@ -5,7 +5,7 @@ use crate::recalc::RecalcFailed;
 use calc_doc::{
     CalcMode, DateSystem, LoadError, LoadedWorkbook, OpenError, OpenPolicy, PackageRead,
 };
-use calc_doc_model::value::{CellKey, IdAllocator, NumericMode, SheetId};
+use calc_doc_model::value::{CellKey, GridArea, IdAllocator, NumericMode, SheetId};
 use calc_doc_model::{AuthoredRevision, ModelRoot, SheetEntry};
 use calc_engine::{CacheWithoutFormula, EngineState, RecalcWork};
 use calc_fml::{CalcEnvironment, DateSystem as FmlDateSystem, FormatProfile};
@@ -216,6 +216,59 @@ impl HostState {
             precision_as_displayed: false,
             numeric: self.options.numeric.clone(),
         }
+    }
+
+    /// The smallest area of `sheet` that holds every cell a projection of the sheet can show as
+    /// not empty: each cell with an authored input, each cell of an array formula's area, each
+    /// cell a published spill fills, and each unloaded cell (a rich value, a data table's cell).
+    /// `None` when the sheet holds none of them, or the current revision holds no such sheet.
+    ///
+    /// A skin bounds its scrolling and its first view of a sheet by it (dc-rif). It reads every
+    /// occupied cell of the sheet once, so a skin keeps it per revision rather than per frame.
+    pub fn used_area(&self, sheet: SheetId) -> Option<GridArea> {
+        let mut bounds: Option<(u32, u32, u32, u32)> = None;
+        let mut take = |top: u32, left: u32, bottom: u32, right: u32| {
+            bounds = Some(match bounds {
+                None => (top, left, bottom, right),
+                Some((t, l, b, r)) => (t.min(top), l.min(left), b.max(bottom), r.max(right)),
+            });
+        };
+        for page in self.model.pages(sheet)? {
+            for (row, column, _) in page.iter() {
+                take(row, column, row, column);
+            }
+        }
+        let definitions = self.model.definitions();
+        let full = GridArea::full_sheet(sheet);
+        for array in definitions.arrays_meeting(full) {
+            let area = array.area();
+            take(
+                area.first().row(),
+                area.first().column(),
+                area.last().row(),
+                area.last().column(),
+            );
+        }
+        for (at, _) in definitions.unloaded_in(full) {
+            take(at.row(), at.column(), at.row(), at.column());
+        }
+        for spill in self
+            .engine
+            .spills()
+            .filter(|spill| spill.anchor().sheet() == sheet)
+        {
+            let area = spill.area();
+            take(
+                area.first().row(),
+                area.first().column(),
+                area.last().row(),
+                area.last().column(),
+            );
+        }
+        let (top, left, bottom, right) = bounds?;
+        let first = CellKey::new(sheet, top, left).expect("an occupied cell is inside the grid");
+        let last = CellKey::new(sheet, bottom, right).expect("an occupied cell is inside the grid");
+        Some(GridArea::new(first, last).expect("both corners are on the sheet"))
     }
 
     /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s

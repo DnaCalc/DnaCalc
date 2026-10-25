@@ -61,8 +61,11 @@
 //!   first byte it reads every entry it copies and refuses one whose stored bytes no longer have
 //!   the CRC-32 they had when the package was opened ([`WriteError`]), leaving the sink empty.
 //!
+//! [`blank_package`] makes the package of a new workbook, one empty worksheet, to open as any other.
+//!
 //! The codec opens no file: the source and the sink are supplied by the caller.
 
+mod blank;
 mod edit;
 mod error;
 mod load;
@@ -73,6 +76,7 @@ mod source;
 mod xml;
 mod zip;
 
+pub use blank::blank_package;
 pub use calc_doc_model as model;
 pub use edit::{EditError, PreparedEdit, prepare_edit};
 pub use error::{OpenError, PartReadError, UnsafeName};

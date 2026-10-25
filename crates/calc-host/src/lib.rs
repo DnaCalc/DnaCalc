@@ -42,6 +42,9 @@
 //! formula value as its cached value and every other formula cell left for Excel to calculate on
 //! open.
 //!
+//! [`HostState::used_area`] bounds what a skin shows of a sheet, and [`blank_package`] (calc-doc's)
+//! is the package of a new workbook, opened as any other.
+//!
 //! [`HostState::recalc_context`] reports the calculation context every recalculation applies
 //! ([`RecalcContext`]), which a comparison names as its run's context, apart from what the
 //! package declares ([`HostState::declared_date1904`]).
@@ -75,6 +78,7 @@ pub use session::{
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
+pub use calc_doc::blank_package;
 pub use calc_doc::{
     CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
