@@ -16,9 +16,18 @@
 //! becomes `#REF!` (`#REF!A1`), and a run of sheets loses an end that is removed to the next sheet
 //! inward.
 //!
-//! Not measured, and left as written: a 3-D reference under a row or column edit of one of its
-//! sheets, a structured reference (its table moves in the document), a name's relative reference,
-//! and reference text a function reads (INDIRECT's).
+//! Left as written: a 3-D reference under a row or column edit of one of its sheets (Excel
+//! 16.0.20430, 2026-10-25, through COM: `=SUM(Ja:Ma!A1:A3)`, `=SUM(Ja:Ma!B5)`, `=SUM(Ja:Fe!A2:B2)`
+//! and `=SUM(Fe:Ma!$A$4)` kept their text when a row was inserted on Fe or on Ja, a row deleted on
+//! Ma and a column inserted on Fe, and read the cells now there), a structured reference (its table
+//! moves in the document), and reference text a function reads (INDIRECT's).
+//!
+//! A defined name's formula ([`transform_name`], dc-10y) moves only the coordinates it holds
+//! absolute: its relative ones are offsets from the cell that uses it, which no edit changes. Excel
+//! 16.0.20430 (2026-10-25), names defined relative to Nm!C3: LeftCell (`RC[-1]`, stored `Nm!XFD1`)
+//! and AboveCell (`R[-1]C`, `Nm!A1048576`) kept their text when column A and row 1 were inserted on
+//! Nm and row 3 deleted; ColA (`Nm!$A1`) became `Nm!$B1` when column A was inserted and kept it
+//! when a row was; Abs (`Nm!$A$1`) became `Nm!$B$1`, then `Nm!$B$2`.
 
 use super::bind::{ReferenceSite, bind_references};
 use super::notation;
@@ -229,6 +238,30 @@ pub fn transform_formula(
     edit: &StructuralEdit,
     catalog: &dyn ReferenceCatalog,
 ) -> Option<String> {
+    transform(text, at, edit, catalog, false)
+}
+
+/// The text `edit` leaves of a defined name's formula `text` (as a file stores it, without `=`,
+/// its relative coordinates relative to A1 of `sheet`), `None` when the edit changes none of its
+/// references: a row or column edit moves only the coordinates the name holds absolute on the
+/// edited axis (see the module documentation).
+pub fn transform_name(
+    text: &str,
+    sheet: SheetId,
+    edit: &StructuralEdit,
+    catalog: &dyn ReferenceCatalog,
+) -> Option<String> {
+    let a1 = CellKey::new(sheet, 1, 1).expect("A1 lies on the grid");
+    transform(text, a1, edit, catalog, true)
+}
+
+fn transform(
+    text: &str,
+    at: CellKey,
+    edit: &StructuralEdit,
+    catalog: &dyn ReferenceCatalog,
+    name: bool,
+) -> Option<String> {
     let source = format!("={text}");
     let tree = crate::parse_formula(&source);
     if !tree.diagnostics().is_empty() {
@@ -240,6 +273,9 @@ pub fn transform_formula(
         StructuralEdit::Insert { .. } | StructuralEdit::Delete { .. } => {
             let anchor = FormulaAnchor::new(at);
             for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
+                if name && relative_on_edited_axis(&site, &units, edit) {
+                    continue;
+                }
                 if let Some(text) = axis_site(&site, &units, anchor, edit) {
                     replacements.push((site.span, text));
                 }
@@ -286,6 +322,34 @@ pub fn transform_formula(
     out.extend_from_slice(&units[at_unit..]);
     let rewritten = String::from_utf16(&out).ok()?;
     rewritten.strip_prefix('=').map(str::to_owned)
+}
+
+/// Whether a defined name's reference site holds a relative coordinate on the axis `edit` edits,
+/// in either end, and so keeps its text: a relative coordinate is an offset from the cell that uses
+/// the name. A range one of whose ends is absolute on that axis and the other relative is not
+/// measured, and kept too.
+fn relative_on_edited_axis(site: &ReferenceSite, units: &[u16], edit: &StructuralEdit) -> bool {
+    let axis = match edit {
+        StructuralEdit::Insert { axis, .. } | StructuralEdit::Delete { axis, .. } => *axis,
+        _ => return false,
+    };
+    let Ok(text) = String::from_utf16(&units[site.span.start..site.span.end()]) else {
+        return true;
+    };
+    let (_, body) = split_qualifier(&text);
+    split_range(body).iter().any(|end| {
+        let (end, _) = split_end(end);
+        let column_absolute = end.starts_with('$');
+        let letters = end.trim_start_matches('$');
+        let after_letters = letters.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+        let has_letters = after_letters.len() < letters.len();
+        let has_digits = after_letters.trim_start_matches('$').starts_with(|c: char| c.is_ascii_digit());
+        let row_absolute = after_letters.starts_with('$') || (!has_letters && end.starts_with('$'));
+        match axis {
+            EditAxis::Rows => has_digits && !row_absolute,
+            EditAxis::Columns => has_letters && !column_absolute,
+        }
+    })
 }
 
 /// The text a reference site takes after a row or column edit, `None` when it keeps its own.
@@ -840,6 +904,99 @@ mod tests {
                 count,
             },
         }
+    }
+
+    /// Sheets F, Ja, Fe, Ma and Nm in that order, with their order known.
+    struct Ordered(Vec<(&'static str, SheetId)>);
+
+    impl ReferenceCatalog for Ordered {
+        fn sheet_named(&self, name: &str) -> Option<SheetId> {
+            self.0
+                .iter()
+                .find(|(known, _)| known.eq_ignore_ascii_case(name))
+                .map(|(_, sheet)| *sheet)
+        }
+
+        fn sheet_span(&self, first: SheetId, last: SheetId) -> Option<Vec<SheetId>> {
+            let at = |sheet| self.0.iter().position(|(_, held)| *held == sheet);
+            let (a, b) = (at(first)?, at(last)?);
+            Some(self.0[a.min(b)..=a.max(b)].iter().map(|(_, s)| *s).collect())
+        }
+    }
+
+    fn ordered() -> (Ordered, Vec<SheetId>) {
+        let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+        let names = ["F", "Ja", "Fe", "Ma", "Nm"];
+        let sheets: Vec<(&'static str, SheetId)> =
+            names.iter().map(|name| (*name, ids.issue().unwrap())).collect();
+        let ids = sheets.iter().map(|(_, id)| *id).collect();
+        (Ordered(sheets), ids)
+    }
+
+    fn axis(sheet: SheetId, axis: EditAxis, insert: bool, first: u32) -> StructuralEdit {
+        if insert {
+            StructuralEdit::Insert {
+                sheet,
+                axis,
+                first,
+                count: 1,
+            }
+        } else {
+            StructuralEdit::Delete {
+                sheet,
+                axis,
+                first,
+                count: 1,
+            }
+        }
+    }
+
+    /// Excel 16.0.20430 through COM, 2026-10-25 (module documentation): a 3-D reference keeps its
+    /// text under a row or column edit of one of its sheets, and a defined name moves only its
+    /// absolute coordinates.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn three_d_references_and_names_under_row_and_column_edits() {
+        let (catalog, s) = ordered();
+        let (f, ja, fe, ma, nm) = (s[0], s[1], s[2], s[3], s[4]);
+        let at = CellKey::new(f, 1, 1).unwrap();
+        for edit in [
+            axis(fe, EditAxis::Rows, true, 1),
+            axis(ja, EditAxis::Rows, true, 1),
+            axis(ma, EditAxis::Rows, false, 2),
+            axis(fe, EditAxis::Columns, true, 1),
+        ] {
+            for formula in [
+                "SUM(Ja:Ma!A1:A3)",
+                "SUM(Ja:Ma!B5)",
+                "SUM(Ja:Fe!A2:B2)",
+                "SUM(Fe:Ma!$A$4)",
+            ] {
+                assert_eq!(transform_formula(formula, at, &edit, &catalog), None, "{formula}");
+            }
+        }
+        let column_a = axis(nm, EditAxis::Columns, true, 1);
+        let row_1 = axis(nm, EditAxis::Rows, true, 1);
+        let row_3_deleted = axis(nm, EditAxis::Rows, false, 3);
+        for edit in [&column_a, &row_1, &row_3_deleted] {
+            for name in ["Nm!XFD1", "Nm!A1048576"] {
+                assert_eq!(transform_name(name, nm, edit, &catalog), None, "{name}");
+            }
+        }
+        assert_eq!(
+            transform_name("Nm!$A1", nm, &column_a, &catalog).as_deref(),
+            Some("Nm!$B1")
+        );
+        assert_eq!(transform_name("Nm!$B1", nm, &row_1, &catalog), None);
+        assert_eq!(
+            transform_name("Nm!$A$1", nm, &column_a, &catalog).as_deref(),
+            Some("Nm!$B$1")
+        );
+        assert_eq!(
+            transform_name("Nm!$B$1", nm, &row_1, &catalog).as_deref(),
+            Some("Nm!$B$2")
+        );
+        assert_eq!(transform_name("Nm!$B$2", nm, &row_3_deleted, &catalog), None);
     }
 
     /// Hand-derived from Excel's documented adjustment rules (module documentation).

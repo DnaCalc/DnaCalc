@@ -48,4 +48,5 @@ pub use syntax::parse_formula;
 /// calc-func's random source and SUBTOTAL exclusions, which a caller of [`evaluate`] supplies
 /// through [`EvaluationServices::with_random`] and [`ReferenceReader::subtotal_exclusions`].
 pub use calc_func::locale::{CalcEnvironment, DateSystem, FormatProfile};
+pub use calc_func::read_number_text;
 pub use calc_func::{HostFacts, RandomSource, SubtotalExclusions};

@@ -33,13 +33,18 @@
 //! other. The workbook's iteration settings ([`calc_doc_model::IterationSettings`]) decide what
 //! happens to them:
 //!
-//! - **Iteration off.** Excel calculates no cell on the cycle: each keeps the value it had, and so
-//!   does each cell that reads one (Excel 16.0, 2026-10-23: with A1 `=B1+1` and B1 `=A1+1` entered
-//!   one after the other, A1 shows 1 and B1 0, and G1 `=A1*10` 0, through `CalculateFull`,
-//!   `CalculateFullRebuild` and an edit of an input elsewhere). That previous value is not a
-//!   calculation of this engine, so each formula on the cycle is published as a typed refusal,
-//!   and each formula reading one is refused as reading a value it cannot be given. The other
-//!   formulas are calculated.
+//! - **Iteration off.** Excel calculates no formula whose evaluation meets the circular reference,
+//!   nor one that reads such a formula: each keeps the value its cell held, and a formula entered
+//!   (or entered again) shows 0 (Excel 16.0, 2026-10-23 and 2026-10-25: with A1 `=B1+1` and B1
+//!   `=A1+1` entered one after the other, A1 shows 1 and B1 0, and G1 `=A1*10` 0, through
+//!   `CalculateFull`, `CalculateFullRebuild` and edits of inputs the readers also read; a file's
+//!   stored values stay as stored; `=IF(TRUE,"x",F5)` in F5, which never reads F5, is calculated).
+//!   So the formulas on a cycle the order finds are evaluated like any other, and those whose
+//!   evaluations wait on each other, or read one of them, are left uncalculated (dc-10y, `keep`):
+//!   one entered since its last result is published as 0, one this engine calculated before keeps
+//!   that value, and any other (a value only the file stored, which this engine never calculated)
+//!   is published as a typed refusal. Every recalculation calculates them again, as Excel does
+//!   (it saves each with `ca="1"`). The other formulas are calculated.
 //! - **Iteration on.** The formulas of the order are evaluated in passes, each formula on a cycle
 //!   reading the value the other formulas on it had at the end of the last pass, or, once
 //!   evaluated in this pass, their new value (the members of a cycle in cell order: Excel
@@ -50,8 +55,11 @@
 //!   `=A1+1` and 100 to C1 `=C1+1` on each recalculation, and converged D3 `=E3/2+1` with E3
 //!   `=D3` to 2 and F3 `=F3*0.5+5` to 10. Every recalculation calculates the formulas on a cycle
 //!   again, as Excel's did each time a formula elsewhere was entered. A formula on a cycle starts
-//!   from its last calculated value in this engine, and from 0 when it has none: Excel starts
-//!   from the value the file stored, which is no calculation of this engine and is never read.
+//!   from the value its cell holds, as Excel's iteration does: its last calculated value in this
+//!   engine, before that the value the file stored (Excel 16.0.20430, 2026-10-25: A1 `=B1+1` and
+//!   B1 `=A1+1` stored as 77 and 55 and opened without calculating read 254 and 255 after one full
+//!   recalculation of 100 iterations, from B1's 55), else 0 (dc-10y). The stored value only seeds
+//!   the first pass; what is published is what the passes calculate.
 //!
 //! The waiting formulas, the ready queue and the waves follow OxCalc's recalculation tracker
 //! (`src/oxcalc-core/src/recalc.rs`, `Stage1RecalcTracker`: a node reads only published or
@@ -72,7 +80,8 @@ use crate::result::{
 use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{
-    ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, IterationSettings, ModelRoot,
+    ArrayKind, AuthoredRevision, Axis, CachedValue, CellInput, FormulaText, IterationSettings,
+    ModelRoot,
 };
 use calc_fml::reference::{
     CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape, template_key,
@@ -293,6 +302,11 @@ pub struct RecalcWork {
     pass_start: BTreeMap<NodeId, Option<CalcValue>>,
     /// How many passes over the order have ended.
     passes: u32,
+    /// With iteration off, the formulas a circular reference left uncalculated (dc-10y): those on
+    /// a cycle that their evaluations met, and those whose evaluation read one of them.
+    kept: BTreeSet<NodeId>,
+    /// Whether the evaluation running read a formula of `kept`.
+    kept_read: Cell<bool>,
 }
 
 impl RecalcWork {
@@ -334,6 +348,7 @@ impl RecalcWork {
             progress: &self.progress,
             spills: &self.spills,
             iterates: self.iterating().then_some(&self.iterates),
+            kept: (!self.iteration.enabled()).then_some((&self.kept, &self.kept_read)),
         }
     }
 
@@ -355,13 +370,21 @@ impl RecalcWork {
     }
 }
 
-/// The value a formula on a cycle starts iterating from: its last calculated value, else 0. A file
-/// cache is never read (see the module documentation).
+/// The value a formula on a cycle starts iterating from: the value the cell holds, as Excel's
+/// iteration starts (dc-10y, see the module documentation). That is its last calculated value;
+/// before this engine has calculated it, the value the file stored for it; else 0. The stored
+/// value only seeds the first pass: what is published is what the passes calculate from it.
 fn starting_value(state: &EngineState, node: NodeId) -> CalcValue {
     let at = live_anchor(state, node);
-    match state.result(at).and_then(FormulaResult::calculated) {
-        Some((value, _)) => value.clone(),
-        None => CalcValue::number(0.0),
+    match state.result(at) {
+        Some(FormulaResult::Calculated { value, .. }) => value.clone(),
+        Some(FormulaResult::FileCached(cache)) => match cache.value() {
+            CachedValue::Number(number) => CalcValue::number(number.get()),
+            CachedValue::Text(text) => CalcValue::text(text.text().clone()),
+            CachedValue::Logical(logical) => CalcValue::logical(*logical),
+            CachedValue::Error(code) => CalcValue::error(*code),
+        },
+        _ => CalcValue::number(0.0),
     }
 }
 
@@ -443,16 +466,15 @@ pub fn begin_recalc(
                     !crate::data_table::is_table_cell(inputs, live_anchor(state, *node))
                 });
             }
-            // With iteration on, the formulas on a cycle are calculated by every recalculation.
-            if iteration.enabled() {
-                roots.extend(
-                    state
-                        .cycle_members
-                        .iter()
-                        .copied()
-                        .filter(|node| state.node(*node).is_some()),
-                );
-            }
+            // The formulas on a cycle, and with iteration off those that read one, are calculated
+            // by every recalculation.
+            roots.extend(
+                state
+                    .cycle_members
+                    .iter()
+                    .copied()
+                    .filter(|node| state.node(*node).is_some()),
+            );
             roots
         }
     };
@@ -492,6 +514,8 @@ pub fn begin_recalc(
         iterates: BTreeMap::new(),
         pass_start: BTreeMap::new(),
         passes: 0,
+        kept: BTreeSet::new(),
+        kept_read: Cell::new(false),
     })
     .map(|mut work| {
         work.add_cyclic(state, cyclic);
@@ -550,6 +574,7 @@ pub fn step(
         evaluations += 1;
         match evaluate_node(state, inputs, work, node, &mut *observer) {
             Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
+            Ok(Attempt::Kept) => keep(state, inputs, work, node),
             Ok(Attempt::Waits { on, cell }) => {
                 observer.deferred(live_anchor(state, node), cell);
                 defer(state, inputs, work, node, on);
@@ -599,6 +624,7 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         }
         state.results.insert(at, (node, result.clone()));
         state.pending.remove(&node);
+        state.entered.remove(&node);
         changes.push((at, ValueChange::Published { at, node, result }));
     }
     for (node, dynamic) in std::mem::take(&mut work.dynamic).into_entries() {
@@ -1301,12 +1327,6 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
             if work.progress.is_evaluated(node) || work.waits_on.contains_key(&node) {
                 continue;
             }
-            // With iteration off a formula on a cycle is not calculated.
-            if !work.iteration.enabled() && work.cyclic.contains(&node) {
-                let done = refused(work, circular());
-                stage(state, inputs, work, node, done);
-                continue;
-            }
             return Some(node);
         }
         if !work.waits_on.is_empty() {
@@ -1321,8 +1341,7 @@ fn next_node(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) -> 
                 work.ready.extend(stuck);
             } else {
                 for node in stuck {
-                    let done = refused(work, circular());
-                    stage(state, inputs, work, node, done);
+                    keep(state, inputs, work, node);
                 }
             }
             continue;
@@ -1411,7 +1430,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
         Err(()) => {
             let refusal = NotModeled::Evaluation(EvalFault::NotModelled {
                 construct: "spill ranges that kept changing size within one recalculation",
-                owner: "dc-m3u",
+                owner: "dc-10y",
             });
             for node in roots {
                 work.progress.schedule(node);
@@ -1423,12 +1442,47 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     }
 }
 
+/// Leaves `node` uncalculated, as Excel leaves a formula on a circular reference, or one that reads
+/// such a formula, while iterative calculation is off (dc-10y; see the module documentation): it
+/// joins the formulas every recalculation calculates again, and its cell keeps what it holds. A
+/// formula entered since its last result shows 0, published as this recalculation's; one this
+/// engine calculated before keeps that result, with the calculation that gave it; any other (a
+/// value the file stored, which this engine never calculated, a refusal, a result that spilled)
+/// is refused as not modelled.
+fn keep(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: NodeId) {
+    work.kept.insert(node);
+    work.add_cyclic(state, [node]);
+    let at = live_anchor(state, node);
+    let held = if state.entered.contains(&node) {
+        Some(FormulaResult::Calculated {
+            value: CalcValue::number(0.0),
+            calculation: work.calculation.clone(),
+        })
+    } else if state.spills.get(at).is_some() {
+        None
+    } else {
+        match state.result(at) {
+            Some(result @ FormulaResult::Calculated { .. }) => Some(result.clone()),
+            _ => None,
+        }
+    };
+    let done = match held {
+        Some(result) => Done {
+            result,
+            spill: None,
+            dynamic: Vec::new(),
+        },
+        None => refused(work, circular()),
+    };
+    stage(state, inputs, work, node, done);
+}
+
 /// The refusal of a formula on a circular reference while iterative calculation is off: Excel
 /// leaves each such cell at its previous value, which this engine did not calculate.
 fn circular() -> NotModeled {
     NotModeled::Evaluation(EvalFault::NotModelled {
         construct: "a circular reference with iterative calculation off (Excel keeps each cell's previous value)",
-        owner: "dc-m3u",
+        owner: "dc-10y",
     })
 }
 
@@ -1451,30 +1505,32 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
     let mut cursor = on;
     loop {
         if cursor == node {
+            let mut chain = vec![node];
+            let mut link = on;
+            while link != node {
+                chain.push(link);
+                link = match work.waits_on.get(&link) {
+                    Some(next) => *next,
+                    None => break,
+                };
+            }
+            for member in &chain {
+                if let Some(awaited) = work.waits_on.remove(member)
+                    && let Some(waiters) = work.waiting.get_mut(&awaited)
+                {
+                    waiters.retain(|waiter| waiter != member);
+                }
+            }
+            chain.sort_by_key(|member| live_anchor(state, *member));
             if work.iteration.enabled() {
-                let mut chain = vec![node];
-                let mut link = on;
-                while link != node {
-                    chain.push(link);
-                    link = match work.waits_on.get(&link) {
-                        Some(next) => *next,
-                        None => break,
-                    };
-                }
-                for member in &chain {
-                    if let Some(awaited) = work.waits_on.remove(member)
-                        && let Some(waiters) = work.waiting.get_mut(&awaited)
-                    {
-                        waiters.retain(|waiter| waiter != member);
-                    }
-                }
                 // Evaluated again in cell order, as the members of a cycle the order found are.
-                chain.sort_by_key(|member| live_anchor(state, *member));
                 work.add_cyclic(state, chain.iter().copied());
                 work.ready.extend(chain);
             } else {
-                let done = refused(work, circular());
-                stage(state, inputs, work, node, done);
+                // With iteration off no formula of the cycle is calculated (dc-10y).
+                for member in chain {
+                    keep(state, inputs, work, member);
+                }
             }
             return;
         }
@@ -1650,6 +1706,7 @@ struct Instrument<'l, 'o> {
     calculation: &'l Calculation,
     footprint: &'l RefCell<Vec<GridArea>>,
     uncomputed: &'l Cell<Option<(CellKey, NodeId)>>,
+    kept_read: &'l Cell<bool>,
 }
 
 impl EvaluationObserver for Instrument<'_, '_> {
@@ -1663,7 +1720,7 @@ impl EvaluationObserver for Instrument<'_, '_> {
     }
 
     fn returned(&mut self, report: EvaluationReport<'_>) {
-        if self.uncomputed.get().is_some() {
+        if self.uncomputed.get().is_some() || self.kept_read.get() {
             return;
         }
         self.observer
@@ -1679,6 +1736,9 @@ enum Attempt {
     /// The evaluation read `cell`, which `on` calculates and this recalculation has yet to
     /// evaluate: it is discarded, and the node waits for `on`.
     Waits { on: NodeId, cell: CellKey },
+    /// With iteration off, the evaluation read a formula a circular reference left uncalculated:
+    /// it is discarded, and the node is left uncalculated too (dc-10y).
+    Kept,
 }
 
 /// A node's staged result, with its spill when its result fills cells beside its anchor and the
@@ -1717,6 +1777,7 @@ fn evaluate_node(
                     calculation.mode(),
                     table,
                     formula,
+                    Some((&calculation, &mut *observer)),
                 ) {
                     crate::data_table::TableOutcome::Value(value) => {
                         match NotModeled::publishable(value) {
@@ -1740,12 +1801,14 @@ fn evaluate_node(
     };
     let uncomputed = Cell::new(None);
     let footprint = RefCell::new(Vec::new());
+    work.kept_read.set(false);
     let view = RecalcView {
         inputs,
         state,
         progress: &work.progress,
         spills: &work.spills,
         iterates: work.iterating().then_some(&work.iterates),
+        kept: (!work.iteration.enabled()).then_some((&work.kept, &work.kept_read)),
     };
     let mut cells = WorkbookReader::new(view, &uncomputed);
     let catalog = SnapshotCatalog(inputs);
@@ -1765,6 +1828,7 @@ fn evaluate_node(
             calculation: &calculation,
             footprint: &footprint,
             uncomputed: &uncomputed,
+            kept_read: &work.kept_read,
         };
         let outcome = {
             let mut services = EvaluationServices::new(calculation.mode(), &mut observed)
@@ -1778,15 +1842,21 @@ fn evaluate_node(
     if let Some(area) = stopped {
         return Err(RecalcFailure::ReadFailed { formula, area });
     }
+    // With iteration off, a formula that read one a circular reference left uncalculated is not
+    // calculated either (dc-10y).
+    if work.kept_read.get() {
+        return Ok(Attempt::Kept);
+    }
     if let Some((cell, on)) = uncomputed.get() {
         // A formula cell one of the formula's own placed references names was ordered before it,
-        // unless it waits itself: the graph missed an edge.
+        // unless it waits itself or is on a cycle: the graph missed an edge.
         let named = instance
             .areas()
             .iter()
             .any(|area| area.is_ok_and(|area| area.contains(cell)));
         let formula_cell = matches!(inputs.cell(cell), Some(CellInput::Formula(_)));
-        if named && formula_cell && !work.waits_on.contains_key(&on) {
+        if named && formula_cell && !work.waits_on.contains_key(&on) && !work.cyclic.contains(&on)
+        {
             return Err(RecalcFailure::UnscheduledRead { formula, cell });
         }
         return Ok(Attempt::Waits { on, cell });
@@ -1947,7 +2017,7 @@ fn array_outcome(
                 Collision::Unknown => Err(Placed::Refused(NotModeled::Evaluation(
                     EvalFault::NotModelled {
                         construct: "a spill over the file's area of another array formula whose result is not calculated",
-                        owner: "dc-m3u",
+                        owner: "dc-10y",
                     },
                 ))),
             }

@@ -268,6 +268,8 @@ pub struct Definitions {
     macro_enabled: bool,
     iteration: IterationSettings,
     data_tables: Vec<DataTable>,
+    /// The workbook's file name (`Book1.xlsx`), when the package's source knows it.
+    workbook_name: Option<String>,
 }
 
 impl Definitions {
@@ -289,7 +291,20 @@ impl Definitions {
             macro_enabled: false,
             iteration: IterationSettings::EXCEL_DEFAULT,
             data_tables: Vec::new(),
+            workbook_name: None,
         }
+    }
+
+    /// These definitions of the workbook whose file name is `name` (`Book1.xlsx`, without its
+    /// folder): INDIRECT's text names this workbook so (`[Book1.xlsx]Sheet1!A1`).
+    pub fn with_workbook_name(mut self, name: Option<String>) -> Self {
+        self.workbook_name = name;
+        self
+    }
+
+    /// The workbook's file name ([`Definitions::with_workbook_name`]), `None` when not known.
+    pub fn workbook_name(&self) -> Option<&str> {
+        self.workbook_name.as_deref()
     }
 
     /// These definitions with the workbook's what-if data tables.

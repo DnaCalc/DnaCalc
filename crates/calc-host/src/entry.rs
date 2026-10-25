@@ -12,6 +12,7 @@
 
 use calc_doc_model::value::{ExcelText, WorksheetErrorCode};
 use calc_doc_model::{CellInput, CellText, FiniteNumber, FormulaText};
+use calc_fml::{CalcEnvironment, read_number_text};
 use std::fmt;
 
 /// Why [`interpret_entry`] gives no input for a text.
@@ -23,8 +24,8 @@ pub enum EntryRefusal {
     TooLong { units: usize },
     /// Excel may read the text as a number, date, time, percentage or currency under the locale's
     /// number formats, or as a number rounded to 15 significant digits, or (a leading `+` or `-`)
-    /// as a formula. That reading is not modelled; it belongs to work package L3 (dc-m3u, locale
-    /// parsing).
+    /// as a formula. That reading is not modelled (dc-10y): with no locale profile, or where the
+    /// profile's reading is not modelled ([`interpret_entry_in`]).
     NumberShaped { text: String },
 }
 
@@ -40,7 +41,7 @@ impl fmt::Display for EntryRefusal {
             }
             EntryRefusal::NumberShaped { text } => write!(
                 f,
-                "Excel may read {text:?} as a number, date, time or formula under its locale; that reading is not modelled (L3, dc-m3u)"
+                "Excel may read {text:?} as a number, date, time or formula under its locale; that reading is not modelled (dc-10y)"
             ),
         }
     }
@@ -64,6 +65,25 @@ impl std::error::Error for EntryRefusal {}
 ///   ([`EntryRefusal::NumberShaped`]).
 /// - Every other text is text.
 pub fn interpret_entry(text: &str) -> Result<Option<CellInput>, EntryRefusal> {
+    interpret_entry_in(text, None)
+}
+
+/// [`interpret_entry`] under the host's calculation environment: with a locale profile, a text
+/// that is not a formula, a forced text, a logical or an error literal is read as VALUE reads it
+/// under that profile, date system and clock ([`calc_fml::read_number_text`]), a number when it
+/// reads as one and text when it does not (dc-10y). Excel 16.0.20430 (2026-10-25, en-ZA, each of 73
+/// texts entered through `Range.FormulaLocal`, which reads an entry as the user's locale does) held
+/// a number exactly where `VALUE` of the same text gave one, the same number, and the text where
+/// `VALUE` gave #VALUE!: `1 000` 1000, `R5` 5, `5%` 0.05, `(5)` -5, `1 1/2` 1.5, `1/2/20` 36942
+/// (2001-02-20), `12:30 PM` 0.5208..., while `1,000`, `$5` and `3/4/2020` stayed text. A reading
+/// that is not modelled (a date without a year when the host has no clock, say) is refused, as is
+/// a text starting with `+` or `-` that reads as no number, which Excel's entry may take for a
+/// formula, and a plain number of more than 15 significant digits, which Excel rounds. The number
+/// format Excel gives such a cell (a date's, a percentage's) is not set.
+pub fn interpret_entry_in(
+    text: &str,
+    environment: Option<&CalcEnvironment>,
+) -> Result<Option<CellInput>, EntryRefusal> {
     if text.is_empty() {
         return Ok(None);
     }
@@ -95,6 +115,20 @@ pub fn interpret_entry(text: &str) -> Result<Option<CellInput>, EntryRefusal> {
         return Err(EntryRefusal::NumberShaped {
             text: text.to_owned(),
         });
+    }
+    if let Some(environment) = environment.filter(|environment| environment.profile.is_some()) {
+        let units: Vec<u16> = text.encode_utf16().collect();
+        let refused = || EntryRefusal::NumberShaped {
+            text: text.to_owned(),
+        };
+        return match read_number_text(&units, environment) {
+            Ok(Some(number)) => FiniteNumber::new(number)
+                .map(|number| Some(CellInput::Number(number)))
+                .ok_or_else(refused),
+            Ok(None) if text.starts_with(['+', '-']) => Err(refused()),
+            Ok(None) => cell_text(text).map(Some),
+            Err(()) => Err(refused()),
+        };
     }
     if number_shaped(text) {
         return Err(EntryRefusal::NumberShaped {
@@ -258,6 +292,73 @@ mod tests {
             Ok(number(123456789012345.0))
         );
         assert_eq!(interpret_entry("1.50000000000000000"), Ok(number(1.5)));
+    }
+
+    /// Cell entries under en-ZA (decimal point, space between thousands), against Excel
+    /// 16.0.20430 through `Range.FormulaLocal` on 2026-10-25 (see [`interpret_entry_in`]): each
+    /// text Excel held as a number reads as that number, each it held as text is text.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn entries_read_under_a_locale() {
+        let profile = calc_fml::FormatProfile::for_culture("en-ZA")
+            .and_then(|profile| profile.with_separators(".", " "))
+            .unwrap();
+        let environment = CalcEnvironment {
+            date_system: calc_fml::DateSystem::System1900,
+            profile: Some(profile),
+            now: None,
+        };
+        let entry = |text: &str| interpret_entry_in(text, Some(&environment));
+        for (typed, value) in [
+            ("5%", 0.05),
+            ("-5%", -0.05),
+            ("5 %", 0.05),
+            ("(5)", -5.0),
+            ("(5%)", -0.05),
+            ("1e3", 1000.0),
+            ("1E-2", 0.01),
+            ("1.5e+3", 1500.0),
+            ("+5", 5.0),
+            ("-5", -5.0),
+            (" 5", 5.0),
+            ("5 ", 5.0),
+            ("5.", 5.0),
+            ("1 1/2", 1.5),
+            ("1 000", 1000.0),
+            ("R5", 5.0),
+            ("2020-01-02", 43832.0),
+            ("2020/1/2", 43832.0),
+            ("2-Jan-2020", 43832.0),
+            ("2 Jan 2020", 43832.0),
+            ("January 2020", 43831.0),
+            ("1/2/20", 36942.0),
+            ("12:30", 0.5208333333333334),
+            ("12:30:45", 0.5213541666666667),
+            ("12:30 PM", 0.5208333333333334),
+            ("1:30 am", 0.0625),
+            ("25:00", 1.0416666666666667),
+            ("10:", 0.4166666666666667),
+            ("0:00:01.5", 1.736111111111111e-05),
+        ] {
+            assert_eq!(entry(typed), Ok(number(value)), "{typed:?}");
+        }
+        for typed in [
+            "1,000", "1,000.5", "1,00", "12,34,567", "$5", "($5)", "$1,234.50", "3/4/2020",
+            "Jan 2, 2020", "3/4/2020 12:30", "1/2/30", "13/2/2020", "2/30/2020", "1.2.2020", "$",
+            "%", "1,2", "1'000", "0x10", "1d", "5%%", "$5%", ",5", "1..2", "£5", ":10",
+            "1:2:3:4", "1/0", "5e", "5-", "5+",
+        ] {
+            assert_eq!(entry(typed), Ok(text(typed)), "{typed:?}");
+        }
+        // Not modelled: a date without a year with no clock, and a text Excel's entry may take
+        // for a formula.
+        for typed in ["1/2", "--5", "-1:30"] {
+            assert!(
+                matches!(entry(typed), Err(EntryRefusal::NumberShaped { .. })),
+                "{typed:?}"
+            );
+        }
+        assert_eq!(entry("TRUE"), Ok(Some(CellInput::Logical(true))));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

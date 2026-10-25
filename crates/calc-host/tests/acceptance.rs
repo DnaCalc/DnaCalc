@@ -841,10 +841,10 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
     ]);
     assert_eq!(book.described(), committed_after_failure);
     assert_eq!(book.page().recalc_failure(), Some(&expected_failure));
-    // L3 (dc-m3u): the recalculation publishes at tick 3. The workbook declares no iteration, so
-    // the formulas on the cycle are refused (Excel keeps their previous values, which no
-    // calculation of this engine gave), Calc!A3, which reads one, is refused for reading a value
-    // it cannot be given, and Calc!C1 is calculated: 10 > 1, "big". The last failure is cleared.
+    // The recalculation publishes at tick 3. The workbook declares no iteration, so Excel
+    // calculates no formula on the cycle nor Calc!A3, which reads one (dc-10y): Inputs!A2, entered
+    // by this edit, shows 0, and Calc!A1, A2 and A3 keep the results this engine calculated at
+    // tick 1. Calc!C1 is calculated: 10 > 1, "big". The last failure is cleared.
     let published = step(&mut book.host, WorkBudget::UNLIMITED, &mut Unobserved);
     let (revision, tick, changes) = delta_cells(&published);
     assert_eq!((revision, tick), (2, 3));
@@ -861,18 +861,17 @@ fn chost_m1_1__recalc_failure_keeps_edit() {
         .map(|at| (at, true))
         .collect::<Vec<_>>()
     );
-    let circular = "not-modelled evaluation NotModelled r2 t3";
     let cycle = book.expected(&[
         d(book.inputs("A1"), "literal 10"),
         d(book.inputs("B1"), "literal 0.5"),
-        d(book.inputs("A2"), circular),
+        d(book.inputs("A2"), "calculated 0 r2 t3 fast"),
         d(book.inputs("A3"), "literal \"rate\""),
-        d(book.calc("A1"), circular),
+        d(book.calc("A1"), "calculated 5 r0 t1 fast"),
         d(book.calc("B1"), "calculated Name r0 t1 fast"),
         d(book.calc("C1"), "calculated \"big\" r2 t3 fast"),
-        d(book.calc("A2"), circular),
+        d(book.calc("A2"), "calculated 50 r0 t1 fast"),
         d(book.calc("B2"), "calculated 2 r0 t1 fast"),
-        d(book.calc("A3"), "not-modelled evaluation MissingInput r2 t3"),
+        d(book.calc("A3"), "calculated 2.5 r0 t1 fast"),
     ]);
     assert_eq!(book.described(), cycle);
     let page = book.page();

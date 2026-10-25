@@ -989,7 +989,8 @@ pub fn load(
         .with_hidden_rows(hidden_rows)
         .with_macro_enabled(macro_enabled)
         .with_iteration(iteration)
-        .with_data_tables(data_tables);
+        .with_data_tables(data_tables)
+        .with_workbook_name(package.source_name().map(str::to_owned));
     let entries = declared
         .into_iter()
         .zip(&issued)

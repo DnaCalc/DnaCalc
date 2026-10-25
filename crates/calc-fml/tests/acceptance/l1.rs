@@ -372,10 +372,11 @@ mod arrays {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     fn legacy_formulas_refuse_unmeasured_places() {
         let mut book = data();
-        // XLOOKUP's lookup array, which this row used before, was measured by L3 (dc-m3u) and
-        // lifts (`acceptance/l3.rs`); CHISQ.TEST's actual range is not measured.
+        // XLOOKUP's lookup array and CHISQ.TEST's ranges, which this row used before, were
+        // measured by L3 (dc-m3u) and dc-10y and lift; COUNTIF's range, which takes only a
+        // reference, is not measured (Excel refuses to enter the formula).
         let outcome = book
-            .eval_in(FormulaForm::Legacy, "=CHISQ.TEST(A1:A3*1,B1:B3)", "I2")
+            .eval_in(FormulaForm::Legacy, "=COUNTIF(A1:A3*1,1)", "I2")
             .unwrap();
         assert!(
             matches!(outcome, Err(EvalFault::AreaAsValue { .. })),
@@ -502,7 +503,7 @@ mod references {
             outcome,
             Err(EvalFault::NotModelled {
                 construct: "a spilled range reference (#) the reader does not know",
-                owner: "dc-m3u"
+                owner: "dc-10y"
             })
         );
     }
@@ -609,7 +610,7 @@ mod names {
         match book.eval_in(FormulaForm::Dynamic, "=TaxRate*2", "Z100") {
             Err(CompileError::Unsupported {
                 construct, owner, ..
-            }) => assert_eq!((construct, owner), ("a defined name", "dc-m3u")),
+            }) => assert_eq!((construct, owner), ("a defined name", "dc-10y")),
             other => panic!("{other:?}"),
         }
         assert!(matches!(
@@ -670,7 +671,7 @@ mod names {
             matches!(
                 deep,
                 Err(EvalFault::NotModelled {
-                    owner: "dc-m3u",
+                    owner: "dc-10y",
                     ..
                 })
             ),

@@ -60,7 +60,7 @@ mod session;
 mod state;
 
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
-pub use entry::{EntryRefusal, interpret_entry};
+pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};
 pub use history::{Irreversible, IrreversibleReason, Selection};
 pub use project::{
     ProjectedCell, ProjectedValue, ProjectionError, ProjectionPage, ProjectionRequest, StaleCause,

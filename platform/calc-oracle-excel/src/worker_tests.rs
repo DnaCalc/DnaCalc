@@ -1636,7 +1636,7 @@ fn the_package_reader_lists_each_cell_of_a_legacy_array() {
     );
     assert_eq!(
         read["failures"],
-        json!([{"stage": "inventory", "sheet": "Sheet1", "row": 2, "column": 2, "message": "the cell lies in the range B1:B3 of the legacy array formula at Sheet1!B1 and holds a formula of its own or lies in the range of another legacy array formula"}])
+        json!([{"stage": "inventory", "sheet": "Sheet1", "row": 2, "column": 2, "message": "the cell lies in the range B1:B3 of the legacy array formula at Sheet1!B1 and holds a formula of its own or lies in the range of another legacy array formula or data table"}])
     );
 }
 
@@ -1920,6 +1920,9 @@ fn the_worker_assigns_only_session_settings() {
         .filter_map(|a| a.strip_prefix("excel."))
         .collect();
     excel.sort_unstable();
+    // Calculation is assigned in two places: before a manual capture opens the workbook, and
+    // after any other opens it (dc-10y).
+    excel.dedup();
     assert_eq!(
         excel,
         [

@@ -41,8 +41,11 @@
 #      verdict counts (calc-verdict), and each installed add-in (its Name, a file name) in
 #      add_ins_installed; an add-in installed in the profile but not open in this instance does
 #      not refuse the capture. Nothing is switched off;
-#   5. opens the input read-only with UpdateLinks 0, sets the calculation policy of the request,
-#      forces a full rebuild, and reads each inventory cell's formula (Formula2 only), raw Value2
+#   5. opens the input read-only with UpdateLinks 0 (under manual calculation, so Excel does not
+#      calculate it on opening, when the request's mode is manual), sets each setting of the
+#      calculation policy of the request that Excel does not already hold, forces a full rebuild
+#      (with iteration on, a workbook with a circular reference leaves CalculationState pending,
+#      which is recorded as the setting calculation_state), and reads each inventory cell's formula (Formula2 only), raw Value2
 #      (numbers as their binary64 bits) and spill (Read-Spill: Range.HasSpill, and for a spill the
 #      address, rows and columns of Range.SpillingToRange), the environment and settings, the
 #      workbook's links (an OLE or DDE link is an isolation failure) and its data connections (one
@@ -499,11 +502,23 @@ function Read-Package([string]$Path) {
             # range that holds a formula of its own or lies in the range of an earlier legacy array
             # is an inventory failure, and is not listed twice. A legacy array whose ref is not a
             # range starting at its cell gets no members; the conversion refuses it.
+            # The cells of a what-if data table's result area (type dataTable on its top-left cell,
+            # dc-10y) are listed the same way, as type data_table_member: Excel lists each among
+            # its formula cells too.
             $sheetEntries = @($formulas.GetRange($sheetStart, $formulas.Count - $sheetStart))
             $held = @{}
             foreach ($entry in $sheetEntries) { $held[(Get-Key $name $entry.row $entry.column)] = $true }
             foreach ($entry in $sheetEntries) {
-                if ($entry.type -ne 'array' -or $entry.dynamic_array_metadata -or $null -eq $entry.ref) { continue }
+                if ($entry.type -eq 'dataTable') {
+                    $memberType = 'data_table_member'
+                    $what = 'data table'
+                } elseif ($entry.type -eq 'array' -and -not $entry.dynamic_array_metadata) {
+                    $memberType = 'array_member'
+                    $what = 'legacy array formula'
+                } else {
+                    continue
+                }
+                if ($null -eq $entry.ref) { continue }
                 $range = Split-Range $entry.ref
                 if ($null -eq $range -or $range.first.row -ne $entry.row -or $range.first.column -ne $entry.column) { continue }
                 $anchor = $entry.ref.Split(':')[0]
@@ -512,11 +527,11 @@ function Read-Package([string]$Path) {
                         if ($row -eq $entry.row -and $column -eq $entry.column) { continue }
                         $key = Get-Key $name $row $column
                         if ($held.ContainsKey($key)) {
-                            Add-Failure 'inventory' ([ordered]@{ sheet = $name; row = $row; column = $column }) ("the cell lies in the range " + $entry.ref + " of the legacy array formula at $name!$anchor and holds a formula of its own or lies in the range of another legacy array formula")
+                            Add-Failure 'inventory' ([ordered]@{ sheet = $name; row = $row; column = $column }) ("the cell lies in the range " + $entry.ref + " of the $what at $name!$anchor and holds a formula of its own or lies in the range of another legacy array formula or data table")
                             continue
                         }
                         $held[$key] = $true
-                        [void]$formulas.Add([ordered]@{ sheet = $name; row = $row; column = $column; type = 'array_member'; si = $null; ref = $null; cm = $null; dynamic_array_metadata = $false; anchor = $anchor })
+                        [void]$formulas.Add([ordered]@{ sheet = $name; row = $row; column = $column; type = $memberType; si = $null; ref = $null; cm = $null; dynamic_array_metadata = $false; anchor = $anchor })
                     }
                 }
             }
@@ -934,22 +949,48 @@ try {
         throw ('refused before the workbook was opened: this Excel instance is not isolated (a capture needs an Excel instance with no add-in open in it, and nothing was switched off): ' + ($notIsolated -join '; '))
     }
 
-    $workbook = Open-Workbook $excel $req.input
     $modes = @{ automatic = -4105; manual = -4135; semiautomatic = 2 }
-    $excel.Calculation = $modes[$req.calculation.mode]
-    $excel.Iteration = [bool]$req.calculation.iteration
-    $excel.MaxIterations = [int]$req.calculation.max_iterations
-    $excel.MaxChange = [BitConverter]::Int64BitsToDouble([Convert]::ToInt64($req.calculation.max_change, 16))
+    # A manual capture opens the workbook without calculating it: Excel takes the calculation mode
+    # from the first workbook it opens, so a blank workbook is added first, set to manual, and
+    # closed once the input is open. The full rebuild below is then the only calculation from the
+    # package's stored values. An automatic Excel calculates a workbook that iterates when it
+    # opens it, and again on each assignment of Calculation, Iteration, MaxIterations or
+    # MaxChange, even of the value it holds (Excel 16.0.20430, 2026-10-25: A1 =B1+1 and B1 =A1+1
+    # stored as 77 and 55 read 254 and 255 after the open, then 200 more after each assignment;
+    # opened under manual calculation they read 77 and 55 until the rebuild, then 254 and 255).
+    # Each setting is therefore assigned only when Excel does not already hold it.
+    if ($req.calculation.mode -eq 'manual') {
+        $blank = $excel.Workbooks.Add()
+        $excel.Calculation = $modes['manual']
+        $workbook = Open-Workbook $excel $req.input
+        $blank.Close($false)
+        $blank = $null
+    } else {
+        $workbook = Open-Workbook $excel $req.input
+    }
+    $wantedMode = $modes[$req.calculation.mode]
+    $wantedIteration = [bool]$req.calculation.iteration
+    $wantedCount = [int]$req.calculation.max_iterations
+    $wantedChange = [BitConverter]::Int64BitsToDouble([Convert]::ToInt64($req.calculation.max_change, 16))
+    if ((Get-ComProperty $excel 'Calculation') -ne $wantedMode) { $excel.Calculation = $wantedMode }
+    if ((Get-ComProperty $excel 'Iteration') -ne $wantedIteration) { $excel.Iteration = $wantedIteration }
+    if ((Get-ComProperty $excel 'MaxIterations') -ne $wantedCount) { $excel.MaxIterations = $wantedCount }
+    if ((Get-ComProperty $excel 'MaxChange') -ne $wantedChange) { $excel.MaxChange = $wantedChange }
     $excel.CalculateFullRebuild()
     # XlCalculationState: xlDone 0, xlCalculating 1, xlPending 2. A read that fails throws, and a
     # value that is not an integer is refused, so neither reads as done (or not done); the
-    # adapter's timeout bounds the wait.
+    # adapter's timeout bounds the wait. With iteration on, Excel 16.0.20430 (2026-10-25) leaves
+    # the state at xlPending after the rebuild whenever the workbook holds a circular reference,
+    # converged or not, and calculates nothing more on its own: the wait then ends once Excel is
+    # not calculating, and the state it ends in is recorded (setting calculation_state).
     while ($true) {
         $state = Get-ComProperty $excel 'CalculationState'
         if ($state -isnot [int]) { throw ('Application.CalculationState reads as ' + (Get-Shown $state) + ', not an XlCalculationState') }
         if ($state -eq 0) { break }
+        if ($state -eq 2 -and $wantedIteration) { break }
         Start-Sleep -Milliseconds 50
     }
+    $calculationState = @{ 0 = 'done'; 2 = 'pending' }[$state]
 
     # The environment and settings, read back from Excel after the policy was set.
     $settings = New-Object System.Collections.ArrayList
@@ -1080,6 +1121,7 @@ try {
     if ($null -ne $mode) { $mode = $modeNames[$mode] }
     [void]$settings.Add(@('calculation', [string]$mode))
     Read-Setting 'iteration' $excel 'Iteration' 'flag'
+    Add-Setting 'calculation_state' $calculationState
     Read-Setting 'max_iterations' $excel 'MaxIterations' 'integer'
     Read-Setting 'max_change' $excel 'MaxChange' 'number'
     Read-Setting 'precision_as_displayed' $workbook 'PrecisionAsDisplayed' 'flag'

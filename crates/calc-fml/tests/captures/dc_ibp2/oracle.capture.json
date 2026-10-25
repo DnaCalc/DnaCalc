@@ -38,6 +38,7 @@
       "date1904": "false",
       "calculation": "automatic",
       "iteration": "false",
+      "calculation_state": "done",
       "max_iterations": "100",
       "max_change": "3f50624dd2f1a9fc",
       "precision_as_displayed": "false",
@@ -61,10 +62,10 @@
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:d270466bc2dc9bb033e84eccef36e36dc6ca38a171e5f4431c22d8a2b41e800c; repository a9982e99b25c3eca2c7e344e335be6019193f53c+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:bac864f8aca3b0157bb0e1e08036c58bd52ada9ee49ff0c6c1f6bc139f293d6d; repository dd7f67a4fbb317fef0efe878f4dad78ca3c873bd+dirty",
     "packages": {
       "input": "sha256:59082b145c9a0aa0096dcdd596a54d4b222abea54377c8b575372cc54044dec0",
-      "output": "sha256:cb942b78f32c766e8f829b12c92628b7a358917d9ae45cf3c8bb678c10723e5f"
+      "output": "sha256:cadb5d631b4ef33588fcfbfebaaa4e28b9617a494ea0cb5dd7115b50d3529fed"
     },
     "failures": [
       {"stage":"reopen","sheet":"error_fallback","row":13,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Error(NA), callable: None }, where the capture read CalcValue { core: Error(GettingData), callable: None }"}

@@ -47,7 +47,7 @@
 //! cache or the output folder cannot be made, or the release build of the compare process fails;
 //! 2 on a usage error.
 
-use crate::capture::{accepted, repository_revision};
+use crate::capture::{accepted, repository_revision, with_workbook_iteration};
 use crate::corpus_summary::{NotCompared, Summary, Times, Workbook, read_triage};
 use calc_oracle_excel::{CalculationPolicy, CaptureRequest, capture, windows_powershell};
 use calc_verdict::{CaptureRecord, sha256_hex};
@@ -494,7 +494,10 @@ impl Run<'_> {
                 crate::accept::utc_now().replace(':', "")
             )),
             timeout: self.args.timeout,
-            policy: CalculationPolicy::default(),
+            policy: match fs::read(&entry.path) {
+                Ok(bytes) => with_workbook_iteration(CalculationPolicy::default(), &bytes),
+                Err(_) => CalculationPolicy::default(),
+            },
             revision: 0,
             operations: Vec::new(),
             repository: repository_revision(),

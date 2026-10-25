@@ -393,7 +393,7 @@ fn rows(_book: &Book) -> Vec<Row> {
         "=INDIRECT(\"\\x\")",
         refused(0),
         DEFINED,
-        "dc-m3u",
+        "dc-10y",
     ));
     // Tab, carriage return and no-break space before, inside and after the text.
     for formula in BLANKS {
@@ -401,18 +401,18 @@ fn rows(_book: &Book) -> Vec<Row> {
     }
     rows.extend([
         // Rows calc_fml does not model.
-        not_modelled("=INDIRECT(\"NoSuchName\")", refused(0), NAME, "dc-m3u"),
-        not_modelled("=INDIRECT(\"data!Foo\")", refused(0), NAME, "dc-m3u"),
-        not_modelled("=INDIRECT(\"XFE1\")", refused(0), NAME, "dc-m3u"),
-        not_modelled("=INDIRECT(\"Rate\")", refused(0), DEFINED, "dc-m3u"),
+        not_modelled("=INDIRECT(\"NoSuchName\")", refused(0), NAME, "dc-10y"),
+        not_modelled("=INDIRECT(\"data!Foo\")", refused(0), NAME, "dc-10y"),
+        not_modelled("=INDIRECT(\"XFE1\")", refused(0), NAME, "dc-10y"),
+        not_modelled("=INDIRECT(\"Rate\")", refused(0), DEFINED, "dc-10y"),
         not_modelled(
             "=INDIRECT(\"[Book1]data!A1\")",
             EvalFault::NotModelled {
                 construct: "reference text naming another workbook (an external reference)",
-                owner: "dc-m3u",
+                owner: "dc-10y",
             },
             "a qualifier naming another workbook, which INDIRECT resolves when that workbook is open; external references are refused (L3)",
-            "dc-m3u",
+            "dc-10y",
         ),
         // The legacy formula intersects the range with its own row, which A1:B2 does not reach
         // (Excel writes it `=@INDIRECT("A1:B2")`; dc-mzk).
@@ -423,7 +423,7 @@ fn rows(_book: &Book) -> Vec<Row> {
             "=SUM(INDIRECT(\"A1:B\"))",
             refused(0),
             "a range whose end could be a defined name (B), which is not bound",
-            "dc-m3u",
+            "dc-10y",
         ),
         // A line feed after the text reads as a space: A1 = 10 (dc-0k9).
         row("=INDIRECT(\"A1\n\")", n(10.0), M),

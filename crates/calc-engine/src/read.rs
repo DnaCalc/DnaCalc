@@ -97,6 +97,8 @@ pub trait ReadObserver {
 pub struct ObservedEvaluation<'a> {
     calculation: &'a Calculation,
     report: EvaluationReport<'a>,
+    /// The cell of a what-if data table whose value the evaluation gave, when it was one.
+    table_cell: Option<CellKey>,
 }
 
 impl<'a> ObservedEvaluation<'a> {
@@ -104,12 +106,29 @@ impl<'a> ObservedEvaluation<'a> {
         ObservedEvaluation {
             calculation,
             report,
+            table_cell: None,
         }
     }
 
-    /// The formula cell evaluated: the anchor of the instance CalcFml's evaluator ran.
+    /// The evaluation of a data table's formula under the substitution of the table cell `cell`
+    /// (dc-10y): the cell's value is the value it returned.
+    pub(crate) fn for_table_cell(
+        calculation: &'a Calculation,
+        report: EvaluationReport<'a>,
+        cell: CellKey,
+    ) -> Self {
+        ObservedEvaluation {
+            calculation,
+            report,
+            table_cell: Some(cell),
+        }
+    }
+
+    /// The formula cell evaluated: the anchor of the instance CalcFml's evaluator ran, or for a
+    /// data table's cell, that cell, whose value the evaluation of the table's formula under its
+    /// substitution gave.
     pub fn formula(&self) -> CellKey {
-        self.report.anchor().cell()
+        self.table_cell.unwrap_or_else(|| self.report.anchor().cell())
     }
 
     pub fn calculation(&self) -> &'a Calculation {
@@ -145,6 +164,10 @@ impl ReadObserver for Unobserved {
 pub(crate) struct SnapshotCatalog<'r>(pub(crate) &'r ModelRoot);
 
 impl ReferenceCatalog for SnapshotCatalog<'_> {
+    fn workbook_name(&self) -> Option<&str> {
+        self.0.definitions().workbook_name()
+    }
+
     fn sheet_named(&self, name: &str) -> Option<SheetId> {
         let wanted: Vec<u16> = name.encode_utf16().collect();
         self.0
@@ -273,6 +296,11 @@ pub(crate) struct RecalcView<'a> {
     /// With iteration on, the value each formula on a cycle holds as the recalculation stands
     /// (L3, dc-m3u): one not yet evaluated in this pass reads as it, and no read of it waits.
     pub(crate) iterates: Option<&'a BTreeMap<NodeId, Option<CalcValue>>>,
+    /// With iteration off, the formulas a circular reference left uncalculated, and the flag a
+    /// read of one sets (dc-10y): such a formula's staged value is what its cell holds, not a
+    /// value this recalculation calculated, so a read of it gives no value and marks the reading
+    /// formula as reading a circular reference.
+    pub(crate) kept: Option<(&'a BTreeSet<NodeId>, &'a Cell<bool>)>,
 }
 
 /// Where each node stands in one recalculation, by its ID's slot, which no node of the state
@@ -408,6 +436,14 @@ fn areas_meet(a: GridArea, b: GridArea) -> bool {
         && b.first().column() <= a.last().column()
 }
 
+/// Why [`WorkbookReader::formula_lookup`] gives no value for a formula cell, where reading it has
+/// an effect: the evaluation waits for the node, or (iteration off) it reads a formula a circular
+/// reference left uncalculated.
+enum Unread {
+    Waits(NodeId),
+    Kept,
+}
+
 /// What the reader reports for a cell that holds no input.
 enum Overlay<'a> {
     /// A value an array formula's result fills the cell with.
@@ -448,16 +484,28 @@ impl<'a> WorkbookReader<'a> {
     fn formula_value(&mut self, at: CellKey) -> Option<&'a CalcValue> {
         match self.formula_lookup(at) {
             Ok(value) => value,
-            Err(node) => {
-                self.wait(at, node);
+            Err(unread) => {
+                self.unread(at, unread);
                 None
             }
         }
     }
 
-    /// [`WorkbookReader::formula_value`] without its one effect: `Err` with the node, where it
-    /// would make the evaluation wait for that node.
-    fn formula_lookup(&self, at: CellKey) -> Result<Option<&'a CalcValue>, NodeId> {
+    /// The effect of reading a cell [`WorkbookReader::formula_lookup`] gives no value for.
+    fn unread(&mut self, at: CellKey, unread: Unread) {
+        match unread {
+            Unread::Waits(node) => self.wait(at, node),
+            Unread::Kept => {
+                if let Some((_, read)) = self.view.kept {
+                    read.set(true);
+                }
+            }
+        }
+    }
+
+    /// [`WorkbookReader::formula_value`] without its effects: `Err` where reading the cell has
+    /// one ([`WorkbookReader::unread`]).
+    fn formula_lookup(&self, at: CellKey) -> Result<Option<&'a CalcValue>, Unread> {
         let Some(node) = self.view.state.node_at(at) else {
             return Ok(None);
         };
@@ -467,9 +515,16 @@ impl<'a> WorkbookReader<'a> {
                 {
                     return Ok(value.as_ref());
                 }
-                return Err(node);
+                return Err(Unread::Waits(node));
             }
-            NodeStanding::Staged(result) => result,
+            NodeStanding::Staged(result) => {
+                if let Some((kept, _)) = self.view.kept
+                    && kept.contains(&node)
+                {
+                    return Err(Unread::Kept);
+                }
+                result
+            }
             NodeStanding::Published(None) => return Ok(None),
             NodeStanding::Published(Some(result)) => result,
         };
@@ -665,9 +720,9 @@ impl ReferenceReader for WorkbookReader<'_> {
                         ControlFlow::Continue(()) => sink(CellRun::Missing(1)),
                         stop => stop,
                     },
-                    Err(node) => match flush(&mut batch, sink) {
+                    Err(unread) => match flush(&mut batch, sink) {
                         ControlFlow::Continue(()) => {
-                            self.wait(at, node);
+                            self.unread(at, unread);
                             sink(CellRun::Missing(1))
                         }
                         stop => stop,

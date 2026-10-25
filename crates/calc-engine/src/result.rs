@@ -121,8 +121,9 @@ pub enum FormulaResult {
         value: CalcValue,
         calculation: Calculation,
     },
-    /// The result a file stored for the formula. Nothing here calculated it: it is never read as
-    /// a calculation input and never counts as calculated.
+    /// The result a file stored for the formula. Nothing here calculated it: it never counts as
+    /// calculated, and is read only as the value an iterating formula on a circular reference
+    /// starts from (dc-10y).
     FileCached(FileCached),
     /// The calculation refused the formula; it has no value.
     NotModeled {

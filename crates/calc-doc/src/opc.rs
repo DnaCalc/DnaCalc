@@ -219,6 +219,11 @@ impl std::fmt::Debug for Package {
 }
 
 impl Package {
+    /// The file name the package's source is known by ([`PackageRead::name`]).
+    pub fn source_name(&self) -> Option<&str> {
+        self.source.name()
+    }
+
     pub(crate) fn open(
         source: Arc<dyn PackageRead>,
         policy: &OpenPolicy,

@@ -321,6 +321,10 @@ pub struct Strata {
     pub legacy_array_anchor: u64,
     /// The cells of legacy array formulas' ranges other than their anchors.
     pub legacy_array_member: u64,
+    /// The top-left cells of what-if data tables' result areas (dc-10y).
+    pub data_table_anchor: u64,
+    /// The other cells of data tables' result areas.
+    pub data_table_member: u64,
     /// Inventory cells with an observation.
     pub observed: u64,
     /// Inventory cells whose observation is a worksheet error value.
@@ -478,22 +482,29 @@ fn check_legacy_arrays(
 ) -> Result<(), JudgeError> {
     for formula in &capture.formulas {
         let cell = &formula.cell;
+        let what = match formula.kind {
+            FormulaKind::DataTableAnchor { .. } | FormulaKind::DataTableMember { .. } => {
+                "data table"
+            }
+            _ => "legacy array formula",
+        };
         match formula.kind {
-            FormulaKind::LegacyArrayAnchor { rows, columns } => {
+            FormulaKind::LegacyArrayAnchor { rows, columns }
+            | FormulaKind::DataTableAnchor { rows, columns } => {
                 let (first, last) = formula
                     .kind
                     .legacy_range(cell)
                     .expect("an anchor has a range");
                 if rows == 0 || columns == 0 || last.0 > MAX_ROWS || last.1 > MAX_COLUMNS {
                     return Err(JudgeError::new(format!(
-                        "the legacy array formula at {} has a range of {rows} by {columns} cells, which is not a range of Excel's grid starting at the cell",
+                        "the {what} at {} has a range of {rows} by {columns} cells, which is not a range of Excel's grid starting at the cell",
                         place(cell)
                     )));
                 }
-                let expected = FormulaKind::LegacyArrayMember {
-                    anchor_row: first.0,
-                    anchor_column: first.1,
-                };
+                let expected = formula
+                    .kind
+                    .member_of(first)
+                    .expect("an anchor has members");
                 for row in first.0..=last.0 {
                     for column in first.1..=last.1 {
                         if (row, column) == first {
@@ -505,15 +516,16 @@ fn check_legacy_arrays(
                             Some(kind) if *kind == expected => {}
                             Some(kind) => {
                                 return Err(JudgeError::new(format!(
-                                    "{} lies in the range of the legacy array formula at {} and the formula inventory lists it as {}, not as a member of that array",
+                                    "{} lies in the range of the {what} at {} and the formula inventory lists it as {}, not as a member of that {}",
                                     place(&member),
                                     place(cell),
-                                    kind.name()
+                                    kind.name(),
+                                    if what == "data table" { "table" } else { "array" }
                                 )));
                             }
                             None => {
                                 return Err(JudgeError::new(format!(
-                                    "{} lies in the range of the legacy array formula at {} and is not in the formula inventory; Excel lists every cell of the range as a formula cell",
+                                    "{} lies in the range of the {what} at {} and is not in the formula inventory; Excel lists every cell of the range as a formula cell",
                                     place(&member),
                                     place(cell)
                                 )));
@@ -525,10 +537,17 @@ fn check_legacy_arrays(
             FormulaKind::LegacyArrayMember {
                 anchor_row,
                 anchor_column,
+            }
+            | FormulaKind::DataTableMember {
+                anchor_row,
+                anchor_column,
             } => {
                 let covered =
                     CellAddress::new(cell.sheet(), anchor_row, anchor_column).and_then(|anchor| {
                         let kind = kinds.get(&anchor)?;
+                        if kind.member_of((anchor_row, anchor_column)) != Some(formula.kind) {
+                            return None;
+                        }
                         let (first, last) = kind.legacy_range(&anchor)?;
                         ((first.0..=last.0).contains(&cell.row())
                             && (first.1..=last.1).contains(&cell.column()))
@@ -536,7 +555,7 @@ fn check_legacy_arrays(
                     });
                 if covered.is_none() {
                     return Err(JudgeError::new(format!(
-                        "{} is a member of a legacy array formula anchored at {}!{}, which the formula inventory does not list as the anchor of a range covering it",
+                        "{} is a member of a {what} anchored at {}!{}, which the formula inventory does not list as the anchor of a range covering it",
                         place(cell),
                         cell.sheet(),
                         a1_text(anchor_row, anchor_column)
@@ -964,6 +983,8 @@ pub fn judge<'e>(
             FormulaKind::SharedChild { .. } => strata.shared_child += 1,
             FormulaKind::LegacyArrayAnchor { .. } => strata.legacy_array_anchor += 1,
             FormulaKind::LegacyArrayMember { .. } => strata.legacy_array_member += 1,
+            FormulaKind::DataTableAnchor { .. } => strata.data_table_anchor += 1,
+            FormulaKind::DataTableMember { .. } => strata.data_table_member += 1,
         }
         if let Some(observation) = &cell.observation {
             strata.observed += 1;
@@ -1283,9 +1304,8 @@ impl VerdictReport {
                         .collect(),
                 ),
             ),
-            (
-                "strata",
-                Out::Object(vec![
+            ("strata", {
+                let mut strata = vec![
                     ("visible_sheet", Out::Unsigned(s.visible_sheet)),
                     ("hidden_sheet", Out::Unsigned(s.hidden_sheet)),
                     ("very_hidden_sheet", Out::Unsigned(s.very_hidden_sheet)),
@@ -1294,10 +1314,17 @@ impl VerdictReport {
                     ("shared_child", Out::Unsigned(s.shared_child)),
                     ("legacy_array_anchor", Out::Unsigned(s.legacy_array_anchor)),
                     ("legacy_array_member", Out::Unsigned(s.legacy_array_member)),
-                    ("observed", Out::Unsigned(s.observed)),
-                    ("error_expected", Out::Unsigned(s.error_expected)),
-                ]),
-            ),
+                ];
+                // Written only when the inventory holds a data table, so a report without one
+                // reads as it did before data tables were captured.
+                if s.data_table_anchor + s.data_table_member > 0 {
+                    strata.push(("data_table_anchor", Out::Unsigned(s.data_table_anchor)));
+                    strata.push(("data_table_member", Out::Unsigned(s.data_table_member)));
+                }
+                strata.push(("observed", Out::Unsigned(s.observed)));
+                strata.push(("error_expected", Out::Unsigned(s.error_expected)));
+                Out::Object(strata)
+            }),
             (
                 "cells",
                 Out::Array(self.cells.iter().map(cell_out).collect()),

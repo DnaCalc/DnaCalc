@@ -218,6 +218,12 @@ fn structured_references_select_the_measured_parts_of_a_table() {
             ("=Sales[[#This Row],[Qty]]", "Tab!E8", e(W::Value)),
             ("=Sales[[#This Row],[Unit '[Price']]]", "Tab!G3", n(7.0)),
             ("=Sales[@[Unit '[Price']]]", "Tab!G3", n(7.0)),
+            // dc-10y: Excel 16.0.20430 (2026-10-25) drops a sheet qualifier before a structured
+            // reference, whatever sheet it names (bind.rs, `qualified_structured`).
+            ("=SUM(Tab!Sales[Qty])", "B76", n(9.0)),
+            ("=SUM('Tab'!Sales[Qty])", "B77", n(9.0)),
+            ("=SUM(F!Sales[Qty])", "B78", n(9.0)),
+            ("=Tab!Sales[[#This Row],[Qty]]", "Tab!E2", n(2.0)),
         ],
     );
 }
@@ -256,14 +262,10 @@ fn unqualified_references_and_missing_parts() {
             ..
         }
     ));
-    // Outside every table, `[@Units]` is no structured reference.
-    assert!(matches!(
-        book.refusal("=[@Units]", "F1"),
-        CompileError::Unsupported {
-            owner: "dc-m3u",
-            ..
-        }
-    ));
+    // Outside every table, `[@Units]` is no structured reference: Excel 16.0.20430 (2026-10-25)
+    // reads a file's `SUM([Qty])` there as `SUM(#REF!)` (dc-10y).
+    assert_eq!(book.legacy("=[@Units]", "F1"), e(W::Ref));
+    assert_eq!(book.legacy("=SUM([Units])", "F1"), e(W::Ref));
     // A LAMBDA's optional parameter inside a table is still a parameter.
     assert_eq!(book.legacy("=LAMBDA(x,[Units],x)(5)", "Calc!D2"), n(5.0));
 }
@@ -320,13 +322,20 @@ fn three_d_references_reach_the_functions_that_take_them() {
             ("=MAX(Ja:Ma!A:A)", "B45", n(3.0)),
             ("=VARP(Ja:Ma!A1)", "B46", n(0.666666666666667)),
             ("=STDEVA(Ja:Ma!A1:B1)", "B47", n(7.72010362624751)),
+            // dc-10y, measured on 2026-10-25 (compile.rs, THREE_D_TAKEN).
+            ("=SMALL(Ja:Ma!A1,1)", "B48", n(1.0)),
+            ("=GEOMEAN(Ja:Ma!A1)", "B49", n(1.8171205928321397)),
+            ("=NPV(1,Ja:Ma!A1)", "B50", n(1.375)),
+            ("=ISNUMBER(Ja:Ma!A1)", "B51", b(false)),
+            ("=IRR(Ja:Ma!A1)", "B52", e(W::Value)),
         ],
     );
-    // A function whose handling of a 3-D reference is not measured: refused.
+    // A position whose handling of a 3-D reference is not measured (SUMIF's criteria, where a
+    // 3-D reference and #REF! both match nothing): refused.
     assert!(matches!(
-        book.refusal("=SMALL(Ja:Ma!A1,1)", "B1"),
+        book.refusal("=SUMIF(A1:A3,Ja:Ma!A1)", "B1"),
         CompileError::Unsupported {
-            owner: "dc-m3u",
+            owner: "dc-10y",
             ..
         }
     ));
@@ -357,7 +366,7 @@ fn external_references_are_refused() {
         book.eval(FormulaForm::Legacy, "=INDIRECT(\"[Book2]Ja!A1\")", "B1"),
         Ok(Err(EvalFault::NotModelled {
             construct: "reference text naming another workbook (an external reference)",
-            owner: "dc-m3u",
+            owner: "dc-10y",
         }))
     );
 }

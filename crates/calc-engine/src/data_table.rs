@@ -14,13 +14,16 @@
 //! `Application.Calculation = xlCalculationSemiautomatic`) left `TABLE(,B1)` at 15 and
 //! `=SUM(B4:B6)` at 75 after an input changed, and gave 16 and 78 after `Calculate`.
 
-use crate::read::{RecalcView, SnapshotCatalog, WorkbookReader};
+use crate::read::{ObservedEvaluation, ReadObserver, RecalcView, SnapshotCatalog, WorkbookReader};
 use crate::recalc::dirty_closure;
-use crate::result::NotModeled;
+use crate::result::{Calculation, NotModeled};
 use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{CellInput, DataTable, ModelRoot};
 use calc_fml::reference::{CellRun, ReferenceReader, SpillExtent};
-use calc_fml::{EvalFault, EvalFrame, EvalScratch, EvaluationServices, evaluate};
+use calc_fml::{
+    EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
+    evaluate,
+};
 use calc_value::{CalcValue, CellKey, GridArea, NodeId, NumericMode};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,7 +33,7 @@ use std::ops::ControlFlow;
 pub(crate) fn refusal(construct: &'static str) -> NotModeled {
     NotModeled::Evaluation(EvalFault::NotModelled {
         construct,
-        owner: "dc-m3u",
+        owner: "dc-10y",
     })
 }
 
@@ -53,6 +56,7 @@ pub(crate) fn evaluate_cell(
     mode: &NumericMode,
     table: &DataTable,
     at: CellKey,
+    observe: Option<(&Calculation, &mut dyn ReadObserver)>,
 ) -> TableOutcome {
     let Some((formula, pairs)) = table.what_if(at) else {
         return TableOutcome::Refused(refusal("a data table cell outside its table"));
@@ -104,6 +108,12 @@ pub(crate) fn evaluate_cell(
         memo: RefCell::new(BTreeMap::new()),
         refused: RefCell::new(None),
         uncomputed: &uncomputed,
+        observe: RefCell::new(observe.map(|(calculation, observer)| TableObserver {
+            calculation,
+            observer,
+            formula: state.node_at(formula),
+            cell: at,
+        })),
     };
     let outcome = match what_if.overrides.get(&formula) {
         Some(value) => Ok(value.clone()),
@@ -138,6 +148,39 @@ struct WhatIf<'a> {
     /// The first refusal an affected formula gave, which the table cell is refused with.
     refused: RefCell<Option<NotModeled>>,
     uncomputed: &'a Cell<Option<(CellKey, NodeId)>>,
+    /// The observer shown the evaluation of the table's formula, as the table cell's.
+    observe: RefCell<Option<TableObserver<'a>>>,
+}
+
+/// The caller's observer, shown the evaluation of the data table's formula node `formula` under
+/// the substitution of `cell` as that cell's evaluation (dc-10y), unless the evaluation read a
+/// cell the recalculation has yet to calculate and is discarded.
+struct TableObserver<'a> {
+    calculation: &'a Calculation,
+    observer: &'a mut dyn ReadObserver,
+    formula: Option<NodeId>,
+    cell: CellKey,
+}
+
+/// The instrument of one evaluation of a data table's formula.
+struct TableInstrument<'o, 'a> {
+    observe: &'o mut TableObserver<'a>,
+    uncomputed: &'o Cell<Option<(CellKey, NodeId)>>,
+}
+
+impl EvaluationObserver for TableInstrument<'_, '_> {
+    /// The calls of the table's formula under a substitution are not shown: the observer knows
+    /// them as the formula's own when the formula is calculated.
+    fn called(&mut self, _call: calc_fml::ExecutedCall) {}
+
+    fn returned(&mut self, report: EvaluationReport<'_>) {
+        if self.uncomputed.get().is_some() {
+            return;
+        }
+        let evaluation =
+            ObservedEvaluation::for_table_cell(self.observe.calculation, report, self.observe.cell);
+        self.observe.observer.evaluated(evaluation);
+    }
 }
 
 impl WhatIf<'_> {
@@ -190,8 +233,26 @@ impl WhatIf<'_> {
         let mut reader = WhatIfReader { what_if: self };
         let mut scratch = EvalScratch::new();
         let catalog = SnapshotCatalog(self.inputs);
-        let mut services = EvaluationServices::new(self.mode, &mut reader).with_catalog(&catalog);
-        match evaluate(EvalFrame::new(instance, &mut scratch), &mut services) {
+        // The observer is taken out while the table's formula is evaluated, so the evaluations
+        // of the formulas it reads under the substitution are not shown as the cell's.
+        let top = self.observe.borrow().as_ref().and_then(|observe| observe.formula) == Some(node);
+        let mut taken = if top { self.observe.borrow_mut().take() } else { None };
+        let evaluated = {
+            let mut instrument = taken.as_mut().map(|observe| TableInstrument {
+                observe,
+                uncomputed: self.uncomputed,
+            });
+            let mut services =
+                EvaluationServices::new(self.mode, &mut reader).with_catalog(&catalog);
+            if let Some(instrument) = instrument.as_mut() {
+                services = services.observed_by(instrument);
+            }
+            evaluate(EvalFrame::new(instance, &mut scratch), &mut services)
+        };
+        if taken.is_some() {
+            *self.observe.borrow_mut() = taken;
+        }
+        match evaluated {
             Ok(value) if value.as_array().is_some() || value.callable_value().is_some() => Err(
                 refusal("a data table whose formula's value is an array or a LAMBDA value"),
             ),

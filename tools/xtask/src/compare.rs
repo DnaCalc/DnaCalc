@@ -176,6 +176,10 @@ struct Instrument<'c> {
     /// The capture's observation of each inventory cell on a sheet the workbook holds.
     expected: HashMap<CellKey, &'c CalcValue>,
     evaluations: Vec<Seen>,
+    /// The index in `evaluations` of each cell's evaluation at a revision and tick. An iterating
+    /// recalculation evaluates a formula on a circular reference once per pass, all at one tick;
+    /// the record keeps the last, whose value is the one published (dc-10y).
+    latest: HashMap<(CellKey, u64, u64), usize>,
     /// The formula whose evaluation the calls and reads below belong to.
     current: Option<CellKey>,
     calls: Vec<ExecutedCall>,
@@ -190,6 +194,7 @@ impl<'c> Instrument<'c> {
         Instrument {
             expected,
             evaluations: Vec::new(),
+            latest: HashMap::new(),
             current: None,
             calls: Vec::new(),
             reads: Vec::new(),
@@ -218,6 +223,7 @@ impl<'c> Instrument<'c> {
     fn drop_all(&mut self) {
         self.clear();
         self.evaluations.clear();
+        self.latest.clear();
         self.retained.clear();
     }
 
@@ -300,13 +306,23 @@ impl ReadObserver for Instrument<'_> {
                 (Vec::new(), Vec::new())
             };
             self.retained.insert(at, kept);
+        } else {
+            self.retained.remove(&at);
         }
-        self.evaluations.push(Seen {
+        let seen = Seen {
             at,
             revision: calculation.revision().get(),
             tick: calculation.tick().get(),
             returned,
-        });
+        };
+        match self.latest.get(&(at, seen.revision, seen.tick)) {
+            Some(index) => self.evaluations[*index] = seen,
+            None => {
+                self.latest
+                    .insert((at, seen.revision, seen.tick), self.evaluations.len());
+                self.evaluations.push(seen);
+            }
+        }
         self.clear();
     }
 }
@@ -477,9 +493,12 @@ pub(crate) fn locale_profile(
     calc_host::FormatProfile::for_culture(culture)?.with_separators(decimal, thousands)
 }
 
-/// The run of the workbook in `fixture` for `capture`: open, step, project.
+/// The run of the workbook in `fixture` for `capture`: open, step, project. `name` is the
+/// workbook's file name, by which INDIRECT's text may name it, as Excel opened it from the
+/// capture's copy of the same name.
 fn run_workbook(
     fixture: &[u8],
+    name: Option<&str>,
     capture: &CaptureRecord,
     numeric: NumericMode,
 ) -> Result<Run, Failure> {
@@ -489,7 +508,11 @@ fn run_workbook(
         evaluations: Vec::new(),
     };
     let started = Instant::now();
-    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(fixture.to_vec()));
+    let mut memory = MemorySource::new(fixture.to_vec());
+    if let Some(name) = name {
+        memory = memory.named(name);
+    }
+    let source: Arc<dyn PackageRead> = Arc::new(memory);
     let opened = HostState::open(
         source,
         &OpenPolicy::default(),
@@ -826,7 +849,11 @@ fn compare(request: &Request) -> Result<(), Failure> {
     )
     .map_err(judge_failure)?;
 
-    let mut run = run_workbook(&fixture, &capture, numeric.clone())?;
+    let name = request
+        .fixture
+        .file_name()
+        .and_then(|name| name.to_str());
+    let mut run = run_workbook(&fixture, name, &capture, numeric.clone())?;
     let started = Instant::now();
     let report = judge(&capture, &run.results, &run.record, &policy).map_err(judge_failure)?;
     run.times.judge = started.elapsed();
@@ -1221,7 +1248,7 @@ mod tests {
             br#"{"format": "dnacalc-capture-record", "version": 1, "case": "k", "source": "sha256:00", "acquisition": {"kind": "file_cache_replay"}, "environment": null, "sheets": [{"name": "Inputs", "visibility": "visible"}, {"name": "Calc", "visibility": "visible"}], "formulas": [{"sheet": "Calc", "row": 1, "column": 3, "kind": "ordinary"}], "observations": []}"#,
         )
         .unwrap();
-        let run = run_workbook(&fixture, &capture, NumericMode::Fast).unwrap();
+        let run = run_workbook(&fixture, None, &capture, NumericMode::Fast).unwrap();
         let Dna::Refused(refusal) = &run.dna[0] else {
             panic!("Calc!C1 is {:?}", run.dna[0]);
         };

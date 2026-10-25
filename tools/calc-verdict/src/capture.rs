@@ -28,7 +28,9 @@
 //! an ordinary entry the workbook saves as a dynamic-array formula over its own cell
 //! ([`FormulaCell::dynamic_array`]; written only when true), the two kinds of a legacy array
 //! formula's cells (`"kind": "legacy_array_anchor"` with `"ref": "L1:L3"`, and
-//! `"kind": "legacy_array_member"` with `"anchor": "L1"`; [`FormulaKind`]), and three lists:
+//! `"kind": "legacy_array_member"` with `"anchor": "L1"`; [`FormulaKind`]), the two kinds of a
+//! what-if data table's cells, written alike (`"data_table_anchor"` with `"ref"` and
+//! `"data_table_member"` with `"anchor"`, since dc-10y), and three lists:
 //!
 //! ```text
 //!  "session": {"revision": <authored revision observed>, "operations": ["<operation>", ...],
@@ -390,6 +392,17 @@ pub enum FormulaKind {
         anchor_row: u32,
         anchor_column: u32,
     },
+    /// The top-left cell of a what-if data table's result area (`<f t="dataTable" ref ...>`), which
+    /// starts at the cell and spans `rows` rows and `columns` columns. JSON: `"kind":
+    /// "data_table_anchor"` with `"ref"`, as a legacy array anchor's.
+    DataTableAnchor { rows: u32, columns: u32 },
+    /// Another cell of a data table's result area, whose top-left cell is at `anchor_row` and
+    /// `anchor_column` of the same sheet: Excel lists every cell of the area among its formula
+    /// cells (`{=TABLE(...)}`). JSON: `"kind": "data_table_member"` with `"anchor"`.
+    DataTableMember {
+        anchor_row: u32,
+        anchor_column: u32,
+    },
 }
 
 impl FormulaKind {
@@ -417,8 +430,16 @@ impl FormulaKind {
                 group.is_some(),
                 matches!(kind, "shared_master" | "shared_child"),
             ),
-            ("ref", reference.is_some(), kind == "legacy_array_anchor"),
-            ("anchor", anchor.is_some(), kind == "legacy_array_member"),
+            (
+                "ref",
+                reference.is_some(),
+                matches!(kind, "legacy_array_anchor" | "data_table_anchor"),
+            ),
+            (
+                "anchor",
+                anchor.is_some(),
+                matches!(kind, "legacy_array_member" | "data_table_member"),
+            ),
         ] {
             if given && !owner && KINDS.contains(&kind) {
                 let article = if kind.starts_with('o') { "an" } else { "a" };
@@ -440,7 +461,7 @@ impl FormulaKind {
                     Self::SharedChild { group }
                 })
             }
-            "legacy_array_anchor" => {
+            "legacy_array_anchor" | "data_table_anchor" => {
                 let at = fields.at("ref");
                 let reference = reference.ok_or_else(|| {
                     DecodeError::new(&fields.at("kind"), format!("is {kind} and has no ref"))
@@ -466,9 +487,11 @@ impl FormulaKind {
                         ),
                     ));
                 }
-                let kind = Self::LegacyArrayAnchor {
-                    rows: last.0 - first.0 + 1,
-                    columns: last.1 - first.1 + 1,
+                let (rows, columns) = (last.0 - first.0 + 1, last.1 - first.1 + 1);
+                let kind = if kind == "data_table_anchor" {
+                    Self::DataTableAnchor { rows, columns }
+                } else {
+                    Self::LegacyArrayAnchor { rows, columns }
                 };
                 let written = kind.legacy_reference(cell).expect("an anchor has a range");
                 if written != reference {
@@ -479,7 +502,7 @@ impl FormulaKind {
                 }
                 Ok(kind)
             }
-            "legacy_array_member" => {
+            "legacy_array_member" | "data_table_member" => {
                 let at = fields.at("anchor");
                 let anchor = anchor.ok_or_else(|| {
                     DecodeError::new(&fields.at("kind"), format!("is {kind} and has no anchor"))
@@ -502,9 +525,16 @@ impl FormulaKind {
                         ),
                     ));
                 }
-                Ok(Self::LegacyArrayMember {
-                    anchor_row,
-                    anchor_column,
+                Ok(if kind == "data_table_member" {
+                    Self::DataTableMember {
+                        anchor_row,
+                        anchor_column,
+                    }
+                } else {
+                    Self::LegacyArrayMember {
+                        anchor_row,
+                        anchor_column,
+                    }
                 })
             }
             other => Err(DecodeError::new(
@@ -521,6 +551,8 @@ impl FormulaKind {
             FormulaKind::SharedChild { .. } => "shared_child",
             FormulaKind::LegacyArrayAnchor { .. } => "legacy_array_anchor",
             FormulaKind::LegacyArrayMember { .. } => "legacy_array_member",
+            FormulaKind::DataTableAnchor { .. } => "data_table_anchor",
+            FormulaKind::DataTableMember { .. } => "data_table_member",
         }
     }
 
@@ -529,16 +561,19 @@ impl FormulaKind {
             FormulaKind::SharedMaster { group } | FormulaKind::SharedChild { group } => Some(group),
             FormulaKind::Ordinary
             | FormulaKind::LegacyArrayAnchor { .. }
-            | FormulaKind::LegacyArrayMember { .. } => None,
+            | FormulaKind::LegacyArrayMember { .. }
+            | FormulaKind::DataTableAnchor { .. }
+            | FormulaKind::DataTableMember { .. } => None,
         }
     }
 
-    /// The first and last cell (row, column) of the legacy array range of an anchor at `cell`,
-    /// or `None` for any other kind. The last cell may lie outside Excel's grid in a record built
-    /// in memory; [`crate::judge`] refuses such a record.
+    /// The first and last cell (row, column) of the range of a legacy array formula's or a data
+    /// table's anchor at `cell`, or `None` for any other kind. The last cell may lie outside
+    /// Excel's grid in a record built in memory; [`crate::judge`] refuses such a record.
     pub fn legacy_range(self, cell: &CellAddress) -> Option<((u32, u32), (u32, u32))> {
         match self {
-            FormulaKind::LegacyArrayAnchor { rows, columns } => Some((
+            FormulaKind::LegacyArrayAnchor { rows, columns }
+            | FormulaKind::DataTableAnchor { rows, columns } => Some((
                 (cell.row(), cell.column()),
                 (
                     (cell.row() - 1).saturating_add(rows),
@@ -554,11 +589,34 @@ impl FormulaKind {
     /// any other kind.
     pub(crate) fn legacy_member(self, cell: &CellAddress) -> Option<(&'static str, String)> {
         match self {
-            FormulaKind::LegacyArrayAnchor { .. } => Some(("ref", self.legacy_reference(cell)?)),
+            FormulaKind::LegacyArrayAnchor { .. } | FormulaKind::DataTableAnchor { .. } => {
+                Some(("ref", self.legacy_reference(cell)?))
+            }
             FormulaKind::LegacyArrayMember {
                 anchor_row,
                 anchor_column,
+            }
+            | FormulaKind::DataTableMember {
+                anchor_row,
+                anchor_column,
             } => Some(("anchor", a1_text(anchor_row, anchor_column))),
+            _ => None,
+        }
+    }
+
+    /// The kind of the other cells of the range of an anchor of this kind whose top-left cell is
+    /// `anchor` (row, column), or `None` when this is no anchor.
+    pub(crate) fn member_of(self, anchor: (u32, u32)) -> Option<FormulaKind> {
+        let (anchor_row, anchor_column) = anchor;
+        match self {
+            FormulaKind::LegacyArrayAnchor { .. } => Some(FormulaKind::LegacyArrayMember {
+                anchor_row,
+                anchor_column,
+            }),
+            FormulaKind::DataTableAnchor { .. } => Some(FormulaKind::DataTableMember {
+                anchor_row,
+                anchor_column,
+            }),
             _ => None,
         }
     }
@@ -575,12 +633,14 @@ impl FormulaKind {
 }
 
 /// The kinds a formula entry names.
-const KINDS: [&str; 5] = [
+const KINDS: [&str; 7] = [
     "ordinary",
     "shared_master",
     "shared_child",
     "legacy_array_anchor",
     "legacy_array_member",
+    "data_table_anchor",
+    "data_table_member",
 ];
 
 /// One formula cell of the inventory.

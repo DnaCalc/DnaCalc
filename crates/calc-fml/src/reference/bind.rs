@@ -71,6 +71,13 @@ pub trait ReferenceCatalog {
     fn unknown_calls_are_names(&self) -> bool {
         false
     }
+
+    /// The file name of the formula's workbook (`Book1.xlsx`), which reference text may name
+    /// (`[Book1.xlsx]Sheet1!A1`, dc-10y). The default, `None`, refuses text that names a workbook:
+    /// it might name this one.
+    fn workbook_name(&self) -> Option<&str> {
+        None
+    }
 }
 
 /// Where a defined name is looked up from.
@@ -227,6 +234,7 @@ impl Binder<'_> {
             };
             let binding = match node.kind() {
                 SyntaxKind::UnsupportedExpr => Some(Err(BindError::UnsupportedSyntax)),
+                SyntaxKind::QualifiedReferenceExpr if self.qualified_structured(node) => continue,
                 // Bound with the qualifier or refused, never entered: what lies inside a
                 // qualified operand is not an unqualified reference.
                 SyntaxKind::QualifiedReferenceExpr | SyntaxKind::SheetSpan3DReferenceExpr => {
@@ -290,6 +298,50 @@ impl Binder<'_> {
         if self.in_array_constant {
             self.push(node.span(), Err(BindError::InArrayConstant));
             return true;
+        }
+        match bind_structured(token.text(), self.anchor, self.catalog) {
+            None => false,
+            Some(Err(error)) => {
+                self.push(node.span(), Err(error));
+                true
+            }
+            Some(Ok(bound)) => {
+                self.sites.push(ReferenceSite {
+                    span: node.span(),
+                    binding: Ok(bound.operand),
+                    this_row: bound.this_row,
+                });
+                true
+            }
+        }
+    }
+
+    /// Binds a structured reference after a sheet qualifier (`Tab!Sales[Qty]`) as the structured
+    /// reference alone and returns whether it was one (dc-10y). Excel drops the qualifier, whatever
+    /// sheet of the workbook it names: Excel 16.0.20430 (2026-10-25) stored `=SUM(Tab!Sales[Qty])`,
+    /// `=SUM('Tab'!Sales[Qty])` and `=Other!Sales[Qty]` (Sales being a table on sheet Tab) as
+    /// `=SUM(Sales[Qty])` and `=Sales[@Qty]`, entered through `Range.Formula` and read from a
+    /// file alike. A qualifier naming no sheet of the workbook, a run of sheets or another workbook
+    /// is refused, as not measured.
+    fn qualified_structured(&mut self, node: &SyntaxNode) -> bool {
+        if self.notation != ReferenceNotation::A1 {
+            return false;
+        }
+        let Some((qualifier, target)) = qualified_parts(node) else {
+            return false;
+        };
+        let Some(token) = only_token(target) else {
+            return false;
+        };
+        if !token.text().contains('[') {
+            return false;
+        }
+        match self.sheet_target(&qualifier) {
+            Ok(SheetTarget::Sheet(_)) => {}
+            Ok(_) | Err(_) => {
+                self.push(node.span(), Err(BindError::StructuredReference));
+                return true;
+            }
         }
         match bind_structured(token.text(), self.anchor, self.catalog) {
             None => false,

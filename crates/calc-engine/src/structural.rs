@@ -14,7 +14,7 @@ use crate::read::SnapshotCatalog;
 use calc_doc_model::{
     Axis, AxisChange, FormulaRewriter, FormulaText, ModelRoot, NameScope, StructuralChange,
 };
-use calc_fml::reference::{EditAxis, StructuralEdit, transform_formula};
+use calc_fml::reference::{EditAxis, StructuralEdit, transform_formula, transform_name};
 use calc_value::{CellKey, ExcelText};
 
 /// The formula rewriter of structural edits: CalcFml's reference transform over the root before
@@ -87,8 +87,7 @@ impl FormulaRewriter for ReferenceRewriter {
             NameScope::Sheet(sheet) => sheet,
             NameScope::Workbook => root.sheets().first()?.id(),
         };
-        let a1 = CellKey::new(sheet, 1, 1).ok()?;
         let text = formula.strip_prefix('=').unwrap_or(formula);
-        transform_formula(text, a1, &fml_edit(root, change), &SnapshotCatalog(root))
+        transform_name(text, sheet, &fml_edit(root, change), &SnapshotCatalog(root))
     }
 }

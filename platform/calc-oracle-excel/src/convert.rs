@@ -10,9 +10,11 @@
 //!                         "numeric_environment": "...", "settings": [["<name>", "<value>"], ...]},
 //!  "sheets": [{"name": "...", "visibility": "visible" | "hidden" | "very_hidden"}, ...],
 //!  "formulas": [{"sheet", "row", "column",
-//!                "type": "normal" | "shared" | "array" | "array_member" | ...,
+//!                "type": "normal" | "shared" | "array" | "array_member" | "dataTable"
+//!                        | "data_table_member" | ...,
 //!                "si": n | null, "ref": "C1:C3" | null, "cm": "<cell metadata index>" | null,
-//!                "dynamic_array_metadata": b, ["anchor": "L1" (array_member only)]}, ...],
+//!                "dynamic_array_metadata": b,
+//!                ["anchor": "L1" (array_member and data_table_member only)]}, ...],
 //!  "cells": [{"sheet", "row", "column", "formula": "<UTF-16 hex>" | null, "value": <raw>,
 //!             "spill": <spill>}, ...],
 //!  "saved": [{"sheet", "row", "column", "t": "n" | "b" | "e" | "str" | ..., "v": "<UTF-16 hex>"}],
@@ -82,9 +84,16 @@
 //! array formula over the same range and each member as a member of it, or the cell gets a `save`
 //! failure. calc-verdict refuses a record that does not list every cell of each range once.
 //!
-//! A formula of a type the record has no kind for (an `array` formula whose `ref` does not start
-//! at its cell, a data-table formula) refuses the whole conversion: a record without that cell
-//! would have a denominator one short, and one that called it ordinary would misreport it.
+//! A what-if data table (`<f t="dataTable" ref ...>` on the top-left cell of its result area,
+//! dc-10y) is recorded over its whole area, as Excel lists every cell of it among its formula cells
+//! (each holding `{=TABLE(...)}`): the top-left cell as [`FormulaKind::DataTableAnchor`] with its
+//! area, and each `data_table_member` the worker lists as [`FormulaKind::DataTableMember`] naming
+//! it, each with Excel's value read like any other formula cell's. The package Excel saved must
+//! hold the table over the same area, or the cell gets a `save` failure.
+//!
+//! A formula of a type the record has no kind for (an `array` or `dataTable` formula whose `ref`
+//! does not start at its cell) refuses the whole conversion: a record without that cell would have
+//! a denominator one short, and one that called it ordinary would misreport it.
 
 use calc_verdict::value::{
     CalcValue, ExcelText, MAX_COLUMNS, MAX_ROWS, NumericTargetId, WorksheetErrorCode,
@@ -416,10 +425,10 @@ fn held(saved: &Value) -> String {
     )
 }
 
-/// The failure of a legacy array cell's saved formula `saved` (the package Excel saved) against
-/// the input's, or `None` when they agree: the anchor must be saved as a legacy array formula
-/// (`array` whose cell metadata does not name XLDAPR) over the same range, and a member as a
-/// member of the same anchor.
+/// The failure of a legacy array cell's or a data table cell's saved formula `saved` (the package
+/// Excel saved) against the input's, or `None` when they agree: the anchor must be saved as a
+/// legacy array formula (`array` whose cell metadata does not name XLDAPR) or a data table over the
+/// same range, and a member as a member of the same anchor.
 fn saved_legacy_disagreement(
     saved: &Value,
     cell: &CellAddress,
@@ -454,6 +463,35 @@ fn saved_legacy_disagreement(
                         held(saved)
                     )
                 })
+        }
+        FormulaKind::DataTableAnchor { .. } => {
+            let range = kind.legacy_range(cell);
+            (saved["type"] != "dataTable" || saved["ref"].as_str().and_then(parse_range) != range)
+                .then(|| {
+                    let (first, last) = range.expect("an anchor has a range");
+                    format!(
+                        "the input package holds a data table over {}!{}:{}, and {}",
+                        cell.sheet(),
+                        a1(first),
+                        a1(last),
+                        held(saved)
+                    )
+                })
+        }
+        FormulaKind::DataTableMember {
+            anchor_row,
+            anchor_column,
+        } => {
+            let anchor = a1((anchor_row, anchor_column));
+            (saved["type"] != "data_table_member"
+                || saved["anchor"].as_str() != Some(anchor.as_str()))
+            .then(|| {
+                format!(
+                    "the input package holds this cell in the data table whose top-left cell is {}!{anchor}, and {}",
+                    cell.sheet(),
+                    held(saved)
+                )
+            })
         }
         FormulaKind::Ordinary
         | FormulaKind::SharedMaster { .. }
@@ -611,6 +649,31 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
                     (_, None) => return Err(no_kind(formula, &cell, "array")),
                 }
             }
+            ("dataTable", _) => {
+                match formula["ref"]
+                    .as_str()
+                    .and_then(parse_range)
+                    .filter(|(first, _)| *first == (cell.row(), cell.column()))
+                {
+                    Some((first, last)) => FormulaKind::DataTableAnchor {
+                        rows: last.0 - first.0 + 1,
+                        columns: last.1 - first.1 + 1,
+                    },
+                    None => return Err(no_kind(formula, &cell, "dataTable")),
+                }
+            }
+            ("data_table_member", _) => {
+                let anchor = formula["anchor"].as_str().and_then(parse_a1).ok_or_else(|| {
+                    format!(
+                        "{at}: the worker lists {} as a cell of a data table without the relative A1 reference of its top-left cell",
+                        place(&cell)
+                    )
+                })?;
+                FormulaKind::DataTableMember {
+                    anchor_row: anchor.0,
+                    anchor_column: anchor.1,
+                }
+            }
             ("array_member", _) => {
                 let anchor = formula["anchor"].as_str().and_then(parse_a1).ok_or_else(|| {
                     format!(
@@ -653,7 +716,10 @@ pub(crate) fn convert(result: &Value, frame: Frame) -> Result<CaptureRecord, Str
                     spill_of(read, &cell).map_err(|why| format!("{why}; {UNREAD_SPILL}"))?;
                 let legacy = matches!(
                     kind,
-                    FormulaKind::LegacyArrayAnchor { .. } | FormulaKind::LegacyArrayMember { .. }
+                    FormulaKind::LegacyArrayAnchor { .. }
+                        | FormulaKind::LegacyArrayMember { .. }
+                        | FormulaKind::DataTableAnchor { .. }
+                        | FormulaKind::DataTableMember { .. }
                 );
                 let disagreement = saved_formulas.get(&cell).and_then(|saved| {
                     if legacy && spill.is_none() {
@@ -1000,6 +1066,31 @@ mod tests {
         assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
     }
 
+    /// A data table's top-left cell, its ref starting at the cell, is a data table anchor over that
+    /// area (dc-10y); a saved package that does not hold the table there is a save failure of the
+    /// cell.
+    #[test]
+    fn a_data_table_is_recorded_over_its_area() {
+        let mut table = result();
+        table["formulas"][0]["type"] = json!("dataTable");
+        table["formulas"][0]["ref"] = json!("B1");
+        let record = convert(&table, frame()).unwrap();
+        assert_eq!(
+            record.formulas[0].kind,
+            FormulaKind::DataTableAnchor {
+                rows: 1,
+                columns: 1
+            }
+        );
+        let failures = format!("{:?}", record.session.as_ref().unwrap().failures);
+        assert!(
+            failures.contains("the input package holds a data table over S!B1:B1"),
+            "{failures}"
+        );
+        let encoded = record.encode().unwrap();
+        assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
+    }
+
     #[test]
     fn array_formulas_without_a_range_and_fatal_results_are_refused() {
         let mut array = result();
@@ -1011,10 +1102,10 @@ mod tests {
         );
         let mut table = result();
         table["formulas"][0]["type"] = json!("dataTable");
-        table["formulas"][0]["ref"] = json!("B1:B3");
+        table["formulas"][0]["ref"] = json!("A1:A3");
         let error = convert(&table, frame()).err().unwrap();
         assert!(
-            error.starts_with("S!B1 holds a formula of type \"dataTable\" (ref B1:B3, cell metadata none), for which CaptureRecord version 2 has no kind"),
+            error.starts_with("S!B1 holds a formula of type \"dataTable\" (ref A1:A3, cell metadata none), for which CaptureRecord version 2 has no kind"),
             "{error}"
         );
         let mut fatal = result();
