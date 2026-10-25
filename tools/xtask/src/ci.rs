@@ -17,7 +17,12 @@
 //!   the runner's banner naming that browser). The runner starts a browser only for a module that
 //!   holds wasm-bindgen tests: for a module without any it prints `no tests to run!` and starts
 //!   none, which the manifest records as `runner_reported_no_tests` with `browser_started` false and
-//!   status `zero_tests`, never `passed`. Then the route probe of
+//!   status `zero_tests`, never `passed`. Each portable package's record also holds its browser
+//!   coverage (`browser_coverage`): from the sources of those targets, the tests marked for the
+//!   browsers (wasm-bindgen-test's attribute, no cfg around them false on wasm32) and the
+//!   native-only ones with the reason of their `Native-only:` doc line. A test that is neither, or
+//!   a browser that ran (passed, failed or ignored) a different number of tests than are marked,
+//!   fails the job. Then the route probe of
 //!   `tools/xtask/ci-browser-fixture` in each browser, which records the user agent the browser
 //!   reports from inside the test. With `DNACALC_CI_INJECT_BROWSER_FAILURE=1` it also runs that
 //!   fixture's `failure` target, whose test fails in the browser on purpose, and the job then fails.
@@ -50,8 +55,9 @@ use crate::accept::{self, BROWSERS, Browser, Probe, Redactor, WASM_REMOVED};
 use crate::arch;
 use crate::cargo::{self, Member, WASM_TARGET, Workspace};
 use crate::manifest::{self, Manifests, Platform};
+use crate::rust_source::{self, NATIVE_ONLY_MARK, TestRoute};
 use serde_json::{Map, Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -737,6 +743,110 @@ fn excluded_json(member: &Member, excluded: &BTreeSet<String>) -> Value {
             })
             .collect(),
     )
+}
+
+/// The sources of the test targets of `member` the wasm job runs: its library, its binaries and
+/// every integration test target that is not an acceptance target.
+fn browser_roots(member: &Member, excluded: &BTreeSet<String>) -> Vec<PathBuf> {
+    member
+        .targets
+        .iter()
+        .filter(|target| {
+            target.kinds.iter().any(|kind| match kind.as_str() {
+                "lib" | "rlib" | "dylib" | "cdylib" | "staticlib" | "bin" => true,
+                "test" => !excluded.contains(&target.name),
+                _ => false,
+            })
+        })
+        .map(|target| target.src_path.clone())
+        .collect()
+}
+
+/// Where the tests of `member`'s browser-run targets run, from their sources
+/// (`rust_source::test_functions`), set against what each browser ran (`ran`: the tests a browser
+/// reported, passed, failed or ignored, or `None` when it has no run of the package). Every test
+/// must be marked for the browsers or carry a `Native-only:` reason, and every browser must run
+/// as many tests as are marked for it; each miss is a problem. The record's `summary` is the line
+/// `cargo xtask check --wasm` prints for the package.
+fn browser_coverage(
+    ws: &Workspace,
+    member: &Member,
+    excluded: &BTreeSet<String>,
+    ran: &[(&str, Option<u64>)],
+    problems: &mut Vec<String>,
+) -> Value {
+    let tests = match rust_source::test_functions(&ws.root, &browser_roots(member, excluded)) {
+        Ok(tests) => tests,
+        Err(e) => {
+            problems.push(format!("{}: cannot read its test sources: {e}", member.name));
+            return json!({ "summary": format!("its test sources cannot be read: {e}") });
+        }
+    };
+    let marked = tests
+        .iter()
+        .filter(|test| test.route == TestRoute::Browser)
+        .count() as u64;
+    let mut reasons: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    let mut unmarked = Vec::new();
+    for test in &tests {
+        let at = format!("{}:{} {}", test.rel, test.line, test.name);
+        match &test.route {
+            TestRoute::Browser => {}
+            TestRoute::NativeOnly(reason) => reasons.entry(reason).or_default().push(at),
+            TestRoute::Unmarked => unmarked.push(at),
+        }
+    }
+    let native_only: usize = reasons.values().map(Vec::len).sum();
+    let runs: Vec<String> = ran
+        .iter()
+        .map(|(browser, count)| match count {
+            Some(count) => format!("{browser} ran {count}"),
+            None => format!("{browser} did not run"),
+        })
+        .collect();
+    for (browser, count) in ran {
+        if *count != Some(marked) {
+            problems.push(format!(
+                "{}: {marked} tests are marked to run in the browsers, but {browser} ran {}",
+                member.name,
+                count.map_or_else(|| "none".to_owned(), |count| count.to_string())
+            ));
+        }
+    }
+    if !unmarked.is_empty() {
+        problems.push(format!(
+            "{}: {} tests are neither marked to run in the browsers nor native-only with a `{NATIVE_ONLY_MARK}` doc line: {}",
+            member.name,
+            unmarked.len(),
+            unmarked.join(", ")
+        ));
+    }
+    let mut summary = format!(
+        "{} of {marked} tests marked for the browsers; {native_only} native-only",
+        runs.join(", ")
+    );
+    if !reasons.is_empty() {
+        let grouped: Vec<String> = reasons
+            .iter()
+            .map(|(reason, tests)| format!("{} {reason}", tests.len()))
+            .collect();
+        summary.push_str(&format!(" ({})", grouped.join("; ")));
+    }
+    summary.push_str(&format!("; {} unmarked", unmarked.len()));
+    println!("CI coverage {}: {summary}", member.name);
+    json!({
+        "rule": "a test runs in the browsers when it carries wasm-bindgen-test's attribute and no cfg around it is false on wasm32; otherwise it is native-only with the reason of the nearest `Native-only:` doc line (function, module or file), or unmarked. Each browser must run (pass, fail or ignore) as many tests as are marked for the browsers, and none may be unmarked.",
+        "marked_for_browsers": marked,
+        "ran": ran.iter().map(|(browser, count)| ((*browser).to_owned(), json!(count))).collect::<Map<String, Value>>(),
+        "native_only": native_only,
+        "native_only_reasons": reasons.iter().map(|(reason, tests)| json!({
+            "reason": reason,
+            "count": tests.len(),
+            "tests": tests,
+        })).collect::<Vec<Value>>(),
+        "unmarked": unmarked,
+        "summary": summary,
+    })
 }
 
 /// The cargo of a test run: `cargo test --locked --no-fail-fast` with JSON messages, in
@@ -1582,6 +1692,7 @@ fn wasm_job(
         let mut browsers = Vec::new();
         let (mut built, mut harness_ran, mut worst) = (true, true, Outcome::Passed);
         let mut zero = false;
+        let mut ran: Vec<(&str, Option<u64>)> = Vec::new();
         for browser in &BROWSERS {
             let Some((_, runs, _)) = per_browser.iter().find(|(b, _, _)| b.name == browser.name)
             else {
@@ -1607,6 +1718,11 @@ fn wasm_job(
                 continue;
             };
             let status = run.outcome();
+            let counts = run.counts();
+            ran.push((
+                browser.banner,
+                Some(counts.passed + counts.failed + counts.ignored),
+            ));
             print_package_line(
                 status,
                 &format!("{}@{}", member.name, browser.name),
@@ -1634,6 +1750,12 @@ fn wasm_job(
         if worst != Outcome::Failed && zero {
             worst = Outcome::ZeroTests;
         }
+        for browser in &BROWSERS {
+            if !ran.iter().any(|(name, _)| *name == browser.banner) {
+                ran.push((browser.banner, None));
+            }
+        }
+        let coverage = browser_coverage(ws, member, &excluded, &ran, problems);
         any_failed |= worst == Outcome::Failed;
         packages.push(json!({
             "package": member.name,
@@ -1644,6 +1766,7 @@ fn wasm_job(
             "status": worst.as_str(),
             "browsers": browsers,
             "excluded_targets": excluded_json(member, &excluded),
+            "coverage": coverage,
             "not_run_on_wasm": [
                 "doc tests: rustdoc would hand each doctest to wasm-bindgen-test-runner as a plain libtest module, which the runner reports as `no tests to run!` and rustdoc as passed, so no doctest result on wasm is browser evidence",
             ],

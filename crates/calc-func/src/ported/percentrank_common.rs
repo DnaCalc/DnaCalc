@@ -40,7 +40,7 @@ pub fn percentrank(
                 lower_rank + (x - lower_x) * (upper_rank - lower_rank) / (upper_x - lower_x)
             }
         };
-    Ok(truncate_to_significant_digits(base, significance as usize))
+    Ok(truncate_to_decimal_places(base, significance))
 }
 
 fn exact_rank(index: usize, len: usize, mode: PercentRankMode) -> f64 {
@@ -50,11 +50,13 @@ fn exact_rank(index: usize, len: usize, mode: PercentRankMode) -> f64 {
     }
 }
 
-fn truncate_to_significant_digits(value: f64, digits: usize) -> f64 {
-    if value == 0.0 {
-        return 0.0;
-    }
-    let scale = 10f64.powf(digits as f64 - 1.0 - value.abs().log10().floor());
+/// The rank truncated to `places` decimal places, trunc(value*10^places)/10^places: Excel's
+/// `significance` counts decimal places, not significant digits (dc-j9k: 301 of 301
+/// PERCENTRANK, PERCENTRANK.INC and PERCENTRANK.EXC readings in the catalogue oracle's sheet
+/// dcj9k_statistics; PERCENTRANK.INC(...,5.93) is 0.037, where three significant digits
+/// gave 0.0373).
+fn truncate_to_decimal_places(value: f64, places: i64) -> f64 {
+    let scale = 10f64.powi(places.min(308) as i32);
     (value * scale).trunc() / scale
 }
 

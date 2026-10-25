@@ -214,13 +214,16 @@ ported_family! {
         if values.is_empty() || values.iter().any(|v| *v <= 0.0) {
             return fail(WorksheetErrorCode::Num);
         }
-        // The product to the power 1/n, by a correctly rounded pow, as Excel gives GEOMEAN(1,5,3)
-        // (the catalogue oracle's capture); exp of the mean logarithm is one ulp above it. A
-        // product beyond binary64's range falls back to the mean logarithm (not measured).
+        // The n-th root of the binary64 product computed in the x87 registers
+        // (excel_root_x87, dc-j9k): 168 of the 200 GEOMEAN readings of the catalogue oracle's
+        // sheet dcj9k_statistics match, where the correctly rounded pow with exponent 1/n
+        // matched 4 of the sweep's 20; it misses GEOMEAN(1,5,3) by one ulp, which that pow
+        // matched. A product beyond binary64's range falls back to the mean logarithm (not
+        // measured).
         let n = values.len() as f64;
         let product = values.iter().product::<f64>();
         if product.is_normal() {
-            s.number(libm::pow(product, 1.0 / n))
+            s.number(k::excel_numeric::excel_root_x87(&values))
         } else {
             let ln = values.iter().map(|v| v.ln()).sum::<f64>();
             s.number((ln / n).exp())
