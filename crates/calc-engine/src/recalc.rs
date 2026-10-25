@@ -214,6 +214,44 @@ impl WorkBudget {
     }
 }
 
+/// Values by node, kept at the node's slot (dc-10d9: in place of a BTreeMap from node, which each
+/// evaluation of a recalculation inserted into twice). No two live nodes share a slot while a
+/// recalculation runs, since a commit cancels it.
+#[derive(Debug)]
+struct BySlot<T> {
+    entries: Vec<Option<(NodeId, T)>>,
+}
+
+impl<T> Default for BySlot<T> {
+    fn default() -> Self {
+        BySlot {
+            entries: Vec::new(),
+        }
+    }
+}
+
+impl<T> BySlot<T> {
+    fn get(&self, node: NodeId) -> Option<&T> {
+        match self.entries.get(node.slot() as usize) {
+            Some(Some((held, value))) if *held == node => Some(value),
+            _ => None,
+        }
+    }
+
+    fn insert(&mut self, node: NodeId, value: T) {
+        let slot = node.slot() as usize;
+        if slot >= self.entries.len() {
+            self.entries.resize_with(slot + 1, || None);
+        }
+        self.entries[slot] = Some((node, value));
+    }
+
+    /// Every entry, in slot order (the order of the node IDs).
+    fn into_entries(self) -> impl Iterator<Item = (NodeId, T)> {
+        self.entries.into_iter().flatten()
+    }
+}
+
 /// One recalculation in progress: the nodes it evaluates in their order, the formulas waiting for
 /// a cell it has yet to evaluate, and the results, spills and dynamic prerequisites it has
 /// staged. It holds no borrow of the engine state, which [`step`] and [`finish`] check has not
@@ -235,9 +273,9 @@ pub struct RecalcWork {
     progress: Progress,
     /// The active spills of the anchors evaluated, and each evaluated anchor's filled area.
     spills: SpillIndex,
-    filled: BTreeMap<NodeId, Option<GridArea>>,
+    filled: BySlot<Option<GridArea>>,
     /// Each evaluated node's dynamic prerequisites.
-    dynamic: BTreeMap<NodeId, Vec<Prerequisite>>,
+    dynamic: BySlot<Vec<Prerequisite>>,
     /// Nodes to calculate again in the next wave.
     rewave: BTreeSet<NodeId>,
     waves: u32,
@@ -440,8 +478,8 @@ pub fn begin_recalc(
         waiting: BTreeMap::new(),
         waits_on: BTreeMap::new(),
         spills: SpillIndex::default(),
-        filled: BTreeMap::new(),
-        dynamic: BTreeMap::new(),
+        filled: BySlot::default(),
+        dynamic: BySlot::default(),
         rewave: BTreeSet::new(),
         waves: 0,
         scratch: EvalScratch::new(),
@@ -537,7 +575,9 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
             revision: work.revision,
         });
     }
-    let mut changes: BTreeMap<CellKey, ValueChange> = BTreeMap::new();
+    // Each change is of a distinct cell: a published node's anchor, or a retired anchor whose
+    // published result no live node there replaced. They are sorted by cell at the end.
+    let mut changes: Vec<(CellKey, ValueChange)> = Vec::with_capacity(work.progress.scheduled());
     let mut spill_changes = Vec::new();
     for (node, result) in std::mem::take(&mut work.progress).into_staged() {
         let at = live_anchor(state, node);
@@ -556,9 +596,9 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         }
         state.results.insert(at, (node, result.clone()));
         state.pending.remove(&node);
-        changes.insert(at, ValueChange::Published { at, node, result });
+        changes.push((at, ValueChange::Published { at, node, result }));
     }
-    for (node, dynamic) in std::mem::take(&mut work.dynamic) {
+    for (node, dynamic) in std::mem::take(&mut work.dynamic).into_entries() {
         state.set_dynamic(node, dynamic);
     }
     for at in std::mem::take(&mut state.retired) {
@@ -573,17 +613,22 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
                     after: None,
                 });
             }
-            changes.insert(at, ValueChange::Removed { at, node });
+            changes.push((at, ValueChange::Removed { at, node }));
         }
     }
     state.cycle_members = work.cyclic;
     state.generation += 1;
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
+    changes.sort_by_key(|(at, _)| *at);
+    debug_assert!(
+        changes.windows(2).all(|pair| pair[0].0 != pair[1].0),
+        "one change per cell"
+    );
     Ok(ValueDelta::new(
         work.revision,
         work.calculation.tick(),
-        changes.into_values().collect(),
+        changes.into_iter().map(|(_, change)| change).collect(),
     )
     .with_spill_changes(spill_changes))
 }
@@ -1220,7 +1265,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     let roots = std::mem::take(&mut work.rewave);
     work.waves += 1;
     let areas = |node: NodeId| -> Vec<GridArea> {
-        match work.filled.get(&node) {
+        match work.filled.get(node) {
             Some(filled) => filled.iter().copied().collect(),
             None => published_areas(state, inputs, node),
         }
@@ -1328,18 +1373,23 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
 /// cells it gained or lost that are already evaluated or not calculated by this recalculation.
 fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: NodeId, done: Done) {
     let at = live_anchor(state, node);
-    let before = match work.filled.get(&node) {
+    let before = match work.filled.get(node) {
         Some(filled) => *filled,
         None => match state.spills.get(at) {
             Some(spill) => Some(spill.area()),
-            None => match state.result(at) {
-                Some(FormulaResult::Calculated { .. } | FormulaResult::NotModeled { .. }) => None,
-                _ => inputs
-                    .definitions()
-                    .array(at)
-                    .map(|array| array.area())
-                    .filter(|area| area.cell_count() > 1),
-            },
+            // The file's area of an array formula whose result is not calculated (the array is
+            // looked up first: most formulas are not array formulas, and need no result read).
+            None => inputs
+                .definitions()
+                .array(at)
+                .map(|array| array.area())
+                .filter(|area| area.cell_count() > 1)
+                .filter(|_| {
+                    !matches!(
+                        state.result(at),
+                        Some(FormulaResult::Calculated { .. } | FormulaResult::NotModeled { .. })
+                    )
+                }),
         },
     };
     let after = done.spill.as_ref().map(Spill::area);
