@@ -681,6 +681,16 @@ impl ReferenceReader for WorkbookReader<'_> {
         // One cell that holds an input (most reads; dc-10d9): its value, read straight from its
         // page, as the walk below would give it without building the walk. An empty cell, which
         // an overlay may fill, takes the walk.
+        // A formula cell (dc-dxm: found in the engine's own index first, without the page walk):
+        // its value as `formula_value` gives it, which is what the walk would give, the cell of a
+        // what-if table's node included.
+        if total == 1 && self.view.state.node_at(area.first()).is_some() {
+            let _ = match self.formula_value(area.first()) {
+                Some(value) => sink(CellRun::Values(std::slice::from_ref(value))),
+                None => sink(CellRun::Missing(1)),
+            };
+            return;
+        }
         if total == 1
             && let Some(input) = inputs.cell(area.first())
         {
