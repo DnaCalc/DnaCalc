@@ -45,6 +45,23 @@ struct LinearRegressionModel {
     coefficients: Vec<f64>,
     intercept: f64,
 }
+
+/// A least-squares fit with the QR factors LINEST's statistics come from.
+#[derive(Debug, Clone, PartialEq)]
+struct RegressionFit {
+    model: LinearRegressionModel,
+    /// The matrix columns in their QR order: the predictor each holds (None for the ones column).
+    order: Vec<Option<usize>>,
+    /// `r[j][k]` for `k >= j`: the triangular factor, `r[j][j]` the step's `alpha`.
+    r: Vec<Vec<f64>>,
+    /// `Q'y` (of the centred y with a constant).
+    qty: Vec<f64>,
+    /// The predictor means (all 0 without a constant).
+    means: Vec<f64>,
+    /// y as the fit took it (centred with a constant).
+    y: Vec<f64>,
+    observations: usize,
+}
 /// An argument as the regression functions read it: the caller has read a reference into an
 /// array; an empty or omitted argument is #VALUE!.
 fn resolve_arg_eval(arg: &CalcValue) -> Result<CalcValue, WorksheetErrorCode> {
@@ -395,13 +412,23 @@ fn prediction_input_from_optional(
 ///    the later columns.
 /// 4. The intercept is `my - b_1*m_1 - b_2*m_2 - ...`, subtracted in predictor order.
 ///
-/// A column whose norm at its step is below 1e-12 (a constant or collinear predictor, which
-/// Excel answers with a zero coefficient) is #NUM!, as before.
+/// 5. Collinear, zero and surplus predictors (Excel 16.0.20430, 2026-10-25): a predictor whose
+///    remaining sum of squares at its step is below `COLLINEAR` times its sum of squares before
+///    the steps is dropped (coefficient 0, standard error 0, not counted in the degrees of
+///    freedom), as is every predictor once no rows remain; a predictor that is zero from the
+///    start (or constant, with a constant) is kept with coefficient 0 and counted.
+/// The relative remainder below which a predictor counts as in the span of those before it.
+/// Measured on `x2 = 2*x1 + d` (four rows): without a constant Excel keeps the column at a
+/// remainder of 5.6e-13 of its sum of squares and drops it at 3.5e-13; with a constant it keeps
+/// it at 1.0e-12 and drops it at 6.5e-13, so between 4.5e-13 and 6.5e-13 this keeps a column
+/// that Excel, with a constant, drops.
+const COLLINEAR: f64 = 4.5e-13;
+
 fn least_squares(
     columns: &[Vec<f64>],
     y: &[f64],
     use_const: bool,
-) -> Result<LinearRegressionModel, WorksheetErrorCode> {
+) -> Result<RegressionFit, WorksheetErrorCode> {
     let n = y.len();
     let mean = |values: &[f64]| values.iter().fold(0.0, |sum, v| sum + v) / n as f64;
     let means: Vec<f64> = columns.iter().map(|column| mean(column)).collect();
@@ -424,23 +451,44 @@ fn least_squares(
     } else {
         y.to_vec()
     };
+    let centred_y = target.clone();
     let p = matrix.len();
     if n == 1 && use_const {
         // One observation with a constant: every centred predictor is 0, so each coefficient is
         // 0 and the intercept is the one y (Excel 16.0.20430, 2026-10-25, dc-6au:
         // `=LINEST(1,{1;2;3})` 0,0,0,1, `=LINEST(5,2)` 0,5, `=TREND(1,{1;2;3})` 1).
-        return Ok(LinearRegressionModel {
-            coefficients: vec![0.0; columns.len()],
-            intercept: y_mean,
+        return Ok(RegressionFit {
+            model: LinearRegressionModel {
+                coefficients: vec![0.0; columns.len()],
+                intercept: y_mean,
+            },
+            order: Vec::new(),
+            r: Vec::new(),
+            qty: Vec::new(),
+            means,
+            y: Vec::new(),
+            observations: n,
         });
-    }
-    if p > n {
-        return Err(WorksheetErrorCode::Num);
     }
     let squares_from =
         |values: &[f64], from: usize| values[from..].iter().fold(0.0, |sum, v| sum + v * v);
+    // Each column's sum of squares before the steps, the scale its remainder is judged against.
+    let initial: Vec<f64> = matrix.iter().map(|(_, column)| squares_from(column, 0)).collect();
+    let mut scale: Vec<(Option<usize>, f64)> =
+        matrix.iter().map(|(predictor, _)| *predictor).zip(initial).collect();
     let mut diagonal = vec![0.0; p];
-    for j in 0..p {
+    // Each step takes the best remaining column (the ones column first). A column whose remaining
+    // sum of squares is below `COLLINEAR` times its sum before the steps is dropped (coefficient
+    // 0, not counted in the degrees of freedom), and the step tries the next; a column that was
+    // zero from the start is kept as it is (coefficient 0, counted), with no reflection; once no
+    // rows remain, every column left is dropped.
+    let mut j = 0;
+    while j < matrix.len() {
+        if j >= n {
+            matrix.truncate(j);
+            scale.truncate(j);
+            break;
+        }
         if matrix[j].0.is_some() {
             let mut best = j;
             let mut best_squares = -1.0;
@@ -452,13 +500,22 @@ fn least_squares(
                 }
             }
             matrix.swap(j, best);
+            scale.swap(j, best);
         }
         let x0 = matrix[j].1[j];
         let rest = squares_from(&matrix[j].1, j + 1);
-        let norm = squares_from(&matrix[j].1, j).sqrt();
-        if norm < 1e-12 {
-            return Err(WorksheetErrorCode::Num);
+        let squares = squares_from(&matrix[j].1, j);
+        if squares < COLLINEAR * scale[j].1 {
+            matrix.remove(j);
+            scale.remove(j);
+            continue;
         }
+        if squares == 0.0 {
+            diagonal[j] = 0.0;
+            j += 1;
+            continue;
+        }
+        let norm = squares.sqrt();
         let alpha = -norm.copysign(x0);
         let mut v = matrix[j].1[j..].to_vec();
         v[0] = x0 - alpha;
@@ -478,14 +535,16 @@ fn least_squares(
         }
         reflect(&mut target);
         diagonal[j] = alpha;
+        j += 1;
     }
-    let mut solution = vec![0.0; p];
-    for j in (0..p).rev() {
-        let d = ((j + 1)..p).fold(0.0, |sum, k| sum + matrix[k].1[j] * solution[k]);
-        solution[j] = (target[j] - d) / diagonal[j];
+    let rank = matrix.len();
+    let mut solution = vec![0.0; rank];
+    for j in (0..rank).rev() {
+        let d = ((j + 1)..rank).fold(0.0, |sum, k| sum + matrix[k].1[j] * solution[k]);
+        solution[j] = if diagonal[j] == 0.0 { 0.0 } else { (target[j] - d) / diagonal[j] };
     }
     let mut coefficients = vec![0.0; columns.len()];
-    for (j, (predictor, _)) in matrix.iter().enumerate() {
+    for (j, (predictor, _)) in matrix.iter().take(rank).enumerate() {
         if let Some(index) = predictor {
             coefficients[*index] = solution[j];
         }
@@ -498,9 +557,24 @@ fn least_squares(
     } else {
         0.0
     };
-    Ok(LinearRegressionModel {
-        coefficients,
-        intercept,
+    let r = (0..rank)
+        .map(|j| {
+            (0..rank)
+                .map(|k| if k < j { 0.0 } else if k == j { diagonal[j] } else { matrix[k].1[j] })
+                .collect()
+        })
+        .collect();
+    Ok(RegressionFit {
+        model: LinearRegressionModel {
+            coefficients,
+            intercept,
+        },
+        order: matrix.iter().map(|(predictor, _)| *predictor).collect(),
+        r,
+        qty: target,
+        means,
+        y: centred_y,
+        observations: n,
     })
 }
 
@@ -509,6 +583,14 @@ fn linear_model_from_data(
     known_x: &PreparedPredictorInput,
     use_const: bool,
 ) -> Result<LinearRegressionModel, WorksheetErrorCode> {
+    linear_fit_from_data(known_y, known_x, use_const).map(|fit| fit.model)
+}
+
+fn linear_fit_from_data(
+    known_y: &NumericVector,
+    known_x: &PreparedPredictorInput,
+    use_const: bool,
+) -> Result<RegressionFit, WorksheetErrorCode> {
     let observation_count = known_y.values.len();
     if known_x.predictors.rows != observation_count {
         return Err(WorksheetErrorCode::Ref);
@@ -548,6 +630,14 @@ fn exponential_model_from_data(
     known_x: &PreparedPredictorInput,
     use_const: bool,
 ) -> Result<LinearRegressionModel, WorksheetErrorCode> {
+    exponential_fit_from_data(known_y, known_x, use_const).map(|fit| fit.model)
+}
+
+fn exponential_fit_from_data(
+    known_y: &NumericVector,
+    known_x: &PreparedPredictorInput,
+    use_const: bool,
+) -> Result<RegressionFit, WorksheetErrorCode> {
     let mut log_y = Vec::with_capacity(known_y.values.len());
     for value in &known_y.values {
         if *value <= 0.0 || !value.is_finite() {
@@ -559,7 +649,7 @@ fn exponential_model_from_data(
         values: log_y,
         shape: known_y.shape,
     };
-    linear_model_from_data(&logged, known_x, use_const)
+    linear_fit_from_data(&logged, known_x, use_const)
 }
 
 fn eval_value_from_output_shape(
@@ -670,24 +760,112 @@ fn one_observation_statistics(first: Vec<f64>) -> CalcValue {
     )
 }
 
+/// The statistics block of LINEST and LOGEST below the first row `first` (the coefficients in
+/// reverse predictor order, then the constant), from the fit's QR factors: the standard errors
+/// of the coefficients and of the constant (#N/A without one), R squared and the standard error
+/// of y, F and the degrees of freedom, and the regression and residual sums of squares. LOGEST's
+/// statistics are those of the fit to ln y.
+fn statistics_block(fit: &RegressionFit, use_const: bool, first: Vec<f64>) -> CalcValue {
+    if fit.order.is_empty() {
+        return one_observation_statistics(first);
+    }
+    let n = fit.observations;
+    let p = fit.order.len();
+    let predictors = p - usize::from(use_const);
+    let squares = |values: &[f64]| values.iter().fold(0.0, |sum, v| sum + v * v);
+    let ss_resid = squares(&fit.qty[p..]);
+    let ss_total = squares(&fit.y);
+    let ss_reg = ss_total - ss_resid;
+    let df = (n - p) as f64;
+    // With no degrees of freedom left Excel gives R squared 1, every standard error 0 and F
+    // #NUM! (an exact fit of as many columns as observations).
+    let exact = n == p;
+    let r2 = if exact { 1.0 } else { ss_reg / ss_total };
+    let se_y = if exact { 0.0 } else { (ss_resid / df).sqrt() };
+    let f = if exact { f64::NAN } else { (ss_reg / predictors as f64) / (ss_resid / df) };
+    // The inverse of the triangular factor over the columns with a nonzero diagonal (a column
+    // kept as zero comes last and has standard error 0), column by column.
+    let nz = (0..p).take_while(|j| fit.r[*j][*j] != 0.0).count();
+    let mut inverse = vec![vec![0.0; nz]; nz];
+    for j in 0..nz {
+        inverse[j][j] = 1.0 / fit.r[j][j];
+        for i in (0..j).rev() {
+            let sum = ((i + 1)..=j).fold(0.0, |sum, k| sum + fit.r[i][k] * inverse[k][j]);
+            inverse[i][j] = -sum / fit.r[i][i];
+        }
+    }
+    // (R'R)^-1 = R^-1 R^-T.
+    let covariance =
+        |a: usize, b: usize| (0..nz).fold(0.0, |sum, k| sum + inverse[a][k] * inverse[b][k]);
+    let mut se = vec![0.0; fit.model.coefficients.len()];
+    for (position, predictor) in fit.order.iter().enumerate().take(nz) {
+        if let Some(index) = predictor {
+            if !exact {
+                se[*index] = (ss_resid * covariance(position, position) / df).sqrt();
+            }
+        }
+    }
+    let n_a = || CalcValue::error(WorksheetErrorCode::NA);
+    let number = |v: f64| {
+        if v.is_finite() { CalcValue::number(v) } else { CalcValue::error(WorksheetErrorCode::Num) }
+    };
+    let cols = first.len();
+    let mut second: Vec<CalcValue> = se.iter().rev().map(|v| number(*v)).collect();
+    if use_const {
+        // The constant is my - sum(b_j m_j): its variance is w'(R'R)^-1 w with w = 1 at the
+        // ones column and -m_j at predictor j's column.
+        let w: Vec<f64> = fit
+            .order
+            .iter()
+            .take(nz)
+            .map(|predictor| match predictor {
+                None => 1.0,
+                Some(index) => -fit.means[*index],
+            })
+            .collect();
+        let mut variance = 0.0;
+        for a in 0..nz {
+            for b in 0..nz {
+                variance += w[a] * w[b] * covariance(a, b);
+            }
+        }
+        let se_b = if exact { 0.0 } else { (ss_resid / df * variance).sqrt() };
+        second.push(number(se_b));
+    } else {
+        second.push(n_a());
+    }
+    let pad = |head: Vec<CalcValue>| {
+        let mut row = head;
+        while row.len() < cols {
+            row.push(n_a());
+        }
+        row
+    };
+    CalcValue::array(
+        CalcArray::from_rows(vec![
+            first.into_iter().map(CalcValue::number).collect(),
+            second,
+            pad(vec![number(r2), number(se_y)]),
+            pad(vec![number(f), number(df)]),
+            pad(vec![number(ss_reg), number(ss_resid)]),
+        ])
+        .expect("five rows of one length"),
+    )
+}
+
 fn linest_kernel(
     known_y: &NumericVector,
     known_x: &PreparedPredictorInput,
     use_const: bool,
     stats: bool,
 ) -> Result<CalcValue, WorksheetErrorCode> {
-    if stats && use_const && known_y.values.len() == 1 {
-        let model = linear_model_from_data(known_y, known_x, use_const)?;
-        let mut row = model.coefficients.iter().rev().copied().collect::<Vec<_>>();
-        row.push(model.intercept);
-        return Ok(one_observation_statistics(row));
-    }
-    if stats {
-        return Err(WorksheetErrorCode::Ref);
-    }
-    let model = linear_model_from_data(known_y, known_x, use_const)?;
+    let fit = linear_fit_from_data(known_y, known_x, use_const)?;
+    let model = &fit.model;
     let mut row = model.coefficients.iter().rev().copied().collect::<Vec<_>>();
     row.push(if use_const { model.intercept } else { 0.0 });
+    if stats {
+        return Ok(statistics_block(&fit, use_const, row));
+    }
     Ok(row_array(&row))
 }
 
@@ -697,21 +875,8 @@ fn logest_kernel(
     use_const: bool,
     stats: bool,
 ) -> Result<CalcValue, WorksheetErrorCode> {
-    if stats && use_const && known_y.values.len() == 1 {
-        let model = exponential_model_from_data(known_y, known_x, use_const)?;
-        let mut row = model
-            .coefficients
-            .iter()
-            .rev()
-            .map(|b| excel_numeric::excel_exp(*b))
-            .collect::<Vec<_>>();
-        row.push(excel_numeric::excel_exp(model.intercept));
-        return Ok(one_observation_statistics(row));
-    }
-    if stats {
-        return Err(WorksheetErrorCode::Ref);
-    }
-    let model = exponential_model_from_data(known_y, known_x, use_const)?;
+    let fit = exponential_fit_from_data(known_y, known_x, use_const)?;
+    let model = &fit.model;
     let mut row = model
         .coefficients
         .iter()
@@ -723,6 +888,9 @@ fn logest_kernel(
     } else {
         1.0
     });
+    if stats {
+        return Ok(statistics_block(&fit, use_const, row));
+    }
     Ok(row_array(&row))
 }
 
@@ -1252,5 +1420,81 @@ mod tests {
             }
             other => panic!("expected array, got {other:?}"),
         }
+    }
+
+    /// The cells of an array result: a number as its bits, an error as its code.
+    fn block(value: CalcValue) -> Vec<Result<u64, WorksheetErrorCode>> {
+        match value.core() {
+            CoreValue::Array(array) => array
+                .iter_row_major()
+                .map(|cell| match cell.core() {
+                    CoreValue::Number(n) => Ok(n.to_bits()),
+                    CoreValue::Error(e) => Err(*e),
+                    other => panic!("unexpected cell: {other:?}"),
+                })
+                .collect(),
+            other => panic!("expected array, got {other:?}"),
+        }
+    }
+
+    /// dc-j9k: LINEST's statistics block as Excel 16.0.20430 gives it (2026-10-25), cell for
+    /// cell: an ordinary fit; one observation without a constant (fitted through the origin, no
+    /// degrees of freedom: R squared 1, standard errors 0, F #NUM!); and a zero predictor, kept
+    /// with coefficient 0 and counted in the degrees of freedom. The catalogue oracle's sheet
+    /// dcj9k_linest_stats holds 1,970 such readings.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn linest_statistics_match_excel_readings() {
+        use WorksheetErrorCode::{NA, Num};
+        let ordinary = eval_linest_surface(&[
+            col(&[1.2, 2.9, 3.1, 4.8, 5.5]),
+            col(&[1.0, 2.0, 3.0, 4.0, 5.0]),
+            bool_arg(true),
+            bool_arg(true),
+        ])
+        .unwrap();
+        let cells = block(ordinary);
+        assert_eq!(cells[0], Ok(0x3ff0cccccccccccd)); // slope 1.05
+        assert_eq!(cells[2], Ok(0x3fc01b375bea0831)); // its standard error
+        assert_eq!(cells[5], Ok(0x3fd9776097813568)); // the standard error of y
+        let one = eval_linest_surface(&[num(5.0), num(2.0), bool_arg(false), bool_arg(true)])
+            .unwrap();
+        assert_eq!(
+            block(one),
+            vec![
+                Ok(2.5f64.to_bits()),
+                Ok(0),
+                Ok(0),
+                Err(NA),
+                Ok(1.0f64.to_bits()),
+                Ok(0),
+                Err(Num),
+                Ok(0),
+                Ok(25.0f64.to_bits()),
+                Ok(0),
+            ]
+        );
+        let zero = eval_linest_surface(&[
+            col(&[1.0, 2.0, 4.0]),
+            col(&[0.0, 0.0, 0.0]),
+            bool_arg(false),
+            bool_arg(true),
+        ])
+        .unwrap();
+        assert_eq!(
+            block(zero),
+            vec![
+                Ok(0),
+                Ok(0),
+                Ok(0),
+                Err(NA),
+                Ok(0x3fa8618618618618), // 1/21
+                Ok(0x40094c583ada5b53), // sqrt(10)
+                Ok(0x3fb999999999999a), // 0.1
+                Ok(2.0f64.to_bits()),
+                Ok(1.0f64.to_bits()),
+                Ok(20.0f64.to_bits()),
+            ]
+        );
     }
 }
