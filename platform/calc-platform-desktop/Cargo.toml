@@ -8,3 +8,8 @@ description = "The native-only package for the desktop platform adapter: native 
 
 [package.metadata.dnacalc]
 portability = "native-only"
+
+# The physical core count (GetLogicalProcessorInformation) for the default number of recalculation
+# threads. windows-sys is already in the workspace lock.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_SystemInformation"] }

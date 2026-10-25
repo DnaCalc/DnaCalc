@@ -6,7 +6,10 @@
 //!
 //! **DNA Calc**, `--runs` times per workbook (default 5), each run in a new release xtask process
 //! (`bench --one`), through calc-host's product calls with no read observer
-//! ([`calc_host::Unobserved`]):
+//! ([`calc_host::Unobserved`]), recalculating on `--threads` threads (default
+//! `calc_platform_desktop::default_threads`: the physical cores, at most eight); with
+//! `--verify-threads` a second host on one thread takes every step and every formula cell is
+//! compared after each recalculation:
 //!
 //! 1. open: [`HostState::open`] of the workbook's bytes, read before the clock starts, with the
 //!    options `cargo xtask compare` opens it with (the capture's locale, automatic calculation).
@@ -103,7 +106,7 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
         dir: PathBuf::new(),
         runs: DEFAULT_RUNS,
         repeat: 1,
-        threads: 1,
+        threads: calc_platform_desktop::default_threads(),
         verify_threads: false,
         out: PathBuf::from(DEFAULT_OUT),
         cache: PathBuf::from(DEFAULT_CACHE),

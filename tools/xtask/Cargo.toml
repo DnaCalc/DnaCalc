@@ -34,6 +34,8 @@ syn = { version = "3", default-features = false, features = ["full", "parsing", 
 # command, in main.rs), which must fail through xtask's own compile_error! alone.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 calc-oracle-excel = { path = "../../platform/calc-oracle-excel" }
+# The desktop platform adapter gives `cargo xtask bench` the default number of recalculation threads.
+calc-platform-desktop = { path = "../../platform/calc-platform-desktop" }
 
 # `cargo xtask bench` reads its own process's peak memory (GetProcessMemoryInfo) and its thread
 # cycles (QueryThreadCycleTime). windows-sys is already in the workspace lock (calc-oracle-excel's
