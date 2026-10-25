@@ -346,6 +346,9 @@ pub(crate) struct ReverseIndex {
     /// The levels at which a rectangle has been filed (bit `l` for level `l`), so a cell's query
     /// looks only in those; a level whose last rectangle was removed keeps its bit.
     rect_levels: u8,
+    /// How many times an edge has been filed or removed: the readers a query found stand while
+    /// this is unchanged (dc-10d9, [`crate::recalc::ReadersCache`]).
+    epoch: u64,
     rects_by_sheet: BTreeMap<SheetId, BTreeSet<RectEdge>>,
     row_values: BTreeMap<SheetId, BTreeSet<AxisEdge>>,
     column_values: BTreeMap<SheetId, BTreeSet<AxisEdge>>,
@@ -367,7 +370,13 @@ impl ReverseIndex {
         }
     }
 
+    /// See [`ReverseIndex::epoch`] (the field).
+    pub(crate) fn epoch(&self) -> u64 {
+        self.epoch
+    }
+
     fn file(&mut self, node: NodeId, prerequisite: Prerequisite, insert: bool) {
+        self.epoch += 1;
         match prerequisite {
             Prerequisite::Cell(at) => update(&mut self.cells, at, node, insert),
             Prerequisite::Area(area) => {
