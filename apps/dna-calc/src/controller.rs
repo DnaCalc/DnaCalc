@@ -80,6 +80,11 @@ pub struct Controller {
     pub sheet: RwSignal<Option<SheetId>>,
     /// The active cell's row and column on the active sheet.
     pub active: RwSignal<(u32, u32)>,
+    /// The selected range's corner opposite the active cell: the range is the rectangle of the
+    /// two (one cell when they are the same).
+    pub corner: RwSignal<(u32, u32)>,
+    /// The range copied (Ctrl+C), which a paste copies from.
+    pub clipboard: RwSignal<Option<GridArea>>,
     /// The cells of the host's selection, as the application's subscription delivered them.
     pub selection: RwSignal<DeltaMirror>,
     pub status: RwSignal<Status>,
@@ -100,6 +105,8 @@ impl Controller {
             generation: RwSignal::new(0),
             sheet: RwSignal::new(None),
             active: RwSignal::new((1, 1)),
+            corner: RwSignal::new((1, 1)),
+            clipboard: RwSignal::new(None),
             selection: RwSignal::new(DeltaMirror::default()),
             status: RwSignal::new(Status::default()),
             editing: RwSignal::new(None),
@@ -172,6 +179,8 @@ impl Controller {
             .with_value(|book| book.sheets().first().map(|tab| tab.id));
         self.sheet.set(first);
         self.active.set((1, 1));
+        self.corner.set((1, 1));
+        self.clipboard.set(None);
         self.editing.set(None);
         let selection = self.selection;
         selection.set(DeltaMirror::default());
@@ -264,16 +273,23 @@ impl Controller {
         // The active cell follows the host's selection: an undo or a redo restores the selection
         // of its edit, which may be on another sheet, and then that sheet is shown (as Excel
         // does), so the formula bar and the status line read the cell the selection holds.
-        let restored = self
-            .book
-            .with_value(|book| book.session().selection().active);
-        if let Some(at) = restored {
+        let restored = self.book.with_value(|book| {
+            let selection = book.session().selection();
+            selection
+                .active
+                .map(|at| (at, selection.areas.first().copied()))
+        });
+        if let Some((at, area)) = restored {
             if Some(at.sheet()) != self.sheet.get_untracked() {
                 self.editing.set(None);
                 self.sheet.set(Some(at.sheet()));
             }
             if (at.row(), at.column()) != self.active.get_untracked() {
                 self.active.set((at.row(), at.column()));
+            }
+            let corner = area.map_or((at.row(), at.column()), |area| opposite(area, at));
+            if corner != self.corner.get_untracked() {
+                self.corner.set(corner);
             }
         }
         // Only a change of the workbook or its calculation advances the revision: a selection or
@@ -298,11 +314,89 @@ impl Controller {
         receipt
     }
 
-    /// Moves the active cell and the host's selection.
+    /// Moves the active cell and the host's selection to one cell.
     pub fn select(&self, row: u32, column: u32) {
-        self.active.set((row, column));
-        if let Some(at) = self.active_key_untracked() {
-            self.dispatch(SkinIntent::Select(Selection::cell(at)));
+        self.select_range((row, column), (row, column));
+    }
+
+    /// Selects the range from the active cell `active` to its opposite corner `corner`.
+    pub fn select_range(&self, active: (u32, u32), corner: (u32, u32)) {
+        self.active.set(active);
+        self.corner.set(corner);
+        if let (Some(at), Some(area)) =
+            (self.active_key_untracked(), self.selected_area_untracked())
+        {
+            self.dispatch(SkinIntent::Select(Selection {
+                active: Some(at),
+                areas: vec![area],
+            }));
+        }
+    }
+
+    /// Moves the selected range's far corner, keeping the active cell (Shift+Arrow, Shift+click).
+    pub fn extend(&self, corner: (u32, u32)) {
+        self.select_range(self.active.get_untracked(), corner);
+    }
+
+    /// The selected range.
+    pub fn selected_area(&self) -> Option<GridArea> {
+        self.active.track();
+        self.corner.track();
+        self.selected_area_untracked()
+    }
+
+    pub fn selected_area_untracked(&self) -> Option<GridArea> {
+        let sheet = self.sheet.get_untracked()?;
+        let (row, column) = self.active.get_untracked();
+        let (corner_row, corner_column) = self.corner.get_untracked();
+        GridArea::new(
+            CellKey::new(sheet, row, column).ok()?,
+            CellKey::new(sheet, corner_row, corner_column).ok()?,
+        )
+        .ok()
+    }
+
+    /// Copies the selected range (Ctrl+C): a paste copies from it.
+    pub fn copy(&self) {
+        if let Some(area) = self.selected_area_untracked() {
+            self.clipboard.set(Some(area));
+            let label = self.with_untracked(|book| cells::area_label(book.host(), area));
+            self.say(format!("Copied {label}: select where to paste it"), false);
+        }
+    }
+
+    /// Pastes the copied range into the selected one (Ctrl+V): one calc-host copy, which
+    /// relocates formulas and repeats the source over a larger target.
+    pub fn paste(&self) {
+        let (Some(from), Some(to)) = (
+            self.clipboard.get_untracked(),
+            self.selected_area_untracked(),
+        ) else {
+            self.say("Nothing is copied to paste", true);
+            return;
+        };
+        self.dispatch(SkinIntent::Copy { from, to });
+    }
+
+    /// Fills the selected range down from its first row (Ctrl+D) or right from its first column
+    /// (Ctrl+R): a calc-host copy of that row or column over the rest.
+    pub fn fill(&self, down: bool) {
+        let Some(area) = self.selected_area_untracked() else {
+            return;
+        };
+        let parts = fill_parts(area, down);
+        match parts {
+            Some((from, to)) => {
+                self.dispatch(SkinIntent::Copy { from, to });
+            }
+            None => self.say(
+                if down {
+                    "Fill down needs a range of more than one row"
+                } else {
+                    "Fill right needs a range of more than one column"
+                },
+                true,
+            ),
         }
     }
 
@@ -359,13 +453,11 @@ impl Controller {
         self.dispatch(SkinIntent::EnterCell { at, text })
     }
 
-    /// Clears the active cell.
+    /// Clears the selected range (Delete).
     pub fn clear_active(&self) {
-        if let Some(at) = self.active_key_untracked() {
+        if let Some(area) = self.selected_area_untracked() {
             self.dispatch(SkinIntent::Edit {
-                edits: vec![CellEdit::Clear {
-                    area: GridArea::cell(at),
-                }],
+                edits: vec![CellEdit::Clear { area }],
             });
         }
     }
@@ -463,5 +555,53 @@ fn capitalised(text: &str) -> String {
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect(),
         None => String::new(),
+    }
+}
+
+/// The corner of `area` opposite `at`, one of its corners.
+fn opposite(area: GridArea, at: CellKey) -> (u32, u32) {
+    let (first, last) = (area.first(), area.last());
+    let row = if at.row() == first.row() {
+        last.row()
+    } else {
+        first.row()
+    };
+    let column = if at.column() == first.column() {
+        last.column()
+    } else {
+        first.column()
+    };
+    (row, column)
+}
+
+/// A fill's source and target in `area`: its first row and the rows below (`down`), or its first
+/// column and the columns right of it; `None` when the area has one row (one column).
+fn fill_parts(area: GridArea, down: bool) -> Option<(GridArea, GridArea)> {
+    let (first, last) = (area.first(), area.last());
+    let sheet = area.sheet();
+    if down {
+        if first.row() == last.row() {
+            return None;
+        }
+        let source =
+            GridArea::new(first, CellKey::new(sheet, first.row(), last.column()).ok()?).ok()?;
+        let target = GridArea::new(
+            CellKey::new(sheet, first.row() + 1, first.column()).ok()?,
+            last,
+        )
+        .ok()?;
+        Some((source, target))
+    } else {
+        if first.column() == last.column() {
+            return None;
+        }
+        let source =
+            GridArea::new(first, CellKey::new(sheet, last.row(), first.column()).ok()?).ok()?;
+        let target = GridArea::new(
+            CellKey::new(sheet, first.row(), first.column() + 1).ok()?,
+            last,
+        )
+        .ok()?;
+        Some((source, target))
     }
 }

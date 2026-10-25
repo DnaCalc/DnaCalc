@@ -1,21 +1,19 @@
 //! The grid skin's select and navigate grammar, with no DOM and no Leptos.
 //!
 //! 1. **The key grammar**: one declarative table ([`sheet_keymap`]) from a normalized
-//!    [`KeyChord`] to a [`SheetAction`], with [`resolve_action`] and [`action_availability`]. The
-//!    grammar is data an atlas of key bindings can list, never scattered `match` arms on key
-//!    names. Range extension (Shift+Arrow) stays in the table, so its chords are reserved, but is
-//!    not built: [`action_availability`] gives it a reason, and the skin shows the reason and
-//!    changes nothing.
+//!    [`KeyChord`] to a [`SheetAction`], with [`resolve_action`]. The grammar is data an atlas of
+//!    key bindings can list, never scattered `match` arms on key names.
 //! 2. **The movement**: [`next_active`], the edge-clamped map from an active cell and a
 //!    [`NavAction`] to the next active cell over a [`GridExtent`]. Navigation stops at the four
 //!    edges and never wraps.
 //!
-//! The selection is a single cell: ranges and whole rows or columns are not built yet.
+//! The selection is a range: the active cell and the corner opposite it, which Shift+Arrow moves
+//! with the same [`next_active`] (dc-09v).
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-sheet/src/selection.rs`, with its
-//! tests: the reasons now say what is not built instead of naming the legacy interaction pack,
-//! Delete clears the active cell ([`SheetAction::Clear`]), and the fill and clipboard reasons,
-//! which no affordance shows, are left behind.
+//! tests. Delete clears the selection ([`SheetAction::Clear`]) and Shift+Arrow extends it
+//! ([`SheetAction::Extend`], dc-09v); the legacy reasons for what the interaction pack had not
+//! built are left behind with the actions that needed them.
 
 /// The 1-based extent of the grid the active cell moves over: `rows`/`cols` are
 /// the last valid row/column (Excel-style inclusive maxima), so a legal cell is
@@ -154,8 +152,7 @@ impl KeyChord {
 }
 
 /// The Sheet stage's closed set of keyboard actions. A binding row targets exactly
-/// one of these; [`action_availability`] then decides whether the action is live
-/// or is not built and answered with a reason.
+/// one of these.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SheetAction {
     /// Move the active cell one step (Arrows / Tab / Shift+Tab / Home /
@@ -171,33 +168,12 @@ pub enum SheetAction {
     /// Escape in select mode: clear the transient degrade note (in edit mode the
     /// overlay bridge owns Escape as exact-revert, so this never fires there).
     Cancel,
-    /// Clear the active cell's input (Delete), one undoable edit.
+    /// Clear the selected range's inputs (Delete), one undoable edit.
     Clear,
-    /// Extend the selection into a range (Shift+Arrow): not built; the chord is reserved and
-    /// answered with [`RANGE_SELECT_DEFERRED_REASON`].
-    ExtendSelection,
+    /// Move the selected range's far corner one step, keeping the active cell (Shift+Arrow,
+    /// dc-09v): the movement is the [`NavAction`]'s, applied to the corner.
+    Extend(NavAction),
 }
-
-/// Whether an action performs its effect ([`ActionAvailability::Live`]) or is an
-/// action that is not built, which must surface its reason and change
-/// NOTHING ([`ActionAvailability::DisabledWithReason`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ActionAvailability {
-    /// The action is wired and performs its effect.
-    Live,
-    /// The action is not built; the skin shows this
-    /// reason verbatim (never fake success, never mutate). The reason always says
-    /// what is not built.
-    DisabledWithReason(&'static str),
-}
-
-/// Why a range selection (Shift+Arrow, Shift+click) does nothing: the selection is one cell.
-pub const RANGE_SELECT_DEFERRED_REASON: &str =
-    "Range selection is not built in DNA Calc yet; the selection is one cell.";
-
-/// Why a click on a row or column header, or on the corner, selects no row, column or sheet.
-pub const ROW_COL_SELECT_DEFERRED_REASON: &str =
-    "Selecting whole rows, columns or the sheet is not built in DNA Calc yet.";
 
 /// One row of the atlas-taggable keymap: a stable id, the chord that triggers it,
 /// the action it targets, and a human label. The `id` is the durable handle a
@@ -216,7 +192,7 @@ pub struct KeyBinding {
 /// aggregates several stages' keymaps keeps them unambiguous. F2 opens the editor
 /// (edit-in-place); Enter moves the active cell DOWN in select mode (Excel-classic
 /// — you edit via type-to-replace / F2 / double-click). The four Shift+Arrow
-/// chords are reserved and not built.
+/// chords move the selected range's corner.
 #[must_use]
 pub fn sheet_keymap() -> Vec<KeyBinding> {
     vec![
@@ -302,29 +278,29 @@ pub fn sheet_keymap() -> Vec<KeyBinding> {
             action: SheetAction::Clear,
             label: "Clear cell",
         },
-        // Shift+Arrow range extension: reserved chords, not built.
+        // Shift+Arrow moves the selected range's far corner.
         KeyBinding {
             id: "sheet.extend-up",
             chord: KeyChord::new("ArrowUp", true, false, false),
-            action: SheetAction::ExtendSelection,
+            action: SheetAction::Extend(NavAction::Up),
             label: "Extend selection up",
         },
         KeyBinding {
             id: "sheet.extend-down",
             chord: KeyChord::new("ArrowDown", true, false, false),
-            action: SheetAction::ExtendSelection,
+            action: SheetAction::Extend(NavAction::Down),
             label: "Extend selection down",
         },
         KeyBinding {
             id: "sheet.extend-left",
             chord: KeyChord::new("ArrowLeft", true, false, false),
-            action: SheetAction::ExtendSelection,
+            action: SheetAction::Extend(NavAction::Left),
             label: "Extend selection left",
         },
         KeyBinding {
             id: "sheet.extend-right",
             chord: KeyChord::new("ArrowRight", true, false, false),
-            action: SheetAction::ExtendSelection,
+            action: SheetAction::Extend(NavAction::Right),
             label: "Extend selection right",
         },
     ]
@@ -339,23 +315,6 @@ pub fn resolve_action(keymap: &[KeyBinding], chord: &KeyChord) -> Option<SheetAc
         .iter()
         .find(|binding| binding.chord == *chord)
         .map(|binding| binding.action)
-}
-
-/// Whether an action is live or not built. Every
-/// `Move` / `BeginEdit` / `Cancel` verb is live (single-cell select and the
-/// overlay editor are built); `ExtendSelection` is disabled-with-reason citing
-/// a reason (ranges are not built).
-#[must_use]
-pub const fn action_availability(action: SheetAction) -> ActionAvailability {
-    match action {
-        SheetAction::Move(_)
-        | SheetAction::BeginEdit
-        | SheetAction::Cancel
-        | SheetAction::Clear => ActionAvailability::Live,
-        SheetAction::ExtendSelection => {
-            ActionAvailability::DisabledWithReason(RANGE_SELECT_DEFERRED_REASON)
-        }
-    }
 }
 
 /// The single character a keydown seeds a type-to-replace edit with, or `None`
@@ -668,7 +627,7 @@ mod tests {
             ),
             (
                 KeyChord::new("ArrowUp", true, false, false),
-                SheetAction::ExtendSelection,
+                SheetAction::Extend(NavAction::Up),
             ),
         ] {
             assert_eq!(
@@ -704,45 +663,22 @@ mod tests {
         );
     }
 
-    /// Availability: nav / begin-edit / cancel are live; range extend is
-    /// answered with a reason that says it is not built.
+    /// Delete clears; Shift+Arrow moves the range's corner in its direction.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn availability_is_live_for_built_actions_and_not_for_ranges() {
-        for live in [
-            SheetAction::Move(NavAction::Up),
-            SheetAction::Move(NavAction::GridStart),
-            SheetAction::BeginEdit,
-            SheetAction::Cancel,
-        ] {
-            assert_eq!(action_availability(live), ActionAvailability::Live);
-        }
-        match action_availability(SheetAction::ExtendSelection) {
-            ActionAvailability::DisabledWithReason(reason) => assert!(
-                reason.contains("not built"),
-                "the range reason says it is not built, got {reason:?}"
-            ),
-            ActionAvailability::Live => panic!("range extension is not built, so not live"),
-        }
-    }
-
-    /// Every reason says what is not built.
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn every_reason_says_what_is_not_built() {
-        for reason in [RANGE_SELECT_DEFERRED_REASON, ROW_COL_SELECT_DEFERRED_REASON] {
-            assert!(reason.contains("not built"), "{reason:?}");
-        }
+    fn delete_clears_and_shift_arrows_extend() {
+        let keymap = sheet_keymap();
         assert_eq!(
-            resolve_action(
-                &sheet_keymap(),
-                &KeyChord::new("Delete", false, false, false)
-            ),
+            resolve_action(&keymap, &KeyChord::new("Delete", false, false, false)),
             Some(SheetAction::Clear)
         );
         assert_eq!(
-            action_availability(SheetAction::Clear),
-            ActionAvailability::Live
+            resolve_action(&keymap, &KeyChord::new("ArrowRight", true, false, false)),
+            Some(SheetAction::Extend(NavAction::Right))
+        );
+        assert_eq!(
+            resolve_action(&keymap, &KeyChord::new("ArrowDown", true, false, false)),
+            Some(SheetAction::Extend(NavAction::Down))
         );
     }
 

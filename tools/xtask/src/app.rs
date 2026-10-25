@@ -1195,6 +1195,67 @@ const CALC_CASES: &[Case] = &[
         checks: &[Check::Text(cell!("E2"), "2"), Check::Absent(cell!("E3"))],
     },
     Case {
+        name: "a new workbook for the range cases: A1 1, A2 2, B1 =A1*10",
+        actions: &[
+            Action::Click("new"),
+            Action::Keys("grid", "1"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Keys("grid", "2"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "A1*10"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("B1"), "10")],
+    },
+    Case {
+        name: "Shift+Down selects a range and Ctrl+D fills it down, formulas relocated",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            // Shift down, Down twice, every key released (WebDriver's modifier and NULL keys).
+            Action::Keys("grid", concat!("\u{E008}", "\u{E015}", "\u{E015}", "\u{E000}")),
+            Action::Keys("grid", concat!("\u{E009}", "d", "\u{E000}")),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "B1:B3"),
+            Check::Text(cell!("B2"), "20"),
+            Check::Text(cell!("B3"), "0"),
+        ],
+    },
+    Case {
+        name: "Ctrl+C copies a range and Ctrl+V pastes it with its formula relocated",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", concat!("\u{E008}", "\u{E014}", "\u{E000}")),
+            Action::Keys("grid", concat!("\u{E009}", "c", "\u{E000}")),
+            Action::Into("name-box", "D5\u{E007}"),
+            Action::Keys("grid", concat!("\u{E009}", "v", "\u{E000}")),
+        ],
+        checks: &[
+            Check::Text(cell!("D5"), "1"),
+            Check::Text(cell!("E5"), "10"),
+            Check::Value(BAR, "1"),
+        ],
+    },
+    Case {
+        name: "a click on a column header selects the column; Delete clears it",
+        actions: &[
+            Action::Click("[data-dnacalc=\"column-header\"][data-column=\"D\"]"),
+            Action::Keys("grid", DELETE),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "D1:D1048576"),
+            Check::Absent(cell!("D5")),
+            Check::Text(cell!("E5"), "0"),
+        ],
+    },
+    Case {
+        name: "Undo brings the column's cell back",
+        actions: &[Action::Click("undo")],
+        checks: &[Check::Text(cell!("D5"), "1"), Check::Text(cell!("E5"), "10")],
+    },
+    Case {
         name: "a workbook's number formats show as Excel shows them",
         actions: &[Action::Upload(
             "open-file",
