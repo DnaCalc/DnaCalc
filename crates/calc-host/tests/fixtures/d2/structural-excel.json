@@ -1,0 +1,555 @@
+﻿{
+    "excel":  "16.0 build 20430",
+    "steps":  [
+                  "S rows insert 4 2",
+                  "S rows delete 9 1",
+                  "S columns insert 2 1",
+                  "S columns delete 5 1",
+                  "S rows delete 2 1",
+                  "T rows insert 3 1",
+                  "U rows insert 1 1",
+                  "U columns insert 1 2"
+              ],
+    "table":  "A1:B5",
+    "names":  {
+                  "N":  "=S!$A$5:$A$7"
+              },
+    "sheets":  {
+                   "S":  {
+                             "cells":  {
+                                           "A1":  {
+                                                      "formula":  "1",
+                                                      "value":  "1",
+                                                      "format":  "General"
+                                                  },
+                                           "C1":  {
+                                                      "formula":  "=SUM(A1:A10)",
+                                                      "value":  "46",
+                                                      "format":  "General"
+                                                  },
+                                           "D1":  {
+                                                      "formula":  "label",
+                                                      "value":  "label",
+                                                      "format":  "General"
+                                                  },
+                                           "E1":  {
+                                                      "formula":  "=#REF!*2",
+                                                      "value":  "error -2146826265",
+                                                      "format":  "General"
+                                                  },
+                                           "F1":  {
+                                                      "formula":  "=SUM(D1:E1)",
+                                                      "value":  "error -2146826265",
+                                                      "format":  "General"
+                                                  },
+                                           "A2":  {
+                                                      "formula":  "3",
+                                                      "value":  "3",
+                                                      "format":  "0.00"
+                                                  },
+                                           "B2":  {
+                                                      "formula":  "",
+                                                      "value":  "",
+                                                      "format":  "0.00"
+                                                  },
+                                           "C2":  {
+                                                      "formula":  "=A$2+$A5",
+                                                      "value":  "7",
+                                                      "format":  "0.0%"
+                                                  },
+                                           "A3":  {
+                                                      "formula":  "",
+                                                      "value":  "",
+                                                      "format":  "0.00"
+                                                  },
+                                           "B3":  {
+                                                      "formula":  "",
+                                                      "value":  "",
+                                                      "format":  "0.00"
+                                                  },
+                                           "C3":  {
+                                                      "formula":  "",
+                                                      "value":  "",
+                                                      "format":  "0.0%"
+                                                  },
+                                           "A4":  {
+                                                      "formula":  "",
+                                                      "value":  "",
+                                                      "format":  "0.00"
+                                                  },
+                                           "B4":  {
+                                                      "formula":  "",
+                                                      "value":  "",
+                                                      "format":  "0.00"
+                                                  },
+                                           "C4":  {
+                                                      "formula":  "",
+                                                      "value":  "",
+                                                      "format":  "0.0%"
+                                                  },
+                                           "A5":  {
+                                                      "formula":  "4",
+                                                      "value":  "4",
+                                                      "format":  "General"
+                                                  },
+                                           "C5":  {
+                                                      "formula":  "=SUM(A:A)",
+                                                      "value":  "46",
+                                                      "format":  "General"
+                                                  },
+                                           "A6":  {
+                                                      "formula":  "5",
+                                                      "value":  "5",
+                                                      "format":  "General"
+                                                  },
+                                           "C6":  {
+                                                      "formula":  "=SUM(N)",
+                                                      "value":  "15",
+                                                      "format":  "General"
+                                                  },
+                                           "A7":  {
+                                                      "formula":  "6",
+                                                      "value":  "6",
+                                                      "format":  "General"
+                                                  },
+                                           "C7":  {
+                                                      "formula":  "=T!B4*10",
+                                                      "value":  "200",
+                                                      "format":  "General"
+                                                  },
+                                           "A8":  {
+                                                      "formula":  "8",
+                                                      "value":  "8",
+                                                      "format":  "General"
+                                                  },
+                                           "C8":  {
+                                                      "formula":  "=SUM(A2:A5)",
+                                                      "value":  "7",
+                                                      "format":  "General"
+                                                  },
+                                           "A9":  {
+                                                      "formula":  "9",
+                                                      "value":  "9",
+                                                      "format":  "General"
+                                                  },
+                                           "C9":  {
+                                                      "formula":  "=COUNT(A7:A12)",
+                                                      "value":  "4",
+                                                      "format":  "General"
+                                                  },
+                                           "A10":  {
+                                                       "formula":  "10",
+                                                       "value":  "10",
+                                                       "format":  "General"
+                                                   }
+                                       },
+                             "rows":  {
+                                          "1":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "2":  {
+                                                    "height":  30,
+                                                    "hidden":  false
+                                                },
+                                          "3":  {
+                                                    "height":  30,
+                                                    "hidden":  false
+                                                },
+                                          "4":  {
+                                                    "height":  30,
+                                                    "hidden":  false
+                                                },
+                                          "5":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "6":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "7":  {
+                                                    "height":  0,
+                                                    "hidden":  true
+                                                },
+                                          "8":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "9":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "10":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "11":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "12":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "13":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "14":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "15":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "16":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 }
+                                      },
+                             "columns":  {
+                                             "A":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "B":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "C":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "D":  {
+                                                       "width":  20,
+                                                       "hidden":  false
+                                                   },
+                                             "E":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "F":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "G":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "H":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "I":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "J":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   }
+                                         }
+                         },
+                   "T":  {
+                             "cells":  {
+                                           "A1":  {
+                                                      "formula":  "Item",
+                                                      "value":  "Item",
+                                                      "format":  "General"
+                                                  },
+                                           "B1":  {
+                                                      "formula":  "Units",
+                                                      "value":  "Units",
+                                                      "format":  "General"
+                                                  },
+                                           "D1":  {
+                                                      "formula":  "=SUM(Sales[Units])",
+                                                      "value":  "60",
+                                                      "format":  "General"
+                                                  },
+                                           "A2":  {
+                                                      "formula":  "a",
+                                                      "value":  "a",
+                                                      "format":  "General"
+                                                  },
+                                           "B2":  {
+                                                      "formula":  "10",
+                                                      "value":  "10",
+                                                      "format":  "General"
+                                                  },
+                                           "D2":  {
+                                                      "formula":  "=SUM(S!A2:A8)",
+                                                      "value":  "26",
+                                                      "format":  "General"
+                                                  },
+                                           "A4":  {
+                                                      "formula":  "b",
+                                                      "value":  "b",
+                                                      "format":  "General"
+                                                  },
+                                           "B4":  {
+                                                      "formula":  "20",
+                                                      "value":  "20",
+                                                      "format":  "General"
+                                                  },
+                                           "D4":  {
+                                                      "formula":  "=S!A6",
+                                                      "value":  "5",
+                                                      "format":  "General"
+                                                  },
+                                           "A5":  {
+                                                      "formula":  "c",
+                                                      "value":  "c",
+                                                      "format":  "General"
+                                                  },
+                                           "B5":  {
+                                                      "formula":  "30",
+                                                      "value":  "30",
+                                                      "format":  "General"
+                                                  },
+                                           "D5":  {
+                                                      "formula":  "=SUM(B2:B5)",
+                                                      "value":  "60",
+                                                      "format":  "General"
+                                                  }
+                                       },
+                             "rows":  {
+                                          "1":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "2":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "3":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "4":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "5":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "6":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "7":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "8":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "9":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "10":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "11":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "12":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "13":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "14":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "15":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "16":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 }
+                                      },
+                             "columns":  {
+                                             "A":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "B":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "C":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "D":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "E":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "F":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "G":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "H":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "I":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "J":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   }
+                                         }
+                         },
+                   "U":  {
+                             "cells":  {
+                                           "C2":  {
+                                                      "formula":  "0.5",
+                                                      "value":  "0.5",
+                                                      "format":  "0.0%"
+                                                  },
+                                           "D2":  {
+                                                      "formula":  "=C2+C3",
+                                                      "value":  "1.5",
+                                                      "format":  "0.0%"
+                                                  },
+                                           "C3":  {
+                                                      "formula":  "=C2*2",
+                                                      "value":  "1",
+                                                      "format":  "General"
+                                                  }
+                                       },
+                             "rows":  {
+                                          "1":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "2":  {
+                                                    "height":  25,
+                                                    "hidden":  false
+                                                },
+                                          "3":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "4":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "5":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "6":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "7":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "8":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "9":  {
+                                                    "height":  15,
+                                                    "hidden":  false
+                                                },
+                                          "10":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "11":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "12":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "13":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "14":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "15":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 },
+                                          "16":  {
+                                                     "height":  15,
+                                                     "hidden":  false
+                                                 }
+                                      },
+                             "columns":  {
+                                             "A":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "B":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "C":  {
+                                                       "width":  15,
+                                                       "hidden":  false
+                                                   },
+                                             "D":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "E":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "F":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "G":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "H":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "I":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   },
+                                             "J":  {
+                                                       "width":  8.43,
+                                                       "hidden":  false
+                                                   }
+                                         }
+                         }
+               }
+}

@@ -157,7 +157,10 @@ impl Results {
     }
 
     fn live(&self) -> impl Iterator<Item = (NodeId, &FormulaResult)> {
-        self.by_slot.iter().flatten().map(|(node, result)| (*node, result))
+        self.by_slot
+            .iter()
+            .flatten()
+            .map(|(node, result)| (*node, result))
     }
 
     fn orphans(&self) -> impl Iterator<Item = (CellKey, &FormulaResult)> {
@@ -188,7 +191,10 @@ struct AnchorGrid {
 
 impl AnchorGrid {
     fn position(&self, at: CellKey) -> Option<usize> {
-        let (row, column) = (at.row().wrapping_sub(self.top), at.column().wrapping_sub(self.left));
+        let (row, column) = (
+            at.row().wrapping_sub(self.top),
+            at.column().wrapping_sub(self.left),
+        );
         (row < self.rows && column < self.columns)
             .then(|| row as usize * self.columns as usize + column as usize)
     }
@@ -201,7 +207,9 @@ impl AnchorIndex {
         let mut index = AnchorIndex::default();
         let mut bounds: BTreeMap<SheetId, (u32, u32, u32, u32, usize)> = BTreeMap::new();
         for at in anchors.keys() {
-            let entry = bounds.entry(at.sheet()).or_insert((u32::MAX, u32::MAX, 0, 0, 0));
+            let entry = bounds
+                .entry(at.sheet())
+                .or_insert((u32::MAX, u32::MAX, 0, 0, 0));
             entry.0 = entry.0.min(at.row());
             entry.1 = entry.1.min(at.column());
             entry.2 = entry.2.max(at.row());
@@ -677,6 +685,19 @@ impl EngineState {
     /// Sets the environment every evaluation runs in: the workbook's date system, the host's
     /// locale profile and clock. A change makes every formula node pending, since any result may
     /// read it.
+    /// The state of `inputs` built afresh ([`EngineState::new`]: every formula a node, every node
+    /// pending, nothing published), keeping this state's tick counter, environment and random
+    /// seed, so the next recalculation's tick follows this state's last. A host commits it for an
+    /// edit that brings back a whole earlier revision ([`calc_doc_model::ModelRoot::restored`]).
+    pub fn rebuilt(&self, inputs: &ModelRoot) -> EngineState {
+        let mut state = EngineState::new(inputs);
+        state.last_tick = self.last_tick;
+        state.environment = self.environment.clone();
+        state.random_seed = self.random_seed;
+        state.tables_deferred = self.tables_deferred;
+        state
+    }
+
     pub fn set_environment(&mut self, environment: Option<CalcEnvironment>) {
         if self.environment != environment {
             self.environment = environment;

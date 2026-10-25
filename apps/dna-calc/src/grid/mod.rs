@@ -199,8 +199,13 @@ fn grid_view(controller: Controller) -> impl IntoView {
     });
     let sheet_metrics = Memo::new(move |_| {
         let sheet = controller.sheet.get();
-        controller
-            .with(|book| sheet_metrics(sheet.and_then(|sheet| book.host().sheet_geometry(sheet))))
+        controller.with(|book| {
+            sheet_metrics(
+                sheet
+                    .and_then(|sheet| book.host().sheet_geometry(sheet))
+                    .as_ref(),
+            )
+        })
     });
     let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
     let mirror = RwSignal::new(DeltaMirror::default());

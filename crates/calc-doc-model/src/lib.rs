@@ -81,6 +81,7 @@ pub use revision::AuthoredRevision;
 pub use root::{ApplyError, ModelRoot, ModelRootError, SheetEntry};
 pub use structural::{
     FormulaRewriter, StructuralChange, moved_area, moved_cell, moved_position, moved_run,
+    source_position,
 };
 pub use sheet::{
     SHEET_NAME_MAX_UTF16_CODE_UNITS, SheetKey, SheetName, SheetNameError, SheetVisibility,

@@ -157,6 +157,8 @@ pub enum ApplyError {
     /// The array formula the operation at this index authors meets the area of the array formula
     /// anchored at `anchor`, which it does not replace (its anchor lies outside the area).
     ArrayOverlap { operation: usize, anchor: CellKey },
+    /// [`ModelRoot::restored`] was given a root of another lineage.
+    ForeignRoot,
 }
 
 impl fmt::Display for ApplyError {
@@ -196,6 +198,9 @@ impl fmt::Display for ApplyError {
                 anchor.row(),
                 anchor.column()
             ),
+            ApplyError::ForeignRoot => {
+                f.write_str("the root to restore is not of this root's lineage")
+            }
         }
     }
 }
@@ -366,6 +371,29 @@ impl ModelRoot {
     /// [`ModelRoot::apply`], directly or through other roots, or both from a third root.
     pub fn same_lineage(&self, other: &ModelRoot) -> bool {
         self.lineage == other.lineage
+    }
+
+    /// The next revision after this one, holding what `earlier` holds: its sheets, cells, layout
+    /// and definitions, every page shared with it. This is how an edit no batch inverts (a
+    /// structural edit, whose deletions drop cells and references) is undone: the revision before
+    /// it comes back as a new revision. Refused when `earlier` is of another lineage or this
+    /// revision is the last.
+    pub fn restored(&self, earlier: &ModelRoot) -> Result<Arc<ModelRoot>, ApplyError> {
+        if !self.same_lineage(earlier) {
+            return Err(ApplyError::ForeignRoot);
+        }
+        let revision = self
+            .revision
+            .checked_next()
+            .ok_or(ApplyError::RevisionExhausted)?;
+        Ok(Arc::new(ModelRoot {
+            revision,
+            sheets: earlier.sheets.clone(),
+            cells: earlier.cells.clone(),
+            layout: Arc::clone(&earlier.layout),
+            definitions: Arc::clone(&earlier.definitions),
+            lineage: earlier.lineage,
+        }))
     }
 
     /// The sheets in workbook order.
