@@ -283,6 +283,24 @@ impl HostState {
         Some(GridArea::new(first, last).expect("both corners are on the sheet"))
     }
 
+    /// Whether `at` is a formula cell as Excel counts them (`Range.HasFormula`), which is the cell
+    /// set a comparison's inventory holds: a cell whose input is a formula, every cell of a legacy
+    /// (Ctrl+Shift+Enter) array formula's area, and every cell of a what-if data table's results.
+    /// The cells a dynamic array spills into beside its anchor are not formula cells (dc-rif).
+    pub fn holds_formula(&self, at: CellKey) -> bool {
+        if matches!(
+            self.model.cell(at),
+            Some(calc_doc_model::CellInput::Formula(_))
+        ) {
+            return true;
+        }
+        let definitions = self.model.definitions();
+        definitions
+            .array_containing(at)
+            .is_some_and(|array| array.kind() == calc_doc_model::ArrayKind::Legacy)
+            || definitions.data_table_containing(at).is_some()
+    }
+
     /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s
     /// `date1904`), as calc-doc loaded it; no command changes it. Every recalculation applies it
     /// ([`HostState::recalc_context`]). calc-doc reads `calcPr`'s iteration settings, which the

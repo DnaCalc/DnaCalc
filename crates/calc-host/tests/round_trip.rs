@@ -1558,3 +1558,28 @@ fn d2_session__now_and_today_read_the_clock_the_application_sets() {
         Some(CalcValue::number(45000.0))
     );
 }
+
+/// dc-rif (D4): a skin's selection moves do not grow the intent log without bound, and the
+/// receipts' sequence numbers keep counting every intent.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_rif__the_intent_log_keeps_the_latest_records() {
+    let mut session = session(&calc_host::blank_package());
+    let sheet1 = session.host().sheets()[0].id();
+    let total = 2 * calc_host::INTENT_LOG_LIMIT + 3;
+    let mut last = 0;
+    for n in 0..total {
+        let row = (n % 50) as u32 + 1;
+        let receipt = session.dispatch(SkinIntent::Select(Selection::cell(
+            CellKey::new(sheet1, row, 1).unwrap(),
+        )));
+        last = receipt.seq;
+    }
+    assert_eq!(last, total as u64);
+    let log = session.intent_log();
+    assert!(
+        log.len() >= calc_host::INTENT_LOG_LIMIT && log.len() < 2 * calc_host::INTENT_LOG_LIMIT
+    );
+    assert_eq!(log.last().map(|record| record.seq), Some(total as u64));
+    assert!(log.windows(2).all(|pair| pair[1].seq == pair[0].seq + 1));
+}
