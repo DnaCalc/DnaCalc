@@ -187,9 +187,13 @@ fn grid_view(controller: Controller) -> impl IntoView {
 
     let plan = Memo::new(move |_| {
         let profile = controller.with(|book| book.profile().copied());
+        let sheet = controller.sheet.get();
+        // Only the shown sheet's cells: until the interest moves to a sheet just shown, the
+        // mirror still holds the previous sheet's.
         let shown: Vec<cells::CellShown> = mirror.with(|mirror| {
             mirror
                 .cells()
+                .filter(|cell| Some(cell.at().sheet()) == sheet)
                 .map(|cell| cells::shown(cell, profile.as_ref()))
                 .collect()
         });

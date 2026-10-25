@@ -56,6 +56,8 @@ pub struct Workbook {
     name: String,
     changed: bool,
     inbox: Rc<RefCell<Vec<HostDelta>>>,
+    /// Whether opening recalculated the workbook (it does unless the file calculates manually).
+    calculated_on_open: bool,
 }
 
 impl std::fmt::Debug for Workbook {
@@ -87,11 +89,19 @@ impl Workbook {
             name: name.to_owned(),
             changed: false,
             inbox: Rc::default(),
+            calculated_on_open: false,
         };
         if workbook.session.calc_mode() != CalcMode::Manual {
             workbook.session.dispatch(SkinIntent::Recalculate);
+            workbook.calculated_on_open = true;
         }
         Ok(workbook)
+    }
+
+    /// Whether opening recalculated the workbook: `false` for a file that calculates manually,
+    /// whose formulas show the values the file stored, as file caches, until Calculate.
+    pub fn calculated_on_open(&self) -> bool {
+        self.calculated_on_open
     }
 
     pub fn name(&self) -> &str {
@@ -206,7 +216,10 @@ impl Workbook {
         cells
     }
 
-    /// The workbook's formula cells by provenance, per sheet, and the refusals by reason.
+    /// The workbook's formula cells by provenance, per sheet, and the refusals by reason. A
+    /// formula cell is one Excel counts as holding a formula ([`HostState::holds_formula`]: legacy
+    /// array members and data-table cells included, a dynamic array's spilled cells not), the set
+    /// `cargo xtask compare`'s inventory holds.
     pub fn census(&mut self) -> Census {
         let mut census = Census::default();
         for tab in self.sheets() {
@@ -222,7 +235,7 @@ impl Workbook {
                     sheet.inputs += 1;
                 }
                 let shown = cells::shown(&cell, None);
-                if !shown.formula {
+                if !self.host().holds_formula(cell.at()) {
                     continue;
                 }
                 sheet.formulas += 1;

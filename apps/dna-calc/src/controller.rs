@@ -204,12 +204,14 @@ impl Controller {
                 let elapsed = now_ms() - started;
                 self.timings
                     .update(|timings| timings.open_ms = Some(elapsed));
-                self.install(
-                    book,
+                let message = if book.calculated_on_open() {
+                    format!("Opened {name}: {size} bytes, opened and calculated in {elapsed:.0} ms")
+                } else {
                     format!(
-                        "Opened {name}: {size} bytes, opened and calculated in {elapsed:.0} ms"
-                    ),
-                );
+                        "Opened {name}: {size} bytes, opened in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
+                    )
+                };
+                self.install(book, message);
                 Ok(())
             }
             Err(refused) => {
@@ -252,17 +254,26 @@ impl Controller {
         self.timings
             .update(|timings| timings.last_intent_ms = Some(elapsed));
         self.route_deltas();
-        // An undo or a redo restores the selection of its edit.
+        // The active cell follows the host's selection: an undo or a redo restores the selection
+        // of its edit, which may be on another sheet, and then that sheet is shown (as Excel
+        // does), so the formula bar and the status line read the cell the selection holds.
         let restored = self
             .book
             .with_value(|book| book.session().selection().active);
-        if let Some(at) = restored
-            && Some(at.sheet()) == self.sheet.get_untracked()
-            && (at.row(), at.column()) != self.active.get_untracked()
-        {
-            self.active.set((at.row(), at.column()));
+        if let Some(at) = restored {
+            if Some(at.sheet()) != self.sheet.get_untracked() {
+                self.editing.set(None);
+                self.sheet.set(Some(at.sheet()));
+            }
+            if (at.row(), at.column()) != self.active.get_untracked() {
+                self.active.set((at.row(), at.column()));
+            }
         }
-        self.revision.update(|n| *n += 1);
+        // Only a change of the workbook or its calculation advances the revision: a selection or
+        // an interest moved changes no cell, so what reads the workbook is not read again.
+        if receipt.committed.is_some() || receipt.recalc.is_some() {
+            self.revision.update(|n| *n += 1);
+        }
         match &receipt.error {
             Some(error) => self.say(error.to_string(), true),
             None => {
@@ -372,6 +383,8 @@ impl Controller {
 
     pub fn set_calc_mode(&self, mode: CalcMode) {
         self.dispatch(SkinIntent::SetCalcMode(mode));
+        // Manual mode recalculates nothing, but the mode itself changed.
+        self.revision.update(|n| *n += 1);
     }
 
     /// Registers a subscription whose deltas go to `mirror`.

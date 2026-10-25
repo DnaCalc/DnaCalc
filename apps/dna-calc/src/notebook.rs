@@ -92,14 +92,27 @@ fn notebook_view(controller: Controller) -> impl IntoView {
             controller.unsubscribe(id);
         }
     });
-    let count = Memo::new(move |_| mirror.with(|mirror| mirror.cells().count()));
+    // Only the shown sheet's cells: until the interest moves to a sheet just shown, the mirror still
+    // holds the previous sheet's.
+    let on_sheet =
+        move |cell: &calc_host::ProjectedCell| Some(cell.at().sheet()) == controller.sheet.get();
+    let count = Memo::new(move |_| {
+        mirror.with(|mirror| mirror.cells().filter(|cell| on_sheet(cell)).count())
+    });
     let pages = move || count.get().div_ceil(PAGE).max(1);
 
     let blocks = move || {
         let profile = controller.with(|book| book.profile().cloned());
         let first = page.get() * PAGE;
-        let cells: Vec<_> =
-            mirror.with(|mirror| mirror.cells().skip(first).take(PAGE).cloned().collect());
+        let cells: Vec<_> = mirror.with(|mirror| {
+            mirror
+                .cells()
+                .filter(|cell| on_sheet(cell))
+                .skip(first)
+                .take(PAGE)
+                .cloned()
+                .collect()
+        });
         cells
             .into_iter()
             .map(|cell| {
