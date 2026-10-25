@@ -214,6 +214,9 @@ dependencies = [
 [[package]]
 name = "calc-platform-desktop"
 version = "0.1.0"
+dependencies = [
+ "windows-sys",
+]
 
 [[package]]
 name = "calc-value"
@@ -1990,6 +1993,7 @@ dependencies = [
  "calc-func",
  "calc-host",
  "calc-oracle-excel",
+ "calc-platform-desktop",
  "calc-verdict",
  "proc-macro2",
  "quote",
