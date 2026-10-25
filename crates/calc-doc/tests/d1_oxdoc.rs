@@ -152,8 +152,11 @@ fn d1_oxdoc__cells_are_added_into_gaps_and_new_rows() {
                 at: at(id, "B4"),
                 input: number(6.0),
             },
-            WorkbookOp::SetCell {
-                at: at(id, "C6"),
+            WorkbookOp::SetArray {
+                array: calc_doc::model::ArrayFormula::new(
+                    calc_doc::model::value::GridArea::cell(at(id, "C6")),
+                    ArrayKind::Dynamic { collapsed: false },
+                ),
                 input: formula("SEQUENCE(2)"),
             },
         ],

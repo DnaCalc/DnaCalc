@@ -20,6 +20,7 @@ use calc_host::{
     SubscriptionId, Unobserved, WorkBudget, dispatch, project, replay, save, step,
 };
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -232,18 +233,19 @@ fn subscribe(session: &mut HostSession, interest: Interest) -> (SubscriptionId, 
     (id, received)
 }
 
-/// Every delta received so far applied to a mirror, which must equal what a new subscription to
-/// the same interest is given: the deltas carried every change.
-fn assert_mirror_current(session: &mut HostSession, interest: Interest, received: &Received) {
+/// Every delta received so far applied to a mirror, which must hold exactly what a fresh
+/// projection of every cell of `region` shows, and nothing outside it: the deltas carried every
+/// change. `region` covers every cell of the interest that is not empty.
+fn assert_mirror_current(session: &HostSession, region: GridArea, received: &Received) {
     let mut mirror = DeltaMirror::default();
     for delta in received.borrow().iter() {
         mirror.apply(delta).expect("the deltas follow one another");
     }
-    let (fresh_id, fresh) = subscribe(session, interest);
-    let expected: Vec<ProjectedCell> = fresh.borrow()[0].cells.clone();
-    assert!(session.unsubscribe(fresh_id));
-    let mirrored: Vec<ProjectedCell> = mirror.cells().cloned().collect();
-    assert_eq!(mirrored, expected);
+    let held: BTreeMap<CellKey, ProjectedCell> = mirror
+        .cells()
+        .map(|cell| (cell.at(), cell.clone()))
+        .collect();
+    assert_eq!(held, fresh_cells(session.host(), region));
 }
 
 /// The value a cell projects in the session.
@@ -413,7 +415,9 @@ fn d2_session__edits_undo_redo_and_deltas() {
     );
 
     // Every delta followed the last, and together they hold what the sheet projects now.
-    assert_mirror_current(&mut session, interest, &received);
+    let used = GridArea::new(at_(calc, "A1"), at_(calc, "AF20")).unwrap();
+    assert_eq!(interest, Interest::Sheet(calc));
+    assert_mirror_current(&session, used, &received);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -453,7 +457,7 @@ fn d2_session__clear_and_undo_restore_formulas_and_values() {
         session_calculated(&session, at_(calc, "U3")),
         Some(CalcValue::number(21.0))
     );
-    assert_mirror_current(&mut session, Interest::Area(area), &received);
+    assert_mirror_current(&session, area, &received);
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -975,4 +979,501 @@ fn d2_session__an_interest_moves_and_an_unknown_subscription_is_refused() {
         interest: Interest::Selection,
     });
     assert_eq!(receipt.error, Some(IntentError::UnknownSubscription(id)));
+}
+
+// ---------------------------------------------------------------------------------------------
+// dc-35p review: the reviewer's differential, made a test. A random run of entries, clears, undo,
+// redo, calculation-mode switches, recalculations and saves over Calc!AA1:AF10 (empty in the
+// fixture) checks after every intent that
+// 1. a mirror fed by an area subscription's deltas, and one fed by a sheet subscription's, hold
+//    exactly what a fresh projection of every cell of the area shows;
+// 2. undo and redo put back exactly the inputs a recorded stack holds;
+// 3. every value projected as calculated is what a fresh session with the same inputs calculates;
+// 4. every few steps, each value a save writes as a file cache is the session's calculated value.
+
+/// Every cell of an area.
+fn area_cells(area: GridArea) -> Vec<CellKey> {
+    let (first, last) = (area.first(), area.last());
+    (first.row()..=last.row())
+        .flat_map(|row| {
+            (first.column()..=last.column())
+                .map(move |column| CellKey::new(area.sheet(), row, column).unwrap())
+        })
+        .collect()
+}
+
+/// A fresh projection of every cell of `area`, the cells that are not empty.
+fn fresh_cells(host: &HostState, area: GridArea) -> BTreeMap<CellKey, ProjectedCell> {
+    project(
+        host,
+        &ProjectionRequest {
+            cells: area_cells(area),
+        },
+    )
+    .unwrap()
+    .cells()
+    .iter()
+    .filter(|cell| cell.input().is_some() || cell.value() != &ProjectedValue::Empty)
+    .map(|cell| (cell.at(), cell.clone()))
+    .collect()
+}
+
+/// The inputs of `area`.
+fn area_inputs(host: &HostState, area: GridArea) -> BTreeMap<CellKey, CellInput> {
+    fresh_cells(host, area)
+        .into_iter()
+        .filter_map(|(at, cell)| cell.input().cloned().map(|input| (at, input)))
+        .collect()
+}
+
+/// A subscription's deltas applied to a mirror, its cells within `area`.
+fn mirrored(received: &Received, area: GridArea) -> BTreeMap<CellKey, ProjectedCell> {
+    let mut mirror = DeltaMirror::default();
+    for delta in received.borrow().iter() {
+        mirror.apply(delta).expect("the deltas follow one another");
+    }
+    mirror
+        .cells()
+        .filter(|cell| area.contains(cell.at()))
+        .map(|cell| (cell.at(), cell.clone()))
+        .collect()
+}
+
+/// The text that enters `input` again.
+fn entry_text(input: &CellInput) -> String {
+    match input {
+        CellInput::Number(number) => format!("{}", number.get()),
+        CellInput::Text(text) => format!("'{}", text.text().to_string_lossy()),
+        CellInput::Logical(true) => "TRUE".to_owned(),
+        CellInput::Logical(false) => "FALSE".to_owned(),
+        CellInput::Error(code) => match code {
+            calc_host::value::WorksheetErrorCode::NA => "#N/A".to_owned(),
+            other => panic!("no error but #N/A is entered here: {other:?}"),
+        },
+        CellInput::Formula(formula) => format!("={}", formula.text().to_string_lossy()),
+    }
+}
+
+fn a1(at: CellKey) -> String {
+    let mut column = at.column();
+    let mut letters = String::new();
+    while column > 0 {
+        letters.insert(0, (b'A' + ((column - 1) % 26) as u8) as char);
+        column = (column - 1) / 26;
+    }
+    format!("{letters}{}", at.row())
+}
+
+/// A fixed-seed xorshift64 generator, so a failure repeats.
+struct Rng(u64);
+
+impl Rng {
+    fn below(&mut self, n: u64) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0 % n
+    }
+}
+
+const FORMULAS: [&str; 10] = [
+    "={c}+1",
+    "=SUM({c}:{d})",
+    "=INDIRECT(\"{c}\")",
+    "=SEQUENCE({n})",
+    "={c}:{d}*2",
+    "=Data!A1*{n}",
+    "=IF({c}>2,{d},{n})",
+    "=OFFSET({c},1,0)",
+    "=TRANSPOSE({c}:{d})",
+    "=COUNT({c}:{d})",
+];
+
+/// One random run; the problems it found.
+fn differential_run(seed: u64, steps: usize, contested: &mut usize) -> Vec<String> {
+    let mut rng = Rng(seed);
+    let mut session = session(&fixture());
+    let calc = sheet(session.host(), "Calc");
+    let region = GridArea::new(at_(calc, "AA1"), at_(calc, "AF10")).unwrap();
+    let (_, by_area) = subscribe(&mut session, Interest::Area(region));
+    let (_, by_sheet) = subscribe(&mut session, Interest::Sheet(calc));
+    let mut undo: Vec<BTreeMap<CellKey, CellInput>> = Vec::new();
+    let mut redo: Vec<BTreeMap<CellKey, CellInput>> = Vec::new();
+    let mut problems = Vec::new();
+    let cell = |rng: &mut Rng| {
+        CellKey::new(calc, 1 + rng.below(10) as u32, 27 + rng.below(6) as u32).unwrap()
+    };
+    for step in 0..steps {
+        let before = area_inputs(session.host(), region);
+        let roll = rng.below(100);
+        let intent = if roll < 60 {
+            let at = cell(&mut rng);
+            let text = match rng.below(10) {
+                0..=2 => format!("{}", rng.below(9)),
+                3 => String::new(),
+                4 => "abc".to_owned(),
+                _ => {
+                    let template = FORMULAS[rng.below(FORMULAS.len() as u64) as usize];
+                    let c = cell(&mut rng);
+                    let d =
+                        CellKey::new(calc, c.row() + 1 + rng.below(3) as u32, c.column()).unwrap();
+                    template
+                        .replace("{c}", &a1(c))
+                        .replace("{d}", &a1(d))
+                        .replace("{n}", &format!("{}", 1 + rng.below(4)))
+                }
+            };
+            SkinIntent::EnterCell { at, text }
+        } else if roll < 63 {
+            let first = cell(&mut rng);
+            let last = CellKey::new(
+                calc,
+                (first.row() + rng.below(3) as u32).min(10),
+                (first.column() + rng.below(2) as u32).min(32),
+            )
+            .unwrap();
+            SkinIntent::Edit {
+                edits: vec![CellEdit::Clear {
+                    area: GridArea::new(first, last).unwrap(),
+                }],
+            }
+        } else if roll < 78 {
+            SkinIntent::Undo
+        } else if roll < 86 {
+            SkinIntent::Redo
+        } else if roll < 91 {
+            SkinIntent::SetCalcMode(if rng.below(2) == 0 {
+                CalcMode::Manual
+            } else {
+                CalcMode::Automatic
+            })
+        } else {
+            SkinIntent::Recalculate
+        };
+        let receipt = session.dispatch(intent.clone());
+        let after = area_inputs(session.host(), region);
+        let shown = |inputs: &BTreeMap<CellKey, CellInput>| -> Vec<(String, String)> {
+            inputs
+                .iter()
+                .map(|(at, input)| (a1(*at), entry_text(input)))
+                .collect()
+        };
+        if receipt.accepted() {
+            match &intent {
+                SkinIntent::EnterCell { .. } | SkinIntent::Edit { .. } => {
+                    undo.push(before.clone());
+                    redo.clear();
+                }
+                SkinIntent::Undo => {
+                    let expected = undo.pop().expect("undo had a step");
+                    if after != expected {
+                        problems.push(format!(
+                            "seed {seed} step {step}: undo gave {:?}, not {:?}",
+                            shown(&after),
+                            shown(&expected)
+                        ));
+                    }
+                    redo.push(before.clone());
+                }
+                SkinIntent::Redo => {
+                    let expected = redo.pop().expect("redo had a step");
+                    if after != expected {
+                        problems.push(format!(
+                            "seed {seed} step {step}: redo gave {:?}, not {:?}",
+                            shown(&after),
+                            shown(&expected)
+                        ));
+                    }
+                    undo.push(before.clone());
+                }
+                _ => {}
+            }
+        }
+        // 1. The mirrors.
+        let fresh = fresh_cells(session.host(), region);
+        for (name, received) in [("area", &by_area), ("sheet", &by_sheet)] {
+            let mirror = mirrored(received, region);
+            if mirror != fresh {
+                let at = mirror
+                    .keys()
+                    .chain(fresh.keys())
+                    .find(|at| mirror.get(at) != fresh.get(at))
+                    .copied()
+                    .unwrap();
+                problems.push(format!(
+                    "seed {seed} step {step} ({intent:?}): the {name} mirror holds {} as {:?}, a fresh projection {:?}",
+                    a1(at),
+                    mirror.get(&at).map(|cell| cell.value().clone()),
+                    fresh.get(&at).map(|cell| cell.value().clone())
+                ));
+            }
+        }
+        // 3. Every calculated value against a fresh session with the same inputs.
+        let calculated: Vec<(CellKey, CalcValue)> = fresh
+            .iter()
+            .filter_map(|(at, cell)| match cell.value() {
+                ProjectedValue::Calculated { value, .. } => Some((*at, value.clone())),
+                _ => None,
+            })
+            .collect();
+        if !calculated.is_empty() {
+            let mut oracle = self::session(&fixture());
+            oracle.dispatch(SkinIntent::SetCalcMode(CalcMode::Manual));
+            for (at, input) in &after {
+                let receipt = oracle.dispatch(SkinIntent::EnterCell {
+                    at: *at,
+                    text: entry_text(input),
+                });
+                assert!(
+                    receipt.accepted(),
+                    "the oracle's entry: {:?}",
+                    receipt.error
+                );
+            }
+            oracle.dispatch(SkinIntent::Recalculate);
+            let expected = fresh_cells(oracle.host(), region);
+            // Two dynamic arrays whose results would cover the same cells: the one that filled
+            // them first keeps them and the other shows #SPILL! (the engine's rule, as Excel's,
+            // spill.rs), so which wins depends on the order the formulas were entered and
+            // calculated, which a fresh calculation does not repeat. A step where the session and
+            // the fresh calculation disagree on which anchors show #SPILL! is not compared; the
+            // run counts it.
+            let spilled = |cells: &BTreeMap<CellKey, ProjectedCell>| -> Vec<CellKey> {
+                cells
+                    .iter()
+                    .filter(|(_, cell)| {
+                        matches!(cell.value(), ProjectedValue::Calculated { value, .. }
+                            if *value == CalcValue::error(calc_host::value::WorksheetErrorCode::Spill))
+                    })
+                    .map(|(at, _)| *at)
+                    .collect()
+            };
+            if spilled(&fresh) != spilled(&expected) {
+                *contested += 1;
+                continue;
+            }
+            for (at, value) in calculated {
+                match expected.get(&at).map(|cell| cell.value()) {
+                    Some(ProjectedValue::Calculated { value: again, .. }) if *again == value => {}
+                    other => problems.push(format!(
+                        "seed {seed} step {step} ({intent:?}): {} is calculated as {:?}, a fresh calculation gives {:?}",
+                        a1(at),
+                        value,
+                        other
+                    )),
+                }
+            }
+        }
+        // 4. A save's caches.
+        if step % 10 == 9 {
+            let mut saved = Vec::new();
+            session
+                .save(&SavePolicy::default(), &mut saved)
+                .expect("saved");
+            let reopened = open(&saved);
+            let reopened_calc = sheet(&reopened, "Calc");
+            let reopened_region = GridArea::new(
+                CellKey::new(reopened_calc, 1, 27).unwrap(),
+                CellKey::new(reopened_calc, 10, 32).unwrap(),
+            )
+            .unwrap();
+            for (at, cell) in fresh_cells(&reopened, reopened_region) {
+                let ProjectedValue::FileCached(cache) = cell.value() else {
+                    continue;
+                };
+                let here = CellKey::new(calc, at.row(), at.column()).unwrap();
+                match fresh.get(&here).map(|cell| cell.value()) {
+                    Some(ProjectedValue::Calculated { value, .. })
+                        if &cached_of(value) == cache.value() => {}
+                    other => problems.push(format!(
+                        "seed {seed} step {step}: {} is saved with the cache {:?} while the session shows {:?}",
+                        a1(here),
+                        cache.value(),
+                        other
+                    )),
+                }
+            }
+        }
+        if problems.len() > 5 {
+            break;
+        }
+    }
+    problems
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2_review__random_sessions_agree_with_fresh_projections_and_calculations() {
+    let mut problems = Vec::new();
+    let mut contested = 0;
+    for seed in 1..=12u64 {
+        problems.extend(differential_run(seed * 7919 + 13, 60, &mut contested));
+    }
+    assert!(problems.is_empty(), "{problems:#?}");
+    // Measured 2026-10-25: 67 of the 720 steps hold arrays contesting a spill area; the rest are
+    // compared. The bound keeps a change that makes most steps contested from passing unseen.
+    assert!(contested <= 108, "{contested} of 720 steps not compared");
+    println!(
+        "ACCEPT-NOTE: 12 runs of 60 steps; {contested} steps with a contested spill not compared"
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2_review__subscribers_get_the_cells_a_spill_fills() {
+    let mut session = session(&fixture());
+    let calc = sheet(session.host(), "Calc");
+    let area = GridArea::new(at_(calc, "Z5"), at_(calc, "Z7")).unwrap();
+    let (_, by_area) = subscribe(&mut session, Interest::Area(area));
+    let (_, by_sheet) = subscribe(&mut session, Interest::Sheet(calc));
+    enter(&mut session, at_(calc, "Z5"), "=Data!A1:A3*2");
+    let fresh = fresh_cells(session.host(), area);
+    assert_eq!(fresh.len(), 3, "Z5 and the two cells its spill fills");
+    assert_eq!(mirrored(&by_area, area), fresh);
+    assert_eq!(mirrored(&by_sheet, area), fresh);
+    // The spill shrinks to one cell when its source does: the cells it no longer fills are
+    // delivered as empty.
+    enter(&mut session, at_(calc, "Z5"), "=Data!A1*2");
+    assert_eq!(mirrored(&by_area, area), fresh_cells(session.host(), area));
+    assert_eq!(fresh_cells(session.host(), area).len(), 1);
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2_review__undo_keeps_a_value_inside_a_dynamic_arrays_area() {
+    for second in ["5", ""] {
+        let mut session = session(&fixture());
+        let calc = sheet(session.host(), "Calc");
+        // B2 blocks the spill of SEQUENCE(3,2) at A1: A1 shows #SPILL!.
+        enter(&mut session, at_(calc, "B2"), "5");
+        let area = GridArea::new(at_(calc, "A1"), at_(calc, "B3")).unwrap();
+        let before = area_inputs(session.host(), area);
+        assert_eq!(
+            session_calculated(&session, at_(calc, "A1")),
+            Some(CalcValue::error(
+                calc_host::value::WorksheetErrorCode::Spill
+            ))
+        );
+        // Replacing (or clearing) the anchor, then undoing it, leaves B2's value in place.
+        enter(&mut session, at_(calc, "A1"), second);
+        assert!(session.dispatch(SkinIntent::Undo).accepted());
+        assert_eq!(
+            area_inputs(session.host(), area),
+            before,
+            "after {second:?}"
+        );
+        assert_eq!(
+            session_calculated(&session, at_(calc, "A1")),
+            Some(CalcValue::error(
+                calc_host::value::WorksheetErrorCode::Spill
+            )),
+            "after {second:?}"
+        );
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2_review__typed_newer_functions_calculate_and_save_with_their_prefix() {
+    for (text, stored, expected) in [
+        ("=SEQUENCE(3)", "_xlfn.SEQUENCE(3)", CalcValue::number(1.0)),
+        (
+            "=CONCAT(\"a\",\"b\")",
+            "_xlfn.CONCAT(\"a\",\"b\")",
+            CalcValue::text(calc_host::value::ExcelText::from_interop_assignment("ab")),
+        ),
+        (
+            "=XLOOKUP(2,Data!A1:A3,Data!A1:A3)",
+            "_xlfn.XLOOKUP(2,Data!A1:A3,Data!A1:A3)",
+            CalcValue::number(2.0),
+        ),
+        ("=IFS(TRUE,1)", "_xlfn.IFS(TRUE,1)", CalcValue::number(1.0)),
+        (
+            "=UNIQUE(Data!A1:A3)",
+            "_xlfn.UNIQUE(Data!A1:A3)",
+            CalcValue::number(1.0),
+        ),
+    ] {
+        let mut session = session(&fixture());
+        let calc = sheet(session.host(), "Calc");
+        enter(&mut session, at_(calc, "AA1"), text);
+        let page = project(
+            session.host(),
+            &ProjectionRequest {
+                cells: vec![at_(calc, "AA1")],
+            },
+        )
+        .unwrap();
+        assert_eq!(page.cells()[0].input(), Some(&formula(stored)), "{text}");
+        assert_eq!(
+            session_calculated(&session, at_(calc, "AA1")),
+            Some(expected),
+            "{text}"
+        );
+        let mut saved = Vec::new();
+        session
+            .save(&SavePolicy::default(), &mut saved)
+            .expect("saved");
+        let xml = part_text(&saved, "xl/worksheets/sheet2.xml");
+        let escaped = stored.replace('"', "&quot;");
+        assert!(
+            xml.contains(&format!(">{stored}</f>")) || xml.contains(&format!(">{escaped}</f>")),
+            "{text}: {xml}"
+        );
+        assert!(!xml.contains("#NAME?"), "{text}: {xml}");
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2_review__a_pending_spill_makes_its_readers_stale_in_manual_mode() {
+    let mut session = session(&fixture());
+    let calc = sheet(session.host(), "Calc");
+    enter(&mut session, at_(calc, "AC1"), "1");
+    enter(&mut session, at_(calc, "AE6"), "=IF(AD3>2,AD6,3)");
+    assert_eq!(
+        session_calculated(&session, at_(calc, "AE6")),
+        Some(CalcValue::number(3.0))
+    );
+    assert!(
+        session
+            .dispatch(SkinIntent::SetCalcMode(CalcMode::Manual))
+            .accepted()
+    );
+    enter(&mut session, at_(calc, "AD1"), "=AC1:AC3*2");
+    // AD1's result may spill over AD6, which AE6 reads: AE6 no longer stands.
+    assert!(matches!(
+        session_value(&session, at_(calc, "AE6")),
+        ProjectedValue::Stale(_)
+    ));
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        session_calculated(&session, at_(calc, "AE6")),
+        Some(CalcValue::number(3.0))
+    );
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn d2_session__now_and_today_read_the_clock_the_application_sets() {
+    let mut session = session(&fixture());
+    let calc = sheet(session.host(), "Calc");
+    // Without a clock, NOW is refused.
+    enter(&mut session, at_(calc, "AA1"), "=NOW()");
+    assert!(matches!(
+        session_value(&session, at_(calc, "AA1")),
+        ProjectedValue::NotModeled { .. }
+    ));
+    // 45000.75 is 2023-03-15 18:00 in the 1900 date system.
+    session.set_clock(Some(45000.75));
+    assert!(session.dispatch(SkinIntent::Recalculate).accepted());
+    assert_eq!(
+        session_calculated(&session, at_(calc, "AA1")),
+        Some(CalcValue::number(45000.75))
+    );
+    enter(&mut session, at_(calc, "AA2"), "=TODAY()");
+    assert_eq!(
+        session_calculated(&session, at_(calc, "AA2")),
+        Some(CalcValue::number(45000.0))
+    );
 }

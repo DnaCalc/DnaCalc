@@ -37,8 +37,9 @@ use crate::recalc::{HostProgress, calculate, step};
 use crate::save::{SaveFailed, save};
 use crate::state::{HostOptions, HostState, OpenFailure};
 use calc_doc::{CalcMode, OpenPolicy, PackageRead, PackageWrite, SavePolicy, SaveReceipt};
+use calc_doc_model::value::ExcelText;
 use calc_doc_model::value::{CellKey, GridArea, SheetId};
-use calc_doc_model::{ArrayFormula, ArrayKind, AuthoredRevision, CellInput};
+use calc_doc_model::{ArrayFormula, ArrayKind, AuthoredRevision, CellInput, FormulaText};
 use calc_engine::{CalcTick, Unobserved, WorkBudget};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -293,6 +294,11 @@ impl HostSession {
         &self.selection
     }
 
+    /// Sets the clock NOW and TODAY read ([`HostState::set_clock`]).
+    pub fn set_clock(&mut self, now: Option<f64>) {
+        self.host.set_clock(now);
+    }
+
     /// The host's calculation mode ([`HostState::calc_mode`]).
     pub fn calc_mode(&self) -> CalcMode {
         self.host.calc_mode()
@@ -356,23 +362,25 @@ impl HostSession {
             deltas: 0,
         };
         let outcome = match intent.clone() {
-            SkinIntent::EnterCell { at, text } => match interpret_entry_in(
-                &text,
-                Some(&self.host.entry_environment()),
-            ) {
-                Ok(Some(input)) => {
-                    let edit = self.entry_edit(at, input);
-                    self.edit(vec![edit], &mut receipt)
+            SkinIntent::EnterCell { at, text } => {
+                match interpret_entry_in(&text, Some(&self.host.entry_environment())) {
+                    Ok(Some(input)) => {
+                        let edit = self.entry_edit(at, input);
+                        self.edit(vec![edit], &mut receipt)
+                    }
+                    Ok(None) => self.edit(
+                        vec![CellEdit::Clear {
+                            area: GridArea::cell(at),
+                        }],
+                        &mut receipt,
+                    ),
+                    Err(refusal) => Err(IntentError::Entry(refusal)),
                 }
-                Ok(None) => self.edit(
-                    vec![CellEdit::Clear {
-                        area: GridArea::cell(at),
-                    }],
-                    &mut receipt,
-                ),
-                Err(refusal) => Err(IntentError::Entry(refusal)),
-            },
-            SkinIntent::Edit { edits } => self.edit(edits, &mut receipt),
+            }
+            SkinIntent::Edit { edits } => {
+                let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                self.edit(edits, &mut receipt)
+            }
             SkinIntent::Undo => self.undo(&mut receipt),
             SkinIntent::Redo => self.redo(&mut receipt),
             SkinIntent::Recalculate => {
@@ -404,23 +412,52 @@ impl HostSession {
         receipt
     }
 
-    /// The edit an entry makes: a formula that can return an array (its file form is a
-    /// dynamic-array formula, [`calc_doc::file_form`]) is authored as a dynamic array over its
-    /// cell, as Excel stores it, so the engine spills its result; any other input sets the cell.
+    /// The edit an entry makes ([`HostSession::authored`] of a set).
     fn entry_edit(&self, at: CellKey, input: CellInput) -> CellEdit {
-        if let CellInput::Formula(formula) = &input
-            && calc_doc::file_form(formula, self.host.model.definitions().names())
-                .is_ok_and(|form| form.dynamic)
-        {
-            return CellEdit::SetArray {
-                array: ArrayFormula::new(
-                    GridArea::cell(at),
-                    ArrayKind::Dynamic { collapsed: false },
-                ),
-                formula: formula.clone(),
-            };
+        self.authored(CellEdit::Set { at, input })
+    }
+
+    /// An edit as the model holds it. A formula's text is put in its file form
+    /// ([`calc_doc::file_form`]): a function newer than Excel 2007 takes the `_xlfn.` prefix the
+    /// package holds it with, which is how the model and the engine read a loaded formula (without
+    /// it, `SEQUENCE(3)` names no function and is #NAME?). A formula set into one cell that can
+    /// return an array is authored as a dynamic array over that cell, as Excel stores a formula
+    /// typed or pasted into a cell, so the engine spills its result. A formula whose text the
+    /// parser does not read is left as typed, for the edit to refuse.
+    fn authored(&self, edit: CellEdit) -> CellEdit {
+        let names = self.host.model.definitions().names();
+        let file_form = |formula: &FormulaText| {
+            let form = calc_doc::file_form(formula, names).ok()?;
+            let text = FormulaText::new(ExcelText::from_utf16_code_units(form.text)).ok()?;
+            Some((text, form.dynamic))
+        };
+        match edit {
+            CellEdit::Set {
+                at,
+                input: CellInput::Formula(formula),
+            } => match file_form(&formula) {
+                Some((text, true)) => CellEdit::SetArray {
+                    array: ArrayFormula::new(
+                        GridArea::cell(at),
+                        ArrayKind::Dynamic { collapsed: false },
+                    ),
+                    formula: text,
+                },
+                Some((text, false)) => CellEdit::Set {
+                    at,
+                    input: CellInput::Formula(text),
+                },
+                None => CellEdit::Set {
+                    at,
+                    input: CellInput::Formula(formula),
+                },
+            },
+            CellEdit::SetArray { array, formula } => CellEdit::SetArray {
+                array,
+                formula: file_form(&formula).map_or(formula, |(text, _)| text),
+            },
+            edit => edit,
         }
-        CellEdit::Set { at, input }
     }
 
     fn check_interest(&self, interest: &Interest) -> Result<(), IntentError> {
@@ -620,7 +657,12 @@ impl HostSession {
                     .map(|(at, _)| at),
             );
             for array in definitions.arrays_meeting(area) {
-                cells.extend(cells_of(array.area()).filter(|at| area.contains(*at)));
+                cells.extend(cells_of(intersection(array.area(), area)));
+            }
+            // The cells a published spill fills, which no input or definition names: a dynamic
+            // array's result spills past the area the model gives it.
+            for spill in self.host.engine.spills() {
+                cells.extend(cells_of(intersection(spill.area(), area)));
             }
             cells.extend(definitions.unloaded_in(area).map(|(at, _)| at));
         }
@@ -700,12 +742,33 @@ impl HostSession {
     }
 }
 
-/// Every cell of an area, in cell order.
-fn cells_of(area: GridArea) -> impl Iterator<Item = CellKey> {
-    let (first, last) = (area.first(), area.last());
-    (first.row()..=last.row()).flat_map(move |row| {
-        (first.column()..=last.column())
-            .filter_map(move |column| CellKey::new(area.sheet(), row, column).ok())
+/// The cells two areas share, as an area; `None` when they share none.
+fn intersection(a: GridArea, b: GridArea) -> Option<GridArea> {
+    if a.sheet() != b.sheet() {
+        return None;
+    }
+    let top = a.first().row().max(b.first().row());
+    let left = a.first().column().max(b.first().column());
+    let bottom = a.last().row().min(b.last().row());
+    let right = a.last().column().min(b.last().column());
+    if top > bottom || left > right {
+        return None;
+    }
+    GridArea::new(
+        CellKey::new(a.sheet(), top, left).ok()?,
+        CellKey::new(a.sheet(), bottom, right).ok()?,
+    )
+    .ok()
+}
+
+/// Every cell of an area, in cell order; none for `None`.
+fn cells_of(area: Option<GridArea>) -> impl Iterator<Item = CellKey> {
+    area.into_iter().flat_map(|area| {
+        let (first, last) = (area.first(), area.last());
+        (first.row()..=last.row()).flat_map(move |row| {
+            (first.column()..=last.column())
+                .filter_map(move |column| CellKey::new(area.sheet(), row, column).ok())
+        })
     })
 }
 

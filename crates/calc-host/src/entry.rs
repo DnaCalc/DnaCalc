@@ -24,7 +24,7 @@ pub enum EntryRefusal {
     TooLong { units: usize },
     /// Excel may read the text as a number, date, time, percentage or currency under the locale's
     /// number formats, or as a number rounded to 15 significant digits, or (a leading `+` or `-`)
-    /// as a formula. That reading is not modelled (dc-10y): with no locale profile, or where the
+    /// as a formula. That reading is not modelled (dc-b1l): with no locale profile, or where the
     /// profile's reading is not modelled ([`interpret_entry_in`]).
     NumberShaped { text: String },
 }
@@ -41,7 +41,7 @@ impl fmt::Display for EntryRefusal {
             }
             EntryRefusal::NumberShaped { text } => write!(
                 f,
-                "Excel may read {text:?} as a number, date, time or formula under its locale; that reading is not modelled (dc-10y)"
+                "Excel may read {text:?} as a number, date, time or formula under its locale; that reading is not modelled (dc-b1l)"
             ),
         }
     }

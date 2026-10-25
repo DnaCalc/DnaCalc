@@ -476,9 +476,10 @@ impl<'j> Rewrite<'_, 'j> {
             .and_then(|key| self.job.model.definitions().array(key).copied())
             .filter(|_| form.is_some());
         let legacy = array.filter(|array| array.kind() == ArrayKind::Legacy);
-        let dynamic = legacy.is_none()
-            && (form.is_some_and(|form| form.dynamic)
-                || array.is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. })));
+        // A formula is written as a dynamic array only when the model holds one there: an
+        // ordinary formula is read with implicit intersection, as Excel reads an `<f>` without
+        // `t="array"`, whatever its file form could be.
+        let dynamic = array.is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. }));
         // A dynamic-array formula's cell names its cell metadata.
         let cm = dynamic.then(|| {
             self.job

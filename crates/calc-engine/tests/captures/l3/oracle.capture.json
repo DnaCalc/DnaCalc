@@ -38,6 +38,7 @@
       "date1904": "false",
       "calculation": "automatic",
       "iteration": "false",
+      "calculation_state": "done",
       "max_iterations": "100",
       "max_change": "3f50624dd2f1a9fc",
       "precision_as_displayed": "false",
@@ -61,10 +62,10 @@
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:aa3871252ce77b95ee115cf0d47c14d777df2d748ea0a5af05a3e20ad03e98af; repository c1d43d4e9a7dec890ab4293629201e88e6729603+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:bac864f8aca3b0157bb0e1e08036c58bd52ada9ee49ff0c6c1f6bc139f293d6d; repository 004a169fbe1d4d16f76f4bcdc1c5444938db6099+dirty",
     "packages": {
       "input": "sha256:96830c147c9f3a6cd5fe91dfb1910db59aeffa41a9f8995f9fb1130b698c808a",
-      "output": "sha256:6462318d770ed1c05ba17f931b2a1604ca571c1f97083ac744b2979d6c846ba4"
+      "output": "sha256:1eb318fc8671d548661afb8e970dd5ea756d09943b80f72d74d72f918465f93e"
     },
     "failures": []
   },

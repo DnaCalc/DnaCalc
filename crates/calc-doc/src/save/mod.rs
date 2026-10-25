@@ -140,7 +140,8 @@ pub enum SaveRefusal {
     InvalidPart { part: String, detail: String },
     /// A changed cell lies in the header row or the totals row of a table (ListObject) of its
     /// sheet. The table part records the names of its header row and the functions of its totals
-    /// row, which the change could contradict; tables are authored by dc-35p. A change in a
+    /// row, which the change could contradict; authoring tables is not built (no bead owns it
+    /// yet). A change in a
     /// table's data rows is saved.
     EditInTable {
         part: String,
@@ -510,9 +511,9 @@ pub struct SaveReceipt {
     /// The model revision saved; `None` for an opened package saved as opened.
     pub revision: Option<AuthoredRevision>,
     /// The formula cells the edit did not change whose file-cached result the save left out:
-    /// after any authored edit, every one, since without a dependency graph no cached result is
-    /// known to be current. A counted broadening; engine-computed caches, which a save could
-    /// write, are dc-35p's.
+    /// after any authored edit, every one the caller gives no value for, since a cached result is
+    /// not known to be current. A save with the values the engine calculated
+    /// ([`crate::LoadedWorkbook::snapshot_with_results`], calc-host's save) writes them instead.
     pub caches_dropped: usize,
     /// The worksheet parts rewritten that hold no changed cell, only to leave out or replace
     /// their formulas' cached results.

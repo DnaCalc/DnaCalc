@@ -90,8 +90,10 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
 
 /// The edits that restore every cell `edits` touches to what `model` (the revision they are
 /// committed against) holds: each touched area cleared, then each array formula whose anchor an
-/// edit touches authored again over its area, then each other touched cell that held an input set
-/// to it again. Refused when an edit touches an unloaded cell, whose content no edit authors.
+/// edit touches authored again over its area, then each cell of the touched areas and of those
+/// arrays' areas that held an input set to it again (re-authoring an array clears its area, a
+/// value blocking a dynamic array's spill included). Refused when an edit touches an unloaded
+/// cell, whose content no edit authors.
 pub(crate) fn inverse(
     model: &ModelRoot,
     edits: &[CellEdit],
@@ -115,9 +117,13 @@ pub(crate) fn inverse(
             });
         }
     }
+    // The inputs to put back: those of the touched areas, and those of each array formula's area
+    // that is authored again, which re-authoring it clears (a value in a dynamic array's area,
+    // which blocks its spill, lies outside the touched areas when only the anchor was edited).
     let mut prior = BTreeMap::new();
-    for area in &areas {
-        for (at, input) in model.cells(*area).into_iter().flatten() {
+    let restored = arrays.iter().map(|array| array.area());
+    for area in areas.iter().copied().chain(restored) {
+        for (at, input) in model.cells(area).into_iter().flatten() {
             prior.entry(at).or_insert_with(|| input.clone());
         }
     }
