@@ -266,6 +266,9 @@ fn unqualified_references_and_missing_parts() {
     // reads a file's `SUM([Qty])` there as `SUM(#REF!)` (dc-10y).
     assert_eq!(book.legacy("=[@Units]", "F1"), e(W::Ref));
     assert_eq!(book.legacy("=SUM([Units])", "F1"), e(W::Ref));
+    assert_eq!(book.legacy("=[[Units]]", "F1"), e(W::Ref));
+    assert_eq!(book.legacy("=ISREF([Units])", "F1"), b(false));
+    assert_eq!(book.legacy("=IFERROR([Units],5)", "F1"), n(5.0));
     // A LAMBDA's optional parameter inside a table is still a parameter.
     assert_eq!(book.legacy("=LAMBDA(x,[Units],x)(5)", "Calc!D2"), n(5.0));
 }

@@ -372,9 +372,16 @@ impl RecalcWork {
 
 /// The value a formula on a cycle starts iterating from: the value the cell holds, as Excel's
 /// iteration starts (dc-10y, see the module documentation). That is its last calculated value;
-/// before this engine has calculated it, the value the file stored for it; else 0. The stored
+/// before this engine has calculated it, the value the file stored for it; else 0. A formula
+/// entered (or entered again) since its last result starts from 0, whatever its cell held before:
+/// the result of a formula the cell no longer holds is no seed (Excel 16.0.20430, 2026-10-25,
+/// iteration on, at most 1 iteration: C1 `=C1+1` stored as 100, entered as `=C1+2`, gives 2, and
+/// E1 `=E1+1` stored as 100 and entered again gives 1, while D1 `=D1+1` gives 101). The stored
 /// value only seeds the first pass: what is published is what the passes calculate from it.
 fn starting_value(state: &EngineState, node: NodeId) -> CalcValue {
+    if state.entered.contains(&node) {
+        return CalcValue::number(0.0);
+    }
     let at = live_anchor(state, node);
     match state.result(at) {
         Some(FormulaResult::Calculated { value, .. }) => value.clone(),
@@ -1768,17 +1775,26 @@ fn evaluate_node(
         Binding::Placed(instance, role) => (instance, *role),
         Binding::Refused(refusal) => return Ok(Attempt::Done(refused(work, refusal.clone()))),
         Binding::DataTable(table) => {
+            // A table cell whose substitution reads a formula a circular reference left
+            // uncalculated is not calculated either (dc-10y; Excel 16.0.20430, 2026-10-25,
+            // iteration off: a table over `=A1+C1`, A1 on a cycle, shows 0 in each cell, as
+            // a formula that reads the cycle does).
+            work.kept_read.set(false);
             let view = work.view(state, inputs);
+            let outcome = crate::data_table::evaluate_cell(
+                state,
+                inputs,
+                view,
+                calculation.mode(),
+                table,
+                formula,
+                Some((&calculation, &mut *observer)),
+            );
+            if work.kept_read.get() {
+                return Ok(Attempt::Kept);
+            }
             return Ok(
-                match crate::data_table::evaluate_cell(
-                    state,
-                    inputs,
-                    view,
-                    calculation.mode(),
-                    table,
-                    formula,
-                    Some((&calculation, &mut *observer)),
-                ) {
+                match outcome {
                     crate::data_table::TableOutcome::Value(value) => {
                         match NotModeled::publishable(value) {
                             Ok(value) => Attempt::Done(Done {

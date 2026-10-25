@@ -166,6 +166,8 @@ struct TableObserver<'a> {
 struct TableInstrument<'o, 'a> {
     observe: &'o mut TableObserver<'a>,
     uncomputed: &'o Cell<Option<(CellKey, NodeId)>>,
+    /// Set when the evaluation read a formula a circular reference left uncalculated.
+    kept_read: Option<&'o Cell<bool>>,
 }
 
 impl EvaluationObserver for TableInstrument<'_, '_> {
@@ -174,7 +176,7 @@ impl EvaluationObserver for TableInstrument<'_, '_> {
     fn called(&mut self, _call: calc_fml::ExecutedCall) {}
 
     fn returned(&mut self, report: EvaluationReport<'_>) {
-        if self.uncomputed.get().is_some() {
+        if self.uncomputed.get().is_some() || self.kept_read.is_some_and(Cell::get) {
             return;
         }
         let evaluation =
@@ -241,6 +243,7 @@ impl WhatIf<'_> {
             let mut instrument = taken.as_mut().map(|observe| TableInstrument {
                 observe,
                 uncomputed: self.uncomputed,
+                kept_read: self.view.kept.map(|(_, read)| read),
             });
             let mut services =
                 EvaluationServices::new(self.mode, &mut reader).with_catalog(&catalog);

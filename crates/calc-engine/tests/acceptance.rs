@@ -4138,6 +4138,107 @@ fn dc_m3u__iteration() {
     assert_eq!(l1_value(&state, c(1, 8)), n(6.0));
 }
 
+/// Formulas on a cycle with the values a file stored for them (dc-10y), against Excel 16.0.20430
+/// through COM on 2026-10-25. Iteration on, at most 1 iteration: C1 `=C1+1`, D1 `=D1+1` and E1
+/// `=E1+1`, each stored as 100, start from 100 (101 after one recalculation); C1 entered as
+/// `=C1+2` and E1 entered again start from 0, not from the result of a formula the cell no longer
+/// holds (2 and 1), while D1 goes on (102). Iteration off: the stored value is all Excel shows of
+/// a formula on a cycle, which this engine never calculated, so it is refused.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_10y__cycles_with_stored_values() {
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let calc = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(calc, row, column).unwrap();
+    let part = Arc::new(SourcePart::new("xl/worksheets/sheet1.xml".to_owned(), 1, 1));
+    let stored = |value: f64| {
+        FileCached::new(
+            CachedValue::Number(FiniteNumber::new(value).unwrap()),
+            Arc::clone(&part),
+        )
+    };
+    let n = CalcValue::number;
+    let cells = vec![
+        (c(1, 3), formula("C1+1")),
+        (c(1, 4), formula("D1+1")),
+        (c(1, 5), formula("E1+1")),
+    ];
+    let caches = [(c(1, 3), stored(100.0)), (c(1, 4), stored(100.0)), (c(1, 5), stored(100.0))];
+    let root = l3_root(
+        &[(calc, "Calc")],
+        cells.clone(),
+        Definitions::new(vec![], vec![], vec![], [])
+            .with_iteration(calc_doc_model::IterationSettings::new(true, 1, 0.001)),
+    );
+    let mut state = EngineState::with_file_caches(&root, caches.clone()).unwrap();
+    recalc(&mut state, &root, &mut Unobserved);
+    for at in [c(1, 3), c(1, 4), c(1, 5)] {
+        assert_eq!(l1_value(&state, at), n(101.0), "{at:?}");
+    }
+    let root = edit(
+        &mut state,
+        &root,
+        vec![set(c(1, 3), formula("C1+2")), set(c(1, 5), formula("E1+1"))],
+    );
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(1, 3)), n(2.0));
+    assert_eq!(l1_value(&state, c(1, 5)), n(1.0));
+    assert_eq!(l1_value(&state, c(1, 4)), n(102.0));
+
+    // Iteration off: refused, never the stored value.
+    let root = l3_root(
+        &[(calc, "Calc")],
+        cells,
+        Definitions::new(vec![], vec![], vec![], []),
+    );
+    let mut state = EngineState::with_file_caches(&root, caches).unwrap();
+    recalc(&mut state, &root, &mut Unobserved);
+    for at in [c(1, 3), c(1, 4), c(1, 5)] {
+        assert_eq!(l2_refusal_owner(&state, at), "dc-10y", "{at:?}");
+    }
+}
+
+/// A data table whose formula reads a formula on a cycle, iteration off (dc-10y): its cells are
+/// not calculated, as a formula reading the cycle is not, and keep what they held. Excel 16.0.20430
+/// (2026-10-25) showed 0 in each cell of a table made after the cycle formed; here the table was
+/// calculated before (A1 `=B1+1` with B1 5: E3:E5 `=A1+C1` over C1 1, 2, 3 is 7, 8, 9), so B1
+/// entered as `=A1+1` keeps them, with A1 6 and B1 0.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+fn dc_10y__data_table_reading_a_cycle() {
+    use calc_doc_model::{DataTable, DataTableInputs};
+    let mut ids: IdAllocator<SheetId> = IdAllocator::new();
+    let s = ids.issue().unwrap();
+    let c = |row, column| CellKey::new(s, row, column).unwrap();
+    let cells = vec![
+        (c(1, 2), number(5.0)),
+        (c(1, 1), formula("B1+1")),
+        (c(1, 3), number(0.0)),
+        (c(2, 5), formula("A1+C1")),
+        (c(3, 4), number(1.0)),
+        (c(4, 4), number(2.0)),
+        (c(5, 4), number(3.0)),
+    ];
+    let table = DataTable::new(area(s, 3, 5, 5, 5), DataTableInputs::Column(c(1, 3))).unwrap();
+    let root = l3_root(
+        &[(s, "DT")],
+        cells,
+        Definitions::new(vec![], vec![], vec![], []).with_data_tables(vec![table]),
+    );
+    let mut state = EngineState::new(&root);
+    recalc(&mut state, &root, &mut Unobserved);
+    let n = CalcValue::number;
+    let table_values = |state: &EngineState| {
+        [c(3, 5), c(4, 5), c(5, 5)].map(|at| l1_value(state, at))
+    };
+    assert_eq!(table_values(&state), [n(7.0), n(8.0), n(9.0)]);
+    let root = edit(&mut state, &root, vec![set(c(1, 2), formula("A1+1"))]);
+    recalc(&mut state, &root, &mut Unobserved);
+    assert_eq!(l1_value(&state, c(1, 1)), n(6.0));
+    assert_eq!(l1_value(&state, c(1, 2)), n(0.0));
+    assert_eq!(table_values(&state), [n(7.0), n(8.0), n(9.0)]);
+}
+
 /// Circular references with iteration off, edited in a session, against Excel 16.0.20430 through
 /// COM (2026-10-25, each value read after the edit named; Excel recalculates automatically): Excel
 /// calculates no formula whose evaluation meets the circular reference, nor one that reads such a

@@ -273,8 +273,17 @@ fn transform(
         StructuralEdit::Insert { .. } | StructuralEdit::Delete { .. } => {
             let anchor = FormulaAnchor::new(at);
             for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
-                if name && relative_on_edited_axis(&site, &units, edit) {
-                    continue;
+                if name {
+                    match name_ends(&site, &units, edit) {
+                        NameEnds::Absolute => {}
+                        NameEnds::Relative => continue,
+                        NameEnds::Mixed => {
+                            if let Some(text) = mixed_name_site(&site, &units, anchor, edit) {
+                                replacements.push((site.span, text));
+                            }
+                            continue;
+                        }
+                    }
                 }
                 if let Some(text) = axis_site(&site, &units, anchor, edit) {
                     replacements.push((site.span, text));
@@ -324,32 +333,142 @@ fn transform(
     rewritten.strip_prefix('=').map(str::to_owned)
 }
 
-/// Whether a defined name's reference site holds a relative coordinate on the axis `edit` edits,
-/// in either end, and so keeps its text: a relative coordinate is an offset from the cell that uses
-/// the name. A range one of whose ends is absolute on that axis and the other relative is not
-/// measured, and kept too.
-fn relative_on_edited_axis(site: &ReferenceSite, units: &[u16], edit: &StructuralEdit) -> bool {
+/// How a defined name's reference site holds its coordinates on the axis an edit edits: every one
+/// absolute (the site moves as a cell formula's would), every one relative (an offset from the
+/// cell that uses the name, which no edit changes: the site keeps its text), or a range with one
+/// of each.
+enum NameEnds {
+    Absolute,
+    Relative,
+    Mixed,
+}
+
+/// One end of a reference as written, split into its column (`$` and letters) and row (`$` and
+/// digits), either of which may be absent.
+struct End<'t> {
+    column_absolute: bool,
+    letters: &'t str,
+    row_absolute: bool,
+    digits: &'t str,
+}
+
+fn parse_end(end: &str) -> End<'_> {
+    let column_absolute = end.starts_with('$') && end[1..].starts_with(|c: char| c.is_ascii_alphabetic());
+    let rest = if column_absolute { &end[1..] } else { end };
+    let letters_len = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_alphabetic()).len();
+    let (letters, rest) = rest.split_at(letters_len);
+    let row_absolute = rest.starts_with('$');
+    let digits = rest.trim_start_matches('$');
+    End {
+        column_absolute,
+        letters,
+        row_absolute,
+        digits,
+    }
+}
+
+impl End<'_> {
+    /// Whether this end holds a coordinate on `axis`, and whether it is absolute.
+    fn on(&self, axis: EditAxis) -> Option<bool> {
+        match axis {
+            EditAxis::Rows => (!self.digits.is_empty()).then_some(self.row_absolute),
+            EditAxis::Columns => (!self.letters.is_empty()).then_some(self.column_absolute),
+        }
+    }
+}
+
+fn name_ends(site: &ReferenceSite, units: &[u16], edit: &StructuralEdit) -> NameEnds {
     let axis = match edit {
         StructuralEdit::Insert { axis, .. } | StructuralEdit::Delete { axis, .. } => *axis,
-        _ => return false,
+        _ => return NameEnds::Absolute,
     };
     let Ok(text) = String::from_utf16(&units[site.span.start..site.span.end()]) else {
-        return true;
+        return NameEnds::Relative;
     };
     let (_, body) = split_qualifier(&text);
-    split_range(body).iter().any(|end| {
-        let (end, _) = split_end(end);
-        let column_absolute = end.starts_with('$');
-        let letters = end.trim_start_matches('$');
-        let after_letters = letters.trim_start_matches(|c: char| c.is_ascii_alphabetic());
-        let has_letters = after_letters.len() < letters.len();
-        let has_digits = after_letters.trim_start_matches('$').starts_with(|c: char| c.is_ascii_digit());
-        let row_absolute = after_letters.starts_with('$') || (!has_letters && end.starts_with('$'));
-        match axis {
-            EditAxis::Rows => has_digits && !row_absolute,
-            EditAxis::Columns => has_letters && !column_absolute,
+    let kinds: Vec<bool> = split_range(body)
+        .iter()
+        .filter_map(|end| parse_end(split_end(end).0).on(axis))
+        .collect();
+    if kinds.iter().all(|absolute| *absolute) {
+        NameEnds::Absolute
+    } else if kinds.iter().all(|absolute| !*absolute) {
+        NameEnds::Relative
+    } else {
+        NameEnds::Mixed
+    }
+}
+
+/// A defined name's range one of whose ends is absolute on the edited axis and the other
+/// relative: the absolute coordinate moves with the edit, the relative one keeps its text, and
+/// an absolute coordinate whose row or column the edit deletes makes the reference #REF!. Excel
+/// 16.0.20430 (2026-10-25, dc-10y), names held as `R1C1:R[2]C1`, `RC1:R3C1`, `R1C1:R1C[1]` and
+/// `R1C:R1C2`: inserting row 1 gave `R2C1:R[2]C1`, `RC1:R4C1`, `R2C1:R2C[1]` and `R2C:R2C2`;
+/// inserting column A then `R2C2:R[2]C2`, `RC2:R4C2`, `R2C2:R2C[1]` and `R2C:R2C3`; deleting row 2
+/// then #REF!, `RC2:R3C2`, #REF! and #REF!.
+fn mixed_name_site(
+    site: &ReferenceSite,
+    units: &[u16],
+    anchor: FormulaAnchor,
+    edit: &StructuralEdit,
+) -> Option<String> {
+    let operand = site.binding.as_ref().ok()?;
+    let (edited, axis) = match edit {
+        StructuralEdit::Insert { sheet, axis, .. } | StructuralEdit::Delete { sheet, axis, .. } => {
+            (*sheet, *axis)
         }
-    })
+        _ => return None,
+    };
+    let sheet = match operand.sheet {
+        SheetTarget::Anchor => anchor.sheet(),
+        SheetTarget::Sheet(sheet) => sheet,
+        SheetTarget::Deleted | SheetTarget::Span { .. } => return None,
+    };
+    if sheet != edited || site.this_row {
+        return None;
+    }
+    let text = String::from_utf16(&units[site.span.start..site.span.end()]).ok()?;
+    let (qualifier, body) = split_qualifier(&text);
+    let mut written = Vec::new();
+    for end in split_range(body) {
+        let (end_text, end_qualifier) = split_end(end);
+        let parsed = parse_end(end_text);
+        let moved = match parsed.on(axis) {
+            Some(true) => {
+                let index = match axis {
+                    EditAxis::Rows => parsed.digits.parse::<u32>().ok()?,
+                    EditAxis::Columns => column_number(parsed.letters)?,
+                };
+                match edit.position(sheet, axis, index) {
+                    Some(index) => Some(index),
+                    None => return Some(format!("{qualifier}#REF!")),
+                }
+            }
+            _ => None,
+        };
+        let column = if parsed.column_absolute { "$" } else { "" };
+        let row = if parsed.row_absolute { "$" } else { "" };
+        let (letters, digits) = match (axis, moved) {
+            (EditAxis::Rows, Some(index)) => (parsed.letters.to_owned(), index.to_string()),
+            (EditAxis::Columns, Some(index)) => (column_letters(index), parsed.digits.to_owned()),
+            (_, None) => (parsed.letters.to_owned(), parsed.digits.to_owned()),
+        };
+        let column = if letters.is_empty() { "" } else { column };
+        let row = if digits.is_empty() { "" } else { row };
+        written.push(format!("{end_qualifier}{column}{letters}{row}{digits}"));
+    }
+    let rewritten = format!("{qualifier}{}", written.join(":"));
+    (rewritten != text).then_some(rewritten)
+}
+
+/// The column number of letters (`A` 1, `AB` 28), case ignored; `None` past the grid.
+fn column_number(letters: &str) -> Option<u32> {
+    let mut number: u32 = 0;
+    for c in letters.chars() {
+        let digit = u32::from(c.to_ascii_uppercase()) - u32::from('A') + 1;
+        number = number.checked_mul(26)?.checked_add(digit)?;
+    }
+    (1..=MAX_COLUMNS).contains(&number).then_some(number)
 }
 
 /// The text a reference site takes after a row or column edit, `None` when it keeps its own.
@@ -997,6 +1116,23 @@ mod tests {
             Some("Nm!$B$2")
         );
         assert_eq!(transform_name("Nm!$B$2", nm, &row_3_deleted, &catalog), None);
+        // Ranges with an absolute and a relative end on the edited axis (mixed_name_site): each
+        // name through row 1 inserted, column A inserted and row 2 deleted, in turn.
+        let row_2_deleted = axis(nm, EditAxis::Rows, false, 2);
+        for steps in [
+            ["Nm!$A$1:$A3", "Nm!$A$2:$A3", "Nm!$B$2:$B3", "Nm!#REF!"],
+            ["Nm!$A1:$A$3", "Nm!$A1:$A$4", "Nm!$B1:$B$4", "Nm!$B1:$B$3"],
+            ["Nm!$A$1:B$1", "Nm!$A$2:B$2", "Nm!$B$2:B$2", "Nm!#REF!"],
+            ["Nm!A$1:$B$1", "Nm!A$2:$B$2", "Nm!A$2:$C$2", "Nm!#REF!"],
+        ] {
+            for (edit, (before, after)) in [&row_1, &column_a, &row_2_deleted]
+                .into_iter()
+                .zip(steps.iter().zip(steps.iter().skip(1)))
+            {
+                let got = transform_name(before, nm, edit, &catalog);
+                assert_eq!(got.as_deref().unwrap_or(before), *after, "{before}");
+            }
+        }
     }
 
     /// Hand-derived from Excel's documented adjustment rules (module documentation).
