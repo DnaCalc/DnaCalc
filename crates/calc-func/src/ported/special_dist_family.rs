@@ -3,6 +3,7 @@ use crate::ported::normal_dist_common::erf_approx;
 use crate::ported::excel_numeric::crt_log;
 use crate::ported::excel_numeric::crt_exp;
 use crate::ported::excel_numeric::crt_log10;
+use crate::ported::excel_numeric::crt_sin;
 
 const LANCZOS_G: f64 = 7.0;
 const LANCZOS_COEFFS: [f64; 9] = [
@@ -907,7 +908,7 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
 
     let ln_gamma = if x < 0.5 {
         let reflected = 1.0 - x;
-        let denom = (std::f64::consts::PI * x).sin();
+        let denom = crt_sin(std::f64::consts::PI * x);
         if denom == 0.0 || !denom.is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
@@ -921,7 +922,7 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
     }
 
     let magnitude = crt_exp(ln_gamma);
-    let value = if x < 0.5 && (std::f64::consts::PI * x).sin().is_sign_negative() {
+    let value = if x < 0.5 && crt_sin(std::f64::consts::PI * x).is_sign_negative() {
         -magnitude
     } else {
         magnitude

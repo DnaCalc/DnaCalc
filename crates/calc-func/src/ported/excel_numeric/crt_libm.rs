@@ -157,7 +157,8 @@ pub(crate) fn crt_log10(x: f64) -> f64 {
     lead + (d(LOG10_TAIL[index]) + tail)
 }
 
-// Restricted historical implementation removed (dc-96l.7).
+// Restricted historical implementations removed (dc-96l.7).
+
 // ---- Published AOCL-LibM tables ----
 
 #[rustfmt::skip]
@@ -558,6 +559,210 @@ const EXP_2_JBY64_TAIL: [u64; 64] = [
     0x3e452486cc2c7b9d, 0x3e6cc2b44eee3fa4, 0x3e66dc8a80ce9f09, 0x3e39e90d82e90a7e,
 ];
 
+#[rustfmt::skip]
+const SINH_LEAD: [u64; 37] = [
+    0x0000000000000000, 0x3ff2cd9fc0000000, 0x400d03cf60000000, 0x40240926e0000000,
+    0x403b4a3800000000, 0x40528d0160000000, 0x406936d228000000, 0x4081228768000000,
+    0x409749ea50000000, 0x40afa71570000000, 0x40c5829dc8000000, 0x40dd3c4488000000,
+    0x40f3de1650000000, 0x410b00b590000000, 0x412259ac48000000, 0x4138f0cca8000000,
+    0x4150f2ebd0000000, 0x4167093488000000, 0x417f4f2208000000, 0x419546d8f8000000,
+    0x41aceb0888000000, 0x41c3a6e1f8000000, 0x41dab5adb8000000, 0x41f226af30000000,
+    0x4208ab7fb0000000, 0x4220c3d390000000, 0x4236c93268000000, 0x424ef822f0000000,
+    0x42650bba30000000, 0x427c9aae40000000, 0x4293704708000000, 0x42aa6b7658000000,
+    0x42c1f43fc8000000, 0x42d866f348000000, 0x42f0953e28000000, 0x430689e220000000,
+    0x431ea215a0000000,
+];
+#[rustfmt::skip]
+const SINH_TAIL: [u64; 37] = [
+    0x0000000000000000, 0x3e513ae6096a0092, 0x3e5db70cfb79a640, 0x3e8c2526b66dc067,
+    0x3e8b81b18647f380, 0x3ebbc1cdd1e1eb08, 0x3ecd9f201534fb09, 0x3edd1c064a4e9954,
+    0x3ed4eca65d06ea74, 0x3f00c259bcc0ecc5, 0x3f2b5a6647cf9016, 0x3f09691adefb0870,
+    0x3f53410fc29cde38, 0x3f46a31a50b6fb3c, 0x3f57defc71805c40, 0x3f9eb49fd80e0bab,
+    0x3f84fffc7bcd5920, 0x3fc03a93b6c63435, 0x3fb1940bb255fd1c, 0x3fded26e14260b50,
+    0x3ffb47401fc9f2a2, 0x40267bb3f55634f1, 0x401c435ff8194ddc, 0x404d8fee052ba63a,
+    0x40651d7edccde3f6, 0x40704b1644557d1a, 0x4076a6b5ca0a9dc4, 0x40afd9cc72249aba,
+    0x40ce58de693edab5, 0x40d8c70158ac6363, 0x40e7614764f43e20, 0x4106337db36fc718,
+    0x41212d98b1f611e2, 0x412392bc108b37cc, 0x415ce87bdc3473dc, 0x414bc8d5ae99ad14,
+    0x415d20d76744835c,
+];
+#[rustfmt::skip]
+const COSH_LEAD: [u64; 37] = [
+    0x3ff0000000000000, 0x3ff8b07550000000, 0x400e18fa08000000, 0x402422a490000000,
+    0x403b4ee858000000, 0x40528d6fc8000000, 0x406936e678000000, 0x4081228948000000,
+    0x409749eaa8000000, 0x40afa71580000000, 0x40c5829dd0000000, 0x40dd3c4488000000,
+    0x40f3de1650000000, 0x410b00b590000000, 0x412259ac48000000, 0x4138f0cca8000000,
+    0x4150f2ebd0000000, 0x4167093488000000, 0x417f4f2208000000, 0x419546d8f8000000,
+    0x41aceb0888000000, 0x41c3a6e1f8000000, 0x41dab5adb8000000, 0x41f226af30000000,
+    0x4208ab7fb0000000, 0x4220c3d390000000, 0x4236c93268000000, 0x424ef822f0000000,
+    0x42650bba30000000, 0x427c9aae40000000, 0x4293704708000000, 0x42aa6b7658000000,
+    0x42c1f43fc8000000, 0x42d866f348000000, 0x42f0953e28000000, 0x430689e220000000,
+    0x431ea215a0000000,
+];
+#[rustfmt::skip]
+const COSH_TAIL: [u64; 37] = [
+    0x0000000000000000, 0x3e3d9f5504c2bd28, 0x3e67cb66f0a4c9fd, 0x3e8f58617928e588,
+    0x3e6bc7d000c38d48, 0x3eaf7f9d4e329998, 0x3ec6e6e464885269, 0x3ecba3a8b946c154,
+    0x3ed3f4e76110d5a4, 0x3f017622515a3e2b, 0x3ee4dc4b528af3d0, 0x3f11156278615e10,
+    0x3f535ad50ed821f5, 0x3f46b61055f2935c, 0x3f57e2794a601240, 0x3f9eb4b45f6aadd3,
+    0x3f85000b967b3698, 0x3fc03a940fadc092, 0x3fb1940bf3bf874c, 0x3fded26e1a2a2110,
+    0x3ffb4740205796d6, 0x40267bb3f55cb85d, 0x401c435ff81e18ac, 0x404d8fee052bdea4,
+    0x40651d7edccde926, 0x40704b1644557e0e, 0x4076a6b5ca0a9e1c, 0x40afd9cc72249abe,
+    0x40ce58de693edab5, 0x40d8c70158ac6364, 0x40e7614764f43e20, 0x4106337db36fc718,
+    0x41212d98b1f611e2, 0x412392bc108b37cc, 0x415ce87bdc3473dc, 0x414bc8d5ae99ad14,
+    0x415d20d76744835c,
+];
+#[rustfmt::skip]
+const EXP2_JBY32_LEAD: [u64; 32] = [
+    0x3ff0000000000000, 0x3ff059b0d0000000, 0x3ff0b55860000000, 0x3ff11301d0000000,
+    0x3ff172b830000000, 0x3ff1d48730000000, 0x3ff2387a60000000, 0x3ff29e9df0000000,
+    0x3ff306fe00000000, 0x3ff371a730000000, 0x3ff3dea640000000, 0x3ff44e0860000000,
+    0x3ff4bfdad0000000, 0x3ff5342b50000000, 0x3ff5ab07d0000000, 0x3ff6247eb0000000,
+    0x3ff6a09e60000000, 0x3ff71f75e0000000, 0x3ff7a11470000000, 0x3ff8258990000000,
+    0x3ff8ace540000000, 0x3ff93737b0000000, 0x3ff9c49180000000, 0x3ffa5503b0000000,
+    0x3ffae89f90000000, 0x3ffb7f76f0000000, 0x3ffc199bd0000000, 0x3ffcb720d0000000,
+    0x3ffd5818d0000000, 0x3ffdfc9730000000, 0x3ffea4afa0000000, 0x3fff507650000000,
+];
+#[rustfmt::skip]
+const EXP2_JBY32_TRAIL: [u64; 32] = [
+    0x0000000000000000, 0x3e48ac2ba1d73e2a, 0x3e69f3121ec53172, 0x3df25b50a4ebbf1b,
+    0x3e68faa2f5b9bef9, 0x3e368b9aa7805b80, 0x3e6ceac470cd83f6, 0x3e547f7b84b09745,
+    0x3e64636e2a5bd1ab, 0x3e5ceaa72a9c5154, 0x3e682468446b6824, 0x3e18624b40c4dbd0,
+    0x3e54d8a89c750e5e, 0x3e5a753e077c2a0f, 0x3e6a90a852b19260, 0x3e0d2ac258f87d03,
+    0x3e59fcef32422cbf, 0x3e61d8bee7ba46e2, 0x3e4f580c36bea881, 0x3e62999c25159f11,
+    0x3e415506dadd3e2a, 0x3e29b8bc9e8a0388, 0x3e451f8480e3e236, 0x3e41f12ae45a1224,
+    0x3e62b5a75abd0e6a, 0x3e47daf237553d84, 0x3e6b0aa538444196, 0x3e69df20d22a0798,
+    0x3e69f7490e4bb40b, 0x3e4bdcdaf5cb4656, 0x3e452486cc2c7b9d, 0x3e66dc8a80ce9f09,
+];
+
+#[rustfmt::skip]
+const ATAN_JBY256_LEAD: [u64; 241] = [
+    0x3faff55b00000000, 0x3fb0f99e00000000, 0x3fb1f86d00000000, 0x3fb2f71900000000,
+    0x3fb3f59f00000000, 0x3fb4f3fd00000000, 0x3fb5f23200000000, 0x3fb6f03b00000000,
+    0x3fb7ee1800000000, 0x3fb8ebc500000000, 0x3fb9e94100000000, 0x3fbae68a00000000,
+    0x3fbbe39e00000000, 0x3fbce07c00000000, 0x3fbddd2100000000, 0x3fbed98c00000000,
+    0x3fbfd5ba00000000, 0x3fc068d500000000, 0x3fc0e6ad00000000, 0x3fc1646500000000,
+    0x3fc1e1fa00000000, 0x3fc25f6e00000000, 0x3fc2dcbd00000000, 0x3fc359e800000000,
+    0x3fc3d6ee00000000, 0x3fc453ce00000000, 0x3fc4d08700000000, 0x3fc54d1800000000,
+    0x3fc5c98100000000, 0x3fc645bf00000000, 0x3fc6c1d400000000, 0x3fc73dbd00000000,
+    0x3fc7b97b00000000, 0x3fc8350b00000000, 0x3fc8b06e00000000, 0x3fc92ba300000000,
+    0x3fc9a6a800000000, 0x3fca217e00000000, 0x3fca9c2300000000, 0x3fcb169600000000,
+    0x3fcb90d700000000, 0x3fcc0ae500000000, 0x3fcc84bf00000000, 0x3fccfe6500000000,
+    0x3fcd77d500000000, 0x3fcdf11000000000, 0x3fce6a1400000000, 0x3fcee2e100000000,
+    0x3fcf5b7500000000, 0x3fcfd3d100000000, 0x3fd025fa00000000, 0x3fd061ee00000000,
+    0x3fd09dc500000000, 0x3fd0d97e00000000, 0x3fd1151a00000000, 0x3fd1509700000000,
+    0x3fd18bf500000000, 0x3fd1c73500000000, 0x3fd2025500000000, 0x3fd23d5600000000,
+    0x3fd2783700000000, 0x3fd2b2f700000000, 0x3fd2ed9800000000, 0x3fd3281800000000,
+    0x3fd3627700000000, 0x3fd39cb400000000, 0x3fd3d6d100000000, 0x3fd410cb00000000,
+    0x3fd44aa400000000, 0x3fd4845a00000000, 0x3fd4bdee00000000, 0x3fd4f75f00000000,
+    0x3fd530ad00000000, 0x3fd569d800000000, 0x3fd5a2e000000000, 0x3fd5dbc300000000,
+    0x3fd6148400000000, 0x3fd64d1f00000000, 0x3fd6859700000000, 0x3fd6bdea00000000,
+    0x3fd6f61900000000, 0x3fd72e2200000000, 0x3fd7660700000000, 0x3fd79dc600000000,
+    0x3fd7d56000000000, 0x3fd80cd400000000, 0x3fd8442200000000, 0x3fd87b4b00000000,
+    0x3fd8b24d00000000, 0x3fd8e92900000000, 0x3fd91fde00000000, 0x3fd9566d00000000,
+    0x3fd98cd500000000, 0x3fd9c31600000000, 0x3fd9f93000000000, 0x3fda2f2300000000,
+    0x3fda64ee00000000, 0x3fda9a9200000000, 0x3fdad00f00000000, 0x3fdb056400000000,
+    0x3fdb3a9100000000, 0x3fdb6f9600000000, 0x3fdba47300000000, 0x3fdbd92800000000,
+    0x3fdc0db400000000, 0x3fdc421900000000, 0x3fdc765500000000, 0x3fdcaa6800000000,
+    0x3fdcde5300000000, 0x3fdd121500000000, 0x3fdd45ae00000000, 0x3fdd791f00000000,
+    0x3fddac6700000000, 0x3fdddf8500000000, 0x3fde127b00000000, 0x3fde454800000000,
+    0x3fde77eb00000000, 0x3fdeaa6500000000, 0x3fdedcb600000000, 0x3fdf0ede00000000,
+    0x3fdf40dd00000000, 0x3fdf72b200000000, 0x3fdfa45d00000000, 0x3fdfd5e000000000,
+    0x3fe0039c00000000, 0x3fe01c3400000000, 0x3fe034b700000000, 0x3fe04d2500000000,
+    0x3fe0657e00000000, 0x3fe07dc300000000, 0x3fe095f300000000, 0x3fe0ae0e00000000,
+    0x3fe0c61400000000, 0x3fe0de0500000000, 0x3fe0f5e200000000, 0x3fe10daa00000000,
+    0x3fe1255d00000000, 0x3fe13cfb00000000, 0x3fe1548500000000, 0x3fe16bfa00000000,
+    0x3fe1835a00000000, 0x3fe19aa500000000, 0x3fe1b1dc00000000, 0x3fe1c8fe00000000,
+    0x3fe1e00b00000000, 0x3fe1f70400000000, 0x3fe20de800000000, 0x3fe224b700000000,
+    0x3fe23b7100000000, 0x3fe2521700000000, 0x3fe268a900000000, 0x3fe27f2600000000,
+    0x3fe2958e00000000, 0x3fe2abe200000000, 0x3fe2c22100000000, 0x3fe2d84c00000000,
+    0x3fe2ee6200000000, 0x3fe3046400000000, 0x3fe31a5200000000, 0x3fe3302b00000000,
+    0x3fe345f000000000, 0x3fe35ba000000000, 0x3fe3713d00000000, 0x3fe386c500000000,
+    0x3fe39c3900000000, 0x3fe3b19800000000, 0x3fe3c6e400000000, 0x3fe3dc1c00000000,
+    0x3fe3f13f00000000, 0x3fe4064f00000000, 0x3fe41b4a00000000, 0x3fe4303200000000,
+    0x3fe4450600000000, 0x3fe459c600000000, 0x3fe46e7200000000, 0x3fe4830a00000000,
+    0x3fe4978f00000000, 0x3fe4ac0000000000, 0x3fe4c05e00000000, 0x3fe4d4a800000000,
+    0x3fe4e8de00000000, 0x3fe4fd0100000000, 0x3fe5111000000000, 0x3fe5250c00000000,
+    0x3fe538f500000000, 0x3fe54cca00000000, 0x3fe5608d00000000, 0x3fe5743c00000000,
+    0x3fe587d800000000, 0x3fe59b6000000000, 0x3fe5aed600000000, 0x3fe5c23900000000,
+    0x3fe5d58900000000, 0x3fe5e8c600000000, 0x3fe5fbf000000000, 0x3fe60f0800000000,
+    0x3fe6220d00000000, 0x3fe634ff00000000, 0x3fe647de00000000, 0x3fe65aab00000000,
+    0x3fe66d6600000000, 0x3fe6800e00000000, 0x3fe692a400000000, 0x3fe6a52700000000,
+    0x3fe6b79800000000, 0x3fe6c9f700000000, 0x3fe6dc4400000000, 0x3fe6ee7f00000000,
+    0x3fe700a700000000, 0x3fe712be00000000, 0x3fe724c300000000, 0x3fe736b600000000,
+    0x3fe7489700000000, 0x3fe75a6700000000, 0x3fe76c2400000000, 0x3fe77dd100000000,
+    0x3fe78f6b00000000, 0x3fe7a0f400000000, 0x3fe7b26c00000000, 0x3fe7c3d300000000,
+    0x3fe7d52800000000, 0x3fe7e66c00000000, 0x3fe7f79e00000000, 0x3fe808c000000000,
+    0x3fe819d000000000, 0x3fe82ad000000000, 0x3fe83bbe00000000, 0x3fe84c9c00000000,
+    0x3fe85d6900000000, 0x3fe86e2500000000, 0x3fe87ed000000000, 0x3fe88f6b00000000,
+    0x3fe89ff500000000, 0x3fe8b06f00000000, 0x3fe8c0d900000000, 0x3fe8d13200000000,
+    0x3fe8e17a00000000, 0x3fe8f1b300000000, 0x3fe901db00000000, 0x3fe911f300000000,
+    0x3fe921fb00000000,
+];
+#[rustfmt::skip]
+const ATAN_JBY256_TAIL: [u64; 241] = [
+    0x3e56e59fbd38db2c, 0x3e64e3aa54dedf96, 0x3e67e105ab1bda88, 0x3e48c5254d013fd0,
+    0x3e2cf8ab3ad62670, 0x3e59dca4bec80468, 0x3e53f4b5ec98a8da, 0x3e6b9d49619d81fe,
+    0x3e43017887460934, 0x3e511e3eca0b9944, 0x3e54f3f73c5a332e, 0x3e5c71c8ae0e00a6,
+    0x3e67cde0f86fbdc7, 0x3e570f328c889c72, 0x3e5c07ae9b994efe, 0x3e40c8021d7b1698,
+    0x3e635585edb8cb22, 0x3e70842567b30e96, 0x3e799e811031472e, 0x3e6041821416bcee,
+    0x3e7f6086e4dc96f4, 0x3e471a535c5f1b58, 0x3e765f743fe63ca1, 0x3e7dbd733472d014,
+    0x3e7d18cc4d8b0d1d, 0x3e78c12553c8fb29, 0x3e753b49e2e8f991, 0x3e77422ae148c141,
+    0x3e4e3ec269df56a8, 0x3e7ff6754e7e0ac9, 0x3e7131267b1b5aad, 0x3e7d14fa403a94bc,
+    0x3e62f396c089a3d8, 0x3e7c731d78fa95bb, 0x3e7c50f385177399, 0x3e6f41409c6f2c20,
+    0x3e7d2d90c4c39ec0, 0x3e680420696f2106, 0x3e4b40327943a2e8, 0x3e65d35e02f3d2a2,
+    0x3e64a498288117b0, 0x3e635da119afb324, 0x3e714e85cdb9a908, 0x3e638754e5547b9a,
+    0x3e7be40ae6ce3246, 0x3e70c993b3bea7e7, 0x3e71d2dd89ac3359, 0x3e61476603332c46,
+    0x3e7f25901bac55b7, 0x3e7f881b7c826e28, 0x3e7441996d698d20, 0x3e8407ac521ea089,
+    0x3e82fb0c6c4b1723, 0x3e8ca135966a3e18, 0x3e6b1218e4d646e4, 0x3e6d4e72a350d288,
+    0x3e84617e2f04c329, 0x3e6096ec41e82650, 0x3e79f91f25773e6e, 0x3e659c0820f1d674,
+    0x3e602bf7a2df1064, 0x3e8fb36bfc40508f, 0x3e7ea08f3f8dc892, 0x3e73ed6254656a0e,
+    0x3e6b83f5e5e69c58, 0x3e8d6ec2af768592, 0x3e6493889a226f94, 0x3e85ad8fa65279ba,
+    0x3e6b615784d45434, 0x3e809a184368f145, 0x3e761a2439b0d91c, 0x3e7ce1a65e39a978,
+    0x3e832a39a93b6a66, 0x3e81c3699af804e7, 0x3e575e0f4e44ede8, 0x3e8f77ced1a7a83b,
+    0x3e284e7f0cb1b500, 0x3e8ec6b838b02dfe, 0x3e83ebf4dfbeda87, 0x3e89397aed9cb475,
+    0x3e707937bc239c54, 0x3e8aa754553131b6, 0x3e74a05d407c45dc, 0x3e8132231a206dd0,
+    0x3e72d8ecfdd69c88, 0x3e7a852c74218606, 0x3e871bf2baeebb50, 0x3e483d7db7491820,
+    0x3e6ca50d92b6da14, 0x3e56f5cde8530298, 0x3e7f343198910740, 0x3e70e8d241ccd80a,
+    0x3e71535ac619e6c8, 0x3e77316041c36cd2, 0x3e7985a000637d8e, 0x3e6f2f29858c0a68,
+    0x3e8879847f96d909, 0x3e8ab3d319e12e42, 0x3e75088162dfc4c2, 0x3e605749a1cd9d8c,
+    0x3e5da65c6c6b8618, 0x3e6739bf7df1ad64, 0x3e6bc31252aa3340, 0x3e5e528191ad3aa8,
+    0x3e8929d93df19f18, 0x3e5ff11eb693a080, 0x3e455ae3f145a3a0, 0x3e7cbcd8c6c0ca82,
+    0x3e70cb04d425d304, 0x3e79adfcab5be678, 0x3e893d90c5662508, 0x3e768489bd35ff40,
+    0x3e3586ed3da2b7e0, 0x3e87604d2e850eee, 0x3e7ac1d12bfb53d8, 0x3e39b3d468274740,
+    0x3e7fc5d68d10e53c, 0x3e88f9e51884becb, 0x3e8a87f0869c06d1, 0x3e831e7279f685fa,
+    0x3e46a8282f9719b0, 0x3e60d2724a8a44e0, 0x3e8a60524b11ad4e, 0x3e575fdf832750f0,
+    0x3e8cf06902e4cd36, 0x3e6e82422d4f6d10, 0x3e524a091063e6c0, 0x3e78a1a172dc6f38,
+    0x3e929b6619f8a92d, 0x3e79274d9c1b70c8, 0x3e50c34b1fbb7930, 0x3e6639866c20eb50,
+    0x3e86d6d0f6832e9e, 0x3e9af54def99f25e, 0x3e916cfc52a00262, 0x3e8dcc1e83569c32,
+    0x3e937f7a551ed425, 0x3e9f6360adc98887, 0x3e92c6ec8d35a2c1, 0x3e8bd44df84cb036,
+    0x3e9117cf826e310e, 0x3e9ca533f332cfc9, 0x3e90f208509dbc2e, 0x3e8cd07d93c945de,
+    0x3e957bdfd67e6d72, 0x3e7aab89c516c658, 0x3e63e823b1a1b8a0, 0x3e8307464a9d6d3c,
+    0x3e9c5993cd438843, 0x3e9ba2fca02ab554, 0x3e801a5b6983a268, 0x3e6273d1b350efc8,
+    0x3e864c238c37b0c6, 0x3e6aded07370a300, 0x3e878091197eb47e, 0x3e74b0f245e0dabc,
+    0x3e9080d9794e2eaf, 0x3e8d4ec242b60c76, 0x3e4221d2f940caa0, 0x3e7cdbc42b2bba5c,
+    0x3e6cce37bb440840, 0x3e96c1d999cf1dd0, 0x3e5bed8a07eb0870, 0x3e769ed88f490e3c,
+    0x3e6cd41719b73ef0, 0x3e9cbc4ac95b41b7, 0x3e9238f1b890f5d7, 0x3e750c4282259cc4,
+    0x3e9713d2de87b3e2, 0x3e81d5a7d2255276, 0x3e9c0dfd48227ac1, 0x3e91c964dab76753,
+    0x3e86de56d5704496, 0x3e84aeb71fd19968, 0x3e8fbf91c57b1918, 0x3e9d6bef7fbe5d9a,
+    0x3e9464d3dc249066, 0x3e9638e2ec4d9073, 0x3e716f4a7247ea7c, 0x3e31a0a740f1d440,
+    0x3e86edbb0114a33c, 0x3e7dbee8bf1d513c, 0x3e95b8bdb0248f73, 0x3e97de3d3f5eac64,
+    0x3e8ee24187ae448a, 0x3e9e06c591ec5192, 0x3e74e3861a332738, 0x3e7a9599dcc2bfe4,
+    0x3e6f732fbad43468, 0x3e9eb9f573b727d9, 0x3e98b212a2eb9897, 0x3e9384884c167215,
+    0x3e90e2d363020051, 0x3e92820879fbd022, 0x3e9a1ab9893e4b30, 0x3e82d1b817a24478,
+    0x3e615d7b8ded4878, 0x3e78968f9db3a5e4, 0x3e971c4171fe135f, 0x3e96d80f605d0d8c,
+    0x3e7c91f043691590, 0x3e839f8a15fce2b2, 0x3e455beda9d94b80, 0x3e8b12c15d60949a,
+    0x3e924167b312bfe3, 0x3e90ab8633070277, 0x3e854554ebbc80ee, 0x3e60204aef5a4bb8,
+    0x3e98af08c679cf2c, 0x3e90852a330ae6c8, 0x3e86d3eb9ec32916, 0x3e8685cb7fcbbafe,
+    0x3e91f751c1e0bd95, 0x3e5705b1b0f72560, 0x3e9b98d8d808ca92, 0x3e62ea22c75cc980,
+    0x3e97aba62bca0350, 0x3e9d73833442278c, 0x3e95a5ca1fb18bf9, 0x3e61a6092b6ecf28,
+    0x3e744fd049aac104, 0x3e2c114fd8df5180, 0x3e95972f130feae5, 0x3e7ca034a55fe198,
+    0x3e96e2b149990227, 0x3e7b00000294592c, 0x3e98b9bdc442620e, 0x3e8d94fdfabf3e4e,
+    0x3e85db30b145ad9a, 0x3e8e3e1eb95022b0, 0x3e9d5b8b45442bd6, 0x3e97a046231ecd2e,
+    0x3e9feafe3ef55232, 0x3e9839e7bfd78267, 0x3e645cf49d6fa900, 0x3e4be3132b27f380,
+    0x3e9533980bb84f9f, 0x3e5889e2ce3ba390, 0x3e7f7778c3ad0cc8, 0x3e846660cec4eba2,
+    0x3e85110b4611a626,
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -637,6 +842,99 @@ mod tests {
             ("specials", &|r| [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -0.0, 1000.0, -1000.0][(r.next() % 7) as usize]),
         ];
         total += against_the_runtime("exp", crt_exp, f64::exp, &exp_regions);
+        assert_eq!(total, 0);
+    }
+
+    /// dc-twc: the ports against the runtime's own `sin` and `cos`, 1,000,000 random arguments
+    /// per region: the polynomial range, the Cody-Waite range, the Payne-Hanek range up to the
+    /// largest binary64, the small-argument shortcuts and the special values.
+    #[cfg(target_env = "msvc")]
+    /// Native-only: the reference is the MSVC runtime's libm, which only Windows has.
+    #[test]
+    fn sin_and_cos_equal_the_windows_runtime() {
+        let sign = |r: &mut Rng| if r.next() & 1 == 0 { 1.0 } else { -1.0 };
+        let regions: [(&str, &dyn Fn(&mut Rng) -> f64); 7] = [
+            ("[-pi/4, pi/4]", &|r| r.uniform(-0.7853981633974483, 0.7853981633974483)),
+            ("[-100, 100]", &|r| r.uniform(-100.0, 100.0)),
+            ("to 2e7", &|r| r.positive(-1, 26) * sign(r)),
+            ("multiples of pi/2", &|r| ((r.next() % 2_000_000) as f64) * 1.5707963267948966 * sign(r)),
+            ("2e7 and beyond", &|r| r.positive(24, 1000) * sign(r)),
+            ("small", &|r| r.positive(-40, 30) * sign(r)),
+            ("specials", &|r| [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -0.0, 0.7853981633974483, 2e7][(r.next() % 7) as usize]),
+        ];
+        let mut total = against_the_runtime("sin", crt_sin, f64::sin, &regions);
+        total += against_the_runtime("cos", crt_cos, f64::cos, &regions);
+        assert_eq!(total, 0);
+    }
+
+    /// dc-twc: the ports against the runtime's own `sinh` and `cosh`, 1,000,000 random arguments
+    /// per region: the table range (each integer part), the `splitexp` range up to overflow, the
+    /// small-argument shortcuts and the special values.
+    #[cfg(target_env = "msvc")]
+    /// Native-only: the reference is the MSVC runtime's libm, which only Windows has.
+    #[test]
+    fn sinh_and_cosh_equal_the_windows_runtime() {
+        let sign = |r: &mut Rng| if r.next() & 1 == 0 { 1.0 } else { -1.0 };
+        let regions: [(&str, &dyn Fn(&mut Rng) -> f64); 5] = [
+            ("[-37, 37]", &|r| r.uniform(-37.0, 37.0)),
+            ("[-1, 1]", &|r| r.uniform(-1.0, 1.0)),
+            ("to overflow", &|r| r.uniform(19.0, 711.0) * sign(r)),
+            ("small", &|r| r.positive(-40, 34) * sign(r)),
+            ("specials", &|r| [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -0.0, 20.0, 710.4758600739439][(r.next() % 7) as usize]),
+        ];
+        let mut total = against_the_runtime("sinh", crt_sinh, f64::sinh, &regions);
+        total += against_the_runtime("cosh", crt_cosh, f64::cosh, &regions);
+        assert_eq!(total, 0);
+    }
+
+    /// dc-twc: the ports against the runtime's own `atan2` and `hypot`, 1,000,000 random pairs
+    /// per region: every quadrant at mixed magnitudes, ratios around the table and series
+    /// thresholds (1/16, 1e-8), exponent gaps past 28, 56 and 1022, subnormals, and the special
+    /// values (zeros, infinities, NaNs).
+    #[cfg(target_env = "msvc")]
+    /// Native-only: the reference is the MSVC runtime's libm, which only Windows has.
+    #[test]
+    fn atan2_and_hypot_equal_the_windows_runtime() {
+        let n: usize = std::env::var("SOFT87_N").ok().and_then(|v| v.parse().ok()).unwrap_or(1_000_000);
+        let specials = [0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 1.0, -1.0, d(1), d(MANT), f64::MAX];
+        let regions: [(&str, &dyn Fn(&mut Rng) -> (f64, f64)); 6] = [
+            ("mixed", &|r| {
+                let (a, b) = (r.positive(-30, 60), r.positive(-30, 60));
+                (if r.next() & 1 == 0 { a } else { -a }, if r.next() & 1 == 0 { b } else { -b })
+            }),
+            ("near thresholds", &|r| {
+                let x = r.positive(-5, 10) * if r.next() & 1 == 0 { 1.0 } else { -1.0 };
+                let k = [0.0625, 1e-8, 1.0, 0.5][(r.next() % 4) as usize] * r.uniform(0.9, 1.1);
+                (x * k, x)
+            }),
+            ("exponent gaps", &|r| (r.positive(-1022, 2046) * if r.next() & 1 == 0 { 1.0 } else { -1.0 }, r.positive(-1022, 2046) * if r.next() & 1 == 0 { 1.0 } else { -1.0 })),
+            ("subnormal", &|r| (d(r.next() & MANT) * if r.next() & 1 == 0 { 1.0 } else { -1.0 }, r.positive(-1022, 30) * if r.next() & 1 == 0 { 1.0 } else { -1.0 })),
+            ("both small", &|r| (r.positive(-1074, 60), r.positive(-1074, 60) * if r.next() & 1 == 0 { 1.0 } else { -1.0 })),
+            ("specials", &|r| (specials[(r.next() % 10) as usize], specials[(r.next() % 10) as usize])),
+        ];
+        let mut total = 0;
+        for (name, port, runtime) in [
+            ("atan2", crt_atan2 as fn(f64, f64) -> f64, f64::atan2 as fn(f64, f64) -> f64),
+            ("hypot", crt_hypot, f64::hypot),
+        ] {
+            for (seed, (region, draw)) in regions.iter().enumerate() {
+                let mut rng = Rng(0x7a7a_2b2b ^ (seed as u64 + 3) * 0x9e37_79b9);
+                let mut differ = 0;
+                for _ in 0..n {
+                    let (a, b) = draw(&mut rng);
+                    let (a, b) = (std::hint::black_box(a), std::hint::black_box(b));
+                    let (p, q) = (port(a, b), runtime(a, b));
+                    if p.to_bits() != q.to_bits() && !(p.is_nan() && q.is_nan()) {
+                        if differ < 3 {
+                            eprintln!("{name} {region}: ({a:e}, {b:e}) port {:016x} runtime {:016x}", p.to_bits(), q.to_bits());
+                        }
+                        differ += 1;
+                    }
+                }
+                eprintln!("{name} {region}: {differ} of {n} differ");
+                total += differ;
+            }
+        }
         assert_eq!(total, 0);
     }
 

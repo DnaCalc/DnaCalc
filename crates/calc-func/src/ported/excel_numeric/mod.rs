@@ -21,9 +21,11 @@ mod soft87;
 mod crt_pow;
 pub(crate) use crt_pow::crt_pow;
 
-/// The Microsoft runtime's `log`, `log10` and `exp` in portable Rust (dc-twc).
+/// The Microsoft runtime's elementary functions in portable Rust (dc-twc).
 mod crt_libm;
-pub(crate) use crt_libm::{crt_exp, crt_log, crt_log10};
+pub(crate) use crt_libm::{
+    crt_atan2, crt_cos, crt_cosh, crt_exp, crt_hypot, crt_log, crt_log10, crt_sin, crt_sinh,
+};
 
 use soft87::{
     CW_PC64_RN as CW, Ext80, ext_abs, ext_chs, ext_from_f64 as load, ext_l2e, ext_lg2, ext_ln2,
