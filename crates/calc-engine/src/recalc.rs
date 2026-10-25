@@ -223,6 +223,44 @@ impl WorkBudget {
     }
 }
 
+/// Values by node, kept at the node's slot (dc-10d9: in place of a BTreeMap from node, which each
+/// evaluation of a recalculation inserted into twice). No two live nodes share a slot while a
+/// recalculation runs, since a commit cancels it.
+#[derive(Debug)]
+struct BySlot<T> {
+    entries: Vec<Option<(NodeId, T)>>,
+}
+
+impl<T> Default for BySlot<T> {
+    fn default() -> Self {
+        BySlot {
+            entries: Vec::new(),
+        }
+    }
+}
+
+impl<T> BySlot<T> {
+    fn get(&self, node: NodeId) -> Option<&T> {
+        match self.entries.get(node.slot() as usize) {
+            Some(Some((held, value))) if *held == node => Some(value),
+            _ => None,
+        }
+    }
+
+    fn insert(&mut self, node: NodeId, value: T) {
+        let slot = node.slot() as usize;
+        if slot >= self.entries.len() {
+            self.entries.resize_with(slot + 1, || None);
+        }
+        self.entries[slot] = Some((node, value));
+    }
+
+    /// Every entry, in slot order (the order of the node IDs).
+    fn into_entries(self) -> impl Iterator<Item = (NodeId, T)> {
+        self.entries.into_iter().flatten()
+    }
+}
+
 /// One recalculation in progress: the nodes it evaluates in their order, the formulas waiting for
 /// a cell it has yet to evaluate, and the results, spills and dynamic prerequisites it has
 /// staged. It holds no borrow of the engine state, which [`step`] and [`finish`] check has not
@@ -244,9 +282,9 @@ pub struct RecalcWork {
     progress: Progress,
     /// The active spills of the anchors evaluated, and each evaluated anchor's filled area.
     spills: SpillIndex,
-    filled: BTreeMap<NodeId, Option<GridArea>>,
+    filled: BySlot<Option<GridArea>>,
     /// Each evaluated node's dynamic prerequisites.
-    dynamic: BTreeMap<NodeId, Vec<Prerequisite>>,
+    dynamic: BySlot<Vec<Prerequisite>>,
     /// Nodes to calculate again in the next wave.
     rewave: BTreeSet<NodeId>,
     waves: u32,
@@ -440,9 +478,12 @@ pub fn begin_recalc(
             roots
         }
     };
-    let Scheduled { order, cyclic } = schedule(state, inputs, roots, &|node| {
+    let mut cache = std::mem::take(&mut state.readers_cache);
+    cache.validate(state, inputs);
+    let Scheduled { order, cyclic } = schedule(state, inputs, roots, Some(&mut cache), &|node| {
         published_areas(state, inputs, node)
     });
+    state.readers_cache = cache;
     let mut progress = Progress::new(state.nodes.len());
     for node in &order {
         progress.schedule(*node);
@@ -462,8 +503,8 @@ pub fn begin_recalc(
         waiting: BTreeMap::new(),
         waits_on: BTreeMap::new(),
         spills: SpillIndex::default(),
-        filled: BTreeMap::new(),
-        dynamic: BTreeMap::new(),
+        filled: BySlot::default(),
+        dynamic: BySlot::default(),
         rewave: BTreeSet::new(),
         waves: 0,
         scratch: EvalScratch::new(),
@@ -562,7 +603,9 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
             revision: work.revision,
         });
     }
-    let mut changes: BTreeMap<CellKey, ValueChange> = BTreeMap::new();
+    // Each change is of a distinct cell: a published node's anchor, or a retired anchor whose
+    // published result no live node there replaced. They are sorted by cell at the end.
+    let mut changes: Vec<(CellKey, ValueChange)> = Vec::with_capacity(work.progress.scheduled());
     let mut spill_changes = Vec::new();
     for (node, result) in std::mem::take(&mut work.progress).into_staged() {
         let at = live_anchor(state, node);
@@ -582,9 +625,9 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         state.results.insert(at, (node, result.clone()));
         state.pending.remove(&node);
         state.entered.remove(&node);
-        changes.insert(at, ValueChange::Published { at, node, result });
+        changes.push((at, ValueChange::Published { at, node, result }));
     }
-    for (node, dynamic) in std::mem::take(&mut work.dynamic) {
+    for (node, dynamic) in std::mem::take(&mut work.dynamic).into_entries() {
         state.set_dynamic(node, dynamic);
     }
     for at in std::mem::take(&mut state.retired) {
@@ -599,17 +642,25 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
                     after: None,
                 });
             }
-            changes.insert(at, ValueChange::Removed { at, node });
+            changes.push((at, ValueChange::Removed { at, node }));
         }
+    }
+    if !spill_changes.is_empty() {
+        state.spill_epoch += 1;
     }
     state.cycle_members = work.cyclic;
     state.generation += 1;
     state.published_mode = Some(work.calculation.mode().clone());
     spill_changes.sort_by_key(|change| change.anchor);
+    changes.sort_by_key(|(at, _)| *at);
+    debug_assert!(
+        changes.windows(2).all(|pair| pair[0].0 != pair[1].0),
+        "one change per cell"
+    );
     Ok(ValueDelta::new(
         work.revision,
         work.calculation.tick(),
-        changes.into_values().collect(),
+        changes.into_iter().map(|(_, change)| change).collect(),
     )
     .with_spill_changes(spill_changes))
 }
@@ -817,8 +868,11 @@ fn readers_into(
 pub(crate) struct Closure {
     /// The members, in ID order.
     members: Vec<NodeId>,
-    /// Each member's readers, in ID order, at the member's slot; empty at any other slot.
-    readers: Vec<Vec<NodeId>>,
+    /// Where each member's readers lie in `edges` (start and count), at the member's slot; no
+    /// readers at any other slot.
+    readers: Vec<(u32, u32)>,
+    /// Every member's readers, each member's run in ID order, one after the other.
+    edges: Vec<NodeId>,
 }
 
 impl Closure {
@@ -829,7 +883,8 @@ impl Closure {
 
     /// The readers of the member `node`, in ID order.
     fn readers(&self, node: NodeId) -> &[NodeId] {
-        &self.readers[node.slot() as usize]
+        let (start, count) = self.readers[node.slot() as usize];
+        &self.edges[start as usize..(start + count) as usize]
     }
 
     /// The members with their readers, as a map.
@@ -850,10 +905,90 @@ pub(crate) fn dirty_closure(
     roots: BTreeSet<NodeId>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Closure {
+    closure_with(state, inputs, roots, None, areas)
+}
+
+/// What the readers of every node depend on beside the node itself: the graph's edges, the
+/// published spills' areas and the nodes' anchors, the snapshot's array formulas (the
+/// definitions, shared unchanged from one revision to the next until an edit changes them), the
+/// sheet order (a span's sheets) and whether data tables wait.
+#[derive(Debug, Clone)]
+struct ReadersKey {
+    index_epoch: u64,
+    spill_epoch: u64,
+    definitions: Arc<calc_doc_model::Definitions>,
+    sheets: Vec<calc_value::SheetId>,
+    tables_deferred: bool,
+}
+
+impl PartialEq for ReadersKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.index_epoch == other.index_epoch
+            && self.spill_epoch == other.spill_epoch
+            && Arc::ptr_eq(&self.definitions, &other.definitions)
+            && self.sheets == other.sheets
+            && self.tables_deferred == other.tables_deferred
+    }
+}
+
+/// Each node's readers, as [`readers_into`] found them with the published areas of the node, by
+/// the node's slot, with the node and its anchor (dc-10d9). Ordering a closure of every formula
+/// asked the reverse index for every formula's readers anew each recalculation; while the key
+/// (everything the readers depend on beside the node: [`ReadersKey`]) is unchanged, the readers
+/// found before stand, and a recalculation after a change of literal inputs, or a full one,
+/// reads them from here. Any change of the key empties it. A debug build checks every reader list
+/// it hands out against the reverse index.
+#[derive(Debug, Default)]
+pub(crate) struct ReadersCache {
+    key: Option<ReadersKey>,
+    entries: Vec<Option<(NodeId, CellKey, Box<[NodeId]>)>>,
+}
+
+impl ReadersCache {
+    /// Empties the cache unless it was filled under what `state` and `inputs` now hold.
+    pub(crate) fn validate(&mut self, state: &EngineState, inputs: &ModelRoot) {
+        let key = ReadersKey {
+            index_epoch: state.index.epoch(),
+            spill_epoch: state.spill_epoch,
+            definitions: Arc::clone(inputs.definitions()),
+            sheets: inputs.sheets().iter().map(|sheet| sheet.id()).collect(),
+            tables_deferred: state.tables_deferred,
+        };
+        if self.key.as_ref() != Some(&key) {
+            self.entries.clear();
+            self.key = Some(key);
+        }
+    }
+
+    fn get(&self, node: NodeId, anchor: CellKey) -> Option<&[NodeId]> {
+        match self.entries.get(node.slot() as usize) {
+            Some(Some((held, at, readers))) if *held == node && *at == anchor => Some(readers),
+            _ => None,
+        }
+    }
+
+    fn insert(&mut self, node: NodeId, anchor: CellKey, readers: &[NodeId]) {
+        let slot = node.slot() as usize;
+        if slot >= self.entries.len() {
+            self.entries.resize_with(slot + 1, || None);
+        }
+        self.entries[slot] = Some((node, anchor, readers.into()));
+    }
+}
+
+/// [`dirty_closure`], reading and filling `cache` when one is given, which only the ordering of a
+/// recalculation's first wave does, with the published areas as `areas`.
+fn closure_with(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    roots: BTreeSet<NodeId>,
+    mut cache: Option<&mut ReadersCache>,
+    areas: &dyn Fn(NodeId) -> Vec<GridArea>,
+) -> Closure {
     let slots = state.nodes.len();
     let mut member = vec![false; slots];
-    let mut readers: Vec<Vec<NodeId>> = Vec::new();
-    readers.resize_with(slots, Vec::new);
+    let mut readers: Vec<(u32, u32)> = vec![(0, 0); slots];
+    let mut edges: Vec<NodeId> = Vec::new();
     let mut members: Vec<NodeId> = Vec::with_capacity(roots.len());
     for node in &roots {
         member[node.slot() as usize] = true;
@@ -862,7 +997,25 @@ pub(crate) fn dirty_closure(
     let mut stack = members.clone();
     let mut found = Vec::new();
     while let Some(node) = stack.pop() {
-        readers_into(state, inputs, node, &areas(node), &mut found);
+        let anchor = live_anchor(state, node);
+        match cache.as_deref().and_then(|cache| cache.get(node, anchor)) {
+            Some(cached) => {
+                found.clear();
+                found.extend_from_slice(cached);
+                #[cfg(debug_assertions)]
+                {
+                    let mut fresh = Vec::new();
+                    readers_into(state, inputs, node, &areas(node), &mut fresh);
+                    debug_assert_eq!(found, fresh, "the cached readers of {node:?} stand");
+                }
+            }
+            None => {
+                readers_into(state, inputs, node, &areas(node), &mut found);
+                if let Some(cache) = cache.as_deref_mut() {
+                    cache.insert(node, anchor, &found);
+                }
+            }
+        }
         for &reader in &found {
             let slot = reader.slot() as usize;
             if !member[slot] {
@@ -871,10 +1024,17 @@ pub(crate) fn dirty_closure(
                 stack.push(reader);
             }
         }
-        readers[node.slot() as usize] = std::mem::take(&mut found);
+        let start = u32::try_from(edges.len()).expect("fewer than 2^32 edges in a closure");
+        let count = u32::try_from(found.len()).expect("fewer than 2^32 readers of a node");
+        readers[node.slot() as usize] = (start, count);
+        edges.extend_from_slice(&found);
     }
     members.sort_unstable();
-    Closure { members, readers }
+    Closure {
+        members,
+        readers,
+        edges,
+    }
 }
 
 /// The order a recalculation evaluates its nodes in, and the nodes on a cycle.
@@ -891,9 +1051,13 @@ fn schedule(
     state: &EngineState,
     inputs: &ModelRoot,
     roots: BTreeSet<NodeId>,
+    cache: Option<&mut ReadersCache>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Scheduled {
-    let closure = dirty_closure(state, inputs, roots, areas);
+    let closure = match cache {
+        Some(cache) => closure_with(state, inputs, roots, Some(cache), areas),
+        None => dirty_closure(state, inputs, roots, areas),
+    };
     let acyclic = |order| Scheduled {
         order,
         cyclic: BTreeSet::new(),
@@ -1239,7 +1403,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     let roots = std::mem::take(&mut work.rewave);
     work.waves += 1;
     let areas = |node: NodeId| -> Vec<GridArea> {
-        match work.filled.get(&node) {
+        match work.filled.get(node) {
             Some(filled) => filled.iter().copied().collect(),
             None => published_areas(state, inputs, node),
         }
@@ -1247,7 +1411,7 @@ fn next_wave(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork) {
     let ordered = if work.waves > MAX_WAVES {
         Err(())
     } else {
-        Ok(schedule(state, inputs, roots.clone(), &areas))
+        Ok(schedule(state, inputs, roots.clone(), None, &areas))
     };
     match ordered {
         Ok(Scheduled { order, cyclic }) => {
@@ -1384,18 +1548,23 @@ fn defer(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: N
 /// cells it gained or lost that are already evaluated or not calculated by this recalculation.
 fn stage(state: &EngineState, inputs: &ModelRoot, work: &mut RecalcWork, node: NodeId, done: Done) {
     let at = live_anchor(state, node);
-    let before = match work.filled.get(&node) {
+    let before = match work.filled.get(node) {
         Some(filled) => *filled,
         None => match state.spills.get(at) {
             Some(spill) => Some(spill.area()),
-            None => match state.result(at) {
-                Some(FormulaResult::Calculated { .. } | FormulaResult::NotModeled { .. }) => None,
-                _ => inputs
-                    .definitions()
-                    .array(at)
-                    .map(|array| array.area())
-                    .filter(|area| area.cell_count() > 1),
-            },
+            // The file's area of an array formula whose result is not calculated (the array is
+            // looked up first: most formulas are not array formulas, and need no result read).
+            None => inputs
+                .definitions()
+                .array(at)
+                .map(|array| array.area())
+                .filter(|area| area.cell_count() > 1)
+                .filter(|_| {
+                    !matches!(
+                        state.result(at),
+                        Some(FormulaResult::Calculated { .. } | FormulaResult::NotModeled { .. })
+                    )
+                }),
         },
     };
     let after = done.spill.as_ref().map(Spill::area);

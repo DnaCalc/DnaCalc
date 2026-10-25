@@ -18,6 +18,8 @@ enum DateTimeTokenKind {
     ElapsedHour,
     ElapsedMinute,
     ElapsedSecond,
+    /// The decimal places after a seconds token (`ss.00`), `width` of them.
+    SubSecond,
     AmPmUpper,
     AmPmLower,
 }
@@ -37,7 +39,32 @@ pub(crate) fn looks_like_datetime_format(section: &str) -> bool {
         DateTimePart::Token { .. } => true,
         DateTimePart::Literal(_) => false,
     });
-    has_datetime_token && !section.contains('#') && !section.contains('0') && !section.contains('?')
+    has_datetime_token
+        && !section.contains('#')
+        && !without_subseconds(section).contains('0')
+        && !section.contains('?')
+}
+
+/// The section with the decimal places of a seconds token (`s.0`, `ss.00`, `[ss].000`) removed:
+/// the zeros left over belong to no date or time token.
+pub(crate) fn without_subseconds(section: &str) -> String {
+    let chars: Vec<char> = section.chars().collect();
+    let mut out = String::new();
+    let mut index = 0;
+    while index < chars.len() {
+        out.push(chars[index]);
+        let after_second = matches!(chars[index], 's' | 'S' | ']')
+            && (chars[index] != ']' || out.to_ascii_lowercase().ends_with("s]"));
+        if after_second && chars.get(index + 1) == Some(&'.') && chars.get(index + 2) == Some(&'0') {
+            index += 2;
+            while chars.get(index) == Some(&'0') {
+                index += 1;
+            }
+            continue;
+        }
+        index += 1;
+    }
+    out
 }
 
 pub(crate) fn render_with_datetime_tokens(
@@ -76,12 +103,33 @@ pub(crate) fn render_with_datetime_tokens(
             }
         )
     });
+    // The time is rounded to the places of a sub-second token, when the section has one (Excel
+    // 16.0.20430, dc-uar: TEXT(9000.79348,"mm:ss.00") is 02:36.67).
+    let places = parts
+        .iter()
+        .find_map(|part| match part {
+            DateTimePart::Token {
+                kind: DateTimeTokenKind::SubSecond,
+                width,
+            } => Some(*width),
+            _ => None,
+        })
+        .unwrap_or(0);
+    if places > 3 {
+        return None;
+    }
+    let time = TimeParts::from_serial(value, places as u32);
+    // The date is the day the rounded time falls in: a time that rounds up to midnight shows the
+    // next day (Excel 16.0.20430, dc-uar: TEXT(0.99999999,"yyyy-mm-dd hh:mm:ss.00") is
+    // 1900-01-01 00:00:00.00).
     let date = if has_date_tokens {
-        Some(ymd_from_excel_serial(date_system, value)?)
+        Some(ymd_from_excel_serial(
+            date_system,
+            time.elapsed_seconds.div_euclid(86_400) as f64,
+        )?)
     } else {
         None
     };
-    let time = TimeParts::from_serial(value);
     let weekday_index = date.map(|(year, month, day)| weekday_from_ymd(year, month, day));
 
     let mut rendered = String::new();
@@ -154,6 +202,9 @@ pub(crate) fn render_with_datetime_tokens(
                     DateTimeTokenKind::ElapsedSecond => {
                         format_elapsed(value, time.elapsed_seconds, width)
                     }
+                    DateTimeTokenKind::SubSecond => {
+                        format!(".{:0width$}", time.subsecond)
+                    }
                     DateTimeTokenKind::AmPmUpper => {
                         super::designator(profile, time.hour < 12).to_string()
                     }
@@ -202,6 +253,26 @@ fn tokenize_datetime_format(section: &str) -> Vec<DateTimePart> {
             push_literal(&mut parts, &mut literal);
             parts.push(DateTimePart::Token { kind, width });
             index += consumed;
+            continue;
+        }
+
+        if ch == '.'
+            && chars.get(index + 1) == Some(&'0')
+            && matches!(
+                parts.last(),
+                Some(DateTimePart::Token {
+                    kind: DateTimeTokenKind::Second | DateTimeTokenKind::ElapsedSecond,
+                    ..
+                })
+            )
+            && literal.is_empty()
+        {
+            let width = chars[index + 1..].iter().take_while(|c| **c == '0').count();
+            parts.push(DateTimePart::Token {
+                kind: DateTimeTokenKind::SubSecond,
+                width,
+            });
+            index += 1 + width;
             continue;
         }
 
@@ -354,11 +425,16 @@ struct TimeParts {
     elapsed_hours: i64,
     elapsed_minutes: i64,
     elapsed_seconds: i64,
+    /// The `places` decimal places of the seconds.
+    subsecond: i64,
 }
 
 impl TimeParts {
-    fn from_serial(value: f64) -> Self {
-        let total_seconds = (value * 86_400.0).round() as i64;
+    /// The time of day of a serial rounded to `places` decimal places of a second.
+    fn from_serial(value: f64, places: u32) -> Self {
+        let unit = 10i64.pow(places);
+        let total_units = (value * 86_400.0 * unit as f64).round() as i64;
+        let total_seconds = total_units.div_euclid(unit);
         let seconds_in_day = total_seconds.rem_euclid(86_400);
         Self {
             hour: seconds_in_day / 3_600,
@@ -367,6 +443,7 @@ impl TimeParts {
             elapsed_hours: total_seconds / 3_600,
             elapsed_minutes: total_seconds / 60,
             elapsed_seconds: total_seconds,
+            subsecond: total_units.rem_euclid(unit),
         }
     }
 }

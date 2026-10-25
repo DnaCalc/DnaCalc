@@ -259,26 +259,22 @@ fn mround(
     })
 }
 
-/// The multiple MROUND chooses for `number` and `multiple`, both non-zero and of one sign. The
+/// The multiple MROUND chooses for `number` and `multiple`, both non-zero and of one sign: the
 /// count of multiples is their binary64 quotient, a division at an arithmetic site, rounded to the
-/// nearest integer, a half away from zero; so MROUND(6.05,0.1) is 6, its quotient being
-/// 60.49999999999999. The count times the multiple's exact decimal reading is computed exactly and
-/// converted once, so MROUND(1.3,0.2) is the binary64 nearest 1.4, where a binary64 product would
-/// give 1.4000000000000001. A quotient beyond binary64's range is #NUM!.
+/// nearest integer, a half away from zero; the result is the count times the multiple, a binary64
+/// product (dc-j9k). So MROUND(6.05,0.1) is 6, its quotient being 60.49999999999999, and
+/// MROUND(1.3,0.2) is 1.4000000000000001 and MROUND(7.05,0.1) 7.1000000000000005, as Excel gives
+/// them (the catalogue oracle's sheet dcj9k_math: 125 of 125 readings). A quotient beyond
+/// binary64's range is #NUM!.
 fn nearest_multiple(site: &Site<'_>, number: f64, multiple: f64) -> Step<f64> {
     // Positive, since the signs agree.
     let quotient = site.divide(number, multiple)?;
     if quotient.is_infinite() {
         return Err(Exit::Error(WorksheetErrorCode::Num));
     }
-    let exact = ExactDecimal::binary(quotient);
-    let count = exact.round_at(0, Direction::Nearest).unwrap_or(exact);
-    let step = ExactDecimal::read(multiple);
-    site.nearest(&ExactDecimal {
-        negative: number < 0.0,
-        coefficient: count.coefficient.times(&step.coefficient),
-        exponent: count.exponent + step.exponent,
-    })
+    let count = (quotient + 0.5).floor();
+    let count = if count - quotient > 0.5 { count - 1.0 } else { count };
+    site.multiply(count, multiple)
 }
 
 /// CEILING: the number rounded up to a multiple of the significance; for a negative number and a
@@ -324,12 +320,20 @@ fn floor(
 /// The multiple of `significance` that `toward` chooses for `number`, both non-zero, in binary64:
 /// significance * ceil(number / significance) for CEILING and significance *
 /// floor(number / significance) for FLOOR, whatever the signs. The division and the product are
-/// arithmetic sites, each rounding once; the integer above or below a binary64 is exact. A
-/// quotient that rounds to just below or above an integer moves the result by a whole multiple
-/// (0.3 / 0.1 is 2.9999999999999996), and a quotient beyond binary64's range gives an infinite
-/// product, which the number rule publishes as #NUM!.
+/// arithmetic sites, each rounding once; the integer above or below a binary64 is exact. The
+/// quotient is first rounded to 15 significant digits, so one that rounds to just below or above
+/// an integer counts as that integer (0.3 / 0.1 is 2.9999999999999996, counted as 3), and a
+/// quotient beyond binary64's range gives an infinite product, which the number rule publishes
+/// as #NUM!.
 fn to_multiple(site: &Site<'_>, number: f64, significance: f64, toward: Toward) -> Step<f64> {
     let quotient = site.divide(number, significance)?;
+    // Counted from the quotient rounded to 15 significant digits, as Excel counts (dc-j9k; see
+    // ceiling_floor_family::excel_quotient).
+    let quotient = if quotient.is_finite() && quotient != 0.0 {
+        crate::ported::ceiling_floor_family::excel_quotient(number, significance)
+    } else {
+        quotient
+    };
     let count = match toward {
         Toward::Up => decimal::ceil(quotient),
         Toward::Down => decimal::floor(quotient),
@@ -337,9 +341,13 @@ fn to_multiple(site: &Site<'_>, number: f64, significance: f64, toward: Toward) 
     site.multiply(significance, count)
 }
 
-/// MOD: number - divisor * INT(number / divisor), computed exactly on the readings: the remainder
-/// has the sign of the divisor. A zero divisor is #DIV/0!. No quotient is too large: the
-/// remainder of every pair is exact before its one rounding.
+/// MOD: number - divisor * INT(number / divisor), with the sign of the divisor, as Excel computes
+/// it (dc-j9k): the exact binary64 remainder of the number by the divisor (`%`, which rounds
+/// nothing), plus the divisor once when the remainder's sign differs from the divisor's, an
+/// addition at an arithmetic site. So MOD(10,0.1) is 0.09999999999999945 and MOD(-5.3,1) is
+/// 0.7000000000000002, as Excel gives them (the catalogue oracle's sheet dcj9k_math: 124 of 124
+/// readings). A zero divisor is #DIV/0!, and a quotient of magnitude 1.1259E+12 or more is #NUM!
+/// (Excel: MOD(1125899999999,1) is 0 and MOD(1125900000000,1) is #NUM!).
 fn modulo(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -352,23 +360,22 @@ fn modulo(
         if number == 0.0 {
             return Ok(0.0);
         }
-        let (n, d) = (ExactDecimal::read(number), ExactDecimal::read(divisor));
-        let division = decimal::divide(&n, &d);
-        let mut remainder = division.remainder;
-        if n.negative != d.negative && !remainder.is_zero() {
-            // INT rounds the negative quotient away from zero: the remainder is the rest of
-            // one more divisor.
-            let mut rest = division.divisor;
-            rest.subtract(&remainder);
-            remainder = rest;
+        let quotient = site.divide(number, divisor)?;
+        if !(quotient.abs() < MOD_QUOTIENT_LIMIT) {
+            return Err(Exit::Error(WorksheetErrorCode::Num));
         }
-        site.nearest(&ExactDecimal {
-            negative: d.negative,
-            coefficient: remainder,
-            exponent: division.exponent,
-        })
+        let remainder = number % divisor;
+        if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
+            site.add(remainder, divisor)
+        } else {
+            Ok(remainder)
+        }
     })
 }
+
+/// The magnitude of number/divisor at and above which Excel's MOD is #NUM!, measured by bisection
+/// (dc-j9k).
+const MOD_QUOTIENT_LIMIT: f64 = 1.1259e12;
 
 /// QUOTIENT: the integer part of numerator / denominator, toward zero, computed exactly on the
 /// readings. A zero denominator is #DIV/0!.

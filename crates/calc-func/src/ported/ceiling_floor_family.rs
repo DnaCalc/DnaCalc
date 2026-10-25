@@ -1,6 +1,19 @@
 use crate::value::WorksheetErrorCode;
 
 
+/// The quotient number/significance as the CEILING and FLOOR family counts multiples from it:
+/// rounded to 15 significant digits first, so a quotient within that rounding of an integer is
+/// that integer (dc-j9k: 736 of 736 CEILING, FLOOR, .MATH and .PRECISE readings in the catalogue
+/// oracle's sheet dcj9k_math; CEILING(1*(1+2^-48),1) is 1 and CEILING(1*(1+2^-47),1) is 2,
+/// FLOOR(1*(1-2^-51),1) is 1 and FLOOR(1*(1-2^-50),1) is 0).
+pub(crate) fn excel_quotient(number: f64, significance: f64) -> f64 {
+    let quotient = number / significance;
+    if !quotient.is_finite() || quotient == 0.0 {
+        return quotient;
+    }
+    format!("{quotient:.14e}").parse().unwrap_or(quotient)
+}
+
 fn normalize_zero(x: f64) -> f64 {
     if x == 0.0 { 0.0 } else { x }
 }
@@ -13,7 +26,7 @@ pub fn ceiling_kernel(number: f64, significance: f64) -> Result<f64, WorksheetEr
         return Err(WorksheetErrorCode::Num);
     }
     Ok(normalize_zero(
-        significance * (number / significance).ceil(),
+        significance * excel_quotient(number, significance).ceil(),
     ))
 }
 
@@ -25,7 +38,7 @@ pub fn floor_kernel(number: f64, significance: f64) -> Result<f64, WorksheetErro
         return Err(WorksheetErrorCode::Num);
     }
     Ok(normalize_zero(
-        significance * (number / significance).floor(),
+        significance * excel_quotient(number, significance).floor(),
     ))
 }
 
@@ -39,11 +52,11 @@ pub fn ceiling_math_kernel(
         return Ok(0.0);
     }
     let result = if number >= 0.0 {
-        significance * (number / significance).ceil()
+        significance * excel_quotient(number, significance).ceil()
     } else if mode != 0.0 {
-        -significance * ((-number) / significance).ceil()
+        -significance * excel_quotient(-number, significance).ceil()
     } else {
-        -significance * ((-number) / significance).floor()
+        -significance * excel_quotient(-number, significance).floor()
     };
     Ok(normalize_zero(result))
 }
@@ -58,11 +71,11 @@ pub fn floor_math_kernel(
         return Ok(0.0);
     }
     let result = if number >= 0.0 {
-        significance * (number / significance).floor()
+        significance * excel_quotient(number, significance).floor()
     } else if mode != 0.0 {
-        -significance * ((-number) / significance).floor()
+        -significance * excel_quotient(-number, significance).floor()
     } else {
-        -significance * ((-number) / significance).ceil()
+        -significance * excel_quotient(-number, significance).ceil()
     };
     Ok(normalize_zero(result))
 }

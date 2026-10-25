@@ -19,9 +19,10 @@
 //! - Dates and times (y, m, d, h, s, AM/PM, elapsed [h], [m], [s]) through [`datetime`]; a negative
 //!   number under a date code is #VALUE!.
 //!
-//! Fractions (`# ?/?`, which Excel gave #VALUE! for under en-ZA), a literal inside the decimal
-//! places, and letters that are format tokens elsewhere (`B`, `e`, `g`, `A/P`) are not modelled
-//! and refuse the call.
+//! A fraction alone (`?/?`, `??/16`) renders as [`FractionCode`] says. A fraction with an integer
+//! part (`# ?/?`, which Excel gave #VALUE! for under en-ZA), a literal inside the decimal places,
+//! and letters that are format tokens elsewhere (`B`, `e`, `g`, `A/P`) are not modelled and refuse
+//! the call.
 
 mod datetime;
 mod names;
@@ -798,6 +799,152 @@ fn scientific(
     Ok((out, true))
 }
 
+/// A section that is a fraction alone, with no integer part: numerator placeholders (`0`, `#`,
+/// `?`), `/`, and denominator placeholders or a fixed denominator (dc-uar). Excel 16.0.20430
+/// (the catalogue oracle's sheet dcuar_text):
+///
+/// - with placeholders, the fraction is the last convergent of the number's continued fraction,
+///   computed in binary64, whose denominator has at most as many digits as there are
+///   placeholders (`TEXT(0.7,"?/?")` is `2/3`, `TEXT(0.1,"?/?")` is `0/1` since 1/0.1 is 10);
+/// - with a fixed denominator d, the numerator is |x|*d rounded a half up, and a numerator above
+///   32767 is #VALUE!;
+/// - a numerator placeholder pads on the left (`0` with 0, `?` with a space, `#` with nothing); a
+///   denominator of `0`s pads with zeros on the left, one of `?` and `#` is left-aligned and
+///   `?` pads with a space on the right;
+/// - a minus sign comes first, and not for a numerator of 0.
+///
+/// A fraction with an integer part (`# ?/?`) is not this form; under en-ZA the space in it is
+/// the group separator, and Excel gives those #VALUE! (not modelled here).
+struct FractionCode {
+    numerator: Vec<char>,
+    denominator: Result<u64, Vec<char>>,
+}
+
+fn fraction_code(section: &str) -> Option<FractionCode> {
+    let (top, bottom) = section.split_once('/')?;
+    let placeholders = |s: &str| !s.is_empty() && s.chars().all(|c| matches!(c, '0' | '#' | '?'));
+    if !placeholders(top) {
+        return None;
+    }
+    let denominator = if placeholders(bottom) {
+        let chars: Vec<char> = bottom.chars().collect();
+        if chars.contains(&'0') && chars.iter().any(|c| *c != '0') {
+            return None;
+        }
+        Err(chars)
+    } else if !bottom.is_empty()
+        && bottom.len() <= 9
+        && bottom.chars().all(|c| c.is_ascii_digit())
+        && !bottom.starts_with('0')
+    {
+        Ok(bottom.parse().ok()?)
+    } else {
+        return None;
+    };
+    let numerator: Vec<char> = top.chars().collect();
+    if numerator.contains(&'0') && numerator.iter().any(|c| *c != '0') {
+        return None;
+    }
+    Some(FractionCode {
+        numerator,
+        denominator,
+    })
+}
+
+impl FractionCode {
+    fn render(&self, value: f64, show_minus: bool) -> Rendered {
+        let x = value.abs();
+        let (numerator, denominator) = match &self.denominator {
+            Ok(d) => {
+                let n = (x * *d as f64 + 0.5).floor();
+                if !(n <= 32767.0) {
+                    return Err(Failure::Value);
+                }
+                (n as u64, *d)
+            }
+            Err(places) => {
+                let largest = 10u64.pow(places.len() as u32) - 1;
+                convergent(x, largest).ok_or(Failure::NotModelled)?
+            }
+        };
+        let mut out = String::new();
+        if show_minus && value < 0.0 && numerator != 0 {
+            out.push('-');
+        }
+        let top = numerator.to_string();
+        let missing = self.numerator.len().saturating_sub(top.len());
+        for c in &self.numerator[..missing] {
+            match c {
+                '0' => out.push('0'),
+                '?' => out.push(' '),
+                _ => {}
+            }
+        }
+        out.push_str(&top);
+        out.push('/');
+        let bottom = denominator.to_string();
+        match &self.denominator {
+            Ok(_) => out.push_str(&bottom),
+            Err(places) => {
+                let missing = places.len().saturating_sub(bottom.len());
+                if places.first() == Some(&'0') {
+                    out.push_str(&"0".repeat(missing));
+                    out.push_str(&bottom);
+                } else {
+                    out.push_str(&bottom);
+                    for c in &places[places.len() - missing..] {
+                        if *c == '?' {
+                            out.push(' ');
+                        }
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+}
+
+/// Whether `section` is a fraction with an integer part set off by the group separator, under a
+/// locale whose group separator is a space: Excel 16.0.20430 under en-ZA gave #VALUE! for every
+/// such code it was given (`# ?/?`, `# ??/??`, `# ???/???`, `# ?/8`, `# ?/100`, `0 ?/?`,
+/// `#,##0 ?/?`; dc-uar, the catalogue oracle's sheet dcuar_text).
+fn mixed_fraction_under_space_grouping(section: &str, profile: &FormatProfile) -> bool {
+    if profile.thousands_separator != " " {
+        return false;
+    }
+    let Some((whole, fraction)) = section.rsplit_once(' ') else {
+        return false;
+    };
+    let placeholders = |s: &str| !s.is_empty() && s.chars().all(|c| matches!(c, '0' | '#' | '?'));
+    whole.chars().any(|c| matches!(c, '0' | '#'))
+        && whole.chars().all(|c| matches!(c, '0' | '#' | '?' | ','))
+        && fraction_code(fraction).is_some()
+        && fraction.split_once('/').is_some_and(|(top, _)| placeholders(top))
+}
+
+/// The last convergent of `x`'s continued fraction, computed in binary64, whose denominator is
+/// at most `largest`.
+fn convergent(x: f64, largest: u64) -> Option<(u64, u64)> {
+    let (mut h0, mut h1, mut k0, mut k1) = (0f64, 1f64, 1f64, 0f64);
+    let mut best = None;
+    let mut y = x;
+    for _ in 0..64 {
+        let a = y.floor();
+        let (h2, k2) = (a * h1 + h0, a * k1 + k0);
+        if k2 > largest as f64 || !h2.is_finite() || h2 >= 1e15 {
+            break;
+        }
+        (h0, h1, k0, k1) = (h1, h2, k1, k2);
+        best = Some((h1 as u64, k1 as u64));
+        let rest = y - a;
+        if rest == 0.0 {
+            break;
+        }
+        y = 1.0 / rest;
+    }
+    best
+}
+
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
     let sections = sections(code);
@@ -815,11 +962,20 @@ pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code
         if value >= 2_958_466.0 {
             return Err(Failure::Value);
         }
-        if stripped.chars().any(|c| matches!(c, 'b' | 'B' | 'e' | 'g' | 'G' | '0')) {
+        if datetime::without_subseconds(&stripped)
+            .chars()
+            .any(|c| matches!(c, 'b' | 'B' | 'e' | 'g' | 'G' | '0'))
+        {
             return Err(Failure::NotModelled);
         }
         return datetime::render_with_datetime_tokens(profile, system, value, &stripped)
             .ok_or(Failure::NotModelled);
+    }
+    if let Some(fraction) = fraction_code(&stripped) {
+        return fraction.render(value, !magnitude_only);
+    }
+    if mixed_fraction_under_space_grouping(&stripped, profile) {
+        return Err(Failure::Value);
     }
     let items = items(&stripped, profile)?;
     if !items.iter().any(|i| matches!(i, Item::Digit(_))) {

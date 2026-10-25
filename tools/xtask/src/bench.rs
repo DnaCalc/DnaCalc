@@ -9,7 +9,9 @@
 //! ([`calc_host::Unobserved`]):
 //!
 //! 1. open: [`HostState::open`] of the workbook's bytes, read before the clock starts, with the
-//!    options `cargo xtask compare` opens it with (the capture's locale, automatic calculation);
+//!    options `cargo xtask compare` opens it with (the capture's locale, automatic calculation).
+//!    The parent decodes the capture once and hands each run its locale and formula inventory in
+//!    a small file, so that no run's peak memory holds a decoded capture;
 //! 2. rebuild: the first recalculation, which compiles every formula, builds the graph, orders and
 //!    evaluates every formula (Excel's `CalculateFullRebuild`), timed as its first [`step`] with a
 //!    budget of no evaluations (binding and ordering) and the step that evaluates and publishes;
@@ -305,21 +307,78 @@ fn calculated(host: &HostState, request: &ProjectionRequest) -> Result<(f64, usi
     Ok((seconds, count))
 }
 
-/// One DNA Calc run of `fixture` (the module documentation, steps 1 to 6).
-fn run_one(
-    fixture: &Path,
-    capture: &Path,
-    edit: Option<&str>,
-    repeat: u32,
-) -> Result<Value, String> {
-    let bytes = fs::read(fixture).map_err(|e| format!("cannot read {}: {e}", fixture.display()))?;
+/// What a run needs of a workbook's capture, which the parent writes once per workbook so that
+/// no run decodes the capture (whose decoding would be part of the run's peak memory): the
+/// workbook's hash, the capture's locale settings and its formula inventory. Lines separated by
+/// tabs: `source\tsha256:<hex>`, `locale\t<culture>\t<decimal>\t<group>` (or `locale` alone),
+/// then one `<sheet>\t<row>\t<column>` per formula cell.
+fn write_inventory(capture: &Path, out: &Path) -> Result<(), String> {
     let record = fs::read(capture)
         .map_err(|e| format!("cannot read {}: {e}", capture.display()))
         .and_then(|bytes| {
             CaptureRecord::decode(&bytes).map_err(|e| format!("the capture is refused: {e}"))
         })?;
-    if record.source != format!("sha256:{}", sha256_hex(&bytes)) {
-        return Err("the capture is not of this workbook".to_owned());
+    let mut text = format!("source\t{}\n", record.source);
+    match crate::compare::capture_locale_settings(&record) {
+        Some([culture, decimal, thousands]) => {
+            text.push_str(&format!("locale\t{culture}\t{decimal}\t{thousands}\n"))
+        }
+        None => text.push_str("locale\n"),
+    }
+    for formula in &record.formulas {
+        let cell = &formula.cell;
+        if cell.sheet().contains(['\t', '\n']) {
+            return Err(format!("the sheet name {:?} holds a tab or a line break", cell.sheet()));
+        }
+        text.push_str(&format!("{}\t{}\t{}\n", cell.sheet(), cell.row(), cell.column()));
+    }
+    if let Some(dir) = out.parent() {
+        fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    }
+    fs::write(out, text).map_err(|e| format!("cannot write {}: {e}", out.display()))
+}
+
+/// One DNA Calc run of `fixture` (the module documentation, steps 1 to 6), with the inventory
+/// [`write_inventory`] wrote.
+fn run_one(
+    fixture: &Path,
+    inventory: &Path,
+    edit: Option<&str>,
+    repeat: u32,
+) -> Result<Value, String> {
+    let bytes = fs::read(fixture).map_err(|e| format!("cannot read {}: {e}", fixture.display()))?;
+    let listing = fs::read_to_string(inventory)
+        .map_err(|e| format!("cannot read {}: {e}", inventory.display()))?;
+    let mut lines = listing.lines();
+    let malformed = || format!("{} is not an inventory", inventory.display());
+    if lines.next().and_then(|line| line.strip_prefix("source\t"))
+        != Some(&format!("sha256:{}", sha256_hex(&bytes)))
+    {
+        return Err("the inventory is not of this workbook".to_owned());
+    }
+    let locale = match lines
+        .next()
+        .ok_or_else(malformed)?
+        .split('\t')
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["locale"] => None,
+        ["locale", culture, decimal, thousands] => {
+            crate::compare::locale_profile(culture, decimal, thousands)
+        }
+        _ => return Err(malformed()),
+    };
+    let mut formulas: Vec<(String, u32, u32)> = Vec::new();
+    for line in lines {
+        let parse = || -> Option<(String, u32, u32)> {
+            let mut fields = line.split('\t');
+            let sheet = fields.next()?.to_owned();
+            let row = fields.next()?.parse().ok()?;
+            let column = fields.next()?.parse().ok()?;
+            Some((sheet, row, column))
+        };
+        formulas.push(parse().ok_or_else(malformed)?);
     }
     let clock = Clock::start();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
@@ -328,7 +387,7 @@ fn run_one(
         &OpenPolicy::default(),
         HostOptions {
             calc_mode: Some(CalcMode::Automatic),
-            locale: crate::compare::capture_locale(&record),
+            locale,
             ..HostOptions::default()
         },
     )
@@ -343,22 +402,11 @@ fn run_one(
     let key = |sheet: &str, row: u32, column: u32| -> Option<CellKey> {
         CellKey::new(*ids.get(sheet)?, row, column).ok()
     };
-    let cells: Vec<CellKey> = record
-        .formulas
+    let cells: Vec<CellKey> = formulas
         .iter()
-        .map(|formula| {
-            key(
-                formula.cell.sheet(),
-                formula.cell.row(),
-                formula.cell.column(),
-            )
-            .ok_or_else(|| {
-                format!(
-                    "the workbook holds no cell {}!{}",
-                    formula.cell.sheet(),
-                    formula.cell.a1()
-                )
-            })
+        .map(|(sheet, row, column)| {
+            key(sheet, *row, *column)
+                .ok_or_else(|| format!("the workbook holds no cell R{row}C{column} on {sheet}"))
         })
         .collect::<Result<_, _>>()?;
     let inventory = ProjectionRequest { cells };
@@ -513,7 +561,7 @@ fn samples(runs: &[Value], field: &str, list: Option<&str>) -> Vec<f64> {
 fn dna_runs(
     program: &Path,
     entry: &Entry,
-    capture: &Path,
+    inventory: &Path,
     edit: Option<&str>,
     runs: u32,
     repeat: u32,
@@ -524,8 +572,8 @@ fn dna_runs(
             command
                 .args(["bench", "--one", "--fixture"])
                 .arg(&entry.path)
-                .arg("--capture")
-                .arg(capture);
+                .arg("--inventory")
+                .arg(inventory);
             if let Some(edit) = edit {
                 command.args(["--edit", edit]);
             }
@@ -784,7 +832,16 @@ fn run_bench(args: &Args) -> u8 {
             };
             match cache.find(&sha256, build.as_deref()) {
                 Some((capture, _)) => {
-                    dna_runs(&program, entry, &capture, edit, args.runs, args.repeat)
+                    let inventory = args
+                        .out
+                        .join("inventory")
+                        .join(format!("{}.tsv", crate::corpus::file_safe(&entry.name)));
+                    match write_inventory(&capture, &inventory) {
+                        Ok(()) => {
+                            dna_runs(&program, entry, &inventory, edit, args.runs, args.repeat)
+                        }
+                        Err(e) => vec![json!({ "failed": e })],
+                    }
                 }
                 None => vec![
                     json!({ "failed": "no capture is cached for this workbook; run cargo xtask corpus first" }),
@@ -884,10 +941,10 @@ fn run_bench(args: &Args) -> u8 {
     0
 }
 
-/// `bench --one --fixture <xlsx> --capture <capture.json> [--edit <sheet>!<cell>]`: one DNA Calc
+/// `bench --one --fixture <xlsx> --inventory <file> [--edit <sheet>!<cell>]`: one DNA Calc
 /// run, printed on one line.
 fn one(args: &[String]) -> u8 {
-    let (mut fixture, mut capture, mut edit) = (None, None, None);
+    let (mut fixture, mut inventory, mut edit) = (None, None, None);
     let mut repeat = 1;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
@@ -897,7 +954,7 @@ fn one(args: &[String]) -> u8 {
         };
         match flag.as_str() {
             "--fixture" => fixture = Some(PathBuf::from(value)),
-            "--capture" => capture = Some(PathBuf::from(value)),
+            "--inventory" => inventory = Some(PathBuf::from(value)),
             "--edit" => edit = Some(value.clone()),
             "--repeat" => match value.parse::<u32>() {
                 Ok(count) if count > 0 => repeat = count,
@@ -912,11 +969,11 @@ fn one(args: &[String]) -> u8 {
             }
         }
     }
-    let (Some(fixture), Some(capture)) = (fixture, capture) else {
-        eprintln!("xtask bench: --one needs --fixture and --capture");
+    let (Some(fixture), Some(inventory)) = (fixture, inventory) else {
+        eprintln!("xtask bench: --one needs --fixture and --inventory");
         return EXIT_USAGE;
     };
-    let result = run_one(&fixture, &capture, edit.as_deref(), repeat)
+    let result = run_one(&fixture, &inventory, edit.as_deref(), repeat)
         .unwrap_or_else(|failed| json!({ "failed": failed }));
     println!("{LINE}{result}");
     0

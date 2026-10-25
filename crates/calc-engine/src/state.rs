@@ -2,7 +2,7 @@
 //! workbook graph.
 
 use crate::graph::{BlockHasher, Prerequisite, ReverseIndex};
-use crate::recalc::{dirty_closure, live_anchor, published_areas};
+use crate::recalc::{ReadersCache, dirty_closure, live_anchor, published_areas};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
 use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
@@ -190,6 +190,12 @@ pub struct EngineState {
     /// Whether recalculations leave the cells of data tables, and the formulas that read only
     /// through them, uncalculated (L3, dc-m3u): Excel's "Automatic except for data tables".
     pub(crate) tables_deferred: bool,
+    /// Counts the changes to the published spills' areas and to the nodes' anchors, which the
+    /// readers of a node depend on beside the graph's edges (dc-10d9).
+    pub(crate) spill_epoch: u64,
+    /// Each node's readers as the last recalculation's ordering found them, kept while nothing
+    /// they depend on has changed (dc-10d9, [`ReadersCache`]).
+    pub(crate) readers_cache: ReadersCache,
 }
 
 impl EngineState {
@@ -222,6 +228,8 @@ impl EngineState {
             environment: None,
             cycle_members: BTreeSet::new(),
             tables_deferred: false,
+            spill_epoch: 0,
+            readers_cache: ReadersCache::default(),
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -440,6 +448,11 @@ impl EngineState {
             .and_then(Option::as_mut)
             .filter(|record| record.id == node)
         {
+            // Most evaluations read nothing beyond their placed references, so the edges are
+            // unchanged and the index is left as it is (dc-10d9).
+            if record.dynamic == dynamic {
+                return;
+            }
             let old = std::mem::replace(&mut record.dynamic, dynamic);
             self.index.remove(node, &old);
             self.index.insert(node, &record.dynamic);
@@ -628,6 +641,7 @@ impl EngineState {
         self.results = results;
         self.retired.clear();
         self.spills = SpillIndex::default();
+        self.spill_epoch += 1;
         self.templates.clear();
         self.subtotal_cells.clear();
         removed

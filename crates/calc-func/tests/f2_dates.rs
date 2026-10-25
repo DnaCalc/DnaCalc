@@ -135,7 +135,10 @@ fn text_fixed_dollar() {
     text(c(&e, "TEXT", vec![t("12"), t("0.00")]), "12.00");
     text(c(&e, "TEXT", vec![b(true), t("0")]), "TRUE");
     error(c(&e, "TEXT", vec![n(-1.0), t("yyyy")]), Value);
-    refused(c(&e, "TEXT", vec![n(5.0), t("# ?/?")]));
+    // Excel 16.0.20430 under en-ZA (dc-uar): a fraction with an integer part is #VALUE!, and a
+    // fraction alone renders.
+    error(c(&e, "TEXT", vec![n(5.0), t("# ?/?")]), Value);
+    text(c(&e, "TEXT", vec![n(0.7), t("?/?")]), "2/3");
     text(c(&e, "FIXED", vec![n(1234.567)]), "1 234.57");
     text(c(&e, "FIXED", vec![n(1234.567), n(1.0), b(true)]), "1234.6");
     text(c(&e, "DOLLAR", vec![n(1234.567)]), "R1 234.57");
