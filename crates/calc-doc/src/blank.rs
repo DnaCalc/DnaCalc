@@ -1,12 +1,10 @@
 //! A new, empty workbook package: what Excel's New Workbook makes, one empty worksheet named
 //! `Sheet1`, with an empty shared-string table and the default cell style, so a save of an edited
-//! revision has the parts it extends. The parts are written uncompressed (a ZIP entry stored
-//! as is), each with its CRC-32.
+//! revision has the parts it extends. The archive is written by the save's own writer
+//! (`save::new_archive`), each part deflated as a save adds one.
 //!
 //! [`blank_package`] returns the bytes; the caller opens them as it opens any package
 //! ([`crate::open`] over a [`crate::MemorySource`]).
-
-use crate::zip::crc32::crc32;
 
 const CONTENT_TYPES: &str = concat!(
     r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
@@ -71,7 +69,7 @@ const SHARED_STRINGS: &str = concat!(
 
 /// The package of a new workbook with one empty worksheet, `Sheet1`.
 pub fn blank_package() -> Vec<u8> {
-    stored_zip(&[
+    crate::save::new_archive(&[
         ("[Content_Types].xml", CONTENT_TYPES.as_bytes()),
         ("_rels/.rels", PACKAGE_RELATIONSHIPS.as_bytes()),
         ("xl/workbook.xml", WORKBOOK.as_bytes()),
@@ -83,61 +81,7 @@ pub fn blank_package() -> Vec<u8> {
         ("xl/styles.xml", STYLES.as_bytes()),
         ("xl/sharedStrings.xml", SHARED_STRINGS.as_bytes()),
     ])
-}
-
-fn push16(out: &mut Vec<u8>, value: u16) {
-    out.extend_from_slice(&value.to_le_bytes());
-}
-
-fn push32(out: &mut Vec<u8>, value: u32) {
-    out.extend_from_slice(&value.to_le_bytes());
-}
-
-/// An archive of `entries` (name, content), each stored uncompressed, in the order given, dated
-/// 1980-01-01 00:00 (the earliest DOS date).
-fn stored_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
-    const DATE: u16 = 0x21;
-    let mut out = Vec::new();
-    let mut offsets = Vec::new();
-    for (name, content) in entries {
-        offsets.push(out.len() as u32);
-        push32(&mut out, 0x0403_4b50);
-        for field in [20u16, 0, 0, 0, DATE] {
-            push16(&mut out, field);
-        }
-        push32(&mut out, crc32(content));
-        push32(&mut out, content.len() as u32);
-        push32(&mut out, content.len() as u32);
-        push16(&mut out, name.len() as u16);
-        push16(&mut out, 0);
-        out.extend_from_slice(name.as_bytes());
-        out.extend_from_slice(content);
-    }
-    let directory = out.len();
-    for ((name, content), offset) in entries.iter().zip(offsets) {
-        push32(&mut out, 0x0201_4b50);
-        for field in [20u16, 20, 0, 0, 0, DATE] {
-            push16(&mut out, field);
-        }
-        push32(&mut out, crc32(content));
-        push32(&mut out, content.len() as u32);
-        push32(&mut out, content.len() as u32);
-        for field in [name.len() as u16, 0, 0, 0, 0] {
-            push16(&mut out, field);
-        }
-        push32(&mut out, 0);
-        push32(&mut out, offset);
-        out.extend_from_slice(name.as_bytes());
-    }
-    let size = (out.len() - directory) as u32;
-    push32(&mut out, 0x0605_4b50);
-    for field in [0u16, 0, entries.len() as u16, entries.len() as u16] {
-        push16(&mut out, field);
-    }
-    push32(&mut out, size);
-    push32(&mut out, directory as u32);
-    push16(&mut out, 0);
-    out
+    .expect("seven small parts fit a ZIP archive")
 }
 
 #[cfg(test)]

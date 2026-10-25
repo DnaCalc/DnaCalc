@@ -80,7 +80,7 @@ use crate::result::{
 use crate::spill::{self, Spill, SpillIndex, SpillOutcome};
 use crate::state::{ArrayRole, Binding, EngineState};
 use calc_doc_model::{
-    ArrayKind, AuthoredRevision, Axis, CachedValue, CellInput, FormulaText, IterationSettings,
+    ArrayKind, AuthoredRevision, Axis, CellInput, FormulaText, IterationSettings,
     ModelRoot,
 };
 use calc_fml::reference::{
@@ -385,12 +385,7 @@ fn starting_value(state: &EngineState, node: NodeId) -> CalcValue {
     let at = live_anchor(state, node);
     match state.result(at) {
         Some(FormulaResult::Calculated { value, .. }) => value.clone(),
-        Some(FormulaResult::FileCached(cache)) => match cache.value() {
-            CachedValue::Number(number) => CalcValue::number(number.get()),
-            CachedValue::Text(text) => CalcValue::text(text.text().clone()),
-            CachedValue::Logical(logical) => CalcValue::logical(*logical),
-            CachedValue::Error(code) => CalcValue::error(*code),
-        },
+        Some(FormulaResult::FileCached(cache)) => cache.value().to_value(),
         _ => CalcValue::number(0.0),
     }
 }
