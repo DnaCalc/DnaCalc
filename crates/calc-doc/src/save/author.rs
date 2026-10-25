@@ -80,7 +80,8 @@ fn header_and_totals(
 
 /// Refuses a change to a cell in the header row or the totals row of a table (ListObject) of the
 /// sheet's part: the table part records its header row's names and its totals row's functions,
-/// which an edit of those cells would contradict, and tables are authored by dc-35p. A cell of
+/// which an edit of those cells would contradict; authoring tables is not built (no bead owns it
+/// yet). A cell of
 /// a table's data rows is written like any other cell; the table part does not record it.
 fn check_tables(
     package: &Package,
@@ -427,14 +428,14 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         // A changed formula is written as a dynamic array when its file form is one or the model
         // anchors a dynamic array at it, unless the model anchors a legacy array there.
         let dynamic = sheets.iter().zip(&forms).any(|(sheet, forms)| {
-            forms.iter().any(|(&(row, column), form)| {
+            forms.iter().any(|(&(row, column), _)| {
                 let array = CellKey::new(sheet.id(), row, column)
                     .ok()
                     .and_then(|at| model.definitions().array(at));
                 match array.map(|array| array.kind()) {
                     Some(calc_doc_model::ArrayKind::Legacy) => false,
                     Some(calc_doc_model::ArrayKind::Dynamic { .. }) => true,
-                    None => form.dynamic,
+                    None => false,
                 }
             })
         });
@@ -454,10 +455,6 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 .iter()
                 .position(|sheet| sheet.id() == anchor.sheet())
                 .is_some_and(|position| !written(position, (anchor.row(), anchor.column())))
-        }) || forms.iter().enumerate().any(|(position, forms)| {
-            forms
-                .iter()
-                .any(|(&at, form)| form.dynamic && !written(position, at))
         });
         metadata = array_metadata::plan(package, workbook_part, dynamic, &errors)?;
         for (part, content) in std::mem::take(&mut metadata.rewritten) {
@@ -554,7 +551,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         // The calculation chain lists formula cells; when the set of them changed, the chain no
         // longer lists exactly the workbook's formulas, so it is left out, with its relationship
         // and its content type override, rather than written stale. What Excel does with a stale
-        // or a missing chain is measured by dc-35p's round trip, not here.
+        // or a missing chain is measured (tests/fixtures/d1/excel-open.json), not here.
         let formulas_changed = sheets.iter().zip(&changes).any(|(sheet, changes)| {
             changes.iter().any(|(&(row, column), input)| {
                 let key =

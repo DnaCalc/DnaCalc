@@ -43,8 +43,7 @@ pub enum EditError {
     /// malformed text, or syntax that parser does not read, such as trim references (`A1.:B10`),
     /// which Microsoft documents as Excel formula syntax (not measured here). A save writes a
     /// formula's text as it was authored, so only text the parser reads without a diagnostic is
-    /// admitted; how Excel treats text the parser does not read is left to dc-35p's round
-    /// trip.
+    /// admitted; how Excel treats text the parser does not read is not measured.
     FormulaSyntax { operation: usize, message: String },
     /// The operation at this index changes part of the legacy array formula anchored at
     /// `anchor`: it sets or clears some but not all of the array's cells, which Excel refuses. A
