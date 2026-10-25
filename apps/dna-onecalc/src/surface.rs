@@ -7,32 +7,29 @@
 //! The surface keeps only what the person typed. On each edit it gives the session the formula
 //! cell, the grid's entries, every input row and the formula, has the session calculate, and shows
 //! the session's answers through [`crate::display`] and [`crate::result`]; no value is computed
-//! here. The editor's assistance is calc-fml's ([`calc_fml::assist`]) and the function help text is
-//! calc-func's ([`calc_func::help`]). Every element a person uses carries a `data-onecalc`
-//! attribute naming its role.
+//! here. The formula editor is [`crate::formula_field`], which DNA Calc's formula bar shares; its
+//! assistance is calc-fml's ([`calc_fml::assist`]) and the function help text is calc-func's
+//! ([`calc_func::help`]). Every element a person uses carries a `data-onecalc` attribute naming its
+//! role.
 //!
 //! Ported in part from DnaTreeCalc's Leptos formula skin (`src/dnacalc-formula-skin-leptos/src/lib.rs`
-//! at DnaTreeCalc c68ecaa: the editor, completion list, signature and help elements, the array
-//! result grid and its CSS) and DnaOneCalc's editor (at 61e3979: the highlighted overlay behind the
-//! text field from `src/dnaonecalc-host/src/ui/editor/render_projection.rs`, whose runs must
-//! reproduce the field's text exactly so the caret does not drift).
+//! at DnaTreeCalc c68ecaa: the array result grid and its CSS; the editor's part moved to
+//! [`crate::formula_field`]).
 //!
 //! No reactive effect writes a signal: the popup is reconciled in the event handlers that change
 //! the text or the caret, so a panic can only come from a memo or a view, where the browser smoke
-//! test (`cargo xtask onecalc smoke`) sees it.
+//! test (`cargo xtask app smoke onecalc`) sees it.
 
 use crate::display;
-use crate::editor::{
-    BracketPair, Popup, PopupKey, bracket_pair_at, browse, insert_call, popup_key,
-};
+use crate::editor::browse;
+use crate::formula_field::{FORMULA_FIELD_CSS, FormulaAssist};
 use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
-use calc_fml::assist::{self, CallSite, HighlightRun, TokenRole};
 use calc_fml::syntax::TextSpan;
-use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm, parse_formula};
+use calc_fml::{CalcEnvironment, DateSystem, FormatProfile, FormulaForm};
+use calc_func::help;
 use calc_func::value::CellKey;
-use calc_func::{FunctionCallTarget, help};
 use leptos::mount::mount_to;
 use leptos::prelude::*;
 use std::any::Any;
@@ -65,26 +62,6 @@ pub const SURFACE_CSS: &str = r#"
 .oc-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
 .oc-col{flex:1 1 420px;min-width:0}
 .oc-gridwrap{overflow-x:auto;max-width:100%}
-.oc-editor{position:relative;font:15px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace;border:1px solid #8c959f;border-radius:6px;background:#fff;min-height:3em}
-.oc-editor pre,.oc-editor textarea{margin:0;padding:8px 10px;white-space:pre-wrap;word-break:break-all;font:inherit;letter-spacing:normal;tab-size:4;box-sizing:border-box;width:100%;min-height:3em;border:0}
-.oc-editor pre{position:absolute;inset:0;pointer-events:none;color:#1b1f24;overflow:hidden}
-.oc-editor textarea{position:relative;display:block;resize:vertical;background:transparent;color:transparent;caret-color:#1b1f24;outline:none}
-.oc-editor:focus-within{border-color:#0969da;box-shadow:0 0 0 2px #0969da33}
-.oc-r-function{color:#8250df;font-weight:600}.oc-r-name{color:#0550ae}.oc-r-number{color:#116329}
-.oc-r-text{color:#0a3069}.oc-r-error{color:#cf222e;font-weight:600}.oc-r-operator{color:#953800}
-.oc-r-delimiter{color:#57606a}.oc-r-unknown{color:#cf222e;text-decoration:underline wavy}
-.oc-diag{text-decoration:underline wavy #cf222e;text-decoration-skip-ink:none}
-.oc-bracket{background:#ddf4ff;outline:1px solid #54aeff;border-radius:2px}
-.oc-pop{list-style:none;margin:4px 0 0;padding:2px;border:1px solid #8c959f;border-radius:6px;max-height:220px;overflow:auto;background:#fff;font:13px ui-monospace,Consolas,monospace;box-shadow:0 4px 12px #0002}
-.oc-pop li{padding:2px 8px;cursor:pointer;display:flex;justify-content:space-between;gap:12px}
-.oc-pop li.oc-sel{background:#0969da;color:#fff}
-.oc-pop li small{opacity:.75}
-.oc-sig{margin:6px 0;font:13px ui-monospace,Consolas,monospace;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px}
-.oc-sig strong{color:#0969da;text-decoration:underline}
-.oc-help{border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;margin:8px 0;background:#f6f8fa;font-size:13px}
-.oc-help h3{margin:0 0 4px;font:600 14px ui-monospace,Consolas,monospace}
-.oc-help code{font-size:13px}
-.oc-help p{margin:4px 0}
 .oc-result{border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;margin:8px 0}
 .oc-kind{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#eaeef2;color:#424a53;border-radius:10px;padding:1px 8px;margin-right:8px}
 .oc-value{font:600 18px ui-monospace,Consolas,monospace}
@@ -420,134 +397,10 @@ fn edit_row(rows: RwSignal<Vec<Row>>, id: u32, field: Field, text: String) {
     });
 }
 
-/// A highlighted run as the overlay shows it: its text and its classes.
-fn run_classes(
-    run: &HighlightRun,
-    diagnostics: &[TextSpan],
-    brackets: Option<BracketPair>,
-) -> String {
-    let mut classes = String::from(match run.role {
-        TokenRole::Function => "oc-r-function",
-        TokenRole::Name => "oc-r-name",
-        TokenRole::Number => "oc-r-number",
-        TokenRole::Text => "oc-r-text",
-        TokenRole::Error => "oc-r-error",
-        TokenRole::Operator => "oc-r-operator",
-        TokenRole::Delimiter => "oc-r-delimiter",
-        TokenRole::Whitespace => "oc-r-space",
-        TokenRole::Unknown => "oc-r-unknown",
-    });
-    let span = run.span;
-    let overlaps = |d: &TextSpan| {
-        if d.len == 0 {
-            d.start >= span.start && d.start < span.end()
-        } else {
-            d.start < span.end() && span.start < d.end()
-        }
-    };
-    if diagnostics.iter().any(overlaps) {
-        classes.push_str(" oc-diag");
-    }
-    if let Some(pair) = brackets
-        && span.len == 1
-        && (span.start == pair.open || span.start == pair.close)
-    {
-        classes.push_str(" oc-bracket");
-    }
-    classes
-}
-
-fn role_name(role: TokenRole) -> &'static str {
-    match role {
-        TokenRole::Function => "function",
-        TokenRole::Name => "name",
-        TokenRole::Number => "number",
-        TokenRole::Text => "text",
-        TokenRole::Error => "error",
-        TokenRole::Operator => "operator",
-        TokenRole::Delimiter => "delimiter",
-        TokenRole::Whitespace => "whitespace",
-        TokenRole::Unknown => "unknown",
-    }
-}
-
-/// How many arguments a function takes, in words.
-fn arity_text(target: FunctionCallTarget<'_>) -> String {
-    let arity = target.arity();
-    match (arity.min, arity.max) {
-        (0, 0) => "takes no arguments".to_owned(),
-        (min, max) if min == max => {
-            format!("takes {min} argument{}", if min == 1 { "" } else { "s" })
-        }
-        (min, max) => format!("takes {min} to {max} arguments"),
-    }
-}
-
-/// The signature help line's pieces: the text before the active parameter, the active one, and
-/// the rest.
-fn signature_pieces(target: FunctionCallTarget<'_>, active: usize) -> (String, String, String) {
-    let help = target.signature_help();
-    let count = help.parameters.len();
-    let repeats = help.parameters.last().is_some_and(|p| p.repeats);
-    let active = if active >= count && repeats {
-        count - 1
-    } else {
-        active
-    };
-    let label = |index: usize| {
-        let parameter = help.parameters[index];
-        if parameter.optional {
-            format!("[{}]", parameter.name)
-        } else {
-            parameter.name.to_owned()
-        }
-    };
-    let mut before = format!("{}(", target.spelling());
-    let mut current = String::new();
-    let mut after = String::new();
-    for index in 0..count {
-        let text = label(index);
-        let separator = if index > 0 { ", " } else { "" };
-        if index < active {
-            before.push_str(separator);
-            before.push_str(&text);
-        } else if index == active {
-            before.push_str(separator);
-            current = text;
-        } else {
-            after.push_str(separator);
-            after.push_str(&text);
-        }
-    }
-    if repeats {
-        after.push_str(", ...");
-    }
-    after.push(')');
-    (before, current, after)
-}
-
-/// The function help panel for one function.
-fn help_view(target: FunctionCallTarget<'static>) -> impl IntoView {
-    let signature = target.signature_help().display;
-    let description = help::description(target)
-        .unwrap_or("No description in calc-func's help text.")
-        .to_owned();
-    view! {
-        <aside class="oc-help" data-onecalc="function-help">
-            <h3 data-onecalc="help-name">{target.spelling()}</h3>
-            <code data-onecalc="help-signature">{signature}</code>
-            <p data-onecalc="help-description">{description}</p>
-            <p>{format!("{}; in calc-func's catalogue.", arity_text(target))}</p>
-        </aside>
-    }
-}
-
 fn surface() -> impl IntoView {
     let session = StoredValue::new(Session::new(FIRST_SHEET).expect("Sheet1 is a sheet name"));
     let formula = RwSignal::new(String::new());
-    let caret = RwSignal::new(0usize);
-    let popup = RwSignal::new(Popup::Hidden);
-    let dismissed: RwSignal<Option<String>> = RwSignal::new(None);
+    let assist = FormulaAssist::new(formula);
     let formula_cell = RwSignal::new(FIRST_FORMULA_CELL.to_owned());
     let form_choice = RwSignal::new(FormulaForm::Dynamic);
     let sheets = RwSignal::new(vec![FIRST_SHEET.to_owned()]);
@@ -557,7 +410,6 @@ fn surface() -> impl IntoView {
     let next_row = StoredValue::new(0u32);
     let cells = (grid::ROWS * grid::COLUMNS) as usize;
     let entries: RwSignal<Vec<String>> = RwSignal::new(vec![String::new(); cells]);
-    let editor: NodeRef<leptos::html::Textarea> = NodeRef::new();
 
     let shown = Memo::new(move |_| {
         let formula = formula.get();
@@ -575,72 +427,6 @@ fn surface() -> impl IntoView {
             })
             .unwrap_or_default()
     });
-    let runs = Memo::new(move |_| formula.with(|formula| assist::highlight(formula)));
-    let brackets = Memo::new(move |_| {
-        let caret = caret.get();
-        formula.with(|formula| bracket_pair_at(formula, caret))
-    });
-    let call: Memo<Option<CallSite>> = Memo::new(move |_| {
-        let caret = caret.get();
-        formula.with(|formula| assist::call_at(&parse_formula(formula), caret))
-    });
-
-    // Reads the field's text and caret after an edit or a caret move, and reconciles the popup.
-    let sync_from_field = move |text_changed: bool| {
-        let Some(field) = editor.get_untracked() else {
-            return;
-        };
-        let text = field.value();
-        let at = field
-            .selection_start()
-            .ok()
-            .flatten()
-            .map_or(text.encode_utf16().count(), |at| at as usize);
-        if text_changed {
-            formula.set(text.clone());
-        }
-        caret.set(at);
-        let completion = assist::complete(&text, at);
-        let prefix_now = completion.as_ref().map(|c| c.prefix.clone());
-        if dismissed.get_untracked() != prefix_now {
-            dismissed.set(None);
-        }
-        let dismissed_prefix = dismissed.get_untracked();
-        popup.update(|popup| popup.sync(completion, dismissed_prefix.as_deref()));
-    };
-    let accept = move || {
-        let text = formula.get_untracked();
-        let Some((next, at)) = popup.try_update(|popup| popup.accept(&text)).flatten() else {
-            return;
-        };
-        if let Some(field) = editor.get_untracked() {
-            field.set_value(&next);
-            let _ = field.set_selection_range(at as u32, at as u32);
-            let _ = field.focus();
-        }
-        formula.set(next);
-        caret.set(at);
-    };
-    // Inserts a call of `name` at the field's selection (a click in the function list).
-    let insert_function = move |name: &'static str| {
-        let text = formula.get_untracked();
-        let (start, end) = match editor.get_untracked() {
-            Some(field) => (
-                field.selection_start().ok().flatten().unwrap_or(0) as usize,
-                field.selection_end().ok().flatten().unwrap_or(0) as usize,
-            ),
-            None => (0, 0),
-        };
-        let (next, at) = insert_call(&text, start, end, name);
-        if let Some(field) = editor.get_untracked() {
-            field.set_value(&next);
-            let _ = field.focus();
-            let _ = field.set_selection_range(at as u32, at as u32);
-        }
-        popup.set(Popup::Hidden);
-        formula.set(next);
-        caret.set(at);
-    };
     let filter = RwSignal::new(String::new());
     let functions = Memo::new(move |_| filter.with(|filter| browse(filter)));
     let function_list = move || {
@@ -662,7 +448,7 @@ fn surface() -> impl IntoView {
                                 data-name=name
                                 title=description.clone()
                                 on:mousedown=move |ev| ev.prevent_default()
-                                on:click=move |_| insert_function(name)
+                                on:click=move |_| assist.insert_function(name)
                             >
                                 <code>{signature}</code>
                             </button>
@@ -682,29 +468,6 @@ fn surface() -> impl IntoView {
             }
         })
     };
-    let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
-        if !popup.with_untracked(Popup::is_open) {
-            return;
-        }
-        let Some(key) = popup_key(&ev.key()) else {
-            return;
-        };
-        ev.prevent_default();
-        match key {
-            PopupKey::Next => popup.update(|popup| popup.move_selection(1)),
-            PopupKey::Previous => popup.update(|popup| popup.move_selection(-1)),
-            PopupKey::Accept => accept(),
-            PopupKey::Dismiss => {
-                let prefix = popup.with_untracked(|popup| match popup {
-                    Popup::Open { completion, .. } => Some(completion.prefix.clone()),
-                    Popup::Hidden => None,
-                });
-                dismissed.set(prefix);
-                popup.set(Popup::Hidden);
-            }
-        }
-    };
-
     let add_sheet = move |_| {
         let name = sheet_entry.get_untracked();
         match session.try_update_value(|session| session.add_sheet(&name)) {
@@ -728,91 +491,6 @@ fn surface() -> impl IntoView {
                 entry: String::new(),
             })
         });
-    };
-
-    let highlight_view = move || {
-        let diagnostics = shown.with(|shown| shown.diagnostic_spans.clone());
-        let pair = brackets.get();
-        runs.with(|runs| {
-            runs.iter()
-                .map(|run| {
-                    let classes = run_classes(run, &diagnostics, pair);
-                    let role = role_name(run.role);
-                    let text = run.text.clone();
-                    view! { <span class=classes data-role=role>{text}</span> }
-                })
-                .collect_view()
-        })
-    };
-
-    let popup_view = move || {
-        popup.with(|state| match state {
-            Popup::Hidden => None,
-            Popup::Open {
-                completion,
-                selected,
-            } => {
-                let selected = *selected;
-                let items = completion
-                    .proposals
-                    .iter()
-                    .enumerate()
-                    .map(|(index, proposal)| {
-                        let label = proposal.label();
-                        let signature = proposal.target.signature_help().display;
-                        let class = if index == selected { "oc-sel" } else { "" };
-                        view! {
-                            <li
-                                class=class
-                                data-onecalc="completion"
-                                role="option"
-                                aria-selected=if index == selected { "true" } else { "false" }
-                                on:mousedown=move |ev| {
-                                    ev.prevent_default();
-                                    popup_select_and_accept(popup, index, accept);
-                                }
-                            >
-                                <span data-onecalc="completion-label">{label}</span>
-                                <small>{signature}</small>
-                            </li>
-                        }
-                    })
-                    .collect_view();
-                Some(view! { <ul class="oc-pop" data-onecalc="completions" role="listbox">{items}</ul> })
-            }
-        })
-    };
-
-    let signature_view = move || {
-        let site = call.get()?;
-        let view = match site.target {
-            Some(target) => {
-                let (before, current, after) = signature_pieces(target, site.active_argument);
-                view! {
-                    <div class="oc-sig" data-onecalc="signature">
-                        {before}
-                        <strong data-onecalc="active-parameter">{current}</strong>
-                        {after}
-                    </div>
-                }
-                .into_any()
-            }
-            None => view! {
-                <div class="oc-sig oc-err" data-onecalc="signature">
-                    {format!("{} is not a function in calc-func's catalogue", site.callee)}
-                </div>
-            }
-            .into_any(),
-        };
-        Some(view)
-    };
-
-    let help_panel = move || {
-        let target = popup
-            .with(Popup::selected)
-            .map(|proposal| proposal.target)
-            .or_else(|| call.with(|site| site.as_ref().and_then(|site| site.target)))?;
-        Some(help_view(target))
     };
 
     let result_view = move || {
@@ -954,35 +632,22 @@ fn surface() -> impl IntoView {
 
     view! {
         <section class="oc" data-onecalc="surface">
-            <style>{SURFACE_CSS}</style>
+            <style>{FORMULA_FIELD_CSS}{SURFACE_CSS}</style>
             <h1>"DNA OneCalc"</h1>
             <p class="oc-sub">
                 "One Excel formula, calculated in your browser by calc-fml and calc-func. No workbook, no calculation engine."
             </p>
             <div class="oc-row">
                 <div class="oc-col">
-                    <div class="oc-editor">
-                        <pre data-onecalc="highlight" aria-hidden="true">{highlight_view}"\n"</pre>
-                        <textarea
-                            data-onecalc="formula"
-                            node_ref=editor
-                            rows="2"
-                            spellcheck="false"
-                            autocomplete="off"
-                            aria-label="Formula"
-                            placeholder="=SUM(A1:A3)"
-                            on:input=move |_| sync_from_field(true)
-                            on:keydown=on_keydown
-                            on:keyup=move |ev: leptos::ev::KeyboardEvent| {
-                                if !matches!(ev.key().as_str(), "ArrowDown" | "ArrowUp" | "Enter" | "Tab" | "Escape") {
-                                    sync_from_field(false)
-                                }
-                            }
-                            on:click=move |_| sync_from_field(false)
-                        ></textarea>
-                    </div>
-                    {popup_view}
-                    {signature_view}
+                    {assist
+                        .field(
+                            Signal::derive(move || shown.with(|shown| shown.diagnostic_spans.clone())),
+                            None,
+                            2,
+                            "=SUM(A1:A3)",
+                        )}
+                    {assist.popup()}
+                    {assist.signature()}
                     <p>
                         <select
                             data-onecalc="formula-form"
@@ -1050,7 +715,7 @@ fn surface() -> impl IntoView {
                             }}
                         </ol>
                     </div>
-                    {help_panel}
+                    {assist.help()}
                     <div class="oc-panel">
                         <h2>"Functions"</h2>
                         <input
@@ -1174,42 +839,9 @@ fn surface() -> impl IntoView {
     }
 }
 
-/// Selects the popup item at `index` and accepts it (a click on the item).
-fn popup_select_and_accept(popup: RwSignal<Popup>, index: usize, accept: impl Fn()) {
-    popup.update(|popup| popup.select(index));
-    accept();
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use calc_func::{Notation, catalogue};
-
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn signature_pieces_mark_the_active_parameter() {
-        let sum = catalogue()
-            .resolve_surface(Notation::Call, "SUM")
-            .expect("SUM");
-        let (before, current, after) = signature_pieces(sum, 0);
-        assert_eq!(
-            format!("{before}<{current}>{after}"),
-            "SUM(<number1>, [number2], ...)"
-        );
-        // Past the named parameters, the repeating last one stays active.
-        let (before, current, after) = signature_pieces(sum, 5);
-        assert_eq!(
-            format!("{before}<{current}>{after}"),
-            "SUM(number1, <[number2]>, ...)"
-        );
-        let pi = catalogue()
-            .resolve_surface(Notation::Call, "PI")
-            .expect("PI");
-        let (before, current, after) = signature_pieces(pi, 0);
-        assert_eq!(format!("{before}<{current}>{after}"), "PI(<>)");
-        assert_eq!(arity_text(pi), "takes no arguments");
-        assert_eq!(arity_text(sum), "takes 1 to 255 arguments");
-    }
 
     fn entries(cells: &[(usize, &str)]) -> Vec<String> {
         let mut entries = vec![String::new(); (grid::ROWS * grid::COLUMNS) as usize];
@@ -1299,23 +931,5 @@ mod tests {
         // A syntax diagnostic points into the text.
         let shown = recalculate(&mut session, "=A1*", "H1", &[], &entries(&[]));
         assert_eq!(shown.diagnostic_spans, [TextSpan::new(4, 0)]);
-    }
-
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn highlight_classes_mark_diagnostics_and_brackets() {
-        let runs = assist::highlight("=SUM(1,2)");
-        let pair = bracket_pair_at("=SUM(1,2)", 4);
-        let classes: Vec<String> = runs.iter().map(|run| run_classes(run, &[], pair)).collect();
-        assert_eq!(classes[1], "oc-r-function");
-        assert_eq!(classes[2], "oc-r-delimiter oc-bracket");
-        assert_eq!(classes[6], "oc-r-delimiter oc-bracket");
-        let runs = assist::highlight("=Sheet9!A1+1");
-        let classes: Vec<String> = runs
-            .iter()
-            .map(|run| run_classes(run, &[TextSpan::new(1, 9)], None))
-            .collect();
-        assert!(classes[1].ends_with("oc-diag"));
-        assert!(!classes[classes.len() - 1].ends_with("oc-diag"));
     }
 }

@@ -640,7 +640,8 @@ impl HostSession {
     }
 
     /// The interest's cells that are not empty: every cell holding an input, every cell an array
-    /// formula fills, and every unloaded cell, projected.
+    /// formula's area holds, every cell a published spill fills, and every unloaded cell,
+    /// projected.
     fn snapshot(&self, interest: &Interest) -> BTreeMap<CellKey, ProjectedCell> {
         let mut cells = BTreeSet::new();
         let definitions = self.host.model.definitions();

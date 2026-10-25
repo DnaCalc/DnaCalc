@@ -406,6 +406,16 @@ dependencies = [
 [[package]]
 name = "dna-calc"
 version = "0.1.0"
+dependencies = [
+ "calc-host",
+ "dna-onecalc",
+ "js-sys",
+ "leptos",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
 
 [[package]]
 name = "dna-onecalc"

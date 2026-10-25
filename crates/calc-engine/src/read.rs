@@ -393,14 +393,34 @@ pub(crate) enum NodeStanding<'a> {
 
 impl<'a> RecalcView<'a> {
     pub(crate) fn standing(&self, node: NodeId) -> NodeStanding<'a> {
+        match self.state.node(node) {
+            Some(record) => self.standing_at(node, record.anchor()),
+            None => self.standing_at_unknown(node),
+        }
+    }
+
+    /// [`RecalcView::standing`] of `node`, whose anchor is `at` (dc-dxm: a read of a formula cell
+    /// knows the cell already).
+    pub(crate) fn standing_at(&self, node: NodeId, at: CellKey) -> NodeStanding<'a> {
         if self.progress.is_scheduled(node) {
             match self.progress.staged(node) {
                 Some(result) if self.progress.is_evaluated(node) => NodeStanding::Staged(result),
                 _ => NodeStanding::Pending,
             }
         } else {
-            let at = self.state.node(node).map(|record| record.anchor());
-            NodeStanding::Published(at.and_then(|at| self.state.result(at)))
+            NodeStanding::Published(self.state.result(at))
+        }
+    }
+
+    /// The standing of a node that is not live: its staged result, or no published one.
+    fn standing_at_unknown(&self, node: NodeId) -> NodeStanding<'a> {
+        if self.progress.is_scheduled(node) {
+            match self.progress.staged(node) {
+                Some(result) if self.progress.is_evaluated(node) => NodeStanding::Staged(result),
+                _ => NodeStanding::Pending,
+            }
+        } else {
+            NodeStanding::Published(None)
         }
     }
 
@@ -509,7 +529,7 @@ impl<'a> WorkbookReader<'a> {
         let Some(node) = self.view.state.node_at(at) else {
             return Ok(None);
         };
-        let result = match self.view.standing(node) {
+        let result = match self.view.standing_at(node, at) {
             NodeStanding::Pending => {
                 if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node))
                 {

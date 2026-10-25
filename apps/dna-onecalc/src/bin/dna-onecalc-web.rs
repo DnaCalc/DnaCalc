@@ -1,4 +1,4 @@
-//! The DNA OneCalc browser bundle's entry. `cargo xtask onecalc bundle` builds this binary for
+//! The DNA OneCalc browser bundle's entry. `cargo xtask app bundle onecalc` builds this binary for
 //! wasm32-unknown-unknown and runs wasm-bindgen over it; the page (`web/index.html`) loads the
 //! generated module, whose start function mounts the app ([`dna_onecalc::web::start`]).
 
@@ -14,6 +14,6 @@ fn main() {}
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     eprintln!(
-        "dna-onecalc-web runs in a browser: build the bundle with `cargo xtask onecalc bundle` and open its index.html over HTTP"
+        "dna-onecalc-web runs in a browser: build the bundle with `cargo xtask app bundle onecalc` and open its index.html over HTTP"
     );
 }

@@ -10,7 +10,7 @@ use crate::session::{Diagnostic, InputError, Session, SheetError};
 use calc_fml::reference::BindError;
 use calc_fml::syntax::TextSpan;
 use calc_fml::{CompileError, EvalFault};
-use calc_func::value::{CalcValue, CellKey, CoreValue, GridArea, WorksheetErrorCode};
+use calc_func::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId, WorksheetErrorCode};
 use calc_func::{FunctionFault, FunctionId, Notation, catalogue};
 
 /// A value with its type: `number 7`, `text "ax"`, `logical TRUE`, `error #N/A`, `blank`.
@@ -66,10 +66,23 @@ fn column_letters(mut column: u32) -> String {
     letters.iter().rev().collect()
 }
 
-fn sheet_label(session: &Session, cell: CellKey) -> String {
-    session
-        .sheet_name(cell.sheet())
-        .map_or_else(|| "(no sheet)".to_owned(), quoted_sheet)
+/// What names the sheets a label shows: a OneCalc [`Session`] names its own sheets, and DNA Calc
+/// names a workbook's (dc-rif), so both label cells, areas and refusals with these functions.
+pub trait SheetNames {
+    /// The name of `sheet`, or `None` when there is no such sheet.
+    fn sheet_name_of(&self, sheet: SheetId) -> Option<String>;
+}
+
+impl SheetNames for Session {
+    fn sheet_name_of(&self, sheet: SheetId) -> Option<String> {
+        self.sheet_name(sheet).map(str::to_owned)
+    }
+}
+
+fn sheet_label(names: &(impl SheetNames + ?Sized), cell: CellKey) -> String {
+    names
+        .sheet_name_of(cell.sheet())
+        .map_or_else(|| "(no sheet)".to_owned(), |name| quoted_sheet(&name))
 }
 
 /// A sheet name as reference text: as it is when it is a plain name (a letter or `_`, then
@@ -117,25 +130,25 @@ fn quoted_sheet(name: &str) -> String {
 }
 
 /// A cell's label: `Sheet2!B3`, or `'Q2 Data'!B3` for a sheet name that needs quotes.
-pub fn cell(session: &Session, cell: CellKey) -> String {
+pub fn cell(names: &(impl SheetNames + ?Sized), cell: CellKey) -> String {
     format!(
         "{}!{}{}",
-        sheet_label(session, cell),
+        sheet_label(names, cell),
         column_letters(cell.column()),
         cell.row()
     )
 }
 
 /// An area's label: `Sheet1!A1:A3`, or a cell's label for one cell.
-pub fn area(session: &Session, area: GridArea) -> String {
+pub fn area(names: &(impl SheetNames + ?Sized), area: GridArea) -> String {
     let first = area.first();
     let last = area.last();
     if first == last {
-        return cell(session, first);
+        return cell(names, first);
     }
     format!(
         "{}:{}{}",
-        cell(session, first),
+        cell(names, first),
         column_letters(last.column()),
         last.row()
     )
@@ -196,7 +209,8 @@ pub fn diagnostic(session: &Session, diagnostic: &Diagnostic) -> String {
     }
 }
 
-fn compile_error(error: &CompileError) -> String {
+/// A compile refusal, in words.
+pub fn compile_error(error: &CompileError) -> String {
     match error {
         CompileError::Syntax { span: at } => {
             format!("syntax at {}: the formula does not parse", span(*at))
@@ -255,20 +269,21 @@ pub fn bind_error(error: &BindError) -> String {
     }
 }
 
-fn eval_fault(session: &Session, fault: &EvalFault) -> String {
+/// An evaluation refusal, in words, with the cells and areas it names labelled by `names`.
+pub fn eval_fault(names: &(impl SheetNames + ?Sized), fault: &EvalFault) -> String {
     match fault {
         EvalFault::Function(fault) => function_fault(fault),
         EvalFault::MissingInput { cell: at } => {
-            format!("missing input: {} has no input", cell(session, *at))
+            format!("missing input: {} has no input", cell(names, *at))
         }
         EvalFault::ReadContract(error) => format!(
             "reader fault: its runs for {} covered {} cells",
-            area(session, error.area),
+            area(names, error.area),
             error.covered
         ),
         EvalFault::AreaAsValue { area: at } => format!(
             "range as value: {} is more than one cell where a legacy formula takes one value at a place not modelled (bead dc-10y)",
-            area(session, *at)
+            area(names, *at)
         ),
         EvalFault::NotModelled { construct, owner } => {
             format!("not modelled: {construct} (work package {owner})")

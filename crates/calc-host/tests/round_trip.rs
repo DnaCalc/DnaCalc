@@ -981,6 +981,87 @@ fn d2_session__an_interest_moves_and_an_unknown_subscription_is_refused() {
     assert_eq!(receipt.error, Some(IntentError::UnknownSubscription(id)));
 }
 
+/// dc-rif (D4): DNA Calc's New Workbook opens the blank package as any other: one empty sheet with
+/// no used area; entries set cells and recalculate; the used area bounds every non-empty cell,
+/// spills included; and the edited workbook saves and reopens with its calculated values cached.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_rif__a_new_workbook_is_edited_saved_and_reopened() {
+    let mut session = session(&calc_host::blank_package());
+    let sheets = session.host().sheets().to_vec();
+    assert_eq!(sheets.len(), 1);
+    assert_eq!(sheets[0].name().text().to_string_lossy(), "Sheet1");
+    let sheet1 = sheets[0].id();
+    assert_eq!(session.host().used_area(sheet1), None);
+
+    for (address, text) in [
+        ("B2", "2"),
+        ("B3", "3.5"),
+        ("C2", "rate"),
+        ("D4", "=SUM(B2:B3)*2"),
+        ("F2", "={1;2;3}"),
+    ] {
+        let receipt = session.dispatch(SkinIntent::EnterCell {
+            at: at(sheet1, address),
+            text: text.to_owned(),
+        });
+        assert!(receipt.accepted(), "{address}: {:?}", receipt.error);
+    }
+    assert_eq!(
+        calculated(session.host(), at(sheet1, "D4")),
+        Some(CalcValue::number(11.0))
+    );
+    // B2 to D4 hold the inputs; F2's spill fills F2:F4.
+    assert_eq!(
+        session.host().used_area(sheet1),
+        Some(GridArea::new(at(sheet1, "B2"), at(sheet1, "F4")).unwrap())
+    );
+    // A subscription to the area is given the cells the spill fills.
+    let (_, received) = subscribe(
+        &mut session,
+        Interest::Area(GridArea::new(at(sheet1, "A1"), at(sheet1, "H10")).unwrap()),
+    );
+    let mut mirror = DeltaMirror::default();
+    for delta in received.borrow().iter() {
+        mirror.apply(delta).expect("the deltas follow one another");
+    }
+    match mirror.cell(at(sheet1, "F4")).map(ProjectedCell::value) {
+        Some(ProjectedValue::Calculated { value, .. }) => {
+            assert_eq!(value, &CalcValue::number(3.0))
+        }
+        other => panic!("F4 is filled by F2's spill: {other:?}"),
+    }
+
+    let mut saved = Vec::new();
+    session
+        .save(&SavePolicy::default(), &mut saved)
+        .expect("the new workbook saves");
+    let reopened = open(&saved);
+    let sheet1 = sheet(&reopened, "Sheet1");
+    assert_eq!(
+        reopened.used_area(sheet1).map(|area| area.first()),
+        Some(at(sheet1, "B2"))
+    );
+    match value(&reopened, at(sheet1, "D4")) {
+        ProjectedValue::FileCached(cache) => {
+            assert_eq!(
+                cache.value(),
+                &CachedValue::Number(FiniteNumber::new(11.0).unwrap())
+            )
+        }
+        other => panic!("D4 reopens with the value it saved: {other:?}"),
+    }
+    match value(&reopened, at(sheet1, "C2")) {
+        ProjectedValue::Literal(text) => assert_eq!(
+            text,
+            CalcValue::text(calc_host::value::ExcelText::from_utf16_code_units(
+                "rate".encode_utf16().collect()
+            ))
+        ),
+        other => panic!("C2 reopens as its text: {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // dc-35p review: the reviewer's differential, made a test. A random run of entries, clears, undo,
 // redo, calculation-mode switches, recalculations and saves over Calc!AA1:AF10 (empty in the

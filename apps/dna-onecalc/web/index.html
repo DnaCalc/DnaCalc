@@ -11,7 +11,7 @@
 <script>
   // Every uncaught error and unhandled rejection is recorded, so a trap the app cannot report
   // itself (a panic in a reactive effect shows only as "RuntimeError: unreachable") is still
-  // seen by the browser smoke test (`cargo xtask onecalc smoke`), which reads this list.
+  // seen by the browser smoke test (`cargo xtask app smoke onecalc`), which reads this list.
   window.__onecalcFaults = [];
   window.addEventListener("error", function (event) {
     window.__onecalcFaults.push("error: " + (event.error && event.error.stack ? event.error.stack : event.message));
