@@ -408,7 +408,7 @@ impl<'a> RecalcView<'a> {
                 _ => NodeStanding::Pending,
             }
         } else {
-            NodeStanding::Published(self.state.result(at))
+            NodeStanding::Published(self.state.result_of(node, at))
         }
     }
 

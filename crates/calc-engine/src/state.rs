@@ -100,6 +100,71 @@ pub(crate) enum Binding {
     DataTable(calc_doc_model::DataTable),
 }
 
+/// The published results (dc-dxm): each live node's at its slot, and the result a removed node
+/// left at its cell until the next publication, by cell (what [`EngineState::result`] gives
+/// for the cell, unless a node there publishes its own). Formerly one map by cell.
+#[derive(Debug, Default)]
+pub(crate) struct Results {
+    by_slot: Vec<Option<(NodeId, FormulaResult)>>,
+    orphans: HashMap<CellKey, (NodeId, FormulaResult), BuildHasherDefault<BlockHasher>>,
+}
+
+impl Results {
+    /// The result of the live node `node`.
+    pub(crate) fn of(&self, node: NodeId) -> Option<&FormulaResult> {
+        match self.by_slot.get(node.slot() as usize) {
+            Some(Some((held, result))) if *held == node => Some(result),
+            _ => None,
+        }
+    }
+
+    /// The result a removed node left at `at`.
+    pub(crate) fn orphan(&self, at: CellKey) -> Option<&FormulaResult> {
+        self.orphans.get(&at).map(|(_, result)| result)
+    }
+
+    /// Publishes `result` for the live node `node` anchored at `at`, which replaces any result a
+    /// removed node left there.
+    pub(crate) fn publish(&mut self, node: NodeId, at: CellKey, result: FormulaResult) {
+        let slot = node.slot() as usize;
+        if slot >= self.by_slot.len() {
+            self.by_slot.resize_with(slot + 1, || None);
+        }
+        self.by_slot[slot] = Some((node, result));
+        if !self.orphans.is_empty() {
+            self.orphans.remove(&at);
+        }
+    }
+
+    /// Keeps the result of `node`, which is being removed from `at`, as the cell's until the next
+    /// publication.
+    pub(crate) fn retire(&mut self, node: NodeId, at: CellKey) {
+        if let Some(entry) = self.by_slot.get_mut(node.slot() as usize)
+            && entry.as_ref().is_some_and(|(held, _)| *held == node)
+            && let Some(kept) = entry.take()
+        {
+            self.orphans.insert(at, kept);
+        }
+    }
+
+    /// Takes the result a removed node left at `at`, with the node.
+    pub(crate) fn take_orphan(&mut self, at: CellKey) -> Option<(NodeId, FormulaResult)> {
+        self.orphans.remove(&at)
+    }
+
+    pub(crate) fn clear_orphans(&mut self) {
+        self.orphans.clear();
+    }
+
+    fn live(&self) -> impl Iterator<Item = (NodeId, &FormulaResult)> {
+        self.by_slot.iter().flatten().map(|(node, result)| (*node, result))
+    }
+
+    fn orphans(&self) -> impl Iterator<Item = (CellKey, &FormulaResult)> {
+        self.orphans.iter().map(|(at, (_, result))| (*at, result))
+    }
+}
+
 /// The formula nodes by anchor (dc-dxm): for each sheet whose anchors fill enough of the rectangle
 /// around them, a grid over that rectangle, indexed by row and column, so that a range of formula
 /// cells is read from consecutive memory; every other anchor in a hash map. Built from the anchors
@@ -296,11 +361,8 @@ pub struct EngineState {
     pub(crate) plans: PlanCache,
     /// Each bound node's plan; a node without an entry is unbound, and pending.
     pub(crate) bindings: Bindings,
-    /// The published generation: each formula cell's result, with the node it belongs to.
-    /// Hashed by cell (dc-dxm): an evaluation reads the result of every formula cell it reads
-    /// that the recalculation does not calculate, and the ordered walk is only for
-    /// [`EngineState::results`].
-    pub(crate) results: HashMap<CellKey, (NodeId, FormulaResult), BuildHasherDefault<BlockHasher>>,
+    /// The published generation: each formula cell's result ([`Results`]).
+    pub(crate) results: Results,
     /// The nodes a change reached directly; the roots of the dirty closure.
     pub(crate) pending: BTreeSet<NodeId>,
     /// The anchors of nodes removed since the last publication, whose results it removes.
@@ -366,7 +428,7 @@ impl EngineState {
             index: ReverseIndex::default(),
             plans: PlanCache::new(),
             bindings: Bindings::default(),
-            results: HashMap::default(),
+            results: Results::default(),
             pending: BTreeSet::new(),
             retired: BTreeSet::new(),
             last_tick: 0,
@@ -447,7 +509,7 @@ impl EngineState {
             let node = state.node_at(at).ok_or(CacheWithoutFormula { at })?;
             state
                 .results
-                .insert(at, (node, FormulaResult::FileCached(cache)));
+                .publish(node, at, FormulaResult::FileCached(cache));
         }
         Ok(state)
     }
@@ -481,15 +543,25 @@ impl EngineState {
 
     /// The published result of the formula cell `at`.
     pub fn result(&self, at: CellKey) -> Option<&FormulaResult> {
-        self.results.get(&at).map(|(_, result)| result)
+        match self.node_at(at) {
+            Some(node) => self.result_of(node, at),
+            None => self.results.orphan(at),
+        }
+    }
+
+    /// The published result of the live node `node`, whose anchor is `at`: its own, or else the
+    /// result a removed node left at the cell.
+    pub(crate) fn result_of(&self, node: NodeId, at: CellKey) -> Option<&FormulaResult> {
+        self.results.of(node).or_else(|| self.results.orphan(at))
     }
 
     /// Every published result, in the order of the cells (sheet ID, then row, then column).
     pub fn results(&self) -> impl Iterator<Item = (CellKey, &FormulaResult)> {
         let mut all: Vec<(CellKey, &FormulaResult)> = self
             .results
-            .iter()
-            .map(|(at, (_, result))| (*at, result))
+            .live()
+            .filter_map(|(node, result)| Some((self.node(node)?.anchor(), result)))
+            .chain(self.results.orphans())
             .collect();
         all.sort_unstable_by_key(|(at, _)| *at);
         all.into_iter()
@@ -740,6 +812,7 @@ impl EngineState {
             self.subtotal_cells.remove(&record.anchor);
             self.pending.remove(&node);
             self.retired.insert(record.anchor);
+            self.results.retire(node, record.anchor);
             self.by_anchor.remove(&record.anchor);
             self.anchor_index.remove(record.anchor);
             let released = self.ids.release(node);
@@ -778,25 +851,19 @@ impl EngineState {
     /// removed results go: every formula is calculated again. Returns the removed nodes.
     pub(crate) fn apply_moves(&mut self, moves: Vec<(NodeId, Option<CellKey>)>) -> Vec<NodeId> {
         let mut removed = Vec::new();
-        let mut results = HashMap::default();
         let mut anchors = BTreeMap::new();
         for (node, anchor) in moves {
-            let Some(old) = self.node(node).map(FormulaNode::anchor) else {
+            if self.node(node).is_none() {
                 continue;
-            };
-            let result = self.results.remove(&old);
+            }
             match anchor {
                 None => {
                     self.remove_node(node);
                     removed.push(node);
                 }
                 Some(at) => {
+                    // The node keeps its own result, which moves with it.
                     self.unbind_node(node);
-                    if let Some((owner, result)) = result
-                        && owner == node
-                    {
-                        results.insert(at, (node, result));
-                    }
                     anchors.insert(node, at);
                 }
             }
@@ -814,7 +881,8 @@ impl EngineState {
             self.by_anchor.insert(at, node);
         }
         self.anchor_index = AnchorIndex::build(&self.by_anchor);
-        self.results = results;
+        // The results removed nodes left go with them.
+        self.results.clear_orphans();
         self.retired.clear();
         self.spills = SpillIndex::default();
         self.spill_epoch += 1;

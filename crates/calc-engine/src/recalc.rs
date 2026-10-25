@@ -631,7 +631,7 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
                 after: after_area,
             });
         }
-        state.results.insert(at, (node, result));
+        state.results.publish(node, at, result);
         state.pending.remove(&node);
         state.entered.remove(&node);
         changes.push((at, ValueChange::Published { at, node }));
@@ -640,10 +640,7 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
         state.set_dynamic(node, dynamic);
     }
     for at in std::mem::take(&mut state.retired) {
-        if let Some(&(node, _)) = state.results.get(&at)
-            && state.node_at(at) != Some(node)
-        {
-            state.results.remove(&at);
+        if let Some((node, _)) = state.results.take_orphan(at) {
             if let Some(spill) = state.spills.remove(at) {
                 spill_changes.push(SpillChange {
                     anchor: at,
