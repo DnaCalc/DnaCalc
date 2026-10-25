@@ -378,6 +378,18 @@ fn dc_09v__cells_show_their_number_formats() {
         assert_eq!(cell.format, expected, "{address}");
     }
     // The negative section of A4's code ([Red] in its second section) is red; A1's names none.
-    assert_eq!(shown(&book, at(formats, "A4")).color, Some("#ff0000"));
+    // Palette colors ([Color10], [Color45], [Color53]) as Excel showed them (excel-shown.json).
+    for (address, color) in [
+        ("A4", "#ff0000"),
+        ("A15", "#008000"),
+        ("A16", "#ff9900"),
+        ("A17", "#993300"),
+    ] {
+        assert_eq!(
+            shown(&book, at(formats, address)).color.as_deref(),
+            Some(color),
+            "{address}"
+        );
+    }
     assert_eq!(shown(&book, at(formats, "A1")).color, None);
 }

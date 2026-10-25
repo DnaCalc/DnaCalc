@@ -360,6 +360,23 @@ impl HostState {
         self.loaded.styles().number_format_code(style)
     }
 
+    /// The RGB (`#rrggbb`) of entry `index` (1 to 56) of the workbook's color palette when the file
+    /// redefines it (`<indexedColors>`, whose entry `index + 7` it is); `None` when it does not,
+    /// and the default palette applies (dc-09v).
+    pub fn palette_color(&self, index: u8) -> Option<String> {
+        let entry = self
+            .loaded
+            .styles()
+            .colors
+            .indexed
+            .get(usize::from(index) + 7)?;
+        let argb = entry.rgb.as_deref()?;
+        let rgb = argb.get(argb.len().checked_sub(6)?..)?;
+        rgb.chars()
+            .all(|c| c.is_ascii_hexdigit())
+            .then(|| format!("#{}", rgb.to_ascii_lowercase()))
+    }
+
     /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s
     /// `date1904`), as calc-doc loaded it; no command changes it. Every recalculation applies it
     /// ([`HostState::recalc_context`]). calc-doc reads `calcPr`'s iteration settings, which the

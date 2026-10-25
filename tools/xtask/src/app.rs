@@ -1338,6 +1338,13 @@ const CALC_CASES: &[Case] = &[
             Check::Attr(cell!("D1"), "style", "left:345px;top:22px;width:64px;height:20px"),
             Check::Attr(cell!("A3"), "style", "left:48px;top:62px;width:117px;height:40px"),
             Check::Attr(cell!("A14"), "style", "left:48px;top:282px;width:117px;height:20px"),
+            // A15's negative section is [Color10]: Excel's palette entry 10.
+            Check::Attr(cell!("A15"), "style", "left:48px;top:302px;width:117px;height:20px;color:#008000"),
+            // Column E is 4 characters (33 px): a formatted number too wide shows ####, as in
+            // Excel, and a text overflows over the empty F to I.
+            Check::Text(cell!("E1"), "####"),
+            Check::Text(cell!("E2"), "12"),
+            Check::Attr(cell!("E3"), "style", "left:409px;top:62px;width:289px;height:40px"),
             // A4's negative section is [Red].
             Check::Attr(cell!("A4"), "style", "left:48px;top:102px;width:117px;height:20px;color:#ff0000"),
         ],

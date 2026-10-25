@@ -19,6 +19,7 @@ use super::geometry::{
     CellRect, GridMetrics, Viewport, cell_rect, visible_col_range, visible_row_range,
 };
 use crate::cells::{CellShown, column_letters};
+use std::collections::BTreeSet;
 
 /// One cell of a [`RenderPlan`]: its 1-based address, its viewport-local rectangle and what it
 /// shows.
@@ -72,6 +73,12 @@ pub fn build_render_plan<'a>(
     extent_rows: u32,
     extent_cols: u32,
 ) -> RenderPlan {
+    let cells: Vec<&CellShown> = cells.into_iter().collect();
+    let occupied: std::collections::BTreeSet<(u32, u32)> = cells
+        .iter()
+        .filter(|shown| !shown.text.is_empty())
+        .map(|shown| (shown.at.row(), shown.at.column()))
+        .collect();
     let mut planned: Vec<PlannedCell> = cells
         .into_iter()
         .filter_map(|shown| {
@@ -80,11 +87,15 @@ pub fn build_render_plan<'a>(
                 return None;
             }
             let rect = cell_rect(m, v, row, col);
-            rect_intersects_viewport(&rect, v).then(|| PlannedCell {
-                row,
-                col,
-                rect,
-                shown: shown.clone(),
+            rect_intersects_viewport(&rect, v).then(|| {
+                let mut cell = PlannedCell {
+                    row,
+                    col,
+                    rect,
+                    shown: shown.clone(),
+                };
+                fit(&mut cell, m, &occupied, extent_cols);
+                cell
             })
         })
         .collect();
@@ -119,6 +130,44 @@ pub fn build_render_plan<'a>(
         row_headers,
         extent_rows,
         extent_cols,
+    }
+}
+
+/// The width a cell's text takes, estimated from Excel's default font: each character the maximum
+/// digit width (7 pixels at 100%, scaled with the grid) and the cell's padding (dc-09v).
+pub fn text_width(text: &str, m: &GridMetrics) -> f64 {
+    let scale = m.header_h / 22.0;
+    (text.chars().count() as f64 * 7.0 + 5.0) * scale
+}
+
+/// Fits a planned cell's text to its column, as Excel's grid does: a number shown under a
+/// format that is wider than its column shows as a row of `#` filling it, and a text wider than
+/// its column overflows into the empty cells to its right (`occupied`: the cells that show
+/// something). A number in General, which Excel narrows to fewer digits, is clipped here.
+fn fit(cell: &mut PlannedCell, m: &GridMetrics, occupied: &BTreeSet<(u32, u32)>, extent_cols: u32) {
+    let needed = text_width(&cell.shown.text, m);
+    if needed <= cell.rect.w || cell.rect.w <= 0.0 {
+        return;
+    }
+    match cell.shown.kind {
+        "number" if cell.shown.format == crate::cells::FormatShown::Applied => {
+            let scale = m.header_h / 22.0;
+            let count = ((cell.rect.w - 5.0 * scale) / (7.0 * scale))
+                .floor()
+                .max(1.0) as usize;
+            cell.shown.text = "#".repeat(count);
+        }
+        "text" => {
+            let mut col = cell.col;
+            while cell.rect.w < needed
+                && col < extent_cols
+                && !occupied.contains(&(cell.row, col + 1))
+            {
+                col += 1;
+                cell.rect.w += m.width(col);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -304,5 +353,33 @@ mod tests {
             assert_eq!(col_label(col), label);
         }
         assert_eq!(col_label(0), "");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn wide_formatted_numbers_show_hashes_and_text_overflows_into_empty_cells() {
+        let s = sheet();
+        let m = GridMetrics::default();
+        let v = viewport(2000.0, 400.0);
+        let mut number = cell(s, 1, 1, "123456.79");
+        number.format = crate::cells::FormatShown::Applied;
+        let narrow = GridMetrics {
+            cols: crate::grid::geometry::Sizes::new(80.0, [(1, 33.0)]),
+            ..m.clone()
+        };
+        let plan = build_render_plan(&[number.clone()], &narrow, &v, 10, 10);
+        // 33 pixels hold four digits: Excel shows #### in a column 4 characters wide.
+        assert_eq!(plan.cells[0].shown.text, "####");
+        // In General the number is not replaced (Excel narrows it instead; clipped here).
+        number.format = crate::cells::FormatShown::General;
+        let plan = build_render_plan(&[number], &narrow, &v, 10, 10);
+        assert_eq!(plan.cells[0].shown.text, "123456.79");
+        // A text overflows over B and C while they are empty, and stops at a cell that is not.
+        let mut long = cell(s, 1, 1, "a text of thirty characters...");
+        long.kind = "text";
+        let plan = build_render_plan(&[long.clone()], &m, &v, 10, 10);
+        assert_eq!(plan.cells[0].rect.w, 240.0);
+        let plan = build_render_plan(&[long, cell(s, 1, 3, "x")], &m, &v, 10, 10);
+        assert_eq!(plan.cells[0].rect.w, 160.0);
     }
 }

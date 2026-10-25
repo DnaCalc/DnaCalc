@@ -60,8 +60,8 @@ pub struct CellShown {
     pub formula: bool,
     /// How the cell's number format applied.
     pub format: FormatShown,
-    /// The color the number format gives the text (`[Red]`), as `#rrggbb`.
-    pub color: Option<&'static str>,
+    /// The color the number format gives the text (`[Red]`, `[Color10]`), as `#rrggbb`.
+    pub color: Option<String>,
 }
 
 /// The sheet names of a host, for DNA OneCalc's labels.
@@ -148,6 +148,9 @@ pub struct CellFormat<'a> {
     pub code: &'a str,
     /// The workbook calculates in the 1904 date system (calc-host's `declared_date1904`).
     pub date1904: bool,
+    /// The workbook's redefined palette entries, 1 to 56 (calc-host's `palette_color`); `None`
+    /// for Excel's default palette.
+    pub palette: Option<&'a [Option<String>]>,
 }
 
 /// A value as a cell shows it under `format` (`None`, or the code `General`, for General): numbers
@@ -159,7 +162,7 @@ fn formatted(
     format: Option<CellFormat<'_>>,
 ) -> (String, FormatShown) {
     let general = || result::shown(value, profile);
-    let (Some(CellFormat { code, date1904 }), Some(profile)) = (format, profile) else {
+    let (Some(CellFormat { code, date1904, .. }), Some(profile)) = (format, profile) else {
         return (general(), FormatShown::General);
     };
     let system = if date1904 {
@@ -193,9 +196,17 @@ pub fn shown(
     let mut value_of = |value: &CalcValue, provenance: Provenance| {
         let (text, shown) = formatted(value, profile, format);
         if shown == FormatShown::Applied {
-            color = format
-                .and_then(|format| calc_func::cell_color(format.code, value))
-                .map(|color| color.rgb());
+            color = format.and_then(|format| {
+                let color = calc_func::cell_color(format.code, value)?;
+                Some(match (color, format.palette) {
+                    (calc_func::FormatColor::Palette(index), Some(palette)) => palette
+                        .get(usize::from(index).saturating_sub(1))
+                        .cloned()
+                        .flatten()
+                        .unwrap_or_else(|| color.rgb().to_owned()),
+                    _ => color.rgb().to_owned(),
+                })
+            });
         }
         (text, self::kind(value), provenance, shown)
     };

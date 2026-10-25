@@ -83,6 +83,9 @@ pub struct Workbook {
     name: String,
     changed: bool,
     inbox: Rc<RefCell<Vec<HostDelta>>>,
+    /// The workbook's redefined palette entries 1 to 56, read once at open; `None` when it
+    /// redefines none.
+    palette: Option<Vec<Option<String>>>,
     /// How long opening recalculated the workbook, in milliseconds of the browser's clock;
     /// `None` when it did not (the file calculates manually).
     calculated_on_open: Option<f64>,
@@ -118,7 +121,14 @@ impl Workbook {
             changed: false,
             inbox: Rc::default(),
             calculated_on_open: None,
+            palette: None,
         };
+        let palette: Vec<Option<String>> = (1..=56u8)
+            .map(|index| workbook.host().palette_color(index))
+            .collect();
+        if palette.iter().any(Option::is_some) {
+            workbook.palette = Some(palette);
+        }
         if workbook.session.calc_mode() != CalcMode::Manual {
             let started = crate::controller::now_ms();
             workbook.session.dispatch(SkinIntent::Recalculate);
@@ -219,6 +229,7 @@ impl Workbook {
         Some(cells::CellFormat {
             code: self.host().number_format(at)?,
             date1904: self.host().declared_date1904(),
+            palette: self.palette.as_deref(),
         })
     }
 
