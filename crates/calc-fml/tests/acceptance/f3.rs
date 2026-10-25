@@ -120,7 +120,11 @@ fn lambda_helpers_call_their_lambda() {
     assert_eq!(book.dynamic("=MAP({1,2},LAMBDA(x,{1,2}))"), e(W::Calc));
     assert_eq!(book.dynamic("=BYROW({1,2;3,4},LAMBDA(r,r))"), e(W::Calc));
     assert_eq!(book.dynamic("=MAP({1,2},5)"), e(W::Value));
-    assert_eq!(book.dynamic("=MAP({1,2},#N/A)"), e(W::NA));
+    // An error where the LAMBDA belongs is #VALUE! too (Excel 16.0.20430, 2026-10-25, dc-6au:
+    // `=MAP({1,2},#N/A)`, `=BYCOL({1,2},#N/A)` and `=MAKEARRAY(1,1,#N/A)` are #VALUE!).
+    assert_eq!(book.dynamic("=MAP({1,2},#N/A)"), e(W::Value));
+    assert_eq!(book.dynamic("=BYCOL(1,#REF!)"), e(W::Value));
+    assert_eq!(book.dynamic("=BYCOL(#REF!,LAMBDA(x,x))"), e(W::Ref));
     assert_eq!(book.dynamic("=MAP({1,2},LAMBDA(x,y,x))"), e(W::Value));
     assert_eq!(book.dynamic("=MAKEARRAY(0,1,LAMBDA(r,c,1))"), e(W::Value));
     assert_eq!(book.dynamic("=MAKEARRAY(1.5,1,LAMBDA(r,c,1))"), e(W::Value));

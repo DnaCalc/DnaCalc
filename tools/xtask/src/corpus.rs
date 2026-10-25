@@ -9,7 +9,10 @@
 //!    `crates/<crate>/tests/captures/<case>/oracle.capture.json` when there is one.
 //! 2. **Captures, taken once and cached.** The cache (`--cache`, by default
 //!    `C:\Work\DnaCalc\corpus\captures-cache`, outside the repository) holds a capture record at
-//!    `<sha256 of the workbook>/<Excel build>.capture.json`. The Excel build is the file version of
+//!    `<sha256 of the workbook>/<Excel build>.capture.json`, or, for a workbook captured under
+//!    another calculation policy than Excel's default (one whose `calcPr` iterates, since dc-10y:
+//!    `capture::with_workbook_iteration`), at `<sha256>/<Excel build>_policy-<policy>.capture.json`
+//!    ([`policy_key`]), so a record taken under the default policy is never used for it. The Excel build is the file version of
 //!    the `EXCEL.EXE` that `App Paths` registers, which is what a capture records as its
 //!    `excel_build`. A workbook with a committed capture uses it. Otherwise the cached capture of
 //!    this Excel build is used; when the build cannot be read, the cached capture of any build is
@@ -242,8 +245,9 @@ impl Cache {
             .join(format!("{}.capture.json", file_safe(build)))
     }
 
-    /// The cached capture of the workbook `sha256` for `build`; when the build is not known, the
-    /// cached capture of any build (the last in name order). Its path and build.
+    /// The cached capture of the workbook `sha256` for `build` (a [`policy_key`]); when the build
+    /// is not known, the cached capture of any build taken under the default policy (the last in
+    /// name order). Its path and build.
     pub(crate) fn find(&self, sha256: &str, build: Option<&str>) -> Option<(PathBuf, String)> {
         if let Some(build) = build {
             let path = self.path(sha256, build);
@@ -255,7 +259,7 @@ impl Cache {
             .filter_map(|item| {
                 let name = item.file_name().to_string_lossy().into_owned();
                 let build = name.strip_suffix(".capture.json")?.to_owned();
-                Some((item.path(), build))
+                (!build.contains("_policy-")).then(|| (item.path(), build))
             })
             .collect();
         cached.sort();
@@ -310,8 +314,59 @@ impl Cache {
     }
 }
 
-/// The cache key of a capture record: the workbook hash its `source` names and the Excel build
-/// its environment names.
+/// The key a capture under `policy` by Excel `build` is cached by: the build for Excel's default
+/// policy (automatic, iteration off, 100 iterations, maximum change 0.001), else the build,
+/// `_policy-` and the policy (`16.0.20430.20182_policy-manual-iteration-100-3f50624dd2f1a9fc`).
+pub(crate) fn policy_key(build: &str, policy: &CalculationPolicy) -> String {
+    if *policy == CalculationPolicy::default() {
+        return build.to_owned();
+    }
+    let mode = match policy.mode {
+        calc_oracle_excel::CalculationMode::Automatic => "automatic",
+        calc_oracle_excel::CalculationMode::Manual => "manual",
+        calc_oracle_excel::CalculationMode::SemiAutomatic => "semiautomatic",
+    };
+    format!(
+        "{build}_policy-{mode}-iteration{}-{}-{:016x}",
+        if policy.iteration { "" } else { "off" },
+        policy.max_iterations,
+        policy.max_change.to_bits()
+    )
+}
+
+/// The calculation policy a capture record was taken under, read from the settings its
+/// environment records (`calculation`, `iteration`, `max_iterations`, `max_change`); Excel's
+/// default where a setting is missing or not read.
+fn record_policy(record: &CaptureRecord) -> CalculationPolicy {
+    let mut policy = CalculationPolicy::default();
+    let Some(environment) = &record.environment else {
+        return policy;
+    };
+    let setting = |name: &str| {
+        environment
+            .settings
+            .iter()
+            .find(|(held, _)| held == name)
+            .map(|(_, value)| value.as_str())
+    };
+    if let Some(mode) = setting("calculation").and_then(calc_oracle_excel::CalculationMode::parse)
+    {
+        policy.mode = mode;
+    }
+    if let Some(iteration) = setting("iteration") {
+        policy.iteration = iteration == "true";
+    }
+    if let Some(count) = setting("max_iterations").and_then(|text| text.parse().ok()) {
+        policy.max_iterations = count;
+    }
+    if let Some(bits) = setting("max_change").and_then(|text| u64::from_str_radix(text, 16).ok()) {
+        policy.max_change = f64::from_bits(bits);
+    }
+    policy
+}
+
+/// The cache key of a capture record: the workbook hash its `source` names, and the Excel build
+/// its environment names with the calculation policy it was taken under ([`policy_key`]).
 pub(crate) fn record_key(record: &CaptureRecord) -> Result<(String, String), String> {
     let sha256 = record
         .source
@@ -330,7 +385,7 @@ pub(crate) fn record_key(record: &CaptureRecord) -> Result<(String, String), Str
         .map(|environment| environment.target.excel_build().to_owned())
         .filter(|build| !build.is_empty())
         .ok_or("the capture record names no Excel build, so it cannot be keyed by one")?;
-    Ok((sha256, build))
+    Ok((sha256, policy_key(&build, &record_policy(record))))
 }
 
 /// The file version of the `EXCEL.EXE` that `App Paths` registers, as a capture records its
@@ -450,8 +505,18 @@ impl Run<'_> {
                 seconds: None,
             });
         }
+        let policy = match fs::read(&entry.path) {
+            Ok(bytes) => with_workbook_iteration(CalculationPolicy::default(), &bytes),
+            Err(_) => CalculationPolicy::default(),
+        };
         let build = self.build();
-        if let Some((path, cached_build)) = self.cache.find(sha256, build.as_deref().ok()) {
+        let keyed = build.as_ref().ok().map(|build| policy_key(build, &policy));
+        let lookup = if policy == CalculationPolicy::default() || keyed.is_some() {
+            self.cache.find(sha256, keyed.as_deref())
+        } else {
+            None
+        };
+        if let Some((path, cached_build)) = lookup {
             let note = match &build {
                 Ok(_) => String::new(),
                 Err(e) => format!("; this Excel's build is not known ({e})"),
@@ -494,10 +559,7 @@ impl Run<'_> {
                 crate::accept::utc_now().replace(':', "")
             )),
             timeout: self.args.timeout,
-            policy: match fs::read(&entry.path) {
-                Ok(bytes) => with_workbook_iteration(CalculationPolicy::default(), &bytes),
-                Err(_) => CalculationPolicy::default(),
-            },
+            policy,
             revision: 0,
             operations: Vec::new(),
             repository: repository_revision(),

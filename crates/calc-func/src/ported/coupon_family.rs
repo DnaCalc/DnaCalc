@@ -148,6 +148,17 @@ fn parse_frequency(value: f64) -> Result<i64, WorksheetErrorCode> {
     }
 }
 
+/// The check of a COUP function's dates on their own: each a date, and settlement before
+/// maturity; #NUM! otherwise.
+pub(crate) fn check_coupon_dates(settlement: f64, maturity: f64) -> Result<(), WorksheetErrorCode> {
+    let settlement = parse_coupon_date(settlement)?;
+    let maturity = parse_coupon_date(maturity)?;
+    if settlement >= maturity {
+        return Err(WorksheetErrorCode::Num);
+    }
+    Ok(())
+}
+
 fn parse_coupon_date(value: f64) -> Result<i64, WorksheetErrorCode> {
     if !value.is_finite() {
         return Err(WorksheetErrorCode::Num);

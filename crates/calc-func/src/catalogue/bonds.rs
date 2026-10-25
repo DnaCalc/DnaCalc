@@ -83,13 +83,22 @@ fn date_out(site: &Site<'_>, sv: &EvalServices<'_>, result: Result<f64, Workshee
     }
 }
 
-/// A COUP function: its settlement and maturity dates, frequency and basis.
+/// A COUP function: its settlement and maturity dates, frequency and basis. The dates are checked
+/// before the frequency and basis are read: a settlement that is no date or on or after maturity
+/// is #NUM! whatever they hold (Excel 16.0.20430, 2026-10-25, dc-6au: `=COUPDAYBS(1,1,#REF!)`,
+/// `=COUPDAYBS(1,1,2,#REF!)`, `=COUPDAYBS(-1,1,#REF!)` and `=COUPDAYBS(2,1,"a")` are #NUM!, while
+/// `=COUPDAYBS(1,2,#REF!)` is #REF! and `=COUPDAYBS(1,2,"a")` #VALUE!; the six COUP functions
+/// alike).
 fn coupon_args(
     site: &Site<'_>,
     a: &[CalcValue],
     sv: &EvalServices<'_>,
 ) -> Step<(f64, f64, f64, Option<f64>)> {
-    Ok((date_1900(site, a, 0, sv)?, date_1900(site, a, 1, sv)?, num(site, a, 2)?, basis(site, a, 3)?))
+    let (settlement, maturity) = (date_1900(site, a, 0, sv)?, date_1900(site, a, 1, sv)?);
+    if let Err(code) = coupon::check_coupon_dates(settlement, maturity) {
+        return fail(code);
+    }
+    Ok((settlement, maturity, num(site, a, 2)?, basis(site, a, 3)?))
 }
 
 ported_family! {

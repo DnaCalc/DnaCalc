@@ -349,6 +349,14 @@ ported_family! {
 }
 
 fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<CalcValue> {
+    // An argument that is an error value is the result before the shapes are compared (Excel
+    // 16.0.20430, 2026-10-25, dc-6au: `=CHISQ.TEST(#REF!,1)`, `=CHISQ.TEST(1,#REF!)` and
+    // `=CHISQ.TEST(A1:A2,#REF!)` are #REF!, `=CHISQ.TEST(#DIV/0!,A1:A2)` #DIV/0!).
+    for argument in &a[..2] {
+        if let CoreValue::Error(code) = argument.core() {
+            return fail(*code);
+        }
+    }
     let actual = grid(site, a, 0, sv)?;
     let expected = grid(site, a, 1, sv)?;
     if (actual.rows, actual.cols) != (expected.rows, expected.cols) {

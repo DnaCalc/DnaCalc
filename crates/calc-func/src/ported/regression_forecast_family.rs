@@ -239,6 +239,16 @@ fn normalize_known_x_matrix(
         Ok(raw)
     } else if raw.rows == 1 && raw.cols == observation_count {
         Ok(raw.transpose())
+    } else if observation_count == 1 {
+        // One known y: every known x is a predictor of that one observation (Excel 16.0.20430,
+        // 2026-10-25, dc-6au: `=LINEST(1,{1;2;3})` and `=LINEST(1,{1,2,3})` spill 0,0,0,1, three
+        // zero slopes and the intercept; `=TREND(1,{1;2;3})` and `=GROWTH(1,{1;2;3})` are 1,
+        // `=LOGEST(1,{1;2;3})` 1,1,1,1; `=TREND(5,{1;2;3},4)` is #REF!).
+        Ok(NumericMatrix {
+            rows: 1,
+            cols: raw.rows * raw.cols,
+            values: raw.values,
+        })
     } else {
         Err(WorksheetErrorCode::Ref)
     }
@@ -294,10 +304,10 @@ fn prepare_predictor_input(
                 });
             }
 
-            if matrix.cols != normalized.cols {
+            if matrix.cols != normalized.cols && observation_count != 1 {
                 return Err(WorksheetErrorCode::Ref);
             }
-            let output_shape = if matrix.rows == 1 {
+            let output_shape = if matrix.rows == 1 || observation_count == 1 {
                 OutputShape::Scalar
             } else {
                 OutputShape::Column(matrix.rows)
@@ -415,6 +425,15 @@ fn least_squares(
         y.to_vec()
     };
     let p = matrix.len();
+    if n == 1 && use_const {
+        // One observation with a constant: every centred predictor is 0, so each coefficient is
+        // 0 and the intercept is the one y (Excel 16.0.20430, 2026-10-25, dc-6au:
+        // `=LINEST(1,{1;2;3})` 0,0,0,1, `=LINEST(5,2)` 0,5, `=TREND(1,{1;2;3})` 1).
+        return Ok(LinearRegressionModel {
+            coefficients: vec![0.0; columns.len()],
+            intercept: y_mean,
+        });
+    }
     if p > n {
         return Err(WorksheetErrorCode::Num);
     }
@@ -623,12 +642,46 @@ fn growth_kernel(
     eval_value_from_output_shape(&predicted, new_x.output_shape)
 }
 
+/// The statistics of a fit to one observation with a constant: the first row `first` (the
+/// coefficients, then the constant), every standard error 0, R squared 1 and its standard error
+/// 0, F #NUM! with 0 degrees of freedom, and both sums of squares 0, the cells beyond the second
+/// column of rows 3 to 5 #N/A (Excel 16.0.20430, 2026-10-25, dc-6au: `=LINEST(5,{1;2;3},TRUE,TRUE)`
+/// spills 0,0,0,5 / 0,0,0,0 / 1,0,#N/A,#N/A / #NUM!,0,#N/A,#N/A / 0,0,#N/A,#N/A, `=LINEST(5,2,TRUE,TRUE)`
+/// 0,5 / 0,0 / 1,0 / #NUM!,0 / 0,0, and LOGEST's the same below its first row).
+fn one_observation_statistics(first: Vec<f64>) -> CalcValue {
+    let cols = first.len();
+    let pad = |head: Vec<CalcValue>| {
+        let mut row = head;
+        while row.len() < cols {
+            row.push(CalcValue::error(WorksheetErrorCode::NA));
+        }
+        row
+    };
+    let n = CalcValue::number;
+    CalcValue::array(
+        CalcArray::from_rows(vec![
+            first.into_iter().map(n).collect(),
+            vec![n(0.0); cols],
+            pad(vec![n(1.0), n(0.0)]),
+            pad(vec![CalcValue::error(WorksheetErrorCode::Num), n(0.0)]),
+            pad(vec![n(0.0), n(0.0)]),
+        ])
+        .expect("five rows of one length"),
+    )
+}
+
 fn linest_kernel(
     known_y: &NumericVector,
     known_x: &PreparedPredictorInput,
     use_const: bool,
     stats: bool,
 ) -> Result<CalcValue, WorksheetErrorCode> {
+    if stats && use_const && known_y.values.len() == 1 {
+        let model = linear_model_from_data(known_y, known_x, use_const)?;
+        let mut row = model.coefficients.iter().rev().copied().collect::<Vec<_>>();
+        row.push(model.intercept);
+        return Ok(one_observation_statistics(row));
+    }
     if stats {
         return Err(WorksheetErrorCode::Ref);
     }
@@ -644,6 +697,17 @@ fn logest_kernel(
     use_const: bool,
     stats: bool,
 ) -> Result<CalcValue, WorksheetErrorCode> {
+    if stats && use_const && known_y.values.len() == 1 {
+        let model = exponential_model_from_data(known_y, known_x, use_const)?;
+        let mut row = model
+            .coefficients
+            .iter()
+            .rev()
+            .map(|b| excel_numeric::excel_exp(*b))
+            .collect::<Vec<_>>();
+        row.push(excel_numeric::excel_exp(model.intercept));
+        return Ok(one_observation_statistics(row));
+    }
     if stats {
         return Err(WorksheetErrorCode::Ref);
     }

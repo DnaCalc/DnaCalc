@@ -147,10 +147,36 @@ fn concatenate(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     Ok(CalcValue::text(ExcelText::from_utf16_code_units(joined)))
 }
 
+/// TEXTJOIN's delimiters: one text, or each cell of a reference or an array in turn, used in
+/// order and again from the first (Microsoft's TEXTJOIN page: a range of delimiters). A reference
+/// of several areas (a 3-D reference) gives the cells of each area in its order (Excel 16.0.20430,
+/// 2026-10-25, dc-6au, sheets Ja, Fe and Ma holding 1, 2, 3 in A1 and 100, 200, 300 in A2:
+/// `=TEXTJOIN(Ja:Ma!A1,1,"a","b")` "a1b", `=TEXTJOIN(Ja:Ma!A1:A2,1,"a","b","c")` "a1b100c",
+/// `=TEXTJOIN(Fe:Ma!A1,1,"a","b","c")` "a2b3c").
+fn delimiters(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<Vec<Vec<u16>>> {
+    let mut found = Vec::new();
+    match a[0].core() {
+        CoreValue::Reference(reference) => {
+            for &area in reference.areas() {
+                let one = [CalcValue::reference(crate::value::ReferenceLike::area(area))];
+                for value in &grid(site, &one, 0, sv)?.cells {
+                    found.push(cell_text(site, 0, value)?);
+                }
+            }
+        }
+        CoreValue::Array(_) => {
+            for value in &cells(site, a, 0, sv)?.cells {
+                found.push(cell_text(site, 0, value)?);
+            }
+        }
+        _ => found.push(text_arg(site, a, 0)?.utf16_code_units().to_vec()),
+    }
+    Ok(found)
+}
+
 fn textjoin(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<CalcValue> {
-    let delimiter = text_arg(site, a, 0)?;
+    let delimiters = delimiters(site, a, sv)?;
     let ignore_empty = num(site, a, 1)? != 0.0;
-    let delimiter = delimiter.utf16_code_units();
     let mut joined: Vec<u16> = Vec::new();
     let mut parts = 0usize;
     for index in 2..a.len() {
@@ -163,6 +189,11 @@ fn textjoin(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices
             if ignore_empty && units.is_empty() {
                 continue;
             }
+            let delimiter: &[u16] = if delimiters.is_empty() {
+                &[]
+            } else {
+                &delimiters[parts.saturating_sub(1) % delimiters.len()]
+            };
             let extra = units.len() + if parts == 0 { 0 } else { delimiter.len() };
             if joined.len() + extra > EXCEL_TEXT_MAX_UTF16_CODE_UNITS {
                 return fail(WorksheetErrorCode::Calc);
@@ -268,7 +299,7 @@ ported_family! {
     }
     28 concatenate_fn "CONCATENATE" (1, 255) [V "text1", V "text2"] |s, a, sv| { concatenate(s, a) }
     29 concat_fn "CONCAT" (1, 254) [R "text1", R "text2"] |s, a, sv| { concat(s, a, sv) }
-    30 textjoin_fn "TEXTJOIN" (3, 252) [V "delimiter", V "ignore_empty", R "text1", R "text2"] |s, a, sv| {
+    30 textjoin_fn "TEXTJOIN" (3, 252) [R "delimiter", V "ignore_empty", R "text1", R "text2"] |s, a, sv| {
         textjoin(s, a, sv)
     }
 }

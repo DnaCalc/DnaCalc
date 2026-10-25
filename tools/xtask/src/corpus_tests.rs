@@ -225,3 +225,38 @@ fn the_cache_is_keyed_by_workbook_hash_and_excel_build() {
     assert!(cache.import(&dir.join("absent.json")).is_err());
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// A record taken under another calculation policy than Excel's default (a workbook that
+/// iterates, captured under manual calculation with its iteration settings, dc-10y) is cached by
+/// its build and that policy, never found by the build alone; one taken under the default policy
+/// is keyed by the build as before.
+#[test]
+fn the_cache_keys_a_record_by_its_calculation_policy() {
+    let default = CalculationPolicy::default();
+    assert_eq!(policy_key("16.0.1", &default), "16.0.1");
+    let iterating = CalculationPolicy {
+        mode: calc_oracle_excel::CalculationMode::Manual,
+        iteration: true,
+        max_iterations: 50,
+        max_change: 0.0001,
+    };
+    let key = policy_key("16.0.1", &iterating);
+    assert_eq!(key, "16.0.1_policy-manual-iteration-50-3f1a36e2eb1c432d");
+
+    let dir = scratch("policy");
+    let cache = Cache {
+        root: dir.join("cache"),
+    };
+    let source = dir.join("i.capture.json");
+    let settings = r#"{"date1904": "false"}"#;
+    let iterated = r#"{"date1904": "false", "calculation": "manual", "iteration": "true", "max_iterations": "50", "max_change": "3f1a36e2eb1c432d"}"#;
+    fs::write(&source, record("16.0.1", "i").replace(settings, iterated)).unwrap();
+    assert!(cache.import(&source).unwrap().starts_with("imported"));
+    assert_eq!(cache.find(SHA, Some("16.0.1")), None);
+    assert_eq!(cache.find(SHA, None), None);
+    assert_eq!(
+        cache.find(SHA, Some(&key)).map(|(_, build)| build),
+        Some(key.clone())
+    );
+    let _ = fs::remove_dir_all(&dir);
+}

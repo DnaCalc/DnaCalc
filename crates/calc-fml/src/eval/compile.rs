@@ -396,9 +396,13 @@ impl<'c> Lowering<'c> {
                     let text = only_token(node).map(Token::text).unwrap_or_default();
                     if text.contains('[') {
                         // A bracket group binding left alone: `[y]` outside a LAMBDA's
-                        // parameters and outside every table. Excel 16.0.20430 (2026-10-25)
-                        // reads a file's `SUM([Qty])` in a cell outside every table as
-                        // `SUM(#REF!)` (dc-10y).
+                        // parameters and outside every table. Excel 16.0.20430 (2026-10-25,
+                        // dc-10y) reads each such identifier of a file's formula in a cell
+                        // outside every table as #REF!: `SUM([Qty])` as `SUM(#REF!)`, and
+                        // `[@Qty]`, `SUM([#All])`, `[[Qty]]`, `[Qty]+1`, `ISREF([Qty])` (FALSE),
+                        // `IFERROR([Qty],5)` (5) and `SUM([Qty],1)` likewise. (`x[1]`, also
+                        // #REF! there, binds as a table x the workbook does not hold, which
+                        // stays refused.)
                         self.blocks[block].push(Instruction::Literal(Literal::Error(
                             WorksheetErrorCode::Ref,
                         )));
@@ -1324,7 +1328,7 @@ const THREE_D_TAKEN: &[(&str, &[usize])] = &[
     ("STDEVPA", &[]),
     ("SUM", &[]),
     ("SUMSQ", &[]),
-    ("TEXTJOIN", &[2, TAIL]),
+    ("TEXTJOIN", &[0, 2, TAIL]),
     ("TOCOL", &[0]),
     ("TOROW", &[0]),
     ("TRIMMEAN", &[0]),
