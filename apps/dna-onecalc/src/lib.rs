@@ -13,13 +13,16 @@
 //! [`Diagnostic`]s that stopped one, and the [`Read`]s the evaluation made, in order, with what
 //! each returned.
 //!
-//! [`display`] renders those for people, and [`surface`] is the browser surface over a session:
+//! [`display`] renders those for people, [`formula_field`] is the formula field (highlighting,
+//! completion, signature and function help) DNA OneCalc and DNA Calc share, and [`surface`] is the
+//! browser surface over a session:
 //! a formula box, a table of typed inputs, the result, the diagnostics and the reads, recalculated
 //! on every edit.
 
 pub mod display;
 pub mod editor;
 mod fixture;
+pub mod formula_field;
 pub mod grid;
 pub mod result;
 mod session;

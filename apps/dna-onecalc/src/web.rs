@@ -6,7 +6,7 @@
 //! A panic in a reactive memo, effect or view surfaces in the browser only as a trap
 //! (`RuntimeError: unreachable`), which a page can miss; with the message on the root element, and
 //! the page's own `error` and `unhandledrejection` listeners (`web/index.html`) recording any trap,
-//! the browser smoke test (`cargo xtask onecalc smoke`) fails on either.
+//! the browser smoke test (`cargo xtask app smoke onecalc`) fails on either.
 //!
 //! It compiles on every target and runs only in a browser.
 
