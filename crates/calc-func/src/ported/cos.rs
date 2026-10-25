@@ -9,10 +9,11 @@ pub fn cos_kernel(n: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ported::excel_numeric::crt_cos;
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cos_kernel_matches_std() {
-        assert_eq!(cos_kernel(1.0), 1.0f64.cos());
+        assert_eq!(cos_kernel(1.0), crt_cos(1.0f64));
     }
 }

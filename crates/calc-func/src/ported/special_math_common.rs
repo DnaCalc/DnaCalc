@@ -1,6 +1,8 @@
 use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::crt_pow;
 use crate::ported::excel_numeric::crt_log;
+use crate::ported::excel_numeric::crt_sin;
+use crate::ported::excel_numeric::crt_cos;
 pub fn ln_gamma(z: f64) -> f64 {
     const COEFFS: [f64; 9] = [
         0.999_999_999_999_809_9,
@@ -17,7 +19,7 @@ pub fn ln_gamma(z: f64) -> f64 {
 
     if z < 0.5 {
         return crt_log(std::f64::consts::PI)
-            - crt_log((std::f64::consts::PI * z).sin())
+            - crt_log(crt_sin(std::f64::consts::PI * z))
             - ln_gamma(1.0 - z);
     }
 
@@ -37,7 +39,7 @@ pub fn gamma(z: f64) -> f64 {
         return f64::NAN;
     }
     if z < 0.5 {
-        return std::f64::consts::PI / ((std::f64::consts::PI * z).sin() * gamma(1.0 - z));
+        return std::f64::consts::PI / (crt_sin(std::f64::consts::PI * z) * gamma(1.0 - z));
     }
     crate::ported::excel_numeric::excel_exp(ln_gamma(z))
 }
@@ -416,7 +418,7 @@ fn gratio_gamma_nswc(a: f64) -> f64 {
         if tt > 0.9 {
             tt = 1.0 - tt;
         }
-        s = (PI * tt).sin() / PI;
+        s = crt_sin(PI * tt) / PI;
         if n % 2 == 0 {
             s = -s;
         }
@@ -1536,12 +1538,12 @@ fn bratio_psi(xx: f64) -> f64 {
             let mut m = n / 2;
             m += m;
             if m != n {
-                aug = sgn * ((z.sin() / z.cos()) * 4.0);
+                aug = sgn * ((crt_sin(z) / crt_cos(z)) * 4.0);
             } else {
                 if z == 0.0 {
                     return 0.0;
                 }
-                aug = sgn * ((z.cos() / z.sin()) * 4.0);
+                aug = sgn * ((crt_cos(z) / crt_sin(z)) * 4.0);
             }
         }
         x = 1.0 - x;
