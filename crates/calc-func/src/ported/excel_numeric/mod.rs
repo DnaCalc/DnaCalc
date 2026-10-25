@@ -17,6 +17,10 @@ mod x87;
 /// run, in portable Rust, for the targets without the hardware.
 mod soft87;
 
+/// The Microsoft runtime's `pow` in portable Rust (dc-sbo).
+mod crt_pow;
+pub(crate) use crt_pow::crt_pow;
+
 use soft87::{
     CW_PC64_RN as CW, Ext80, ext_abs, ext_chs, ext_from_f64 as load, ext_l2e, ext_lg2, ext_ln2,
     ext_one, ext_pi,
