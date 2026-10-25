@@ -5,12 +5,14 @@ use crate::graph::{BlockHasher, Prerequisite, ReverseIndex};
 use crate::recalc::{ReadersCache, dirty_closure, live_anchor, published_areas};
 use crate::result::{CacheWithoutFormula, FormulaResult, NotModeled};
 use crate::spill::{Spill, SpillIndex};
-use calc_doc_model::{AuthoredRevision, CellInput, FileCached, ModelRoot};
+use calc_doc_model::{ArrayKind, AuthoredRevision, CellInput, FileCached, ModelRoot};
 use calc_fml::{CalcEnvironment, CompiledPlan, FormulaForm, FormulaInstance, PlanCache};
-use calc_value::{CellKey, GridArea, IdAllocator, NodeId, NumericMode, SheetId};
+use calc_value::{
+    CellKey, GridArea, IdAllocator, MAX_COLUMNS, MAX_ROWS, NodeId, NumericMode, SheetId,
+};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::hash::BuildHasherDefault;
 use std::fmt;
+use std::hash::BuildHasherDefault;
 use std::sync::Arc;
 
 /// One formula participant of the graph: its interned ID, the cell it anchors, and what it reads
@@ -276,9 +278,9 @@ impl EngineState {
     pub fn needs_recalc(&self, inputs: &ModelRoot) -> bool {
         self.pending.iter().any(|node| {
             !(self.tables_deferred
-                && self
-                    .node(*node)
-                    .is_some_and(|record| crate::data_table::is_table_cell(inputs, record.anchor())))
+                && self.node(*node).is_some_and(|record| {
+                    crate::data_table::is_table_cell(inputs, record.anchor())
+                }))
         })
     }
 
@@ -365,7 +367,24 @@ impl EngineState {
         if inputs.revision() != self.revision {
             return None;
         }
-        let areas = |node| published_areas(self, inputs, node);
+        // A pending dynamic array's next result may spill anywhere below and right of its anchor,
+        // past the area it last filled, so every formula reading a cell there may read it: those
+        // readers are stale too, until the recalculation settles the spill.
+        let areas = |node| {
+            let mut areas = published_areas(self, inputs, node);
+            let at = live_anchor(self, node);
+            if self.pending.contains(&node)
+                && inputs
+                    .definitions()
+                    .array(at)
+                    .is_some_and(|array| matches!(array.kind(), ArrayKind::Dynamic { .. }))
+                && let Ok(last) = CellKey::new(at.sheet(), MAX_ROWS, MAX_COLUMNS)
+                && let Ok(reach) = GridArea::new(at, last)
+            {
+                areas.push(reach);
+            }
+            areas
+        };
         let mut cells: Vec<CellKey> = dirty_closure(self, inputs, self.pending.clone(), &areas)
             .members()
             .iter()

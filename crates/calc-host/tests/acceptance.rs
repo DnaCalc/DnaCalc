@@ -1398,23 +1398,24 @@ fn run_fingerprint(context: &RecalcContext) -> String {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn dc_hqcv__applied_context_reported() {
     const CASE: &str = "dc_hqcv__applied_context_reported";
+    // The package declares the 1904 date system, which the host applies (dc-35p).
     let applied = RecalcContext {
-        date1904: false,
+        date1904: true,
         iteration: true,
         max_iterations: 100,
         max_change_bits: 0.001f64.to_bits(),
         precision_as_displayed: false,
         numeric: NumericMode::Fast,
     };
-    // A context in the 1900 date system, iterating 100 times to a maximum change of 0.001 (binary64
+    // A context in the 1904 date system, iterating 100 times to a maximum change of 0.001 (binary64
     // bits 3f50624dd2f1a9fc), at full precision, as the verdict library names it.
-    let applied_fingerprint = "excel-calc-context/1;date1904=false;iteration=true;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
+    let applied_fingerprint = "excel-calc-context/1;date1904=true;iteration=true;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
     // Without calcPr: no iteration, which names Excel's default limits.
     let plain_applied = RecalcContext {
         iteration: false,
         ..applied.clone()
     };
-    let plain_fingerprint = "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
+    let plain_fingerprint = "excel-calc-context/1;date1904=true;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false";
 
     // The first package, as the generator wrote it: its stored workbook part declares
     // date1904="1", iterate="1" and fullPrecision="0".

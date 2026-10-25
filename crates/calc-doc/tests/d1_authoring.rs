@@ -20,14 +20,23 @@ fn d1_authoring__formulas_are_written_in_file_form() {
         at: at(calc, address),
         input: formula(text),
     };
+    // A formula Excel stores as a dynamic array is authored as one over its cell (dc-35p: the
+    // model, not the file form, says whether a formula is an array formula).
+    let dynamic = |address: &str, text: &str| WorkbookOp::SetArray {
+        array: calc_doc::model::ArrayFormula::new(
+            calc_doc::model::value::GridArea::cell(at(calc, address)),
+            ArrayKind::Dynamic { collapsed: false },
+        ),
+        input: formula(text),
+    };
     let model = edited(
         &loaded,
         vec![
-            set("Y1", "SEQUENCE(2,2)"),
+            dynamic("Y1", "SEQUENCE(2,2)"),
             set("Y4", "XLOOKUP(3,Data!A1:A5,Data!B1:B5)"),
             set("Y5", "LET(x,2,x*3)"),
             set("Y6", "SUM(A1#)"),
-            set("Y7", "Data!A1:A3*2"),
+            dynamic("Y7", "Data!A1:A3*2"),
             set("Y10", "@Data!A1:A3"),
             set("Y11", "STDEV.P(Data!A1:A5)"),
         ],
@@ -76,8 +85,11 @@ fn d1_authoring__a_metadata_part_without_the_record_gains_it() {
     let model = edited(
         &loaded,
         vec![
-            WorkbookOp::SetCell {
-                at: at(first, "H1"),
+            WorkbookOp::SetArray {
+                array: calc_doc::model::ArrayFormula::new(
+                    calc_doc::model::value::GridArea::cell(at(first, "H1")),
+                    ArrayKind::Dynamic { collapsed: false },
+                ),
                 input: formula("SEQUENCE(3)"),
             },
             // D1 calls IMAGE, which the capture adapter's isolation refuses to open, so the

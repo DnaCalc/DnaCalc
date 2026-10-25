@@ -40,15 +40,11 @@ pub struct HostOptions {
 /// `calcPr` iteration settings (`iterate`, `iterateCount`, `iterateDelta`) into the model, and
 /// [`calc_engine::begin_recalc`] applies them (L3, dc-m3u): with iteration on, the formulas on a
 /// cycle are calculated in passes up to `max_iterations` until no value changes by `max_change`
-/// or more; with it off, each formula on a cycle is refused. Whatever the package declares, no
-/// recalculation follows a 1904 date system, and every result is published at full precision
-/// whatever its number format displays. `date1904 = false` follows from the engine taking no date
-/// system; no calculation observes it until a function that reads or returns a serial date is
-/// calculated.
-///
-/// dc-35p carries the workbook's date system and precision as displayed into the engine;
-/// `date1904` and `precision_as_displayed` then come from the engine's settings and change with
-/// the workbook.
+/// or more; with it off, each formula on a cycle is refused. The date system is the one the
+/// package's `workbookPr` declares (`date1904`), which every evaluation reads its serial dates in.
+/// Whatever the package declares, every result is published at full precision whatever its
+/// number format displays: precision as displayed is not applied (no bead owns it yet; the engine
+/// has no number formats of results to round to).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RecalcContext {
     /// Serial dates count in the 1904 date system; `false`: the 1900 date system.
@@ -117,6 +113,9 @@ pub struct HostState {
     pub(crate) inputs_changed_since_open: bool,
     /// Whether [`crate::calculate`] asked for a recalculation that has not begun yet.
     pub(crate) calculate_requested: bool,
+    /// The serial date and time NOW and TODAY read ([`HostState::set_clock`]); `None` refuses
+    /// them.
+    pub(crate) clock: Option<f64>,
 }
 
 impl HostState {
@@ -143,16 +142,8 @@ impl HostState {
                 Some((at, cache.clone()))
             })
         });
-        let mut engine =
-            EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
-        // The 1900 date system whatever the package declares ([`RecalcContext`]), the options'
-        // locale profile, and no clock: NOW, TODAY and a date read without a year are refused.
-        engine.set_environment(Some(CalcEnvironment {
-            date_system: FmlDateSystem::System1900,
-            profile: options.locale,
-            now: None,
-        }));
-        Ok(HostState {
+        let engine = EngineState::with_file_caches(&model, caches).map_err(OpenFailure::Caches)?;
+        let mut host = HostState {
             loaded,
             model,
             engine,
@@ -162,7 +153,13 @@ impl HostState {
             last_failure: None,
             inputs_changed_since_open: false,
             calculate_requested: false,
-        })
+            clock: None,
+        };
+        // The package's date system, the options' locale profile, and no clock until one is set:
+        // NOW, TODAY and a date read without a year are refused.
+        let environment = host.entry_environment();
+        host.engine.set_environment(Some(environment));
+        Ok(host)
     }
 
     /// The current authored revision.
@@ -176,14 +173,29 @@ impl HostState {
         self.model.sheets()
     }
 
-    /// The environment a cell entry is read in ([`crate::interpret_entry_in`]): the 1900 date
-    /// system, the options' locale profile and no clock, as the recalculations' (dc-10y).
+    /// The environment a cell entry is read in ([`crate::interpret_entry_in`]) and every
+    /// evaluation runs in: the package's date system, the options' locale profile and the clock
+    /// set ([`HostState::set_clock`]), none at first.
     pub fn entry_environment(&self) -> CalcEnvironment {
         CalcEnvironment {
-            date_system: FmlDateSystem::System1900,
+            date_system: if self.declared_date1904() {
+                FmlDateSystem::System1904
+            } else {
+                FmlDateSystem::System1900
+            },
             profile: self.options.locale,
-            now: None,
+            now: self.clock,
         }
+    }
+
+    /// Sets the clock NOW and TODAY read, as a serial date and time in the workbook's date
+    /// system, which the application reads from its platform (calc-host reads no clock of its
+    /// own); `None` refuses them again. Every recalculation calculates the formulas that call a
+    /// volatile function, so the next one reads the clock set here.
+    pub fn set_clock(&mut self, now: Option<f64>) {
+        self.clock = now;
+        let environment = self.entry_environment();
+        self.engine.set_environment(Some(environment));
     }
 
     pub fn options(&self) -> &HostOptions {
@@ -202,14 +214,14 @@ impl HostState {
             .unwrap_or_else(|| self.loaded.calc_mode())
     }
 
-    /// The calculation context every recalculation of this host applies: the 1900 date system
-    /// and full precision, whatever the package declares, the iteration settings the current
-    /// revision holds, under the numeric mode the host was opened with ([`RecalcContext`] says
-    /// why, and that dc-35p changes the others).
+    /// The calculation context every recalculation of this host applies: the date system the
+    /// package declares, full precision whatever the package declares, the iteration settings the
+    /// current revision holds, under the numeric mode the host was opened with
+    /// ([`RecalcContext`] says why).
     pub fn recalc_context(&self) -> RecalcContext {
         let iteration = self.model.definitions().iteration();
         RecalcContext {
-            date1904: false,
+            date1904: self.declared_date1904(),
             iteration: iteration.enabled(),
             max_iterations: iteration.max_iterations(),
             max_change_bits: iteration.max_change().to_bits(),
@@ -272,7 +284,7 @@ impl HostState {
     }
 
     /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s
-    /// `date1904`), as calc-doc loaded it; no command changes it. Recalculation does not apply it
+    /// `date1904`), as calc-doc loaded it; no command changes it. Every recalculation applies it
     /// ([`HostState::recalc_context`]). calc-doc reads `calcPr`'s iteration settings, which the
     /// host applies, and not its precision as displayed.
     pub fn declared_date1904(&self) -> bool {
