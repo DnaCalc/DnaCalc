@@ -1607,15 +1607,121 @@ fn dc_09v__number_formats_and_sizes_as_the_file_states_them() {
         ("A12", "General"),
         ("Z99", "General"),
     ] {
-        assert_eq!(host.number_format(at(sheet, address)), Some(code), "{address}");
+        assert_eq!(
+            host.number_format(at(sheet, address)),
+            Some(code),
+            "{address}"
+        );
     }
     let geometry = host.sheet_geometry(sheet).expect("the sheet's geometry");
     let width = |column: u32| geometry.column(column).and_then(|span| span.width);
-    assert!(width(1).is_some_and(|w| w > 16.0 && w < 17.0), "{geometry:?}");
-    assert!(width(2).is_some_and(|w| w > 25.0 && w < 26.0), "{geometry:?}");
+    assert!(
+        width(1).is_some_and(|w| w > 16.0 && w < 17.0),
+        "{geometry:?}"
+    );
+    assert!(
+        width(2).is_some_and(|w| w > 25.0 && w < 26.0),
+        "{geometry:?}"
+    );
     assert!(geometry.column(3).is_some_and(|span| span.hidden));
     assert!(!geometry.column(1).is_some_and(|span| span.hidden));
     assert_eq!(geometry.row(3).and_then(|row| row.height), Some(30.0));
     assert!(geometry.row(13).is_some_and(|row| row.hidden));
     assert_eq!(geometry.default_row_height, Some(15.0));
+}
+
+/// dc-09v (D4b): copy and paste, and fill, through the session: values copied, formulas relocated
+/// (relative references keep their offsets, absolute ones stay, one moved off the grid is
+/// #REF!), a target filled by repeating the source, a mismatched target refused, one undo step.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_09v__copy_relocates_formulas_and_fills() {
+    let mut session = session(&calc_host::blank_package());
+    let s = session.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "1"),
+        ("A2", "2"),
+        ("A3", "3"),
+        ("B1", "=A1*10"),
+        ("C1", "=$A$1+A1"),
+    ] {
+        assert!(
+            session
+                .dispatch(SkinIntent::EnterCell {
+                    at: at(s, address),
+                    text: text.to_owned(),
+                })
+                .accepted()
+        );
+    }
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    let formula_at = |session: &HostSession, address: &str| {
+        let cells = project(
+            session.host(),
+            &ProjectionRequest {
+                cells: vec![at(s, address)],
+            },
+        )
+        .unwrap();
+        match cells.cells()[0].input() {
+            Some(CellInput::Formula(formula)) => formula.text().to_string_lossy(),
+            other => format!("{other:?}"),
+        }
+    };
+    // Fill down: the first row of B1:C3 copied over the rest.
+    let receipt = session.dispatch(SkinIntent::Copy {
+        from: area("B1", "C1"),
+        to: area("B2", "C3"),
+    });
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(formula_at(&session, "B3"), "A3*10");
+    assert_eq!(formula_at(&session, "C2"), "$A$1+A2");
+    assert_eq!(
+        calculated(session.host(), at(s, "B3")),
+        Some(CalcValue::number(30.0))
+    );
+    assert_eq!(
+        calculated(session.host(), at(s, "C3")),
+        Some(CalcValue::number(4.0))
+    );
+    // A paste into one cell takes the source's shape; values copy as they are.
+    let receipt = session.dispatch(SkinIntent::Copy {
+        from: area("A1", "B2"),
+        to: area("E5", "E5"),
+    });
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(formula_at(&session, "F6"), "E6*10");
+    assert!(matches!(
+        value(session.host(), at(s, "E6")),
+        ProjectedValue::Literal(_)
+    ));
+    // A relative reference moved off the grid is #REF!.
+    let receipt = session.dispatch(SkinIntent::Copy {
+        from: area("B1", "B1"),
+        to: area("A2", "A2"),
+    });
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(formula_at(&session, "A2"), "#REF!*10");
+    // A target that is not a multiple of the source is refused, and nothing changes.
+    let before = session.host().revision();
+    let receipt = session.dispatch(SkinIntent::Copy {
+        from: area("A1", "A2"),
+        to: area("H1", "H3"),
+    });
+    assert!(
+        matches!(receipt.error, Some(IntentError::Copy(_))),
+        "{:?}",
+        receipt.error
+    );
+    assert_eq!(session.host().revision(), before);
+    // One undo takes the last copy back.
+    session.dispatch(SkinIntent::Undo);
+    assert_eq!(
+        calculated(session.host(), at(s, "B2")),
+        Some(CalcValue::number(20.0))
+    );
+    assert!(matches!(
+        value(session.host(), at(s, "A2")),
+        ProjectedValue::Literal(_)
+    ));
 }

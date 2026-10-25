@@ -139,6 +139,11 @@ pub enum SkinIntent {
         subscription: SubscriptionId,
         interest: Interest,
     },
+    /// Copies the cells of `from` into `to` as Excel's copy and paste does: values as they are,
+    /// formulas relocated, `to` filled by repeating `from` (a fill down or right is the copy of
+    /// its first row or column over the rest), a single cell taking `from`'s shape
+    /// ([`crate::CopyRefusal`] says what is refused). One transaction, one undo step (dc-09v).
+    Copy { from: GridArea, to: GridArea },
 }
 
 /// Why an intent changed nothing.
@@ -156,6 +161,8 @@ pub enum IntentError {
     UnknownSubscription(SubscriptionId),
     /// The workbook holds no sheet with this identity.
     UnknownSheet(SheetId),
+    /// The copy was refused; the workbook is as it was.
+    Copy(crate::copy::CopyRefusal),
 }
 
 impl fmt::Display for IntentError {
@@ -172,6 +179,7 @@ impl fmt::Display for IntentError {
                 write!(f, "the session has no subscription {}", id.get())
             }
             IntentError::UnknownSheet(sheet) => write!(f, "the workbook holds no sheet {sheet:?}"),
+            IntentError::Copy(refusal) => write!(f, "the copy was refused: {refusal}"),
         }
     }
 }
@@ -391,6 +399,15 @@ impl HostSession {
             SkinIntent::Edit { edits } => {
                 let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
                 self.edit(edits, &mut receipt)
+            }
+            SkinIntent::Copy { from, to } => {
+                match crate::copy::copy_edits(&self.host, from, to) {
+                    Ok(edits) => {
+                        let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                        self.edit(edits, &mut receipt)
+                    }
+                    Err(refusal) => Err(IntentError::Copy(refusal)),
+                }
             }
             SkinIntent::Undo => self.undo(&mut receipt),
             SkinIntent::Redo => self.redo(&mut receipt),

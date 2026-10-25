@@ -54,6 +54,7 @@
 //! no way around these calls to change the authored revision or the engine state.
 
 mod command;
+mod copy;
 mod entry;
 mod history;
 mod project;
@@ -62,6 +63,7 @@ mod save;
 mod session;
 mod state;
 
+pub use copy::{COPY_LIMIT, CopyRefusal};
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
 pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};
 pub use history::{Irreversible, IrreversibleReason, Selection};
