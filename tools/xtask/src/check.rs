@@ -9,7 +9,10 @@
 //! log. xtask itself runs only its binary and library unit tests (`--bins`, plus `--lib` when it
 //! has a library): its acceptance target builds lane clones and is run through `cargo xtask
 //! accept`. With `--wasm` it then runs `cargo xtask ci wasm`, which tests the portable packages
-//! under wasm-bindgen-test-runner in headless Chrome and Firefox (`ci.rs`).
+//! under wasm-bindgen-test-runner in headless Chrome and Firefox (`ci.rs`), and prints one line per
+//! portable package from that job's record: the tests each browser ran of those marked for the
+//! browsers, the native-only tests grouped by their `Native-only:` reason, and the tests that are
+//! neither (which fail the wasm job).
 //!
 //! Every cargo it starts uses `target/xtask-accept`, like `accept` and `ci`, so it never rebuilds
 //! the running xtask binary. Logs go to `target/check/<package>.log` (the architecture checks' cargo
@@ -19,6 +22,7 @@
 use crate::arch;
 use crate::cargo::{self, Member, Workspace};
 use crate::ci;
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode};
@@ -125,6 +129,32 @@ fn check_package(ws: &Workspace, member: &Member, log_dir: &Path) -> bool {
     matches!(status, Status::Failed)
 }
 
+/// One line per portable package from the wasm job's record: where its tests run.
+fn print_browser_coverage(ws: &Workspace) {
+    let path = ws
+        .root
+        .join("target")
+        .join("ci")
+        .join("wasm")
+        .join(ci::MANIFEST_FILE);
+    let record: Option<Value> = fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok());
+    let Some(record) = record else {
+        println!("CHECK wasm coverage: no readable record at {}", ws.rel(&path));
+        return;
+    };
+    for package in record["packages"].as_array().into_iter().flatten() {
+        println!(
+            "CHECK wasm {}: {}",
+            package["package"].as_str().unwrap_or("?"),
+            package["coverage"]["summary"]
+                .as_str()
+                .unwrap_or("the record holds no coverage")
+        );
+    }
+}
+
 pub fn run(raw: &[String]) -> ExitCode {
     let wasm = match raw {
         [] => false,
@@ -198,6 +228,7 @@ pub fn run(raw: &[String]) -> ExitCode {
     if wasm {
         println!("CHECK running cargo xtask ci wasm");
         wasm_failed = ci::run(&["wasm".to_owned()]) != ExitCode::SUCCESS;
+        print_browser_coverage(&ws);
         println!(
             "CHECK {} wasm: record target/ci/wasm",
             if wasm_failed { "failed" } else { "passed" }
