@@ -12,6 +12,7 @@
               ],
     "table":  "A1:B5",
     "names":  {
+                  "S!_FilterDatabase":  "=S!$A$1:$A$10",
                   "N":  "=S!$A$5:$A$7"
               },
     "sheets":  {
@@ -56,6 +57,11 @@
                                                       "formula":  "=A$2+$A5",
                                                       "value":  "7",
                                                       "format":  "0.0%"
+                                                  },
+                                           "D2":  {
+                                                      "formula":  "T!A1",
+                                                      "value":  "T!A1",
+                                                      "format":  "General"
                                                   },
                                            "A3":  {
                                                       "formula":  "",

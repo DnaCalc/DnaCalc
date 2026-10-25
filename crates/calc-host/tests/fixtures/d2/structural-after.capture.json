@@ -2,7 +2,7 @@
   "format": "dnacalc-capture-record",
   "version": 2,
   "case": "d2b_structural",
-  "source": "sha256:59155bab309d42e18ad230a12aed56386e61e104130fe8d44bf223a27de332ef",
+  "source": "sha256:8af94f22a8ae7ac110cff463af1c47ca02a87544bd277573023ba04f15f12552",
   "acquisition": {
     "kind": "live_capture"
   },
@@ -62,10 +62,10 @@
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:bac864f8aca3b0157bb0e1e08036c58bd52ada9ee49ff0c6c1f6bc139f293d6d; repository b57ec7c8605bc39a10a68cfbfa819b7ac117232c+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:bac864f8aca3b0157bb0e1e08036c58bd52ada9ee49ff0c6c1f6bc139f293d6d; repository e1d8566cd48287b4aa3983477e7b84c8a059d7c5+dirty",
     "packages": {
-      "input": "sha256:59155bab309d42e18ad230a12aed56386e61e104130fe8d44bf223a27de332ef",
-      "output": "sha256:a947d3da9af2722a5a6c6db336e358a4667661bfdc20cf72923208748169a51f"
+      "input": "sha256:8af94f22a8ae7ac110cff463af1c47ca02a87544bd277573023ba04f15f12552",
+      "output": "sha256:366516303637836e491640a6087dcf62ea7774313b93bb1b1aa0675d5a36492f"
     },
     "failures": []
   },

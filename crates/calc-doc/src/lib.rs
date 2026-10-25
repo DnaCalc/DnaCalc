@@ -91,8 +91,8 @@ pub use opc::{
 pub use policy::{OpenPolicy, PackageLimits};
 pub use save::file_form::{FileForm, FileFormError, file_form};
 pub use save::{
-    DocumentSnapshot, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, WriteError, prepare_save,
-    write,
+    DocumentSnapshot, SavePlan, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits, WriteError,
+    prepare_save, write,
 };
 pub use source::{MemorySource, PackageRead, PackageWrite, SinkError, SourceError};
 pub use xml::{

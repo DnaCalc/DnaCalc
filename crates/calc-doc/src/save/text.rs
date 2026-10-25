@@ -167,6 +167,13 @@ impl<'a> RawTag<'a> {
         self.empty
     }
 
+    /// Whether the tag has the attribute `name` (as written, prefix included).
+    pub(super) fn has(&self, name: &str) -> bool {
+        self.attributes
+            .iter()
+            .any(|attribute| attribute.name == name.as_bytes())
+    }
+
     /// The name's prefix with its colon (`x:`), or nothing for an unprefixed name: what an element
     /// written beside or inside this one uses for the same namespace.
     pub(super) fn prefix(&self) -> &'a [u8] {

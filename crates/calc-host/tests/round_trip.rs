@@ -879,7 +879,9 @@ fn cached_of(value: &CalcValue) -> CachedValue {
 
 /// The M1 round trip on a workbook from outside the repository, run when `DNACALC_ROUND_TRIP`
 /// names `<input.xlsx>|<output.xlsx>|<step>;<step>;...`, each step `<sheet>!<cell>=<entry>` (the
-/// text typed into the cell, a formula with its `=`) or `undo` or `redo`: open a session, dispatch
+/// text typed into the cell, a formula with its `=`), `<sheet>!insert rows <first> <count>` (or
+/// `delete`, or `columns`: rows or columns inserted or deleted, dc-jhn) or `undo` or `redo`: open
+/// a session, dispatch
 /// the steps (each recalculated, as in automatic mode), save. D1's form
 /// `DNACALC_D1_ROUND_TRIP=<input.xlsx>|<sheet>|<cell>|<number>|<output.xlsx>` is the one step
 /// that sets the cell to the number. The saved file is then captured in Excel (`cargo xtask
@@ -914,9 +916,36 @@ fn d1_round_trip__external_workbook() {
     };
     let mut session = session(&std::fs::read(input).expect("the input workbook"));
     for step_text in steps.split(';').filter(|text| !text.is_empty()) {
+        // dc-jhn: `<sheet>!insert rows <first> <count>`, and likewise `delete` and `columns`.
+        let structural = step_text.rsplit_once('!').and_then(|(sheet_name, rest)| {
+            let words: Vec<&str> = rest.split(' ').collect();
+            let [change, axis, first, count] = words[..] else {
+                return None;
+            };
+            let change = match change {
+                "insert" => AxisChange::Insert,
+                "delete" => AxisChange::Delete,
+                _ => return None,
+            };
+            let axis = match axis {
+                "rows" => Axis::Rows,
+                "columns" => Axis::Columns,
+                _ => return None,
+            };
+            let sheet = sheet(session.host(), sheet_name);
+            AxisEdit::new(
+                sheet,
+                axis,
+                change,
+                first.parse().ok()?,
+                count.parse().ok()?,
+            )
+            .ok()
+        });
         let intent = match step_text {
             "undo" => SkinIntent::Undo,
             "redo" => SkinIntent::Redo,
+            _ if structural.is_some() => SkinIntent::EditAxis(structural.expect("an axis edit")),
             _ => {
                 let (target, text) = step_text.split_once('=').expect("<sheet>!<cell>=<entry>");
                 let (sheet_name, cell) = target.rsplit_once('!').expect("<sheet>!<cell>");
@@ -1178,7 +1207,9 @@ fn differential_run(
     steps: usize,
     contested: &mut usize,
     structural: &mut usize,
+    saved_moved: &mut usize,
 ) -> Vec<String> {
+    let structural_before = *structural;
     let mut rng = Rng(seed);
     let mut session = session(&fixture());
     let calc = sheet(session.host(), "Calc");
@@ -1374,12 +1405,11 @@ fn differential_run(
         // 4. A save's caches.
         if step % 10 == 9 {
             let mut saved = Vec::new();
-            match session.save(&SavePolicy::default(), &mut saved) {
-                Ok(_) => {}
-                // A save after rows or columns were inserted or deleted is refused until the
-                // save writes them.
-                Err(calc_host::SaveFailed::StructuralEdits { .. }) => continue,
-                Err(other) => panic!("the save failed: {other}"),
+            if let Err(error) = session.save(&SavePolicy::default(), &mut saved) {
+                panic!("the save failed: {error}");
+            }
+            if *structural > structural_before {
+                *saved_moved += 1;
             }
             let reopened = open(&saved);
             let reopened_calc = sheet(&reopened, "Calc");
@@ -1388,6 +1418,20 @@ fn differential_run(
                 CellKey::new(reopened_calc, 30, 32).unwrap(),
             )
             .unwrap();
+            // dc-jhn: the saved package holds the session's inputs where the session holds them,
+            // rows and columns inserted or deleted included.
+            let reopened_inputs: BTreeMap<CellKey, CellInput> =
+                area_inputs(&reopened, reopened_region)
+                    .into_iter()
+                    .map(|(at, input)| (CellKey::new(calc, at.row(), at.column()).unwrap(), input))
+                    .collect();
+            if reopened_inputs != after {
+                problems.push(format!(
+                    "seed {seed} step {step}: the saved package holds {:?}, the session {:?}",
+                    shown(&reopened_inputs),
+                    shown(&after)
+                ));
+            }
             for (at, cell) in fresh_cells(&reopened, reopened_region) {
                 let ProjectedValue::FileCached(cache) = cell.value() else {
                     continue;
@@ -1416,13 +1460,14 @@ fn differential_run(
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2_review__random_sessions_agree_with_fresh_projections_and_calculations() {
     let mut problems = Vec::new();
-    let (mut contested, mut structural) = (0, 0);
+    let (mut contested, mut structural, mut saved_moved) = (0, 0, 0);
     for seed in 1..=12u64 {
         problems.extend(differential_run(
             seed * 7919 + 13,
             60,
             &mut contested,
             &mut structural,
+            &mut saved_moved,
         ));
     }
     assert!(problems.is_empty(), "{problems:#?}");
@@ -1430,8 +1475,12 @@ fn d2_review__random_sessions_agree_with_fresh_projections_and_calculations() {
     // compared. The bound keeps a change that makes most steps contested from passing unseen.
     assert!(contested <= 108, "{contested} of 720 steps not compared");
     assert!(structural > 0, "no row or column was inserted or deleted");
+    assert!(
+        saved_moved > 0,
+        "no save followed a row or column inserted or deleted"
+    );
     println!(
-        "ACCEPT-NOTE: 12 runs of 60 steps, {structural} rows or columns inserted or deleted; {contested} steps with a contested spill not compared"
+        "ACCEPT-NOTE: 12 runs of 60 steps, {structural} rows or columns inserted or deleted, {saved_moved} saves after them; {contested} steps with a contested spill not compared"
     );
 }
 
@@ -1821,6 +1870,83 @@ fn d2b_apply(session: &mut HostSession) {
     }
 }
 
+/// The capture of structural-after.xlsx: Excel's value of each formula cell, by sheet name and
+/// (row, column).
+fn d2b_excel_values() -> BTreeMap<(String, u32, u32), CalcValue> {
+    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
+        "fixtures/d2/structural-after.capture.json"
+    ))
+    .expect("the capture decodes");
+    capture
+        .observations
+        .iter()
+        .filter_map(|observed| {
+            let calc_verdict::Observation::ExcelRaw(excel) = &observed.observation else {
+                return None;
+            };
+            let key = (
+                observed.cell.sheet().to_owned(),
+                observed.cell.row(),
+                observed.cell.column(),
+            );
+            Some((key, excel.clone()))
+        })
+        .collect()
+}
+
+/// `host` holds what Excel's package holds after the same edits (`excel_after`): every input
+/// (each formula's references adjusted as Excel's, #REF! for a deleted target included), the
+/// defined names, and, on each sheet's A1:J16, each cell's number format, each row's height and
+/// hidden flag and each column's width, the inserted ones taking the row above's or the column to
+/// the left's, as Excel's insertion does.
+fn d2b_assert_like_excel(host: &HostState, excel_after: &HostState, what: &str) {
+    assert_eq!(d2b_inputs(host), d2b_inputs(excel_after), "{what}: inputs");
+    let names = |host: &HostState| -> Vec<String> {
+        host.defined_names()
+            .iter()
+            .map(|name| format!("{} {}", name.name, name.formula))
+            .collect()
+    };
+    assert_eq!(names(host), names(excel_after), "{what}: defined names");
+    for entry in host.sheets() {
+        let name = entry.name().text().to_string_lossy();
+        let mine = entry.id();
+        let theirs = sheet(excel_after, &name);
+        for row in 1..=16 {
+            for column in 1..=10 {
+                assert_eq!(
+                    host.number_format(CellKey::new(mine, row, column).unwrap()),
+                    excel_after.number_format(CellKey::new(theirs, row, column).unwrap()),
+                    "{what}: {name} row {row} column {column}"
+                );
+            }
+        }
+        let (ours, excel) = (
+            host.sheet_geometry(mine).unwrap(),
+            excel_after.sheet_geometry(theirs).unwrap(),
+        );
+        for row in 1..=16 {
+            assert_eq!(
+                ours.row(row).and_then(|format| format.height),
+                excel.row(row).and_then(|format| format.height),
+                "{what}: {name} row {row} height"
+            );
+            assert_eq!(
+                ours.row(row).is_some_and(|format| format.hidden),
+                excel.row(row).is_some_and(|format| format.hidden),
+                "{what}: {name} row {row} hidden"
+            );
+        }
+        for column in 1..=10 {
+            assert_eq!(
+                ours.column(column).and_then(|span| span.width),
+                excel.column(column).and_then(|span| span.width),
+                "{what}: {name} column {column} width"
+            );
+        }
+    }
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn d2b_structural__edits_match_excel_and_undo_restores() {
@@ -1828,86 +1954,44 @@ fn d2b_structural__edits_match_excel_and_undo_restores() {
     let base_inputs = d2b_inputs(session.host());
     d2b_apply(&mut session);
     let excel_after = open(&d2b_fixture("after"));
-
-    // The inputs, each formula's references adjusted as Excel's (#REF! for a deleted target
-    // included), are those of the package Excel saved after the same edits.
-    assert_eq!(d2b_inputs(session.host()), d2b_inputs(&excel_after));
-    // The defined name and the table moved as Excel moved them.
-    let names = |host: &HostState| -> Vec<String> {
-        host.defined_names()
-            .iter()
-            .map(|name| format!("{} {}", name.name, name.formula))
-            .collect()
-    };
-    assert_eq!(names(session.host()), names(&excel_after));
+    d2b_assert_like_excel(session.host(), &excel_after, "the session");
 
     // Every formula cell calculates Excel's value (capture of structural-after.xlsx).
-    let capture = calc_verdict::CaptureRecord::decode(include_bytes!(
-        "fixtures/d2/structural-after.capture.json"
-    ))
-    .expect("the capture decodes");
+    let excel_values = d2b_excel_values();
     let ours = d2b_cells(session.host());
-    let mut compared = 0;
-    for observed in &capture.observations {
-        let calc_verdict::Observation::ExcelRaw(excel) = &observed.observation else {
-            continue;
-        };
-        let key = (
-            observed.cell.sheet().to_owned(),
-            observed.cell.row(),
-            observed.cell.column(),
-        );
-        match ours.get(&key).map(|cell| cell.value()) {
-            Some(ProjectedValue::Calculated { value, .. }) => {
-                assert_eq!(value, excel, "{key:?}");
-                compared += 1;
-            }
+    for (key, excel) in &excel_values {
+        match ours.get(key).map(|cell| cell.value()) {
+            Some(ProjectedValue::Calculated { value, .. }) => assert_eq!(value, excel, "{key:?}"),
             other => panic!("{key:?} is {other:?}, Excel shows {excel:?}"),
         }
     }
-    assert_eq!(compared, 15, "every formula cell of the capture");
+    assert_eq!(excel_values.len(), 15, "every formula cell of the capture");
 
-    // Number formats, row heights and column widths moved with the edits, the inserted ones
-    // taking the row above's or the column to the left's, as Excel's insertion does.
-    for entry in session.host().sheets() {
-        let name = entry.name().text().to_string_lossy();
-        let mine = entry.id();
-        let theirs = sheet(&excel_after, &name);
-        for row in 1..=16 {
-            for column in 1..=10 {
-                assert_eq!(
-                    session
-                        .host()
-                        .number_format(CellKey::new(mine, row, column).unwrap()),
-                    excel_after.number_format(CellKey::new(theirs, row, column).unwrap()),
-                    "{name} row {row} column {column}"
-                );
+    // The save writes the moved rows and columns: the package reopened holds what Excel's holds,
+    // with each formula's calculated value as its cached value.
+    let mut saved = Vec::new();
+    let receipt = session
+        .save(&SavePolicy::default(), &mut saved)
+        .expect("the save after the edits");
+    let reopened = open(&saved);
+    d2b_assert_like_excel(&reopened, &excel_after, "the saved package");
+    let cached = d2b_cells(&reopened);
+    for (key, excel) in &excel_values {
+        match cached.get(key).map(|cell| cell.value()) {
+            Some(ProjectedValue::FileCached(cache)) => {
+                assert_eq!(cache.value(), &cached_of(excel), "{key:?}")
             }
-        }
-        let (ours, excel) = (
-            session.host().sheet_geometry(mine).unwrap(),
-            excel_after.sheet_geometry(theirs).unwrap(),
-        );
-        for row in 1..=16 {
-            assert_eq!(
-                ours.row(row).and_then(|format| format.height),
-                excel.row(row).and_then(|format| format.height),
-                "{name} row {row} height"
-            );
-            assert_eq!(
-                ours.row(row).is_some_and(|format| format.hidden),
-                excel.row(row).is_some_and(|format| format.hidden),
-                "{name} row {row} hidden"
-            );
-        }
-        for column in 1..=10 {
-            assert_eq!(
-                ours.column(column).and_then(|span| span.width),
-                excel.column(column).and_then(|span| span.width),
-                "{name} column {column} width"
-            );
+            other => panic!("{key:?} is saved as {other:?}, Excel shows {excel:?}"),
         }
     }
+    // Native-only: the package is written where DNACALC_D2B_SAVED names, for
+    // tests/fixtures/d2/compare-structural.ps1 to open in Excel.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Ok(path) = std::env::var("DNACALC_D2B_SAVED") {
+        std::fs::write(&path, &saved).expect("written");
+        println!("ACCEPT-NOTE: d2b_structural: {receipt:?} written to {path}");
+    }
+    let _ = receipt;
 
     // Undo takes the edits back one at a time, to the workbook as opened; redo makes them again.
     for _ in D2B_STEPS {

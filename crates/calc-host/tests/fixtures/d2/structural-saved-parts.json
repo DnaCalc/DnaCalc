@@ -1,0 +1,64 @@
+{
+  "excel": "structural-after.xlsx",
+  "saved": "structural-saved.xlsx",
+  "compared": {
+    "defined_names": {
+      "items": 2,
+      "equal": 2
+    },
+    "merged": {
+      "items": 3,
+      "equal": 3
+    },
+    "hyperlinks": {
+      "items": 1,
+      "equal": 1
+    },
+    "validations": {
+      "items": 2,
+      "equal": 2
+    },
+    "conditional": {
+      "items": 1,
+      "equal": 1
+    },
+    "rows": {
+      "items": 5,
+      "equal": 5
+    },
+    "columns": {
+      "items": 2,
+      "equal": 2
+    },
+    "number_formats": {
+      "items": 11,
+      "equal": 11
+    },
+    "filter": {
+      "items": 1,
+      "equal": 1
+    },
+    "comments": {
+      "items": 3,
+      "equal": 3
+    },
+    "notes": {
+      "items": 3,
+      "equal": 3
+    },
+    "threaded_comments": {
+      "items": 1,
+      "equal": 1
+    },
+    "drawing_anchors": {
+      "items": 1,
+      "equal": 1
+    },
+    "tables": {
+      "items": 1,
+      "equal": 1
+    }
+  },
+  "differences": [],
+  "all_equal": true
+}

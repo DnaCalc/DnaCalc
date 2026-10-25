@@ -20,6 +20,7 @@ mod parts;
 mod reader;
 mod sheet;
 mod strings;
+mod structural;
 #[cfg(test)]
 mod tests;
 mod text;
@@ -36,6 +37,8 @@ use calc_doc_model::{AuthoredRevision, CachedValue, ModelRoot};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
+
+pub use structural::StructuralEdits;
 
 /// An immutable view of a document, which a save is prepared from: an opened package as it was
 /// opened, or a revision of a loaded workbook's model with the records it was loaded with.
@@ -62,6 +65,9 @@ pub(crate) struct Edited {
     /// The area each array formula's result fills, by anchor
     /// ([`crate::LoadedWorkbook::snapshot_with_results`]).
     spills: Arc<BTreeMap<CellKey, GridArea>>,
+    /// The rows and columns inserted and deleted since the load, which the save moves the
+    /// package's rows, columns and what lies on them by ([`DocumentSnapshot::with_structural_edits`]).
+    structural: Option<StructuralEdits>,
 }
 
 impl DocumentSnapshot {
@@ -92,8 +98,27 @@ impl DocumentSnapshot {
                 model,
                 values,
                 spills,
+                structural: None,
             }),
         }
+    }
+
+    /// The snapshot of a revision that rows or columns were inserted into or deleted from since
+    /// the load: `edits` lists them in order. The save moves the package's rows and cells, and
+    /// what names their positions (merged cells, conditional formats, data validations,
+    /// hyperlinks, filters, page breaks, views, column spans, comments, notes, drawings, tables,
+    /// charts' series and defined names), as Excel's insertion and deletion move them, before it
+    /// writes the revision's cells (dc-jhn); what it does not move it refuses
+    /// ([`SaveRefusal::StructuralNotMoved`]). The edits' formulas outside cells are rewritten by
+    /// their rewriter. A snapshot of a package as opened, or edits that are empty, are left as
+    /// they are.
+    pub fn with_structural_edits(mut self, edits: StructuralEdits) -> Self {
+        if let Some(edit) = self.edit.as_mut()
+            && !edits.edits().is_empty()
+        {
+            edit.structural = Some(edits);
+        }
+        self
     }
 
     pub fn package(&self) -> &Package {
@@ -205,6 +230,10 @@ pub enum SaveRefusal {
         column: u32,
         code: calc_doc_model::value::WorksheetErrorCode,
     },
+    /// Rows or columns were inserted or deleted, and the part `part` holds `what`, which names
+    /// positions of an edited sheet that the save does not move
+    /// ([`DocumentSnapshot::with_structural_edits`]): it would be written where it was.
+    StructuralNotMoved { part: String, what: String },
 }
 
 impl fmt::Display for SaveRefusal {
@@ -277,6 +306,10 @@ impl fmt::Display for SaveRefusal {
             } => write!(
                 f,
                 "{part}: the error {code:?} set at row {row} column {column} is not a constant Excel holds in a cell"
+            ),
+            Self::StructuralNotMoved { part, what } => write!(
+                f,
+                "{part}: rows or columns were inserted or deleted, and {what} is not moved with them"
             ),
             Self::FormulaFileForm {
                 part,

@@ -2,12 +2,13 @@
 //! cell's calculated value as its cached value.
 
 use crate::state::HostState;
-use calc_doc::{PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError};
+use calc_doc::{PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits, WriteError};
 use calc_doc_model::value::{CellKey, CoreValue, GridArea};
 use calc_doc_model::{CachedValue, CellInput, CellText, FiniteNumber};
 use calc_engine::FormulaResult;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 /// Why [`save`] wrote no package (or an incomplete one, which must be discarded).
 #[derive(Debug, PartialEq, Eq)]
@@ -16,10 +17,6 @@ pub enum SaveFailed {
     Refused(SaveRefusal),
     /// The write failed.
     Write(WriteError),
-    /// Rows or columns were inserted or deleted since the workbook was opened (this many axis
-    /// edits lead to the current revision), and the save does not yet move the package's rows,
-    /// columns and what lies on them (dc-jhn); nothing was written.
-    StructuralEdits { count: usize },
 }
 
 impl fmt::Display for SaveFailed {
@@ -27,10 +24,6 @@ impl fmt::Display for SaveFailed {
         match self {
             SaveFailed::Refused(refusal) => write!(f, "the save was refused: {refusal}"),
             SaveFailed::Write(error) => write!(f, "the write failed: {error}"),
-            SaveFailed::StructuralEdits { count } => write!(
-                f,
-                "{count} row or column insertions or deletions are not yet written by a save"
-            ),
         }
     }
 }
@@ -58,18 +51,16 @@ fn cached(core: &CoreValue) -> Option<CachedValue> {
 /// saved without one, for Excel to calculate when it opens the package. An array formula's anchor
 /// whose result stands is saved with the area its result fills as its `ref` (its spill range, a
 /// legacy array's area, or the anchor alone for a single value or #SPILL!), and each cell of that
-/// area beside the anchor with the value the result shows there. A revision that is still the
-/// loaded one is written as the package was opened.
+/// area beside the anchor with the value the result shows there. Rows and columns inserted or
+/// deleted since the open move the package's rows, columns and what lies on them
+/// ([`calc_doc::DocumentSnapshot::with_structural_edits`]); what the save does not move is
+/// refused ([`SaveRefusal::StructuralNotMoved`]). A revision that is still the loaded one is
+/// written as the package was opened.
 pub fn save(
     host: &HostState,
     policy: &SavePolicy,
     out: &mut dyn PackageWrite,
 ) -> Result<SaveReceipt, SaveFailed> {
-    if !host.axis_edits.is_empty() {
-        return Err(SaveFailed::StructuralEdits {
-            count: host.axis_edits.len(),
-        });
-    }
     let stale = host
         .engine
         .stale(&host.model)
@@ -110,9 +101,15 @@ pub fn save(
             }
         }
     }
+    // Rows or columns inserted or deleted since the open: the save moves the package's rows,
+    // columns and what lies on them, as the model moved them (dc-jhn).
     let snapshot = host
         .loaded
-        .snapshot_with_results(&host.model, values, spills);
+        .snapshot_with_results(&host.model, values, spills)
+        .with_structural_edits(StructuralEdits::new(
+            host.axis_edits.clone(),
+            Arc::new(calc_engine::ReferenceRewriter),
+        ));
     let plan = calc_doc::prepare_save(&snapshot, policy).map_err(SaveFailed::Refused)?;
     calc_doc::write(plan, out).map_err(SaveFailed::Write)
 }
