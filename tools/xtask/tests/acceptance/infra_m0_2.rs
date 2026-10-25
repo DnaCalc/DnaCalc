@@ -283,6 +283,8 @@ struct Member {
     portable: bool,
     lib_crate: Option<String>,
     tests: Vec<String>,
+    /// Binary targets, by cargo's name (an app's browser entry is one).
+    bins: Vec<String>,
 }
 
 /// The copy's members, read with its own `cargo metadata`.
@@ -333,6 +335,11 @@ fn members(matrix: &Matrix, evidence: &mut Evidence) -> Vec<Member> {
                 tests: targets
                     .iter()
                     .filter(|target| kind_is(target, "test"))
+                    .filter_map(|target| target["name"].as_str().map(str::to_owned))
+                    .collect(),
+                bins: targets
+                    .iter()
+                    .filter(|target| kind_is(target, "bin"))
                     .filter_map(|target| target["name"].as_str().map(str::to_owned))
                     .collect(),
             }
@@ -652,6 +659,11 @@ pub fn platform_matrix() {
             let mut modules = vec![(krate.clone(), executable_block(&log, &krate))];
             for test in member.tests.iter().filter(|test| *test != "acceptance") {
                 modules.push((test.clone(), executable_block(&log, test)));
+            }
+            // A binary target's executable is named with underscores; the manifest names it as
+            // cargo does.
+            for bin in &member.bins {
+                modules.push((bin.clone(), executable_block(&log, &bin.replace('-', "_"))));
             }
             // Each module either holds no wasm-bindgen test (the runner prints `no tests to run!`,
             // no banner and no result line, and starts no browser) or ran under the runner's banner
