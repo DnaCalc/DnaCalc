@@ -288,12 +288,8 @@ pub struct RecalcWork {
     /// Nodes to calculate again in the next wave.
     rewave: BTreeSet<NodeId>,
     waves: u32,
-    scratch: EvalScratch,
-    /// The areas the evaluation in progress read, kept between evaluations so that each does
-    /// not allocate its own list (dc-dxm).
-    footprint: Vec<GridArea>,
-    /// The storage the engine's reader gathers a read's values in, kept between evaluations.
-    read_batch: Vec<CalcValue>,
+    /// The storage one evaluation works in, kept between evaluations ([`EvalLocal`]).
+    pub(crate) local: EvalLocal,
     failure: Option<RecalcFailure>,
     /// The workbook's iteration settings.
     iteration: IterationSettings,
@@ -310,8 +306,69 @@ pub struct RecalcWork {
     /// With iteration off, the formulas a circular reference left uncalculated (dc-10y): those on
     /// a cycle that their evaluations met, and those whose evaluation read one of them.
     kept: BTreeSet<NodeId>,
-    /// Whether the evaluation running read a formula of `kept`.
+}
+
+/// The storage one evaluation works in (dc-2m0: each thread of a parallel recalculation has its
+/// own; a one-thread recalculation keeps one in its work): the evaluator's scratch, the areas the
+/// evaluation read, the reader's gathering storage, and whether it read a formula of `kept`.
+#[derive(Debug, Default)]
+pub(crate) struct EvalLocal {
+    scratch: EvalScratch,
+    footprint: Vec<GridArea>,
+    read_batch: Vec<CalcValue>,
     kept_read: Cell<bool>,
+}
+
+/// What every evaluation of one recalculation reads of its work, and nothing it writes (dc-2m0):
+/// the results it staged, its spills, the values of an iterating cycle, the formulas a cycle left
+/// uncalculated, the formulas waiting, those on a cycle, and its calculation. Built from the work
+/// for each evaluation of a one-thread recalculation, and for each level of a parallel one, when
+/// all of it is only read.
+pub(crate) struct EvalShared<'a> {
+    pub(crate) calculation: &'a Calculation,
+    pub(crate) progress: &'a Progress,
+    pub(crate) spills: &'a SpillIndex,
+    pub(crate) iterates: Option<&'a BTreeMap<NodeId, Option<CalcValue>>>,
+    pub(crate) kept: Option<&'a BTreeSet<NodeId>>,
+    pub(crate) waits_on: &'a BTreeMap<NodeId, NodeId>,
+    pub(crate) cyclic: &'a BTreeSet<NodeId>,
+}
+
+impl<'a> EvalShared<'a> {
+    /// The view an evaluation's reader reads through, with `local`'s flag for a read of a kept
+    /// formula.
+    fn view(
+        &self,
+        state: &'a EngineState,
+        inputs: &'a ModelRoot,
+        local: &'a EvalLocal,
+    ) -> RecalcView<'a> {
+        RecalcView {
+            inputs,
+            state,
+            progress: self.progress,
+            spills: self.spills,
+            iterates: self.iterates,
+            kept: self.kept.map(|kept| (kept, &local.kept_read)),
+        }
+    }
+}
+
+/// [`EvalShared`] of `work`, borrowing only the fields it names, so that `work.local` can be
+/// borrowed beside it.
+macro_rules! shared_of {
+    ($work:expr) => {
+        EvalShared {
+            calculation: &$work.calculation,
+            progress: &$work.progress,
+            spills: &$work.spills,
+            iterates: ($work.iteration.enabled() && !$work.cyclic.is_empty())
+                .then_some(&$work.iterates),
+            kept: (!$work.iteration.enabled()).then_some(&$work.kept),
+            waits_on: &$work.waits_on,
+            cyclic: &$work.cyclic,
+        }
+    };
 }
 
 impl RecalcWork {
@@ -343,17 +400,6 @@ impl RecalcWork {
             }
         } else {
             RecalcProgress::Complete
-        }
-    }
-
-    fn view<'a>(&'a self, state: &'a EngineState, inputs: &'a ModelRoot) -> RecalcView<'a> {
-        RecalcView {
-            inputs,
-            state,
-            progress: &self.progress,
-            spills: &self.spills,
-            iterates: self.iterating().then_some(&self.iterates),
-            kept: (!self.iteration.enabled()).then_some((&self.kept, &self.kept_read)),
         }
     }
 
@@ -514,9 +560,7 @@ pub fn begin_recalc(
         dynamic: BySlot::default(),
         rewave: BTreeSet::new(),
         waves: 0,
-        scratch: EvalScratch::new(),
-        footprint: Vec::new(),
-        read_batch: Vec::new(),
+        local: EvalLocal::default(),
         failure: None,
         iteration,
         cyclic: BTreeSet::new(),
@@ -524,7 +568,6 @@ pub fn begin_recalc(
         pass_start: BTreeMap::new(),
         passes: 0,
         kept: BTreeSet::new(),
-        kept_read: Cell::new(false),
     })
     .map(|mut work| {
         work.add_cyclic(state, cyclic);
@@ -575,23 +618,247 @@ pub fn step(
             revision: work.revision,
         });
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    if budget == WorkBudget::UNLIMITED && parallel::eligible(state, inputs, work, &*observer) {
+        parallel::evaluate_levels(state, inputs, work, &mut *observer);
+    }
     let mut evaluations = 0;
     while work.failure.is_none() && evaluations < budget.evaluations {
         let Some(node) = next_node(state, inputs, work) else {
             break;
         };
         evaluations += 1;
-        match evaluate_node(state, inputs, work, node, &mut *observer) {
-            Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
-            Ok(Attempt::Kept) => keep(state, inputs, work, node),
-            Ok(Attempt::Waits { on, cell }) => {
-                observer.deferred(live_anchor(state, node), cell);
-                defer(state, inputs, work, node, on);
-            }
-            Err(failure) => work.failure = Some(failure),
-        }
+        process(state, inputs, work, node, &mut *observer);
     }
     work.progress()
+}
+
+/// Evaluates `node` on this thread and stages what it gives: a result, a formula a cycle leaves
+/// uncalculated, a wait, or the recalculation's failure.
+fn process(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    work: &mut RecalcWork,
+    node: NodeId,
+    observer: &mut dyn ReadObserver,
+) {
+    let attempt = evaluate_node(state, inputs, work, node, &mut *observer);
+    apply(state, inputs, work, node, attempt, observer);
+}
+
+/// Stages what an evaluation of `node` gave.
+fn apply(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    work: &mut RecalcWork,
+    node: NodeId,
+    attempt: Result<Attempt, RecalcFailure>,
+    observer: &mut dyn ReadObserver,
+) {
+    match attempt {
+        Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
+        Ok(Attempt::Kept) => keep(state, inputs, work, node),
+        Ok(Attempt::Waits { on, cell }) => {
+            observer.deferred(live_anchor(state, node), cell);
+            defer(state, inputs, work, node, on);
+        }
+        Err(failure) => work.failure = Some(failure),
+    }
+}
+
+/// Parallel evaluation of a recalculation's first wave on native platforms (dc-2m0).
+///
+/// The order the recalculation was given (the ready queue's) is cut into levels: a node's level is
+/// one more than the highest level of the nodes of the closure it reads, by the readers the
+/// ordering found (the readers cache), so no node reads, through an edge of the graph, a node of
+/// its own level or a later one. Each level is evaluated on several threads through the one
+/// evaluator ([`evaluate_with`]), every evaluation reading only what earlier levels staged
+/// ([`EvalShared`], which no thread writes while a level runs) and writing only its own thread's
+/// storage ([`EvalLocal`]); then this thread stages the results in the level's order of the
+/// recalculation, which is where every write to the recalculation is made (`stage`, as the
+/// one-thread route does). An evaluation that did not finish (it read a formula cell this
+/// recalculation has yet to calculate, through a reference no edge knew of, or met a formula a
+/// cycle left uncalculated) is dropped, and the formula is evaluated again on this thread in its
+/// place in that order, with everything staged before it, as the one-thread route would at that
+/// point; formulas released from waiting are evaluated before the next level, as the one-thread
+/// route takes them before the order's next. A level of fewer formulas than the state's parallel
+/// minimum (64 by default) is evaluated on this thread, and so is a first wave of fewer than
+/// 1,024.
+///
+/// A recalculation is evaluated this way only when nothing in it depends on the order of
+/// evaluation beyond its values: no array formula and no spill (whose areas decide what other
+/// formulas read), no circular reference and no iteration, no what-if data table, an observer that
+/// observes nothing ([`ReadObserver::is_silent`]: an observer is shown evaluations in order), and
+/// every node's readers known. Any other recalculation, and every one on wasm32, runs on one
+/// thread. The values published are those of the one-thread route: each formula's value depends
+/// only on the values it reads, and every value it reads was staged before its level, or it is
+/// evaluated again on this thread.
+#[cfg(not(target_arch = "wasm32"))]
+mod parallel {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use crate::Unobserved;
+    use std::sync::Mutex;
+
+    /// How many formulas a thread takes from a level at a time.
+    const CHUNK: usize = 32;
+
+    pub(super) fn eligible(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        work: &RecalcWork,
+        observer: &dyn ReadObserver,
+    ) -> bool {
+        state.threads > 1
+            && observer.is_silent()
+            && work.failure.is_none()
+            && work.next == 0
+            && work.waves == 0
+            && work.ready.is_empty()
+            && work.waits_on.is_empty()
+            && work.order.len() >= state.parallel_minimum.wave
+            && !work.iteration.enabled()
+            && work.cyclic.is_empty()
+            && work.spills.is_empty()
+            && state.spills.is_empty()
+            && inputs.definitions().arrays().next().is_none()
+            && inputs.definitions().data_tables().is_empty()
+    }
+
+    /// Each position of the order's level, or `None` when a node's readers are not known.
+    fn levels(state: &EngineState, order: &[NodeId]) -> Option<Vec<u32>> {
+        const NONE: u32 = u32::MAX;
+        let mut position = vec![NONE; state.nodes.len()];
+        for (at, node) in order.iter().enumerate() {
+            position[node.slot() as usize] = at as u32;
+        }
+        let mut level = vec![0u32; order.len()];
+        for (at, node) in order.iter().enumerate() {
+            let readers = state
+                .readers_cache
+                .get(*node, live_anchor(state, *node))?;
+            let next = level[at] + 1;
+            for reader in readers {
+                let to = position[reader.slot() as usize];
+                if to != NONE {
+                    debug_assert!(to as usize > at, "the order puts a node after those it reads");
+                    let held = &mut level[to as usize];
+                    *held = (*held).max(next);
+                }
+            }
+        }
+        Some(level)
+    }
+
+    pub(super) fn evaluate_levels(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        work: &mut RecalcWork,
+        observer: &mut dyn ReadObserver,
+    ) {
+        let Some(level) = levels(state, &work.order) else {
+            return;
+        };
+        // The positions of each level, each level in the order's order.
+        let count = level.iter().max().map_or(0, |max| *max as usize + 1);
+        let mut starts = vec![0usize; count + 1];
+        for held in &level {
+            starts[*held as usize + 1] += 1;
+        }
+        for at in 1..=count {
+            starts[at] += starts[at - 1];
+        }
+        let mut grouped = vec![0usize; level.len()];
+        let mut next = starts.clone();
+        for (at, held) in level.iter().enumerate() {
+            grouped[next[*held as usize]] = at;
+            next[*held as usize] += 1;
+        }
+        let threads = state.threads;
+        let mut locals: Vec<EvalLocal> = (0..threads).map(|_| EvalLocal::default()).collect();
+        for held in 0..count {
+            if work.failure.is_some() {
+                break;
+            }
+            let positions = &grouped[starts[held]..starts[held + 1]];
+            if positions.len() < state.parallel_minimum.level {
+                for &at in positions {
+                    let node = work.order[at];
+                    process(state, inputs, work, node, &mut *observer);
+                }
+            } else {
+                let attempts = evaluate_level(state, inputs, work, positions, &mut locals);
+                for (at, attempt) in positions.iter().zip(attempts) {
+                    if work.failure.is_some() {
+                        break;
+                    }
+                    let node = work.order[*at];
+                    match attempt {
+                        Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
+                        // Evaluated again here, in its place in the order.
+                        _ => process(state, inputs, work, node, &mut *observer),
+                    }
+                }
+            }
+            while work.failure.is_none()
+                && let Some(node) = work.ready.pop_front()
+            {
+                process(state, inputs, work, node, &mut *observer);
+            }
+        }
+        // Every node of the order was evaluated or waits; the one-thread route takes what is
+        // left (the waits, the formulas a cycle left waiting).
+        work.next = work.order.len();
+    }
+
+    /// The attempts of a level's formulas, in `positions`' order, evaluated on `locals.len()`
+    /// threads against what earlier levels staged.
+    fn evaluate_level(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        work: &RecalcWork,
+        positions: &[usize],
+        locals: &mut [EvalLocal],
+    ) -> Vec<Result<Attempt, RecalcFailure>> {
+        let shared = shared_of!(work);
+        let order = &work.order;
+        let cursor = AtomicUsize::new(0);
+        let gathered: Mutex<Vec<(usize, Result<Attempt, RecalcFailure>)>> =
+            Mutex::new(Vec::with_capacity(positions.len()));
+        std::thread::scope(|scope| {
+            let worker = |local: &mut EvalLocal| {
+                let mut mine = Vec::new();
+                let mut silent = Unobserved;
+                loop {
+                    let from = cursor.fetch_add(CHUNK, Ordering::Relaxed);
+                    if from >= positions.len() {
+                        break;
+                    }
+                    for index in from..(from + CHUNK).min(positions.len()) {
+                        let node = order[positions[index]];
+                        let attempt =
+                            evaluate_with(state, inputs, &shared, local, node, &mut silent);
+                        mine.push((index, attempt));
+                    }
+                }
+                gathered
+                    .lock()
+                    .expect("no worker panics while holding the results")
+                    .append(&mut mine);
+            };
+            let (own, others) = locals.split_first_mut().expect("at least one thread");
+            for local in others {
+                scope.spawn(move || worker(local));
+            }
+            worker(own);
+        });
+        let mut gathered = gathered
+            .into_inner()
+            .expect("no worker panicked holding the results");
+        gathered.sort_unstable_by_key(|(index, _)| *index);
+        debug_assert_eq!(gathered.len(), positions.len());
+        gathered.into_iter().map(|(_, attempt)| attempt).collect()
+    }
 }
 
 /// Publishes a completed recalculation: each evaluated node's staged result replaces its published
@@ -1549,10 +1816,15 @@ fn circular() -> NotModeled {
 
 /// A staged refusal, with no spill and no dynamic prerequisite.
 fn refused(work: &RecalcWork, refusal: NotModeled) -> Done {
+    refused_by(&work.calculation, refusal)
+}
+
+/// A staged refusal by `calculation`, with no spill and no dynamic prerequisite.
+fn refused_by(calculation: &Calculation, refusal: NotModeled) -> Done {
     Done {
         result: FormulaResult::NotModeled {
             refusal,
-            calculation: work.calculation.clone(),
+            calculation: calculation.clone(),
         },
         spill: None,
         dynamic: Vec::new(),
@@ -1819,22 +2091,39 @@ fn evaluate_node(
     node: NodeId,
     observer: &mut dyn ReadObserver,
 ) -> Result<Attempt, RecalcFailure> {
+    let shared = shared_of!(work);
+    evaluate_with(state, inputs, &shared, &mut work.local, node, observer)
+}
+
+/// Evaluates `node` against what `shared` holds of the recalculation, in `local`'s storage: the one
+/// evaluation route, whether one thread runs the recalculation or several (dc-2m0). It writes
+/// nothing but `local`; staging what it gives is the caller's, in order.
+fn evaluate_with(
+    state: &EngineState,
+    inputs: &ModelRoot,
+    shared: &EvalShared<'_>,
+    local: &mut EvalLocal,
+    node: NodeId,
+    observer: &mut dyn ReadObserver,
+) -> Result<Attempt, RecalcFailure> {
     let formula = live_anchor(state, node);
-    let calculation = work.calculation.clone();
+    let calculation = shared.calculation.clone();
     let (instance, role) = match state
         .bindings
         .get(&node)
         .expect("begin_recalc bound every node it scheduled")
     {
         Binding::Placed(instance, role) => (instance, *role),
-        Binding::Refused(refusal) => return Ok(Attempt::Done(refused(work, refusal.clone()))),
+        Binding::Refused(refusal) => {
+            return Ok(Attempt::Done(refused_by(&calculation, refusal.clone())));
+        }
         Binding::DataTable(table) => {
             // A table cell whose substitution reads a formula a circular reference left
             // uncalculated is not calculated either (dc-10y; Excel 16.0.20430, 2026-10-25,
             // iteration off: a table over `=A1+C1`, A1 on a cycle, shows 0 in each cell, as
             // a formula that reads the cycle does).
-            work.kept_read.set(false);
-            let view = work.view(state, inputs);
+            local.kept_read.set(false);
+            let view = shared.view(state, inputs, local);
             let outcome = crate::data_table::evaluate_cell(
                 state,
                 inputs,
@@ -1844,7 +2133,7 @@ fn evaluate_node(
                 formula,
                 Some((&calculation, &mut *observer)),
             );
-            if work.kept_read.get() {
+            if local.kept_read.get() {
                 return Ok(Attempt::Kept);
             }
             return Ok(
@@ -1856,11 +2145,11 @@ fn evaluate_node(
                                 spill: None,
                                 dynamic: Vec::new(),
                             }),
-                            Err(refusal) => Attempt::Done(refused(work, refusal)),
+                            Err(refusal) => Attempt::Done(refused_by(&calculation, refusal)),
                         }
                     }
                     crate::data_table::TableOutcome::Refused(refusal) => {
-                        Attempt::Done(refused(work, refusal))
+                        Attempt::Done(refused_by(&calculation, refusal))
                     }
                     crate::data_table::TableOutcome::Waits { on, cell } => {
                         Attempt::Waits { on, cell }
@@ -1870,18 +2159,12 @@ fn evaluate_node(
         }
     };
     let uncomputed = Cell::new(None);
-    let footprint = RefCell::new(std::mem::take(&mut work.footprint));
-    work.kept_read.set(false);
-    let view = RecalcView {
-        inputs,
-        state,
-        progress: &work.progress,
-        spills: &work.spills,
-        iterates: work.iterating().then_some(&work.iterates),
-        kept: (!work.iteration.enabled()).then_some((&work.kept, &work.kept_read)),
-    };
-    let mut cells =
-        WorkbookReader::new(view, &uncomputed).with_batch(std::mem::take(&mut work.read_batch));
+    let footprint = RefCell::new(std::mem::take(&mut local.footprint));
+    local.kept_read.set(false);
+    let batch = std::mem::take(&mut local.read_batch);
+    let mut scratch = std::mem::take(&mut local.scratch);
+    let view = shared.view(state, inputs, &*local);
+    let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
     let catalog = SnapshotCatalog(inputs);
     let mut random = RandomStream::new(state.random_seed, calculation.tick().get(), formula);
     let observer = RefCell::new(observer);
@@ -1899,24 +2182,26 @@ fn evaluate_node(
             calculation: &calculation,
             footprint: &footprint,
             uncomputed: &uncomputed,
-            kept_read: &work.kept_read,
+            kept_read: &local.kept_read,
         };
         let outcome = {
             let mut services = EvaluationServices::new(calculation.mode(), &mut observed)
                 .with_catalog(&catalog)
                 .with_random(&mut random)
                 .observed_by(instrument);
-            evaluate(EvalFrame::new(instance, &mut work.scratch), &mut services)
+            evaluate(EvalFrame::new(instance, &mut scratch), &mut services)
         };
         (outcome, observed.stopped)
     };
-    work.read_batch = cells.into_batch();
+    local.read_batch = cells.into_batch();
+    local.scratch = scratch;
+    let kept_read = local.kept_read.get();
     if let Some(area) = stopped {
         return Err(RecalcFailure::ReadFailed { formula, area });
     }
     // With iteration off, a formula that read one a circular reference left uncalculated is not
     // calculated either (dc-10y).
-    if work.kept_read.get() {
+    if kept_read {
         return Ok(Attempt::Kept);
     }
     if let Some((cell, on)) = uncomputed.get() {
@@ -1927,7 +2212,7 @@ fn evaluate_node(
             .iter()
             .any(|area| area.is_ok_and(|area| area.contains(cell)));
         let formula_cell = matches!(inputs.cell(cell), Some(CellInput::Formula(_)));
-        if named && formula_cell && !work.waits_on.contains_key(&on) && !work.cyclic.contains(&on)
+        if named && formula_cell && !shared.waits_on.contains_key(&on) && !shared.cyclic.contains(&on)
         {
             return Err(RecalcFailure::UnscheduledRead { formula, cell });
         }
@@ -1936,7 +2221,7 @@ fn evaluate_node(
     let mut areas = footprint.into_inner();
     let mut dynamic = dynamic_prerequisites(state, node, instance, &areas);
     areas.clear();
-    work.footprint = areas;
+    local.footprint = areas;
     let value = match outcome {
         Ok(value) => value,
         Err(EvalFault::ReadContract(error)) => {
@@ -1956,7 +2241,8 @@ fn evaluate_node(
             }));
         }
     };
-    let outcome = match array_outcome(view_of(work, state, inputs), node, formula, role, value) {
+    let outcome = match array_outcome(shared.view(state, inputs, local), node, formula, role, value)
+    {
         Ok(outcome) => outcome,
         Err(Placed::Waits { on, cell }) => return Ok(Attempt::Waits { on, cell }),
         Err(Placed::Refused(refusal)) => {
@@ -2003,13 +2289,6 @@ fn evaluate_node(
     }))
 }
 
-fn view_of<'a>(
-    work: &'a RecalcWork,
-    state: &'a EngineState,
-    inputs: &'a ModelRoot,
-) -> RecalcView<'a> {
-    work.view(state, inputs)
-}
 
 /// The areas an evaluation read that none of the formula's placed references holds, each once,
 /// as prerequisites.

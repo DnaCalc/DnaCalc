@@ -68,7 +68,7 @@ use std::process::{Command, ExitCode};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask bench <dir> [--runs <n>] [--repeat <k>] [--out <dir>] [--cache <dir>] [--edit <workbook>=<sheet>!<cell>]... [--excel] [--excel-check] [--no-dna] [--timeout <s>]";
+pub const USAGE: &str = "usage: cargo xtask bench <dir> [--runs <n>] [--repeat <k>] [--threads <n>] [--verify-threads] [--out <dir>] [--cache <dir>] [--edit <workbook>=<sheet>!<cell>]... [--excel] [--excel-check] [--no-dna] [--timeout <s>]";
 
 const EXIT_FAILED: u8 = 1;
 const EXIT_USAGE: u8 = 2;
@@ -84,6 +84,8 @@ struct Args {
     dir: PathBuf,
     runs: u32,
     repeat: u32,
+    threads: usize,
+    verify_threads: bool,
     out: PathBuf,
     cache: PathBuf,
     edits: Vec<(String, String)>,
@@ -96,10 +98,13 @@ struct Args {
 fn parse_args(args: &[String]) -> Result<Args, String> {
     let (mut dir, mut runs, mut out, mut cache, mut timeout) = (None, None, None, None, None);
     let mut repeat = None;
+    let mut threads = None;
     let mut parsed = Args {
         dir: PathBuf::new(),
         runs: DEFAULT_RUNS,
         repeat: 1,
+        threads: 1,
+        verify_threads: false,
         out: PathBuf::from(DEFAULT_OUT),
         cache: PathBuf::from(DEFAULT_CACHE),
         edits: Vec::new(),
@@ -131,6 +136,8 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
             "--no-dna" => parsed.dna = false,
             "--runs" => once(&mut runs, "--runs", value("--runs")?)?,
             "--repeat" => once(&mut repeat, "--repeat", value("--repeat")?)?,
+            "--threads" => once(&mut threads, "--threads", value("--threads")?)?,
+            "--verify-threads" => parsed.verify_threads = true,
             "--out" => once(&mut out, "--out", value("--out")?)?,
             "--cache" => once(&mut cache, "--cache", value("--cache")?)?,
             "--timeout" => once(&mut timeout, "--timeout", value("--timeout")?)?,
@@ -153,6 +160,13 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
             .ok()
             .filter(|runs| *runs > 0)
             .ok_or_else(|| format!("--runs {text:?} is not a positive number"))?;
+    }
+    if let Some(text) = threads {
+        parsed.threads = text
+            .parse::<usize>()
+            .ok()
+            .filter(|threads| *threads > 0)
+            .ok_or_else(|| format!("--threads {text:?} is not a positive number"))?;
     }
     if let Some(text) = repeat {
         parsed.repeat = text
@@ -375,6 +389,20 @@ fn write_inventory(capture: &Path, out: &Path) -> Result<(), String> {
     fs::write(out, text).map_err(|e| format!("cannot write {}: {e}", out.display()))
 }
 
+/// How many cells of `request` project otherwise in `a` than in `b`: the value with its
+/// provenance, its calculation included, written out (a number by the digits that give its
+/// bits back).
+fn differences(a: &HostState, b: &HostState, request: &ProjectionRequest) -> Result<usize, String> {
+    let left = project(a, request).map_err(|e| format!("the projection was refused: {e}"))?;
+    let right = project(b, request).map_err(|e| format!("the projection was refused: {e}"))?;
+    Ok(left
+        .cells()
+        .iter()
+        .zip(right.cells())
+        .filter(|(x, y)| format!("{:?}", x.value()) != format!("{:?}", y.value()))
+        .count())
+}
+
 /// One DNA Calc run of `fixture` (the module documentation, steps 1 to 6), with the inventory
 /// [`write_inventory`] wrote.
 fn run_one(
@@ -382,6 +410,8 @@ fn run_one(
     inventory: &Path,
     edit: Option<&str>,
     repeat: u32,
+    threads: usize,
+    verify_threads: bool,
 ) -> Result<Value, String> {
     let bytes = fs::read(fixture).map_err(|e| format!("cannot read {}: {e}", fixture.display()))?;
     let listing = fs::read_to_string(inventory)
@@ -417,20 +447,31 @@ fn run_one(
         };
         formulas.push(parse().ok_or_else(malformed)?);
     }
+    let opened = |bytes: Vec<u8>, locale: Option<calc_host::FormatProfile>| {
+        let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
+        HostState::open(
+            source,
+            &OpenPolicy::default(),
+            HostOptions {
+                calc_mode: Some(CalcMode::Automatic),
+                locale,
+                ..HostOptions::default()
+            },
+        )
+        .map_err(|e| format!("HostState::open refused the package: {e}"))
+    };
+    // With --verify-threads, a second host on one thread takes every step the measured one takes,
+    // and every formula cell is compared after each recalculation (dc-2m0).
+    let mut twin = if verify_threads {
+        Some(opened(bytes.clone(), locale.clone())?)
+    } else {
+        None
+    };
     let private_before_open = private_now();
     let clock = Clock::start();
-    let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
-    let mut host = HostState::open(
-        source,
-        &OpenPolicy::default(),
-        HostOptions {
-            calc_mode: Some(CalcMode::Automatic),
-            locale,
-            ..HostOptions::default()
-        },
-    )
-    .map_err(|e| format!("HostState::open refused the package: {e}"))?;
+    let mut host = opened(bytes, locale)?;
     let open = clock.stop();
+    host.set_threads(threads);
     let private_after_open = private_now();
 
     let ids: HashMap<String, SheetId> = host
@@ -460,8 +501,19 @@ fn run_one(
         }
     };
 
+    let mut compared = 0usize;
+    let mut differing = 0usize;
+    let mut verify = |host: &HostState, twin: &mut Option<HostState>, ask: fn(&mut HostState)| {
+        if let Some(twin) = twin.as_mut() {
+            recalculate(twin, ask)?;
+            differing += differences(host, twin, &inventory)?;
+            compared += 1;
+        }
+        Ok::<(), String>(())
+    };
     let rebuild = recalculate(&mut host, |_| {})?;
     let private_after_rebuild = private_now();
+    verify(&host, &mut twin, |_| {})?;
     let (project_s, count) = calculated(&host, &inventory)?;
     all_calculated(count, "rebuild")?;
 
@@ -469,6 +521,7 @@ fn run_one(
     let mut full_project = 0.0;
     for _ in 0..repeat {
         let full = recalculate(&mut host, calculate_full)?;
+        verify(&host, &mut twin, calculate_full)?;
         let (seconds, count) = calculated(&host, &inventory)?;
         all_calculated(count, "full recalculation")?;
         full_project = seconds;
@@ -496,6 +549,20 @@ fn run_one(
         let targets = [edited(held), held];
         for to in (0..repeat).flat_map(|_| targets) {
             let number = FiniteNumber::new(to).ok_or("the edited number is not finite")?;
+            if let Some(twin) = twin.as_mut() {
+                let base = twin.revision();
+                dispatch(
+                    twin,
+                    HostCommand {
+                        base,
+                        edits: vec![CellEdit::Set {
+                            at,
+                            input: CellInput::Number(number),
+                        }],
+                    },
+                )
+                .map_err(|e| format!("the edit of {text} was refused: {e}"))?;
+            }
             let base = host.revision();
             let clock = Clock::start();
             dispatch(
@@ -511,6 +578,7 @@ fn run_one(
             .map_err(|e| format!("the edit of {text} was refused: {e}"))?;
             let commit = clock.stop();
             let phases = recalculate(&mut host, |_| {})?;
+            verify(&host, &mut twin, |_| {})?;
             let (_, count) = calculated(&host, &inventory)?;
             all_calculated(count, "edit")?;
             edits.push(json!({
@@ -529,6 +597,9 @@ fn run_one(
     }
     let memory = peak_memory();
     Ok(json!({
+        "threads": threads,
+        "thread_compares": compared,
+        "thread_differences": differing,
         "formula_cells": total,
         "open_s": open.0,
         "open_gcycles": open.1,
@@ -608,6 +679,8 @@ fn dna_runs(
     edit: Option<&str>,
     runs: u32,
     repeat: u32,
+    threads: usize,
+    verify_threads: bool,
 ) -> Vec<Value> {
     (0..runs)
         .map(|_| {
@@ -621,6 +694,8 @@ fn dna_runs(
                 command.args(["--edit", edit]);
             }
             command.args(["--repeat", &repeat.to_string()]);
+            command.args(["--threads", &threads.to_string()]);
+            command.args(["--verify-threads", if verify_threads { "1" } else { "0" }]);
             match command.output() {
                 Ok(output) => String::from_utf8_lossy(&output.stdout)
                     .lines()
@@ -902,7 +977,16 @@ fn run_bench(args: &Args) -> u8 {
                         .join(format!("{}.tsv", crate::corpus::file_safe(&entry.name)));
                     match write_inventory(&capture, &inventory) {
                         Ok(()) => {
-                            dna_runs(&program, entry, &inventory, edit, args.runs, args.repeat)
+                            dna_runs(
+                            &program,
+                            entry,
+                            &inventory,
+                            edit,
+                            args.runs,
+                            args.repeat,
+                            args.threads,
+                            args.verify_threads,
+                        )
                         }
                         Err(e) => vec![json!({ "failed": e })],
                     }
@@ -1010,6 +1094,8 @@ fn run_bench(args: &Args) -> u8 {
 fn one(args: &[String]) -> u8 {
     let (mut fixture, mut inventory, mut edit) = (None, None, None);
     let mut repeat = 1;
+    let mut threads = 1;
+    let mut verify_threads = false;
     let mut rest = args.iter();
     while let Some(flag) = rest.next() {
         let Some(value) = rest.next() else {
@@ -1020,6 +1106,14 @@ fn one(args: &[String]) -> u8 {
             "--fixture" => fixture = Some(PathBuf::from(value)),
             "--inventory" => inventory = Some(PathBuf::from(value)),
             "--edit" => edit = Some(value.clone()),
+            "--threads" => match value.parse::<usize>() {
+                Ok(count) if count > 0 => threads = count,
+                _ => {
+                    eprintln!("xtask bench: --threads {value:?} is not a positive number");
+                    return EXIT_USAGE;
+                }
+            },
+            "--verify-threads" => verify_threads = value == "1",
             "--repeat" => match value.parse::<u32>() {
                 Ok(count) if count > 0 => repeat = count,
                 _ => {
@@ -1037,7 +1131,7 @@ fn one(args: &[String]) -> u8 {
         eprintln!("xtask bench: --one needs --fixture and --inventory");
         return EXIT_USAGE;
     };
-    let result = run_one(&fixture, &inventory, edit.as_deref(), repeat)
+    let result = run_one(&fixture, &inventory, edit.as_deref(), repeat, threads, verify_threads)
         .unwrap_or_else(|failed| json!({ "failed": failed }));
     println!("{LINE}{result}");
     0

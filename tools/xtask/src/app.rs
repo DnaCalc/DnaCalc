@@ -26,7 +26,9 @@
 //! For DNA Calc, `--workbook` then opens a workbook from outside the repository through the page's
 //! file input, optionally enters `<text>` in `<sheet>!<cell>` (`--edit`), opens the atlas, and
 //! prints only what the page reports about it: the open and edit timings and the formula counts by
-//! provenance. The workbook's content is not printed.
+//! provenance. The workbook's content is not printed. With `--profile <file>`, Chrome's CPU profile
+//! of the open (the DevTools protocol's Profiler, sampled every 200 microseconds, through
+//! chromedriver's `goog/cdp/execute`) is written to the file, for dc-26q.
 //!
 //! Exit code: 0 when every case passed in every browser run, 1 otherwise, 2 for a usage error.
 
@@ -41,7 +43,7 @@ use std::process::{Child, Command, ExitCode, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// One browser application: its package, its entry, its page, and how its page reports itself.
 pub struct App {
@@ -126,6 +128,9 @@ struct WorkbookRun {
     path: PathBuf,
     /// The sheet, the cell and the text to enter.
     edit: Option<(String, String, String)>,
+    /// Where to write Chrome's CPU profile of the open (`--profile`), through the DevTools
+    /// protocol chromedriver relays; Firefox's run takes none.
+    profile: Option<PathBuf>,
 }
 
 pub fn run(raw: &[String]) -> ExitCode {
@@ -166,6 +171,7 @@ pub fn run(raw: &[String]) -> ExitCode {
             let mut only: Option<String> = None;
             let mut workbook: Option<PathBuf> = None;
             let mut edit = None;
+            let mut profile = None;
             let mut args = rest.iter();
             while let Some(arg) = args.next() {
                 match (arg.as_str(), args.next()) {
@@ -173,6 +179,9 @@ pub fn run(raw: &[String]) -> ExitCode {
                     ("--browser", Some(name)) => only = Some(name.clone()),
                     ("--workbook", Some(path)) if app.key == "calc" => {
                         workbook = Some(PathBuf::from(path))
+                    }
+                    ("--profile", Some(path)) if app.key == "calc" => {
+                        profile = Some(PathBuf::from(path))
                     }
                     ("--edit", Some(spec)) => match parse_edit(spec) {
                         Some(parsed) => edit = Some(parsed),
@@ -184,7 +193,11 @@ pub fn run(raw: &[String]) -> ExitCode {
             if edit.is_some() && workbook.is_none() {
                 return usage(raw);
             }
-            let workbook = workbook.map(|path| WorkbookRun { path, edit });
+            let workbook = workbook.map(|path| WorkbookRun {
+                path,
+                edit,
+                profile,
+            });
             smoke(&ws, app, bundle_dir, only.as_deref(), workbook.as_ref())
         }
         _ => usage(raw),
@@ -1499,6 +1512,18 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     let label = app.label;
+    let profiling = run.profile.is_some() && browser == "chromium";
+    if profiling {
+        for (cmd, params) in [
+            ("Profiler.enable", json!({})),
+            ("Profiler.setSamplingInterval", json!({ "interval": 200 })),
+            ("Profiler.start", json!({})),
+        ] {
+            if let Err(e) = session.post("/goog/cdp/execute", json!({ "cmd": cmd, "params": params })) {
+                return vec![format!("the profiler did not start ({cmd}): {e}")];
+            }
+        }
+    }
     if let Err(e) = upload(app, session, "open-file", &run.path) {
         return vec![format!("the workbook was not chosen: {e}")];
     }
@@ -1508,6 +1533,18 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         let status = text_of(app, session, "status");
         if status.starts_with(&opened) {
             println!("{label} WORKBOOK {browser} open: {status}");
+            if profiling && let Some(path) = &run.profile {
+                match session.post(
+                    "/goog/cdp/execute",
+                    json!({ "cmd": "Profiler.stop", "params": {} }),
+                ) {
+                    Ok(stopped) => match fs::write(path, stopped.to_string()) {
+                        Ok(()) => println!("{label} WORKBOOK {browser} profile: {}", path.display()),
+                        Err(e) => failures.push(format!("the profile was not written: {e}")),
+                    },
+                    Err(e) => failures.push(format!("the profiler did not stop: {e}")),
+                }
+            }
             break;
         }
         if status.contains("did not open") || started.elapsed() > WORKBOOK_SETTLE {
@@ -1569,6 +1606,10 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             println!(
                 "{label} WORKBOOK {browser} {}",
                 text_of(app, session, "atlas-timings")
+            );
+            println!(
+                "{label} WORKBOOK {browser} {}",
+                text_of(app, session, "atlas-memory")
             );
             break;
         }

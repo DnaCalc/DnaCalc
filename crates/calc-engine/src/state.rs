@@ -422,6 +422,28 @@ pub struct EngineState {
     /// Counts the nodes added, removed and moved (dc-dxm), which the kept readers and order
     /// depend on beside the graph's edges.
     pub(crate) anchor_epoch: u64,
+    /// How many threads a recalculation may evaluate on (dc-2m0); 1, the default, on one.
+    pub(crate) threads: usize,
+    /// The fewest formulas a recalculation, and a level of it, must hold to be evaluated on
+    /// several threads (dc-2m0).
+    pub(crate) parallel_minimum: ParallelMinimum,
+}
+
+/// The fewest formulas a recalculation's first wave, and one of its levels, must hold to be
+/// evaluated on several threads (dc-2m0): below them, starting threads costs more than it saves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ParallelMinimum {
+    pub(crate) wave: usize,
+    pub(crate) level: usize,
+}
+
+impl Default for ParallelMinimum {
+    fn default() -> Self {
+        ParallelMinimum {
+            wave: 1024,
+            level: 64,
+        }
+    }
 }
 
 impl EngineState {
@@ -457,6 +479,8 @@ impl EngineState {
             spill_epoch: 0,
             readers_cache: ReadersCache::default(),
             anchor_epoch: 0,
+            threads: 1,
+            parallel_minimum: ParallelMinimum::default(),
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -524,6 +548,30 @@ impl EngineState {
                 .publish(node, at, FormulaResult::FileCached(cache));
         }
         Ok(state)
+    }
+
+    /// How many threads a recalculation may evaluate its formulas on (dc-2m0): at least 1. On
+    /// wasm32 every recalculation runs on one thread whatever this says; elsewhere a
+    /// recalculation runs on several only when nothing in it depends on the order of evaluation
+    /// beyond its values (see `recalc.rs`, module `parallel`), and publishes the values the
+    /// one-thread route would.
+    pub fn set_threads(&mut self, threads: usize) {
+        self.threads = threads.max(1);
+    }
+
+    pub fn threads(&self) -> usize {
+        self.threads
+    }
+
+    /// Sets the fewest formulas a recalculation must hold to be evaluated on several threads, and
+    /// the fewest a level of it must (default 1,024 and 64; at least 1). It changes no value, only
+    /// where threads are used; the tests set it to 1 so that small workbooks take the parallel
+    /// route.
+    pub fn set_parallel_minimum(&mut self, wave: usize, level: usize) {
+        self.parallel_minimum = ParallelMinimum {
+            wave: wave.max(1),
+            level: level.max(1),
+        };
     }
 
     /// The authored revision the graph matches.
