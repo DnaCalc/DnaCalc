@@ -147,7 +147,10 @@ pub struct EngineState {
     /// Each bound node's plan; a node without an entry is unbound, and pending.
     pub(crate) bindings: BTreeMap<NodeId, Binding>,
     /// The published generation: each formula cell's result, with the node it belongs to.
-    pub(crate) results: BTreeMap<CellKey, (NodeId, FormulaResult)>,
+    /// Hashed by cell (dc-dxm): an evaluation reads the result of every formula cell it reads
+    /// that the recalculation does not calculate, and the ordered walk is only for
+    /// [`EngineState::results`].
+    pub(crate) results: HashMap<CellKey, (NodeId, FormulaResult), BuildHasherDefault<BlockHasher>>,
     /// The nodes a change reached directly; the roots of the dirty closure.
     pub(crate) pending: BTreeSet<NodeId>,
     /// The anchors of nodes removed since the last publication, whose results it removes.
@@ -213,7 +216,7 @@ impl EngineState {
             index: ReverseIndex::default(),
             plans: PlanCache::new(),
             bindings: BTreeMap::new(),
-            results: BTreeMap::new(),
+            results: HashMap::default(),
             pending: BTreeSet::new(),
             retired: BTreeSet::new(),
             last_tick: 0,
@@ -332,7 +335,13 @@ impl EngineState {
 
     /// Every published result, in the order of the cells (sheet ID, then row, then column).
     pub fn results(&self) -> impl Iterator<Item = (CellKey, &FormulaResult)> {
-        self.results.iter().map(|(at, (_, result))| (*at, result))
+        let mut all: Vec<(CellKey, &FormulaResult)> = self
+            .results
+            .iter()
+            .map(|(at, (_, result))| (*at, result))
+            .collect();
+        all.sort_unstable_by_key(|(at, _)| *at);
+        all.into_iter()
     }
 
     /// The nodes a change reached directly, in ID order: each node of a new state, each node an
@@ -601,7 +610,7 @@ impl EngineState {
     /// removed results go: every formula is calculated again. Returns the removed nodes.
     pub(crate) fn apply_moves(&mut self, moves: Vec<(NodeId, Option<CellKey>)>) -> Vec<NodeId> {
         let mut removed = Vec::new();
-        let mut results = BTreeMap::new();
+        let mut results = HashMap::default();
         let mut anchors = BTreeMap::new();
         for (node, anchor) in moves {
             let Some(old) = self.node(node).map(FormulaNode::anchor) else {
