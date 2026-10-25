@@ -147,6 +147,11 @@ impl XmlPart {
         &self.bytes
     }
 
+    /// The part of this name and limits with other bytes: what a save makes of it.
+    pub(crate) fn with_bytes(&self, bytes: Vec<u8>) -> XmlPart {
+        XmlPart::new(self.name.clone(), bytes, self.limits)
+    }
+
     /// A reader from the start of the part.
     pub fn reader(&self) -> XmlReader<'_> {
         XmlReader::new(&self.bytes, self.limits)

@@ -47,6 +47,7 @@ use super::diff::SheetChanges;
 use super::file_form::FileForm;
 use super::reader::Reader;
 use super::strings::SharedStrings;
+use super::structural::SheetMoves;
 use super::text::{RawTag, Splice, a1, number, xstring};
 use crate::load::address;
 use crate::load::sheet::{ERRORS, collapsed};
@@ -77,6 +78,24 @@ pub(super) struct Job<'a> {
     pub(super) error_vm: &'a BTreeMap<u32, u32>,
     pub(super) loaded: &'a LoadedSheet,
     pub(super) model: &'a ModelRoot,
+    /// Where the sheet's positions went, when rows or columns of it were inserted or deleted: the
+    /// part rewritten is then the one the edits' passes moved (`structural.rs`), and each cell's
+    /// loaded records are those of the cell it moved from.
+    pub(super) moves: Option<&'a SheetMoves>,
+    /// The shared formula groups the edits' passes found cut or grown, written as individual
+    /// formulas.
+    pub(super) cut_groups: &'a BTreeSet<u32>,
+}
+
+impl Job<'_> {
+    /// The loaded position of the part's cell (row, column): itself, or for a moved sheet the
+    /// cell it moved from (`None` for one the edits inserted).
+    fn loaded_at(&self, row: u32, column: u32) -> Option<(u32, u32)> {
+        match self.moves {
+            Some(moves) => moves.back((row, column)),
+            None => Some((row, column)),
+        }
+    }
 }
 
 /// The area of the cells written, as (top, left, bottom, right).
@@ -188,8 +207,15 @@ pub(super) fn rewrite(
     let unshared = job
         .loaded
         .formulas()
-        .filter(|(row, column, _)| job.changes.contains_key(&(*row, *column)))
+        .filter(|(row, column, _)| {
+            let at = match job.moves {
+                Some(moves) => moves.forward((*row, *column)),
+                None => Some((*row, *column)),
+            };
+            at.is_some_and(|at| job.changes.contains_key(&at))
+        })
         .filter_map(|(_, _, record)| record.shared().map(|group| group.index()))
+        .chain(job.cut_groups.iter().copied())
         .collect();
     let rewrite = Rewrite {
         job,
@@ -763,7 +789,11 @@ impl<'j> Rewrite<'_, 'j> {
                     && (left..=right).contains(&column)
                     && (row, column) != (top, left)
             });
-        if cleared && self.job.loaded.value_cache(row, column).is_some() {
+        let loaded = self.job.loaded_at(row, column);
+        if cleared
+            && loaded
+                .is_some_and(|(row, column)| self.job.loaded.value_cache(row, column).is_some())
+        {
             self.caches_dropped += 1;
         }
         let change = if cleared {
@@ -869,10 +899,8 @@ impl<'j> Rewrite<'_, 'j> {
                     end_tag(prefix, b"f", &mut bytes);
                     edits.push((formula_element, bytes));
                 }
-                let cached = self
-                    .job
-                    .loaded
-                    .formula(row, column)
+                let cached = loaded
+                    .and_then(|(row, column)| self.job.loaded.formula(row, column))
                     .and_then(|record| record.cache())
                     .is_some();
                 let new_value = cache.map(|(_, text, _)| {

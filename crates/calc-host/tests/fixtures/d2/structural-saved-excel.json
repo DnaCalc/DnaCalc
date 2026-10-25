@@ -1,0 +1,28 @@
+﻿{
+    "excel":  "16.0 build 20430",
+    "original":  "structural-base.xlsx",
+    "saved":  "structural-saved.xlsx",
+    "steps":  [
+                  "S rows insert 4 2",
+                  "S rows delete 9 1",
+                  "S columns insert 2 1",
+                  "S columns delete 5 1",
+                  "S rows delete 2 1",
+                  "T rows insert 3 1",
+                  "U rows insert 1 1",
+                  "U columns insert 1 2"
+              ],
+    "saved_opened_without_repair":  true,
+    "open_error":  null,
+    "sheets_missing":  [
+
+                       ],
+    "formula_cells":  15,
+    "formulas_equal":  15,
+    "values_equal":  15,
+    "input_cells":  19,
+    "inputs_equal":  19,
+    "differences":  [
+
+                    ]
+}

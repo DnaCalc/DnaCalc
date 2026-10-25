@@ -32,6 +32,7 @@ $steps = @(
   @('U', 'columns', 'insert', 1, 2)
 )
 
+$missing = [System.Type]::Missing
 $excel = New-Object -ComObject Excel.Application
 [uint32]$xpid = 0
 [void][D2S.Win]::GetWindowThreadProcessId([System.IntPtr]$excel.Hwnd, [ref]$xpid)
@@ -87,6 +88,28 @@ try {
   $u.Range('B1').Formula = '=A1+A2'
   $u.Rows.Item(1).RowHeight = 25
   $u.Columns.Item(1).ColumnWidth = 15
+
+  # What lies on the cells and moves with them (compare-structural-parts.py): merged cells, a
+  # conditional format and data validations whose formulas name cells (one on another sheet), a
+  # hyperlink, notes (one on a row a deletion removes), a threaded comment, a shape, a page break
+  # and a filter.
+  [void]$s.Range('C5:D6').Merge()
+  [void]$s.Range('E10:F11').Merge()
+  [void]$s.Range('G3:G12').Merge()
+  $condition = $s.Range('B1:B9').FormatConditions.Add(2, $missing, '=B1>A$3')
+  $condition.Interior.Color = 255
+  $validation = $s.Range('C8:C12').Validation
+  $validation.Add(3, 1, 1, '=T!$A$2:$A$4')
+  $validation = $t.Range('E2:E5').Validation
+  $validation.Add(1, 1, 1, '=S!$A$1', '=S!$A$10')
+  [void]$s.Hyperlinks.Add($s.Range('C3'), '', 'T!A1')
+  [void]$s.Range('A2').AddComment('two')
+  [void]$s.Range('A8').AddComment('eight')
+  [void]$s.Range('J1').AddComment('jay')
+  [void]$u.Range('A1').AddCommentThreaded('thread')
+  [void]$s.Shapes.AddShape(1, $s.Range('D3').Left, $s.Range('D3').Top, 80, 60)
+  [void]$s.HPageBreaks.Add($s.Range('A8'))
+  [void]$s.Range('A1:A10').AutoFilter()
   $excel.Calculate()
   $wb.SaveAs($base, 51)
 

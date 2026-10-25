@@ -1040,8 +1040,8 @@ pub fn cell_text(
     }
 }
 
-/// The color a number format's section gives the text a cell shows (`[Red]`), one of the eight
-/// Excel names in a format code; `[ColorN]` (a workbook palette index) is not read here.
+/// The color a number format's section gives the text a cell shows: one of the eight Excel names
+/// (`[Red]`), or an entry of the workbook's 56-color palette (`[Color10]`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FormatColor {
     Black,
@@ -1052,12 +1052,30 @@ pub enum FormatColor {
     Red,
     White,
     Yellow,
+    /// `[ColorN]`, N from 1 to 56: the palette entry a workbook may redefine
+    /// (`<indexedColors>`, its entry N + 7).
+    Palette(u8),
 }
 
+/// Excel's default 56-color palette, `[Color1]` to `[Color56]`. Excel 16.0.20430 showed
+/// `[Color10]`, `[Color45]` and `[Color53]` as entries 10, 45 and 53 here (calc-host's
+/// `tests/fixtures/dc_09v/excel-shown.json`).
+pub const DEFAULT_PALETTE: [&str; 56] = [
+    "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
+    "#800000", "#008000", "#000080", "#808000", "#800080", "#008080", "#c0c0c0", "#808080",
+    "#9999ff", "#993366", "#ffffcc", "#ccffff", "#660066", "#ff8080", "#0066cc", "#ccccff",
+    "#000080", "#ff00ff", "#ffff00", "#00ffff", "#800080", "#800000", "#008080", "#0000ff",
+    "#00ccff", "#ccffff", "#ccffcc", "#ffff99", "#99ccff", "#ff99cc", "#cc99ff", "#ffcc99",
+    "#3366ff", "#33cccc", "#99cc00", "#ffcc00", "#ff9900", "#ff6600", "#666699", "#969696",
+    "#003366", "#339966", "#003300", "#333300", "#993300", "#993366", "#333399", "#333333",
+];
+
 impl FormatColor {
-    /// The color's RGB in Excel's default palette, as `#rrggbb`.
+    /// The color's RGB, as `#rrggbb`: a named color's, or the palette entry's in Excel's default
+    /// palette (a workbook that redefines its palette is read by the caller).
     pub const fn rgb(self) -> &'static str {
         match self {
+            FormatColor::Palette(index) => DEFAULT_PALETTE[(index as usize).saturating_sub(1) % 56],
             FormatColor::Black => "#000000",
             FormatColor::Blue => "#0000ff",
             FormatColor::Cyan => "#00ffff",
@@ -1096,7 +1114,11 @@ pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatC
             "red" => Some(FormatColor::Red),
             "white" => Some(FormatColor::White),
             "yellow" => Some(FormatColor::Yellow),
-            _ => None,
+            other => other
+                .strip_prefix("color")
+                .and_then(|digits| digits.parse::<u8>().ok())
+                .filter(|index| (1..=56).contains(index))
+                .map(FormatColor::Palette),
         };
         if color.is_some() {
             return color;
@@ -1297,6 +1319,14 @@ mod tests {
         );
         assert_eq!(cell_color("[>100][Magenta]0;0", &CalcValue::number(500.0)), Some(FormatColor::Magenta));
         assert_eq!(FormatColor::Red.rgb(), "#ff0000");
+        assert_eq!(
+            cell_color("0;[Color10]-0", &CalcValue::number(-5.0)),
+            Some(FormatColor::Palette(10))
+        );
+        assert_eq!(FormatColor::Palette(10).rgb(), "#008000");
+        assert_eq!(FormatColor::Palette(45).rgb(), "#ff9900");
+        assert_eq!(FormatColor::Palette(53).rgb(), "#993300");
+        assert_eq!(cell_color("[Color57]0", &CalcValue::number(1.0)), None);
     }
 
 }
