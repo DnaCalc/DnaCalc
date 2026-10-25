@@ -1,25 +1,32 @@
-//! `cargo xtask onecalc bundle [--out <dir>]` and `cargo xtask onecalc smoke [--bundle <dir>]
-//! [--browser chromium|firefox]`: DNA OneCalc's browser bundle and its smoke test.
+//! `cargo xtask app bundle <app> [--out <dir>]` and `cargo xtask app smoke <app> [--bundle <dir>]
+//! [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>]]`: the browser
+//! bundle of an application and its smoke test, for DNA OneCalc (`onecalc`) and DNA Calc
+//! (`calc`). `cargo xtask onecalc bundle|smoke ...` is the same command for `onecalc`.
 //!
-//! `bundle` builds the app's browser entry (`apps/dna-onecalc/src/bin/dna-onecalc-web.rs`) for
-//! wasm32-unknown-unknown in the workspace's `web` profile (release, optimised for size), runs wasm-bindgen 0.2.117 (`--target web`) over it, and
-//! copies `apps/dna-onecalc/web/index.html` beside the output, into `target/onecalc-bundle` unless
-//! `--out` names another folder. It prints each file's size and the total. Nothing is published:
-//! the folder is served only by `smoke`, on 127.0.0.1.
+//! `bundle` builds the app's browser entry (`apps/<package>/src/bin/<package>-web.rs`) for
+//! wasm32-unknown-unknown in the workspace's `web` profile (release, optimised for size), runs
+//! wasm-bindgen 0.2.117 (`--target web`) over it, and copies `apps/<package>/web/index.html` beside
+//! the output, into `target/<app>-bundle` unless `--out` names another folder. It prints each
+//! file's size and the total. Nothing is published: the folder is served only by `smoke`, on
+//! 127.0.0.1.
 //!
 //! `smoke` builds the bundle (or takes the one `--bundle` names), serves it on 127.0.0.1 from a
 //! port the system picks, and drives it in headless Chrome and headless Firefox through their
 //! WebDriver servers (chromedriver and geckodriver, found as `cargo xtask accept` finds them:
 //! `CHROMEDRIVER` or `GECKODRIVER` naming a file, else PATH). In each browser it loads the page,
-//! types into the scratch grid and the formula field with WebDriver key input (the browser's own
-//! key and input events), and reads back what the page shows: result type, value, array cells,
-//! error meaning, diagnostics, completion list, signature help and function help. Every expected
-//! value is derived by hand from Excel's documented behaviour. After every case it reads the
-//! page's fault record: the panic message the app's panic hook writes on the root element
-//! (`data-onecalc-panic`) and every uncaught error and unhandled rejection the page recorded
-//! (`window.__onecalcFaults`). A panic in a reactive effect, which surfaces in a browser only as a
-//! trap (`RuntimeError: unreachable`) while the rest of the page may still answer, fails the case
-//! there. A browser whose driver is missing fails the run; it is never skipped.
+//! runs the app's cases in order (typing with WebDriver key input, the browser's own key and input
+//! events; clicking; choosing a file for a file input) and reads back what the page shows. Every
+//! expected value is derived by hand from Excel's documented behaviour. After every case it reads
+//! the page's fault record: the panic message the app's panic hook writes on the root element and
+//! every uncaught error and unhandled rejection the page recorded. A panic in a reactive effect,
+//! which surfaces in a browser only as a trap (`RuntimeError: unreachable`) while the rest of the
+//! page may still answer, fails the case there. A browser whose driver is missing fails the run;
+//! it is never skipped.
+//!
+//! For DNA Calc, `--workbook` then opens a workbook from outside the repository through the page's
+//! file input, optionally enters `<text>` in `<sheet>!<cell>` (`--edit`), opens the atlas, and
+//! prints only what the page reports about it: the open and edit timings and the formula counts by
+//! provenance. The workbook's content is not printed.
 //!
 //! Exit code: 0 when every case passed in every browser run, 1 otherwise, 2 for a usage error.
 
@@ -34,26 +41,92 @@ use std::process::{Child, Command, ExitCode, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask onecalc bundle [--out <dir>]\n       cargo xtask onecalc smoke [--bundle <dir>] [--browser chromium|firefox]";
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
-/// The package and binary of the browser entry.
-const PACKAGE: &str = "dna-onecalc";
-const ENTRY: &str = "dna-onecalc-web";
+/// One browser application: its package, its entry, its page, and how its page reports itself.
+pub struct App {
+    /// The name on the command line.
+    pub key: &'static str,
+    /// The prefix of the command's output lines.
+    pub label: &'static str,
+    /// The package and binary of the browser entry.
+    pub package: &'static str,
+    pub entry: &'static str,
+    /// The page, relative to the workspace root.
+    pub page: &'static str,
+    /// The default bundle folder, relative to the workspace root.
+    pub default_out: &'static str,
+    /// The attribute naming an element's role.
+    pub role_attribute: &'static str,
+    /// The root element's attribute holding a panic's message.
+    pub panic_attribute: &'static str,
+    /// The root element's attribute set once the app is mounted.
+    pub ready_attribute: &'static str,
+    /// The page's list of uncaught errors.
+    pub faults: &'static str,
+    pub cases: &'static [Case],
+}
 
-/// The wasm-bindgen CLI release the bundle needs: the one the app's wasm-bindgen crate is pinned to.
+/// The applications.
+pub static APPS: [App; 2] = [
+    App {
+        key: "onecalc",
+        label: "ONECALC",
+        package: "dna-onecalc",
+        entry: "dna-onecalc-web",
+        page: "apps/dna-onecalc/web/index.html",
+        default_out: "target/onecalc-bundle",
+        role_attribute: "data-onecalc",
+        panic_attribute: "data-onecalc-panic",
+        ready_attribute: "data-onecalc-ready",
+        faults: "__onecalcFaults",
+        cases: ONECALC_CASES,
+    },
+    App {
+        key: "calc",
+        label: "DNACALC",
+        package: "dna-calc",
+        entry: "dna-calc-web",
+        page: "apps/dna-calc/web/index.html",
+        default_out: "target/dnacalc-bundle",
+        role_attribute: "data-dnacalc",
+        panic_attribute: "data-dnacalc-panic",
+        ready_attribute: "data-dnacalc-ready",
+        faults: "__dnacalcFaults",
+        cases: CALC_CASES,
+    },
+];
+
+/// The wasm-bindgen CLI release the bundle needs: the one the apps' wasm-bindgen crate is pinned to.
 const BINDGEN_VERSION: &str = "wasm-bindgen 0.2.117";
 
 /// The cargo profile of the bundle: release, optimised for size (the workspace's `[profile.web]`).
 const PROFILE: &str = "web";
 
-/// The page, relative to the workspace root.
-const PAGE: &str = "apps/dna-onecalc/web/index.html";
-
-/// The default bundle folder, relative to the workspace root.
-const DEFAULT_OUT: &str = "target/onecalc-bundle";
-
 /// How long a check waits for the page to show what it expects.
 const SETTLE: Duration = Duration::from_secs(8);
+
+/// How long a step over a workbook from outside the repository may take.
+const WORKBOOK_SETTLE: Duration = Duration::from_secs(900);
+
+/// `cargo xtask onecalc ...`: the app command for DNA OneCalc.
+pub fn run_onecalc(raw: &[String]) -> ExitCode {
+    match raw {
+        [command, rest @ ..] => {
+            let mut args = vec![command.clone(), "onecalc".to_owned()];
+            args.extend(rest.iter().cloned());
+            run(&args)
+        }
+        [] => usage(raw),
+    }
+}
+
+/// What `--workbook` asks of a smoke run.
+struct WorkbookRun {
+    path: PathBuf,
+    /// The sheet, the cell and the text to enter.
+    edit: Option<(String, String, String)>,
+}
 
 pub fn run(raw: &[String]) -> ExitCode {
     let ws = match std::env::current_dir()
@@ -62,44 +135,73 @@ pub fn run(raw: &[String]) -> ExitCode {
     {
         Ok(ws) => ws,
         Err(e) => {
-            eprintln!("xtask onecalc: cannot read the workspace: {e}");
+            eprintln!("xtask app: cannot read the workspace: {e}");
             return ExitCode::from(1);
         }
     };
-    match raw {
-        [command, rest @ ..] if command == "bundle" => {
+    let (command, app, rest) = match raw {
+        [command, key, rest @ ..] => match APPS.iter().find(|app| app.key == key) {
+            Some(app) => (command.as_str(), app, rest),
+            None => return usage(raw),
+        },
+        _ => return usage(raw),
+    };
+    match command {
+        "bundle" => {
             let out = match rest {
-                [] => ws.root.join(DEFAULT_OUT),
+                [] => ws.root.join(app.default_out),
                 [flag, dir] if flag == "--out" => PathBuf::from(dir),
                 _ => return usage(raw),
             };
-            match bundle(&ws, &out) {
+            match bundle(&ws, app, &out) {
                 Ok(_) => ExitCode::SUCCESS,
                 Err(e) => {
-                    println!("ONECALC RESULT failed: {e}");
+                    println!("{} RESULT failed: {e}", app.label);
                     ExitCode::from(1)
                 }
             }
         }
-        [command, rest @ ..] if command == "smoke" => {
+        "smoke" => {
             let mut bundle_dir = None;
             let mut only: Option<String> = None;
+            let mut workbook: Option<PathBuf> = None;
+            let mut edit = None;
             let mut args = rest.iter();
             while let Some(arg) = args.next() {
                 match (arg.as_str(), args.next()) {
                     ("--bundle", Some(dir)) => bundle_dir = Some(PathBuf::from(dir)),
                     ("--browser", Some(name)) => only = Some(name.clone()),
+                    ("--workbook", Some(path)) if app.key == "calc" => {
+                        workbook = Some(PathBuf::from(path))
+                    }
+                    ("--edit", Some(spec)) => match parse_edit(spec) {
+                        Some(parsed) => edit = Some(parsed),
+                        None => return usage(raw),
+                    },
                     _ => return usage(raw),
                 }
             }
-            smoke(&ws, bundle_dir, only.as_deref())
+            if edit.is_some() && workbook.is_none() {
+                return usage(raw);
+            }
+            let workbook = workbook.map(|path| WorkbookRun { path, edit });
+            smoke(&ws, app, bundle_dir, only.as_deref(), workbook.as_ref())
         }
         _ => usage(raw),
     }
 }
 
+/// `<sheet>!<cell>=<text>` as its three parts; the sheet may be quoted.
+fn parse_edit(spec: &str) -> Option<(String, String, String)> {
+    let (target, text) = spec.split_once('=')?;
+    let (sheet, cell) = target.rsplit_once('!')?;
+    let sheet = sheet.trim_matches('\'');
+    (!sheet.is_empty() && !cell.is_empty())
+        .then(|| (sheet.to_owned(), cell.to_owned(), text.to_owned()))
+}
+
 fn usage(raw: &[String]) -> ExitCode {
-    eprintln!("xtask onecalc: unknown arguments {raw:?}\n{USAGE}");
+    eprintln!("xtask app: unknown arguments {raw:?}\n{USAGE}");
     ExitCode::from(2)
 }
 
@@ -107,7 +209,7 @@ fn usage(raw: &[String]) -> ExitCode {
 // The bundle.
 
 /// Builds the bundle into `out` and returns its files with their sizes.
-fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
+fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
     let bindgen = find_on_path("wasm-bindgen").ok_or("wasm-bindgen is not on PATH")?;
     let version = cargo::output(Command::new(&bindgen).arg("--version"))?;
     let version = cargo::text(&version.stdout).trim().to_owned();
@@ -117,7 +219,10 @@ fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
             bindgen.display()
         ));
     }
-    println!("ONECALC building {ENTRY} for {WASM_TARGET} (profile {PROFILE})");
+    println!(
+        "{} building {} for {WASM_TARGET} (profile {PROFILE})",
+        app.label, app.entry
+    );
     let target_dir = ws.accept_target_dir();
     let mut build = Command::new(cargo::cargo_program());
     build
@@ -128,9 +233,9 @@ fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
             "--profile",
             PROFILE,
             "-p",
-            PACKAGE,
+            app.package,
             "--bin",
-            ENTRY,
+            app.entry,
         ])
         .args(["--target", WASM_TARGET])
         .arg("--target-dir")
@@ -145,7 +250,7 @@ fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
     let wasm = target_dir
         .join(WASM_TARGET)
         .join(PROFILE)
-        .join(format!("{ENTRY}.wasm"));
+        .join(format!("{}.wasm", app.entry));
     fs::create_dir_all(out).map_err(|e| format!("cannot create {}: {e}", out.display()))?;
     let generated = cargo::output(
         Command::new(&bindgen)
@@ -159,25 +264,26 @@ fn bundle(ws: &Workspace, out: &Path) -> Result<Vec<(String, u64)>, String> {
             cargo::tail(&generated.stderr, 40)
         ));
     }
-    fs::copy(ws.root.join(PAGE), out.join("index.html"))
-        .map_err(|e| format!("cannot copy {PAGE}: {e}"))?;
+    fs::copy(ws.root.join(app.page), out.join("index.html"))
+        .map_err(|e| format!("cannot copy {}: {e}", app.page))?;
     let mut files = Vec::new();
     for name in [
-        "index.html",
-        "dna-onecalc-web.js",
-        "dna-onecalc-web_bg.wasm",
+        "index.html".to_owned(),
+        format!("{}.js", app.entry),
+        format!("{}_bg.wasm", app.entry),
     ] {
-        let size = fs::metadata(out.join(name))
+        let size = fs::metadata(out.join(&name))
             .map_err(|e| format!("the bundle has no {name}: {e}"))?
             .len();
-        files.push((name.to_owned(), size));
+        files.push((name, size));
     }
     let total: u64 = files.iter().map(|(_, size)| size).sum();
     for (name, size) in &files {
-        println!("ONECALC bundle file {name}: {size} bytes");
+        println!("{} bundle file {name}: {size} bytes", app.label);
     }
     println!(
-        "ONECALC bundle {}: {} files, {total} bytes",
+        "{} bundle {}: {} files, {total} bytes",
+        app.label,
         out.display(),
         files.len()
     );
@@ -495,58 +601,69 @@ fn open(browser: &Browser) -> Result<(DriverProcess, Session), String> {
 
 /// WebDriver's codes for keys that are not characters.
 const TAB: &str = "\u{E004}";
+const ENTER: &str = "\u{E007}";
 const ESCAPE: &str = "\u{E00C}";
+const DELETE: &str = "\u{E017}";
 
-/// The selector of the element with a `data-onecalc` role.
-fn role(name: &str) -> String {
-    format!("[data-onecalc=\"{name}\"]")
+/// The selector of an element: a selector as written when `name` starts with `[`, otherwise the
+/// element whose role attribute is `name`.
+fn select(app: &App, name: &str) -> String {
+    if name.starts_with('[') {
+        name.to_owned()
+    } else {
+        format!("[{}=\"{name}\"]", app.role_attribute)
+    }
 }
 
-/// What a case does.
-enum Action {
-    /// Types into a grid cell, after clearing it.
+/// What a case does. A name is a role or a selector ([`select`]).
+pub enum Action {
+    /// DNA OneCalc: types into a grid cell, after clearing it.
     Grid(&'static str, &'static str),
-    /// Clears the formula field and types this.
+    /// DNA OneCalc: clears the formula field and types this.
     Formula(&'static str),
-    /// Types these keys into the formula field.
-    Keys(&'static str),
-    /// Chooses the option with this value in the select element with this role.
+    /// Types these keys into the element, without clearing it.
+    Keys(&'static str, &'static str),
+    /// Chooses the option with this value in the select element.
     Choose(&'static str, &'static str),
-    /// Clears the field with this role and types this into it.
+    /// Clears the field and types this into it.
     Into(&'static str, &'static str),
-    /// Clicks the element this selector selects.
+    /// Clicks the element.
     Click(&'static str),
+    /// Chooses this file (relative to the workspace root) in the file input.
+    Upload(&'static str, &'static str),
 }
 
-/// What a case expects the page to show.
-enum Check {
-    /// The text of the element with this role.
+/// What a case expects the page to show. A name is a role or a selector ([`select`]).
+pub enum Check {
+    /// The element's text.
     Text(&'static str, &'static str),
-    /// The text of the element with this role starts with this.
+    /// The element's text starts with this.
     Starts(&'static str, &'static str),
-    /// The list items under the element with this role, in order.
+    /// The list items under the element, in order.
     Items(&'static str, &'static [&'static str]),
-    /// The element with this role contains an item with this text.
+    /// The element contains a list item starting with this text.
     Contains(&'static str, &'static str),
-    /// No element has this role.
+    /// No element is selected.
     Absent(&'static str),
-    /// The formula field's value.
-    Field(&'static str),
-    /// The array result's cells, row by row.
+    /// The field's value.
+    Value(&'static str, &'static str),
+    /// The element's attribute.
+    Attr(&'static str, &'static str, &'static str),
+    /// DNA OneCalc: the array result's cells, row by row.
     Array(&'static [&'static [&'static str]]),
-    /// The text of the highlighted run with this role.
+    /// DNA OneCalc: the text of the highlighted run with this role.
     Highlighted(&'static str, &'static str),
 }
 
-struct Case {
+pub struct Case {
     name: &'static str,
     actions: &'static [Action],
     checks: &'static [Check],
 }
 
-/// The cases, in the order each browser runs them in one page. The grid entries of the first
-/// case stay for the rest: A1 = 1.5, A2 = 2, B1 = hello, B2 = TRUE, A3 left blank.
-const CASES: &[Case] = &[
+/// DNA OneCalc's cases, in the order each browser runs them in one page. The grid entries of the
+/// first case stay for the rest: A1 = 1.5, A2 = 2, B1 = hello, B2 = TRUE, A3 left blank.
+const ONECALC_CASES: &[Case] = &[
     Case {
         name: "the page loads with the surface and an empty formula",
         actions: &[
@@ -651,9 +768,9 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "completion accepted: signature help marks the first argument",
-        actions: &[Action::Keys(TAB)],
+        actions: &[Action::Keys("formula", TAB)],
         checks: &[
-            Check::Field("=SUM("),
+            Check::Value("formula", "=SUM("),
             Check::Absent("completions"),
             Check::Text("active-parameter", "number1"),
             Check::Text("signature", "SUM(number1, [number2], ...)"),
@@ -666,9 +783,9 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "the arguments typed after completion calculate",
-        actions: &[Action::Keys("A1:A2,10)")],
+        actions: &[Action::Keys("formula", "A1:A2,10)")],
         checks: &[
-            Check::Field("=SUM(A1:A2,10)"),
+            Check::Value("formula", "=SUM(A1:A2,10)"),
             Check::Text("result", "number 13.5"),
         ],
     },
@@ -733,24 +850,291 @@ const CASES: &[Case] = &[
             "[data-onecalc=\"function-entry\"][data-name=\"ROUND\"]",
         )],
         checks: &[
-            Check::Field("=1+ROUND("),
+            Check::Value("formula", "=1+ROUND("),
             Check::Text("active-parameter", "number"),
             Check::Text("help-name", "ROUND"),
         ],
     },
     Case {
         name: "Escape dismisses the completion list",
-        actions: &[Action::Formula("=AVER"), Action::Keys(ESCAPE)],
-        checks: &[Check::Absent("completions"), Check::Field("=AVER")],
+        actions: &[Action::Formula("=AVER"), Action::Keys("formula", ESCAPE)],
+        checks: &[
+            Check::Absent("completions"),
+            Check::Value("formula", "=AVER"),
+        ],
+    },
+];
+
+/// The formula field DNA Calc shares with DNA OneCalc, which carries OneCalc's role attribute.
+const BAR: &str = "[data-onecalc=\"formula\"]";
+
+/// A cell of DNA Calc's grid, by its address.
+macro_rules! cell {
+    ($address:literal) => {
+        concat!("[data-dnacalc=\"cell\"][data-cell=\"", $address, "\"]")
+    };
+}
+
+/// DNA Calc's cases, in the order each browser runs them in one page, over the new workbook it
+/// starts with, then calc-doc's D1 fixture (an Excel-saved workbook) opened through the page.
+const CALC_CASES: &[Case] = &[
+    Case {
+        name: "the page loads with a new workbook, Sheet1, at A1",
+        actions: &[],
+        checks: &[
+            Check::Text("document", "Book1.xlsx"),
+            Check::Text("[data-dnacalc=\"sheet-tab\"]", "Sheet1"),
+            Check::Value("name-box", "A1"),
+            Check::Attr("[data-dnacalc=\"skin-grid\"]", "aria-pressed", "true"),
+        ],
+    },
+    Case {
+        name: "typed numbers replace the cell, Enter enters them and moves down",
+        actions: &[
+            Action::Keys("grid", "2"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Keys("grid", "3"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "2"),
+            Check::Text(cell!("A2"), "3"),
+            Check::Attr(cell!("A1"), "data-provenance", "literal"),
+            Check::Value("name-box", "A3"),
+        ],
+    },
+    Case {
+        name: "a formula entered in the cell is calculated: =A1*A2+1 is 7",
+        actions: &[
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "A1*A2+1"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[
+            Check::Text(cell!("A3"), "7"),
+            Check::Attr(cell!("A3"), "data-provenance", "calculated"),
+            Check::Attr(cell!("A3"), "data-formula", "true"),
+        ],
+    },
+    Case {
+        name: "the name box goes to a cell; the formula bar shows its formula and provenance",
+        actions: &[Action::Into("name-box", "a3\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "A3"),
+            Check::Value(BAR, "=A1*A2+1"),
+            Check::Starts(
+                "cell-provenance",
+                "Sheet1!A3: calculated by DNA Calc's engine",
+            ),
+        ],
+    },
+    Case {
+        name: "an edit recalculates its dependents: A1 = 5 makes A3 16",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "5"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "5"),
+            Check::Text(cell!("A3"), "16"),
+        ],
+    },
+    Case {
+        name: "Undo takes the edit back and Redo makes it again",
+        actions: &[Action::Click("undo")],
+        checks: &[Check::Text(cell!("A1"), "2"), Check::Text(cell!("A3"), "7")],
+    },
+    Case {
+        name: "Redo",
+        actions: &[Action::Click("redo")],
+        checks: &[
+            Check::Text(cell!("A1"), "5"),
+            Check::Text(cell!("A3"), "16"),
+        ],
+    },
+    Case {
+        name: "a formula the engine refuses shows as refused, with the reason",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "WEBSERVICE(\"http://example.com\")"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Into("name-box", "B1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(cell!("B1"), "refused"),
+            Check::Attr(cell!("B1"), "data-provenance", "refused"),
+            Check::Starts("cell-provenance", "Sheet1!B1: refused: "),
+        ],
+    },
+    Case {
+        name: "a dynamic array spills: ={1;2;3} in C1 fills C1:C3",
+        actions: &[
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "{1;2;3}"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[
+            Check::Text(cell!("C1"), "1"),
+            Check::Text(cell!("C3"), "3"),
+            Check::Attr(cell!("C3"), "data-provenance", "calculated"),
+        ],
+    },
+    Case {
+        name: "the formula bar edits with signature help and enters with Enter",
+        actions: &[
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Click(BAR),
+            Action::Keys(BAR, "=SUM("),
+        ],
+        checks: &[
+            Check::Text("[data-onecalc=\"active-parameter\"]", "number1"),
+            Check::Value(BAR, "=SUM("),
+        ],
+    },
+    Case {
+        name: "the formula bar's entry is calculated: =SUM(A1:A3) is 24",
+        actions: &[Action::Keys(BAR, "A1:A3)"), Action::Keys(BAR, ENTER)],
+        checks: &[
+            Check::Text(cell!("D1"), "24"),
+            Check::Value(BAR, "=SUM(A1:A3)"),
+        ],
+    },
+    Case {
+        name: "in manual calculation an edit leaves its dependent stale",
+        actions: &[
+            Action::Choose("calc-mode", "manual"),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Keys("grid", "1"),
+            Action::Keys("cell-editor", "0"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[
+            Check::Text(cell!("A2"), "10"),
+            Check::Attr(cell!("A3"), "data-provenance", "stale"),
+            Check::Text(cell!("A3"), "16"),
+        ],
+    },
+    Case {
+        name: "Calculate recalculates: A3 is 51",
+        actions: &[
+            Action::Click("calculate"),
+            Action::Choose("calc-mode", "automatic"),
+        ],
+        checks: &[
+            Check::Text(cell!("A3"), "51"),
+            Check::Attr(cell!("A3"), "data-provenance", "calculated"),
+        ],
+    },
+    Case {
+        name: "Delete clears the active cell",
+        actions: &[
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Keys("grid", DELETE),
+        ],
+        checks: &[Check::Absent(cell!("D1"))],
+    },
+    Case {
+        name: "Save writes the workbook's package",
+        actions: &[Action::Click("save")],
+        checks: &[
+            Check::Starts("status", "Saved Book1.xlsx: "),
+            Check::Text("document", "Book1.xlsx"),
+        ],
+    },
+    Case {
+        name: "the notebook lists the sheet's cells as blocks",
+        actions: &[Action::Click("skin-notebook")],
+        checks: &[
+            Check::Starts("notebook-page", "7 cells; page 1 of 1"),
+            Check::Attr(
+                "[data-dnacalc=\"block\"][data-cell=\"B1\"]",
+                "data-provenance",
+                "refused",
+            ),
+        ],
+    },
+    Case {
+        name: "a block's entry is entered and its dependents recalculate",
+        actions: &[Action::Into(
+            "[data-dnacalc=\"block\"][data-cell=\"A1\"] [data-dnacalc=\"block-input\"]",
+            "6\u{E007}",
+        )],
+        checks: &[Check::Text(
+            "[data-dnacalc=\"block\"][data-cell=\"A3\"] [data-dnacalc=\"block-value\"]",
+            "61",
+        )],
+    },
+    Case {
+        name: "the atlas counts every formula cell, the refused one as refused",
+        actions: &[Action::Click("skin-atlas")],
+        checks: &[
+            Check::Text(
+                "atlas-totals",
+                "3 formula cells: 2 calculated, 1 refused, 0 file cache, 0 stale; 66.67% calculated",
+            ),
+            Check::Text("atlas-mode", "Calculation: automatic"),
+        ],
+    },
+    Case {
+        name: "back in the grid, the active cell and the values are as they were",
+        actions: &[Action::Click("skin-grid")],
+        checks: &[
+            Check::Value("name-box", "D1"),
+            Check::Text(cell!("A3"), "61"),
+        ],
+    },
+    Case {
+        name: "an Excel-saved workbook opens through the file input, calculated",
+        actions: &[Action::Upload(
+            "open-file",
+            "crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx",
+        )],
+        checks: &[
+            Check::Text("document", "d1.saved.xlsx"),
+            Check::Starts("status", "Opened d1.saved.xlsx: "),
+            Check::Text("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Calc\"]", "Calc"),
+        ],
+    },
+    Case {
+        name: "its sheet shows the engine's values, its dynamic array's spill included",
+        actions: &[
+            Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Calc\"]"),
+            Action::Into("name-box", "U3\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(cell!("U3"), "21"),
+            Check::Attr(cell!("U3"), "data-provenance", "calculated"),
+            Check::Value(BAR, "=U2*3"),
+        ],
+    },
+    Case {
+        name: "the spill of SEQUENCE(3,2) at A1",
+        actions: &[Action::Into("name-box", "A1\u{E007}")],
+        checks: &[
+            Check::Text(cell!("B2"), "4"),
+            Check::Attr(cell!("B2"), "data-provenance", "calculated"),
+        ],
+    },
+    Case {
+        name: "New makes an empty workbook",
+        actions: &[Action::Click("new")],
+        checks: &[
+            Check::Text("document", "Book1.xlsx"),
+            Check::Absent("[data-dnacalc=\"cell\"]"),
+            Check::Value("name-box", "A1"),
+        ],
     },
 ];
 
 /// The script that reads what one check looks at.
-fn observe(session: &Session, check: &Check) -> Result<Value, String> {
+fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String> {
     let q = |name: &str| {
         format!(
             "document.querySelector('{}')",
-            role(name).replace('\'', "\\'")
+            select(app, name).replace('\'', "\\'")
         )
     };
     let script = match check {
@@ -762,7 +1146,11 @@ fn observe(session: &Session, check: &Check) -> Result<Value, String> {
             q(name)
         ),
         Check::Absent(name) => format!("return {} === null;", q(name)),
-        Check::Field(_) => format!("return {}.value;", q("formula")),
+        Check::Value(name, _) => format!("var e = {}; return e ? e.value : null;", q(name)),
+        Check::Attr(name, attribute, _) => format!(
+            "var e = {}; return e ? e.getAttribute('{attribute}') : null;",
+            q(name)
+        ),
         Check::Array(_) => format!(
             "var e = {}; return e ? Array.from(e.querySelectorAll('tr')).map(function (r) {{ return Array.from(r.querySelectorAll('td')).map(function (c) {{ return c.textContent; }}); }}) : null;",
             q("result-array")
@@ -776,7 +1164,9 @@ fn observe(session: &Session, check: &Check) -> Result<Value, String> {
 
 fn satisfied(check: &Check, seen: &Value) -> bool {
     match check {
-        Check::Text(_, expected) => seen.as_str() == Some(expected),
+        Check::Text(_, expected) | Check::Value(_, expected) | Check::Attr(_, _, expected) => {
+            seen.as_str() == Some(expected)
+        }
         Check::Starts(_, prefix) => seen.as_str().is_some_and(|text| text.starts_with(prefix)),
         Check::Items(_, expected) => seen.as_array().is_some_and(|items| {
             items.len() == expected.len()
@@ -791,7 +1181,6 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
         Check::Absent(_) => seen.as_bool() == Some(true),
-        Check::Field(expected) => seen.as_str() == Some(expected),
         Check::Array(rows) => seen.as_array().is_some_and(|seen_rows| {
             seen_rows.len() == rows.len()
                 && seen_rows.iter().zip(rows.iter()).all(|(seen_row, row)| {
@@ -817,17 +1206,21 @@ fn describe(check: &Check) -> String {
         Check::Items(name, expected) => format!("{name} lists {expected:?}"),
         Check::Contains(name, wanted) => format!("{name} has an item starting {wanted:?}"),
         Check::Absent(name) => format!("no {name}"),
-        Check::Field(expected) => format!("the formula field holds {expected:?}"),
+        Check::Value(name, expected) => format!("the field {name} holds {expected:?}"),
+        Check::Attr(name, attribute, expected) => {
+            format!("{name} has {attribute}={expected:?}")
+        }
         Check::Array(rows) => format!("result-array is {rows:?}"),
         Check::Highlighted(role_name, text) => format!("{text:?} is highlighted as {role_name}"),
     }
 }
 
 /// The page's fault record: the app's panic message and every uncaught error it recorded.
-fn faults(session: &Session) -> Result<Vec<String>, String> {
-    let seen = session.script(
-        "var out = []; var p = document.documentElement.getAttribute('data-onecalc-panic'); if (p !== null) { out.push('panic: ' + p); } (window.__onecalcFaults || ['the page has no fault record']).forEach(function (f) { out.push(f); }); return out;",
-    )?;
+fn faults(app: &App, session: &Session) -> Result<Vec<String>, String> {
+    let seen = session.script(&format!(
+        "var out = []; var p = document.documentElement.getAttribute('{}'); if (p !== null) {{ out.push('panic: ' + p); }} (window.{} || ['the page has no fault record']).forEach(function (f) {{ out.push(f); }}); return out;",
+        app.panic_attribute, app.faults
+    ))?;
     Ok(seen
         .as_array()
         .map(|items| {
@@ -839,62 +1232,84 @@ fn faults(session: &Session) -> Result<Vec<String>, String> {
         .unwrap_or_else(|| vec![format!("the fault record is not a list: {seen}")]))
 }
 
-fn act(session: &Session, action: &Action) -> Result<(), String> {
+fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<(), String> {
     match action {
         Action::Grid(cell, text) => {
-            let css = format!("{}[data-cell=\"{cell}\"]", role("grid-cell"));
+            let css = format!("{}[data-cell=\"{cell}\"]", select(app, "grid-cell"));
             session.clear(&css)?;
             session.keys(&css, text)
         }
         Action::Formula(text) => {
-            session.clear(&role("formula"))?;
-            session.keys(&role("formula"), text)
+            session.clear(&select(app, "formula"))?;
+            session.keys(&select(app, "formula"), text)
         }
-        Action::Keys(keys) => session.keys(&role("formula"), keys),
+        Action::Keys(name, keys) => session.keys(&select(app, name), keys),
         Action::Into(name, text) => {
-            session.clear(&role(name))?;
-            session.keys(&role(name), text)
+            session.clear(&select(app, name))?;
+            session.keys(&select(app, name), text)
         }
-        Action::Click(css) => {
-            let element = session.element(css)?;
+        Action::Click(name) => {
+            let element = session.element(&select(app, name))?;
             session.post(&format!("/element/{element}/click"), json!({}))?;
             Ok(())
         }
         Action::Choose(name, value) => {
-            let option = session.element(&format!("{} option[value=\"{value}\"]", role(name)))?;
+            let option =
+                session.element(&format!("{} option[value=\"{value}\"]", select(app, name)))?;
             session.post(&format!("/element/{option}/click"), json!({}))?;
             Ok(())
         }
+        Action::Upload(name, path) => {
+            let path = ws.root.join(path);
+            upload(app, session, name, &path)
+        }
+    }
+}
+
+/// Chooses the file `path` in the file input `name`.
+fn upload(app: &App, session: &Session, name: &str, path: &Path) -> Result<(), String> {
+    let path = path
+        .canonicalize()
+        .map_err(|e| format!("no file {}: {e}", path.display()))?;
+    let text = path.display().to_string();
+    // Windows' canonical form starts with \\?\, which a browser's file input does not take.
+    let text = text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned();
+    session.keys(&select(app, name), &text)
+}
+
+/// Waits until `check` holds or `settle` passes; the failure, if any.
+fn wait_for(app: &App, session: &Session, check: &Check, settle: Duration) -> Option<String> {
+    let started = Instant::now();
+    let mut last: Value;
+    loop {
+        match observe(app, session, check) {
+            Ok(seen) if satisfied(check, &seen) => return None,
+            Ok(seen) => last = seen,
+            Err(e) => last = Value::String(format!("(script failed: {e})")),
+        }
+        if started.elapsed() > settle {
+            return Some(format!("expected {}; saw {last}", describe(check)));
+        }
+        thread::sleep(Duration::from_millis(100));
     }
 }
 
 /// Runs one case: its actions, then each check until it holds or [`SETTLE`] passes, then the fault
 /// record. Returns the failures.
-fn run_case(session: &Session, case: &Case) -> Vec<String> {
+fn run_case(ws: &Workspace, app: &App, session: &Session, case: &Case) -> Vec<String> {
     let mut failures = Vec::new();
     for action in case.actions {
-        if let Err(e) = act(session, action) {
+        if let Err(e) = act(ws, app, session, action) {
             failures.push(format!("action failed: {e}"));
             return failures;
         }
     }
     for check in case.checks {
-        let started = Instant::now();
-        let mut last: Value;
-        loop {
-            match observe(session, check) {
-                Ok(seen) if satisfied(check, &seen) => break,
-                Ok(seen) => last = seen,
-                Err(e) => last = Value::String(format!("(script failed: {e})")),
-            }
-            if started.elapsed() > SETTLE {
-                failures.push(format!("expected {}; saw {last}", describe(check)));
-                break;
-            }
-            thread::sleep(Duration::from_millis(100));
+        if let Some(failure) = wait_for(app, session, check, SETTLE) {
+            failures.push(failure);
         }
     }
-    match faults(session) {
+    match faults(app, session) {
         Ok(list) if list.is_empty() => {}
         Ok(list) => failures.extend(list.into_iter().map(|f| format!("page fault: {f}"))),
         Err(e) => failures.push(format!("cannot read the fault record: {e}")),
@@ -902,20 +1317,144 @@ fn run_case(session: &Session, case: &Case) -> Vec<String> {
     failures
 }
 
+/// The text of the element `name` selects, or why it could not be read.
+fn text_of(app: &App, session: &Session, name: &str) -> String {
+    let script = format!(
+        "var e = document.querySelector('{}'); return e ? e.textContent : null;",
+        select(app, name).replace('\'', "\\'")
+    );
+    match session.script(&script) {
+        Ok(Value::String(text)) => text,
+        Ok(other) => format!("(no text: {other})"),
+        Err(e) => format!("(script failed: {e})"),
+    }
+}
+
+/// Opens a workbook from outside the repository, enters the edit, and reports what the page says
+/// about it: timings and counts only.
+fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) -> Vec<String> {
+    let mut failures = Vec::new();
+    let name = run
+        .path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let label = app.label;
+    if let Err(e) = upload(app, session, "open-file", &run.path) {
+        return vec![format!("the workbook was not chosen: {e}")];
+    }
+    let opened = format!("Opened {name}: ");
+    let started = Instant::now();
+    loop {
+        let status = text_of(app, session, "status");
+        if status.starts_with(&opened) {
+            println!("{label} WORKBOOK {browser} open: {status}");
+            break;
+        }
+        if status.contains("did not open") || started.elapsed() > WORKBOOK_SETTLE {
+            failures.push(format!("the workbook did not open: {status}"));
+            return failures;
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    if let Some((sheet, cell, text)) = &run.edit {
+        let tab = format!("[data-dnacalc=\"sheet-tab\"][data-sheet=\"{sheet}\"]");
+        let split = text.chars().next().map_or(0, char::len_utf8);
+        let (first, rest) = text.split_at(split);
+        let started_edit = (|| {
+            let element = session.element(&tab)?;
+            session.post(&format!("/element/{element}/click"), json!({}))?;
+            session.clear(&select(app, "name-box"))?;
+            session.keys(&select(app, "name-box"), &format!("{cell}{ENTER}"))?;
+            session.keys(&select(app, "grid"), first)
+        })();
+        if let Err(e) = started_edit {
+            failures.push(format!("the edit did not start: {e}"));
+            return failures;
+        }
+        let before = text_of(app, session, "status");
+        if let Err(e) = session.keys(&select(app, "cell-editor"), &format!("{rest}{ENTER}")) {
+            failures.push(format!("the edit was not entered: {e}"));
+            return failures;
+        }
+        let started = Instant::now();
+        loop {
+            let status = text_of(app, session, "status");
+            if status != before {
+                println!(
+                    "{label} WORKBOOK {browser} edit {sheet}!{cell}: {status} (seen after {:.1} s)",
+                    started.elapsed().as_secs_f64()
+                );
+                break;
+            }
+            if started.elapsed() > WORKBOOK_SETTLE {
+                failures.push("the edit's status never came".to_owned());
+                return failures;
+            }
+            thread::sleep(Duration::from_millis(200));
+        }
+    }
+    let started = Instant::now();
+    if let Err(e) = act_click(app, session, "skin-atlas") {
+        failures.push(e);
+        return failures;
+    }
+    // The totals are computed once the atlas is shown; wait for a non-empty line.
+    loop {
+        let totals = text_of(app, session, "atlas-totals");
+        if totals.contains("formula cells") {
+            println!(
+                "{label} WORKBOOK {browser} atlas: {totals} (shown after {:.1} s)",
+                started.elapsed().as_secs_f64()
+            );
+            println!(
+                "{label} WORKBOOK {browser} {}",
+                text_of(app, session, "atlas-timings")
+            );
+            break;
+        }
+        if started.elapsed() > WORKBOOK_SETTLE {
+            failures.push("the atlas never showed its totals".to_owned());
+            break;
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    match faults(app, session) {
+        Ok(list) if list.is_empty() => {}
+        Ok(list) => failures.extend(list.into_iter().map(|f| format!("page fault: {f}"))),
+        Err(e) => failures.push(format!("cannot read the fault record: {e}")),
+    }
+    failures
+}
+
+fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {
+    let element = session.element(&select(app, name))?;
+    session.post(&format!("/element/{element}/click"), json!({}))?;
+    Ok(())
+}
+
 /// Runs every case in one browser; returns (passed, failed) or why the browser could not run.
-fn run_browser(browser: &Browser, page: &str) -> Result<(usize, usize), String> {
+fn run_browser(
+    ws: &Workspace,
+    app: &App,
+    browser: &Browser,
+    page: &str,
+    workbook: Option<&WorkbookRun>,
+) -> Result<(usize, usize), String> {
     let (_driver, session) = open(browser)?;
     let outcome = (|| {
         session.post("/url", json!({ "url": page }))?;
         let started = Instant::now();
         loop {
-            let ready = session
-                .script("return document.documentElement.getAttribute('data-onecalc-ready');")?;
+            let ready = session.script(&format!(
+                "return document.documentElement.getAttribute('{}');",
+                app.ready_attribute
+            ))?;
             if ready.as_str() == Some("true") {
                 break;
             }
             if started.elapsed() > Duration::from_secs(30) {
-                let faults = faults(&session).unwrap_or_default();
+                let faults = faults(app, &session).unwrap_or_default();
                 return Err(format!(
                     "the app did not start within 30 s; faults {faults:?}"
                 ));
@@ -923,14 +1462,30 @@ fn run_browser(browser: &Browser, page: &str) -> Result<(usize, usize), String> 
             thread::sleep(Duration::from_millis(100));
         }
         let (mut passed, mut failed) = (0, 0);
-        for case in CASES {
-            let failures = run_case(&session, case);
+        for case in app.cases {
+            let failures = run_case(ws, app, &session, case);
             if failures.is_empty() {
                 passed += 1;
-                println!("ONECALC SMOKE {} passed: {}", browser.name, case.name);
+                println!("{} SMOKE {} passed: {}", app.label, browser.name, case.name);
             } else {
                 failed += 1;
-                println!("ONECALC SMOKE {} failed: {}", browser.name, case.name);
+                println!("{} SMOKE {} failed: {}", app.label, browser.name, case.name);
+                for failure in failures {
+                    println!("    {failure}");
+                }
+            }
+        }
+        if let Some(run) = workbook {
+            let failures = run_workbook(app, &session, browser.name, run);
+            if failures.is_empty() {
+                passed += 1;
+                println!(
+                    "{} SMOKE {} passed: the workbook opened and was edited",
+                    app.label, browser.name
+                );
+            } else {
+                failed += 1;
+                println!("{} SMOKE {} failed: the workbook", app.label, browser.name);
                 for failure in failures {
                     println!("    {failure}");
                 }
@@ -942,13 +1497,19 @@ fn run_browser(browser: &Browser, page: &str) -> Result<(usize, usize), String> 
     outcome
 }
 
-fn smoke(ws: &Workspace, bundle_dir: Option<PathBuf>, only: Option<&str>) -> ExitCode {
+fn smoke(
+    ws: &Workspace,
+    app: &App,
+    bundle_dir: Option<PathBuf>,
+    only: Option<&str>,
+    workbook: Option<&WorkbookRun>,
+) -> ExitCode {
     let dir = match bundle_dir {
         Some(dir) => dir,
         None => {
-            let dir = ws.root.join(DEFAULT_OUT);
-            if let Err(e) = bundle(ws, &dir) {
-                println!("ONECALC RESULT failed: {e}");
+            let dir = ws.root.join(app.default_out);
+            if let Err(e) = bundle(ws, app, &dir) {
+                println!("{} RESULT failed: {e}", app.label);
                 return ExitCode::from(1);
             }
             dir
@@ -957,19 +1518,19 @@ fn smoke(ws: &Workspace, bundle_dir: Option<PathBuf>, only: Option<&str>) -> Exi
     let port = match serve(dir.clone()) {
         Ok(port) => port,
         Err(e) => {
-            println!("ONECALC RESULT failed: {e}");
+            println!("{} RESULT failed: {e}", app.label);
             return ExitCode::from(1);
         }
     };
     let page = format!("http://127.0.0.1:{port}/index.html");
-    println!("ONECALC serving {} at {page}", dir.display());
+    println!("{} serving {} at {page}", app.label, dir.display());
     let mut all_passed = true;
     let mut summary = Vec::new();
     for browser in BROWSERS
         .iter()
         .filter(|b| only.is_none_or(|name| b.name == name))
     {
-        match run_browser(browser, &page) {
+        match run_browser(ws, app, browser, &page, workbook) {
             Ok((passed, failed)) => {
                 all_passed &= failed == 0;
                 summary.push(format!(
@@ -979,19 +1540,25 @@ fn smoke(ws: &Workspace, bundle_dir: Option<PathBuf>, only: Option<&str>) -> Exi
             }
             Err(e) => {
                 all_passed = false;
-                println!("ONECALC SMOKE {} did not run: {e}", browser.name);
+                println!("{} SMOKE {} did not run: {e}", app.label, browser.name);
                 summary.push(format!("{}: did not run", browser.name));
             }
         }
     }
     if summary.is_empty() {
-        println!("ONECALC RESULT failed: no browser named {only:?}");
+        println!("{} RESULT failed: no browser named {only:?}", app.label);
         return ExitCode::from(2);
     }
     println!(
-        "ONECALC RESULT {}: {} cases per browser; {}",
+        "{} RESULT {}: {} cases per browser{}; {}",
+        app.label,
         if all_passed { "passed" } else { "failed" },
-        CASES.len(),
+        app.cases.len(),
+        if workbook.is_some() {
+            " and the workbook"
+        } else {
+            ""
+        },
         summary.join("; ")
     );
     if all_passed {
@@ -1029,5 +1596,29 @@ mod tests {
             &Check::Contains("r", "SU"),
             &json!(["AB", "SUM"])
         ));
+        assert!(satisfied(&Check::Attr("r", "x", "1"), &json!("1")));
+        assert!(!satisfied(&Check::Value("r", "1"), &Value::Null));
+    }
+
+    #[test]
+    fn roles_and_selectors_select() {
+        assert_eq!(select(&APPS[0], "formula"), "[data-onecalc=\"formula\"]");
+        assert_eq!(select(&APPS[1], "grid"), "[data-dnacalc=\"grid\"]");
+        assert_eq!(select(&APPS[1], BAR), BAR);
+        assert_eq!(cell!("A3"), "[data-dnacalc=\"cell\"][data-cell=\"A3\"]");
+    }
+
+    #[test]
+    fn an_edit_names_a_sheet_a_cell_and_a_text() {
+        assert_eq!(
+            parse_edit("'Inputs 2'!B5=12.5"),
+            Some(("Inputs 2".to_owned(), "B5".to_owned(), "12.5".to_owned()))
+        );
+        assert_eq!(
+            parse_edit("Calc!C3==A1*2"),
+            Some(("Calc".to_owned(), "C3".to_owned(), "=A1*2".to_owned()))
+        );
+        assert_eq!(parse_edit("B5=1"), None);
+        assert_eq!(parse_edit("Sheet1!B5"), None);
     }
 }

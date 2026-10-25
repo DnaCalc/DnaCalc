@@ -59,11 +59,12 @@
 //! peak memory and the machine's load, writing the medians and spreads to `bench.md` and every
 //! sample to `bench.json` (`bench.rs`, bead dc-10d9).
 //!
-//! `cargo xtask onecalc bundle [--out <dir>]` builds DNA OneCalc's browser bundle (the app's wasm
-//! entry through wasm-bindgen, and its page) into a folder, and `cargo xtask onecalc smoke
-//! [--bundle <dir>] [--browser chromium|firefox]` serves it on 127.0.0.1 and drives it in headless
-//! Chrome and Firefox through WebDriver, failing on a wrong answer or any panic or uncaught error
-//! the page records (`onecalc.rs`).
+//! `cargo xtask app bundle onecalc|calc [--out <dir>]` builds DNA OneCalc's or DNA Calc's browser
+//! bundle (the app's wasm entry through wasm-bindgen, and its page) into a folder, and `cargo xtask
+//! app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit
+//! <sheet>!<cell>=<text>]]` serves it on 127.0.0.1 and drives it in headless Chrome and Firefox
+//! through WebDriver, failing on a wrong answer or any panic or uncaught error the page records
+//! (`app.rs`); `cargo xtask onecalc bundle|smoke` is the same for DNA OneCalc.
 //!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
@@ -74,6 +75,7 @@ compile_error!(
 );
 
 mod accept;
+mod app;
 mod arch;
 // The bench command times Excel through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
@@ -97,7 +99,6 @@ mod evidence;
 mod evidence_labels;
 mod legacy;
 mod manifest;
-mod onecalc;
 mod owners;
 mod rust_source;
 mod text;
@@ -116,7 +117,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "evidence" => evidence::run(rest),
         Some((command, rest)) if command == "verdict" => verdict::run(rest),
         Some((command, rest)) if command == "compare" => compare::run(rest),
-        Some((command, rest)) if command == "onecalc" => onecalc::run(rest),
+        Some((command, rest)) if command == "app" => app::run(rest),
+        Some((command, rest)) if command == "onecalc" => app::run_onecalc(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "capture" => capture::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -133,7 +135,7 @@ fn main() -> ExitCode {
                 evidence::USAGE,
                 verdict::USAGE,
                 compare::USAGE,
-                onecalc::USAGE,
+                app::USAGE,
             ];
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(capture::USAGE);
