@@ -1757,6 +1757,7 @@ fn dc_09v__copy_relocates_formulas_and_fills() {
     let receipt = session.dispatch(SkinIntent::Copy {
         from: area("B1", "C1"),
         to: area("B2", "C3"),
+        cut: false,
     });
     assert!(receipt.accepted(), "{:?}", receipt.error);
     assert_eq!(formula_at(&session, "B3"), "A3*10");
@@ -1773,6 +1774,7 @@ fn dc_09v__copy_relocates_formulas_and_fills() {
     let receipt = session.dispatch(SkinIntent::Copy {
         from: area("A1", "B2"),
         to: area("E5", "E5"),
+        cut: false,
     });
     assert!(receipt.accepted(), "{:?}", receipt.error);
     assert_eq!(formula_at(&session, "F6"), "E6*10");
@@ -1784,6 +1786,7 @@ fn dc_09v__copy_relocates_formulas_and_fills() {
     let receipt = session.dispatch(SkinIntent::Copy {
         from: area("B1", "B1"),
         to: area("A2", "A2"),
+        cut: false,
     });
     assert!(receipt.accepted(), "{:?}", receipt.error);
     assert_eq!(formula_at(&session, "A2"), "#REF!*10");
@@ -1792,6 +1795,7 @@ fn dc_09v__copy_relocates_formulas_and_fills() {
     let receipt = session.dispatch(SkinIntent::Copy {
         from: area("A1", "A2"),
         to: area("H1", "H3"),
+        cut: false,
     });
     assert!(
         matches!(receipt.error, Some(IntentError::Copy(_))),
@@ -2047,4 +2051,119 @@ fn d2b_structural__edits_excel_refuses_are_refused() {
     );
     assert_eq!(session.host().revision(), revision);
     assert_eq!(session.history_depth(), (0, 0));
+}
+
+/// dc-09v (D4b): a copy takes a legacy array whole (and refuses part of one), copies a dynamic
+/// array's spilled cells as values when their anchor stays behind; a cut moves cells and every
+/// reference to them, as Excel's cut and paste does; one undo takes each back.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_09v__copy_arrays_and_cut_moves_references() {
+    let mut session = session(&calc_host::blank_package());
+    let s = session.host().sheets()[0].id();
+    let enter = |session: &mut HostSession, address: &str, text: &str| {
+        let receipt = session.dispatch(SkinIntent::EnterCell {
+            at: at(s, address),
+            text: text.to_owned(),
+        });
+        assert!(receipt.accepted(), "{address}: {:?}", receipt.error);
+    };
+    for (address, text) in [
+        ("A1", "1"),
+        ("A2", "2"),
+        ("A3", "3"),
+        ("C1", "=SUM(B1:B3)"),
+        ("D1", "={1;2;3}"),
+        ("E5", "=SUM(A1:A4)"),
+    ] {
+        enter(&mut session, address, text);
+    }
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    // B1:B3 holds the legacy array {=A1:A3*10}.
+    let receipt = session.dispatch(SkinIntent::Edit {
+        edits: vec![CellEdit::SetArray {
+            array: calc_host::ArrayFormula::new(area("B1", "B3"), calc_host::ArrayKind::Legacy),
+            formula: match formula("A1:A3*10") {
+                CellInput::Formula(text) => text,
+                _ => unreachable!(),
+            },
+        }],
+    });
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(
+        calculated(session.host(), at(s, "C1")),
+        Some(CalcValue::number(60.0))
+    );
+    let input_text = |session: &HostSession, address: &str| match project(
+        session.host(),
+        &ProjectionRequest {
+            cells: vec![at(s, address)],
+        },
+    )
+    .unwrap()
+    .cells()[0]
+        .input()
+    {
+        Some(CellInput::Formula(text)) => format!("={}", text.text().to_string_lossy()),
+        Some(other) => format!("{other:?}"),
+        None => String::new(),
+    };
+    let copy = |session: &mut HostSession, from: GridArea, to: &str, cut: bool| {
+        session.dispatch(SkinIntent::Copy {
+            from,
+            to: area(to, to),
+            cut,
+        })
+    };
+    // The whole array copied to F1: an array over F1:F3, its formula relocated.
+    let receipt = copy(&mut session, area("B1", "B3"), "F1", false);
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(input_text(&session, "F1"), "=E1:E3*10");
+    assert_eq!(
+        calculated(session.host(), at(s, "F3")),
+        Some(CalcValue::number(0.0))
+    );
+    // Part of it is refused.
+    let receipt = copy(&mut session, area("B2", "B3"), "H1", false);
+    assert!(
+        matches!(
+            receipt.error,
+            Some(IntentError::Copy(
+                calc_host::CopyRefusal::PartOfArray { .. }
+            ))
+        ),
+        "{:?}",
+        receipt.error
+    );
+    // The spilled D2:D3 without their anchor copy as values.
+    let receipt = copy(&mut session, area("D2", "D3"), "G1", false);
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert!(matches!(
+        value(session.host(), at(s, "G2")),
+        ProjectedValue::Literal(_)
+    ));
+    assert_eq!(input_text(&session, "G2"), format!("{:?}", number(3.0)));
+    // Cut A1:A3 to H5: the array's whole-range reference follows; the partial one stays.
+    let receipt = copy(&mut session, area("A1", "A3"), "H5", true);
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(input_text(&session, "A1"), "");
+    assert_eq!(input_text(&session, "H6"), format!("{:?}", number(2.0)));
+    assert_eq!(input_text(&session, "B1"), "=H5:H7*10");
+    assert_eq!(input_text(&session, "E5"), "=SUM(A1:A4)");
+    assert_eq!(
+        calculated(session.host(), at(s, "C1")),
+        Some(CalcValue::number(60.0))
+    );
+    assert_eq!(
+        calculated(session.host(), at(s, "E5")),
+        Some(CalcValue::number(0.0))
+    );
+    // One undo takes the move back.
+    session.dispatch(SkinIntent::Undo);
+    assert_eq!(input_text(&session, "B1"), "=A1:A3*10");
+    assert_eq!(input_text(&session, "H5"), "");
+    assert_eq!(
+        calculated(session.host(), at(s, "E5")),
+        Some(CalcValue::number(6.0))
+    );
 }

@@ -1,22 +1,35 @@
-//! Copy and paste, and fill (dc-09v): the cell edits a copy of one area into another makes, as
-//! Excel's copy and paste writes them. A value is copied as it is; a formula is relocated, its
-//! relative references keeping their offsets and its absolute ones staying
-//! ([`calc_engine::relocate_formula`]); an empty source cell clears its target. A target area
-//! that is a whole multiple of the source's shape is filled by repeating the source, which is how
-//! a fill down or right copies its first row or column; a single target cell takes the source's
-//! shape from it.
+//! Copy and paste, fill, and cut and paste (dc-09v): the cell edits a copy or a move of one area
+//! into another makes, as Excel's copy and paste writes them.
 //!
-//! Every edit is read from the revision before the copy, so a copy whose target overlaps its source
+//! A copy:
+//! - copies a value as it is, and a formula relocated, its relative references keeping their
+//!   offsets and its absolute ones staying ([`calc_engine::relocate_formula`]); an empty source
+//!   cell clears its target;
+//! - copies a legacy (Ctrl+Shift+Enter) array formula whole: its formula relocated, authored as
+//!   an array over the same shape at the target; a source that holds only part of one is refused,
+//!   as Excel refuses to change part of an array;
+//! - copies a cell a dynamic array spilled into as its value when the array's anchor is not
+//!   copied with it (the anchor copied with it spills again at the target);
+//! - fills a target that is a whole multiple of the source's shape by repeating the source (a fill
+//!   down or right is the copy of its first row or column over the rest); a single target cell
+//!   takes the source's shape.
+//!
+//! A cut (a move) puts the source's cells at the target and empties the source, on one sheet. A
+//! moved formula keeps its text, and every formula of the workbook (the moved ones included)
+//! whose references point at moved cells follows them ([`calc_engine::move_references`]), as
+//! Excel's move does; a legacy array moves whole.
+//!
+//! Every edit is read from the revision before the copy, so a target that overlaps its source
 //! copies what the source held, and the edits commit as one transaction and one undo step.
 //!
-//! Left as Excel's copy does differently, for now: the cells an array formula fills beside its
-//! anchor are copied as empty (Excel copies a legacy array only whole), formats are not copied
-//! (no command changes formats yet), and cut is not built.
+//! Left as Excel's copy does differently, for now: a defined name that refers to moved cells
+//! keeps its reference (no command edits names yet).
 
 use crate::command::CellEdit;
 use crate::state::HostState;
-use calc_doc_model::CellInput;
-use calc_doc_model::value::{CellKey, GridArea};
+use calc_doc_model::value::{CalcValue, CellKey, CoreValue, GridArea};
+use calc_doc_model::{ArrayFormula, ArrayKind, CellInput, CellText, FiniteNumber};
+use std::collections::BTreeSet;
 use std::fmt;
 
 /// Why a copy made no edit.
@@ -25,7 +38,7 @@ pub enum CopyRefusal {
     /// The source and the target are on sheets the workbook does not hold.
     UnknownSheet,
     /// The target is not a whole multiple of the source's shape (Excel: "the copy area and the
-    /// paste area are not the same size").
+    /// paste area are not the same size"); for a cut, not the source's shape.
     Shape {
         source: (u32, u32),
         target: (u32, u32),
@@ -36,6 +49,10 @@ pub enum CopyRefusal {
     TooLarge { cells: u64 },
     /// A source formula's text does not parse, so it cannot be relocated.
     Unrelocatable { at: CellKey },
+    /// The source holds part of a legacy array formula, which is copied or moved only whole.
+    PartOfArray { anchor: CellKey },
+    /// A cut whose target is on another sheet than its source (not built).
+    CutAcrossSheets,
 }
 
 impl fmt::Display for CopyRefusal {
@@ -62,6 +79,15 @@ impl fmt::Display for CopyRefusal {
                 at.row(),
                 at.column()
             ),
+            CopyRefusal::PartOfArray { anchor } => write!(
+                f,
+                "the copy holds part of the array formula anchored at row {} column {}; an array is copied whole",
+                anchor.row(),
+                anchor.column()
+            ),
+            CopyRefusal::CutAcrossSheets => {
+                f.write_str("moving cells to another sheet is not built yet")
+            }
         }
     }
 }
@@ -71,11 +97,37 @@ impl std::error::Error for CopyRefusal {}
 /// The most cells one copy writes.
 pub const COPY_LIMIT: u64 = 1_000_000;
 
-/// The edits a copy of `from` into `to` makes over the current revision of `host`.
+/// The cell `rows` and `columns` from `at`, on `sheet`.
+fn offset(
+    sheet: calc_doc_model::value::SheetId,
+    at: CellKey,
+    rows: i64,
+    columns: i64,
+) -> Option<CellKey> {
+    let row = u32::try_from(i64::from(at.row()) + rows).ok()?;
+    let column = u32::try_from(i64::from(at.column()) + columns).ok()?;
+    CellKey::new(sheet, row, column).ok()
+}
+
+/// A value as the input a cell holds for it (a spilled cell copied as its value); `None` for a
+/// value no cell holds as an input (an array, a reference, an empty value).
+fn value_input(value: &CalcValue) -> Option<CellInput> {
+    Some(match value.core() {
+        CoreValue::Number(number) => CellInput::Number(FiniteNumber::new(*number)?),
+        CoreValue::Text(text) => CellInput::Text(CellText::new(text.clone())?),
+        CoreValue::Logical(logical) => CellInput::Logical(*logical),
+        CoreValue::Error(code) => CellInput::Error(*code),
+        _ => return None,
+    })
+}
+
+/// The edits a copy (or, with `cut`, a move) of `from` into `to` makes over the current revision
+/// of `host`.
 pub(crate) fn copy_edits(
     host: &HostState,
     from: GridArea,
     to: GridArea,
+    cut: bool,
 ) -> Result<Vec<CellEdit>, CopyRefusal> {
     let model = &host.model;
     if model.sheet_by_id(from.sheet()).is_none() || model.sheet_by_id(to.sheet()).is_none() {
@@ -95,19 +147,67 @@ pub(crate) fn copy_edits(
     } else {
         to
     };
+    let shape = CopyRefusal::Shape {
+        source: (source_rows, source_cols),
+        target: (to.row_count(), to.column_count()),
+    };
     if to.row_count() % source_rows != 0 || to.column_count() % source_cols != 0 {
-        return Err(CopyRefusal::Shape {
-            source: (source_rows, source_cols),
-            target: (to.row_count(), to.column_count()),
-        });
+        return Err(shape);
+    }
+    if cut && (to.row_count() != source_rows || to.column_count() != source_cols) {
+        return Err(shape);
+    }
+    if cut && to.sheet() != from.sheet() {
+        return Err(CopyRefusal::CutAcrossSheets);
     }
     if to.cell_count() > COPY_LIMIT {
         return Err(CopyRefusal::TooLarge {
             cells: to.cell_count(),
         });
     }
+    // The legacy arrays of the source, each of which must lie in it whole.
+    let definitions = model.definitions();
+    let mut legacy: Vec<ArrayFormula> = Vec::new();
+    for array in definitions.arrays_meeting(from) {
+        if array.kind() != ArrayKind::Legacy {
+            continue;
+        }
+        let area = array.area();
+        if !(from.contains(area.first()) && from.contains(area.last())) {
+            return Err(CopyRefusal::PartOfArray {
+                anchor: array.anchor(),
+            });
+        }
+        legacy.push(*array);
+    }
+    let in_legacy = |at: CellKey| legacy.iter().any(|array| array.area().contains(at));
+
     let mut edits = Vec::with_capacity(to.cell_count() as usize);
     let (top, left) = (to.first().row(), to.first().column());
+    // A cut empties the source's cells the target does not cover first; the target's edits then
+    // write over the rest.
+    if cut {
+        for row in from.first().row()..=from.last().row() {
+            for column in from.first().column()..=from.last().column() {
+                let at = CellKey::new(from.sheet(), row, column).expect("inside the source");
+                if !to.contains(at) {
+                    edits.push(CellEdit::Clear {
+                        area: GridArea::cell(at),
+                    });
+                }
+            }
+        }
+    }
+    let formula_text = |source: CellKey, target: CellKey, formula| {
+        if cut {
+            Some(
+                calc_engine::move_references(model, formula, source, from, to.first())
+                    .unwrap_or_else(|| formula.clone()),
+            )
+        } else {
+            calc_engine::relocate_formula(model, formula, source, target)
+        }
+    };
     for row in top..=to.last().row() {
         for column in left..=to.last().column() {
             let target = CellKey::new(to.sheet(), row, column).expect("inside the target area");
@@ -117,12 +217,39 @@ pub(crate) fn copy_edits(
                 from.first().column() + (column - left) % source_cols,
             )
             .expect("inside the source area");
+            if let Some(array) = legacy.iter().find(|array| array.area().contains(source)) {
+                // A legacy array is written once, from its anchor, over its shape.
+                if array.anchor() != source {
+                    continue;
+                }
+                let Some(CellInput::Formula(formula)) = model.cell(source) else {
+                    continue;
+                };
+                let area = array.area();
+                let shift = |at: CellKey| {
+                    offset(
+                        to.sheet(),
+                        at,
+                        i64::from(target.row()) - i64::from(source.row()),
+                        i64::from(target.column()) - i64::from(source.column()),
+                    )
+                };
+                let placed = GridArea::new(
+                    shift(area.first()).ok_or(CopyRefusal::PastTheGrid)?,
+                    shift(area.last()).ok_or(CopyRefusal::PastTheGrid)?,
+                )
+                .expect("both corners are on the target's sheet");
+                let formula = formula_text(source, target, formula)
+                    .ok_or(CopyRefusal::Unrelocatable { at: source })?;
+                edits.push(CellEdit::SetArray {
+                    array: ArrayFormula::new(placed, ArrayKind::Legacy),
+                    formula,
+                });
+                continue;
+            }
             let edit = match model.cell(source) {
-                None => CellEdit::Clear {
-                    area: GridArea::cell(target),
-                },
                 Some(CellInput::Formula(formula)) => {
-                    let formula = calc_engine::relocate_formula(model, formula, source, target)
+                    let formula = formula_text(source, target, formula)
                         .ok_or(CopyRefusal::Unrelocatable { at: source })?;
                     CellEdit::Set {
                         at: target,
@@ -133,8 +260,59 @@ pub(crate) fn copy_edits(
                     at: target,
                     input: input.clone(),
                 },
+                // A cell a dynamic array spilled into, whose anchor is not copied with it, is
+                // copied as its value.
+                None => match host
+                    .engine
+                    .spill_covering(source)
+                    .filter(|spill| !from.contains(spill.anchor()) && !in_legacy(source))
+                    .and_then(|spill| value_input(spill.value_at(source)))
+                {
+                    Some(input) if !cut => CellEdit::Set { at: target, input },
+                    _ => CellEdit::Clear {
+                        area: GridArea::cell(target),
+                    },
+                },
             };
             edits.push(edit);
+        }
+    }
+    // A cut moves every reference to the moved cells, in formulas outside the source as well.
+    if cut {
+        let target_cells: BTreeSet<CellKey> = edits
+            .iter()
+            .filter_map(|edit| match edit {
+                CellEdit::Set { at, .. } => Some(*at),
+                _ => None,
+            })
+            .collect();
+        for entry in model.sheets() {
+            for (at, input) in model.sheet_cells(entry.id()).into_iter().flatten() {
+                let CellInput::Formula(formula) = input else {
+                    continue;
+                };
+                if from.contains(at) || to.contains(at) || target_cells.contains(&at) {
+                    continue;
+                }
+                if let Some(moved) =
+                    calc_engine::move_references(model, formula, at, from, to.first())
+                {
+                    if let Some(array) = definitions
+                        .array_containing(at)
+                        .filter(|a| a.anchor() == at)
+                    {
+                        edits.push(CellEdit::SetArray {
+                            array: *array,
+                            formula: moved,
+                        });
+                    } else {
+                        edits.push(CellEdit::Set {
+                            at,
+                            input: CellInput::Formula(moved),
+                        });
+                    }
+                }
+            }
         }
     }
     Ok(edits)
