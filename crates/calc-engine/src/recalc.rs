@@ -292,6 +292,8 @@ pub struct RecalcWork {
     /// The areas the evaluation in progress read, kept between evaluations so that each does
     /// not allocate its own list (dc-dxm).
     footprint: Vec<GridArea>,
+    /// The storage the engine's reader gathers a read's values in, kept between evaluations.
+    read_batch: Vec<CalcValue>,
     failure: Option<RecalcFailure>,
     /// The workbook's iteration settings.
     iteration: IterationSettings,
@@ -519,6 +521,7 @@ pub fn begin_recalc(
         waves: 0,
         scratch: EvalScratch::new(),
         footprint: Vec::new(),
+        read_batch: Vec::new(),
         failure: None,
         iteration,
         cyclic: BTreeSet::new(),
@@ -1830,7 +1833,8 @@ fn evaluate_node(
         iterates: work.iterating().then_some(&work.iterates),
         kept: (!work.iteration.enabled()).then_some((&work.kept, &work.kept_read)),
     };
-    let mut cells = WorkbookReader::new(view, &uncomputed);
+    let mut cells =
+        WorkbookReader::new(view, &uncomputed).with_batch(std::mem::take(&mut work.read_batch));
     let catalog = SnapshotCatalog(inputs);
     let mut random = RandomStream::new(state.random_seed, calculation.tick().get(), formula);
     let observer = RefCell::new(observer);
@@ -1859,6 +1863,7 @@ fn evaluate_node(
         };
         (outcome, observed.stopped)
     };
+    work.read_batch = cells.into_batch();
     if let Some(area) = stopped {
         return Err(RecalcFailure::ReadFailed { formula, area });
     }

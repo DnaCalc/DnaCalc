@@ -481,6 +481,9 @@ pub(crate) struct WorkbookReader<'a> {
     /// The first cell read that this recalculation has yet to calculate, with the node that
     /// calculates it: a formula cell, or a cell the spill of a formula not yet evaluated may fill.
     uncomputed: &'a Cell<Option<(CellKey, NodeId)>>,
+    /// The storage a read of several cells gathers their values in (dc-dxm: handed from one
+    /// evaluation to the next by [`WorkbookReader::with_batch`] and [`WorkbookReader::into_batch`]).
+    batch: Vec<CalcValue>,
 }
 
 impl<'a> WorkbookReader<'a> {
@@ -488,7 +491,89 @@ impl<'a> WorkbookReader<'a> {
         view: RecalcView<'a>,
         uncomputed: &'a Cell<Option<(CellKey, NodeId)>>,
     ) -> Self {
-        WorkbookReader { view, uncomputed }
+        WorkbookReader {
+            view,
+            uncomputed,
+            batch: Vec::new(),
+        }
+    }
+
+    /// The reader, gathering values in `batch`'s storage.
+    pub(crate) fn with_batch(mut self, batch: Vec<CalcValue>) -> Self {
+        self.batch = batch;
+        self
+    }
+
+    /// The storage the reader gathered values in, empty.
+    pub(crate) fn into_batch(mut self) -> Vec<CalcValue> {
+        self.batch.clear();
+        self.batch
+    }
+
+    /// The runs of `occupied`, the occupied cells of an area of `total` cells in row-major
+    /// order, with `overlays` for the cells between them, values gathered in `batch`.
+    fn read_occupied(
+        &mut self,
+        occupied: impl Iterator<Item = (CellKey, &'a CellInput)>,
+        overlays: &BTreeMap<u64, Overlay<'a>>,
+        index_of: impl Fn(CellKey) -> u64,
+        total: u64,
+        batch: &mut Vec<CalcValue>,
+        sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>,
+    ) {
+        const BATCH: usize = 256;
+        let flush = |batch: &mut Vec<CalcValue>,
+                     sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>| {
+            if batch.is_empty() {
+                return ControlFlow::Continue(());
+            }
+            let flow = sink(CellRun::Values(batch));
+            batch.clear();
+            flow
+        };
+        let mut covered = 0u64;
+        for (at, input) in occupied {
+            let index = index_of(at);
+            if index > covered
+                && (flush(batch, sink).is_break()
+                    || gap(covered, index, overlays, sink).is_break())
+            {
+                return;
+            }
+            covered = index + 1;
+            let flow = match literal_value(input) {
+                Some(value) => {
+                    batch.push(value);
+                    ControlFlow::Continue(())
+                }
+                None => match self.formula_lookup(at) {
+                    Ok(Some(value)) => {
+                        batch.push(value.clone());
+                        ControlFlow::Continue(())
+                    }
+                    Ok(None) => match flush(batch, sink) {
+                        ControlFlow::Continue(()) => sink(CellRun::Missing(1)),
+                        stop => stop,
+                    },
+                    Err(unread) => match flush(batch, sink) {
+                        ControlFlow::Continue(()) => {
+                            self.unread(at, unread);
+                            sink(CellRun::Missing(1))
+                        }
+                        stop => stop,
+                    },
+                },
+            };
+            if flow.is_break() || (batch.len() >= BATCH && flush(batch, sink).is_break()) {
+                return;
+            }
+        }
+        if flush(batch, sink).is_break() {
+            return;
+        }
+        if total > covered {
+            let _ = gap(covered, total, overlays, sink);
+        }
     }
 
     fn wait(&mut self, at: CellKey, node: NodeId) {
@@ -715,60 +800,11 @@ impl ReferenceReader for WorkbookReader<'_> {
         // Consecutive cells' values go to the sink as one run (dc-dxm), up to BATCH of them. A
         // cell this recalculation has yet to calculate ends the run before its wait is noted, so
         // a sink that stops reading earlier notes no wait for it, as with one run per cell.
-        const BATCH: usize = 256;
-        let mut batch: Vec<CalcValue> = Vec::new();
-        let flush = |batch: &mut Vec<CalcValue>,
-                     sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>| {
-            if batch.is_empty() {
-                return ControlFlow::Continue(());
-            }
-            let flow = sink(CellRun::Values(batch));
-            batch.clear();
-            flow
-        };
-        let mut covered = 0u64;
-        for (at, input) in occupied {
-            let index = index_of(at);
-            if index > covered
-                && (flush(&mut batch, sink).is_break()
-                    || gap(covered, index, &overlays, sink).is_break())
-            {
-                return;
-            }
-            covered = index + 1;
-            let flow = match literal_value(input) {
-                Some(value) => {
-                    batch.push(value);
-                    ControlFlow::Continue(())
-                }
-                None => match self.formula_lookup(at) {
-                    Ok(Some(value)) => {
-                        batch.push(value.clone());
-                        ControlFlow::Continue(())
-                    }
-                    Ok(None) => match flush(&mut batch, sink) {
-                        ControlFlow::Continue(()) => sink(CellRun::Missing(1)),
-                        stop => stop,
-                    },
-                    Err(unread) => match flush(&mut batch, sink) {
-                        ControlFlow::Continue(()) => {
-                            self.unread(at, unread);
-                            sink(CellRun::Missing(1))
-                        }
-                        stop => stop,
-                    },
-                },
-            };
-            if flow.is_break() || (batch.len() >= BATCH && flush(&mut batch, sink).is_break()) {
-                return;
-            }
-        }
-        if flush(&mut batch, sink).is_break() {
-            return;
-        }
-        if total > covered {
-            let _ = gap(covered, total, &overlays, sink);
-        }
+        let mut batch = std::mem::take(&mut self.batch);
+        batch.clear();
+        self.read_occupied(occupied, &overlays, index_of, total, &mut batch, sink);
+        batch.clear();
+        self.batch = batch;
     }
 
     /// What SUBTOTAL and AGGREGATE leave out of `area`: the cells whose bound formula calls

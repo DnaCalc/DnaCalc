@@ -439,7 +439,14 @@ impl Run<'_, '_> {
         }
         let mut arguments = std::mem::take(&mut *self.arguments);
         arguments.clear();
-        arguments.extend_from_slice(&self.stack[start..]);
+        // A call that does not keep its arguments on the stack moves them out instead of copying
+        // them (dc-dxm); a failed call's arguments are gone either way, as `block` truncates the
+        // stack on a fault.
+        if retain {
+            arguments.extend_from_slice(&self.stack[start..]);
+        } else {
+            arguments.extend(self.stack.drain(start..));
+        }
         let value = if lifted {
             self.lifted(target, &arguments, synthetic)
         } else {
