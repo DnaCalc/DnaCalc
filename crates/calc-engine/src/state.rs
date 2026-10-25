@@ -388,7 +388,7 @@ impl EngineState {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
                 if let CellInput::Formula(_) = input {
                     let id = issue_node_id(&mut state.ids);
-                    state.add_node(id, at);
+                    state.record_node(id, at);
                     state.pending.insert(id);
                 }
             }
@@ -406,7 +406,7 @@ impl EngineState {
                         continue;
                     }
                     let id = issue_node_id(&mut state.ids);
-                    state.add_node(id, at);
+                    state.record_node(id, at);
                     state.pending.insert(id);
                 }
             }
@@ -826,6 +826,13 @@ impl EngineState {
     /// Records a node issued by this state's allocator at `anchor`, unbound. The caller makes it
     /// pending.
     pub(crate) fn add_node(&mut self, id: NodeId, anchor: CellKey) {
+        self.record_node(id, anchor);
+        self.anchor_index.insert(anchor, id);
+    }
+
+    /// [`EngineState::add_node`] but for the anchor index, which [`EngineState::new`] builds once
+    /// all its nodes are recorded.
+    fn record_node(&mut self, id: NodeId, anchor: CellKey) {
         let slot = id.slot() as usize;
         if self.nodes.len() <= slot {
             self.nodes.resize_with(slot + 1, || None);
@@ -837,7 +844,6 @@ impl EngineState {
             dynamic: Vec::new(),
         });
         self.by_anchor.insert(anchor, id);
-        self.anchor_index.insert(anchor, id);
     }
 }
 

@@ -631,10 +631,10 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
                 after: after_area,
             });
         }
-        state.results.insert(at, (node, result.clone()));
+        state.results.insert(at, (node, result));
         state.pending.remove(&node);
         state.entered.remove(&node);
-        changes.push((at, ValueChange::Published { at, node, result }));
+        changes.push((at, ValueChange::Published { at, node }));
     }
     for (node, dynamic) in std::mem::take(&mut work.dynamic).into_entries() {
         state.set_dynamic(node, dynamic);
