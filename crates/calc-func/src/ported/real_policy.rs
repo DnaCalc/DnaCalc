@@ -1,4 +1,5 @@
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_exp;
 
 pub(crate) fn excel_underflow_to_zero(value: f64) -> f64 {
     if value.is_finite() && value != 0.0 && value.abs() < f64::MIN_POSITIVE {
@@ -119,10 +120,10 @@ mod tests {
     fn excel_real_policy_finite_maps_overflow_to_num() {
         let p = ExcelRealPolicy::FINITE;
         assert_eq!(
-            p.publish(1000.0, 1000.0_f64.exp()),
+            p.publish(1000.0, crt_exp(1000.0_f64)),
             Err(WorksheetErrorCode::Num)
         );
-        assert_eq!(p.publish(1.0, 1.0_f64.exp()), Ok(1.0_f64.exp()));
+        assert_eq!(p.publish(1.0, crt_exp(1.0_f64)), Ok(crt_exp(1.0_f64)));
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

@@ -1,5 +1,8 @@
 use crate::value::WorksheetErrorCode;
 use crate::ported::normal_dist_common::erf_approx;
+use crate::ported::excel_numeric::crt_log;
+use crate::ported::excel_numeric::crt_exp;
+use crate::ported::excel_numeric::crt_log10;
 
 const LANCZOS_G: f64 = 7.0;
 const LANCZOS_COEFFS: [f64; 9] = [
@@ -38,7 +41,7 @@ fn ln_gamma_positive(x: f64) -> Result<f64, WorksheetErrorCode> {
     // diverges, and for tiny x, z = x - 1.0 loses x entirely so z+1 == 0 yields
     // +Inf. Lift x into the stable region via lnGamma(x) = lnGamma(x+1) - ln(x).
     if x < 1.0 {
-        return Ok(ln_gamma_positive(x + 1.0)? - x.ln());
+        return Ok(ln_gamma_positive(x + 1.0)? - crt_log(x));
     }
 
     let z = x - 1.0;
@@ -48,7 +51,7 @@ fn ln_gamma_positive(x: f64) -> Result<f64, WorksheetErrorCode> {
     }
 
     let t = z + LANCZOS_G + 0.5;
-    Ok(0.5 * (2.0 * std::f64::consts::PI).ln() + (z + 0.5) * t.ln() - t + acc.ln())
+    Ok(0.5 * crt_log(2.0 * std::f64::consts::PI) + (z + 0.5) * crt_log(t) - t + crt_log(acc))
 }
 
 fn erf_interval(lower: f64, upper: f64) -> f64 {
@@ -908,16 +911,16 @@ pub fn gamma_kernel(x: f64) -> Result<f64, WorksheetErrorCode> {
         if denom == 0.0 || !denom.is_finite() {
             return Err(WorksheetErrorCode::Num);
         }
-        std::f64::consts::PI.ln() - denom.abs().ln() - ln_gamma_positive(reflected)?
+        crt_log(std::f64::consts::PI) - crt_log(denom.abs()) - ln_gamma_positive(reflected)?
     } else {
         ln_gamma_positive(x)?
     };
 
-    if ln_gamma > f64::MAX.ln() {
+    if ln_gamma > crt_log(f64::MAX) {
         return Err(WorksheetErrorCode::Num);
     }
 
-    let magnitude = ln_gamma.exp();
+    let magnitude = crt_exp(ln_gamma);
     let value = if x < 0.5 && (std::f64::consts::PI * x).sin().is_sign_negative() {
         -magnitude
     } else {
@@ -2489,7 +2492,7 @@ mod tests {
         let v = gamma_kernel(-1e-200).unwrap();
         assert!(v.is_finite() && v < 0.0, "GAMMA(-1e-200) = {v}");
         assert!(
-            (v.abs().log10() - 200.0).abs() < 1.0,
+            (crt_log10(v.abs()) - 200.0).abs() < 1.0,
             "magnitude ~1e200: {v}"
         );
         // Exact non-positive-integer poles still error.

@@ -1,5 +1,7 @@
 use crate::value::WorksheetErrorCode;
 use crate::ported::special_math_common::{bisect_inverse, ln_gamma, regularized_beta, regularized_gamma_p};
+use crate::ported::excel_numeric::crt_log;
+use crate::ported::excel_numeric::crt_exp;
 
 fn bool_flag(value: f64) -> bool {
     value != 0.0
@@ -48,10 +50,10 @@ pub(crate) fn beta_dist_kernel(
         // shapes through the identified BRATIO.
         return Ok(regularized_beta(z, alpha, beta));
     }
-    let log_pdf = (alpha - 1.0) * z.ln() + (beta - 1.0) * (1.0 - z).ln()
+    let log_pdf = (alpha - 1.0) * crt_log(z) + (beta - 1.0) * crt_log(1.0 - z)
         - beta_log_norm(alpha, beta)
-        - (upper - lower).ln();
-    let pdf = log_pdf.exp();
+        - crt_log(upper - lower);
+    let pdf = crt_exp(log_pdf);
     if pdf.is_finite() {
         Ok(pdf)
     } else {
@@ -124,8 +126,8 @@ pub fn gamma_dist_kernel(
         // path. All other shapes route through regularized_gamma_p.
         return Ok(regularized_gamma_p(alpha, x / beta));
     }
-    let log_pdf = (alpha - 1.0) * x.ln() - x / beta - ln_gamma(alpha) - alpha * beta.ln();
-    let pdf = log_pdf.exp();
+    let log_pdf = (alpha - 1.0) * crt_log(x) - x / beta - ln_gamma(alpha) - alpha * crt_log(beta);
+    let pdf = crt_exp(log_pdf);
     if pdf.is_finite() {
         Ok(pdf)
     } else {

@@ -2,6 +2,7 @@ use crate::ported::special_dist_family::erfc_of_sqrt_half_x;
 use crate::ported::special_math_common::{bisect_inverse, bratio, gamma, regularized_gamma_q};
 use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::crt_pow;
+use crate::ported::excel_numeric::crt_exp;
 
 fn truncate_positive_integer(value: f64) -> Result<f64, WorksheetErrorCode> {
     let truncated = value.trunc();
@@ -47,7 +48,7 @@ pub fn chisq_pdf_kernel(x: f64, deg_freedom: f64) -> Result<f64, WorksheetErrorC
         };
     }
     let half_k = k / 2.0;
-    Ok(crt_pow(x, half_k - 1.0) * (-x / 2.0).exp() / (crt_pow(2.0_f64, half_k) * gamma(half_k)))
+    Ok(crt_pow(x, half_k - 1.0) * crt_exp(-x / 2.0) / (crt_pow(2.0_f64, half_k) * gamma(half_k)))
 }
 
 pub fn chisq_dist_kernel(

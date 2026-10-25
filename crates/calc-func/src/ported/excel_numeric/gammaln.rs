@@ -21,6 +21,7 @@
 //!
 //! The B2/B4 bands run in the x87 80-bit registers: the hardware ops (`super::x87::raw`) on
 //! `x86_64`, the software x87 (`super::soft87`, the same operations exactly) elsewhere.
+use crate::ported::excel_numeric::crt_log;
 
 // ---- band anchors (correctly-rounded transcendentals) --------------------
 const D2: f64 = f64::from_bits(0x3FDB_0EE6_0720_93CE); // 1 - EulerGamma
@@ -218,7 +219,7 @@ pub(crate) fn gammaln_excel(x: f64) -> f64 {
     if x < THR07 {
         let xp = x + 1.0;
         let inner = if xp < 8.0 { core(xp) } else { stirl8(xp) };
-        inner - x.ln()
+        inner - crt_log(x)
     } else if x < 8.0 {
         core(x)
     } else {

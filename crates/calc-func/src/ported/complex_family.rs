@@ -4,6 +4,7 @@
 use crate::ported::complex_decimal;
 use crate::value::WorksheetErrorCode;
 use crate::ported::excel_numeric::crt_pow;
+use crate::ported::excel_numeric::{crt_exp, crt_log};
 
 /// Decimal text of digits with at most one point and an optional exponent, read to its 15 leading
 /// significant digits and converted to the nearest binary64; `None` outside that form or with a
@@ -147,7 +148,7 @@ impl ParsedComplex {
         Ok(if result.abs() < f64::MIN_POSITIVE { 0.0 } else { result })
     }
     pub(crate) fn exp(self) -> Self {
-        let s = self.re.exp();
+        let s = crt_exp(self.re);
         Self::new(s * self.im.cos(), s * self.im.sin(), None)
     }
     pub(crate) fn ln(self) -> Result<Self, WorksheetErrorCode> {
@@ -155,7 +156,7 @@ impl ParsedComplex {
         if mag == 0.0 {
             return Err(WorksheetErrorCode::Num);
         }
-        Ok(Self::new(mag.ln(), self.im.atan2(self.re), None))
+        Ok(Self::new(crt_log(mag), self.im.atan2(self.re), None))
     }
     pub(crate) fn sqrt(self) -> Self {
         // IMSQRT has a distinct magnitude graph from IMABS: square each component with
