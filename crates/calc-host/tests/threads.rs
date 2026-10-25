@@ -1,5 +1,5 @@
 //! dc-2m0: every oracle workbook of the repository recalculates to the same results on one thread
-//! and on eight, with the parallel route taken by every recalculation that may take it (its
+//! and on four, eight and sixteen, with the parallel route taken by every recalculation that may take it (its
 //! minimum set to one formula). The cells compared are every formula cell the one-thread
 //! recalculation published; each projects the same value and provenance, its calculation
 //! included, after the first recalculation and after a full one.
@@ -88,31 +88,27 @@ fn oracle_workbooks() -> Vec<PathBuf> {
 }
 
 #[test]
-fn dc_2m0__oracle_workbooks_recalculate_alike_on_one_thread_and_eight() {
+fn dc_2m0__oracle_workbooks_recalculate_alike_on_one_thread_and_several() {
     let (mut compared, mut cells) = (0, 0);
     for path in oracle_workbooks() {
         let bytes = std::fs::read(&path).expect("the workbook");
-        let (Some(mut one), Some(mut eight)) = (open(&bytes, 1), open(&bytes, 8)) else {
+        let Some(mut one) = open(&bytes, 1) else {
             continue;
         };
         let published = recalculate(&mut one);
-        assert_eq!(recalculate(&mut eight), published, "{}", path.display());
-        assert_eq!(
-            shown(&eight, &published),
-            shown(&one, &published),
-            "{} after the first recalculation",
-            path.display()
-        );
+        let first = shown(&one, &published);
         calculate_full(&mut one);
-        calculate_full(&mut eight);
         recalculate(&mut one);
-        recalculate(&mut eight);
-        assert_eq!(
-            shown(&eight, &published),
-            shown(&one, &published),
-            "{} after a full recalculation",
-            path.display()
-        );
+        let full = shown(&one, &published);
+        for threads in [4, 8, 16] {
+            let mut several = open(&bytes, threads).expect("the workbook opens again");
+            let at = format!("{} on {threads} threads", path.display());
+            assert_eq!(recalculate(&mut several), published, "{at}");
+            assert_eq!(shown(&several, &published), first, "{at}, the first recalculation");
+            calculate_full(&mut several);
+            recalculate(&mut several);
+            assert_eq!(shown(&several, &published), full, "{at}, a full recalculation");
+        }
         compared += 1;
         cells += published.len();
     }
