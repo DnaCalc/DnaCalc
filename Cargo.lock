@@ -407,6 +407,7 @@ dependencies = [
 name = "dna-calc"
 version = "0.1.0"
 dependencies = [
+ "calc-func",
  "calc-host",
  "dna-onecalc",
  "js-sys",

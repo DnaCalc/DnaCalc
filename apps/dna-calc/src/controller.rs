@@ -52,7 +52,7 @@ pub struct Timings {
     pub last_intent_ms: Option<f64>,
 }
 
-/// Milliseconds on the browser's clock; 0 off the browser.
+/// Milliseconds on a clock: the browser's, or off the browser the time since the first call.
 pub fn now_ms() -> f64 {
     #[cfg(target_arch = "wasm32")]
     {
@@ -60,7 +60,12 @@ pub fn now_ms() -> f64 {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        0.0
+        static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        START
+            .get_or_init(std::time::Instant::now)
+            .elapsed()
+            .as_secs_f64()
+            * 1000.0
     }
 }
 
@@ -204,12 +209,14 @@ impl Controller {
                 let elapsed = now_ms() - started;
                 self.timings
                     .update(|timings| timings.open_ms = Some(elapsed));
-                let message = if book.calculated_on_open() {
-                    format!("Opened {name}: {size} bytes, opened and calculated in {elapsed:.0} ms")
-                } else {
-                    format!(
-                        "Opened {name}: {size} bytes, opened in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
-                    )
+                let message = match book.calculated_on_open() {
+                    Some(calculated) => format!(
+                        "Opened {name}: {size} bytes in {elapsed:.0} ms: read in {:.0} ms, calculated in {calculated:.0} ms",
+                        elapsed - calculated
+                    ),
+                    None => format!(
+                        "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
+                    ),
                 };
                 self.install(book, message);
                 Ok(())

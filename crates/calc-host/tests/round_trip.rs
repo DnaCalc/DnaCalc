@@ -1583,3 +1583,39 @@ fn dc_rif__the_intent_log_keeps_the_latest_records() {
     assert_eq!(log.last().map(|record| record.seq), Some(total as u64));
     assert!(log.windows(2).all(|pair| pair[1].seq == pair[0].seq + 1));
 }
+
+/// dc-09v (D4b): the number format code of each cell and the sheet's row heights, column widths and
+/// hidden rows and columns, as Excel wrote them (`tests/fixtures/dc_09v/formats.xlsx`, authored by
+/// `make-formats.ps1`, whose `excel-shown.json` holds what Excel reported).
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_09v__number_formats_and_sizes_as_the_file_states_them() {
+    let host = open(include_bytes!("fixtures/dc_09v/formats.xlsx"));
+    let sheet = sheet(&host, "Formats");
+    for (address, code) in [
+        // Excel on this machine (Windows digit grouping 123456,789) wrote the grouping comma it
+        // was given as an escaped literal.
+        ("A1", r"#\,##0.00"),
+        ("A2", "0%"),
+        ("A3", r"yyyy\-mm\-dd"),
+        ("A4", r"0.00;[Red]\(0.00\)"),
+        ("A5", "@"),
+        ("A6", r"#\,##0"),
+        ("A8", "h:mm AM/PM"),
+        ("A10", "0.00E+00"),
+        ("A7", "0.0"),
+        ("A12", "General"),
+        ("Z99", "General"),
+    ] {
+        assert_eq!(host.number_format(at(sheet, address)), Some(code), "{address}");
+    }
+    let geometry = host.sheet_geometry(sheet).expect("the sheet's geometry");
+    let width = |column: u32| geometry.column(column).and_then(|span| span.width);
+    assert!(width(1).is_some_and(|w| w > 16.0 && w < 17.0), "{geometry:?}");
+    assert!(width(2).is_some_and(|w| w > 25.0 && w < 26.0), "{geometry:?}");
+    assert!(geometry.column(3).is_some_and(|span| span.hidden));
+    assert!(!geometry.column(1).is_some_and(|span| span.hidden));
+    assert_eq!(geometry.row(3).and_then(|row| row.height), Some(30.0));
+    assert!(geometry.row(13).is_some_and(|row| row.hidden));
+    assert_eq!(geometry.default_row_height, Some(15.0));
+}

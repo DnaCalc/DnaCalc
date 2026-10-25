@@ -26,6 +26,7 @@
 
 pub(crate) mod address;
 mod error;
+pub(crate) mod geometry;
 pub(crate) mod manifest;
 pub(crate) mod metadata;
 pub(crate) mod sheet;
@@ -35,6 +36,7 @@ mod styles;
 pub(crate) mod tables;
 
 pub use error::{CellError, LoadError};
+pub use geometry::{ColumnSpan, RowFormat, SheetGeometry};
 pub use manifest::LayoutWarning;
 
 use crate::OpenedDocument;
@@ -90,9 +92,16 @@ pub struct LoadedSheet {
     styles: BTreeMap<(u32, u32), u32>,
     formulas: BTreeMap<(u32, u32), FormulaRecord>,
     value_caches: BTreeMap<(u32, u32), FileCached>,
+    geometry: SheetGeometry,
 }
 
 impl LoadedSheet {
+    /// The sheet's row heights, column widths and hidden rows and columns as the file states
+    /// them (dc-09v).
+    pub fn geometry(&self) -> &SheetGeometry {
+        &self.geometry
+    }
+
     /// What the file cached for the cell at `row` and `column` when the model holds no input for
     /// it: a cell an array formula fills beside its anchor, or an unloaded cell
     /// ([`calc_doc_model::Definitions`]). Nothing here calculated it.
@@ -920,6 +929,7 @@ pub fn load(
                     styles: loaded.styles,
                     formulas: loaded.formulas,
                     value_caches: loaded.value_caches,
+                    geometry: loaded.geometry,
                 });
             }
             Err(error) => {

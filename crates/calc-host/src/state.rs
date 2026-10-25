@@ -301,6 +301,25 @@ impl HostState {
             || definitions.data_table_containing(at).is_some()
     }
 
+    /// The row heights, column widths and hidden rows and columns of `sheet` as the file stated
+    /// them when the workbook was opened (dc-09v); `None` for a sheet the file did not hold. No
+    /// command changes them yet, and a structural edit does not move them.
+    pub fn sheet_geometry(&self, sheet: SheetId) -> Option<&calc_doc::SheetGeometry> {
+        self.loaded.sheet(sheet).map(|loaded| loaded.geometry())
+    }
+
+    /// The number format code of the cell at `at`: the code of the cell format the file gave the
+    /// cell when the workbook was opened (`General` when it gave none), or `None` when the file
+    /// names a format the styles part neither declares nor builds in (dc-09v). A cell an edit
+    /// sets keeps the format of its place; no command changes formats yet.
+    pub fn number_format(&self, at: CellKey) -> Option<&str> {
+        let style = self
+            .loaded
+            .sheet(at.sheet())
+            .map_or(0, |sheet| sheet.style(at.row(), at.column()));
+        self.loaded.styles().number_format_code(style)
+    }
+
     /// Whether the package's workbook part declares the 1904 date system (`workbookPr`'s
     /// `date1904`), as calc-doc loaded it; no command changes it. Every recalculation applies it
     /// ([`HostState::recalc_context`]). calc-doc reads `calcPr`'s iteration settings, which the

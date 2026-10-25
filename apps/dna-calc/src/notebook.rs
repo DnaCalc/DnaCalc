@@ -116,7 +116,9 @@ fn notebook_view(controller: Controller) -> impl IntoView {
         cells
             .into_iter()
             .map(|cell| {
-                let shown = cells::shown(&cell, profile.as_ref());
+                let format = controller
+                    .with_untracked(|book| book.host().number_format(cell.at()).map(str::to_owned));
+                let shown = cells::shown(&cell, profile.as_ref(), format.as_deref());
                 let at = cell.at();
                 let address = cells::address(at.row(), at.column());
                 let label = address.clone();
