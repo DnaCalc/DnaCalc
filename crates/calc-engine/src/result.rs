@@ -5,6 +5,7 @@ use calc_doc_model::{AuthoredRevision, FileCached};
 use calc_fml::{CompileError, EvalFault};
 use calc_value::{CalcValue, CellKey, CoreValue, GridArea, NodeId, NumericMode, NumericTargetId};
 use std::fmt;
+use std::sync::Arc;
 
 /// The identity of one recalculation: the engine state issues the next tick each time a
 /// recalculation begins, counting up from 1, so every result a recalculation publishes names the
@@ -29,7 +30,9 @@ impl CalcTick {
 pub struct Calculation {
     revision: AuthoredRevision,
     tick: CalcTick,
-    mode: NumericMode,
+    /// Shared by every result of the recalculation (dc-dxm): an Exact mode names its Excel target
+    /// in four strings, and each formula's result carries its calculation.
+    mode: Arc<NumericMode>,
 }
 
 impl Calculation {
@@ -37,7 +40,7 @@ impl Calculation {
         Calculation {
             revision,
             tick,
-            mode,
+            mode: Arc::new(mode),
         }
     }
 
