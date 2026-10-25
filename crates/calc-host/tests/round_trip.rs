@@ -995,7 +995,7 @@ fn dc_rif__a_new_workbook_is_edited_saved_and_reopened() {
         ("B3", "3.5"),
         ("C2", "rate"),
         ("D4", "=SUM(B2:B3)*2"),
-        ("F2", "=SEQUENCE(3)"),
+        ("F2", "={1;2;3}"),
     ] {
         let receipt = session.dispatch(SkinIntent::EnterCell {
             at: at(sheet1, address),
@@ -1007,11 +1007,26 @@ fn dc_rif__a_new_workbook_is_edited_saved_and_reopened() {
         calculated(session.host(), at(sheet1, "D4")),
         Some(CalcValue::number(11.0))
     );
-    // B2 to D4 holds the inputs; F2's spill fills F2:F4.
+    // B2 to D4 hold the inputs; F2's spill fills F2:F4.
     assert_eq!(
         session.host().used_area(sheet1),
         Some(GridArea::new(at(sheet1, "B2"), at(sheet1, "F4")).unwrap())
     );
+    // A subscription to the area is given the cells the spill fills.
+    let (_, received) = subscribe(
+        &mut session,
+        Interest::Area(GridArea::new(at(sheet1, "A1"), at(sheet1, "H10")).unwrap()),
+    );
+    let mut mirror = DeltaMirror::default();
+    for delta in received.borrow().iter() {
+        mirror.apply(delta).expect("the deltas follow one another");
+    }
+    match mirror.cell(at(sheet1, "F4")).map(ProjectedCell::value) {
+        Some(ProjectedValue::Calculated { value, .. }) => {
+            assert_eq!(value, &CalcValue::number(3.0))
+        }
+        other => panic!("F4 is filled by F2's spill: {other:?}"),
+    }
 
     let mut saved = Vec::new();
     session

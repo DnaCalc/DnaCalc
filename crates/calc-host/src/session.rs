@@ -603,7 +603,8 @@ impl HostSession {
     }
 
     /// The interest's cells that are not empty: every cell holding an input, every cell an array
-    /// formula fills, and every unloaded cell, projected.
+    /// formula's area holds, every cell a published spill fills, and every unloaded cell,
+    /// projected.
     fn snapshot(&self, interest: &Interest) -> BTreeMap<CellKey, ProjectedCell> {
         let mut cells = BTreeSet::new();
         let definitions = self.host.model.definitions();
@@ -623,6 +624,15 @@ impl HostSession {
                 cells.extend(cells_of(array.area()).filter(|at| area.contains(*at)));
             }
             cells.extend(definitions.unloaded_in(area).map(|(at, _)| at));
+            // A published spill fills cells beyond its formula's authored area (dc-rif).
+            for spill in self
+                .host
+                .engine
+                .spills()
+                .filter(|spill| spill.anchor().sheet() == area.sheet())
+            {
+                cells.extend(cells_of(spill.area()).filter(|at| area.contains(*at)));
+            }
         }
         let page = project(
             &self.host,
