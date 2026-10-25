@@ -49,6 +49,13 @@ use std::ops::ControlFlow;
 /// [`crate::RecalcFailure::ReadFailed`] and publishes nothing. `called` and `evaluated` record
 /// nothing unless an observer implements them.
 pub trait ReadObserver {
+    /// Whether the observer observes nothing at all (dc-2m0): none of its methods records or
+    /// stops anything, so a recalculation may evaluate formulas on several threads and show it
+    /// nothing in order. The default is `false`.
+    fn is_silent(&self) -> bool {
+        false
+    }
+
     fn observe(
         &mut self,
         formula: CellKey,
@@ -151,6 +158,10 @@ impl<'a> ObservedEvaluation<'a> {
 pub struct Unobserved;
 
 impl ReadObserver for Unobserved {
+    fn is_silent(&self) -> bool {
+        true
+    }
+
     fn observe(&mut self, _: CellKey, _: GridArea, _: u64, _: CellRun<'_>) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }
