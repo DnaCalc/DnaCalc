@@ -214,6 +214,14 @@ impl Workbook {
         self.project(vec![at]).into_iter().next()
     }
 
+    /// The number format of the cell at `at`, with the workbook's date system.
+    pub fn cell_format(&self, at: CellKey) -> Option<cells::CellFormat<'_>> {
+        Some(cells::CellFormat {
+            code: self.host().number_format(at)?,
+            date1904: self.host().declared_date1904(),
+        })
+    }
+
     /// The used area of a sheet ([`HostState::used_area`]).
     pub fn used_area(&self, sheet: SheetId) -> Option<GridArea> {
         self.host().used_area(sheet)

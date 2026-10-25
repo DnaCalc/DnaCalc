@@ -1269,6 +1269,49 @@ const CALC_CASES: &[Case] = &[
         checks: &[Check::Text(cell!("D5"), "1"), Check::Text(cell!("E5"), "10")],
     },
     Case {
+        name: "a row header and Insert insert a row: cells and references move down",
+        actions: &[
+            Action::Click("[data-dnacalc=\"row-header\"][data-row=\"2\"]"),
+            Action::Click("insert-cells"),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "A2:XFD2"),
+            Check::Absent(cell!("A2")),
+            Check::Text(cell!("A3"), "2"),
+            Check::Text(cell!("B3"), "20"),
+            Check::Text(cell!("D6"), "1"),
+            Check::Text(cell!("E6"), "10"),
+        ],
+    },
+    Case {
+        name: "Delete deletes the row again: the cells and references move back",
+        actions: &[Action::Click("delete-cells")],
+        checks: &[
+            Check::Text(cell!("A2"), "2"),
+            Check::Text(cell!("B2"), "20"),
+            Check::Text(cell!("D5"), "1"),
+            Check::Text(cell!("E5"), "10"),
+        ],
+    },
+    Case {
+        name: "a column inserted before A moves everything right, and Undo takes it back",
+        actions: &[
+            Action::Click("[data-dnacalc=\"column-header\"][data-column=\"A\"]"),
+            Action::Keys("grid", concat!("\u{E009}", "\u{E008}", "=", "\u{E000}")),
+        ],
+        checks: &[
+            Check::Absent(cell!("A1")),
+            Check::Text(cell!("B1"), "1"),
+            Check::Text(cell!("C1"), "10"),
+            Check::Value(BAR, ""),
+        ],
+    },
+    Case {
+        name: "Undo of the column insertion",
+        actions: &[Action::Click("undo")],
+        checks: &[Check::Text(cell!("A1"), "1"), Check::Text(cell!("B1"), "10")],
+    },
+    Case {
         name: "a workbook's number formats show as Excel shows them",
         actions: &[Action::Upload(
             "open-file",

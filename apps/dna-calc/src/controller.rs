@@ -469,6 +469,45 @@ impl Controller {
         self.dispatch(SkinIntent::EnterCell { at, text })
     }
 
+    /// Inserts (`insert`) or deletes rows or columns: the selected whole rows (a row header's
+    /// selection) or whole columns, through calc-host's axis edit (one undo step; formulas'
+    /// references, number formats and sizes move as Excel moves them). Any other selection says
+    /// what to select (dc-09v).
+    pub fn edit_axis(&self, insert: bool) {
+        let Some(area) = self.selected_area_untracked() else {
+            return;
+        };
+        let (first, last) = (area.first(), area.last());
+        let whole_rows = first.column() == 1 && last.column() == calc_host::value::MAX_COLUMNS;
+        let whole_columns = first.row() == 1 && last.row() == calc_host::value::MAX_ROWS;
+        let (axis, start, count) = if whole_rows && !whole_columns {
+            (calc_host::Axis::Rows, first.row(), area.row_count())
+        } else if whole_columns && !whole_rows {
+            (
+                calc_host::Axis::Columns,
+                first.column(),
+                area.column_count(),
+            )
+        } else {
+            self.say(
+                "Select whole rows or columns (click a row or column header) to insert or delete them",
+                true,
+            );
+            return;
+        };
+        let change = if insert {
+            calc_host::AxisChange::Insert
+        } else {
+            calc_host::AxisChange::Delete
+        };
+        match calc_host::AxisEdit::new(area.sheet(), axis, change, start, count) {
+            Ok(edit) => {
+                self.dispatch(SkinIntent::EditAxis(edit));
+            }
+            Err(error) => self.say(format!("{error:?}"), true),
+        }
+    }
+
     /// Clears the selected range (Delete).
     pub fn clear_active(&self) {
         if let Some(area) = self.selected_area_untracked() {

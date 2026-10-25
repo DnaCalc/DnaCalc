@@ -34,7 +34,7 @@ fn shown(book: &Workbook, at: CellKey) -> cells::CellShown {
     cells::shown(
         &book.cell(at).expect("projected"),
         book.profile(),
-        book.host().number_format(at),
+        book.cell_format(at),
     )
 }
 
