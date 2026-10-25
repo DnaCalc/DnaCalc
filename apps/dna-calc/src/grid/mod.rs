@@ -268,9 +268,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 mirror
                     .cells()
                     .filter(|cell| Some(cell.at().sheet()) == sheet)
-                    .map(|cell| {
-                        cells::shown(cell, book.profile(), book.host().number_format(cell.at()))
-                    })
+                    .map(|cell| cells::shown(cell, book.profile(), book.cell_format(cell.at())))
                     .collect()
             })
         });
@@ -408,6 +406,17 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 "r" => {
                     ev.prevent_default();
                     controller.fill(false);
+                    return;
+                }
+                // Ctrl+Plus (Ctrl+Shift+=) inserts, Ctrl+Minus deletes, as in Excel.
+                "+" | "=" if ev.shift_key() || chord.key == "+" => {
+                    ev.prevent_default();
+                    controller.edit_axis(true);
+                    return;
+                }
+                "-" => {
+                    ev.prevent_default();
+                    controller.edit_axis(false);
                     return;
                 }
                 _ => {}
@@ -581,7 +590,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
-                    let style = match cell.shown.color {
+                    let style = match &cell.shown.color {
                         Some(color) => format!("{};color:{color}", rect_style(&cell.rect)),
                         None => rect_style(&cell.rect),
                     };
@@ -770,6 +779,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
             </div>
             <div class="dc-gridbar">
                 <span data-dnacalc="grid-note" class="dc-note">{move || note.get()}</span>
+                <button type="button" data-dnacalc="insert-cells" title="Insert the selected rows or columns (Ctrl++)"
+                    on:click=move |_| controller.edit_axis(true)>"Insert"</button>
+                <button type="button" data-dnacalc="delete-cells" title="Delete the selected rows or columns (Ctrl+-)"
+                    on:click=move |_| controller.edit_axis(false)>"Delete"</button>
                 <span class="dc-zoom">
                     <button type="button" data-dnacalc="zoom-out" title="Zoom out"
                         on:click=move |_| zoom.update(|z| *z = viewport::clamp_zoom(*z / viewport::ZOOM_STEP))>"-"</button>

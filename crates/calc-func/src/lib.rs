@@ -63,4 +63,4 @@ pub fn read_number_text(text: &[u16], environment: &locale::CalcEnvironment) -> 
 pub use format::general as general_format;
 
 /// A cell's value as the cell shows it under a number format code, by TEXT's renderer (dc-09v).
-pub use format::{CellFormatError, FormatColor, cell_color, cell_text};
+pub use format::{CellFormatError, DEFAULT_PALETTE, FormatColor, cell_color, cell_text};

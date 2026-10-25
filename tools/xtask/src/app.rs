@@ -1269,6 +1269,49 @@ const CALC_CASES: &[Case] = &[
         checks: &[Check::Text(cell!("D5"), "1"), Check::Text(cell!("E5"), "10")],
     },
     Case {
+        name: "a row header and Insert insert a row: cells and references move down",
+        actions: &[
+            Action::Click("[data-dnacalc=\"row-header\"][data-row=\"2\"]"),
+            Action::Click("insert-cells"),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "A2:XFD2"),
+            Check::Absent(cell!("A2")),
+            Check::Text(cell!("A3"), "2"),
+            Check::Text(cell!("B3"), "20"),
+            Check::Text(cell!("D6"), "1"),
+            Check::Text(cell!("E6"), "10"),
+        ],
+    },
+    Case {
+        name: "Delete deletes the row again: the cells and references move back",
+        actions: &[Action::Click("delete-cells")],
+        checks: &[
+            Check::Text(cell!("A2"), "2"),
+            Check::Text(cell!("B2"), "20"),
+            Check::Text(cell!("D5"), "1"),
+            Check::Text(cell!("E5"), "10"),
+        ],
+    },
+    Case {
+        name: "a column inserted before A moves everything right, and Undo takes it back",
+        actions: &[
+            Action::Click("[data-dnacalc=\"column-header\"][data-column=\"A\"]"),
+            Action::Keys("grid", concat!("\u{E009}", "\u{E008}", "=", "\u{E000}")),
+        ],
+        checks: &[
+            Check::Absent(cell!("A1")),
+            Check::Text(cell!("B1"), "1"),
+            Check::Text(cell!("C1"), "10"),
+            Check::Value(BAR, ""),
+        ],
+    },
+    Case {
+        name: "Undo of the column insertion",
+        actions: &[Action::Click("undo")],
+        checks: &[Check::Text(cell!("A1"), "1"), Check::Text(cell!("B1"), "10")],
+    },
+    Case {
         name: "a workbook's number formats show as Excel shows them",
         actions: &[Action::Upload(
             "open-file",
@@ -1295,6 +1338,13 @@ const CALC_CASES: &[Case] = &[
             Check::Attr(cell!("D1"), "style", "left:345px;top:22px;width:64px;height:20px"),
             Check::Attr(cell!("A3"), "style", "left:48px;top:62px;width:117px;height:40px"),
             Check::Attr(cell!("A14"), "style", "left:48px;top:282px;width:117px;height:20px"),
+            // A15's negative section is [Color10]: Excel's palette entry 10.
+            Check::Attr(cell!("A15"), "style", "left:48px;top:302px;width:117px;height:20px;color:#008000"),
+            // Column E is 4 characters (33 px): a formatted number too wide shows ####, as in
+            // Excel, and a text overflows over the empty F to I.
+            Check::Text(cell!("E1"), "####"),
+            Check::Text(cell!("E2"), "12"),
+            Check::Attr(cell!("E3"), "style", "left:409px;top:62px;width:289px;height:40px"),
             // A4's negative section is [Red].
             Check::Attr(cell!("A4"), "style", "left:48px;top:102px;width:117px;height:20px;color:#ff0000"),
         ],
