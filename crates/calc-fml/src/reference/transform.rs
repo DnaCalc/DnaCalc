@@ -69,6 +69,12 @@ pub enum StructuralEdit {
         sheet: SheetId,
         order: Vec<(SheetId, String)>,
     },
+    /// The cells of `area` moved (cut and pasted) so that its top-left cell is `to`, on the same
+    /// sheet (dc-09v). As Excel's move does, a cell reference to a moved cell, and a range
+    /// reference all of whose cells moved, follow the cells; a range only partly moved, and
+    /// whole rows or columns, keep their text. A defined name's reference moves only when every
+    /// coordinate it holds is absolute.
+    MoveCells { area: GridArea, to: CellKey },
 }
 
 impl StructuralEdit {
@@ -99,6 +105,16 @@ impl StructuralEdit {
     /// The cell `at` moves to; `None` when the edit deletes it (its row, its column or its sheet)
     /// or pushes it off the grid.
     pub fn cell(&self, at: CellKey) -> Option<CellKey> {
+        if let StructuralEdit::MoveCells { area, to } = self {
+            if !area.contains(at) {
+                return Some(at);
+            }
+            let row = i64::from(at.row()) + i64::from(to.row()) - i64::from(area.first().row());
+            let column =
+                i64::from(at.column()) + i64::from(to.column()) - i64::from(area.first().column());
+            return CellKey::new(at.sheet(), u32::try_from(row).ok()?, u32::try_from(column).ok()?)
+                .ok();
+        }
         if let StructuralEdit::RemoveSheet { sheet, .. } = self
             && *sheet == at.sheet()
         {
@@ -113,6 +129,12 @@ impl StructuralEdit {
     /// rows or columns inserted inside it, shrunk by those deleted from it, cut at the grid's
     /// edge; `None` when every cell of it is deleted (or its sheet removed).
     pub fn area(&self, area: GridArea) -> Option<GridArea> {
+        if let StructuralEdit::MoveCells { area: moved, .. } = self {
+            if !(moved.contains(area.first()) && moved.contains(area.last())) {
+                return Some(area);
+            }
+            return GridArea::new(self.cell(area.first())?, self.cell(area.last())?).ok();
+        }
         if let StructuralEdit::RemoveSheet { sheet, .. } = self
             && *sheet == area.sheet()
         {
@@ -270,7 +292,9 @@ fn transform(
     let units: Vec<u16> = source.encode_utf16().collect();
     let mut replacements: Vec<(TextSpan, String)> = Vec::new();
     match edit {
-        StructuralEdit::Insert { .. } | StructuralEdit::Delete { .. } => {
+        StructuralEdit::Insert { .. }
+        | StructuralEdit::Delete { .. }
+        | StructuralEdit::MoveCells { .. } => {
             let anchor = FormulaAnchor::new(at);
             for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
                 if name {
@@ -380,8 +404,24 @@ impl End<'_> {
 fn name_ends(site: &ReferenceSite, units: &[u16], edit: &StructuralEdit) -> NameEnds {
     let axis = match edit {
         StructuralEdit::Insert { axis, .. } | StructuralEdit::Delete { axis, .. } => *axis,
+        StructuralEdit::MoveCells { .. } => {
+            // A move changes a name's reference only when it holds every coordinate absolute.
+            let all_absolute = [EditAxis::Rows, EditAxis::Columns]
+                .into_iter()
+                .all(|axis| matches!(name_ends_on(site, units, axis), NameEnds::Absolute));
+            return if all_absolute {
+                NameEnds::Absolute
+            } else {
+                NameEnds::Relative
+            };
+        }
         _ => return NameEnds::Absolute,
     };
+    name_ends_on(site, units, axis)
+}
+
+/// How a defined name's reference site holds its coordinates on `axis` ([`name_ends`]).
+fn name_ends_on(site: &ReferenceSite, units: &[u16], axis: EditAxis) -> NameEnds {
     let Ok(text) = String::from_utf16(&units[site.span.start..site.span.end()]) else {
         return NameEnds::Relative;
     };
@@ -481,8 +521,9 @@ fn axis_site(
     let operand = site.binding.as_ref().ok()?;
     let (edited, axis) = match edit {
         StructuralEdit::Insert { sheet, axis, .. } | StructuralEdit::Delete { sheet, axis, .. } => {
-            (*sheet, *axis)
+            (*sheet, Some(*axis))
         }
+        StructuralEdit::MoveCells { area, .. } => (area.sheet(), None),
         _ => return None,
     };
     let sheet = match operand.sheet {
@@ -532,6 +573,8 @@ fn axis_site(
         }
         ReferenceShape::Rows { .. } | ReferenceShape::Columns { .. } => {
             let rows = matches!(operand.shape, ReferenceShape::Rows { .. });
+            // A move leaves whole rows and columns as they are.
+            let axis = axis?;
             if (axis == EditAxis::Rows) != rows {
                 return None;
             }
@@ -1226,4 +1269,37 @@ mod tests {
             assert_eq!(to_a1(&to_r1c1(text)), text, "{text}");
         }
     }
+
+    /// dc-09v: a move (cut and paste) of B2:C3 to E5 on Sheet1, as Excel's move adjusts
+    /// references: to a moved cell, and to a range all of whose cells moved, they follow; a range
+    /// partly moved, whole rows and columns, and other sheets' cells keep their text.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_move_takes_references_to_the_moved_cells_with_them() {
+        let (catalog, one, two) = fixture();
+        let at = |sheet, row, column| CellKey::new(sheet, row, column).unwrap();
+        let area = GridArea::new(at(one, 2, 2), at(one, 3, 3)).unwrap();
+        let edit = StructuralEdit::MoveCells {
+            area,
+            to: at(one, 5, 5),
+        };
+        let moved = |text: &str, sheet| transform_formula(text, at(sheet, 10, 1), &edit, &catalog);
+        assert_eq!(moved("B2*2", one).as_deref(), Some("E5*2"));
+        assert_eq!(moved("$B$2+C$3", one).as_deref(), Some("$E$5+F$6"));
+        assert_eq!(moved("SUM(B2:C3)", one).as_deref(), Some("SUM(E5:F6)"));
+        assert_eq!(moved("SUM(B2:D3)", one), None, "a range partly moved stays");
+        assert_eq!(moved("A1+D4", one), None);
+        assert_eq!(moved("SUM(2:3)+SUM(B:C)", one), None);
+        assert_eq!(moved("Sheet1!B2", two).as_deref(), Some("Sheet1!E5"));
+        assert_eq!(moved("B2", two), None, "Sheet2's B2 did not move");
+        // A defined name moves with the cells only when it holds every coordinate absolute.
+        assert_eq!(
+            transform_name("Sheet1!$B$2", one, &edit, &catalog).as_deref(),
+            Some("Sheet1!$E$5")
+        );
+        assert_eq!(transform_name("Sheet1!B$2", one, &edit, &catalog), None);
+        assert_eq!(edit.cell(at(one, 3, 2)), Some(at(one, 6, 5)));
+        assert_eq!(edit.cell(at(one, 1, 1)), Some(at(one, 1, 1)));
+    }
+
 }

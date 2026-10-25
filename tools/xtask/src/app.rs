@@ -1312,6 +1312,33 @@ const CALC_CASES: &[Case] = &[
         checks: &[Check::Text(cell!("A1"), "1"), Check::Text(cell!("B1"), "10")],
     },
     Case {
+        name: "Ctrl+X and Ctrl+V move cells, and the formulas that read them follow",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", concat!("\u{E008}", "\u{E015}", "\u{E000}")),
+            Action::Keys("grid", concat!("\u{E009}", "x", "\u{E000}")),
+            Action::Into("name-box", "H1\u{E007}"),
+            Action::Keys("grid", concat!("\u{E009}", "v", "\u{E000}")),
+            Action::Into("name-box", "B1\u{E007}"),
+        ],
+        checks: &[
+            Check::Absent(cell!("A1")),
+            Check::Text(cell!("H1"), "1"),
+            Check::Text(cell!("H2"), "2"),
+            Check::Text(cell!("B1"), "10"),
+            Check::Value(BAR, "=H1*10"),
+        ],
+    },
+    Case {
+        name: "Undo takes the move back",
+        actions: &[Action::Click("undo"), Action::Into("name-box", "B1\u{E007}")],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Absent(cell!("H1")),
+            Check::Value(BAR, "=A1*10"),
+        ],
+    },
+    Case {
         name: "a workbook's number formats show as Excel shows them",
         actions: &[Action::Upload(
             "open-file",

@@ -100,6 +100,8 @@ pub struct Controller {
     pub corner: RwSignal<(u32, u32)>,
     /// The range copied (Ctrl+C), which a paste copies from.
     pub clipboard: RwSignal<Option<GridArea>>,
+    /// Whether the range on the clipboard was cut (Ctrl+X): a paste moves it.
+    pub cut: RwSignal<bool>,
     /// The cells of the host's selection, as the application's subscription delivered them.
     pub selection: RwSignal<DeltaMirror>,
     pub status: RwSignal<Status>,
@@ -122,6 +124,7 @@ impl Controller {
             active: RwSignal::new((1, 1)),
             corner: RwSignal::new((1, 1)),
             clipboard: RwSignal::new(None),
+            cut: RwSignal::new(false),
             selection: RwSignal::new(DeltaMirror::default()),
             status: RwSignal::new(Status::default()),
             editing: RwSignal::new(None),
@@ -374,15 +377,28 @@ impl Controller {
 
     /// Copies the selected range (Ctrl+C): a paste copies from it.
     pub fn copy(&self) {
+        self.take(false);
+    }
+
+    /// Cuts the selected range (Ctrl+X): the next paste moves it there.
+    pub fn cut(&self) {
+        self.take(true);
+    }
+
+    fn take(&self, cut: bool) {
         if let Some(area) = self.selected_area_untracked() {
             self.clipboard.set(Some(area));
+            self.cut.set(cut);
             let label = self.with_untracked(|book| cells::area_label(book.host(), area));
-            self.say(format!("Copied {label}: select where to paste it"), false);
+            let verb = if cut { "Cut" } else { "Copied" };
+            self.say(format!("{verb} {label}: select where to paste it"), false);
         }
     }
 
     /// Pastes the copied range into the selected one (Ctrl+V): one calc-host copy, which
-    /// relocates formulas and repeats the source over a larger target.
+    /// relocates formulas and repeats the source over a larger target; after a cut, a move, which
+    /// empties the source and takes references to the moved cells with them, and empties the
+    /// clipboard, as Excel does.
     pub fn paste(&self) {
         let (Some(from), Some(to)) = (
             self.clipboard.get_untracked(),
@@ -391,7 +407,12 @@ impl Controller {
             self.say("Nothing is copied to paste", true);
             return;
         };
-        self.dispatch(SkinIntent::Copy { from, to });
+        let cut = self.cut.get_untracked();
+        let receipt = self.dispatch(SkinIntent::Copy { from, to, cut });
+        if cut && receipt.accepted() {
+            self.clipboard.set(None);
+            self.cut.set(false);
+        }
     }
 
     /// Fills the selected range down from its first row (Ctrl+D) or right from its first column
@@ -403,7 +424,11 @@ impl Controller {
         let parts = fill_parts(area, down);
         match parts {
             Some((from, to)) => {
-                self.dispatch(SkinIntent::Copy { from, to });
+                self.dispatch(SkinIntent::Copy {
+                    from,
+                    to,
+                    cut: false,
+                });
             }
             None => self.say(
                 if down {
