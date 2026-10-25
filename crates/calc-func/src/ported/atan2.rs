@@ -11,7 +11,20 @@ pub fn atan2_kernel(x_num: f64, y_num: f64) -> Result<f64, WorksheetErrorCode> {
     if x_num != 0.0 && (y_num / x_num).is_infinite() {
         return Err(WorksheetErrorCode::Num);
     }
-    Ok(y_num.atan2(x_num))
+    // Excel's angle is the arctangent of the binary64 ratio y/x, moved by pi into the left
+    // half-plane (dc-j9k: 15 of 15 sweep readings and the catalogue oracle's ATAN2 rows of sheet
+    // dcj9k_math; the correctly rounded atan2 matched 10 of 15). On the y axis it is ±pi/2.
+    if x_num == 0.0 {
+        return Ok(std::f64::consts::FRAC_PI_2.copysign(y_num));
+    }
+    let angle = crate::ported::excel_numeric::excel_atan(y_num / x_num);
+    Ok(if x_num > 0.0 {
+        angle
+    } else if y_num >= 0.0 {
+        angle + std::f64::consts::PI
+    } else {
+        angle - std::f64::consts::PI
+    })
 }
 
 #[cfg(test)]

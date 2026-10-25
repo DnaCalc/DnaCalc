@@ -393,14 +393,10 @@ impl ExactDecimal {
     }
 }
 
-/// |dividend| = quotient * |divisor| + remainder with 0 <= remainder < |divisor|, every part an
-/// integer count of 10^exponent, the smaller unit of the two decimals.
+/// The integer quotient of the magnitudes of two decimals, toward zero.
 #[derive(Debug)]
 pub(crate) struct Division {
-    pub(crate) divisor: Natural,
     pub(crate) quotient: Natural,
-    pub(crate) remainder: Natural,
-    pub(crate) exponent: i32,
 }
 
 /// The integer division of the magnitudes of two decimals, the divisor not zero.
@@ -410,13 +406,8 @@ pub(crate) fn divide(dividend: &ExactDecimal, divisor: &ExactDecimal) -> Divisio
     scaled_dividend.times_pow10(dividend.exponent.abs_diff(exponent));
     let mut scaled_divisor = divisor.coefficient.clone();
     scaled_divisor.times_pow10(divisor.exponent.abs_diff(exponent));
-    let (quotient, remainder) = scaled_dividend.div_rem(&scaled_divisor);
-    Division {
-        divisor: scaled_divisor,
-        quotient,
-        remainder,
-        exponent,
-    }
+    let (quotient, _remainder) = scaled_dividend.div_rem(&scaled_divisor);
+    Division { quotient }
 }
 
 /// The integer part of a binary64, toward zero, found from its bits: exact on every target.
