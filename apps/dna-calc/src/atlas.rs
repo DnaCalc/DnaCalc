@@ -4,8 +4,10 @@
 //! the file's stored value, stale) with the refusals grouped by reason. The skin only reads: it
 //! dispatches no intent.
 //!
-//! The counts follow the corpus rule: a refused formula is a failure, never left out, so the atlas
-//! shows calculated against all formula cells.
+//! A formula cell is one Excel counts as holding a formula (calc-host's `holds_formula`: legacy
+//! array members and data-table cells included, a dynamic array's spilled cells not), the set a
+//! corpus comparison's inventory holds. The counts follow the corpus rule: a refused formula is a
+//! failure, never left out, so the atlas shows calculated against all formula cells.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-atlas/src/lib.rs` (the structure
 //! map and the calculation panel, each derived from the workbook on every change and never

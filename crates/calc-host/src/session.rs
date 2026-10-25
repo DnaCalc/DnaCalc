@@ -48,6 +48,11 @@ use std::sync::Arc;
 /// The number of undo steps a session keeps (Excel's default).
 pub const UNDO_LIMIT: usize = 100;
 
+/// The intent log keeps at least this many of the latest records and at most twice as many, so
+/// the selection and interest moves a skin dispatches as it is used do not grow it without bound
+/// (dc-rif): when it reaches twice this many, the older half is dropped.
+pub const INTENT_LOG_LIMIT: usize = 10_000;
+
 /// What a subscription watches.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Interest {
@@ -249,6 +254,8 @@ pub struct HostSession {
     subscriptions: BTreeMap<SubscriptionId, Subscription>,
     next_subscription: u64,
     log: Vec<IntentRecord>,
+    /// The sequence number of the next intent.
+    next_seq: u64,
 }
 
 impl fmt::Debug for HostSession {
@@ -273,6 +280,7 @@ impl HostSession {
             subscriptions: BTreeMap::new(),
             next_subscription: 1,
             log: Vec::new(),
+            next_seq: 1,
         }
     }
 
@@ -309,7 +317,9 @@ impl HostSession {
         (self.history.undo_depth(), self.history.redo_depth())
     }
 
-    /// Every intent dispatched so far, with its outcome.
+    /// The latest intents dispatched, with their outcomes, in order: every one while fewer than
+    /// twice [`INTENT_LOG_LIMIT`] have been dispatched, and never fewer than the last
+    /// [`INTENT_LOG_LIMIT`]. A record's `seq` counts every intent the session dispatched.
     pub fn intent_log(&self) -> &[IntentRecord] {
         &self.log
     }
@@ -352,7 +362,8 @@ impl HostSession {
 
     /// Carries out `intent` and logs it.
     pub fn dispatch(&mut self, intent: SkinIntent) -> IntentReceipt {
-        let seq = self.log.len() as u64 + 1;
+        let seq = self.next_seq;
+        self.next_seq += 1;
         let mut receipt = IntentReceipt {
             seq,
             error: None,
@@ -409,6 +420,9 @@ impl HostSession {
             accepted: receipt.error.is_none(),
             revision: receipt.revision,
         });
+        if self.log.len() >= 2 * INTENT_LOG_LIMIT {
+            self.log.drain(..INTENT_LOG_LIMIT);
+        }
         receipt
     }
 

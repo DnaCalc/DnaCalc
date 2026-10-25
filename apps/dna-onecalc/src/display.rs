@@ -56,7 +56,7 @@ pub fn error_spelling(code: WorksheetErrorCode) -> &'static str {
 }
 
 /// A column's letters: 1 is `A`, 26 `Z`, 27 `AA`.
-fn column_letters(mut column: u32) -> String {
+pub fn column_letters(mut column: u32) -> String {
     let mut letters = Vec::new();
     while column > 0 {
         let digit = (column - 1) % 26;

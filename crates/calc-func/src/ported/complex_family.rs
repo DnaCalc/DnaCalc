@@ -3,6 +3,7 @@
 
 use crate::ported::complex_decimal;
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_pow;
 
 /// Decimal text of digits with at most one point and an optional exponent, read to its 15 leading
 /// significant digits and converted to the nearest binary64; `None` outside that form or with a
@@ -264,7 +265,7 @@ impl ParsedComplex {
             }
             return Ok(Self::new(0.0, 0.0, None));
         }
-        let scale = self.abs().powf(exponent);
+        let scale = crt_pow(self.abs(), exponent);
         let angle = self.im.atan2(self.re) * exponent;
         Ok(Self::new(scale * angle.cos(), scale * angle.sin(), None))
     }

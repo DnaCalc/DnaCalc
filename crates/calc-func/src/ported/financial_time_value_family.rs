@@ -11,6 +11,7 @@ use crate::ported::power_fn::power_kernel;
 use crate::value::WorksheetErrorCode;
 use crate::value::{CalcValue, CoreValue};
 use std::fmt;
+use crate::ported::excel_numeric::crt_pow;
 
 const EPSILON: f64 = 1e-12;
 const RATE_TOLERANCE: f64 = 1e-7;
@@ -841,15 +842,15 @@ pub fn mirr(
     for (idx, cashflow) in cashflows.iter().enumerate() {
         let idxf = idx as f64;
         if *cashflow < 0.0 {
-            finance_pv += *cashflow / (1.0 + finance_rate).powf(idxf);
+            finance_pv += *cashflow / crt_pow(1.0 + finance_rate, idxf);
         } else if *cashflow > 0.0 {
-            reinvest_fv += *cashflow * (1.0 + reinvest_rate).powf(periods - idxf);
+            reinvest_fv += *cashflow * crt_pow(1.0 + reinvest_rate, periods - idxf);
         }
     }
     if finance_pv >= 0.0 || reinvest_fv <= 0.0 {
         return Err(FinancialError::Div0);
     }
-    let result = (-reinvest_fv / finance_pv).powf(1.0 / periods) - 1.0;
+    let result = crt_pow(-reinvest_fv / finance_pv, 1.0 / periods) - 1.0;
     if result.is_finite() {
         Ok(result)
     } else {

@@ -62,7 +62,7 @@ use calc_engine::ObservedEvaluation;
 use calc_fml::ExecutedCall;
 use calc_host::value::{CalcValue, CellKey, GridArea, NumericMode, NumericTargetId, SheetId};
 use calc_host::{
-    CachedValue, CalcMode, CellRun, HostOptions, HostProgress, HostState, LoadError, MemorySource,
+    CalcMode, CellRun, HostOptions, HostProgress, HostState, LoadError, MemorySource,
     OpenFailure, OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest, ReadObserver,
     RecalcContext, RecalcFailed, WorkBudget, project, step,
 };
@@ -450,15 +450,6 @@ fn step_key(failure: &RecalcFailed) -> String {
     }
 }
 
-fn cached_value(value: &CachedValue) -> CalcValue {
-    match value {
-        CachedValue::Number(number) => CalcValue::number(number.get()),
-        CachedValue::Text(text) => CalcValue::text(text.text().clone()),
-        CachedValue::Logical(logical) => CalcValue::logical(*logical),
-        CachedValue::Error(code) => CalcValue::error(*code),
-    }
-}
-
 /// The locale profile of the Excel that took `capture`: its user culture with the decimal and
 /// group separators it recorded, which the host's TEXT, VALUE and number text read with.
 /// `None` when the capture records no culture or separators the profile table cannot hold.
@@ -656,7 +647,7 @@ fn run_workbook(
                 Provenance::FileCached {
                     source: format!("{} {}", capture.source, cache.source().name()),
                 },
-                Some(cached_value(cache.value())),
+                Some(cache.value().to_value()),
                 Dna::FileCached,
             ),
             ProjectedValue::Calculated { value, calculation } => (
@@ -687,7 +678,7 @@ fn run_workbook(
                 stale
                     .last_value()
                     .cloned()
-                    .or_else(|| stale.file_cache().map(|cache| cached_value(cache.value()))),
+                    .or_else(|| stale.file_cache().map(|cache| cache.value().to_value())),
                 Dna::Stale,
             ),
         };

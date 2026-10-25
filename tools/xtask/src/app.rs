@@ -604,6 +604,7 @@ const TAB: &str = "\u{E004}";
 const ENTER: &str = "\u{E007}";
 const ESCAPE: &str = "\u{E00C}";
 const DELETE: &str = "\u{E017}";
+const F2: &str = "\u{E032}";
 
 /// The selector of an element: a selector as written when `name` starts with `[`, otherwise the
 /// element whose role attribute is `name`.
@@ -1119,6 +1120,33 @@ const CALC_CASES: &[Case] = &[
         ],
     },
     Case {
+        name: "an undo of an edit on another sheet shows that sheet and the restored cell",
+        actions: &[
+            Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Data\"]"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "5"),
+            Action::Keys("cell-editor", ENTER),
+            Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Calc\"]"),
+            Action::Click("undo"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=\"sheet-tab\"][data-sheet=\"Data\"]",
+                "aria-selected",
+                "true",
+            ),
+            Check::Value("name-box", "A1"),
+            Check::Text(cell!("A1"), "1"),
+            Check::Value(BAR, "1"),
+            Check::Starts("cell-provenance", "Data!A1: a literal value"),
+        ],
+    },
+    Case {
+        name: "F2 and Enter on the restored cell enter its own text again",
+        actions: &[Action::Keys("grid", F2), Action::Keys("cell-editor", ENTER)],
+        checks: &[Check::Text(cell!("A1"), "1"), Check::Value("name-box", "A2")],
+    },
+    Case {
         name: "New makes an empty workbook",
         actions: &[Action::Click("new")],
         checks: &[
@@ -1126,6 +1154,45 @@ const CALC_CASES: &[Case] = &[
             Check::Absent("[data-dnacalc=\"cell\"]"),
             Check::Value("name-box", "A1"),
         ],
+    },
+    Case {
+        name: "the grid scrolls past its first block of rows and enters a cell there",
+        actions: &[
+            Action::Into("name-box", "B200\u{E007}"),
+            Action::Keys("grid", "9"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("B200"), "9"), Check::Value("name-box", "B201")],
+    },
+    Case {
+        name: "back at the top, row 200 is out of view",
+        actions: &[Action::Into("name-box", "A1\u{E007}")],
+        checks: &[Check::Absent(cell!("B200")), Check::Value("name-box", "A1")],
+    },
+    Case {
+        name: "at row 200 again, the entry is there",
+        actions: &[Action::Into("name-box", "B200\u{E007}")],
+        checks: &[Check::Text(cell!("B200"), "9")],
+    },
+    Case {
+        name: "a spill fills E1:E3",
+        actions: &[
+            Action::Into("name-box", "E1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "{1;2;3}"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("E3"), "3")],
+    },
+    Case {
+        name: "the spill shrinks to E1:E2 and E3 is empty again",
+        actions: &[
+            Action::Into("name-box", "E1\u{E007}"),
+            Action::Keys("grid", "="),
+            Action::Keys("cell-editor", "{1;2}"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::Text(cell!("E2"), "2"), Check::Absent(cell!("E3"))],
     },
 ];
 

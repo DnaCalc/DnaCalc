@@ -1,4 +1,5 @@
 use crate::value::WorksheetErrorCode;
+use crate::ported::excel_numeric::crt_pow;
 pub fn ln_gamma(z: f64) -> f64 {
     const COEFFS: [f64; 9] = [
         0.999_999_999_999_809_9,
@@ -1118,7 +1119,7 @@ fn bratio_gamln(a: f64) -> f64 {
         }
         return bratio_gamln1(t - 1.0) + w.ln();
     }
-    let t = (1.0 / a).powf(2.0);
+    let t = crt_pow(1.0 / a, 2.0);
     let w = (((((C5 * t + C4) * t + C3) * t + C2) * t + C1) * t + C0) / a;
     (D + w) + (a - 0.5) * (a.ln() - 1.0)
 }
@@ -1149,7 +1150,7 @@ fn bratio_algdiv(a: f64, b: f64) -> f64 {
     let s7 = 1.0 + (x + x2 * s5);
     let s9 = 1.0 + (x + x2 * s7);
     let s11 = 1.0 + (x + x2 * s9);
-    let t = (1.0 / b).powf(2.0);
+    let t = crt_pow(1.0 / b, 2.0);
     let mut w = ((((C5 * s11 * t + C4 * s9) * t + C3 * s7) * t + C2 * s5) * t + C1 * s3) * t + C0;
     w *= c / b;
     let u = d * bratio_alnrel(a / b);
@@ -1176,10 +1177,10 @@ fn bratio_bcorr(a0: f64, b0: f64) -> f64 {
     let s7 = 1.0 + (x + x2 * s5);
     let s9 = 1.0 + (x + x2 * s7);
     let s11 = 1.0 + (x + x2 * s9);
-    let mut t = (1.0 / b).powf(2.0);
+    let mut t = crt_pow(1.0 / b, 2.0);
     let mut w = ((((C5 * s11 * t + C4 * s9) * t + C3 * s7) * t + C2 * s5) * t + C1 * s3) * t + C0;
     w *= c / b;
-    t = (1.0 / a).powf(2.0);
+    t = crt_pow(1.0 / a, 2.0);
     (((((C5 * t + C4) * t + C3) * t + C2) * t + C1) * t + C0) / a + w
 }
 
@@ -1423,7 +1424,7 @@ fn bratio_erfc1(ind: i32, x: f64) -> f64 {
         if ind == 0 && (x > 100.0 || x * x > -bratio_exparg(1)) {
             return 0.0;
         }
-        let t = (1.0 / x).powf(2.0);
+        let t = crt_pow(1.0 / x, 2.0);
         let top = (((R[0] * t + R[1]) * t + R[2]) * t + R[3]) * t + R[4];
         let bot = (((S[0] * t + S[1]) * t + S[2]) * t + S[3]) * t + 1.0;
         v = (C - t * top / bot) / ax;
@@ -1663,7 +1664,7 @@ fn bratio_bpser(a: f64, b: f64, x: f64, eps: f64) -> f64 {
             }
             bp = crate::ported::excel_numeric::excel_exp(z) * (a0 / a) * (1.0 + bratio_gam1(b0m)) / t;
         } else {
-            bp = x.powf(a);
+            bp = crt_pow(x, a);
             if bp == 0.0 {
                 return bp;
             }
@@ -2018,7 +2019,7 @@ fn bratio_bgrat(a: f64, b: f64, x: f64, y: f64, w: f64, eps: f64) -> (f64, i32) 
         return (w, 1);
     }
     let (_p, q) = bratio_grat1(b, z, r, eps);
-    let v = 0.25 * (1.0 / nu).powf(2.0);
+    let v = 0.25 * crt_pow(1.0 / nu, 2.0);
     let t2 = 0.25 * lnx * lnx;
     let l = w / u;
     let mut j = q / r;
@@ -2285,7 +2286,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
                 branch = "bpser";
             } else if x0 >= 0.3 {
                 branch = "bpser_sym";
-            } else if x0 < 0.1 && (x0 * b0).powf(a0) <= 0.7 {
+            } else if x0 < 0.1 && crt_pow(x0 * b0, a0) <= 0.7 {
                 branch = "bpser";
             } else if b0 > 15.0 {
                 branch = "bgrat_150";
@@ -2294,7 +2295,7 @@ pub fn bratio(a: f64, b: f64, x: f64, y: f64) -> (f64, f64) {
             }
         } else if a0 >= 0.2_f64.min(b0) {
             branch = "bpser";
-        } else if x0.powf(a0) <= 0.9 {
+        } else if crt_pow(x0, a0) <= 0.9 {
             branch = "bpser";
         } else if x0 >= 0.3 {
             branch = "bpser_sym";

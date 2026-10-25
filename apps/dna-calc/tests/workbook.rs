@@ -150,7 +150,10 @@ fn dc_rif__an_excel_workbook_opens_calculated_and_counts_its_formulas() {
     );
     assert_eq!(shown(&book, at(calc, "B2")).text, "4");
     let census = book.census();
-    assert!(census.formulas() > 0);
+    // The package's 17 formula elements (16 on Calc, 1 on Data), and the two members of the legacy
+    // array L1:L3 beside its anchor, which Excel counts as formula cells; the cells the dynamic
+    // arrays spill into are not formula cells.
+    assert_eq!(census.formulas(), 19);
     // Every formula cell is calculated or refused; nothing is left as the file stored it.
     assert_eq!(census.file_cached(), 0);
     assert_eq!(census.stale(), 0);
@@ -206,6 +209,28 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         assert_eq!(controller.generation.get_untracked(), generation + 1);
         assert_eq!(controller.active.get_untracked(), (1, 1));
         assert!(controller.sheets().iter().any(|tab| tab.name == "Calc"));
+        // An undo of an edit on another sheet shows that sheet at the restored cell, whose input
+        // the selection holds, so the formula bar shows it.
+        let sheets = controller.sheets();
+        let data = sheets.iter().find(|tab| tab.name == "Data").unwrap().id;
+        let calc = sheets.iter().find(|tab| tab.name == "Calc").unwrap().id;
+        controller.show_sheet(data);
+        let before = controller
+            .active_cell()
+            .map(|cell| cells::input_text(cell.input()));
+        assert!(before.is_some(), "Data!A1 holds an input");
+        controller.begin_edit(EditOrigin::Cell, Some("5".to_owned()));
+        assert!(controller.commit_edit());
+        controller.show_sheet(calc);
+        controller.undo();
+        assert_eq!(controller.sheet.get_untracked(), Some(data));
+        assert_eq!(controller.active.get_untracked(), (1, 1));
+        assert_eq!(
+            controller
+                .active_cell()
+                .map(|cell| cells::input_text(cell.input())),
+            before
+        );
         // A package that is not one is refused, and the workbook stays.
         assert!(
             controller

@@ -72,9 +72,9 @@ pub use project::{
 pub use recalc::{HostProgress, RecalcFailed, calculate, calculate_full, step};
 pub use save::{SaveFailed, save};
 pub use session::{
-    DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, IntentError,
-    IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId, UNDO_LIMIT,
-    replay,
+    DeltaCause, DeltaGap, DeltaMirror, DeltaSink, HostDelta, HostSession, INTENT_LOG_LIMIT,
+    IntentError, IntentReceipt, IntentRecord, Interest, ReplayOutcome, SkinIntent, SubscriptionId,
+    UNDO_LIMIT, replay,
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 

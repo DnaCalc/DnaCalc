@@ -10,8 +10,7 @@
 
 use calc_host::value::{CalcValue, CellKey, CoreValue, ExcelText, GridArea, SheetId};
 use calc_host::{
-    CachedValue, CellInput, FormatProfile, HostState, NotModeled, ProjectedCell, ProjectedValue,
-    StaleCause,
+    CellInput, FormatProfile, HostState, NotModeled, ProjectedCell, ProjectedValue, StaleCause,
 };
 use dna_onecalc::display::{self, SheetNames};
 use dna_onecalc::result;
@@ -84,16 +83,7 @@ pub fn area_label(host: &HostState, area: GridArea) -> String {
     display::area(&WorkbookNames(host), area)
 }
 
-/// A column's letters: 1 is `A`, 27 `AA`.
-pub fn column_letters(mut column: u32) -> String {
-    let mut letters = Vec::new();
-    while column > 0 {
-        let digit = (column - 1) % 26;
-        letters.push(char::from(b'A' + digit as u8));
-        column = (column - 1) / 26;
-    }
-    letters.iter().rev().collect()
-}
+pub use dna_onecalc::display::column_letters;
 
 /// A cell's address without its sheet: `B3`.
 pub fn address(row: u32, column: u32) -> String {
@@ -116,16 +106,6 @@ pub fn parse_address(text: &str) -> Option<(u32, u32)> {
     ((1..=1_048_576).contains(&row) && (1..=16_384).contains(&column)).then_some((row, column))
 }
 
-/// The value of a file cache, as a value.
-fn cached(value: &CachedValue) -> CalcValue {
-    match value {
-        CachedValue::Number(number) => CalcValue::number(number.get()),
-        CachedValue::Text(text) => CalcValue::text(text.text().clone()),
-        CachedValue::Logical(logical) => CalcValue::logical(*logical),
-        CachedValue::Error(code) => CalcValue::error(*code),
-    }
-}
-
 fn kind(value: &CalcValue) -> &'static str {
     match value.core() {
         CoreValue::Empty => "",
@@ -144,7 +124,7 @@ pub fn shown(cell: &ProjectedCell, profile: Option<&FormatProfile>) -> CellShown
             Provenance::Literal,
         ),
         ProjectedValue::FileCached(cache) => {
-            let value = cached(cache.value());
+            let value = cache.value().to_value();
             (
                 result::shown(&value, profile),
                 self::kind(&value),
@@ -161,7 +141,7 @@ pub fn shown(cell: &ProjectedCell, profile: Option<&FormatProfile>) -> CellShown
             let last = stale
                 .last_value()
                 .cloned()
-                .or_else(|| stale.file_cache().map(|cache| cached(cache.value())));
+                .or_else(|| stale.file_cache().map(|cache| cache.value().to_value()));
             match last {
                 Some(value) => (
                     result::shown(&value, profile),
