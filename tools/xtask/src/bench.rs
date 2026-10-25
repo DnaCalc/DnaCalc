@@ -236,6 +236,27 @@ fn peak_memory() -> Option<(u64, u64)> {
     None
 }
 
+/// The private bytes this process holds now (`PagefileUsage`), to show which phase holds the
+/// memory (dc-dxm).
+#[cfg(windows)]
+fn private_now() -> Option<u64> {
+    use windows_sys::Win32::System::ProcessStatus::{
+        GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    let mut counters: PROCESS_MEMORY_COUNTERS = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+    counters.cb = size;
+    // SAFETY: as in peak_memory.
+    let ok = unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, size) };
+    (ok != 0).then_some(counters.PagefileUsage as u64)
+}
+
+#[cfg(not(windows))]
+fn private_now() -> Option<u64> {
+    None
+}
+
 /// The processor cycles this thread has run (`QueryThreadCycleTime`), which other processes'
 /// load changes far less than wall time: the measure two builds are compared by on a shared
 /// machine.
@@ -285,9 +306,14 @@ struct Phases {
     published: usize,
 }
 
-/// The formulas a published recalculation calculated, or why it did not publish.
-fn recalculate(host: &mut HostState) -> Result<Phases, String> {
+/// The formulas a published recalculation calculated, or why it did not publish. `ask` (a full
+/// recalculation's [`calculate_full`], say) runs inside the first phase's clock.
+fn recalculate(
+    host: &mut HostState,
+    ask: impl FnOnce(&mut HostState),
+) -> Result<Phases, String> {
     let clock = Clock::start();
+    ask(host);
     let mut progress = step(host, WorkBudget::evaluations(0), &mut Unobserved);
     let order = clock.stop();
     let clock = Clock::start();
@@ -391,6 +417,7 @@ fn run_one(
         };
         formulas.push(parse().ok_or_else(malformed)?);
     }
+    let private_before_open = private_now();
     let clock = Clock::start();
     let source: Arc<dyn PackageRead> = Arc::new(MemorySource::new(bytes));
     let mut host = HostState::open(
@@ -404,6 +431,7 @@ fn run_one(
     )
     .map_err(|e| format!("HostState::open refused the package: {e}"))?;
     let open = clock.stop();
+    let private_after_open = private_now();
 
     let ids: HashMap<String, SheetId> = host
         .sheets()
@@ -432,15 +460,15 @@ fn run_one(
         }
     };
 
-    let rebuild = recalculate(&mut host)?;
+    let rebuild = recalculate(&mut host, |_| {})?;
+    let private_after_rebuild = private_now();
     let (project_s, count) = calculated(&host, &inventory)?;
     all_calculated(count, "rebuild")?;
 
     let mut fulls = Vec::new();
     let mut full_project = 0.0;
     for _ in 0..repeat {
-        calculate_full(&mut host);
-        let full = recalculate(&mut host)?;
+        let full = recalculate(&mut host, calculate_full)?;
         let (seconds, count) = calculated(&host, &inventory)?;
         all_calculated(count, "full recalculation")?;
         full_project = seconds;
@@ -482,7 +510,7 @@ fn run_one(
             )
             .map_err(|e| format!("the edit of {text} was refused: {e}"))?;
             let commit = clock.stop();
-            let phases = recalculate(&mut host)?;
+            let phases = recalculate(&mut host, |_| {})?;
             let (_, count) = calculated(&host, &inventory)?;
             all_calculated(count, "edit")?;
             edits.push(json!({
@@ -517,6 +545,10 @@ fn run_one(
         "edits": edits,
         "peak_working_set": memory.map(|m| m.0),
         "peak_private": memory.map(|m| m.1),
+        "private_before_open": private_before_open,
+        "private_after_open": private_after_open,
+        "private_after_rebuild": private_after_rebuild,
+        "private_at_end": private_now(),
     }))
 }
 
@@ -701,6 +733,7 @@ fn workbook_stats(dna: &[Value], excel: &Value) -> Value {
             "open_s": stats(&samples(&excel_runs, "open_s", None)),
             "rebuild_s": stats(&samples(&excel_runs, "rebuild_s", None)),
             "full_s": stats(&samples(&excel_runs, "full_s", None)),
+            "noop_s": stats(&samples(&excel_runs, "noop_s", None)),
             "edit_s": stats(&samples(&excel_runs, "edit_s", Some("edits"))),
             "peak_working_set": one("peak_working_set"),
             "peak_private": one("peak_private"),
@@ -716,7 +749,8 @@ fn markdown(run: &Value, workbooks: &[Value]) -> String {
         out.push_str(&format!("- {key}: {value}\n"));
     }
     out.push('\n');
-    out.push_str("| Workbook | System | Open s | Full rebuild s | Full recalculation s | One-cell edit s | Formulas the edit recalculated | Peak working set MB | Peak private MB |\n|---|---|---|---|---|---|---|---|---|\n");
+    out.push_str("The one-cell edit is the assignment of the cell's new value and the recalculation that follows, for both systems: Excel's Range.Value2 assignment plus Application.Calculate, DNA Calc's dispatch plus the recalculation of the dirty cells. Excel's Calculate takes time even when nothing is dirty (the no-op Calculate column, timed right after CalculateFull), so on the small workbooks Excel's edit figure is an upper bound of the work the edit itself causes.\n\n");
+    out.push_str("| Workbook | System | Open s | Full rebuild s | Full recalculation s | One-cell edit s | No-op Calculate s | Formulas the edit recalculated | Peak working set MB | Peak private MB |\n|---|---|---|---|---|---|---|---|---|---|\n");
     for workbook in workbooks {
         let name = workbook["name"].as_str().unwrap_or("?");
         let s = &workbook["stats"];
@@ -724,12 +758,13 @@ fn markdown(run: &Value, workbooks: &[Value]) -> String {
             let m = &s[system];
             let get = |k: &str| -> Option<Value> { m.get(k).cloned().filter(|v| !v.is_null()) };
             out.push_str(&format!(
-                "| {name} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                "| {name} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
                 if system == "dna" { "DNA Calc" } else { "Excel" },
                 cell(&get("open_s"), 1.0, 3),
                 cell(&get("rebuild_s"), 1.0, 3),
                 cell(&get("full_s"), 1.0, 3),
                 cell(&get("edit_s"), 1.0, 4),
+                cell(&get("noop_s"), 1.0, 4),
                 cell(&get("edit_published"), 1.0, 0),
                 cell(&get("peak_working_set"), MB, 0),
                 cell(&get("peak_private"), MB, 0),

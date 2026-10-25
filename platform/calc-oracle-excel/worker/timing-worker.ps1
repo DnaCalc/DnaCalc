@@ -18,7 +18,8 @@
 #      from the first workbook of the session);
 #   2. reads the process's working set with only that empty workbook open;
 #   3. for each run: opens the input read-only with UpdateLinks 0 (timed), then times
-#      CalculateFullRebuild, CalculateFull, and, when the request names a cell, two one-cell edits
+#      CalculateFullRebuild, CalculateFull, Calculate with nothing dirty (noop_s), and, when the
+#      request names a cell, two one-cell edits
 #      of that cell: its Value2 set to the edited number (the number it held times 1.01, or 1 when
 #      it held 0) and then back to the number it held, each
 #      followed by Calculate, timing the assignment and the Calculate apart; it waits for
@@ -192,7 +193,7 @@ try {
     $Output.empty_working_set = $process.WorkingSet64
 
     for ($i = 0; $i -lt [int]$req.runs; $i++) {
-        $run = [ordered]@{ open_s = $null; rebuild_s = $null; full_s = $null; edits = (New-Object System.Collections.ArrayList); working_set = $null }
+        $run = [ordered]@{ open_s = $null; rebuild_s = $null; full_s = $null; noop_s = $null; edits = (New-Object System.Collections.ArrayList); working_set = $null }
         $watch = [System.Diagnostics.Stopwatch]::StartNew()
         $workbook = Open-Workbook $excel $req.input
         $watch.Stop()
@@ -201,6 +202,8 @@ try {
         if ([long]$mode -ne -4135) { throw ('the calculation mode reads as ' + (Get-Shown $mode) + ' after the workbook opened, not manual') }
         $run.rebuild_s = Measure-Calculation $excel { $excel.CalculateFullRebuild() }
         $run.full_s = Measure-Calculation $excel { $excel.CalculateFull() }
+        # Calculate with nothing dirty: the floor of every Calculate, an edit's included.
+        $run.noop_s = Measure-Calculation $excel { $excel.Calculate() }
         if ($null -ne $req.edit) {
             $cell = $workbook.Worksheets.Item([string]$req.edit.sheet).Cells.Item([int]$req.edit.row, [int]$req.edit.column)
             if ([bool](Get-ComProperty $cell 'HasFormula')) { throw "the edited cell holds a formula, not an input" }
