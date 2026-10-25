@@ -289,6 +289,9 @@ pub struct RecalcWork {
     rewave: BTreeSet<NodeId>,
     waves: u32,
     scratch: EvalScratch,
+    /// The areas the evaluation in progress read, kept between evaluations so that each does
+    /// not allocate its own list (dc-dxm).
+    footprint: Vec<GridArea>,
     failure: Option<RecalcFailure>,
     /// The workbook's iteration settings.
     iteration: IterationSettings,
@@ -515,6 +518,7 @@ pub fn begin_recalc(
         rewave: BTreeSet::new(),
         waves: 0,
         scratch: EvalScratch::new(),
+        footprint: Vec::new(),
         failure: None,
         iteration,
         cyclic: BTreeSet::new(),
@@ -1816,7 +1820,7 @@ fn evaluate_node(
         }
     };
     let uncomputed = Cell::new(None);
-    let footprint = RefCell::new(Vec::new());
+    let footprint = RefCell::new(std::mem::take(&mut work.footprint));
     work.kept_read.set(false);
     let view = RecalcView {
         inputs,
@@ -1877,7 +1881,10 @@ fn evaluate_node(
         }
         return Ok(Attempt::Waits { on, cell });
     }
-    let mut dynamic = dynamic_prerequisites(state, node, instance, footprint.into_inner());
+    let mut areas = footprint.into_inner();
+    let mut dynamic = dynamic_prerequisites(state, node, instance, &areas);
+    areas.clear();
+    work.footprint = areas;
     let value = match outcome {
         Ok(value) => value,
         Err(EvalFault::ReadContract(error)) => {
@@ -1958,17 +1965,19 @@ fn dynamic_prerequisites(
     state: &EngineState,
     node: NodeId,
     instance: &FormulaInstance,
-    footprint: Vec<GridArea>,
+    footprint: &[GridArea],
 ) -> Vec<Prerequisite> {
     let placed = state
         .node(node)
         .and_then(|record| record.prerequisites())
         .unwrap_or(&[]);
     let mut out: Vec<Prerequisite> = Vec::new();
-    for area in footprint {
-        let held = placed
-            .iter()
-            .any(|prerequisite| prerequisite.contains_area(area))
+    for &area in footprint {
+        // Most reads are of a placed reference's own area, found first (dc-dxm).
+        let held = instance.areas().iter().any(|placed| *placed == Ok(area))
+            || placed
+                .iter()
+                .any(|prerequisite| prerequisite.contains_area(area))
             || instance.areas().iter().any(|placed| {
                 placed.is_ok_and(|placed| {
                     placed.contains(area.first()) && placed.contains(area.last())
