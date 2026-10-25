@@ -6592,6 +6592,7 @@ fn assert_rounding_workbook_generated(case: &str) {
 // Rules the rows apply.
 const HALF_AWAY: &str = "a half at num_digits 0 or below rounds away from zero, as the ROUND page's examples ROUND(2.15,1) = 2.2 and ROUND(-1.475,2) = -1.48 show for halves at 1 and 2 places; no example on the page shows a half at 0 or a negative num_digits";
 const LEFT_OF_POINT: &str = "a negative num_digits rounds to the left of the decimal point";
+const MOD_LIMIT: &str = "dc-j9k: MOD is #NUM! for a quotient of magnitude 1.1259E+12 or more (Excel 16.0.20430, bisected: MOD(1125899999999,1) is 0, MOD(1125900000000,1) is #NUM!)";
 const MROUND_LIMITATION: &str = "the MROUND page's Known Limitations example: MROUND(6.05,0.1) returns 6.0 while MROUND(7.05,0.1) returns 7.1";
 const NO_NEGATIVE_ZERO: &str = "the result is a zero, published as +0: a worksheet number carries no negative zero (the number rule of cfunc-m1.2)";
 const NONNUMERIC: &str = "a nonnumeric argument is #VALUE!";
@@ -7110,9 +7111,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "MROUND",
         [num("1.3"), num("0.2")],
-        N(1.4),
-        Choice(
-            "the exact product: the page's example gives 1.4; the binary64 quotient 6.5 rounds away from zero to 7 multiples, and 7 times 0.2 as typed is 1.4 exactly, converted once to the binary64 nearest 1.4; a binary64 product of 7 and 0.2 gives 1.4000000000000001, which the page's 1.4, shown to 15 digits, does not tell apart"
+        N(1.4000000000000001),
+        Measured(
+            "dc-j9k: the binary64 quotient 6.5 rounds away from zero to 7 multiples, and the binary64 product 7*0.2 is 1.4000000000000001, as Excel 16.0.20430 gives MROUND(1.3,0.2) (the page's 1.4 is shown to 15 digits)"
         )
     );
     rnd!(
@@ -7152,9 +7153,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "MROUND",
         [num("7.05"), num("0.1")],
-        N(7.1),
-        Choice(
-            "the exact product: the page's Known Limitations example gives 7.1; the binary64 quotient 70.5 rounds away from zero to 71 multiples, and 71 times 0.1 as typed is 7.1 exactly, converted once to the binary64 nearest 7.1; a binary64 product of 71 and 0.1 gives 7.1000000000000005, which the page's 7.1 does not tell apart"
+        N(7.1000000000000005),
+        Measured(
+            "dc-j9k: the binary64 quotient 70.5 rounds away from zero to 71 multiples, and the binary64 product 71*0.1 is 7.1000000000000005, as Excel 16.0.20430 gives MROUND(7.05,0.1) (the page's 7.1 is shown to 15 digits)"
         )
     );
     rnd!(
@@ -7374,9 +7375,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "FLOOR",
         [num("0.15"), num("0.05")],
-        N(0.1),
-        Choice(
-            "the binary64 order: the quotient 0.15/0.05 rounds to 2.9999999999999996, whose integer below is 2, and 0.05*2 is 0.1; read as typed decimals 0.15 is 3 multiples of 0.05, so 0.15"
+        N(0.15000000000000002),
+        Measured(
+            "dc-j9k: the quotient 0.15/0.05, 2.9999999999999996, is counted at 15 significant digits, 3, and 0.05*3 is 0.15000000000000002, as Excel 16.0.20430 gives FLOOR(0.15,0.05)"
         )
     );
     rnd!(
@@ -7384,9 +7385,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "FLOOR",
         [num("0.3"), num("0.1")],
-        N(0.2),
-        Choice(
-            "the binary64 order: the quotient 0.3/0.1 rounds to 2.9999999999999996, whose integer below is 2, and 0.1*2 is 0.2; read as typed decimals 0.3 is 3 multiples of 0.1, so 0.3"
+        N(0.30000000000000004),
+        Measured(
+            "dc-j9k: the quotient is counted at 15 significant digits, as Excel 16.0.20430 counts it (the catalogue oracle's sheet dcj9k_math)"
         )
     );
     rnd!(
@@ -7454,9 +7455,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "MOD",
         [num("0.3"), num("0.1")],
-        N(0.0),
-        Choice(
-            "the exact decimal rule, kept for MOD although the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings: the remainder of 0.3 and 0.1 as the typed numbers read is 0; n - d*INT(n/d) in binary64 steps gives 0.09999999999999998"
+        N(0.09999999999999998),
+        Measured(
+            "dc-j9k: the exact binary64 remainder, as Excel 16.0.20430 gives it (the catalogue oracle's sheet dcj9k_math)"
         )
     );
     rnd!(
@@ -7464,9 +7465,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "MOD",
         [num("1"), num("0.1")],
-        N(0.0),
-        Choice(
-            "the exact decimal rule, kept for MOD although the MROUND page's Known Limitations example rules out counting MROUND's multiples on the decimal readings: the remainder of 1 and 0.1 as typed is 0; the exact remainder of their binary64 values is 0.09999999999999995"
+        N(0.09999999999999995),
+        Measured(
+            "dc-j9k: the exact binary64 remainder, as Excel 16.0.20430 gives it (the catalogue oracle's sheet dcj9k_math)"
         )
     );
 
@@ -7717,9 +7718,9 @@ fn rounding_boundaries_rows(s: &mut TestSheet) -> Rows {
         s,
         "MOD",
         [cell(s, "A6"), num("5.70820472448858E-308")],
-        Refused(None),
-        Unsupported(
-            "the exact remainder of A6's binary64 by 5.70820472448858E-308 is not zero but lies below half the smallest subnormal, so it would convert to 0; it is refused as a subnormal result is, since Excel's handling of a result below the normal range is not modelled (subnormal handling is dc-6qki's)"
+        N(0.0),
+        Measured(
+            "dc-j9k: the exact binary64 remainder of A6 by 5.70820472448858E-308 is 0, as Excel 16.0.20430 gives it with A6 set to 1.141640944897716E-307"
         )
     );
     rows
@@ -8257,108 +8258,88 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         Choice(OVERFLOW)
     );
 
-    // MOD: the remainder is exact for every quotient. Excel's limit on the quotient is
-    // undocumented, so every row here is an unmeasured choice; a row with a large quotient names
-    // the no-limit choice.
+    // MOD: a quotient of magnitude 1.1259E+12 or more is #NUM!, as Excel 16.0.20430 gives it
+    // (dc-j9k measured the limit by bisection; the catalogue oracle's sheet dcj9k_math holds
+    // MOD(1125899999999,1) = 0 and MOD(1125900000000,1) = #NUM!).
     rnd!(
         r,
         s,
         "MOD",
         [cell(s, "A1"), num("3")],
-        N(2.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: A1 is read as its binary64 2^53 = 3*3002399751580330 + 2 exactly, as n - d*INT(n/d) in binary64 steps also gives; the 15-digit reading 9007199254740990 gives 0"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [cell(s, "A3"), num("3")],
-        N(1.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: A3 is read as its binary64 2^53+2 = 3*3002399751580331 + 1 exactly; n - d*INT(n/d) in binary64 steps gives 2, and the 15-digit reading 9007199254740990 gives 0"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [num("999999999999999"), num("2")],
-        N(1.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: the quotient 499999999999999.5 leaves 1, the remainder with the divisor's sign"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [num("1E15"), num("7")],
-        N(6.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: 1E15 = 7*142857142857142 + 6, the remainder with the divisor's sign"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [num("-1E15"), num("7")],
-        N(1.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: -1E15 = 7*(-142857142857143) + 1, the remainder with the divisor's sign"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [cell(s, "A10"), num("1024")],
-        N(0.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: A10 is read as its binary64 2^60, a multiple of 1024; the 15-digit reading 1152921504606850000 gives 976"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [cell(s, "A10"), num("3")],
-        N(1.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: A10 is read as its binary64 2^60 = 3*384307168202282325 + 1 exactly (the 15-digit reading also leaves 1); n - d*INT(n/d) in binary64 steps gives 0"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [num("1E300"), num("7")],
-        N(1.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: 1E300 is read as the decimal it shows, 10^300, whose remainder by 7 is exactly 1"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [num("1E23"), num("1E8")],
-        N(0.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: 1E23 is read as the decimal it shows, 10^23, a multiple of 10^8, so 0; read as its binary64 99999999999999991611392 it leaves 91611392"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
         s,
         "MOD",
         [cell(s, "A7"), num("3")],
-        N(2.0),
-        Choice(
-            "no limit on the quotient, whose limit in Excel is undocumented: the remainder of the largest binary64 by 3 is exactly 2, under either reading of A7"
-        )
+        E(Num),
+        Measured(MOD_LIMIT)
     );
     rnd!(
         r,
@@ -8589,9 +8570,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "CEILING",
         [cell(s, "A4"), num("1")],
-        N(4_503_599_627_370_496.0),
-        Choice(
-            "the binary64 order: A4's binary64 4503599627370495.5 divided by 1 is itself, whose integer above is 4503599627370496, times 1; the 15-digit reading 4503599627370500 would give 4503599627370500"
+        N(4_503_599_627_370_500.0),
+        Measured(
+            "dc-j9k: the quotient 4503599627370495.5 is counted at 15 significant digits, 4503599627370500, as Excel 16.0.20430 gives CEILING(2^52-0.5,1)"
         )
     );
     rnd!(
@@ -8599,9 +8580,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "FLOOR",
         [cell(s, "A5"), num("1")],
-        N(-4_503_599_627_370_496.0),
-        Choice(
-            "the binary64 order: A5's binary64 -4503599627370495.5 divided by 1 is itself, whose integer below, away from zero, is -4503599627370496, times 1; the 15-digit reading would give -4503599627370500"
+        N(-4503599627370500.0),
+        Measured(
+            "dc-j9k: the quotient is counted at 15 significant digits, as Excel 16.0.20430 counts it (the catalogue oracle's sheet dcj9k_math)"
         )
     );
     rnd!(
@@ -8609,9 +8590,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "FLOOR",
         [cell(s, "A7"), num("1")],
-        N(max),
-        Choice(
-            "the binary64 order: the largest binary64 divided by 1 is itself, an integer, and times 1 is A7 again, so an exact multiple is not rounded (documented); the 15-digit reading would lie beyond binary64's range and give #NUM!"
+        E(Num),
+        Measured(
+            "dc-j9k: the quotient is counted at 15 significant digits, which lies beyond binary64's range: #NUM!, as Excel 16.0.20430 gives FLOOR of the largest binary64 by 1"
         )
     );
     rnd!(
@@ -8619,9 +8600,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         s,
         "FLOOR",
         [cell(s, "A10"), num("1024")],
-        N(1_152_921_504_606_846_976.0),
-        Choice(
-            "the binary64 order: A10's binary64 2^60 divided by 1024 is 2^50 exactly, an integer, and 1024*2^50 is 2^60 again, so an exact multiple is not rounded (documented); the 15-digit reading 1152921504606850000 (binary64 1152921504606850048) would give 1152921504606850048"
+        N(1.1529215046068429e18),
+        Measured(
+            "dc-j9k: the quotient is counted at 15 significant digits, as Excel 16.0.20430 counts it (the catalogue oracle's sheet dcj9k_math)"
         )
     );
     rnd!(
