@@ -922,6 +922,9 @@ pub(crate) fn dirty_closure(
 struct ReadersKey {
     index_epoch: u64,
     spill_epoch: u64,
+    /// Counts the nodes added and removed (dc-dxm): a node with no edges (a formula of
+    /// constants) changes no edge.
+    anchor_epoch: u64,
     definitions: Arc<calc_doc_model::Definitions>,
     sheets: Vec<calc_value::SheetId>,
     tables_deferred: bool,
@@ -931,6 +934,7 @@ impl PartialEq for ReadersKey {
     fn eq(&self, other: &Self) -> bool {
         self.index_epoch == other.index_epoch
             && self.spill_epoch == other.spill_epoch
+            && self.anchor_epoch == other.anchor_epoch
             && Arc::ptr_eq(&self.definitions, &other.definitions)
             && self.sheets == other.sheets
             && self.tables_deferred == other.tables_deferred
@@ -948,6 +952,13 @@ impl PartialEq for ReadersKey {
 pub(crate) struct ReadersCache {
     key: Option<ReadersKey>,
     entries: Vec<Option<(NodeId, CellKey, Box<[NodeId]>)>>,
+    /// Each live node's place in cell order (sheet ID, then row, then column), by slot: the ready
+    /// queue orders by it (dc-dxm: a u32 compares faster than a cell, and the order is the same).
+    ranks: Vec<u32>,
+    /// The order of the last recalculation of every formula, when it found no cycle (dc-dxm):
+    /// with the key unchanged, the next one of every formula has the same closure and the same
+    /// order.
+    full_order: Option<Vec<NodeId>>,
 }
 
 impl ReadersCache {
@@ -959,11 +970,24 @@ impl ReadersCache {
             definitions: Arc::clone(inputs.definitions()),
             sheets: inputs.sheets().iter().map(|sheet| sheet.id()).collect(),
             tables_deferred: state.tables_deferred,
+            anchor_epoch: state.anchor_epoch,
         };
         if self.key.as_ref() != Some(&key) {
             self.entries.clear();
+            self.full_order = None;
+            self.ranks.clear();
+            self.ranks.resize(state.nodes.len(), u32::MAX);
+            for (rank, node) in state.by_anchor.values().enumerate() {
+                self.ranks[node.slot() as usize] =
+                    u32::try_from(rank).expect("fewer than 2^32 formula nodes");
+            }
             self.key = Some(key);
         }
+    }
+
+    /// The place of the live node `node` in cell order.
+    fn rank(&self, node: NodeId) -> u32 {
+        self.ranks[node.slot() as usize]
     }
 
     fn get(&self, node: NodeId, anchor: CellKey) -> Option<&[NodeId]> {
@@ -1060,15 +1084,42 @@ fn schedule(
     cache: Option<&mut ReadersCache>,
     areas: &dyn Fn(NodeId) -> Vec<GridArea>,
 ) -> Scheduled {
-    let closure = match cache {
-        Some(cache) => closure_with(state, inputs, roots, Some(cache), areas),
-        None => dirty_closure(state, inputs, roots, areas),
-    };
     let acyclic = |order| Scheduled {
         order,
         cyclic: BTreeSet::new(),
     };
-    match order(state, &closure) {
+    let every = roots.len() == state.node_count();
+    let (closure, ordered) = match cache {
+        Some(cache) => {
+            if every && let Some(kept) = &cache.full_order {
+                #[cfg(debug_assertions)]
+                {
+                    let closure = dirty_closure(state, inputs, roots.clone(), areas);
+                    let fresh = order(&closure, |node| live_anchor(state, node), |node| {
+                        live_anchor(state, node)
+                    });
+                    debug_assert_eq!(fresh.as_ref(), Ok(kept), "the kept order stands");
+                }
+                return acyclic(kept.clone());
+            }
+            let closure = closure_with(state, inputs, roots, Some(&mut *cache), areas);
+            let ordered = order(&closure, |node| cache.rank(node), |node| {
+                live_anchor(state, node)
+            });
+            if every && let Ok(kept) = &ordered {
+                cache.full_order = Some(kept.clone());
+            }
+            (closure, ordered)
+        }
+        None => {
+            let closure = dirty_closure(state, inputs, roots, areas);
+            let ordered = order(&closure, |node| live_anchor(state, node), |node| {
+                live_anchor(state, node)
+            });
+            (closure, ordered)
+        }
+    };
+    match ordered {
         Ok(order) => acyclic(order),
         Err(_) => {
             let readers_of = closure.to_map();
@@ -1236,18 +1287,22 @@ fn tarjan(edges: &[Vec<usize>]) -> Vec<usize> {
 /// it reads is ordered, and of the ready nodes the one whose anchor comes first is ordered next),
 /// or the anchors of those a cycle leaves unordered, in cell order. The counts are kept by slot
 /// and the ready queue is a heap (dc-10d9); the order is the one a map and an ordered set gave.
-fn order(state: &EngineState, closure: &Closure) -> Result<Vec<NodeId>, Vec<CellKey>> {
+fn order<K: Ord + Copy>(
+    closure: &Closure,
+    key: impl Fn(NodeId) -> K,
+    anchor: impl Fn(NodeId) -> CellKey,
+) -> Result<Vec<NodeId>, Vec<CellKey>> {
     let mut waiting = vec![0u32; closure.readers.len()];
     for node in closure.members() {
         for reader in closure.readers(*node) {
             waiting[reader.slot() as usize] += 1;
         }
     }
-    let mut ready: BinaryHeap<Reverse<(CellKey, NodeId)>> = closure
+    let mut ready: BinaryHeap<Reverse<(K, NodeId)>> = closure
         .members()
         .iter()
         .filter(|node| waiting[node.slot() as usize] == 0)
-        .map(|node| Reverse((live_anchor(state, *node), *node)))
+        .map(|node| Reverse((key(*node), *node)))
         .collect();
     let mut order = Vec::with_capacity(closure.members().len());
     while let Some(Reverse((_, node))) = ready.pop() {
@@ -1256,7 +1311,7 @@ fn order(state: &EngineState, closure: &Closure) -> Result<Vec<NodeId>, Vec<Cell
             let count = &mut waiting[reader.slot() as usize];
             *count -= 1;
             if *count == 0 {
-                ready.push(Reverse((live_anchor(state, reader), reader)));
+                ready.push(Reverse((key(reader), reader)));
             }
         }
     }
@@ -1265,7 +1320,7 @@ fn order(state: &EngineState, closure: &Closure) -> Result<Vec<NodeId>, Vec<Cell
             .members()
             .iter()
             .filter(|node| waiting[node.slot() as usize] > 0)
-            .map(|node| live_anchor(state, *node))
+            .map(|node| anchor(*node))
             .collect();
         cells.sort();
         return Err(cells);

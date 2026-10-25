@@ -411,6 +411,9 @@ pub struct EngineState {
     /// Each node's readers as the last recalculation's ordering found them, kept while nothing
     /// they depend on has changed (dc-10d9, [`ReadersCache`]).
     pub(crate) readers_cache: ReadersCache,
+    /// Counts the nodes added, removed and moved (dc-dxm), which the kept readers and order
+    /// depend on beside the graph's edges.
+    pub(crate) anchor_epoch: u64,
 }
 
 impl EngineState {
@@ -445,6 +448,7 @@ impl EngineState {
             tables_deferred: false,
             spill_epoch: 0,
             readers_cache: ReadersCache::default(),
+            anchor_epoch: 0,
         };
         for sheet in inputs.sheets() {
             for (at, input) in inputs.sheet_cells(sheet.id()).into_iter().flatten() {
@@ -812,6 +816,7 @@ impl EngineState {
             self.subtotal_cells.remove(&record.anchor);
             self.pending.remove(&node);
             self.retired.insert(record.anchor);
+            self.anchor_epoch += 1;
             self.results.retire(node, record.anchor);
             self.by_anchor.remove(&record.anchor);
             self.anchor_index.remove(record.anchor);
@@ -881,6 +886,7 @@ impl EngineState {
             self.by_anchor.insert(at, node);
         }
         self.anchor_index = AnchorIndex::build(&self.by_anchor);
+        self.anchor_epoch += 1;
         // The results removed nodes left go with them.
         self.results.clear_orphans();
         self.retired.clear();
@@ -894,6 +900,7 @@ impl EngineState {
     /// Records a node issued by this state's allocator at `anchor`, unbound. The caller makes it
     /// pending.
     pub(crate) fn add_node(&mut self, id: NodeId, anchor: CellKey) {
+        self.anchor_epoch += 1;
         self.record_node(id, anchor);
         self.anchor_index.insert(anchor, id);
     }
