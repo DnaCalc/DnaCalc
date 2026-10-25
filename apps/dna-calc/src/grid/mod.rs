@@ -576,7 +576,10 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
-                    let style = rect_style(&cell.rect);
+                    let style = match cell.shown.color {
+                        Some(color) => format!("{};color:{color}", rect_style(&cell.rect)),
+                        None => rect_style(&cell.rect),
+                    };
                     let shown = cell.shown.clone();
                     view! {
                         <div

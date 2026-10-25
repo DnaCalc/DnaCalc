@@ -60,6 +60,8 @@ pub struct CellShown {
     pub formula: bool,
     /// How the cell's number format applied.
     pub format: FormatShown,
+    /// The color the number format gives the text (`[Red]`), as `#rrggbb`.
+    pub color: Option<&'static str>,
 }
 
 /// The sheet names of a host, for DNA OneCalc's labels.
@@ -179,8 +181,14 @@ pub fn shown(
     format: Option<&str>,
 ) -> CellShown {
     let formula = matches!(cell.input(), Some(CellInput::Formula(_)));
-    let value_of = |value: &CalcValue, provenance: Provenance| {
+    let mut color = None;
+    let mut value_of = |value: &CalcValue, provenance: Provenance| {
         let (text, shown) = formatted(value, profile, format);
+        if shown == FormatShown::Applied {
+            color = format
+                .and_then(|code| calc_func::cell_color(code, value))
+                .map(|color| color.rgb());
+        }
         (text, self::kind(value), provenance, shown)
     };
     let (text, kind, provenance, format) = match cell.value() {
@@ -214,6 +222,7 @@ pub fn shown(
         provenance,
         formula,
         format,
+        color,
     }
 }
 

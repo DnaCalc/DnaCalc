@@ -377,4 +377,7 @@ fn dc_09v__cells_show_their_number_formats() {
         };
         assert_eq!(cell.format, expected, "{address}");
     }
+    // The negative section of A4's code ([Red] in its second section) is red; A1's names none.
+    assert_eq!(shown(&book, at(formats, "A4")).color, Some("#ff0000"));
+    assert_eq!(shown(&book, at(formats, "A1")).color, None);
 }
