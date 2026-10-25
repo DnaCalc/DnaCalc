@@ -137,12 +137,28 @@ pub(crate) fn trimmean_kernel(values: &mut [f64], percent: f64) -> Result<f64, W
     if values.is_empty() {
         return Err(WorksheetErrorCode::Num);
     }
-    values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let to_trim = (percent * values.len() as f64).floor() as usize;
     let each_side = to_trim / 2;
     if each_side * 2 >= values.len() {
         return Err(WorksheetErrorCode::Num);
     }
-    let kept = &values[each_side..values.len() - each_side];
-    Ok(kept.iter().sum::<f64>() / kept.len() as f64)
+    // Excel adds the kept values in their own order, not the sorted order (dc-j9k: 20 of 20
+    // TRIMMEAN readings in the catalogue oracle's sheet dcj9k_statistics; the sorted sum
+    // matched 18): each of the `each_side` smallest and largest values is left out once.
+    let mut trimmed: Vec<f64> = sorted[..each_side]
+        .iter()
+        .chain(sorted[sorted.len() - each_side..].iter())
+        .copied()
+        .collect();
+    let mut total = 0.0;
+    for value in values.iter() {
+        if let Some(at) = trimmed.iter().position(|t| t == value) {
+            trimmed.swap_remove(at);
+        } else {
+            total += value;
+        }
+    }
+    Ok(total / (values.len() - 2 * each_side) as f64)
 }
