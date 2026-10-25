@@ -1002,6 +1002,44 @@ fn convergent(x: f64, largest: u64) -> Option<(u64, u64)> {
     best
 }
 
+/// Why a value has no text as a cell shows it under a number format ([`cell_text`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CellFormatError {
+    /// The value cannot be shown under the code: a negative number or one past 9999-12-31 under
+    /// a date or time code, which Excel's cell shows as a row of `#`.
+    Unshowable,
+    /// The text under this code is not modelled (the cases [`text`] refuses).
+    NotModelled,
+}
+
+/// A cell's value as the cell shows it under the number format `code` (dc-09v): a number or a
+/// text through the one renderer TEXT uses ([`text`], [`text_of_text`]); a logical as it is, which
+/// no format changes. An error or an array gets no text here (`NotModelled`): the caller shows it
+/// as it shows it unformatted. The column's width is not applied: a skin that clips or shows `#`
+/// for a number wider than its column does so itself.
+pub fn cell_text(
+    profile: &FormatProfile,
+    system: DateSystem,
+    value: &crate::value::CalcValue,
+    code: &str,
+) -> Result<String, CellFormatError> {
+    use crate::value::CoreValue;
+    let failure = |failure: Failure| match failure {
+        Failure::Value => CellFormatError::Unshowable,
+        Failure::NotModelled => CellFormatError::NotModelled,
+    };
+    match value.core() {
+        CoreValue::Number(number) => text(profile, system, *number, code).map_err(failure),
+        CoreValue::Text(text) => {
+            text_of_text(&text.to_string_lossy(), code, profile).map_err(failure)
+        }
+        CoreValue::Logical(true) => Ok("TRUE".to_owned()),
+        CoreValue::Logical(false) => Ok("FALSE".to_owned()),
+        CoreValue::Empty => Ok(String::new()),
+        _ => Err(CellFormatError::NotModelled),
+    }
+}
+
 /// TEXT of a number under `code`.
 pub(crate) fn text(profile: &FormatProfile, system: DateSystem, value: f64, code: &str) -> Rendered {
     let sections = sections(code);
