@@ -202,6 +202,22 @@ impl HostState {
         &self.options
     }
 
+    /// How many threads a recalculation of this workbook may evaluate formulas on (dc-2m0; see
+    /// [`calc_engine::EngineState::set_threads`]): at least 1, which is the default. A
+    /// recalculation that several threads evaluate publishes the values one thread would.
+    pub fn set_threads(&mut self, threads: usize) {
+        self.engine.set_threads(threads);
+    }
+
+    pub fn threads(&self) -> usize {
+        self.engine.threads()
+    }
+
+    /// See [`calc_engine::EngineState::set_parallel_minimum`].
+    pub fn set_parallel_minimum(&mut self, wave: usize, level: usize) {
+        self.engine.set_parallel_minimum(wave, level);
+    }
+
     /// The calculation mode [`crate::step`] follows: the host's option, or else the mode the
     /// package's `calcPr` declares (automatic when it declares none). Under
     /// [`CalcMode::Manual`] a step begins a recalculation only after [`crate::calculate`] asks for

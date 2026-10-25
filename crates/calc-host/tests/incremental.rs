@@ -188,13 +188,31 @@ fn sheet(host: &HostState, name: &str) -> SheetId {
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_dxm__recalculating_after_every_edit_matches_a_fresh_open() {
+    differential(&fixture(), "Calc", true, 1);
+}
+
+/// dc-2m0: the same differential with host A recalculating on four threads, every recalculation
+/// of at least one formula taking the parallel route when it may, against the fresh open on one
+/// thread. The package is a new workbook (no array formula, which keeps a recalculation on one
+/// thread), and column H holds numbers in place of the spill. On wasm32 both run on one thread.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_2m0__recalculating_on_four_threads_matches_a_fresh_open() {
+    differential(&calc_host::blank_package(), "Sheet1", false, 4);
+}
+
+/// The differential on `bytes`, the cells on sheet `name`: with the SEQUENCE spill in column H
+/// when `spill`, else numbers there; host A on `threads` threads.
+fn differential(bytes: &[u8], name: &str, spill: bool, threads: usize) {
     const R0: u32 = 3001;
     const N: u32 = 20;
     const STEPS: u32 = 200;
     const EVERY: u32 = 5;
-    let bytes = fixture();
+    let bytes = bytes.to_vec();
     let mut a = open(&bytes);
-    let calc = sheet(&a, "Calc");
+    a.set_threads(threads);
+    a.set_parallel_minimum(1, 1);
+    let calc = sheet(&a, name);
     let at = |row: u32, column: char| {
         CellKey::new(calc, row, u32::from(column) - u32::from('A') + 1).expect("a cell")
     };
@@ -215,16 +233,23 @@ fn dc_dxm__recalculating_after_every_edit_matches_a_fresh_open() {
             &format!("=SUM(A${R0}:INDEX(A${R0}:A${last},$L${R0}))"),
         ));
         setup.push(set(at(r, 'M'), &format!("=C{r}+E{r}+K{r}+J{r}")));
-        setup.push(set(at(r, 'O'), &format!("=SUM(_xlfn.ANCHORARRAY(H{R0}))+M{r}")));
+        if spill {
+            setup.push(set(at(r, 'O'), &format!("=SUM(_xlfn.ANCHORARRAY(H{R0}))+M{r}")));
+        } else {
+            setup.push(set(at(r, 'H'), &format!("{}", (r - R0) * 10)));
+            setup.push(set(at(r, 'O'), &format!("=SUM(H{R0}:H{last})+M{r}")));
+        }
     }
     setup.push(set(at(R0, 'F'), "2"));
     setup.push(set(at(R0, 'G'), "3"));
     setup.push(set(at(R0, 'I'), "4"));
     setup.push(set(at(R0, 'L'), "5"));
-    setup.push(dynamic_array(
-        at(R0, 'H'),
-        &format!("=_xlfn.SEQUENCE($I${R0})*10"),
-    ));
+    if spill {
+        setup.push(dynamic_array(
+            at(R0, 'H'),
+            &format!("=_xlfn.SEQUENCE($I${R0})*10"),
+        ));
+    }
     let cells: Vec<CellKey> = (R0..R0 + N + 2)
         .flat_map(|row| ('A'..='P').map(move |column| (row, column)))
         .map(|(row, column)| at(row, column))
@@ -280,9 +305,10 @@ fn dc_dxm__recalculating_after_every_edit_matches_a_fresh_open() {
                 set(at(r, 'B'), &choices[choice])
             }
             7 => {
-                // A value blocks the spill; clearing it releases the spill.
+                // A value blocks the spill; clearing it releases the spill. Without the spill,
+                // the value is one of column H's numbers.
                 let blocker = at(R0 + 1 + draws.below(8), 'H');
-                if draws.below(2) == 0 {
+                if draws.below(2) == 0 || !spill {
                     set(blocker, "99")
                 } else {
                     set(blocker, "")
@@ -295,10 +321,11 @@ fn dc_dxm__recalculating_after_every_edit_matches_a_fresh_open() {
                     set(at(r, 'C'), &format!("=INDIRECT(\"A\"&D{})", R0 + 4))
                 }
             }
-            9 => dynamic_array(
+            9 if spill => dynamic_array(
                 at(R0, 'H'),
                 &format!("=_xlfn.SEQUENCE($I${R0},{})*10", 1 + draws.below(2)),
             ),
+            9 => set(at(R0, 'H'), &format!("{}", draws.below(50))),
             _ => set(
                 at(r, 'M'),
                 &format!("=C{r}+E{r}+K{r}+J{r}+B{}", R0 + draws.below(N)),
