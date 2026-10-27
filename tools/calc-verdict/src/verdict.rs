@@ -76,7 +76,7 @@ use crate::json::Out;
 use crate::result::{CellResult, Provenance, ResultSet, RunIdentity};
 use crate::session::{CaptureSession, STAGE_ENVIRONMENT, STAGE_INVENTORY, STAGE_ISOLATION};
 use crate::typed::{MismatchClass, compare, value_out};
-use crate::value::{CalcValue, CoreValue, MAX_COLUMNS, MAX_ROWS, NumericMode};
+use crate::value::{CalcValue, CoreValue, MAX_COLUMNS, MAX_ROWS, NumericMode, WorksheetErrorCode};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const REPORT_FORMAT: &str = "dnacalc-verdict-report";
@@ -520,7 +520,11 @@ fn check_legacy_arrays(
                                     place(&member),
                                     place(cell),
                                     kind.name(),
-                                    if what == "data table" { "table" } else { "array" }
+                                    if what == "data table" {
+                                        "table"
+                                    } else {
+                                        "array"
+                                    }
                                 )));
                             }
                             None => {
@@ -1031,6 +1035,12 @@ type Returned = Result<CalcValue, String>;
 /// context (`None` when the record holds none) and the value it publishes: `None` when it is
 /// proven, `Some(None)` when there is no evaluation, and `Some(Some(returned))` when a version 2
 /// record says the evaluation returned no value or another value than the published one.
+///
+/// An evaluation that returned an array of more than one cell proves a published #SPILL! (dc-677):
+/// the anchor of a formula whose array cannot spill (its range blocked, or off the grid) shows
+/// #SPILL!, as Excel's does, and that error is the evaluation's array placed, not another value.
+/// The #SPILL! is still compared with Excel's observation like any value; a spill the array
+/// should have made shows there as a mismatch, never as a pass.
 fn unproven(
     evaluation: Option<Option<&Returned>>,
     published: Option<&CalcValue>,
@@ -1041,13 +1051,24 @@ fn unproven(
         // counts the cell in `calculated_without_value_check`.
         Some(None) => None,
         Some(Some(returned)) => {
-            let gave_published = matches!(
-                (returned, published),
-                (Ok(value), Some(published)) if compare(value, published).is_none()
-            );
+            let gave_published = match (returned, published) {
+                (Ok(value), Some(published)) => {
+                    compare(value, published).is_none() || spill_of(value, published)
+                }
+                _ => false,
+            };
             (!gave_published).then(|| Some(returned.clone()))
         }
     }
+}
+
+/// Whether `published` is the #SPILL! an anchor shows for the array `returned` it cannot spill.
+fn spill_of(returned: &CalcValue, published: &CalcValue) -> bool {
+    matches!(returned.core(), CoreValue::Array(array) if array.cell_count() > 1)
+        && matches!(
+            published.core(),
+            CoreValue::Error(WorksheetErrorCode::Spill)
+        )
 }
 
 fn returned_out(returned: &Returned) -> Out {
@@ -1840,6 +1861,46 @@ mod tests {
             ),
             uncertified(UncertifiedReason::EvidenceRecordAbsent)
         );
+    }
+
+    /// An evaluation that returned an array of more than one cell proves a published #SPILL!
+    /// (dc-677: the anchor of an array that cannot spill), which is then compared with Excel's;
+    /// it proves no other value, and a one-cell array proves no #SPILL!.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn an_array_evaluation_proves_the_spill_error_its_anchor_shows() {
+        let array = |rows: usize, cols: usize| {
+            Ok(CalcValue::array(
+                crate::value::CalcArray::new(
+                    crate::value::ArrayShape { rows, cols },
+                    (0..rows * cols)
+                        .map(|n| CalcValue::number(n as f64))
+                        .collect(),
+                )
+                .unwrap(),
+            ))
+        };
+        let spill = r#"{"error": "spill"}"#;
+        let live = capture(LIVE, ENVIRONMENT, &format!(r#""excel_raw": {spill}"#));
+        let calculated = column_results(&[(CALCULATED, spill)]);
+        let policy = exact("20430");
+        let report = judge(&live, &calculated, &instrumented(&array(3, 1)), &policy).unwrap();
+        assert_eq!(report.cells[0].verdict, matched(Certainty::StrictBits));
+        let report = judge(&live, &calculated, &instrumented(&array(1, 1)), &policy).unwrap();
+        assert!(
+            matches!(report.cells[0].verdict, Verdict::Unproven { .. }),
+            "{:?}",
+            report.cells[0].verdict
+        );
+        // An array proves no other value: a published 2 stays unproven.
+        let two = judge(
+            &capture(LIVE, ENVIRONMENT, RAW_TWO),
+            &results(CALCULATED),
+            &instrumented(&array(3, 1)),
+            &policy,
+        )
+        .unwrap();
+        assert!(matches!(two.cells[0].verdict, Verdict::Unproven { .. }));
     }
 
     /// In a version 2 record an evaluation proves a calculated result only when it returned the
