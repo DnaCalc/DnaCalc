@@ -840,6 +840,22 @@ impl EngineState {
             .filter(move |at| area.contains(*at))
     }
 
+    /// The cells whose formulas read the cell `at` through a value edge (a placed reference or one
+    /// their last evaluation computed), in cell order, each once: the anchors of the nodes the
+    /// reverse index finds for it (dc-gf0, for a skin's dependency trace). A node not bound yet
+    /// has no edges and is not among them.
+    pub fn dependents_at(&self, inputs: &ModelRoot, at: CellKey) -> Vec<CellKey> {
+        let mut nodes = BTreeSet::new();
+        self.index.dependents_of_cell(inputs, at, &mut nodes);
+        let mut cells: Vec<CellKey> = nodes
+            .into_iter()
+            .filter_map(|node| self.node(node).map(FormulaNode::anchor))
+            .collect();
+        cells.sort();
+        cells.dedup();
+        cells
+    }
+
     /// The nodes with a value edge covering `at`, without those in `leaving`, in ID order.
     pub(crate) fn dependents_of_cell(
         &self,

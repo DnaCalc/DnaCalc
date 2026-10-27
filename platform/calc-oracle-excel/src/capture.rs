@@ -207,6 +207,55 @@ pub fn isolation_failures(run: &WorkerRun, grace: Duration) -> Vec<CaptureFailur
 
 /// Takes one capture (see the module documentation): [`CaptureError::Unavailable`] when this host
 /// cannot run Excel, otherwise the record or why there is none.
+/// This machine's local clock as a serial date and time of the 1900 date system (day 1 is
+/// 1900-01-01, counting Excel's 1900-02-29, so a date from 1900-03-01 on is Excel's serial), or
+/// `None` off Windows.
+fn local_clock() -> Option<f64> {
+    #[cfg(windows)]
+    {
+        // SAFETY: GetLocalTime writes the SYSTEMTIME it is given and nothing else.
+        let now = unsafe {
+            let mut now = std::mem::zeroed::<windows_sys::Win32::Foundation::SYSTEMTIME>();
+            windows_sys::Win32::System::SystemInformation::GetLocalTime(&mut now);
+            now
+        };
+        let day = serial_day(
+            i64::from(now.wYear),
+            i64::from(now.wMonth),
+            i64::from(now.wDay),
+        );
+        let seconds = f64::from(now.wHour) * 3600.0
+            + f64::from(now.wMinute) * 60.0
+            + f64::from(now.wSecond)
+            + f64::from(now.wMilliseconds) / 1000.0;
+        Some(day as f64 + seconds / 86_400.0)
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
+/// The 1900-system serial of a Gregorian date from 1900-03-01 on: days since 1899-12-30.
+fn serial_day(year: i64, month: i64, day: i64) -> i64 {
+    // Days from 1970-01-01 (H. Hinnant's days_from_civil), then 25569 days from 1899-12-30.
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (month + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468 + 25_569
+}
+
+/// The clock to record as the setting calculation_clock: the local clock when the worker started,
+/// whose date the calculation's NOW, TODAY and dates without a year read. `None` when either
+/// reading is missing or the run crossed midnight, so the date Excel read is not known.
+fn calculation_clock(before: Option<f64>, after: Option<f64>) -> Option<f64> {
+    let (before, after) = (before?, after?);
+    (before.floor() == after.floor()).then_some(before)
+}
+
 pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError> {
     excel_available().map_err(|reason| CaptureError::Unavailable { reason })?;
     let name = file_name(&request.fixture)?;
@@ -316,6 +365,8 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
         result_file.clone().into_os_string(),
     ])
     .collect();
+    // The local clock around the worker's run, which Excel's NOW reads during its calculation.
+    let clock_before = local_clock();
     let run = run_isolated(&Worker {
         program: windows_powershell(),
         args,
@@ -411,7 +462,8 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
             None
         }
     };
-    let record = convert::convert(
+    let clock_after = local_clock();
+    let mut record = convert::convert(
         &result,
         Frame {
             case: request.case.clone(),
@@ -424,6 +476,14 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
         },
     )
     .map_err(|message| CaptureError::Result { message })?;
+    if let (Some(environment), Some(clock)) = (
+        record.environment.as_mut(),
+        calculation_clock(clock_before, clock_after),
+    ) {
+        environment
+            .settings
+            .push(("calculation_clock".to_owned(), format!("{:016x}", clock.to_bits())));
+    }
     let encoded = record.encode().map_err(|e| CaptureError::Result {
         message: e.to_string(),
     })?;
@@ -466,6 +526,15 @@ mod tests {
         );
         assert!(revision.ends_with("; repository abc123"), "{revision}");
         assert!(!capture_tool_revision(None).contains("repository"));
+    }
+
+    #[test]
+    fn serial_days_are_excel_serials() {
+        assert_eq!(super::serial_day(1900, 3, 1), 61);
+        assert_eq!(super::serial_day(2026, 1, 1), 46023);
+        assert_eq!(super::serial_day(2026, 10, 25), 46320);
+        assert_eq!(super::calculation_clock(Some(46320.25), Some(46320.75)), Some(46320.25));
+        assert_eq!(super::calculation_clock(Some(46320.99), Some(46321.01)), None);
     }
 
     #[test]

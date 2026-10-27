@@ -10,10 +10,14 @@
 //! value or a reference too: Excel inserts `@` before its range of one area but not before a
 //! reference of several areas. ISFORMULA takes a reference only.
 //!
-//! An array argument is refused as not modelled, except by TYPE (64) and ISREF (FALSE), before
-//! which Excel inserts no `@`: Excel loads it in a legacy formula with `@` (its first element),
-//! and in a dynamic-array formula array evaluation applies the function to it; both are array
-//! evaluation's (dc-m3u). So is a callable argument, whose worksheet-visible core is #CALC! but
+//! ISEVEN, ISODD and N apply to each element of an array argument, giving the array of the
+//! results (dc-b1l, measured in Excel 16.0.20430 on 2026-10-25 as dynamic-array formulas:
+//! `=COLUMNS(ISEVEN({2,3}))` is 2 and `=INDEX(N({5,6}),1,2)` is 6); a legacy formula then takes
+//! the array's first element at its root (`=ISEVEN({2,3})` TRUE, `=N({5,6})` 5, the corpus's
+//! dc-nzpw rows). TYPE gives 64 and ISREF FALSE for an array. Any other array argument is refused
+//! as not modelled: Excel loads it in a legacy formula with `@` (its first element), and in a
+//! dynamic-array formula array evaluation applies the function to it; both are array evaluation's
+//! (dc-m3u). So is a callable argument, whose worksheet-visible core is #CALC! but
 //! which no cell holds (LAMBDA, dc-m3u), and an omitted one: Excel refuses `=ISBLANK()`,
 //! `=ISEVEN()`, `=TYPE()` and such calls with nothing between the parentheses at entry, so no Excel
 //! result exists for one. A number that is not finite is no worksheet value and is refused.
@@ -35,7 +39,8 @@ use crate::call::{EagerKernel, EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CallableArityShape, CoreValue, GridArea, ReferenceLike, WorksheetErrorCode,
+    CalcArray, CalcValue, CallableArityShape, CoreValue, GridArea, ReferenceLike,
+    WorksheetErrorCode,
 };
 
 const CODE: u16 = 10;
@@ -274,7 +279,9 @@ fn iseven(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISEVEN, services);
-    Site::finish(odd(&site, &arguments[0], services).map(|odd| CalcValue::logical(!odd)))
+    Site::finish(each(&site, &arguments[0], services, |site, value, services| {
+        odd(site, value, services).map(|odd| CalcValue::logical(!odd))
+    }))
 }
 
 /// ISODD: whether the number, truncated toward zero, is odd.
@@ -283,7 +290,37 @@ fn isodd(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISODD, services);
-    Site::finish(odd(&site, &arguments[0], services).map(CalcValue::logical))
+    Site::finish(each(&site, &arguments[0], services, |site, value, services| {
+        odd(site, value, services).map(CalcValue::logical)
+    }))
+}
+
+/// `apply` to the argument, or to each element of an array argument, giving the array of the
+/// results with each element's error in its place (see the module documentation). An element
+/// whose result is refused refuses the call.
+fn each(
+    site: &Site<'_>,
+    argument: &CalcValue,
+    services: &mut EvalServices<'_>,
+    apply: fn(&Site<'_>, &CalcValue, &mut EvalServices<'_>) -> Step<CalcValue>,
+) -> Step<CalcValue> {
+    let CoreValue::Array(array) = argument.core() else {
+        return apply(site, argument, services);
+    };
+    if argument.callable_value().is_some() {
+        return Err(site.not_modelled(Some(0)));
+    }
+    let mut cells = Vec::with_capacity(array.cell_count());
+    for element in array.iter_row_major() {
+        cells.push(match apply(site, element, services) {
+            Ok(value) => value,
+            Err(Exit::Error(code)) => CalcValue::error(code),
+            Err(fault) => return Err(fault),
+        });
+    }
+    CalcArray::new(array.shape(), cells)
+        .map(CalcValue::array)
+        .ok_or_else(|| site.not_modelled(Some(0)))
 }
 
 /// Excel's tolerance for ISEVEN and ISODD, which no page states: the number's magnitude plus this,
@@ -365,18 +402,19 @@ fn type_code(site: &Site<'_>, value: &CalcValue) -> Step<f64> {
 /// [`known`]).
 fn n(arguments: &[CalcValue], services: &mut EvalServices<'_>) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(N, services);
-    let argument = &arguments[0];
+    Site::finish(each(&site, &arguments[0], services, n_of))
+}
+
+/// N of one argument or array element.
+fn n_of(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) -> Step<CalcValue> {
     let value = match argument.core() {
         CoreValue::Reference(reference) => {
             let first = GridArea::cell(reference.areas()[0].first());
-            match referenced(&site, first, services) {
-                Ok(value) => value,
-                Err(exit) => return Site::finish(Err(exit)),
-            }
+            referenced(site, first, services)?
         }
         _ => argument.clone(),
     };
-    let step = known(&site, &value).and_then(|core| match core {
+    known(site, &value).and_then(|core| match core {
         CoreValue::Number(x) => site
             .argument(0, coerce::operand(*x))
             .and_then(|x| site.number(x)),
@@ -386,8 +424,7 @@ fn n(arguments: &[CalcValue], services: &mut EvalServices<'_>) -> Result<CalcVal
         CoreValue::Missing | CoreValue::Array(_) | CoreValue::Reference(_) => {
             Err(site.not_modelled(Some(0)))
         }
-    });
-    Site::finish(step)
+    })
 }
 
 /// NA: the error #N/A. It takes no argument; the arity refuses any.

@@ -16,6 +16,14 @@ pub trait ReferenceReader {
     /// are counted, not skipped. Once `sink` returns [`ControlFlow::Break`] the reader stops.
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>);
 
+    /// The one cell `at`: what [`ReferenceReader::read_area`] of that cell's area reports, as
+    /// one value (dc-dxm: a single-cell reference, the most common read, then passes through no
+    /// run and no sink). The default reads it through `read_area` ([`read_cell_by_area`]); a
+    /// reader that answers it itself must give what `read_area` would.
+    fn read_cell(&mut self, at: CellKey) -> Result<CellRead, ReadContractError> {
+        read_cell_by_area(self, at)
+    }
+
     /// The range spilled from the dynamic-array formula at `anchor`, which a spill reference
     /// (`A1#`) names. The default is [`SpillExtent::NotModelled`]: a reader that does not know
     /// spills says so, and the reference is refused.
@@ -82,6 +90,50 @@ impl CellRun<'_> {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+/// What one cell holds, as [`ReferenceReader::read_cell`] gives it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CellRead {
+    /// The cell's value.
+    Value(CalcValue),
+    /// The cell exists and holds nothing.
+    Blank,
+    /// The reader cannot supply the cell's value ([`CellRun::Missing`]).
+    Missing,
+}
+
+/// [`ReferenceReader::read_cell`] through [`ReferenceReader::read_area`]: the first run of the
+/// cell's area, which must cover the one cell and no more.
+pub fn read_cell_by_area<R: ReferenceReader + ?Sized>(
+    reader: &mut R,
+    at: CellKey,
+) -> Result<CellRead, ReadContractError> {
+    let area = GridArea::cell(at);
+    let mut read = None;
+    let mut overrun = false;
+    reader.read_area(area, &mut |run| {
+        if run.is_empty() {
+            return ControlFlow::Continue(());
+        }
+        if run.len() > 1 {
+            overrun = true;
+            return ControlFlow::Break(());
+        }
+        read = Some(match run {
+            CellRun::Values(values) => CellRead::Value(values[0].clone()),
+            CellRun::Blank(_) => CellRead::Blank,
+            CellRun::Missing(_) => CellRead::Missing,
+        });
+        ControlFlow::Break(())
+    });
+    match read {
+        Some(read) if !overrun => Ok(read),
+        _ => Err(ReadContractError {
+            area,
+            covered: if overrun { 2 } else { 0 },
+        }),
     }
 }
 

@@ -598,12 +598,17 @@ fn solve_yield_bisection(
         return Err(OddBondEvalError::Domain(WorksheetErrorCode::Num));
     }
 
+    // Bisection to adjacent binary64 bounds (full convergence, dc-ifc: Excel's ODDFYIELD
+    // converges past the former 1e-12 price tolerance), then the bound with the smaller residual.
     let mut lo = low;
     let mut hi_mut = hi;
-    for _ in 0..100 {
+    for _ in 0..2200 {
         let mid = (lo + hi_mut) / 2.0;
+        if mid <= lo || mid >= hi_mut {
+            break;
+        }
         let price_mid = price_at_yield(mid)?;
-        if (price_mid - target_price).abs() < 1.0e-12 {
+        if price_mid == target_price {
             return Ok(mid);
         }
         if price_mid > target_price {
@@ -612,7 +617,12 @@ fn solve_yield_bisection(
             hi_mut = mid;
         }
     }
-    Ok((lo + hi_mut) / 2.0)
+    let residual = |y: f64| price_at_yield(y).map(|p| (p - target_price).abs());
+    Ok(match (residual(lo), residual(hi_mut)) {
+        (Ok(a), Ok(b)) if a < b => lo,
+        (Ok(_), Err(_)) => lo,
+        _ => hi_mut,
+    })
 }
 
 pub fn oddfyield_kernel(

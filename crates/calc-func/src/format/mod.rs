@@ -551,7 +551,30 @@ fn numeric(
         .rposition(|i| matches!(i, Item::Digit(_)))
         .unwrap_or(first);
     let integer_end = point_at.unwrap_or(mantissa_last + 1);
-    let integer: Vec<&Item> = items[first..integer_end.max(first)].iter().collect();
+    // A group separator beside a literal in the integer part (dc-b1l, Excel 16.0.20430 on
+    // 2026-10-25, the catalogue oracle's dcuar_text rows): one that follows a literal and precedes
+    // a placeholder is written as the separator's text, a literal (TEXT(5415485.8,"##- 0") is
+    // 541548- 6); one that follows a placeholder and precedes a literal is dropped and groups
+    // nothing (TEXT(843124.584,"0# ,0") is 84312,5). One between two placeholders groups.
+    let separator = Item::Literal(profile.thousands_separator.to_owned());
+    let integer_items: Vec<Item> = items[first..integer_end.max(first)]
+        .iter()
+        .enumerate()
+        .filter_map(|(at, item)| {
+            let all = &items[first..integer_end.max(first)];
+            if *item != Item::Group {
+                return Some(item.clone());
+            }
+            let before = at.checked_sub(1).map(|p| &all[p]);
+            let after = all.get(at + 1);
+            match (before, after) {
+                (Some(Item::Literal(_)), Some(Item::Digit(_))) => Some(separator.clone()),
+                (Some(Item::Digit(_)), Some(Item::Literal(_))) => None,
+                _ => Some(Item::Group),
+            }
+        })
+        .collect();
+    let integer: Vec<&Item> = integer_items.iter().collect();
     let mut fraction_literals: Vec<(usize, String)> = Vec::new();
     let fraction: Vec<char> = match point_at {
         Some(p) => {
@@ -655,8 +678,8 @@ fn integer_part(
         // alone (Excel 16.0.20430, dc-uar: TEXT(1234567.891,"# ##0,0") is 1 234 56,8, and
         // TEXT(12,"#-# ##0") is -12). Modelled for `0` and `#` placeholders and literals that do
         // not fall beside a group separator.
-        // A group separator beside a literal (`##- 0`, `0, 0#`) is not modelled: Excel writes some
-        // as spaces and drops others.
+        // A group separator beside a literal that the caller did not resolve (one between two
+        // literals, or at either end) is not modelled.
         let beside_literal = pattern.iter().enumerate().any(|(at, item)| {
             **item == Item::Group
                 && (at == 0
@@ -673,7 +696,15 @@ fn integer_part(
                 Item::Digit('?') => return Err(Failure::NotModelled),
                 Item::Digit(_) => right += 1,
                 Item::Group => {}
-                other => literals.push((right, literal_text(other, profile)?)),
+                other => {
+                    // Literals with no placeholder between them stand together, in the code's
+                    // order (dc-b1l: TEXT(503134,"0- 0 #") is 503 1- 34).
+                    let text = literal_text(other, profile)?;
+                    match literals.last_mut() {
+                        Some((count, joined)) if *count == right => joined.insert_str(0, &text),
+                        _ => literals.push((right, text)),
+                    }
+                }
             }
         }
         let zeros = placeholders
@@ -705,10 +736,10 @@ fn integer_part(
                         }
                     }
                 }
+                // A literal where a group separator falls stands after it (dc-b1l:
+                // TEXT(9514218,"0x#0# ###") is 9 x514 218).
                 if seen < *count {
                     at = 0;
-                } else if text[..at].ends_with(profile.thousands_separator) && !profile.thousands_separator.is_empty() {
-                    return Err(Failure::NotModelled);
                 }
             }
             text.insert_str(at, literal);

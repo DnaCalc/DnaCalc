@@ -1,0 +1,2 @@
+# dc-b1l: functions the oracle corpus refused as unknown. One call per function.
+FIELDVALUE(Data!A1,"x")

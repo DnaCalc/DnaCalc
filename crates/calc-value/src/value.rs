@@ -387,6 +387,25 @@ pub enum CoreValue {
     Reference(ReferenceLike),
 }
 
+/// A view of a value's worksheet-visible part, returned by value from [`CalcValue::core_ref`]
+/// (dc-dxm, compact value type step 1): a caller that matches on it does not depend on how a
+/// value is stored, so the storage can change (a smaller layout, step 2) without touching it.
+/// Number, logical, error, empty and missing are copied out; text, array and reference are
+/// borrowed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CoreRef<'a> {
+    Number(f64),
+    Text(&'a ExcelText),
+    Logical(bool),
+    Error(WorksheetErrorCode),
+    /// An empty cell.
+    Empty,
+    /// An omitted argument.
+    Missing,
+    Array(&'a CalcArray),
+    Reference(&'a ReferenceLike),
+}
+
 /// A value: its worksheet-visible [`CoreValue`], and for a callable the [`CallableValue`] behind
 /// it (whose worksheet-visible core is `#CALC!`).
 #[derive(Clone, Debug, PartialEq)]
@@ -446,6 +465,21 @@ impl CalcValue {
 
     pub fn core(&self) -> &CoreValue {
         &self.core
+    }
+
+    /// The worksheet-visible part as a [`CoreRef`] view: what callers should match on, rather
+    /// than on [`CalcValue::core`]'s stored enum.
+    pub fn core_ref(&self) -> CoreRef<'_> {
+        match &self.core {
+            CoreValue::Number(number) => CoreRef::Number(*number),
+            CoreValue::Text(text) => CoreRef::Text(text),
+            CoreValue::Logical(logical) => CoreRef::Logical(*logical),
+            CoreValue::Error(code) => CoreRef::Error(*code),
+            CoreValue::Empty => CoreRef::Empty,
+            CoreValue::Missing => CoreRef::Missing,
+            CoreValue::Array(array) => CoreRef::Array(array),
+            CoreValue::Reference(reference) => CoreRef::Reference(reference),
+        }
     }
 
     pub fn as_number(&self) -> Option<f64> {
@@ -518,6 +552,47 @@ mod tests {
     impl OpaqueCallable for TestCallable {
         fn as_any(&self) -> &dyn Any {
             self
+        }
+    }
+
+    /// dc-dxm: [`CalcValue::core_ref`] gives each variant of the stored core, copying the
+    /// small ones and borrowing the rest.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_dxm__core_ref_views_each_kind_of_value() {
+        let mut sheets: IdAllocator<SheetId> = IdAllocator::new();
+        let sheet = sheets.issue().expect("a sheet");
+        let cell = CellKey::new(sheet, 2, 3).expect("a cell");
+        let text = ExcelText::from_interop_assignment("abc");
+        let array = CalcArray::new(
+            ArrayShape { rows: 1, cols: 2 },
+            vec![CalcValue::number(1.0), CalcValue::number(2.0)],
+        )
+        .expect("an array");
+        let reference = ReferenceLike::cell(cell);
+        let values = [
+            CalcValue::number(1.5),
+            CalcValue::text(text.clone()),
+            CalcValue::logical(true),
+            CalcValue::error(WorksheetErrorCode::Div0),
+            CalcValue::empty(),
+            CalcValue::missing(),
+            CalcValue::array(array.clone()),
+            CalcValue::reference(reference.clone()),
+        ];
+        let views = [
+            CoreRef::Number(1.5),
+            CoreRef::Text(&text),
+            CoreRef::Logical(true),
+            CoreRef::Error(WorksheetErrorCode::Div0),
+            CoreRef::Empty,
+            CoreRef::Missing,
+            CoreRef::Array(&array),
+            CoreRef::Reference(&reference),
+        ];
+        for (value, view) in values.iter().zip(views) {
+            assert_eq!(value.core_ref(), view, "{value:?}");
         }
     }
 

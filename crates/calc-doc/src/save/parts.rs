@@ -33,11 +33,17 @@ pub(super) struct NameChanges {
     /// Each name whose formula changed (rows or columns were inserted or deleted): its name, its
     /// `localSheetId` (`None` for a workbook-scoped name) and its new formula text.
     pub(super) replaced: Vec<(String, Option<u32>, Vec<u16>)>,
+    /// Each visible name an edit defined (dc-gf0: a formula moved to another sheet takes the
+    /// sheet-scoped names it uses), as `replaced` gives a name.
+    pub(super) defined: Vec<(String, Option<u32>, Vec<u16>)>,
 }
 
 impl NameChanges {
     pub(super) fn is_empty(&self) -> bool {
-        self.removed.is_empty() && self.added.is_empty() && self.replaced.is_empty()
+        self.removed.is_empty()
+            && self.added.is_empty()
+            && self.replaced.is_empty()
+            && self.defined.is_empty()
     }
 }
 
@@ -201,6 +207,20 @@ pub(super) fn workbook(
             added.extend_from_slice(b"definedName name=");
             attribute_value(name, &mut added);
             added.extend_from_slice(b" hidden=\"1\">");
+            xstring(text, &mut added);
+            added.extend_from_slice(b"</");
+            added.extend_from_slice(&element_prefix);
+            added.extend_from_slice(b"definedName>");
+        }
+        for (name, sheet, text) in &names.defined {
+            added.push(b'<');
+            added.extend_from_slice(&element_prefix);
+            added.extend_from_slice(b"definedName name=");
+            attribute_value(name, &mut added);
+            if let Some(sheet) = sheet {
+                added.extend_from_slice(format!(" localSheetId=\"{sheet}\"").as_bytes());
+            }
+            added.push(b'>');
             xstring(text, &mut added);
             added.extend_from_slice(b"</");
             added.extend_from_slice(&element_prefix);

@@ -388,17 +388,27 @@ fn solve(
     if hip > target {
         return Err(derr(WorksheetErrorCode::Num));
     }
+    // Bisection to adjacent binary64 bounds (full convergence, dc-ifc: Excel's YIELD converges
+    // past the former 1e-15 price tolerance), then the bound with the smaller residual.
     let mut lo = low;
     let mut hh = hi;
-    for _ in 0..100 {
+    for _ in 0..2200 {
         let mid = (lo + hh) / 2.0;
+        if mid <= lo || mid >= hh {
+            break;
+        }
         let mp = fun(mid)?;
-        if (mp - target).abs() <= 1e-15 {
+        if mp == target {
             return Ok(mid);
         }
         if mp > target { lo = mid } else { hh = mid }
     }
-    Ok((lo + hh) / 2.0)
+    let (lo_res, hi_res) = (fun(lo).map(|v| (v - target).abs()), fun(hh).map(|v| (v - target).abs()));
+    Ok(match (lo_res, hi_res) {
+        (Ok(a), Ok(b)) if a < b => lo,
+        (Ok(_), Err(_)) => lo,
+        _ => hh,
+    })
 }
 
 pub fn accrintm_kernel(
@@ -1667,12 +1677,16 @@ mod tests {
             0x3fb61465bd6a9970,
             "yield-catalog must be unchanged"
         );
+        // dc-ifc: bisection to adjacent bounds gives 0x3fa99999999999a1 (the 1e-15 price
+        // tolerance stopped at 0x3fa99999999999a0); Excel gives 0.05 itself, 0x3fa999999999999a
+        // (2026-10-27), and 0x3fb61465bd6a9983 for the catalogue row above.
         let par = yield_kernel(44013.0, 44562.0, 0.05, 100.0, 100.0, 2.0, Some(0.0)).unwrap();
         assert_eq!(
             par.to_bits(),
-            0x3fa99999999999a0,
-            "yield-par must be unchanged"
+            0x3fa99999999999a1,
+            "yield-par at full convergence"
         );
+        assert_ne!(par.to_bits(), 0x3fa999999999999a);
     }
 
     /// W111-5 G8-06, live Excel 20430: ACCRINTM basis 1 uses Excel's actual/actual rule,

@@ -23,14 +23,14 @@
 //! OxFunc gave #VALUE! for every area of more than one row and column; Excel does not.
 
 use calc_func::value::{
-    CalcValue, CellKey, CoreValue, GridArea, ReferenceLike, WorksheetErrorCode,
+    CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
 
 /// An operand of a reference operator: its reference, or the error value that is the result.
 fn reference(operand: &CalcValue) -> Result<&ReferenceLike, CalcValue> {
-    match operand.core() {
-        CoreValue::Reference(reference) => Ok(reference),
-        CoreValue::Error(_) if operand.callable_value().is_none() => Err(operand.clone()),
+    match operand.core_ref() {
+        CoreRef::Reference(reference) => Ok(reference),
+        CoreRef::Error(_) if operand.callable_value().is_none() => Err(operand.clone()),
         _ => Err(CalcValue::error(WorksheetErrorCode::Value)),
     }
 }
@@ -116,12 +116,12 @@ pub(super) fn union(operands: &[CalcValue]) -> CalcValue {
 /// What implicit intersection takes of `value` for a formula at `at`: a reference to one cell, or
 /// a value. An array's empty first element is the empty value.
 pub(super) fn implicit(value: &CalcValue, at: CellKey) -> CalcValue {
-    match value.core() {
-        CoreValue::Reference(reference) => match intersect_cell(reference, at) {
+    match value.core_ref() {
+        CoreRef::Reference(reference) => match intersect_cell(reference, at) {
             Some(cell) => CalcValue::reference(ReferenceLike::cell(cell)),
             None => CalcValue::error(WorksheetErrorCode::Value),
         },
-        CoreValue::Array(array) => array
+        CoreRef::Array(array) => array
             .get(0, 0)
             .cloned()
             .expect("an array holds at least one element"),

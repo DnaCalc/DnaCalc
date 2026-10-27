@@ -477,6 +477,25 @@ pub(crate) fn capture_locale_settings(capture: &CaptureRecord) -> Option<[&str; 
     ])
 }
 
+/// The clock Excel's calculation read for `capture`, as a serial date and time in the workbook's
+/// date system: its setting calculation_clock (the local clock when the capture's worker started,
+/// a 1900-system serial as binary64 bits in hex, which calc-oracle-excel records when the run did
+/// not cross midnight), less 1462 days when the setting date1904 is true. `None` when the capture
+/// records none.
+pub(crate) fn capture_clock(capture: &CaptureRecord) -> Option<f64> {
+    let environment = capture.environment.as_ref()?;
+    let setting = |name: &str| {
+        environment
+            .settings
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.as_str())
+    };
+    let now = f64::from_bits(u64::from_str_radix(setting("calculation_clock")?, 16).ok()?);
+    let now = if setting("date1904") == Some("true") { now - 1462.0 } else { now };
+    now.is_finite().then_some(now)
+}
+
 /// The locale profile of a user culture with these separators ([`capture_locale`]).
 pub(crate) fn locale_profile(
     culture: &str,
@@ -597,6 +616,9 @@ fn run_workbook(
         }
     };
 
+    // The clock NOW, TODAY and a date read without a year use: the one Excel's calculation read
+    // (the capture's setting calculation_clock); a capture without one leaves those refused.
+    host.set_clock(capture_clock(capture));
     let applied = host.recalc_context();
     let context = run_context(&applied);
     let declared = declared_key(capture, host.declared_date1904(), &applied);

@@ -2258,7 +2258,7 @@ fn dc_09v__copy_and_cut_take_cell_formats() {
 
 /// dc-gf0's cases, as tests/fixtures/dc_gf0/make-cut.ps1 makes them in Excel: name, source sheet,
 /// source range, target sheet, target top-left cell, and the package Excel saved after the cut.
-const GF0_CASES: [(&str, &str, &str, &str, &str, &[u8]); 4] = [
+const GF0_CASES: [(&str, &str, &str, &str, &str, &[u8]); 5] = [
     (
         "same-sheet",
         "Data",
@@ -2291,14 +2291,26 @@ const GF0_CASES: [(&str, &str, &str, &str, &str, &[u8]); 4] = [
         "F1",
         include_bytes!("fixtures/dc_gf0/cut-middle-to-target.xlsx"),
     ),
+    (
+        "local-name-to-other",
+        "Data",
+        "D2",
+        "Other",
+        "G1",
+        include_bytes!("fixtures/dc_gf0/cut-local-name-to-other.xlsx"),
+    ),
 ];
 
-/// The defined names as `name formula`, in the workbook's order.
+/// The defined names as `name scope formula`, in name order (a name an edit defines is the
+/// workbook's last; Excel writes its names sorted).
 fn gf0_names(host: &HostState) -> Vec<String> {
-    host.defined_names()
+    let mut names: Vec<String> = host
+        .defined_names()
         .iter()
         .map(|name| format!("{} {:?} {}", name.name, name.scope, name.formula))
-        .collect()
+        .collect();
+    names.sort();
+    names
 }
 
 /// Each formula cell's calculated value (A1:J16 of each sheet), by sheet name and position.
@@ -2329,7 +2341,7 @@ fn dc_gf0__cuts_move_cells_references_and_names_as_excel_does() {
         let mut session = session(base);
         let opened = open(base);
         let excel_after = open(excel);
-        let (first, last) = from.split_once(':').unwrap();
+        let (first, last) = from.split_once(':').unwrap_or((from, from));
         let source = sheet(session.host(), from_sheet);
         let target = sheet(session.host(), to_sheet);
         let receipt = session.dispatch(SkinIntent::Copy {
@@ -2394,4 +2406,49 @@ fn dc_gf0__cuts_move_cells_references_and_names_as_excel_does() {
             "{case}: undone values"
         );
     }
+}
+
+/// dc-gf0: the precedents and dependents the engine's graph holds, for a skin's trace: a formula's
+/// placed references as areas (whole columns as the column's area), and the formula cells that
+/// read a cell, in cell order; a literal has no precedents.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_gf0__precedents_and_dependents_from_the_graph() {
+    let mut session = session(&calc_host::blank_package());
+    let s = session.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "1"),
+        ("B1", "=A1*2"),
+        ("C1", "=SUM(A1:B1)"),
+        ("D1", "=SUM(A:A)+B1"),
+    ] {
+        let receipt = session.dispatch(SkinIntent::EnterCell {
+            at: at(s, address),
+            text: text.to_owned(),
+        });
+        assert!(receipt.accepted(), "{address}: {:?}", receipt.error);
+    }
+    let host = session.host();
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    assert_eq!(host.precedents(at(s, "A1")), None);
+    assert_eq!(host.precedents(at(s, "B1")), Some(vec![area("A1", "A1")]));
+    assert_eq!(host.precedents(at(s, "C1")), Some(vec![area("A1", "B1")]));
+    assert_eq!(
+        host.precedents(at(s, "D1")),
+        Some(vec![area("A1", "A1048576"), area("B1", "B1")])
+    );
+    assert_eq!(
+        host.dependents(at(s, "A1")),
+        vec![at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
+    assert_eq!(host.dependents(at(s, "B1")), vec![at(s, "C1"), at(s, "D1")]);
+    assert_eq!(host.dependents(at(s, "D1")), Vec::<CellKey>::new());
+    assert_eq!(
+        host.input_cells(s),
+        vec![at(s, "A1"), at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
+    assert_eq!(
+        host.formula_cells(s),
+        vec![at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
 }

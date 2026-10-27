@@ -316,6 +316,113 @@ impl HostState {
         self.engine.spill(anchor).map(|spill| spill.area())
     }
 
+    /// What the formula in the cell `at` reads (dc-gf0, a skin's dependency trace): each placed
+    /// reference and each area its last evaluation computed (INDIRECT's, OFFSET's, a spill's),
+    /// as areas in the order the engine holds them, each once. Whole rows or columns are the
+    /// areas of those rows or columns; a reference over several sheets (`Jan:Mar!A1`) is its area
+    /// on its first sheet. `None` when the cell holds no formula, or holds one the engine has not
+    /// bound yet (a workbook opened and not calculated).
+    pub fn precedents(&self, at: CellKey) -> Option<Vec<GridArea>> {
+        let node = self.engine.node(self.engine.node_at(at)?)?;
+        let placed = node.prerequisites()?;
+        let mut areas: Vec<GridArea> = Vec::new();
+        for prerequisite in placed.iter().chain(node.dynamic_prerequisites()) {
+            let area = match *prerequisite {
+                calc_engine::Prerequisite::Cell(cell) => GridArea::cell(cell),
+                calc_engine::Prerequisite::Area(area) => area,
+                calc_engine::Prerequisite::AxisValue(interval) => {
+                    let (first, last) = match interval.axis() {
+                        calc_doc_model::Axis::Rows => (
+                            CellKey::new(interval.sheet(), interval.first(), 1),
+                            CellKey::new(
+                                interval.sheet(),
+                                interval.last(),
+                                calc_doc_model::value::MAX_COLUMNS,
+                            ),
+                        ),
+                        calc_doc_model::Axis::Columns => (
+                            CellKey::new(interval.sheet(), 1, interval.first()),
+                            CellKey::new(
+                                interval.sheet(),
+                                calc_doc_model::value::MAX_ROWS,
+                                interval.last(),
+                            ),
+                        ),
+                    };
+                    match (first, last) {
+                        (Ok(first), Ok(last)) => match GridArea::new(first, last) {
+                            Ok(area) => area,
+                            Err(_) => continue,
+                        },
+                        _ => continue,
+                    }
+                }
+                calc_engine::Prerequisite::SheetSpan(span) => span.target(),
+            };
+            if !areas.contains(&area) {
+                areas.push(area);
+            }
+        }
+        Some(areas)
+    }
+
+    /// The cells whose formulas read the cell `at` (dc-gf0): those the engine's graph finds, in
+    /// cell order. A formula not bound yet is not among them.
+    pub fn dependents(&self, at: CellKey) -> Vec<CellKey> {
+        self.engine.dependents_at(&self.model, at)
+    }
+
+    /// The cells of `sheet` that hold an input, in cell order, read from the document without
+    /// projecting them (dc-gf0: the tree's outline of a sheet, cheap enough to read again after
+    /// every change); empty for a sheet the workbook does not hold. A dynamic array's spilled
+    /// cells hold no input and are not among them.
+    pub fn input_cells(&self, sheet: SheetId) -> Vec<CellKey> {
+        self.model
+            .sheet_cells(sheet)
+            .into_iter()
+            .flatten()
+            .map(|(at, _)| at)
+            .collect()
+    }
+
+    /// The cells of `sheet` that hold a formula as [`HostState::holds_formula`] counts them (a
+    /// formula input, a legacy array's cells, a data table's cells), in cell order, read without
+    /// projecting them (dc-gf0: the ledger's rows).
+    pub fn formula_cells(&self, sheet: SheetId) -> Vec<CellKey> {
+        let inputs: Vec<CellKey> = self
+            .model
+            .sheet_cells(sheet)
+            .into_iter()
+            .flatten()
+            .filter(|(_, input)| matches!(input, calc_doc_model::CellInput::Formula(_)))
+            .map(|(at, _)| at)
+            .collect();
+        let definitions = self.model.definitions();
+        let legacy = definitions
+            .arrays()
+            .filter(|array| array.kind() == calc_doc_model::ArrayKind::Legacy)
+            .map(|array| array.area());
+        let tables = definitions.data_tables().iter().map(|table| table.area());
+        let filled: Vec<GridArea> = legacy
+            .chain(tables)
+            .filter(|area| area.sheet() == sheet && area.cell_count() > 1)
+            .collect();
+        if filled.is_empty() {
+            return inputs;
+        }
+        let mut cells: std::collections::BTreeSet<CellKey> = inputs.into_iter().collect();
+        for area in filled {
+            for row in area.first().row()..=area.last().row() {
+                for column in area.first().column()..=area.last().column() {
+                    if let Ok(at) = CellKey::new(sheet, row, column) {
+                        cells.insert(at);
+                    }
+                }
+            }
+        }
+        cells.into_iter().collect()
+    }
+
     pub fn holds_formula(&self, at: CellKey) -> bool {
         if matches!(
             self.model.cell(at),

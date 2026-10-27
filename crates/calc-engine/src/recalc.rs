@@ -700,14 +700,25 @@ fn apply(
 /// minimum (64 by default) is evaluated on this thread, and so is a first wave of fewer than
 /// 1,024.
 ///
-/// A recalculation is evaluated this way only when nothing in it depends on the order of
-/// evaluation beyond its values: no array formula and no spill (whose areas decide what other
-/// formulas read), no circular reference and no iteration, no what-if data table, an observer that
-/// observes nothing ([`ReadObserver::is_silent`]: an observer is shown evaluations in order), and
-/// every node's readers known. Any other recalculation, and every one on wasm32, runs on one
-/// thread. The values published are those of the one-thread route: each formula's value depends
-/// only on the values it reads, and every value it reads was staged before its level, or it is
-/// evaluated again on this thread.
+/// Array formulas (dc-dxm): the area an array formula fills or spills into decides what other
+/// formulas read there, and which of two competing spills fills its area depends on which is
+/// evaluated first. So each array formula of the order (a legacy array filling its area, or a
+/// dynamic array that spills) is evaluated on this thread at its own place in the order, and the
+/// levels are cut there: the formulas of the order before it, in their levels, are all staged
+/// before it, those after it after it, and with them the formulas they released from waiting.
+/// Each array formula is so evaluated with exactly the formulas before it in the order staged, as
+/// on the one-thread route, and every other formula with every array formula before it staged and
+/// none after it. When an array formula has to wait (its spill area holds a formula cell, or a
+/// spill whose anchor, not yet evaluated, may move), the rest of the recalculation runs on one
+/// thread from the formula after it.
+///
+/// A recalculation is evaluated this way only when nothing else in it depends on the order of
+/// evaluation beyond its values: no circular reference and no iteration, no what-if data table, an
+/// observer that observes nothing ([`ReadObserver::is_silent`]: an observer is shown evaluations
+/// in order), and every node's readers known. Any other recalculation, and every one on wasm32,
+/// runs on one thread. The values published are those of the one-thread route: each formula's
+/// value depends only on the values it reads, and every value it reads was staged before its
+/// level, or it is evaluated again on this thread.
 #[cfg(not(target_arch = "wasm32"))]
 mod parallel {
     use super::*;
@@ -735,8 +746,6 @@ mod parallel {
             && !work.iteration.enabled()
             && work.cyclic.is_empty()
             && work.spills.is_empty()
-            && state.spills.is_empty()
-            && inputs.definitions().arrays().next().is_none()
             && inputs.definitions().data_tables().is_empty()
     }
 
@@ -755,8 +764,10 @@ mod parallel {
             let next = level[at] + 1;
             for reader in readers {
                 let to = position[reader.slot() as usize];
-                if to != NONE {
-                    debug_assert!(to as usize > at, "the order puts a node after those it reads");
+                // A reader the order puts first reads the node through an edge the order left
+                // out (an order around a cycle keeps only the edges placed references make): it
+                // waits for the node if it reads it before the node is staged.
+                if to != NONE && to as usize > at {
                     let held = &mut level[to as usize];
                     *held = (*held).max(next);
                 }
@@ -776,7 +787,23 @@ mod parallel {
             grouped[next[*held as usize]] = at;
             next[*held as usize] += 1;
         }
-        Some(Levels { starts, grouped })
+        Some(Levels {
+            level,
+            starts,
+            grouped,
+        })
+    }
+
+    /// Whether `node` is an array formula: a legacy one filling its area, or a dynamic one that
+    /// spills.
+    fn is_array(state: &EngineState, node: NodeId) -> bool {
+        matches!(
+            state.bindings.get(&node),
+            Some(Binding::Placed(
+                _,
+                ArrayRole::LegacyFill(_) | ArrayRole::Spill
+            ))
+        )
     }
 
     pub(super) fn evaluate_levels(
@@ -796,48 +823,127 @@ mod parallel {
             found = levels(state, &work.order);
             found.as_ref()
         };
-        let Some(Levels { starts, grouped }) = levels else {
+        let Some(levels) = levels else {
             return;
         };
-        let count = starts.len() - 1;
-        let threads = state.threads;
-        let mut locals: Vec<EvalLocal> = (0..threads).map(|_| EvalLocal::default()).collect();
-        for held in 0..count {
-            if work.failure.is_some() {
-                break;
+        let mut locals: Vec<EvalLocal> =
+            (0..state.threads).map(|_| EvalLocal::default()).collect();
+        let arrays: Vec<usize> = if inputs.definitions().arrays().next().is_none() {
+            Vec::new()
+        } else {
+            (0..work.order.len())
+                .filter(|at| is_array(state, work.order[*at]))
+                .collect()
+        };
+        if arrays.is_empty() {
+            for held in 0..levels.starts.len() - 1 {
+                let positions = &levels.grouped[levels.starts[held]..levels.starts[held + 1]];
+                run_level(state, inputs, work, positions, &mut locals, &mut *observer);
             }
-            let positions = &grouped[starts[held]..starts[held + 1]];
-            if positions.len() < state.parallel_minimum.level {
-                for &at in positions {
-                    let node = work.order[at];
+        } else {
+            let mut from = 0;
+            let mut positions = Vec::new();
+            for &array in arrays.iter().chain(std::iter::once(&work.order.len())) {
+                // The formulas between two array formulas, by level, each level in the order's
+                // order.
+                let between = &levels.level[from..array];
+                if let (Some(low), Some(high)) = (between.iter().min(), between.iter().max()) {
+                    let mut starts = vec![0usize; (high - low) as usize + 2];
+                    for held in between {
+                        starts[(held - low) as usize + 1] += 1;
+                    }
+                    for at in 1..starts.len() {
+                        starts[at] += starts[at - 1];
+                    }
+                    positions.clear();
+                    positions.resize(between.len(), 0);
+                    let mut next = starts.clone();
+                    for (offset, held) in between.iter().enumerate() {
+                        let bucket = (held - low) as usize;
+                        positions[next[bucket]] = from + offset;
+                        next[bucket] += 1;
+                    }
+                    for bucket in 0..starts.len() - 1 {
+                        let level = &positions[starts[bucket]..starts[bucket + 1]];
+                        run_level(state, inputs, work, level, &mut locals, &mut *observer);
+                    }
+                }
+                if work.failure.is_some() || array == work.order.len() {
+                    break;
+                }
+                let node = work.order[array];
+                if !work.progress.is_evaluated(node) && !work.waits_on.contains_key(&node) {
                     process(state, inputs, work, node, &mut *observer);
+                    drain(state, inputs, work, &mut *observer);
                 }
-            } else {
-                let attempts = evaluate_level(state, inputs, work, positions, &mut locals);
-                for (at, attempt) in positions.iter().zip(attempts) {
-                    let attempt = attempt
-                        .into_inner()
-                        .expect("every formula of the level was evaluated");
-                    if work.failure.is_some() {
-                        break;
-                    }
-                    let node = work.order[*at];
-                    match attempt {
-                        Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
-                        // Evaluated again here, in its place in the order.
-                        _ => process(state, inputs, work, node, &mut *observer),
-                    }
+                if work.waits_on.contains_key(&node) {
+                    // The one-thread route goes on from the formula after it.
+                    work.next = array + 1;
+                    return;
                 }
-            }
-            while work.failure.is_none()
-                && let Some(node) = work.ready.pop_front()
-            {
-                process(state, inputs, work, node, &mut *observer);
+                from = array + 1;
             }
         }
         // Every node of the order was evaluated or waits; the one-thread route takes what is
         // left (the waits, the formulas a cycle left waiting).
         work.next = work.order.len();
+    }
+
+    /// Evaluates one level's formulas (`positions` of the order, in its order), on several threads
+    /// when there are enough of them, stages each in that order, and then evaluates the formulas
+    /// they released from waiting.
+    fn run_level(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        work: &mut RecalcWork,
+        positions: &[usize],
+        locals: &mut [EvalLocal],
+        observer: &mut dyn ReadObserver,
+    ) {
+        if work.failure.is_some() {
+            return;
+        }
+        if positions.len() < state.parallel_minimum.level {
+            for &at in positions {
+                if work.failure.is_some() {
+                    break;
+                }
+                let node = work.order[at];
+                process(state, inputs, work, node, &mut *observer);
+            }
+        } else {
+            let attempts = evaluate_level(state, inputs, work, positions, locals);
+            for (at, attempt) in positions.iter().zip(attempts) {
+                let attempt = attempt
+                    .into_inner()
+                    .expect("every formula of the level was evaluated");
+                if work.failure.is_some() {
+                    break;
+                }
+                let node = work.order[*at];
+                match attempt {
+                    Ok(Attempt::Done(done)) => stage(state, inputs, work, node, done),
+                    // Evaluated again here, in its place in the order.
+                    _ => process(state, inputs, work, node, &mut *observer),
+                }
+            }
+        }
+        drain(state, inputs, work, observer);
+    }
+
+    /// Evaluates the formulas released from waiting, as the one-thread route takes them before
+    /// the order's next.
+    fn drain(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        work: &mut RecalcWork,
+        observer: &mut dyn ReadObserver,
+    ) {
+        while work.failure.is_none()
+            && let Some(node) = work.ready.pop_front()
+        {
+            process(state, inputs, work, node, &mut *observer);
+        }
     }
 
     /// The attempts of a level's formulas, in `positions`' order, evaluated on `locals.len()`
@@ -1272,6 +1378,8 @@ pub(crate) struct ReadersCache {
 #[derive(Debug)]
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) struct Levels {
+    /// Each position's level.
+    level: Vec<u32>,
     starts: Vec<usize>,
     grouped: Vec<usize>,
 }
@@ -1992,6 +2100,10 @@ type SharedObserver<'l, 'o> = &'l RefCell<&'o mut dyn ReadObserver>;
 /// it, for one formula's evaluation. It keeps every area the evaluation read.
 struct Observed<'l, 'o> {
     observer: SharedObserver<'l, 'o>,
+    /// Whether the observer observes nothing ([`ReadObserver::is_silent`]): each run then goes
+    /// to the evaluation as the engine's reader gives it, without the observer being shown it
+    /// (dc-dxm), which is what showing it would come to.
+    silent: bool,
     formula: CellKey,
     cells: &'l mut dyn ReferenceReader,
     footprint: &'l RefCell<Vec<GridArea>>,
@@ -2000,6 +2112,17 @@ struct Observed<'l, 'o> {
 }
 
 impl ReferenceReader for Observed<'_, '_> {
+    fn read_cell(
+        &mut self,
+        at: CellKey,
+    ) -> Result<calc_fml::reference::CellRead, calc_fml::reference::ReadContractError> {
+        if self.silent && self.stopped.is_none() {
+            self.footprint.borrow_mut().push(GridArea::cell(at));
+            return self.cells.read_cell(at);
+        }
+        calc_fml::reference::read_cell_by_area(self, at)
+    }
+
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         let total = area.cell_count();
         if self.stopped.is_some() {
@@ -2007,6 +2130,10 @@ impl ReferenceReader for Observed<'_, '_> {
             return;
         }
         self.footprint.borrow_mut().push(area);
+        if self.silent {
+            self.cells.read_area(area, sink);
+            return;
+        }
         let mut observer = self.observer.borrow_mut();
         let formula = self.formula;
         let mut offset = 0u64;
@@ -2085,6 +2212,8 @@ impl calc_fml::HostFacts for Observed<'_, '_> {
 /// calculate, is not passed on. It holds nothing the engine stages or publishes.
 struct Instrument<'l, 'o> {
     observer: SharedObserver<'l, 'o>,
+    /// Whether the observer observes nothing: it is then not shown calls or outcomes.
+    silent: bool,
     formula: CellKey,
     calculation: &'l Calculation,
     footprint: &'l RefCell<Vec<GridArea>>,
@@ -2094,16 +2223,20 @@ struct Instrument<'l, 'o> {
 
 impl EvaluationObserver for Instrument<'_, '_> {
     fn called(&mut self, call: ExecutedCall) {
-        self.observer.borrow_mut().called(self.formula, call);
+        if !self.silent {
+            self.observer.borrow_mut().called(self.formula, call);
+        }
     }
 
     fn resolved(&mut self, reference: ResolvedReference) {
         self.footprint.borrow_mut().push(reference.area());
-        self.observer.borrow_mut().resolved(self.formula, reference);
+        if !self.silent {
+            self.observer.borrow_mut().resolved(self.formula, reference);
+        }
     }
 
     fn returned(&mut self, report: EvaluationReport<'_>) {
-        if self.uncomputed.get().is_some() || self.kept_read.get() {
+        if self.silent || self.uncomputed.get().is_some() || self.kept_read.get() {
             return;
         }
         self.observer
@@ -2217,10 +2350,12 @@ fn evaluate_with(
     let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
     let catalog = SnapshotCatalog(inputs);
     let mut random = RandomStream::new(state.random_seed, calculation.tick().get(), formula);
+    let silent = observer.is_silent();
     let observer = RefCell::new(observer);
     let (outcome, stopped) = {
         let mut observed = Observed {
             observer: &observer,
+            silent,
             formula,
             cells: &mut cells,
             footprint: &footprint,
@@ -2228,6 +2363,7 @@ fn evaluate_with(
         };
         let instrument: &mut dyn EvaluationObserver = &mut Instrument {
             observer: &observer,
+            silent,
             formula,
             calculation: &calculation,
             footprint: &footprint,
