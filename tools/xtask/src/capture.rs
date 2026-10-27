@@ -26,7 +26,10 @@
 //! Otherwise it writes the record to `--out` and, with `--verdict`, the replay's verdict record,
 //! the record the replay case compares on every platform. Companions are copied beside the
 //! fixture's copy (the target of an external link). The work directory defaults to
-//! `target/capture/<case>-<UTC time>` and must be new; the capture tool's revision names the
+//! `target/c/<UTC time as digits>` (a suffix `-2`, `-3`, ... when that exists), short so that the
+//! fixture's copy in it keeps a path Excel opens (dc-677: a long case name in the old default
+//! `target/capture/<case>-<time>` made the copy of Annex 9's saved package one Excel's Open
+//! refused); it must be new; the capture tool's revision names the
 //! repository's commit (with `+dirty` for a changed tree) when git can read it.
 //!
 //! Excel must be installed on this Windows host and registered for automation; on the owner's
@@ -223,6 +226,20 @@ fn failure(error: &CaptureError) -> u8 {
     }
 }
 
+/// The default work directory: `target/c/<UTC time as digits>`, with `-2`, `-3`, ... added when
+/// that already exists.
+fn default_work_dir() -> PathBuf {
+    let stamp: String = utc_now().chars().filter(char::is_ascii_digit).collect();
+    let base = PathBuf::from("target").join("c");
+    let mut dir = base.join(&stamp);
+    let mut n = 2;
+    while dir.exists() {
+        dir = base.join(format!("{stamp}-{n}"));
+        n += 1;
+    }
+    dir
+}
+
 fn run_code(raw: &[String]) -> u8 {
     let args = match parse_args(raw) {
         Ok(args) => args,
@@ -231,13 +248,7 @@ fn run_code(raw: &[String]) -> u8 {
             return EXIT_USAGE;
         }
     };
-    let work_dir = args.work_dir.clone().unwrap_or_else(|| {
-        PathBuf::from("target").join("capture").join(format!(
-            "{}-{}",
-            args.case,
-            utc_now().replace(':', "")
-        ))
-    });
+    let work_dir = args.work_dir.clone().unwrap_or_else(default_work_dir);
     let policy = match fs::read(&args.fixture) {
         Ok(bytes) => with_workbook_iteration(args.policy, &bytes),
         Err(_) => args.policy,

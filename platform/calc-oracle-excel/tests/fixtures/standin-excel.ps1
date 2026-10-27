@@ -9,7 +9,8 @@
 #
 # Each formula cell is @(row, column, Formula2, Value2, spill), where spill is $null for a cell that
 # does not spill (HasSpill False); @(relative address, rows, columns) for one that spills (HasSpill
-# True, and a SpillingToRange whose Address(False, False) is that address, its absolute form for
+# True, and a SpillingToRange whose Address(False, False) is that address, whose Value2 holds 1, 2,
+# 3, ... in row-major order, its absolute form for
 # any other arguments, and whose Rows.Count and Columns.Count are those); 'unreadable-range' for
 # one whose HasSpill is True and whose SpillingToRange cannot be read; or 'unreadable-hasspill' for
 # one whose HasSpill cannot be read (a getter that throws, which PowerShell reads as nothing).
@@ -66,6 +67,11 @@ foreach ($spec in $global:StandinCells) {
             if ($RowAbsolute -or $ColumnAbsolute) { return ($this.Relative -replace '([A-Z]+)([0-9]+)', '$$$1$$$2') }
             return $this.Relative
         }
+        # The range's Value2: 1, 2, 3, ... in row-major order, so its top-left value is the
+        # spilling cell's own Value2 of 1.
+        $values = New-Object 'object[,]' $spill[1], $spill[2]
+        for ($r = 0; $r -lt $spill[1]; $r++) { for ($c = 0; $c -lt $spill[2]; $c++) { $values[$r, $c] = [double]($r * $spill[2] + $c + 1) } }
+        $range | Add-Member -MemberType NoteProperty -Name Value2 -Value $values
         $cell | Add-Member -MemberType NoteProperty -Name HasSpill -Value $true
         $cell | Add-Member -MemberType NoteProperty -Name SpillingToRange -Value $range
     }

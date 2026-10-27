@@ -62,10 +62,10 @@
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:bac864f8aca3b0157bb0e1e08036c58bd52ada9ee49ff0c6c1f6bc139f293d6d; repository dd7f67a4fbb317fef0efe878f4dad78ca3c873bd+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:164031ac1e8d4a122b0f347a141c05cfb67575f350f8e3f35ce9f13887a4bdfd; repository 1e7bd358b205d5180ef86a393e94cd2a841e3eb6+dirty",
     "packages": {
       "input": "sha256:59082b145c9a0aa0096dcdd596a54d4b222abea54377c8b575372cc54044dec0",
-      "output": "sha256:cadb5d631b4ef33588fcfbfebaaa4e28b9617a494ea0cb5dd7115b50d3529fed"
+      "output": "sha256:7da39cd4ffda35e19f38ae2eea1f4859ad71fd074fbfc999324e77d21d337fee"
     },
     "failures": [
       {"stage":"reopen","sheet":"error_fallback","row":13,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Error(NA), callable: None }, where the capture read CalcValue { core: Error(GettingData), callable: None }"}

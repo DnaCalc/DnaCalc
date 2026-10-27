@@ -1169,20 +1169,50 @@ fn entry<'a>(result: &'a Value, list: &str, column: u64) -> &'a Value {
 /// counts.
 type Verdicts = (Vec<(String, &'static str)>, u64);
 
-/// The verdict of each of B1, D1 and E1 when a run calculated B1 as 1 (the value its Value2
-/// shows), D1 as 2 and E1 as 6, with an evaluation of each in the evaluation record, and the
-/// number of spill failures the report counts; or why calc-verdict refuses to judge the record.
-fn verdicts(record: &CaptureRecord) -> Result<Verdicts, String> {
+/// The verdict of each of B1, D1 and E1 when a run calculated B1 as `b1`, D1 as 2 and E1 as 6,
+/// with an evaluation of each in the evaluation record, and the number of spill failures the
+/// report counts; or why calc-verdict refuses to judge the record.
+fn verdicts_with(record: &CaptureRecord, b1: CalcValue) -> Result<Verdicts, String> {
     verdicts_of(
         record,
-        &[(sheet1(2), 1.0), (sheet1(4), 2.0), (sheet1(5), 6.0)],
+        &[
+            (sheet1(2), b1),
+            (sheet1(4), CalcValue::number(2.0)),
+            (sheet1(5), CalcValue::number(6.0)),
+        ],
+    )
+}
+
+/// [`verdicts_with`] B1 calculated as 1, the value its Value2 shows.
+fn verdicts(record: &CaptureRecord) -> Result<Verdicts, String> {
+    verdicts_with(record, CalcValue::number(1.0))
+}
+
+/// The array of `rows` by `columns` holding 1, 2, 3, ... in row-major order: what the stand-in's
+/// spill range shows.
+fn counting(rows: usize, columns: usize) -> CalcValue {
+    let cells = (1..=rows * columns)
+        .map(|n| CalcValue::number(n as f64))
+        .collect();
+    CalcValue::array(
+        calc_verdict::value::CalcArray::new(
+            calc_verdict::value::ArrayShape {
+                rows,
+                cols: columns,
+            },
+            cells,
+        )
+        .unwrap(),
     )
 }
 
 /// The verdict of each judged cell when a run calculated each cell of `cells` as its number, with
 /// an evaluation of each in the evaluation record, and the number of spill failures the report
 /// counts; or why calc-verdict refuses to judge the record.
-fn verdicts_of(record: &CaptureRecord, cells: &[(CellAddress, f64)]) -> Result<Verdicts, String> {
+fn verdicts_of(
+    record: &CaptureRecord,
+    cells: &[(CellAddress, CalcValue)],
+) -> Result<Verdicts, String> {
     let session = record.session.as_ref().expect("a version 2 record");
     let results = ResultSet {
         case: record.case.clone(),
@@ -1200,7 +1230,7 @@ fn verdicts_of(record: &CaptureRecord, cells: &[(CellAddress, f64)]) -> Result<V
                     revision: session.revision,
                     context: session.context.clone(),
                 },
-                value: Some(CalcValue::number(*value)),
+                value: Some(value.clone()),
             })
             .collect(),
     };
@@ -1234,9 +1264,6 @@ fn verdicts_of(record: &CaptureRecord, cells: &[(CellAddress, f64)]) -> Result<V
     ))
 }
 
-/// The spill failure of Sheet1!B1 spilling over B1:C3.
-const B1_SPILLS_OVER_B1_C3: &str = "Excel reports a spill over Sheet1!B1:C3 (3 rows by 2 columns) after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar";
-
 fn owned(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
     pairs
         .iter()
@@ -1245,20 +1272,21 @@ fn owned(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
 }
 
 /// Sheet1!B1 spills over B1:C3 after the full rebuild (the stand-in's HasSpill is True, and its
-/// SpillingToRange's Address(False, False), Rows.Count and Columns.Count are B1:C3, 3 and 2): the
-/// worker reads that spill after the rebuild and after reopening, and the saved package's formulas
-/// with B1's cell metadata resolved to the dynamic-array metadata; the record keeps B1 in the
-/// inventory with no raw observation, saved cache or reopened value and a spill failure naming its
-/// range, rows and columns; and a calculated B1 equal to the value its Value2 shows (1) is
-/// not_run, never matched, while D1 and E1 (a dynamic-array formula over its own cell, flagged) are
-/// matched.
+/// SpillingToRange's Address(False, False), Rows.Count, Columns.Count and Value2 are B1:C3, 3, 2
+/// and 1 to 6): the worker reads that spill with its values after the rebuild and after
+/// reopening, and the saved package's formulas with B1's cell metadata resolved to the
+/// dynamic-array metadata; the record keeps B1 in the inventory with the array as its raw
+/// observation and its reopened value, and no saved cache (dc-677); a calculated B1 equal to that
+/// array is matched, one equal to the value B1's own Value2 shows (1) is mismatched, and D1 and E1
+/// (a dynamic-array formula over its own cell, flagged) are matched.
 #[test]
-fn a_formula_that_spills_is_recorded_as_a_spill_never_as_a_scalar() {
+fn a_formula_that_spills_is_recorded_as_its_array_never_as_a_scalar() {
     let (result, _, record) = spill_capture("spill", "@('B1:C3', 3, 2)", None, &[]);
+    let number = |n: f64| json!({"number": format!("{:016x}", n.to_bits())});
     for list in ["cells", "reopened"] {
         assert_eq!(
             entry(&result, list, 2)["spill"],
-            json!({"ref": "B1:C3", "rows": 3, "columns": 2}),
+            json!({"ref": "B1:C3", "rows": 3, "columns": 2, "values": [number(1.0), number(2.0), number(3.0), number(4.0), number(5.0), number(6.0)]}),
             "{list}"
         );
         assert_eq!(
@@ -1299,39 +1327,46 @@ fn a_formula_that_spills_is_recorded_as_a_spill_never_as_a_scalar() {
             ("E1".to_owned(), FormulaKind::Ordinary, true)
         ]
     );
-    assert_eq!(a1s(&record.observations), ["D1", "E1"]);
-    assert_eq!(a1s(&session.saved), ["D1", "E1"]);
-    assert_eq!(a1s(&session.reopened), ["D1", "E1"]);
+    assert_eq!(a1s(&record.observations), ["B1", "D1", "E1"]);
     assert_eq!(
-        failures_of(&record, "B1"),
-        owned(&[(STAGE_SPILL, B1_SPILLS_OVER_B1_C3)])
+        record.observations[0].observation,
+        Observation::ExcelRaw(counting(3, 2))
     );
-    for a1 in ["D1", "E1"] {
+    assert_eq!(a1s(&session.saved), ["D1", "E1"]);
+    assert_eq!(a1s(&session.reopened), ["B1", "D1", "E1"]);
+    assert_eq!(
+        session.reopened[0].observation,
+        Observation::ExcelRaw(counting(3, 2))
+    );
+    for a1 in ["B1", "D1", "E1"] {
         assert_eq!(failures_of(&record, a1), [], "{a1}");
     }
     assert!(
         session
             .failures
             .iter()
-            .all(|failure| failure.stage == "environment" || failure.stage == STAGE_SPILL),
+            .all(|failure| failure.stage == "environment"),
         "{:?}",
         session.failures
     );
     let encoded = record.encode().unwrap();
     assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
-    let (judged, spill_failures) = verdicts(&record).unwrap();
+    let (judged, spill_failures) = verdicts_with(&record, counting(3, 2)).unwrap();
     assert_eq!(
         judged,
         [
-            ("B1".to_owned(), "not_run"),
+            ("B1".to_owned(), "matched"),
             ("D1".to_owned(), "matched"),
             ("E1".to_owned(), "matched")
         ]
     );
-    assert_eq!(spill_failures, 1);
+    assert_eq!(spill_failures, 0);
+    let (judged, _) = verdicts(&record).unwrap();
+    assert_eq!(judged[0], ("B1".to_owned(), "mismatched"));
+    let (judged, _) = verdicts_with(&record, counting(2, 2)).unwrap();
+    assert_eq!(judged[0], ("B1".to_owned(), "mismatched"));
     println!(
-        "NOTE: B1 spilling over B1:C3 (HasSpill True; SpillingToRange B1:C3, 3 rows, 2 columns; Value2 1): the worker read the spill after the rebuild and after reopening, and the saved B1 as array B1:C3 with cm 1 resolved to XLDAPR; the record keeps B1 in the inventory with no raw observation, saved cache or reopened value and the failure {:?}; judged with calculated B1 = 1, D1 = 2, E1 = 6, B1 is not_run, and D1 and E1 are matched (E1 flagged dynamic, D1 not)",
-        failures_of(&record, "B1")[0].1
+        "NOTE: B1 spilling over B1:C3 (HasSpill True; SpillingToRange B1:C3, 3 rows, 2 columns, Value2 1 to 6): the worker read the spill and its values after the rebuild and after reopening, and the saved B1 as array B1:C3 with cm 1 resolved to XLDAPR; the record keeps B1 with the 3 by 2 array as its raw observation and reopened value, no saved cache, no failure; judged B1 is matched by that array, mismatched by the scalar 1 and by a 2 by 2 array, and D1 and E1 are matched (E1 flagged dynamic, D1 not)"
     );
 }
 
@@ -1395,7 +1430,7 @@ fn a_saved_package_that_disagrees_with_the_spill_is_a_save_failure() {
     let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
     assert_eq!(
         failures_of(&record, "B1"),
-        owned(&[(STAGE_SPILL, B1_SPILLS_OVER_B1_C3), ("save", saved_failure)])
+        owned(&[("save", saved_failure)])
     );
     // What the worker read of B1 in each package: cell metadata 2, naming no dynamic-array
     // metadata, in the saved one, and 1, naming it, in the input.
@@ -1417,10 +1452,7 @@ fn a_saved_package_that_disagrees_with_the_spill_is_a_save_failure() {
     let mut input = result.clone();
     input["saved_formulas"] = result["formulas"].clone();
     let from_input = convert::convert(&input, spill_frame()).unwrap();
-    assert_eq!(
-        failures_of(&from_input, "B1"),
-        owned(&[(STAGE_SPILL, B1_SPILLS_OVER_B1_C3)])
-    );
+    assert_eq!(failures_of(&from_input, "B1"), []);
     println!(
         "NOTE: with the stand-in saving spill-saved-cm.xlsx (B1 over B1:C3, cm 2, no XLDAPR block) for an input whose B1 has cm 1 (XLDAPR), B1 has the save failure {saved_failure:?}, and none when the input's formulas stand in for the saved ones"
     );
@@ -1430,24 +1462,18 @@ fn a_saved_package_that_disagrees_with_the_spill_is_a_save_failure() {
     let failures = failures_of(&record, "B1");
     assert_eq!(
         failures,
-        owned(&[
-            (
-                STAGE_SPILL,
-                "Excel reports a spill over Sheet1!B1:C4 (4 rows by 2 columns) after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar"
-            ),
-            (
-                "save",
-                "Excel reports a spill over Sheet1!B1:C4 (4 rows by 2 columns) after the full rebuild, and the saved package holds the formula as type \"array\" with ref B1:C3 and cell metadata 1 (the dynamic-array metadata XLDAPR)"
-            )
-        ])
+        owned(&[(
+            "save",
+            "Excel reports a spill over Sheet1!B1:C4 (4 rows by 2 columns) after the full rebuild, and the saved package holds the formula as type \"array\" with ref B1:C3 and cell metadata 1 (the dynamic-array metadata XLDAPR)"
+        )])
     );
-    assert_eq!(a1s(&record.observations), ["D1", "E1"]);
+    assert_eq!(a1s(&record.observations), ["B1", "D1", "E1"]);
     assert_eq!(
-        verdicts(&record).unwrap().0[0],
-        ("B1".to_owned(), "not_run")
+        verdicts_with(&record, counting(4, 2)).unwrap().0[0],
+        ("B1".to_owned(), "matched")
     );
     println!(
-        "NOTE: with the stand-in reporting B1 spilling over B1:C4 while the saved package declares B1:C3, B1 has no observation and the failures {failures:?}"
+        "NOTE: with the stand-in reporting B1 spilling over B1:C4 while the saved package declares B1:C3, B1 has its 4 by 2 array as its observation and the failures {failures:?}"
     );
 }
 
@@ -1477,13 +1503,10 @@ fn a_spilling_cell_without_a_saved_formula_is_a_save_failure_naming_it() {
     let record = record.unwrap_or_else(|e| panic!("{e}\n{result}"));
     assert_eq!(
         failures_of(&record, "B1"),
-        owned(&[
-            (STAGE_SPILL, B1_SPILLS_OVER_B1_C3),
-            (
-                "save",
-                "the saved package holds no formula for this formula cell"
-            )
-        ])
+        owned(&[(
+            "save",
+            "the saved package holds no formula for this formula cell"
+        )])
     );
     println!(
         "NOTE: with the stand-in saving spill-saved-values.xlsx (B1 a value, no formula), the worker's save failure names Sheet1!B1: {}",
@@ -1554,8 +1577,8 @@ fn cells_excel_lists_in_a_spill_range_are_spill_members_not_inventory_failures()
         "{record:?}"
     );
     assert_eq!(record.formulas.len(), 3);
-    let (judged, _) = verdicts(&record).unwrap();
-    assert_eq!(judged[0], ("B1".to_owned(), "not_run"));
+    let (judged, _) = verdicts_with(&record, counting(3, 2)).unwrap();
+    assert_eq!(judged[0], ("B1".to_owned(), "matched"));
 
     let mut beyond = children.to_vec();
     beyond.push((4, 2));
@@ -1750,13 +1773,16 @@ fn each_cell_of_a_legacy_array_is_read_recorded_and_judged() {
     assert_eq!(CaptureRecord::decode(encoded.as_bytes()).unwrap(), record);
 
     let at = |row: u32, column: u32| CellAddress::new("Sheet1", row, column).unwrap();
-    let mut calculated = vec![
+    let mut calculated: Vec<(CellAddress, CalcValue)> = [
         (at(1, 2), 10.0),
         (at(1, 3), 6.0),
         (at(1, 4), 2.0),
         (at(2, 2), 20.0),
         (at(3, 2), 30.0),
-    ];
+    ]
+    .into_iter()
+    .map(|(cell, value)| (cell, CalcValue::number(value)))
+    .collect();
     let (judged, _) = verdicts_of(&record, &calculated).unwrap();
     assert_eq!(
         judged,
@@ -1764,7 +1790,7 @@ fn each_cell_of_a_legacy_array_is_read_recorded_and_judged() {
             .map(|a1| ((*a1).to_owned(), "matched"))
             .collect::<Vec<_>>()
     );
-    calculated[4].1 = 10.0;
+    calculated[4].1 = CalcValue::number(10.0);
     let (judged, _) = verdicts_of(&record, &calculated).unwrap();
     assert_eq!(judged[4], ("B3".to_owned(), "mismatched"));
 

@@ -309,6 +309,13 @@ impl HostState {
     /// set a comparison's inventory holds: a cell whose input is a formula, every cell of a legacy
     /// (Ctrl+Shift+Enter) array formula's area, and every cell of a what-if data table's results.
     /// The cells a dynamic array spills into beside its anchor are not formula cells (dc-rif).
+    /// The area the published result of the array formula anchored at `anchor` fills: its spill
+    /// range, a legacy array's area, or the anchor alone; `None` when no array result is
+    /// published there (dc-677: what a comparison compares a dynamic array's anchor by).
+    pub fn spill_area(&self, anchor: CellKey) -> Option<GridArea> {
+        self.engine.spill(anchor).map(|spill| spill.area())
+    }
+
     pub fn holds_formula(&self, at: CellKey) -> bool {
         if matches!(
             self.model.cell(at),

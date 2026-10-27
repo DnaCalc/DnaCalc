@@ -758,8 +758,13 @@ impl EngineState {
     /// as Excel's full calculation (`CalculateFull`, Ctrl+Alt+F9) does. Each node keeps its bound
     /// plan and its edges: nothing is compiled again and the graph is not rebuilt.
     pub fn mark_all_pending(&mut self) {
-        let nodes: Vec<NodeId> = self.by_anchor.values().copied().collect();
-        self.pending.extend(nodes);
+        // Built anew in node order, which builds the set in one pass (dc-dxm), rather than by
+        // inserting every node.
+        let mut nodes: Vec<NodeId> = self.pending.iter().copied().collect();
+        nodes.extend(self.by_anchor.values().copied());
+        nodes.sort_unstable();
+        nodes.dedup();
+        self.pending = nodes.into_iter().collect();
     }
 
     /// Replaces the dynamic prerequisites of a live node and files them in the graph.

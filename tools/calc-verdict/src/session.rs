@@ -36,15 +36,18 @@ pub struct CaptureSession {
     /// Each shared-formula range of the package, with the ref the package declares for it.
     pub shared_ranges: Vec<SharedRange>,
     /// The saved cache of each inventory cell in the package Excel saved (each observation is an
-    /// [`crate::Observation::ExcelSavedCache`]).
+    /// [`crate::Observation::ExcelSavedCache`]), but a cell that spills, whose saved cache is
+    /// only the top-left value of its array.
     pub saved: Vec<CellObservation>,
     /// The raw `Value2` of each inventory cell after Excel reopened the package it saved (each
-    /// observation is an [`crate::Observation::ExcelRaw`]).
+    /// observation is an [`crate::Observation::ExcelRaw`]); for a cell that spills, the array its
+    /// spill range shows (dc-677).
     pub reopened: Vec<CellObservation>,
 }
 
 /// One thing that went wrong during a capture: the stage it happened in (such as
-/// [`STAGE_ISOLATION`], [`STAGE_ENVIRONMENT`], [`STAGE_INVENTORY`], `value`, `save` or `reopen`),
+/// [`STAGE_ISOLATION`], [`STAGE_ENVIRONMENT`], [`STAGE_INVENTORY`], `value`, `save`, `reopen` or
+/// `spill`, a value of a spill range the record cannot hold),
 /// the cell it concerns when there is one, and what happened.
 ///
 /// Three stages decide how [`crate::judge`] treats the whole record; every other stage concerns

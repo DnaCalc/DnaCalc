@@ -11306,7 +11306,7 @@ const CAPTURED_COM_ADD_IN: &str = "VS15ExcelAdaptor";
 /// records it. That package holds the cells the subnormal and -0 rows read as 0; it was read when
 /// the capture was taken and is not retained.
 const CAPTURED_OUTPUT_PACKAGE: &str =
-    "sha256:a13dc22ed4a7c6dca1268654f62ddc089200b3e6854a10780be6e7eaab14751e";
+    "sha256:76ccf29f3d4594454cb1bae5414b09bc56c1d19288759eb619876436e2921cf7";
 
 /// The behaviour the refused dc-q9rb rows show.
 const NEAR_TIE: Owner = Owner {
