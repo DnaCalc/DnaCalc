@@ -620,21 +620,47 @@ impl<V: Ord> Members<V> for BTreeSet<V> {
     }
 }
 
-/// The nodes reading one cell or one rectangle, in ID order, as a sorted Vec (dc-dxm): most cells
-/// are read by one formula or a few, which a BTreeSet holds in a node of eleven slots of its own
-/// (about 120 bytes each, for the DTC model's 196,000 cells read).
+/// The nodes reading one cell or one rectangle, in ID order (dc-dxm): most cells are read by one
+/// formula or a few, which a BTreeSet holds in a node of eleven slots of its own (about 120 bytes
+/// each, for the DTC model's 196,000 cells read). One node is held in place, without an
+/// allocation of its own (a workbook's first recalculation files one for most cells it reads);
+/// two or more as a sorted Vec.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct NodeSet(Vec<NodeId>);
+pub(crate) enum NodeSet {
+    #[default]
+    Empty,
+    One(NodeId),
+    /// Two nodes or more, sorted.
+    Many(Vec<NodeId>),
+}
 
 impl NodeSet {
     pub(crate) fn insert(&mut self, node: NodeId) {
-        if let Err(at) = self.0.binary_search(&node) {
-            self.0.insert(at, node);
+        match self {
+            NodeSet::Empty => *self = NodeSet::One(node),
+            NodeSet::One(held) if *held == node => {}
+            NodeSet::One(held) => {
+                let held = *held;
+                *self = NodeSet::Many(vec![held.min(node), held.max(node)]);
+            }
+            NodeSet::Many(nodes) => {
+                if let Err(at) = nodes.binary_search(&node) {
+                    nodes.insert(at, node);
+                }
+            }
         }
     }
 
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, NodeId> {
-        self.0.iter()
+        self.as_slice().iter()
+    }
+
+    fn as_slice(&self) -> &[NodeId] {
+        match self {
+            NodeSet::Empty => &[],
+            NodeSet::One(node) => std::slice::from_ref(node),
+            NodeSet::Many(nodes) => nodes,
+        }
     }
 }
 
@@ -644,13 +670,22 @@ impl Members<NodeId> for NodeSet {
     }
 
     fn take(&mut self, value: &NodeId) {
-        if let Ok(at) = self.0.binary_search(value) {
-            self.0.remove(at);
+        match self {
+            NodeSet::One(held) if held == value => *self = NodeSet::Empty,
+            NodeSet::Many(nodes) => {
+                if let Ok(at) = nodes.binary_search(value) {
+                    nodes.remove(at);
+                }
+                if let [only] = nodes[..] {
+                    *self = NodeSet::One(only);
+                }
+            }
+            _ => {}
         }
     }
 
     fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        matches!(self, NodeSet::Empty)
     }
 }
 
@@ -659,6 +694,6 @@ impl<'a> IntoIterator for &'a NodeSet {
     type IntoIter = std::slice::Iter<'a, NodeId>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
+        self.iter()
     }
 }

@@ -99,6 +99,42 @@ fn start_tag(text: &str, name: &str) -> Option<usize> {
     None
 }
 
+/// Where an element goes among the metadata part's own children (CT_Metadata: metadataTypes,
+/// metadataStrings, mdxMetadata, futureMetadata..., cellMetadata, valueMetadata, extLst): just
+/// after the last of `before` the part holds, the elements that precede it, latest first; just
+/// after the root's start tag when it holds none. A search for the first `<extLst` would find one
+/// inside a futureMetadata record (the dynamic-array properties are held in one), and an element
+/// put there makes the part one the loader refuses (dc-1yp).
+fn after_last(text: &str, root: usize, before: &[&str]) -> usize {
+    for name in before {
+        let close = format!("</{name}>");
+        if let Some(at) = text.rfind(&close) {
+            return at + close.len();
+        }
+        if let Some(at) = start_tag(text, name) {
+            // An empty element, `<name .../>`.
+            return at + text[at..].find('>').expect("a start tag ends") + 1;
+        }
+    }
+    root + text[root..].find('>').expect("a start tag ends") + 1
+}
+
+/// The elements that precede a futureMetadata or a cellMetadata block, latest first.
+const BEFORE_CELL_METADATA: [&str; 4] = [
+    "futureMetadata",
+    "mdxMetadata",
+    "metadataStrings",
+    "metadataTypes",
+];
+/// The elements that precede a valueMetadata block, latest first.
+const BEFORE_VALUE_METADATA: [&str; 5] = [
+    "cellMetadata",
+    "futureMetadata",
+    "mdxMetadata",
+    "metadataStrings",
+    "metadataTypes",
+];
+
 /// Counts the `<child` start tags inside the element whose start tag begins at `at`.
 fn children(text: &str, at: usize, name: &str, child: &str) -> usize {
     let close = format!("</{name}>");
@@ -191,11 +227,7 @@ pub(super) fn array_metadata(
                 r#"<futureMetadata name="XLDAPR" count="1">{}</futureMetadata>"#,
                 future_record()
             );
-            let at = start_tag(&text, "cellMetadata")
-                .or_else(|| start_tag(&text, "valueMetadata"))
-                .or_else(|| start_tag(&text, "extLst"))
-                .or_else(|| text.rfind("</metadata>"))
-                .ok_or_else(|| invalid(&part, "a metadata part without its end tag"))?;
+            let at = after_last(&text, root, &BEFORE_CELL_METADATA);
             text.insert_str(at, &block);
             0
         }
@@ -210,10 +242,7 @@ pub(super) fn array_metadata(
             index
         }
         None => {
-            let at = start_tag(&text, "valueMetadata")
-                .or_else(|| start_tag(&text, "extLst"))
-                .or_else(|| text.rfind("</metadata>"))
-                .ok_or_else(|| invalid(&part, "a metadata part without its end tag"))?;
+            let at = after_last(&text, root, &BEFORE_CELL_METADATA);
             text.insert_str(
                 at,
                 &format!(r#"<cellMetadata count="1">{cell_record}</cellMetadata>"#),
@@ -514,11 +543,7 @@ fn add_errors(
                 let block = format!(
                     r#"<futureMetadata name="XLRICHVALUE" count="1">{record}</futureMetadata>"#
                 );
-                let at = start_tag(text, "cellMetadata")
-                    .or_else(|| start_tag(text, "valueMetadata"))
-                    .or_else(|| start_tag(text, "extLst"))
-                    .or_else(|| text.rfind("</metadata>"))
-                    .ok_or_else(|| invalid(part, "a metadata part without its end tag"))?;
+                let at = after_last(text, root, &BEFORE_CELL_METADATA);
                 text.insert_str(at, &block);
                 0
             }
@@ -533,14 +558,7 @@ fn add_errors(
             }
             None => {
                 // valueMetadata goes after the cell metadata and before the part's own extLst.
-                let after_types = types;
-                let at = start_tag(&text[after_types..], "extLst")
-                    .map(|at| after_types + at)
-                    .filter(|at| {
-                        start_tag(text, "futureMetadata").is_none_or(|future| *at > future)
-                    })
-                    .or_else(|| text.rfind("</metadata>"))
-                    .ok_or_else(|| invalid(part, "a metadata part without its end tag"))?;
+                let at = after_last(text, root, &BEFORE_VALUE_METADATA);
                 text.insert_str(
                     at,
                     &format!(r#"<valueMetadata count="1">{value_record}</valueMetadata>"#),

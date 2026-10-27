@@ -3,7 +3,7 @@
 
 use calc_doc_model::{AuthoredRevision, FileCached};
 use calc_fml::{CompileError, EvalFault};
-use calc_value::{CalcValue, CellKey, CoreValue, GridArea, NodeId, NumericMode, NumericTargetId};
+use calc_value::{CalcValue, CellKey, CoreRef, GridArea, NodeId, NumericMode, NumericTargetId};
 use std::fmt;
 use std::sync::Arc;
 
@@ -87,13 +87,13 @@ impl NotModeled {
     /// here.
     pub(crate) fn publishable(value: CalcValue) -> Result<CalcValue, NotModeled> {
         let held = value.callable_value().is_none()
-            && match value.core() {
-                CoreValue::Number(number) => number.is_finite(),
-                CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Error(_) => true,
-                CoreValue::Empty
-                | CoreValue::Missing
-                | CoreValue::Array(_)
-                | CoreValue::Reference(_) => false,
+            && match value.core_ref() {
+                CoreRef::Number(number) => number.is_finite(),
+                CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => true,
+                CoreRef::Empty
+                | CoreRef::Missing
+                | CoreRef::Array(_)
+                | CoreRef::Reference(_) => false,
             };
         if held {
             Ok(value)

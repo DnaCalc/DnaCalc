@@ -2452,3 +2452,67 @@ fn dc_gf0__precedents_and_dependents_from_the_graph() {
         vec![at(s, "B1"), at(s, "C1"), at(s, "D1")]
     );
 }
+
+/// dc-1yp: an edited save of a workbook whose metadata part holds the dynamic-array properties
+/// (cdoc_m1_2's d1.xlsx: Sheet2!A1 =SEQUENCE(3,2) saved as a dynamic array), which the save
+/// extends with value metadata for the errors it writes, reopens, and its model is the session's.
+/// The value metadata used to be put inside the dynamic-array properties' futureMetadata record,
+/// where the first `<extLst` of the part is, and the loader then refused the saved package.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_1yp__an_edited_save_extends_dynamic_array_metadata_where_it_belongs() {
+    let mut session = session(include_bytes!(
+        "../../calc-doc/tests/fixtures/cdoc_m1_2/d1.xlsx"
+    ));
+    let first = session.host().sheets()[0].id();
+    for intent in [
+        SkinIntent::Recalculate,
+        SkinIntent::EnterCell {
+            at: at_(first, "H1"),
+            text: "12345.5".to_owned(),
+        },
+        SkinIntent::EnterCell {
+            at: at_(first, "I1"),
+            text: "=H1*2".to_owned(),
+        },
+        SkinIntent::Recalculate,
+    ] {
+        assert!(session.dispatch(intent).accepted());
+    }
+    let mut saved = Vec::new();
+    session.save(&SavePolicy::default(), &mut saved).unwrap();
+    let reopened = open(&saved);
+    let inputs = |host: &HostState| -> Vec<(CellKey, CellInput)> {
+        host.sheets()
+            .iter()
+            .flat_map(|entry| {
+                host.model()
+                    .sheet_cells(entry.id())
+                    .into_iter()
+                    .flatten()
+                    .map(|(at, input)| (at, input.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    };
+    assert_eq!(inputs(&reopened), inputs(session.host()));
+    // A dynamic array's area is the extent of its last result, which the save writes as its
+    // ref: compared by anchor and kind; a legacy array by its area.
+    let arrays = |host: &HostState| -> Vec<String> {
+        host.model()
+            .definitions()
+            .arrays()
+            .map(|array| match array.kind() {
+                calc_host::ArrayKind::Legacy => format!("{:?}", array.area()),
+                kind => format!("{:?} {kind:?}", array.anchor()),
+            })
+            .collect()
+    };
+    assert_eq!(arrays(&reopened), arrays(session.host()));
+    let (theirs, mine) = (
+        reopened.model().definitions(),
+        session.host().model().definitions(),
+    );
+    assert_eq!(theirs.names(), mine.names());
+    assert_eq!(theirs.tables(), mine.tables());
+}

@@ -10,7 +10,9 @@ use quick_xml::NsReader;
 use quick_xml::escape::EscapeError;
 use quick_xml::events::Event;
 use quick_xml::name::{QName, ResolveResult};
+use std::borrow::Cow;
 use std::fmt;
+use std::ops::Deref;
 
 /// Bounds on one XML part.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -75,11 +77,148 @@ impl fmt::Display for XmlError {
 
 impl std::error::Error for XmlError {}
 
+/// A namespace URI or a local name as the reader gives it. One of the names the workbook parts
+/// use most (the SpreadsheetML and relationship namespaces, `c`, `v`, `f`, `row` and the like)
+/// is shared from a fixed table, so reading it allocates nothing (dc-dxm: the allocator was a
+/// third of a native open); any other name is owned. It compares and prints as its text.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct XmlStr(Cow<'static, str>);
+
+impl XmlStr {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// The namespace URI `bytes` spells: from the table when it is one of the common ones, else
+    /// checked as UTF-8 and owned.
+    fn namespace(bytes: &[u8], position: u64) -> Result<XmlStr, XmlError> {
+        if let Some(name) = COMMON_NAMESPACES.iter().find(|name| name.as_bytes() == bytes) {
+            return Ok(XmlStr(Cow::Borrowed(name)));
+        }
+        utf8(bytes, position).map(|text| XmlStr(Cow::Owned(text)))
+    }
+
+    /// The local name `bytes` spells: shared when it is one of the common ones, else checked as
+    /// UTF-8 and owned.
+    fn local(bytes: &[u8], position: u64) -> Result<XmlStr, XmlError> {
+        match common_local(bytes) {
+            Some(name) => Ok(XmlStr(Cow::Borrowed(name))),
+            None => utf8(bytes, position).map(|text| XmlStr(Cow::Owned(text))),
+        }
+    }
+}
+
+impl Deref for XmlStr {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<str> for XmlStr {
+    fn eq(&self, other: &str) -> bool {
+        *self.0 == *other
+    }
+}
+
+impl PartialEq<&str> for XmlStr {
+    fn eq(&self, other: &&str) -> bool {
+        *self.0 == **other
+    }
+}
+
+impl fmt::Debug for XmlStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&*self.0, f)
+    }
+}
+
+impl fmt::Display for XmlStr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&*self.0, f)
+    }
+}
+
+impl From<XmlStr> for String {
+    fn from(name: XmlStr) -> String {
+        name.0.into_owned()
+    }
+}
+
+impl From<&str> for XmlStr {
+    fn from(name: &str) -> XmlStr {
+        XmlStr(Cow::Owned(name.to_owned()))
+    }
+}
+
+/// The namespaces the workbook parts use most, shared rather than allocated per name.
+const COMMON_NAMESPACES: &[&str] = &[
+    "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "http://schemas.openxmlformats.org/package/2006/relationships",
+    "http://schemas.openxmlformats.org/package/2006/content-types",
+    "http://schemas.openxmlformats.org/markup-compatibility/2006",
+    "http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac",
+    "http://schemas.microsoft.com/office/spreadsheetml/2014/revision",
+];
+
+/// The local name `bytes` spells when it is one the workbook parts use most, shared rather than
+/// allocated per name.
+fn common_local(bytes: &[u8]) -> Option<&'static str> {
+    Some(match bytes {
+        b"c" => "c",
+        b"v" => "v",
+        b"f" => "f",
+        b"r" => "r",
+        b"s" => "s",
+        b"t" => "t",
+        b"row" => "row",
+        b"si" => "si",
+        b"ref" => "ref",
+        b"spans" => "spans",
+        b"ht" => "ht",
+        b"customHeight" => "customHeight",
+        b"dyDescent" => "dyDescent",
+        b"is" => "is",
+        b"cm" => "cm",
+        b"vm" => "vm",
+        b"ca" => "ca",
+        b"aca" => "aca",
+        b"hidden" => "hidden",
+        b"customFormat" => "customFormat",
+        b"sst" => "sst",
+        b"count" => "count",
+        b"uniqueCount" => "uniqueCount",
+        b"rPr" => "rPr",
+        b"xf" => "xf",
+        b"numFmtId" => "numFmtId",
+        b"fontId" => "fontId",
+        b"fillId" => "fillId",
+        b"borderId" => "borderId",
+        b"xfId" => "xfId",
+        b"applyNumberFormat" => "applyNumberFormat",
+        b"applyFont" => "applyFont",
+        b"applyFill" => "applyFill",
+        b"applyBorder" => "applyBorder",
+        b"applyAlignment" => "applyAlignment",
+        b"applyProtection" => "applyProtection",
+        b"alignment" => "alignment",
+        b"col" => "col",
+        b"min" => "min",
+        b"max" => "max",
+        b"width" => "width",
+        b"style" => "style",
+        b"id" => "id",
+        _ => return None,
+    })
+}
+
 /// An element or attribute name: its namespace URI, if it has one, and its local name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct XmlName {
-    pub namespace: Option<String>,
-    pub local: String,
+    pub namespace: Option<XmlStr>,
+    pub local: XmlStr,
 }
 
 impl XmlName {
@@ -177,6 +316,12 @@ pub struct XmlReader<'a> {
     /// The byte range of the source that the last event returned was read from. An empty
     /// element's start tag spans the whole element, and its end tag spans nothing.
     span: (usize, usize),
+    /// The namespace an element name without a prefix resolves to, once resolved (dc-dxm): it
+    /// stands until a start tag that may declare a namespace, or the end of an element whose
+    /// start tag might have, changes the bindings in scope.
+    default_namespace: Option<Option<XmlStr>>,
+    /// The depths of the open elements whose start tags may have declared a namespace.
+    declaring: Vec<u32>,
 }
 
 fn utf8(bytes: &[u8], position: u64) -> Result<String, XmlError> {
@@ -186,10 +331,12 @@ fn utf8(bytes: &[u8], position: u64) -> Result<String, XmlError> {
     })
 }
 
-fn namespace(resolved: ResolveResult<'_>, position: u64) -> Result<Option<String>, XmlError> {
+fn namespace(resolved: ResolveResult<'_>, position: u64) -> Result<Option<XmlStr>, XmlError> {
     match resolved {
         ResolveResult::Unbound => Ok(None),
-        ResolveResult::Bound(namespace) => utf8(namespace.as_ref(), position).map(Some),
+        ResolveResult::Bound(namespace) => {
+            XmlStr::namespace(namespace.as_ref(), position).map(Some)
+        }
         ResolveResult::Unknown(prefix) => Err(XmlError::UnboundPrefix {
             prefix: String::from_utf8_lossy(&prefix).into_owned(),
         }),
@@ -235,6 +382,8 @@ impl<'a> XmlReader<'a> {
             failure,
             done: false,
             span: (0, 0),
+            default_namespace: None,
+            declaring: Vec::new(),
         }
     }
 
@@ -274,12 +423,21 @@ impl<'a> XmlReader<'a> {
         }
     }
 
-    fn element_name(&self, name: QName<'_>) -> Result<XmlName, XmlError> {
+    fn element_name(&mut self, name: QName<'_>) -> Result<XmlName, XmlError> {
         let position = self.position();
         let (resolved, local) = self.inner.resolve_element(name);
+        let namespace = match (name.prefix(), &self.default_namespace) {
+            (None, Some(held)) => held.clone(),
+            (None, None) => {
+                let resolved = namespace(resolved, position)?;
+                self.default_namespace = Some(resolved.clone());
+                resolved
+            }
+            (Some(_), _) => namespace(resolved, position)?,
+        };
         Ok(XmlName {
-            namespace: namespace(resolved, position)?,
-            local: utf8(local.as_ref(), position)?,
+            namespace,
+            local: XmlStr::local(local.as_ref(), position)?,
         })
     }
 
@@ -334,6 +492,13 @@ impl<'a> XmlReader<'a> {
                             limit: self.limits.max_depth,
                         });
                     }
+                    // A start tag that may declare a namespace (any `xmlns` in its attributes)
+                    // ends what the reader knows of the default namespace.
+                    let raw = start.attributes_raw();
+                    if raw.windows(5).any(|window| window == b"xmlns") {
+                        self.default_namespace = None;
+                        self.declaring.push(self.depth);
+                    }
                     let name = self.element_name(start.name())?;
                     let mut attributes = Vec::new();
                     let mut count = 0u32;
@@ -352,7 +517,7 @@ impl<'a> XmlReader<'a> {
                         let (resolved, local) = self.inner.resolve_attribute(attribute.key);
                         let name = XmlName {
                             namespace: namespace(resolved, position)?,
-                            local: utf8(local.as_ref(), position)?,
+                            local: XmlStr::local(local.as_ref(), position)?,
                         };
                         let value = attribute
                             .unescape_value()
@@ -364,6 +529,10 @@ impl<'a> XmlReader<'a> {
                 }
                 Event::End(end) => {
                     let name = self.element_name(end.name())?;
+                    if self.declaring.last() == Some(&self.depth) {
+                        self.declaring.pop();
+                        self.default_namespace = None;
+                    }
                     self.depth -= 1;
                     if self.depth == 0 {
                         self.root_closed = true;
@@ -460,6 +629,36 @@ mod tests {
             (25, 42),
             "counted from the part's first byte"
         );
+    }
+
+    /// dc-dxm: the default namespace an element name resolves to follows the declarations in
+    /// scope, through a nested redeclaration, an undeclaration and the ends that close them,
+    /// whatever the reader keeps of it between names.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_dxm__default_namespaces_follow_their_scope() {
+        let text = br#"<a xmlns="urn:one"><b/><c xmlns="urn:two"><d/></c><e/><f xmlns=""><g/></f><x:h xmlns:x="urn:three"><i/></x:h><j/></a>"#;
+        let mut reader = XmlReader::new(text, XmlLimits::default());
+        let mut seen = Vec::new();
+        while let Some(event) = reader.next_event().expect("well formed") {
+            let name = match event {
+                XmlEvent::Start(element) => element.name,
+                XmlEvent::End(name) => name,
+                XmlEvent::Text(_) => continue,
+            };
+            seen.push(format!(
+                "{}{}",
+                name.namespace.as_deref().map(|n| format!("{{{n}}}")).unwrap_or_default(),
+                name.local
+            ));
+        }
+        let expected = [
+            "{urn:one}a", "{urn:one}b", "{urn:one}b", "{urn:two}c", "{urn:two}d", "{urn:two}d",
+            "{urn:two}c", "{urn:one}e", "{urn:one}e", "f", "g", "g", "f", "{urn:three}h",
+            "{urn:one}i", "{urn:one}i", "{urn:three}h", "{urn:one}j", "{urn:one}j", "{urn:one}a",
+        ];
+        assert_eq!(seen, expected);
     }
 
     /// A second byte order mark is refused, not dropped.

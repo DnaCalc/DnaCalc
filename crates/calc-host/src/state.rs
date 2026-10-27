@@ -173,6 +173,17 @@ impl HostState {
         self.model.revision()
     }
 
+    /// The current revision's model (dc-1yp: what a document-fidelity run compares).
+    pub fn model(&self) -> &Arc<ModelRoot> {
+        &self.model
+    }
+
+    /// The workbook as calc-doc loaded it: the loaded revision's model and the records it was
+    /// loaded with (each sheet's styles and geometry as the file states them).
+    pub fn loaded(&self) -> &LoadedWorkbook {
+        &self.loaded
+    }
+
     /// The current revision's sheets, in workbook order: each one's ID, which the cell keys of
     /// commands and projections carry, and its name.
     pub fn sheets(&self) -> &[SheetEntry] {
