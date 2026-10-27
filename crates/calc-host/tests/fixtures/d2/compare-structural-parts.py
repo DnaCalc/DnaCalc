@@ -3,8 +3,8 @@ insertions and deletions (dc-jhn): the one Excel saved after making the edits it
 (compare-structural.ps1 -ExcelOut) and the one DNA Calc saved after making them through calc-host.
 
 For each sheet (by name) it compares, as sets: merged cells; hyperlinks' cells; data validations
-(sqref, type, formulas); conditional formats (sqref, formulas); each row's height, custom-height
-flag and hidden flag (rows that state any); each column's width and hidden flag (expanded from the
+(sqref, type, formulas); conditional formats (sqref, formulas); each row's custom height and hidden
+flag (rows that state either; a height Excel fitted to the contents it fits again on its own save); each column's width and hidden flag (expanded from the
 col spans); each cell's number format code (resolved through the styles part); comments (cell and
 text); notes' shapes (VML x:Row and x:Column); threaded comments' cells; drawing anchors (from and
 to); tables' and filters' areas. And for the workbook, its defined names. Excel rewrites the
@@ -120,11 +120,23 @@ def sheet_record(z, part, formats):
         for c in root.iter(MAIN + "conditionalFormatting"))
     rows = {}
     formats_by_cell = {}
+    # A sheet whose rows are hidden unless they state a custom height (sheetFormatPr zeroHeight):
+    # Excel decides on its own save whether a row with no custom height is shown, from the height
+    # it fits to the row, so there only a row's custom height and hidden flag are compared.
+    format_pr = root.find(MAIN + "sheetFormatPr")
+    zero_height = format_pr is not None and format_pr.get("zeroHeight") in ("1", "true")
     for row in root.iter(MAIN + "row"):
         number = int(row.get("r"))
-        attributes = (row.get("ht"), row.get("customHeight") in ("1", "true"),
-                      row.get("hidden") in ("1", "true"))
-        if attributes != (None, False, False):
+        # A height that is not custom is the one Excel fitted to the row's contents when it last
+        # saved the package, which it fits again on its own save: only a custom height is the
+        # workbook's.
+        custom = row.get("customHeight") in ("1", "true")
+        hidden = row.get("hidden") in ("1", "true")
+        if zero_height and not custom:
+            hidden = None
+        attributes = (row.get("ht") if custom else None, custom, hidden)
+        # A row that states nothing compared is not listed, as a row the sheet does not list.
+        if attributes not in ((None, False, False), (None, False, None)):
             rows[number] = attributes
         for cell in row.iter(MAIN + "c"):
             code = formats[int(cell.get("s", "0"))]
