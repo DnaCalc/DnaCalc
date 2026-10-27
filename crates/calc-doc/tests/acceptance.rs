@@ -496,6 +496,11 @@ fn describe(op: &WorkbookOp) -> String {
             at.column(),
             format
         ),
+        WorkbookOp::SetNameFormula {
+            name,
+            scope,
+            formula,
+        } => format!("name {name} {scope:?} {formula}"),
         WorkbookOp::EditAxis(edit) => format!(
             "axis {:?} {:?} {:?} first {} count {} last {}",
             edit.sheet(),
@@ -613,6 +618,8 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         WorkbookOp::SetArray { .. } => "op:set_array".to_owned(),
         // Wire version 1 has no form for a cell format either (EncodeError::CellFormat).
         WorkbookOp::SetFormat { .. } => "op:set_format".to_owned(),
+        // Nor for a name's formula (EncodeError::NameFormula).
+        WorkbookOp::SetNameFormula { .. } => "op:set_name_formula".to_owned(),
         WorkbookOp::EditAxis(edit) => {
             out.insert("op:edit_axis".to_owned());
             let axis = match edit.axis() {

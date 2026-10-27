@@ -2124,7 +2124,8 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(1, 1), formula("Data!A1*Data!A2")),
             set(c(2, 1), formula("A1+Data!A1")),
             set(c(3, 1), formula("IF(A2>10,\"big\",\"small\")")),
-            set(c(4, 1), formula("1E-300*1E-10")),
+            // A difference below the normal range, which calc-func refuses as not modelled.
+            set(c(4, 1), formula("2.2250738585075E-308-2.2250738585073E-308")),
             set(c(5, 1), formula("A4+1")),
             // A reference to another workbook (L3 binds 3-D references, which this row held
             // before; external references stay refused).
@@ -2339,14 +2340,10 @@ fn ceng_m1_2__wrong_cache_not_pass() {
         })
     ));
     assert_eq!(refusal(&state, c(7, 1), 1, 3), NotModeled::FormulaText);
-    // Hand-derived in binary64: 0.1+0.2 is 0.30000000000000004, and that minus 0.3 is
-    // 5.551115123125783e-17, within the band CalcFml refuses.
-    assert_eq!(
-        refusal(&state, c(8, 1), 1, 3),
-        NotModeled::Evaluation(EvalFault::NearZeroFinalSum {
-            result: 0.1_f64 + 0.2 - 0.3
-        })
-    );
+    // Hand-derived from Excel's rule for a formula's final + or - (dc-b1l): 0.1+0.2 is
+    // 0.30000000000000004, that minus 0.3 is 5.551115123125783e-17, 52 binary exponents below the
+    // left operand, so Excel's 0; the cache's 999 is not what is published.
+    assert_eq!(calculated(&state, c(8, 1)), (CalcValue::number(0.0), 1, 3));
     assert_eq!(
         refusal(&state, c(9, 1), 1, 3),
         NotModeled::Evaluation(EvalFault::AreaAsValue {
@@ -2355,7 +2352,7 @@ fn ceng_m1_2__wrong_cache_not_pass() {
     );
     assert_eq!(
         calculated_cells(&state),
-        [c(1, 1), c(1, 3), c(2, 1), c(3, 1)]
+        [c(1, 1), c(1, 3), c(2, 1), c(3, 1), c(8, 1)]
     );
     assert!(
         state
@@ -2747,9 +2744,9 @@ const QGUW_CONTEXT: &str = "calc-engine;numeric_mode=fast";
 
 /// The dc-qguw workbook: Data!A1 = 3 and Data!A2 = 4, and on Calc three formulas whose file caches
 /// hold the answers (hand-derived): A1 `=Data!A1*Data!A2` (3 * 4 = 12), A2 `=-Data!A1+10`
-/// (-3 + 10 = 7, a final sum whose near-zero check runs) and A3 `=1E-300*1E-10` (a product below
-/// the normal range, whose cache holds 0, which calc-func does not compute: its evaluation is
-/// refused). The engine state is opened with those caches.
+/// (-3 + 10 = 7, a final sum whose near-zero check runs) and A3 `=TODAY()*0` (0 whatever the date,
+/// whose cache holds 0, which calc-func does not compute without a clock, and none is set: its
+/// evaluation is refused). The engine state is opened with those caches.
 struct QguwBook {
     data: SheetId,
     calc: SheetId,
@@ -2770,7 +2767,7 @@ impl QguwBook {
                 set(key(data, 2, 1), number(4.0)),
                 set(key(calc, 1, 1), formula("Data!A1*Data!A2")),
                 set(key(calc, 2, 1), formula("-Data!A1+10")),
-                set(key(calc, 3, 1), formula("1E-300*1E-10")),
+                set(key(calc, 3, 1), formula("TODAY()*0")),
             ],
         );
         let root = ModelRoot::new(rev(0), sheets)
@@ -3056,7 +3053,7 @@ fn qguw_write(case: &str, documents: &[(&str, &[u8])]) {
 fn dc_qguw__fault_injection() {
     const CASE: &str = "dc_qguw__fault_injection";
     note!(
-        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived (3*4 = 12, -3+10 = 7, 1E-300*1E-10 shown as 0); no Excel ran, and agreement with Excel is dc-35p's round trip"
+        "ACCEPT-NOTE: {CASE}: the expectations are the workbook's file caches, hand-derived (3*4 = 12, -3+10 = 7, TODAY()*0 = 0); no Excel ran, and agreement with Excel is dc-35p's round trip"
     );
     let mut book = QguwBook::new();
     let capture = book.capture();
@@ -3139,7 +3136,7 @@ fn dc_qguw__fault_injection() {
     assert_eq!(delta.tick().get(), 1);
     // What the evaluator reported, in the order of evaluation: one evaluation per formula, each
     // at revision 1 and tick 1 under Fast. A3's evaluation was refused (calc-func does not compute
-    // a product below the normal range), and the engine published no value for it.
+    // TODAY without a clock), and the engine published no value for it.
     assert_eq!(
         qguw_evaluations(&instrument),
         [
@@ -3162,7 +3159,7 @@ fn dc_qguw__fault_injection() {
             "R2C1 Infix +",
             "R2C1 Prefix - *",
             "R2C1 Prefix - *",
-            "R3C1 Infix *",
+            "R3C1 Call TODAY",
         ]
     );
     let published = book.published();

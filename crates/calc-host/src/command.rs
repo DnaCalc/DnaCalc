@@ -36,6 +36,14 @@ pub enum CellEdit {
     /// `None` to return it to the format the file gave it ([`calc_doc_model::WorkbookOp::SetFormat`],
     /// dc-09v). It changes no input and no value.
     SetFormat { at: CellKey, format: Option<u32> },
+    /// Gives the defined name `name` of `scope` the formula `formula`
+    /// ([`calc_doc_model::WorkbookOp::SetNameFormula`], dc-gf0). A command that holds one sets
+    /// every formula that uses the name again, so the engine binds it to the new formula.
+    SetName {
+        name: String,
+        scope: calc_doc_model::NameScope,
+        formula: String,
+    },
 }
 
 impl CellEdit {
@@ -49,6 +57,15 @@ impl CellEdit {
             },
             CellEdit::Axis(edit) => WorkbookOp::EditAxis(edit),
             CellEdit::SetFormat { at, format } => WorkbookOp::SetFormat { at, format },
+            CellEdit::SetName {
+                name,
+                scope,
+                formula,
+            } => WorkbookOp::SetNameFormula {
+                name,
+                scope,
+                formula,
+            },
         }
     }
 }

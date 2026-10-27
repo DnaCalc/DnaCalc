@@ -265,8 +265,9 @@ struct Lowering<'c> {
 enum Task<'t> {
     /// Append to block `block` the instructions that push the value of `node`, which holds the
     /// place `place` of a legacy formula. `tail` says whether that value is the formula's result
-    /// for the check of a final `+` or `-`: the root expression, through parentheses, a prefix
-    /// `+` or `-`, IF's branches and LET's result ([`carries_final_sum`]).
+    /// for the check of a final `+` or `-`: the root expression only. Parentheses, a prefix sign,
+    /// IF's, IFS's and CHOOSE's arguments and LET's result end it (dc-b1l, measured: see
+    /// [`carries_final_sum`]).
     Lower {
         node: &'t SyntaxNode,
         tail: bool,
@@ -502,7 +503,7 @@ impl<'c> Lowering<'c> {
                     .ok_or(CompileError::Syntax { span })?;
                 tasks.push(Task::Lower {
                     node: inner,
-                    tail,
+                    tail: false,
                     block,
                     place,
                 });
@@ -572,12 +573,11 @@ impl<'c> Lowering<'c> {
                         admission: self.admission(place),
                     },
                 });
-                // A prefix `+` or `-` changes no magnitude (the sign flips exactly), so an operand
-                // at the tail stays there for the near-zero check: whether Excel compensates a
-                // final sum under a sign is not known, and the check refuses rather than guess.
+                // Excel does not adjust a sum under a prefix sign: `=-((1+7*POWER(2,-52))-1)` is
+                // -7*2^-52 (dc-b1l).
                 tasks.push(Task::Lower {
                     node: operand,
-                    tail,
+                    tail: false,
                     block,
                     place: place.operand(),
                 });
@@ -747,6 +747,20 @@ impl<'c> Lowering<'c> {
             }
         }
         if !lazy {
+            // Excel writes `@` before ROW and COLUMN in a legacy formula, except where an array is
+            // taken (dc-b1l, measured in Excel 16.0.20430 on 2026-10-25: `Range.Formula`
+            // `=SUM(ROW(B3:B5))` reads back as `=SUM(@ROW(B3:B5))`, 3, and
+            // `=MATCH(4,ROW(B3:B5),0)` as `=MATCH(4,@ROW(B3:B5),0)`, #N/A; `=SUMPRODUCT(ROW(B3:B5))`
+            // and `=ROWS(ROW(B3:B5))` keep no `@`, 12 and 3).
+            if self.form == FormulaForm::Legacy
+                && place != Place::Array
+                && (spelled == "ROW" || spelled == "COLUMN")
+            {
+                tasks.push(Task::Emit {
+                    block,
+                    instruction: Instruction::Implicit,
+                });
+            }
             // A 3-D reference spread over one argument per sheet adds arguments.
             let spread: usize = three_d
                 .iter()
@@ -889,9 +903,11 @@ impl<'c> Lowering<'c> {
         let inner = Place::Unknown;
         let pairs = argc / 2;
         tasks.push(Task::Unbind(pairs));
+        // LET's result is not adjusted: `=LET(a,1,(1+7*POWER(2,-52))-a)` is 7*2^-52 (dc-b1l).
+        let _ = tail;
         tasks.push(Task::Lower {
             node: arguments[argc - 1],
-            tail,
+            tail: false,
             block,
             place: inner,
         });
@@ -1940,17 +1956,14 @@ fn array_element(node: &SyntaxNode) -> Result<Literal, CompileError> {
     }
 }
 
-/// Whether the check of the formula's final `+` or `-` follows argument `index` of a lazy call
-/// with demand `demand` at the formula's tail. It follows IF's branches, a choice the check makes
-/// rather than guess (bead dc-6qki measures it). It does not follow IFERROR's and IFNA's
-/// arguments: a near-zero sum there is published as computed, as Excel 16.0.20430.20182 publishes
-/// it (bead dc-ibp2's capture: `=IFERROR(0.5-0.4-0.1,1)` and `=IFERROR(#N/A,0.5-0.4-0.1)` are
-/// both -2.7755575615628914e-17, not adjusted to 0).
+/// Whether the check of the formula's final `+` or `-` follows argument `index` of a call with
+/// demand `demand` at the formula's tail: never. Excel adjusts only the formula's root operation
+/// (dc-b1l, measured in Excel 16.0.20430 through COM on 2026-10-25, `Range.Formula2`):
+/// `=IF(TRUE,(1+7*POWER(2,-52))-1)`, `=IFS(TRUE,...)` and `=CHOOSE(1,...)` are 7*2^-52, as
+/// `=IFERROR(0.5-0.4-0.1,1)` is -2.7755575615628914e-17 (bead dc-ibp2's capture).
 fn carries_final_sum(demand: ArgumentDemand, index: usize) -> bool {
-    match demand {
-        ArgumentDemand::BranchOnCondition => demand.holds_back(index),
-        ArgumentDemand::Eager | ArgumentDemand::FallbackOnError => false,
-    }
+    let _ = (demand, index);
+    false
 }
 
 fn unsupported(span: TextSpan, construct: &'static str, owner: &'static str) -> CompileError {
@@ -2355,8 +2368,8 @@ mod tests {
         );
     }
 
-    /// The final operation of the formula is checked, through parentheses, a prefix `+` or `-`
-    /// and the branches of IF, and nowhere else: not through IFERROR's or IFNA's arguments.
+    /// The formula's root operation is checked, and nothing below it: not through parentheses, a
+    /// prefix sign, IF's branches, LET's result or IFERROR's and IFNA's arguments.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn final_sums_are_marked() {
@@ -2370,15 +2383,17 @@ mod tests {
                 .count()
         };
         assert_eq!(marked("=0.5-0.4-0.1"), 1);
-        assert_eq!(marked("=(0.5-0.4-0.1)"), 1);
-        assert_eq!(marked("=+(1+2)"), 1);
-        assert_eq!(marked("=IF(1+1,2-1,3+4)"), 2);
+        assert_eq!(marked("=(0.5-0.4-0.1)"), 0);
+        assert_eq!(marked("=+(1+2)"), 0);
+        assert_eq!(marked("=+(1+2)-1"), 1);
+        assert_eq!(marked("=IF(1+1,2-1,3+4)"), 0);
+        assert_eq!(marked("=LET(a,1,2-a)"), 0);
         assert_eq!(marked("=IFERROR(0.5-0.4-0.1,1)"), 0);
         assert_eq!(marked("=IFNA(#N/A,2-1)"), 0);
         assert_eq!(marked("=IFERROR(IF(TRUE,2-1),1)"), 0);
         assert_eq!(marked("=IF(TRUE,IFERROR(1,2-1))"), 0);
         assert_eq!(marked("=1*(0.5-0.4-0.1)"), 0);
-        assert_eq!(marked("=-(1+2)"), 1);
+        assert_eq!(marked("=-(1+2)"), 0);
         assert_eq!(marked("=2*-(1+2)"), 0);
         assert_eq!(marked("=SUM(1+2)"), 0);
         assert_eq!(marked("=(1+2)%"), 0);

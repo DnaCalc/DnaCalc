@@ -132,10 +132,27 @@ pub fn relocate_formula(
     .ok()
 }
 
-/// The text a move of the cells of `area` to `to` (cut and paste on one sheet) leaves the formula
-/// in the cell `at` with, as Excel's move adjusts references: a reference to a moved cell, or to a
-/// range all of whose cells moved, follows them (CalcFml's [`StructuralEdit::MoveCells`]); `at`
-/// is the formula's cell before the move. `None` when no reference of it changes (dc-09v).
+/// CalcFml's move of the cells of `area` so that its top-left cell is `to`, with the two sheets'
+/// names from `root`; `None` when `root` holds either sheet no more.
+fn move_edit(root: &ModelRoot, area: GridArea, to: CellKey) -> Option<StructuralEdit> {
+    let name = |sheet| {
+        root.sheet_by_id(sheet)
+            .map(|entry| entry.name().text().to_string_lossy())
+    };
+    Some(StructuralEdit::MoveCells {
+        area,
+        to,
+        source_name: name(area.sheet())?,
+        target_name: name(to.sheet())?,
+    })
+}
+
+/// The text a move of the cells of `area` to `to` (cut and paste, on one sheet or to another)
+/// leaves the formula in the cell `at` with, as Excel's move adjusts references (CalcFml's
+/// [`StructuralEdit::MoveCells`]): a reference to the moved cells follows them, one to cells the
+/// paste writes over is `#REF!`, and a formula moved to another sheet keeps reading the cells it
+/// read; `at` is the formula's cell before the move. `None` when no reference of it changes
+/// (dc-09v, dc-gf0).
 pub fn move_references(
     root: &ModelRoot,
     formula: &FormulaText,
@@ -147,11 +164,35 @@ pub fn move_references(
     let moved = transform_formula(
         &text,
         at,
-        &StructuralEdit::MoveCells { area, to },
+        &move_edit(root, area, to)?,
         &SnapshotCatalog(root),
     )?;
     FormulaText::new(ExcelText::from_utf16_code_units(
         moved.encode_utf16().collect(),
     ))
     .ok()
+}
+
+/// The formula a move of the cells of `area` to `to` leaves the defined name of `scope` with,
+/// whose formula is `formula` (as the model holds it): its reference moves only when every
+/// coordinate it holds is absolute (CalcFml's [`transform_name`]). `None` when it does not change
+/// (dc-gf0).
+pub fn move_name(
+    root: &ModelRoot,
+    formula: &str,
+    scope: NameScope,
+    area: GridArea,
+    to: CellKey,
+) -> Option<String> {
+    let sheet = match scope {
+        NameScope::Sheet(sheet) => sheet,
+        NameScope::Workbook => root.sheets().first()?.id(),
+    };
+    let text = formula.strip_prefix('=').unwrap_or(formula);
+    transform_name(
+        text,
+        sheet,
+        &move_edit(root, area, to)?,
+        &SnapshotCatalog(root),
+    )
 }

@@ -5,10 +5,11 @@
 //! does not hold yet is refused as unknown rather than resolved to a name.
 //!
 //! The list is the 518 `built_in_function` entries of the Excel Functions Handbook's
-//! `data/functions` (snapshot oxfunc-libctx-v1, OxFunc 473efa3), upper case, sorted.
+//! `data/functions` (snapshot oxfunc-libctx-v1, OxFunc 473efa3), upper case, sorted, and FIELDVALUE,
+//! which the handbook does not list (dc-b1l: Excel 16.0 knows it, `_xlfn.FIELDVALUE`).
 
 /// The built-in function names, upper case, sorted for binary search.
-const NAMES: [&str; 518] = [
+const NAMES: [&str; 519] = [
     "ABS",
     "ACCRINT",
     "ACCRINTM",
@@ -181,6 +182,7 @@ const NAMES: [&str; 518] = [
     "FACTDOUBLE",
     "FALSE",
     "FDIST",
+    "FIELDVALUE",
     "FILTER",
     "FILTERXML",
     "FIND",

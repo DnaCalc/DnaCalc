@@ -92,12 +92,9 @@ pub enum EvalFault {
     /// `+` or `-` and the arguments IF may return) whose result is a non-zero number of at most
     /// 1e-13 times the magnitude of its larger operand; `result` is the binary64 result.
     ///
-    /// Excel adjusts the result of a final addition or subtraction near zero (Microsoft KB 78113),
-    /// by a rule that is not documented precisely enough to implement, so a result in this band
-    /// is refused rather than published. The band is chosen, not measured: it is not Excel's, and
-    /// it also refuses results that are exact and non-zero (`=1E15+1-1E15` is exactly 1). Bead
-    /// dc-6qki measures Excel's rule against cfunc-m1.2's oracle rows and replaces this refusal
-    /// with it.
+    /// The result of the formula's final addition or subtraction, which Excel may adjust to 0
+    /// ([`NEAR_ZERO_EXPONENTS`]), when its left operand does not read as a number, so the rule
+    /// cannot be applied; refused rather than published.
     NearZeroFinalSum { result: f64 },
     /// The evaluation reached a construct whose result is not modelled: `construct` says what it
     /// is and `owner` names the work package that owns it.
@@ -107,11 +104,22 @@ pub enum EvalFault {
     },
 }
 
-/// The band within which the result of a final `+` or `-` is refused as
-/// [`EvalFault::NearZeroFinalSum`]: at most this many times its larger operand's magnitude. The
-/// value is chosen (the relative 1e-13 within which calc-func refuses to order two nearly equal
-/// numbers), not measured; bead dc-6qki replaces the band with Excel's measured rule.
-const NEAR_ZERO_BAND: f64 = 1e-13;
+/// Excel's adjustment of a formula's final `+` or `-` (Microsoft KB 78113), measured in Excel
+/// 16.0.20430 through COM on 2026-10-25 (dc-b1l, `Range.Formula2`): a non-zero result is 0 when
+/// the biased binary64 exponent of the operation's left operand exceeds the result's by this
+/// many or more. `(1+k*2^-52)-1` is 0 for k up to 7 and k*2^-52 from 8, the same for 1.5, 1.99 and
+/// 1024 in place of 1; `(2+k*2^-51)-(2-2^-52)` is 0 for k up to 7 and `(2-2^-52)-(2+k*2^-51)` for
+/// k up to 3, so the left operand decides, not the larger; `(-1-k*2^-52)+1` is as the first;
+/// `=1E15+1-1E15` is 1 (exponents 49 apart); a result below the normal range, whose biased
+/// exponent is 0, is kept when the left operand is below 2^-973
+/// (`=POWER(2,-1000)*(1+k*2^-52)-POWER(2,-1000)` is k*2^-1052). Only the formula's root
+/// operation is adjusted (see compile's `carries_final_sum`).
+const NEAR_ZERO_EXPONENTS: i64 = 50;
+
+/// The biased exponent field of `x`.
+fn biased_exponent(x: f64) -> i64 {
+    ((x.to_bits() >> 52) & 0x7ff) as i64
+}
 
 /// The argument a lazy kernel receives after one of its arguments faulted. The call's result is
 /// discarded and the fault reported, so this value is never published. An error makes IF stop
@@ -868,26 +876,20 @@ impl Run<'_, '_> {
     }
 
     /// The check of a final `+` or `-`: pops the negations of its right and left operands, its
-    /// result and its operands, and pushes the result unless it lies in the near-zero band of the
-    /// larger operand. A negation that is not a number leaves that operand's magnitude unknown,
-    /// and a non-zero number result is then refused rather than assumed to lie outside the band.
+    /// result and its operands, and pushes the result, or 0 where Excel adjusts it
+    /// ([`NEAR_ZERO_EXPONENTS`]). A left negation that is not a number leaves the left operand's
+    /// exponent unknown, and a non-zero number result is then refused.
     fn near_zero_check(&mut self) -> Result<(), EvalFault> {
         let base = self.stack.len() - 5;
-        let negated = (
-            self.stack[base + 4].as_number(),
-            self.stack[base + 3].as_number(),
-        );
-        let value = self.stack[base + 2].clone();
+        let left = self.stack[base + 3].as_number();
+        let mut value = self.stack[base + 2].clone();
         self.stack.truncate(base);
         if let Some(result) = value.as_number().filter(|result| *result != 0.0) {
-            let in_band = match negated {
-                (Some(right), Some(left)) => {
-                    result.abs() <= left.abs().max(right.abs()) * NEAR_ZERO_BAND
-                }
-                _ => true,
-            };
-            if in_band {
+            let Some(left) = left else {
                 return Err(EvalFault::NearZeroFinalSum { result });
+            };
+            if biased_exponent(left) - biased_exponent(result) >= NEAR_ZERO_EXPONENTS {
+                value = CalcValue::number(0.0);
             }
         }
         self.stack.push(value);
@@ -1228,14 +1230,12 @@ mod tests {
                 &["Infix *"],
                 Ok(CalcValue::number(12.0)),
             ),
-            // A result in the band: the check runs and refuses it.
+            // A result Excel adjusts: the check runs and publishes 0.
             (
                 "=0.5-0.4-0.1",
                 CalcValue::empty(),
                 &["Infix -", "Infix -", "Prefix - *", "Prefix - *"],
-                Err(EvalFault::NearZeroFinalSum {
-                    result: -2.7755575615628914e-17,
-                }),
+                Ok(CalcValue::number(0.0)),
             ),
             // A result that is not a non-zero number skips the check, so no negation runs.
             (
@@ -1244,12 +1244,12 @@ mod tests {
                 &["Infix -"],
                 Ok(CalcValue::error(WorksheetErrorCode::Value)),
             ),
-            // A lazy call is shown after the calls of the argument it asked for, which hold the
-            // checked final sum of its branch.
+            // A lazy call is shown after the calls of the argument it asked for; a sum in its
+            // branch is not the formula's final operation, so it is not checked.
             (
                 "=IF(TRUE,A1+1,A1*2)",
                 three.clone(),
-                &["Infix +", "Prefix - *", "Prefix - *", "Call IF"],
+                &["Infix +", "Call IF"],
                 Ok(CalcValue::number(4.0)),
             ),
             // An argument the evaluation cannot supply stops the call before its function runs: a
@@ -1261,8 +1261,7 @@ mod tests {
                 &[],
                 evaluated("=COUNTIF(A1:A2+1,1)", three.clone()),
             ),
-            // A function that refuses still ran (a product below the normal range, which
-            // calc-func refuses as not modelled).
+            // A product below the normal range, which Excel gives as 0 (dc-b1l).
             (
                 "=1E-300*1E-10",
                 CalcValue::empty(),
@@ -1271,10 +1270,8 @@ mod tests {
             ),
         ];
         assert!(matches!(cases[8].3, Err(EvalFault::AreaAsValue { .. })));
-        assert!(matches!(
-            cases[9].3,
-            Err(EvalFault::Function(FunctionFault::NotImplemented { .. }))
-        ));
+        // A product below the normal range is 0, as Excel gives it.
+        assert_eq!(cases[9].3, Ok(CalcValue::number(0.0)));
         for (formula, cells, calls, expected) in cases {
             let (outcome, shown) = observed(formula, cells.clone());
             assert_eq!(outcome, expected, "{formula}");
@@ -1290,46 +1287,44 @@ mod tests {
         }
     }
 
-    /// The three near-zero rows of cfunc-m1.2's oracle workbook, and how the final operation
-    /// decides: the binary64 result of a final `+` or `-` in the band is refused, and the same
-    /// difference under a final `*` is published (KB 78113's own example).
+    /// The near-zero rows of cfunc-m1.2's oracle workbook and the measured rule (see
+    /// [`NEAR_ZERO_EXPONENTS`]): Excel's values as its capture and the dc-b1l probes give them.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn a_final_sum_near_zero_is_refused() {
+    fn a_final_sum_near_zero_is_adjusted_as_excel_adjusts_it() {
         let blank = CalcValue::empty();
-        assert_eq!(
-            evaluated("=0.5-0.4-0.1", blank.clone()),
-            Err(EvalFault::NearZeroFinalSum {
-                result: -2.7755575615628914e-17
-            })
-        );
-        assert_eq!(
-            evaluated("=1.333+1.225-1.333-1.225", blank.clone()),
-            Err(EvalFault::NearZeroFinalSum {
-                result: -2.220446049250313e-16
-            })
-        );
+        let n = |x: f64| Ok(CalcValue::number(x));
+        assert_eq!(evaluated("=0.5-0.4-0.1", blank.clone()), n(0.0));
+        assert_eq!(evaluated("=1.333+1.225-1.333-1.225", blank.clone()), n(0.0));
+        assert_eq!(evaluated("=0.1+0.2-0.3", blank.clone()), n(0.0));
+        assert_eq!(evaluated("=1+1E-15-1", blank.clone()), n(0.0));
+        assert_eq!(evaluated("=1E15+1-1E15", blank.clone()), n(1.0));
+        // Below the root operation the result stands.
         assert_eq!(
             evaluated("=1*(0.5-0.4-0.1)", blank.clone()),
-            Ok(CalcValue::number(-2.7755575615628914e-17))
+            n(-2.7755575615628914e-17)
         );
         assert_eq!(
             evaluated("=(0.5-0.4-0.1)", blank.clone()),
-            Err(EvalFault::NearZeroFinalSum {
-                result: -2.7755575615628914e-17
-            })
+            n(-2.7755575615628914e-17)
         );
         assert_eq!(
             evaluated("=-(0.5-0.4-0.1)", blank.clone()),
-            Err(EvalFault::NearZeroFinalSum {
-                result: -2.7755575615628914e-17
-            })
+            n(2.7755575615628914e-17)
         );
         assert_eq!(
             evaluated("=IF(TRUE,0.5-0.4-0.1)", blank.clone()),
-            Err(EvalFault::NearZeroFinalSum {
-                result: -2.7755575615628914e-17
-            })
+            n(-2.7755575615628914e-17)
+        );
+        // The left operand's exponent decides: 2+7*2^-51 against 2-2^-52 is adjusted (k up to
+        // 7), and in the other order only up to k = 3.
+        assert_eq!(
+            evaluated("=(2+7*POWER(2,-51))-(2-POWER(2,-52))", blank.clone()),
+            n(0.0)
+        );
+        assert_eq!(
+            evaluated("=(2-POWER(2,-52))-(2+4*POWER(2,-51))", blank.clone()),
+            n(-9.0 * 2f64.powi(-52))
         );
         // Outside the band, and exactly zero, the result is published.
         assert_eq!(
@@ -1341,12 +1336,7 @@ mod tests {
             Ok(CalcValue::number(0.0))
         );
         // A text operand is read as calc-func reads it.
-        assert_eq!(
-            evaluated("=0.1+0.2-\"0.3\"", blank.clone()),
-            Err(EvalFault::NearZeroFinalSum {
-                result: 5.551115123125783e-17
-            })
-        );
+        assert_eq!(evaluated("=0.1+0.2-\"0.3\"", blank.clone()), n(0.0));
         assert_eq!(
             evaluated("=\"3\"-\"1\"", blank.clone()),
             Ok(CalcValue::number(2.0))
@@ -1447,9 +1437,29 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn function_faults_pass_through() {
+        // A difference below the normal range, which calc-func's number rule refuses.
         assert!(matches!(
-            evaluated("=1E-300*1E-10", CalcValue::empty()),
+            evaluated("=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)", CalcValue::empty()),
             Err(EvalFault::Function(FunctionFault::NotImplemented { .. }))
         ));
+    }
+
+    /// ROW and COLUMN of several rows or columns in a legacy formula, with Excel's values (dc-b1l,
+    /// Excel 16.0.20430 on 2026-10-25): `@` before the call except where an array is taken.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn row_and_column_are_intersected_in_a_legacy_formula() {
+        let blank = CalcValue::empty();
+        let n = |x: f64| Ok(CalcValue::number(x));
+        assert_eq!(evaluated("=ROW(B3:B5)", blank.clone()), n(3.0));
+        assert_eq!(evaluated("=SUM(ROW(B3:B5))", blank.clone()), n(3.0));
+        assert_eq!(evaluated("=SUMPRODUCT(ROW(B3:B5))", blank.clone()), n(12.0));
+        assert_eq!(evaluated("=ROWS(ROW(B3:B5))", blank.clone()), n(3.0));
+        assert_eq!(
+            evaluated("=MATCH(4,ROW(B3:B5),0)", blank.clone()),
+            Ok(CalcValue::error(WorksheetErrorCode::NA))
+        );
+        assert_eq!(evaluated("=COLUMN(B3:D3)", blank.clone()), n(2.0));
+        assert_eq!(evaluated("=SUM(COLUMN(B3:D3))", blank), n(2.0));
     }
 }
