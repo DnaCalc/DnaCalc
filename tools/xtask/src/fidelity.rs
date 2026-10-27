@@ -499,11 +499,18 @@ fn unchanged(bytes: &[u8], host: &HostState, path: &Path) -> Value {
 /// The cells the edit enters: two cells right of the first visible sheet's used area (below it
 /// when it reaches the last column), and that sheet.
 fn edit_cells(host: &HostState) -> Option<(SheetId, CellKey, CellKey)> {
+    // A worksheet: an Excel 4.0 macro sheet is saved only as it was read (dc-xuw).
+    let worksheet = |entry: &&calc_host::SheetEntry| {
+        host.loaded()
+            .sheet(entry.id())
+            .is_some_and(|sheet| !sheet.is_macro_sheet())
+    };
     let sheet = host
         .sheets()
         .iter()
+        .filter(worksheet)
         .find(|entry| format!("{:?}", entry.visibility()) == "Visible")
-        .or_else(|| host.sheets().first())?;
+        .or_else(|| host.sheets().iter().find(worksheet))?;
     let id = sheet.id();
     let free = |row: u32, column: u32| -> Option<(CellKey, CellKey)> {
         let a = CellKey::new(id, row, column).ok()?;

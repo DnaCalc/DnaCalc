@@ -9,6 +9,7 @@
 //! The text is the input of calc-fml's one parser, which the loader then reads it with, as it
 //! reads any formula of a SpreadsheetML package.
 
+use super::commands::COMMANDS;
 use super::functions::FUNCTIONS;
 use super::records::{Cursor, Malformed, Read, text};
 use crate::save::file_form::function_file_name;
@@ -231,6 +232,8 @@ struct Pending {
     open: String,
     /// Before a close parenthesis.
     close: String,
+    /// At the start of the formula, before its `=` (PtgAttrSpace type 6).
+    lead: String,
 }
 
 impl Pending {
@@ -362,7 +365,7 @@ pub(crate) fn print(
                             0x03 => ("\n", &mut pending.open),
                             0x04 => (" ", &mut pending.close),
                             0x05 => ("\n", &mut pending.close),
-                            0x06 => (" ", &mut pending.before),
+                            0x06 => (" ", &mut pending.lead),
                             other => {
                                 return Err(bad(format!("the space attribute type {other}")));
                             }
@@ -423,6 +426,8 @@ pub(crate) fn print(
                 });
             }
             0x21 | 0x22 => {
+                // A macro sheet's command (fCeFunc), and its dialog form (fPrompt, `OPEN?`).
+                let (mut command, mut prompt) = (false, false);
                 let (count, number) = if base == 0x21 {
                     let number = cursor.u16("PtgFunc")?;
                     let fixed = FUNCTIONS
@@ -433,12 +438,11 @@ pub(crate) fn print(
                         .ok_or_else(|| bad(format!("the fixed-arity function number {number}")))?;
                     (fixed as usize, number)
                 } else {
-                    let count = cursor.u8("PtgFuncVar")? as usize;
+                    let count = cursor.u8("PtgFuncVar")?;
                     let raw = cursor.u16("PtgFuncVar")?;
-                    if raw & 0x8000 != 0 {
-                        return Err(bad("a command-equivalent function (a macro sheet's)"));
-                    }
-                    (count, raw & 0x7FFF)
+                    command = raw & 0x8000 != 0;
+                    prompt = count & 0x80 != 0;
+                    (usize::from(count & 0x7F), raw & 0x7FFF)
                 };
                 if stack.len() < count {
                     return Err(bad("a function call with fewer arguments than it names"));
@@ -449,7 +453,14 @@ pub(crate) fn print(
                     .map(|item| item.text)
                     .collect();
                 let space = pending.take();
-                let name = if number == 255 {
+                let name = if command {
+                    let name = COMMANDS
+                        .iter()
+                        .find(|(n, _)| *n == number)
+                        .map(|(_, name)| *name)
+                        .ok_or_else(|| bad(format!("the command number {number}")))?;
+                    format!("{name}{}", if prompt { "?" } else { "" })
+                } else if number == 255 {
                     // A user-defined or future function: its name is the first argument.
                     if arguments.is_empty() {
                         return Err(bad("a call of function 255 without its name"));
@@ -568,7 +579,7 @@ pub(crate) fn print(
     if !stack.is_empty() {
         return Err(bad("a formula whose tokens leave more than one operand"));
     }
-    Ok(Ok(item.text))
+    Ok(Ok(format!("{}{}", pending.lead, item.text)))
 }
 
 /// A row and a column of a reference as A1 text: `$` before each absolute coordinate. A relative
@@ -718,7 +729,15 @@ fn external_name(ixti: u16, index: u32, context: &Context<'_>) -> Read<String> {
             let name = lookup(names)?;
             Ok(format!("[{number}]!{name}"))
         }
-        Some(SupBook::AddIn { names }) => lookup(names),
+        // An add-in's function, written as Excel writes an XLL's: `_xll.fArray`.
+        Some(SupBook::AddIn { names }) => {
+            let name = lookup(names)?;
+            Ok(if name.starts_with("_xll.") {
+                name
+            } else {
+                format!("_xll.{name}")
+            })
+        }
         // A name of this workbook reached through its own supporting link is written as Excel
         // writes it, `[0]!MyName`.
         Some(SupBook::This) => {

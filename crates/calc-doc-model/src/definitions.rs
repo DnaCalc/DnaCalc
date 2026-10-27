@@ -111,6 +111,10 @@ pub enum UnloadedCell {
     UnresolvedValueMetadata { reason: String },
     /// A cell of a what-if data table (`<f t="dataTable">`). Owner: L3.
     DataTable,
+    /// A formula cell of an Excel 4.0 macro sheet (dc-xuw): its formula is written in the macro
+    /// language (commands, `RETURN`, `GOTO`), which no engine here runs, so it is not calculated;
+    /// what the file cached for it is kept, and the sheet's part is saved as it was read.
+    MacroSheet,
 }
 
 /// A workbook's iterative-calculation settings: the workbook part's `calcPr` attributes

@@ -82,13 +82,17 @@ const BRT_FRT_GUID: u16 = 3072;
 const REVISION_NAMESPACE: &str = "http://schemas.microsoft.com/office/spreadsheetml/2014/revision";
 const COMPATIBILITY_NAMESPACE: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
+/// The SpreadsheetML part of a worksheet, or, with `macro_sheet`, of an Excel 4.0 macro sheet
+/// (`xm:macrosheet`, whose records are a worksheet's and whose formulas may call the macro
+/// language's commands; dc-xuw).
 pub(crate) fn convert(
     part: &str,
     data: &[u8],
     tab: Option<usize>,
     shared: &Shared,
+    macro_sheet: bool,
 ) -> Result<Vec<u8>, OpenError> {
-    write(data, tab.map(|t| t as u32), shared).map_err(|error| refusal(part, error.0))
+    write(data, tab.map(|t| t as u32), shared, macro_sheet).map_err(|error| refusal(part, error.0))
 }
 
 /// The sections of the worksheet, each written as its records come and put together in the
@@ -193,7 +197,7 @@ struct Writer<'s> {
     default_height: u16,
 }
 
-fn write(data: &[u8], sheet: Option<u32>, shared: &Shared) -> Read<Vec<u8>> {
+fn write(data: &[u8], sheet: Option<u32>, shared: &Shared, macro_sheet: bool) -> Read<Vec<u8>> {
     let records = records(data)?;
     let mut s = Sections::default();
     let mut w = Writer {
@@ -463,16 +467,25 @@ fn write(data: &[u8], sheet: Option<u32>, shared: &Shared) -> Read<Vec<u8>> {
     s.data = d.out;
 
     let mut x = Xml::new();
-    x.open(
-        "worksheet",
-        &[
-            ("xmlns", MAIN_NAMESPACE.to_owned()),
-            ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned()),
-            ("xmlns:mc", COMPATIBILITY_NAMESPACE.to_owned()),
-            ("mc:Ignorable", "xr".to_owned()),
-            ("xmlns:xr", REVISION_NAMESPACE.to_owned()),
-        ],
-    );
+    let root = if macro_sheet {
+        "xm:macrosheet"
+    } else {
+        "worksheet"
+    };
+    let mut namespaces = vec![
+        ("xmlns", MAIN_NAMESPACE.to_owned()),
+        ("xmlns:r", RELATIONSHIPS_NAMESPACE.to_owned()),
+        ("xmlns:mc", COMPATIBILITY_NAMESPACE.to_owned()),
+        ("mc:Ignorable", "xr".to_owned()),
+        ("xmlns:xr", REVISION_NAMESPACE.to_owned()),
+    ];
+    if macro_sheet {
+        namespaces.push((
+            "xmlns:xm",
+            "http://schemas.microsoft.com/office/excel/2006/main".to_owned(),
+        ));
+    }
+    x.open(root, &namespaces);
     x.out.extend_from_slice(&s.properties);
     x.out.extend_from_slice(&s.dimension);
     if !s.views.is_empty() {
@@ -531,7 +544,7 @@ fn write(data: &[u8], sheet: Option<u32>, shared: &Shared) -> Read<Vec<u8>> {
         }
         x.close("tableParts");
     }
-    x.close("worksheet");
+    x.close(root);
     Ok(x.out)
 }
 
@@ -705,7 +718,14 @@ impl Writer<'_> {
                     return Err(Malformed("a data table cell before its table".to_owned()));
                 }
             } else {
-                match formula::print(rgce, rgcb, &context, origin)? {
+                let printed = formula::print(rgce, rgcb, &context, origin).map_err(|error| {
+                    Malformed(format!(
+                        "{} in the formula of {}",
+                        error.0,
+                        a1(row + 1, head.column + 1)
+                    ))
+                })?;
+                match printed {
                     Ok(text) => {
                         if calc {
                             f_attributes.push(("ca", "1".to_owned()));
@@ -750,6 +770,10 @@ impl Writer<'_> {
         if let Some((f_attributes, text)) = &f {
             if text.is_empty() {
                 d.empty("f", f_attributes);
+            } else if text.starts_with(char::is_whitespace) || text.ends_with(char::is_whitespace) {
+                let mut f_attributes = f_attributes.clone();
+                f_attributes.push(("xml:space", "preserve".to_owned()));
+                d.element("f", &f_attributes, text);
             } else {
                 d.element("f", f_attributes, text);
             }
@@ -1239,6 +1263,10 @@ fn print_options(c: &mut Cursor<'_>) -> Read<Vec<u8>> {
         if flags & (1 << bit) != 0 {
             attributes.push((name, "1".to_owned()));
         }
+    }
+    // Bit 4 is gridLinesSet, which defaults to on.
+    if flags & 0x10 == 0 {
+        attributes.push(("gridLinesSet", "0".to_owned()));
     }
     let mut x = fragment();
     if !attributes.is_empty() {

@@ -48,13 +48,23 @@ pub(crate) fn color(c: &mut Cursor<'_>) -> Read<Vec<(&'static str, String)>> {
     Ok(out)
 }
 
-/// A tint as Excel writes it: 17 significant digits (`0.79998168889431442`).
+/// A tint as Excel writes it: 17 significant digits, positional from 0.1 up
+/// (`0.79998168889431442`) and with an exponent below (`-9.9978637043366805E-2`).
 fn tint_text(value: f64) -> String {
     let scientific = format!("{value:.16e}");
     let (mantissa, exponent) = scientific.split_once('e').expect("an exponent");
     let exponent: i32 = exponent.parse().expect("an exponent");
     let sign = if mantissa.starts_with('-') { "-" } else { "" };
     let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    if value != 0.0 && exponent < -1 {
+        let digits = digits.trim_end_matches('0');
+        let mantissa = if digits.len() > 1 {
+            format!("{}.{}", &digits[..1], &digits[1..])
+        } else {
+            digits.to_owned()
+        };
+        return format!("{sign}{mantissa}E-{}", -exponent);
+    }
     let text = if exponent >= 0 {
         let whole = exponent as usize + 1;
         if digits.len() <= whole {

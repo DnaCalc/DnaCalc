@@ -22,6 +22,7 @@ const BRT_SUP_SELF: u16 = 357;
 const BRT_SUP_SAME: u16 = 358;
 const BRT_EXTERN_SHEET: u16 = 362;
 const BRT_SUP_ADDIN: u16 = 667;
+const BRT_PLACEHOLDER_NAME: u16 = 361;
 
 /// One sheet of the workbook.
 pub(crate) struct Sheet {
@@ -226,12 +227,27 @@ pub(crate) fn read(
                     book.links.push(Link::External { relationship });
                 }
                 BRT_SUP_ADDIN => {
-                    let count = c.u32("BrtSupAddin")?;
+                    // An add-in's functions; Excel writes the record empty when it lists none.
                     let mut names = Vec::new();
-                    for _ in 0..count {
-                        names.push(text(&c.wide("BrtSupAddin")?));
+                    if c.remaining() > 0 {
+                        let count = c.u32("BrtSupAddin")?;
+                        for _ in 0..count {
+                            names.push(text(&c.wide("BrtSupAddin")?));
+                        }
                     }
                     book.links.push(Link::AddIn { names });
+                }
+                // A function of the add-in whose BrtSupAddin came last (2.4.729).
+                BRT_PLACEHOLDER_NAME => {
+                    let name = text(&c.wide("BrtPlaceholderName")?);
+                    match book.links.last_mut() {
+                        Some(Link::AddIn { names }) => names.push(name),
+                        _ => {
+                            return Err(super::Malformed(
+                                "a BrtPlaceholderName after no BrtSupAddin".to_owned(),
+                            ));
+                        }
+                    }
                 }
                 BRT_EXTERN_SHEET => {
                     let count = c.u32("BrtExternSheet")?;
@@ -307,8 +323,50 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
         if let Some(code) = code.as_ref().filter(|code| !code.is_empty()) {
             attributes.push(("codeName", code.clone()));
         }
-        if flags & 1 != 0 {
+        let bit = |n: u32| flags & (1 << n) != 0;
+        if bit(0) {
             attributes.push(("date1904", "1".to_owned()));
+        }
+        // BrtWbProp's flags (2.4.820), as workbookPr's attributes in the schema's order.
+        match (flags >> 13) & 0x3 {
+            1 => attributes.push(("showObjects", "placeholders".to_owned())),
+            2 => attributes.push(("showObjects", "none".to_owned())),
+            _ => {}
+        }
+        if bit(2) {
+            attributes.push(("showBorderUnselectedTables", "0".to_owned()));
+        }
+        if bit(3) {
+            attributes.push(("filterPrivacy", "1".to_owned()));
+        }
+        if bit(4) {
+            attributes.push(("promptedSolutions", "1".to_owned()));
+        }
+        if !bit(5) {
+            attributes.push(("showInkAnnotation", "0".to_owned()));
+        }
+        if bit(6) {
+            attributes.push(("backupFile", "1".to_owned()));
+        }
+        if bit(7) {
+            attributes.push(("saveExternalLinkValues", "0".to_owned()));
+        }
+        match (flags >> 8) & 0x3 {
+            1 => attributes.push(("updateLinks", "never".to_owned())),
+            2 => attributes.push(("updateLinks", "always".to_owned())),
+            _ => {}
+        }
+        if bit(11) {
+            attributes.push(("publishItems", "1".to_owned()));
+        }
+        if bit(12) {
+            attributes.push(("checkCompatibility", "1".to_owned()));
+        }
+        if !bit(16) {
+            attributes.push(("autoCompressPictures", "0".to_owned()));
+        }
+        if bit(18) {
+            attributes.push(("refreshAllConnections", "1".to_owned()));
         }
         if *theme != 0 {
             attributes.push(("defaultThemeVersion", theme.to_string()));
@@ -337,6 +395,19 @@ pub(crate) fn write(book: &Book, shared: &Shared) -> Result<Vec<u8>, OpenError> 
                 attributes.push(("visibility", "veryHidden".to_owned()));
             } else if flags & 0x01 != 0 {
                 attributes.push(("visibility", "hidden".to_owned()));
+            }
+            // fIconic, fDspHScroll, fDspVScroll, fBotAdornment (BrtBookView, 2.4.313).
+            if flags & 0x04 != 0 {
+                attributes.push(("minimized", "1".to_owned()));
+            }
+            if flags & 0x08 == 0 {
+                attributes.push(("showHorizontalScroll", "0".to_owned()));
+            }
+            if flags & 0x10 == 0 {
+                attributes.push(("showVerticalScroll", "0".to_owned()));
+            }
+            if flags & 0x20 == 0 {
+                attributes.push(("showSheetTabs", "0".to_owned()));
             }
             if flags & 0x40 == 0 {
                 attributes.push(("autoFilterDateGrouping", "0".to_owned()));

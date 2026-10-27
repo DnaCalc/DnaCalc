@@ -16,6 +16,7 @@
 //! ([`crate::OpenError::BinaryWorkbook`]), as does a record or a formula token it cannot read:
 //! what is not read is not dropped silently.
 
+mod commands;
 mod formula;
 mod functions;
 mod parts;
@@ -68,6 +69,10 @@ pub(crate) fn refusal(part: &str, detail: impl Into<String>) -> OpenError {
 enum Kind {
     Workbook,
     Worksheet,
+    /// An Excel 4.0 macro sheet (dc-xuw), or an international one.
+    MacroSheet {
+        international: bool,
+    },
     Styles,
     SharedStrings,
     Table,
@@ -84,6 +89,12 @@ fn kind_of(content_type: &str) -> Result<Kind, &str> {
     Ok(match content_type {
         BINARY_MAIN => Kind::Workbook,
         "application/vnd.ms-excel.worksheet" => Kind::Worksheet,
+        "application/vnd.ms-excel.macrosheet" => Kind::MacroSheet {
+            international: false,
+        },
+        "application/vnd.ms-excel.intlmacrosheet" => Kind::MacroSheet {
+            international: true,
+        },
         "application/vnd.ms-excel.styles" => Kind::Styles,
         "application/vnd.ms-excel.sharedStrings" => Kind::SharedStrings,
         "application/vnd.ms-excel.table" => Kind::Table,
@@ -111,6 +122,12 @@ fn xml_content_type(kind: Kind, macros: bool) -> &'static str {
         Kind::Worksheet => {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
         }
+        Kind::MacroSheet {
+            international: false,
+        } => "application/vnd.ms-excel.macrosheet+xml",
+        Kind::MacroSheet {
+            international: true,
+        } => "application/vnd.ms-excel.intlmacrosheet+xml",
         Kind::Styles => "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml",
         Kind::SharedStrings => {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"
@@ -238,11 +255,13 @@ pub(crate) fn convert(package: &Package, workbook: &str) -> Result<Vec<u8>, Open
             error,
         })
     };
-    let macros = kinds.keys().any(|name| {
-        package
-            .part(name)
-            .and_then(|p| p.content_type())
-            .is_some_and(|ct| ct == "application/vnd.ms-office.vbaProject")
+    // A workbook with a VBA project or a macro sheet is a macro-enabled one.
+    let macros = kinds.iter().any(|(name, kind)| {
+        matches!(kind, Kind::MacroSheet { .. })
+            || package
+                .part(name)
+                .and_then(|p| p.content_type())
+                .is_some_and(|ct| ct == "application/vnd.ms-office.vbaProject")
     });
 
     // The workbook first: its sheets, names and external references are what formulas name.
@@ -265,7 +284,14 @@ pub(crate) fn convert(package: &Package, workbook: &str) -> Result<Vec<u8>, Open
                     .sheets
                     .iter()
                     .position(|sheet| sheet.part.as_deref() == Some(name.as_str()));
-                sheet::convert(name, &read(name)?, tab, &shared)?
+                sheet::convert(name, &read(name)?, tab, &shared, false)?
+            }
+            Kind::MacroSheet { .. } => {
+                let tab = book
+                    .sheets
+                    .iter()
+                    .position(|sheet| sheet.part.as_deref() == Some(name.as_str()));
+                sheet::convert(name, &read(name)?, tab, &shared, true)?
             }
             Kind::Styles => styles::convert(name, &read(name)?)?,
             Kind::SharedStrings => parts::shared_strings(name, &read(name)?, &shared)?,
