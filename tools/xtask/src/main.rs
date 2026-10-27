@@ -80,6 +80,8 @@ mod arch;
 // The bench command times Excel through calc-oracle-excel, like the capture command.
 #[cfg(not(target_arch = "wasm32"))]
 mod bench;
+#[cfg(not(target_arch = "wasm32"))]
+mod fidelity;
 // calc-oracle-excel, which the capture command calls, is not a dependency of a wasm32 build of
 // xtask (it refuses wasm32 itself), so neither is this command: such a build then fails through
 // xtask's own refusal alone, and compiles when that refusal is disabled.
@@ -125,6 +127,8 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "corpus" => corpus::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "bench" => bench::run(rest),
+        #[cfg(not(target_arch = "wasm32"))]
+        Some((command, rest)) if command == "fidelity" => fidelity::run(rest),
         _ => {
             #[allow(unused_mut)]
             let mut usages = vec![
@@ -143,6 +147,8 @@ fn main() -> ExitCode {
             usages.push(corpus::USAGE);
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(bench::USAGE);
+            #[cfg(not(target_arch = "wasm32"))]
+            usages.push(fidelity::USAGE);
             eprintln!(
                 "xtask: unknown or missing command {args:?}\n{}",
                 usages.join("\n")

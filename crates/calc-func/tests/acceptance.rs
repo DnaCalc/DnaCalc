@@ -5506,7 +5506,7 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         r,
         s,
         "AVERAGE",
-        [num("1E308"), num("1E308")],
+        [num("9.99999999999999E307"), num("9.99999999999999E307")],
         E(Num),
         Choice("a total that overflows is #NUM!")
     );
@@ -8350,9 +8350,9 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         r,
         s,
         "MOD",
-        [num("-5"), num("1E308")],
-        N(1e308),
-        Choice("1E308 - 5, the remainder with the divisor's sign, rounds once to 1E308")
+        [num("-5"), num("9.99999999999999E307")],
+        N(9.99999999999999e307),
+        Choice("9.99999999999999E307 - 5, the remainder with the divisor's sign, rounds once to 9.99999999999999E307")
     );
 
     // QUOTIENT.
@@ -8606,7 +8606,7 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         r,
         s,
         "CEILING",
-        [cell(s, "A7"), num("1E308")],
+        [cell(s, "A7"), num("9.99999999999999E307")],
         E(Num),
         Choice(OVERFLOW)
     );
@@ -8614,7 +8614,7 @@ fn large_integers_rows(s: &mut TestSheet) -> Rows {
         r,
         s,
         "FLOOR",
-        [cell(s, "A8"), num("1E308")],
+        [cell(s, "A8"), num("9.99999999999999E307")],
         E(Num),
         Choice(OVERFLOW)
     );

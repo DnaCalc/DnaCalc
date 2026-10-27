@@ -272,7 +272,16 @@
       },
       "parts_all_equal": true,
       "parts_differences": [],
-      "capture": "pending: the Excel capture of the saved package was still running when this record was written"
+      "capture": "165780 formula cells, 165780 raw observations, 165780 saved caches, 165780 reopened values, 0 capture failures",
+      "capture_failures": [],
+      "saved_values_equal_excel": 165780,
+      "formula_cells": 165780,
+      "pass": 165780,
+      "fail": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "failed_or_missing": 0,
+      "pass_rate": "100.000%"
     }
   ],
   "notes": [
