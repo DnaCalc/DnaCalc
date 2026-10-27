@@ -2443,4 +2443,12 @@ fn dc_gf0__precedents_and_dependents_from_the_graph() {
     );
     assert_eq!(host.dependents(at(s, "B1")), vec![at(s, "C1"), at(s, "D1")]);
     assert_eq!(host.dependents(at(s, "D1")), Vec::<CellKey>::new());
+    assert_eq!(
+        host.input_cells(s),
+        vec![at(s, "A1"), at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
+    assert_eq!(
+        host.formula_cells(s),
+        vec![at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
 }
