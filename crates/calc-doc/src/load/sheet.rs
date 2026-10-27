@@ -118,6 +118,8 @@ struct Formula {
 
 struct Sheet<'a> {
     context: &'a Context<'a>,
+    /// An Excel 4.0 macro sheet: its formula cells are unloaded (dc-xuw).
+    macro_sheet: bool,
     id: SheetId,
     part: Arc<SourcePart>,
     load: SheetLoad,
@@ -392,6 +394,20 @@ impl Sheet<'_> {
             self.styles.push(((row, column), style));
         }
         let kind = kind.as_deref();
+        if self.macro_sheet && formula.is_some() {
+            // A macro sheet's formula is not read: the cell is unloaded, with what the file
+            // cached for it.
+            if let Some(text) = &value
+                && !(matches!(kind, None | Some("n")) && collapsed(text).is_empty())
+                && let Ok(cached) = self.cached(kind, text, vm).map_err(fail)?
+            {
+                let cache = FileCached::new(cached, Arc::clone(&self.part));
+                self.load.value_caches.insert((row, column), cache);
+            }
+            let key = self.key(row, column);
+            self.load.unloaded.push((key, UnloadedCell::MacroSheet));
+            return Ok(column);
+        }
         if let Some(data_table) = self.filled_at(row, column) {
             if formula.is_some() {
                 return Err(fail(CellError::Malformed {
@@ -742,11 +758,15 @@ impl Sheet<'_> {
 }
 
 /// Reads the cells of the worksheet part `part` for the sheet `id`.
+/// The namespace of an Excel 4.0 macro sheet's document element (`xm:macrosheet`).
+const MACRO_SHEET_NAMESPACE: &str = "http://schemas.microsoft.com/office/excel/2006/main";
+
 pub(super) fn load_sheet(
     package: &Package,
     context: &Context<'_>,
     id: SheetId,
     part: &str,
+    macro_sheet: bool,
 ) -> Result<SheetLoad, LoadError> {
     let found = package.part(part).ok_or_else(|| LoadError::MissingPart {
         part: part.to_owned(),
@@ -758,13 +778,24 @@ pub(super) fn load_sheet(
     ));
     let xml = read_xml(package, part)?;
     let mut events = Events::new(&xml);
-    events.root(
-        MAIN_NAMESPACE,
-        "worksheet",
-        "the document element is not a SpreadsheetML worksheet",
-    )?;
+    if macro_sheet {
+        // A macro sheet's document element is in Excel's own namespace; what it holds is in
+        // SpreadsheetML's, as a worksheet's.
+        events.root(
+            MACRO_SHEET_NAMESPACE,
+            "macrosheet",
+            "the document element is not an Excel macro sheet",
+        )?;
+    } else {
+        events.root(
+            MAIN_NAMESPACE,
+            "worksheet",
+            "the document element is not a SpreadsheetML worksheet",
+        )?;
+    }
     let mut sheet = Sheet {
         context,
+        macro_sheet,
         id,
         part: Arc::clone(&source),
         load: SheetLoad {
