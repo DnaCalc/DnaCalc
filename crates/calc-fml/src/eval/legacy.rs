@@ -236,6 +236,13 @@ const ARRAY: &[(&str, &[usize])] = &[
     ("XMATCH", &[1]),
 ];
 
+/// The value parameters a legacy formula intersects wherever the call is, an array place
+/// included, by function. dc-b1l measured FIELDVALUE in the catalogue oracle's capture (Excel
+/// 16.0.20430, 2026-10-27): Excel loads `=ROWS(FIELDVALUE({1,2;3,4},"x"))` as
+/// `=ROWS(FIELDVALUE(@{1,2;3,4},"x"))`, #FIELD!, and `=ROWS(FIELDVALUE(Data!A1:A3,"x"))` with `@`
+/// before the range, where the `*` operand of `=ROWS(A1:A3*1)` lifts.
+const SINGLE: &[(&str, &[usize])] = &[("FIELDVALUE", ALL)];
+
 /// Every parameter of a function.
 const ALL: &[usize] = &[usize::MAX];
 
@@ -284,6 +291,7 @@ impl Place {
             };
         }
         match class {
+            Some(ParameterClass::Value) if listed(SINGLE, spelling, index) => Place::Value,
             Some(ParameterClass::Value) => self,
             Some(ParameterClass::ValueOrReference | ParameterClass::Reference) | None => {
                 if listed(ARRAY, spelling, index) {
@@ -342,5 +350,8 @@ mod tests {
         // A function below an array place that is not measured there.
         assert_eq!(array.argument("SUM", 0, r, false), Place::Unknown);
         assert_eq!(Place::Value.argument("lookup", 2, r, false), Place::Array);
+        // dc-b1l: FIELDVALUE's value parameters are intersected below ROWS's array place.
+        assert_eq!(array.argument("FIELDVALUE", 0, v, false), Place::Value);
+        assert_eq!(array.argument("FIELDVALUE", 1, v, false), Place::Value);
     }
 }

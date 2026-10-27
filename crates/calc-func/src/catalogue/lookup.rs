@@ -1726,11 +1726,13 @@ fn choose(
 // ---------------------------------------------------------------------------------------------
 // ROW, COLUMN, ROWS, COLUMNS, AREAS.
 
-/// ROW([reference]): the row number of a reference of one area and one row. A reference of several
-/// areas is #REF!, and a value that is not a reference (blank included) #VALUE!; an error argument
-/// is the result. An area of several rows is not modelled: its result depends on the formula's
-/// array context (a legacy formula gives the first row's number, a dynamic-array formula the
-/// array of every row's number), which the call does not see. Without an argument it is the
+/// ROW([reference]): the row number of a reference of one area and one row, and for an area of
+/// several rows the column of every row's number (dc-b1l, measured in Excel 16.0.20430 on
+/// 2026-10-25: the dynamic-array `=SUM(ROW(B3:B5))` is 12, `=ROWS(ROW(B3:B5))` 3). A legacy
+/// formula takes the first of them where Excel writes `@` before the call (`=SUM(@ROW(B3:B5))`
+/// is 3), which CalcFml's compile does. A reference of several areas is #REF!, and a value that is
+/// not a reference (blank included) #VALUE!; an error argument is the result. An area of more than
+/// [`POSITIONS_LIMIT`] rows is not modelled: its array is not built. Without an argument it is the
 /// formula's own row, which the services do not supply: not modelled.
 fn row(
     arguments: &[CalcValue],
@@ -1740,7 +1742,8 @@ fn row(
     Site::finish(position_of(&site, arguments, true))
 }
 
-/// COLUMN([reference]): ROW for columns; an area of several columns is not modelled.
+/// COLUMN([reference]): ROW for columns; an area of several columns gives the row of every
+/// column's number.
 fn column(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
@@ -1748,6 +1751,10 @@ fn column(
     let site = Site::new(COLUMN, services);
     Site::finish(position_of(&site, arguments, false))
 }
+
+/// The most rows or columns whose numbers ROW and COLUMN build as an array (every column of a
+/// sheet; a whole column's 1,048,576 rows is refused rather than built).
+const POSITIONS_LIMIT: u32 = 16_384;
 
 fn position_of(site: &Site<'_>, arguments: &[CalcValue], of_row: bool) -> Step<CalcValue> {
     let Some(argument) = arguments.first() else {
@@ -1766,10 +1773,21 @@ fn position_of(site: &Site<'_>, arguments: &[CalcValue], of_row: bool) -> Step<C
     } else {
         (area.first().column(), area.column_count())
     };
-    if count > 1 {
+    if count == 1 {
+        return site.number(f64::from(first));
+    }
+    if count > POSITIONS_LIMIT {
         return Err(site.not_modelled(Some(0)));
     }
-    site.number(f64::from(first))
+    let numbers = (first..first + count).map(|n| CalcValue::number(f64::from(n)));
+    let rows: Vec<Vec<CalcValue>> = if of_row {
+        numbers.map(|n| vec![n]).collect()
+    } else {
+        vec![numbers.collect()]
+    };
+    CalcArray::from_rows(rows)
+        .map(CalcValue::array)
+        .ok_or_else(|| site.not_modelled(Some(0)))
 }
 
 /// ROWS(array): the rows of a reference's single area or of an array; a single value has one; an

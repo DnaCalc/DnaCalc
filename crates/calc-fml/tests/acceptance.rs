@@ -61,7 +61,7 @@
 //! written by the committed generator `tests/fixtures/make-fixtures.ps1`; Excel's capture of that
 //! workbook (`tests/captures/dc_ibp2/oracle.capture.json`, written by `cargo xtask capture`) is the
 //! Excel evidence, judged row by row through calc_verdict::judge. Column F holds
-//! source formulas calc-fml does not compile (FILTER, SEQUENCE, FIELDVALUE), whose errors
+//! source formulas this case does not evaluate (FILTER, SEQUENCE, FIELDVALUE), whose errors
 //! (#CALC!, #SPILL!, #FIELD!) some rows read: the case's reader holds the error each is assumed to
 //! give, and the comparison checks that assumption against Excel's capture of the source cell.
 //!
@@ -2440,30 +2440,23 @@ fn cfml_m1_3__reuse_plan() {
     );
 
     // The near-zero rows of cfunc-m1.2's oracle sheet mixed_operands, whose C3 and C4 hold what
-    // this reader's Sheet1!C3 and C4 hold. Each expected value is the evaluator's current answer,
-    // not Excel's: a final + or - whose binary64 result lies in the chosen band is refused, the
-    // same difference under a final * is published, and =1E15+1-1E15, exactly 1, is refused too.
-    // Bead dc-6qki measures Excel's rule against the captured rows and replaces the refusal.
+    // this reader's Sheet1!C3 and C4 hold, with the values Excel's capture of that sheet holds: a
+    // final + or - is adjusted to 0 by Excel's rule (dc-b1l), the same difference under a final *
+    // is published, and =1E15+1-1E15 is 1.
     reader.store(s1, "C3", CalcValue::number(123_456_789_012.34));
     reader.store(s1, "C4", CalcValue::number(123_456_789_012.33));
-    let near_zero = |result: f64| Err(EvalFault::NearZeroFinalSum { result });
+    let number = |n: f64| Ok(CalcValue::number(n));
     let near_zero_rows: [(&str, Expected); 7] = [
-        ("=0.5-0.4-0.1", (near_zero(-2.7755575615628914e-17), vec![])),
-        (
-            "=1*(0.5-0.4-0.1)",
-            (Ok(CalcValue::number(-2.7755575615628914e-17)), vec![]),
-        ),
-        (
-            "=1.333+1.225-1.333-1.225",
-            (near_zero(-2.220446049250313e-16), vec![]),
-        ),
-        ("=1E15+1-1E15", (near_zero(1.0), vec![])),
-        ("=0.1+0.2-0.3", (near_zero(5.551115123125783e-17), vec![])),
-        ("=1+1E-15-1", (near_zero(1.1102230246251565e-15), vec![])),
+        ("=0.5-0.4-0.1", (number(0.0), vec![])),
+        ("=1*(0.5-0.4-0.1)", (number(-2.7755575615628914e-17), vec![])),
+        ("=1.333+1.225-1.333-1.225", (number(0.0), vec![])),
+        ("=1E15+1-1E15", (number(1.0), vec![])),
+        ("=0.1+0.2-0.3", (number(0.0), vec![])),
+        ("=1+1E-15-1", (number(0.0), vec![])),
         (
             "=C3-C4",
             (
-                near_zero(0.0099945068359375),
+                number(0.0099945068359375),
                 vec![one_cell(s1, "C3"), one_cell(s1, "C4")],
             ),
         ),
@@ -2479,7 +2472,7 @@ fn cfml_m1_3__reuse_plan() {
             Err(fault) => format!("{fault:?}"),
         };
         note!(
-            "ACCEPT-NOTE: cfml_m1_3__reuse_plan: near-zero row {formula} -> {answer} (the evaluator's current answer, not Excel's; Excel's rule is measured by dc-6qki)"
+            "ACCEPT-NOTE: cfml_m1_3__reuse_plan: near-zero row {formula} -> {answer} (Excel's captured value; the rule dc-b1l measured)"
         );
     }
 
@@ -4199,8 +4192,8 @@ fn dc_ibp2__error_fallback() {
     // refusals, and faults, each with the areas read.
     // A product below the normal range, which calc-func refuses as not modelled.
     let caret = catalogue()
-        .resolve_surface(Notation::Infix, "*")
-        .expect("*")
+        .resolve_surface(Notation::Infix, "-")
+        .expect("-")
         .id();
     let at = book.anchor(100);
     for (index, code) in ELSEWHERE_ERRORS.iter().enumerate() {
@@ -4239,7 +4232,8 @@ fn dc_ibp2__error_fallback() {
         (unread.outcome, unread.reads),
         (Ok(CalcValue::number(1.0)), vec![])
     );
-    let refused = book.evaluate("=IFERROR(1E-300*1E-10,A1)", at);
+    // A difference below the normal range, which calc-func's number rule refuses.
+    let refused = book.evaluate("=IFERROR(2.2250738585075E-308-2.2250738585073E-308,A1)", at);
     assert!(
         matches!(
             &refused.outcome,
@@ -4253,7 +4247,7 @@ fn dc_ibp2__error_fallback() {
         vec![],
         "a refused value: the fallback is not read"
     );
-    assert_eq!(refused.log.calls, ["Infix *", "Call IFERROR"]);
+    assert_eq!(refused.log.calls, ["Infix -", "Call IFERROR"]);
     // A legacy formula intersects a range at IFERROR's and IFNA's value parameters with its own
     // row, 100 here, which the ranges do not reach: #VALUE!, which IFERROR catches and IFNA
     // passes on. Excel 16.0 writes these as `=IFERROR(@A1:A2,0)` and `=SUM(IFERROR(@A1:A3,0))`
@@ -4286,25 +4280,26 @@ fn dc_ibp2__error_fallback() {
         Ok(CalcValue::number(1.0)),
         "=_xlfn.IFNA(#N/A,1)"
     );
-    // The source formulas of column F are not evaluated here: FIELDVALUE's is refused at compile
-    // (calc-func's catalogue has no entry for it), and FILTER's and SEQUENCE's, which compile since
-    // F3 (dc-728), are held by the reader, so the rows that read them read the error the reader
-    // holds for each.
+    // The source formulas of column F compile (FILTER's and SEQUENCE's since F3, dc-728;
+    // FIELDVALUE's since dc-b1l) and are held by the reader, so the rows that read them read the
+    // error the reader holds for each. FIELDVALUE's own value, evaluated, is the #FIELD! held.
     let sources = source_refusals(&mut book);
     for (source, reason) in &sources {
-        let compiles = source.formula.starts_with("=FILTER(") || source.formula.starts_with("=SEQUENCE(");
-        assert_eq!(
-            reason.starts_with("it compiles"),
-            compiles,
-            "{}: {reason}",
-            source.formula
-        );
-        if !compiles {
-            assert!(reason.contains("UnknownFunction"), "{}: {reason}", source.formula);
-        }
+        assert!(reason.starts_with("it compiles"), "{}: {reason}", source.formula);
     }
+    let fieldvalue = sources
+        .iter()
+        .find(|(source, _)| source.formula.starts_with("=FIELDVALUE("))
+        .expect("column F holds a FIELDVALUE");
+    let anchor = anchor_at(book.sheet, fieldvalue.0.address);
+    assert_eq!(
+        book.evaluate(fieldvalue.0.formula, anchor).outcome,
+        Ok(CalcValue::error(fieldvalue.0.assumed)),
+        "{}",
+        fieldvalue.0.formula
+    );
     note!(
-        "ACCEPT-NOTE: {CASE}: the source formulas of column F are not evaluated by this case: FIELDVALUE's is refused at compile as an unknown function, FILTER's and SEQUENCE's compile and are held by the reader ({}); the rows that read them read the errors the reader holds for them ({}), which the comparison checks against Excel's capture of those cells",
+        "ACCEPT-NOTE: {CASE}: the source formulas of column F are not evaluated by this case: they compile and are held by the reader ({}), FIELDVALUE's evaluating to the #FIELD! held; the rows that read them read the errors the reader holds for them ({}), which the comparison checks against Excel's capture of those cells",
         sources
             .iter()
             .map(|(source, _)| format!("{} {}", source.address, source.formula))

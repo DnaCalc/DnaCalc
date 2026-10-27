@@ -1,0 +1,21 @@
+# dc-b1l: FIELDVALUE of values that are no linked data type, read through ERROR.TYPE: a number, a
+# text, a logical, an error, a blank cell and a LAMBDA, field names of each kind, an error as the
+# field name, and arrays at either argument.
+ERROR.TYPE(_xlfn.FIELDVALUE(1,"x"))
+ERROR.TYPE(_xlfn.FIELDVALUE("a","x"))
+ERROR.TYPE(_xlfn.FIELDVALUE(TRUE,"x"))
+ERROR.TYPE(_xlfn.FIELDVALUE(NA(),"x"))
+ERROR.TYPE(_xlfn.FIELDVALUE(1,NA()))
+ERROR.TYPE(_xlfn.FIELDVALUE(1/0,NA()))
+ERROR.TYPE(_xlfn.FIELDVALUE(1,5))
+ERROR.TYPE(_xlfn.FIELDVALUE(1,""))
+ERROR.TYPE(_xlfn.FIELDVALUE(Data!D1,"x"))
+ERROR.TYPE(_xlfn.FIELDVALUE(Data!A1:A3,"x"))
+ROWS(_xlfn.FIELDVALUE({1,2;3,4},"x"))
+COLUMNS(_xlfn.FIELDVALUE({1,2;3,4},"x"))
+ERROR.TYPE(INDEX(_xlfn.FIELDVALUE({1,2;3,4},"x"),2,2))
+ROWS(_xlfn.FIELDVALUE(1,{"a";"b";"c"}))
+ERROR.TYPE(INDEX(_xlfn.FIELDVALUE(1,{"a";"b"}),2,1))
+ERROR.TYPE(_xlfn.FIELDVALUE(_xlfn.LAMBDA(_xlpm.x,_xlpm.x),"x"))
+ROWS(_xlfn.FIELDVALUE(Data!A1:A3,"x"))
+_xlfn.FIELDVALUE(Data!A1,"x")

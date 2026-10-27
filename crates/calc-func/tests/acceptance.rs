@@ -1914,10 +1914,6 @@ const LEGACY_ARRAY_IF: Owner = Owner {
     bead: "dc-10y",
     behaviour: "an array condition in a legacy formula, which Excel loads as =@IF({TRUE,FALSE},1,2)",
 };
-const SUBNORMAL: Owner = Owner {
-    bead: "dc-6qki",
-    behaviour: "subnormal results",
-};
 /// COUNT and COUNTIF read number text through cfunc-m1.2's coercion, but each is another bead's
 /// function, so their rows here leave cfunc-m1.2's own count of matches.
 const COUNT_TEXT: Owner = Owner {
@@ -3096,13 +3092,13 @@ fn mixed_operands_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         [cell(s, "A5"), cell(s, "A6")],
         E(WorksheetErrorCode::Div0)
     );
-    owned_by!(
+    // A quotient below the normal range is +0, as Excel gives it (dc-b1l).
+    row!(
         r,
         s,
-        SUBNORMAL,
         DIVIDE,
         [num("2.2250738585073E-308"), num("2")],
-        Refused(None)
+        N(0.0)
     );
     // ^ computes the powers that need a power algorithm by OxFunc's Excel power kernel (F1,
     // dc-8dq); Excel's capture of these rows is the check.
@@ -8791,14 +8787,6 @@ fn owned(rows: &mut Rows, owner: Owner) {
 
 /// The behaviours that refused rows of cfunc-m3.5 show, by the bead that owns each. No row names
 /// cfunc-m3.5 itself: the Excel comparison counts such a row as a problem.
-const SEVERAL_AREAS: Owner = Owner {
-    bead: "dc-j9k",
-    behaviour: "a range of several areas in the conditional aggregates",
-};
-const SHAPED_PAST: Owner = Owner {
-    bead: "dc-10y",
-    behaviour: "a SUMIF or AVERAGEIF sum range shaped past the reference the formula gives, as a recalculation prerequisite",
-};
 
 /// Prints how many rows a case ran and on what basis each expects its value.
 fn conditional_rows_note(rows: &Rows) {
@@ -8892,7 +8880,7 @@ const EMPTY_IS_ZERO_ELSEWHERE: &str = "an empty cell given as the criterion is t
 const NUMBER_TEXT_MEETS: &str = "number text in the range meets = a number as the number it reads as, never meets <, <=, > or >= a number, and always meets <> a number; no page states it (Excel's ad-hoc read agrees on every such row)";
 const NOT_EQUAL: &str = "<> holds wherever = does not: blank cells, numbers, logicals and errors meet a <> text criterion";
 const TOP_LEFT: &str = "a third range of another size is used from its top-left cell over the range's size (the SUMIF and AVERAGEIF pages)";
-const SHAPED_PAST_TEXT: &str = "the third argument shaped from its top-left cell to the range's size (the SUMIF and AVERAGEIF pages) extends past the reference the formula gives, whose cells past it the engine does not yet take as the formula's prerequisites; owned by dc-m3u";
+const SHAPED_PAST_MEASURED: &str = "dc-b1l: the third argument is shaped from its top-left cell to the range's size (the SUMIF and AVERAGEIF pages), past the reference the formula gives; Excel 16.0.20430's capture of this row gives this value";
 const SAME_SHAPE: &str =
     "every range has the same size and shape; positions align even when the ranges do not";
 const SHAPE_VALUE: &str = "ranges of different sizes or shapes return #VALUE!, as the MAXIFS page states for MAXIFS; this page names no error";
@@ -9508,19 +9496,17 @@ fn criteria_semantics_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "SUMIF",
         [c(s), txt(">8"), reference(s, &["B1"])],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT)
+        N(65280.0),
+        Measured(SHAPED_PAST_MEASURED)
     );
-    owned(r, SHAPED_PAST);
     cnd!(
         r,
         s,
         "SUMIF",
         [c(s), txt("<3"), reference(s, &["B5:B6"])],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT)
+        N(48.0),
+        Measured(SHAPED_PAST_MEASURED)
     );
-    owned(r, SHAPED_PAST);
     cnd!(
         r,
         s,
@@ -10686,29 +10672,27 @@ fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>)
         ),
     );
 
-    // SUMIF and AVERAGEIF shape their third argument from its top-left cell. A shaped range
-    // inside the reference the formula gives is read; one that extends past it is refused, the
-    // engine not yet taking the cells past it as the formula's prerequisites (dc-m3u).
+    // SUMIF and AVERAGEIF shape their third argument from its top-left cell, inside the reference
+    // the formula gives or past it (dc-b1l: the engine files the cells read past it as dynamic
+    // prerequisites).
     measure(
         r,
         s,
         "SUMIF",
         vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2"])],
-        &[],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT),
+        &["B3:B6", "A2:A5"],
+        N(12.0),
+        Measured(SHAPED_PAST_MEASURED),
     );
-    owned(r, SHAPED_PAST);
     measure(
         r,
         s,
         "SUMIF",
         vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2:A3"])],
-        &[],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT),
+        &["B3:B6", "A2:A5"],
+        N(12.0),
+        Measured(SHAPED_PAST_MEASURED),
     );
-    owned(r, SHAPED_PAST);
     measure(
         r,
         s,
@@ -10725,31 +10709,28 @@ fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>)
         s,
         "AVERAGEIF",
         vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A2"])],
-        &[],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT),
+        &["B3:B6", "A2:A5"],
+        N(4.0),
+        Measured(SHAPED_PAST_MEASURED),
     );
-    owned(r, SHAPED_PAST);
     measure(
         r,
         s,
         "AVERAGEIF",
         vec![at(s, &["B3:B6"]), txt("b"), at(s, &["A2:B2"])],
-        &[],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT),
+        &["B3:B6", "A2:A5"],
+        N(100.0),
+        Measured(SHAPED_PAST_MEASURED),
     );
-    owned(r, SHAPED_PAST);
     measure(
         r,
         s,
         "SUMIF",
         vec![at(s, &["B3:C4"]), txt("a"), at(s, &["A2"])],
-        &[],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT),
+        &["B3:C4", "A2:B3"],
+        N(11.0),
+        Measured(SHAPED_PAST_MEASURED),
     );
-    owned(r, SHAPED_PAST);
     measure(
         r,
         s,
@@ -10764,23 +10745,23 @@ fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>)
         s,
         "SUMIF",
         vec![at(s, &["B3:B6"]), txt("a"), at(s, &["A1048575"])],
-        &[],
-        Refused(Some(2)),
-        Unsupported(
-            "the sum_range shaped from A1048575 to 4 rows extends past A1048575 and past the sheet's last row; owned by dc-m3u (Excel's ad-hoc read gives 7 for it and for SUMIF(B3:B6,\"a\",A1048575:A1048576), as if the shaped range were cut at the last row)",
+        &["B3:B6", "A1048575:A1048576"],
+        N(7.0),
+        Measured(
+            "dc-b1l: the sum_range shaped from A1048575 to 4 rows is cut at the sheet's last row (Excel's capture of this row: 7)",
         ),
     );
-    owned(r, SHAPED_PAST);
     measure(
         r,
         s,
         "SUMIF",
         vec![at(s, &["B3:B4", "B6"]), txt("a")],
         &[],
-        Refused(Some(0)),
-        Unsupported("a range of several areas is not modelled"),
+        E(Value),
+        Measured(
+            "dc-b1l: a range of several areas is #VALUE!, at any range of the conditional aggregates, before the criterion is read (measured in Excel 16.0.20430 on 2026-10-25)",
+        ),
     );
-    owned(r, SEVERAL_AREAS);
 
     // Whole columns: the reader visits the held cells only, and a count adds every blank row at
     // once.
@@ -10847,11 +10828,10 @@ fn mismatched_shapes_rows(s: &mut TestSheet, quiet: bool) -> (Rows, Vec<String>)
         s,
         "SUMIF",
         vec![at(s, &["B:B"]), txt("a"), at(s, &["A1"])],
-        &[],
-        Refused(Some(2)),
-        Unsupported(SHAPED_PAST_TEXT),
+        &["B:B", "A:A"],
+        N(108.0),
+        Measured(SHAPED_PAST_MEASURED),
     );
-    owned(r, SHAPED_PAST);
     measure(
         r,
         s,
@@ -12210,13 +12190,11 @@ const BLANK_RESULT: &str = "Empty, an unmeasured choice of value consistent with
 const XLOOKUP_ONE_CELL: &str = "the whole return array of one row or column; captured: ROWS, COLUMNS and SUM of XLOOKUP(1,A1,A13:C13) are 1, 3 and 6, and of XLOOKUP(1,A1,C1:C3) 3, 1 and 60";
 /// Why XLOOKUP gives the row or column of a return array of several rows and columns.
 const XLOOKUP_PART: &str = "the row (a vertical lookup array) or column (a horizontal one) of the return array at the match, documented (Microsoft's XLOOKUP page: a return array of several columns or rows returns them all), a reference into a return reference";
-/// ROW and COLUMN of several rows or columns, whose result depends on the formula's array
-/// context: a legacy formula (an xlsx cell without dynamic-array metadata, as the oracle workbook
-/// stores its formulas) gives the first number, a dynamic-array formula the array of every number.
-const LEGACY_ARRAY: Owner = Owner {
-    bead: "dc-10y",
-    behaviour: "ROW or COLUMN of several rows or columns in the formula's array context",
-};
+/// ROW and COLUMN of several rows or columns: calc-func gives the array of every number, which a
+/// dynamic-array formula spills, and a legacy formula (an xlsx cell without dynamic-array
+/// metadata, as the oracle workbook stores its formulas) takes the first of through the `@`
+/// Excel writes before the call, which CalcFml's compile writes too (dc-b1l).
+const LEGACY_POSITIONS: &str = "the array of every row's or column's number, of which a legacy formula takes the first (Excel writes @ before the call)";
 
 /// The errors XMATCH orders, in its order: the eight a cell constant can hold, then #SPILL!,
 /// #FIELD! and #CALC!, which only a formula gives (Excel refuses to open a workbook holding them
@@ -12449,6 +12427,16 @@ fn nested(s: &mut TestSheet, (notation, spelling): (Notation, &str), args: &[Arg
     }
 }
 
+/// A nested call's result as a legacy formula's `@` gives it to the enclosing call: an array's
+/// first element (CalcFml's implicit intersection of an array).
+fn at_first(arg: Arg) -> Arg {
+    let value = match arg.value.core() {
+        CoreValue::Array(array) => array.get(0, 0).cloned().expect("an array holds an element"),
+        _ => arg.value.clone(),
+    };
+    Arg { value, ..arg }
+}
+
 /// Whether `arg` is a nested call's result ([`nested`]).
 fn is_nested(arg: &Arg) -> bool {
     NESTED.with(|nested| nested.borrow().contains(&arg.excel))
@@ -12621,78 +12609,6 @@ fn lookup_row(
         outcome: result,
         choice: None,
         owner,
-        tick,
-    });
-}
-
-/// Records a row whose formula stops at a nested call that calc_func refuses: the inner call
-/// `inner` on `inner_args` runs through calc_func::invoke over the test sheet and must end in
-/// NotImplemented, so the outer call `outer` (on `before`, the inner call, and `after`) is never
-/// made. The row's outcome is that refusal, owned by `owner`, and the row states what Excel shows
-/// in its cell, which the comparison checks against the capture.
-#[allow(clippy::too_many_arguments)]
-fn inner_refused_row(
-    rows: &mut Rows,
-    s: &mut TestSheet,
-    outer: &str,
-    before: &[Arg],
-    (inner, inner_args): (&str, &[Arg]),
-    after: &[Arg],
-    owner: Owner,
-    shows: Expect,
-) {
-    let inner_target = surface(Notation::Call, inner);
-    let inner_texts: Vec<&str> = inner_args.iter().map(|a| a.excel.as_str()).collect();
-    let inner_formula = inner_target
-        .oracle_formula(&inner_texts)
-        .unwrap_or_else(|| panic!("{inner} does not admit {inner_texts:?}"));
-    let mut recorded = Recorded::new(inner_args.iter().map(|a| a.value.clone()).collect());
-    let tick = next_tick();
-    let result = invoke(
-        inner_target,
-        &mut recorded,
-        &mut EvalServices::with_cells(&NumericMode::Fast, s),
-        &mut FunctionCallScratch::new(),
-    );
-    let fault = match result {
-        Err(fault @ FunctionFault::NotImplemented { id, .. }) if id == inner_target.id() => fault,
-        other => panic!("{inner_formula}: expected a refusal, got {other:?}"),
-    };
-    let outer_target = surface(Notation::Call, outer);
-    let texts: Vec<&str> = before
-        .iter()
-        .map(|a| a.excel.as_str())
-        .chain([&inner_formula[1..]])
-        .chain(after.iter().map(|a| a.excel.as_str()))
-        .collect();
-    let formula = outer_target
-        .oracle_formula(&texts)
-        .unwrap_or_else(|| panic!("{outer} does not admit {texts:?}"));
-    let row = u32::try_from(rows.oracle.len() + 1).expect("a row number");
-    SHOWN.with(|shown| {
-        shown
-            .borrow_mut()
-            .insert((rows.sheet, row), (shows.clone(), false))
-    });
-    if !rows.quiet {
-        note!(
-            "ACCEPT-NOTE: {}: oracle {}!{} {formula} -> the inner call {} is refused with {fault:?}, so the formula stops there (Excel's behaviour is owned by {}: {}; Excel shows {} in this cell)",
-            rows.case,
-            rows.sheet,
-            encode_a1(row, FORMULA_COLUMN),
-            &inner_formula[1..],
-            owner.bead,
-            owner.behaviour,
-            shows.shown()
-        );
-    }
-    rows.calls.push(Call { row, tick });
-    rows.oracle.push(OracleRow {
-        row,
-        formula,
-        outcome: Err(fault),
-        choice: None,
-        owner: Some(owner),
         tick,
     });
 }
@@ -14345,13 +14261,13 @@ fn lookup_edges_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     lk!(r, s, "COLUMNS", [rf(s, "A1:C5")], n(3.0));
     lk!(r, s, "AREAS", [rf(s, "A1")], n(1.0));
 
-    lk_refused_shows!(
+    lk_shape!(
         r,
         s,
-        LEGACY_ARRAY,
         "ROW",
         [rf(s, "B3:B5")],
-        refused(Some(0)),
+        Gives::Array(vec![vec![3.0], vec![4.0], vec![5.0]]),
+        LEGACY_POSITIONS,
         N(3.0)
     );
     // A text order through cdoc-jpha's collation, in which a hyphen weighs after the letters.
@@ -14389,13 +14305,13 @@ fn lookup_edges_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     // ROW and COLUMN of several areas, and of several columns.
     lk!(r, s, "ROW", [reference(s, &["A1", "B2"])], er(Ref));
     lk!(r, s, "COLUMN", [reference(s, &["A1", "B2"])], er(Ref));
-    lk_refused_shows!(
+    lk_shape!(
         r,
         s,
-        LEGACY_ARRAY,
         "COLUMN",
         [rf(s, "B3:D3")],
-        refused(Some(0)),
+        Gives::Array(vec![vec![2.0, 3.0, 4.0]]),
+        LEGACY_POSITIONS,
         N(2.0)
     );
     // XLOOKUP over a lookup array of one cell: a return array of one row or column is returned
@@ -14494,40 +14410,15 @@ fn lookup_edges_rows(s: &mut TestSheet, quiet: bool) -> Rows {
     lk!(r, s, "LOOKUP", [num("1"), err(Div0), omitted()], er(Div0));
     lk!(r, s, "MATCH", [num("1"), omitted(), err(Div0)], er(Div0));
 
-    // ROW and COLUMN of several rows or columns inside a legacy formula: Excel gives the enclosing
-    // call the first number. calc-func refuses the inner call, so the formula stops there.
+    // ROW and COLUMN of several rows or columns inside a legacy formula: Excel writes `@` before
+    // the inner call (`=SUM(@ROW(B3:B5))`), so the enclosing call receives the first number, as
+    // CalcFml's compile gives it (dc-b1l); here the nested call's array, its first element taken.
     let b3_b5 = rf(s, "B3:B5");
     let b3_d3 = rf(s, "B3:D3");
-    inner_refused_row(
-        r,
-        s,
-        "SUM",
-        &[],
-        ("ROW", std::slice::from_ref(&b3_b5)),
-        &[],
-        LEGACY_ARRAY,
-        N(3.0),
-    );
-    inner_refused_row(
-        r,
-        s,
-        "MATCH",
-        &[num("4")],
-        ("ROW", &[b3_b5]),
-        &[num("0")],
-        LEGACY_ARRAY,
-        E(NA),
-    );
-    inner_refused_row(
-        r,
-        s,
-        "SUM",
-        &[],
-        ("COLUMN", &[b3_d3]),
-        &[],
-        LEGACY_ARRAY,
-        N(2.0),
-    );
+    let row_at = at_first(nest!(s, "ROW", [b3_b5]));
+    lk!(r, s, "SUM", [row_at.clone()], n(3.0));
+    lk!(r, s, "MATCH", [num("4"), row_at, num("0")], er(NA));
+    lk!(r, s, "SUM", [at_first(nest!(s, "COLUMN", [b3_d3]))], n(2.0));
 
     // Values that are not references, which only a nested call gives (Excel refuses ROW(5) at
     // entry): ROW, COLUMN and AREAS of them, and INDEX, ROWS and COLUMNS of a blank one, are
@@ -15882,18 +15773,23 @@ fn cfunc_m3_6__lookup_edges() {
     // The errors that neither a cell constant nor a formula literal can hold (Excel refuses to
     // open a workbook with #SPILL!, #FIELD! or #CALC! as a cell constant, and refuses each as a
     // formula literal) come from source formulas in P and Q: FILTER, SEQUENCE and FIELDVALUE.
-    // calc_func's catalogue has no FIELDVALUE; it has FILTER and SEQUENCE since F3 (dc-728), but
-    // their errors here rest on the engine (SEQUENCE's spill blocked by R: #SPILL!), so this case
-    // evaluates none of the three. The reader holds for each the error Excel gives it, so
-    // XMATCH(TRUE,P{k}:Q{k},1) over the 54 ordered pairs with one of them among the two errors is
-    // a row conditional on those errors, which the comparison checks against the capture, with
-    // each source cell's error.
-    assert!(
-        catalogue()
-            .resolve_surface(Notation::Call, "FIELDVALUE")
-            .is_err(),
-        "calc_func's catalogue has FIELDVALUE"
+    // calc_func's catalogue has FILTER and SEQUENCE since F3 (dc-728) and FIELDVALUE since dc-b1l,
+    // but FILTER's and SEQUENCE's errors here rest on the engine (SEQUENCE's spill blocked by R:
+    // #SPILL!), so this case evaluates none of the three source formulas. The reader holds for
+    // each the error Excel gives it, so XMATCH(TRUE,P{k}:Q{k},1) over the 54 ordered pairs with one
+    // of them among the two errors is a row conditional on those errors, which the comparison
+    // checks against the capture, with each source cell's error. FIELDVALUE's own call gives the
+    // #FIELD! the reader holds.
+    let field = invoke(
+        surface(Notation::Call, "FIELDVALUE"),
+        &mut Recorded::new(vec![
+            CalcValue::number(1.0),
+            CalcValue::text(ExcelText::from_interop_assignment("x")),
+        ]),
+        &mut EvalServices::new(&fast),
+        &mut FunctionCallScratch::new(),
     );
+    assert_eq!(field, Ok(CalcValue::error(WorksheetErrorCode::Field)), "FIELDVALUE(1,\"x\")");
     let sources = lookup_sources("lookup_edges");
     let conditional: Vec<u32> = rows
         .oracle
@@ -15907,7 +15803,7 @@ fn cfunc_m3_6__lookup_edges() {
         "one conditional row per pair"
     );
     note!(
-        "ACCEPT-NOTE: {CASE}: calc_func's catalogue has no FILTER, SEQUENCE or FIELDVALUE; the {} source cells of P1:Q{} hold =FILTER(A1:A6,A1:A6>100) (#CALC!), =SEQUENCE(1,2) blocked by the cell to its right (#SPILL!) and =FIELDVALUE(A1,\"x\") (#FIELD!) as dynamic-array formulas, for which the reader holds those errors; XMATCH(TRUE,P{{k}}:Q{{k}},1) over the {} ordered pairs of two errors with #SPILL!, #FIELD! or #CALC! among them, rows D{} to D{}, picks the smaller error in the order #NULL!, #DIV/0!, #VALUE!, #REF!, #NAME?, #NUM!, #N/A, #GETTING_DATA, #SPILL!, #FIELD!, #CALC!; each is conditional on its source cells' errors, which the comparison checks against the capture",
+        "ACCEPT-NOTE: {CASE}: FIELDVALUE(1,\"x\") is #FIELD!; the {} source cells of P1:Q{} hold =FILTER(A1:A6,A1:A6>100) (#CALC!), =SEQUENCE(1,2) blocked by the cell to its right (#SPILL!) and =FIELDVALUE(A1,\"x\") (#FIELD!) as dynamic-array formulas, for which the reader holds those errors; XMATCH(TRUE,P{{k}}:Q{{k}},1) over the {} ordered pairs of two errors with #SPILL!, #FIELD! or #CALC! among them, rows D{} to D{}, picks the smaller error in the order #NULL!, #DIV/0!, #VALUE!, #REF!, #NAME?, #NUM!, #N/A, #GETTING_DATA, #SPILL!, #FIELD!, #CALC!; each is conditional on its source cells' errors, which the comparison checks against the capture",
         sources.len(),
         source_error_pairs().len(),
         conditional.len(),
@@ -15958,33 +15854,38 @@ fn cfunc_m3_6__lookup_edges() {
         "ACCEPT-NOTE: {CASE}: over a reader holding -0 in A1 and 0 in A2, MATCH(0,A1,-1) is 1 and XMATCH(1,A1:A2,-1) is 1: -0 orders as +0, as matching compares it"
     );
 
-    // ROW and COLUMN of an area of several rows or columns: refused, since the result depends on
-    // the formula's array context, which the call does not see (dc-m3u); whole columns and rows
-    // included, so no array of their numbers is built.
-    for (spelling, area) in [
-        ("ROW", "B2:C3"),
-        ("COLUMN", "B2:C3"),
-        ("ROW", "A:A"),
-        ("COLUMN", "A1:XFD1"),
-    ] {
-        let target = surface(Notation::Call, spelling);
-        assert_eq!(
-            run(
-                target,
-                &mut Recorded::new(vec![reference(s, &[area]).value]),
-                &fast
-            ),
-            Err(FunctionFault::NotImplemented {
-                id: target.id(),
-                argument: Some(0)
-            }),
-            "{spelling}({area})"
-        );
-    }
+    // ROW and COLUMN of an area of several rows or columns: the array of every number (dc-b1l),
+    // up to a whole row's 16,384 columns; a whole column's rows are refused, not built.
+    let positions = |spelling: &str, area: &str| {
+        let value = reference(s, &[area]).value;
+        run(surface(Notation::Call, spelling), &mut Recorded::new(vec![value]), &fast)
+    };
+    let numbers = |rows: Vec<Vec<f64>>| {
+        Ok(CalcValue::array(
+            CalcArray::from_rows(
+                rows.into_iter()
+                    .map(|row| row.into_iter().map(CalcValue::number).collect())
+                    .collect(),
+            )
+            .expect("an array"),
+        ))
+    };
+    assert_eq!(positions("ROW", "B2:C3"), numbers(vec![vec![2.0], vec![3.0]]));
+    assert_eq!(positions("COLUMN", "B2:C3"), numbers(vec![vec![2.0, 3.0]]));
+    assert_eq!(
+        positions("COLUMN", "A1:XFD1"),
+        numbers(vec![(1..=16_384).map(f64::from).collect()])
+    );
+    let row_id = surface(Notation::Call, "ROW").id();
+    assert_eq!(
+        positions("ROW", "A:A"),
+        Err(FunctionFault::NotImplemented {
+            id: row_id,
+            argument: Some(0)
+        })
+    );
     note!(
-        "ACCEPT-NOTE: {CASE}: ROW(B2:C3), COLUMN(B2:C3), ROW(A:A) and COLUMN(A1:XFD1) are refused with NotImplemented naming argument 0 (owned by {}: {}); the oracle rows ROW(B3:B5), COLUMN(B3:D3), SUM(ROW(B3:B5)), MATCH(4,ROW(B3:B5),0) and SUM(COLUMN(B3:D3)) state what Excel shows in a legacy formula, which the capture judges",
-        LEGACY_ARRAY.bead,
-        LEGACY_ARRAY.behaviour
+        "ACCEPT-NOTE: {CASE}: ROW(B2:C3) is {{2;3}}, COLUMN(B2:C3) {{2,3}} and COLUMN(A1:XFD1) the 16,384 column numbers; ROW(A:A) is refused with NotImplemented naming argument 0 (its array is not built); the oracle rows ROW(B3:B5), COLUMN(B3:D3), SUM(ROW(B3:B5)), MATCH(4,ROW(B3:B5),0) and SUM(COLUMN(B3:D3)) state what Excel shows in a legacy formula, which the capture judges"
     );
 
     // A reference with no cell reader, or one the reader refuses or breaks the contract on,
@@ -19920,6 +19821,20 @@ const INFO_SOURCES: [InfoSource; 3] = [
     },
 ];
 
+/// An array constant written in a legacy formula's row, as Excel loads it there (`@{2,3}`, see
+/// [`INFORMATION_LOADED`]): its first element. CalcFml's route gives the same value: ISEVEN, ISODD
+/// and N apply to each element and the formula's root takes the first result (dc-b1l).
+fn loaded_first(excel: &str, first: CalcValue) -> Arg {
+    Arg {
+        excel: excel.to_owned(),
+        value: first,
+        reads: Vec::new(),
+    }
+}
+
+/// Why a legacy formula's row over an array constant gives the first element's value.
+const LEGACY_FIRST: &str = "Excel loads the legacy formula with @ before the array, its first element (dc-b1l)";
+
 /// The behaviours refused rows of dc-nzpw show, by the bead that owns each.
 const ARRAY_ARGUMENT: Owner = Owner {
     bead: "dc-10y",
@@ -20825,12 +20740,9 @@ fn information_rows(s: &mut TestSheet, quiet: bool) -> InfoRows {
         r,
         s,
         "ISEVEN",
-        [array_arg(
-            "{2,3}",
-            vec![vec![CalcValue::number(2.0), CalcValue::number(3.0)]]
-        )],
-        Refused(Some(0)),
-        Ref(ARRAY_ARGUMENT)
+        [loaded_first("{2,3}", CalcValue::number(2.0))],
+        L(true),
+        Meas(LEGACY_FIRST)
     );
     info!(
         r,
@@ -21045,12 +20957,9 @@ fn information_rows(s: &mut TestSheet, quiet: bool) -> InfoRows {
         r,
         s,
         "N",
-        [array_arg(
-            "{5,6}",
-            vec![vec![CalcValue::number(5.0), CalcValue::number(6.0)]]
-        )],
-        Refused(Some(0)),
-        Ref(ARRAY_ARGUMENT)
+        [loaded_first("{5,6}", CalcValue::number(5.0))],
+        N(5.0),
+        Meas(LEGACY_FIRST)
     );
     info!(
         r,

@@ -4,6 +4,13 @@
 //! worksheet number coercion, the left operand before the right, so the left operand's error or
 //! coercion error is the result when both have one. The result follows the number publication
 //! rule: an overflow is #NUM! and a zero is +0.
+//!
+//! A product or quotient below the normal range is +0 (dc-b1l, measured in Excel 16.0.20430 on
+//! 2026-10-25: `=2.2250738585073E-308/2`, `=POWER(2,-1022)*0.5`, `=POWER(2,-1000)*POWER(2,-52)`,
+//! `=-POWER(2,-1022)/2` and `=(POWER(2,-1022)*1.5)/2` are all 0, and
+//! `=POWER(2,-1022)-POWER(2,-1022)*0.75` is 2^-1022, its product having been 0). A sum or
+//! difference below it is not: `=POWER(2,-1022)*(1+POWER(2,-52))-POWER(2,-1022)` is 2^-1074 in
+//! Excel, which the number rule still refuses.
 
 use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
@@ -57,14 +64,20 @@ fn times(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    binary(TIMES, arguments, services, Site::multiply)
+    binary(TIMES, arguments, services, |site, a, b| Ok(flushed(site.multiply(a, b)?)))
 }
 
 fn divide(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
-    binary(DIVIDE, arguments, services, Site::divide)
+    binary(DIVIDE, arguments, services, |site, a, b| Ok(flushed(site.divide(a, b)?)))
+}
+
+/// A product or quotient as Excel publishes it: +0 below the normal range (see the module
+/// documentation).
+fn flushed(x: f64) -> f64 {
+    if x.is_subnormal() { 0.0 } else { x }
 }
 
 fn power(

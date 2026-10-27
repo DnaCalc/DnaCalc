@@ -195,6 +195,16 @@ fn dc_dxm__recalculating_after_every_edit_matches_a_fresh_open() {
 /// of at least one formula taking the parallel route when it may, against the fresh open on one
 /// thread. The package is a new workbook (no array formula, which keeps a recalculation on one
 /// thread), and column H holds numbers in place of the spill. On wasm32 both run on one thread.
+/// dc-dxm: the D1 differential, with its SEQUENCE spill blocked, released and reshaped, on four
+/// threads, every recalculation of at least one formula taking the parallel route when it may
+/// (array formulas evaluated on the calling thread at their places in the order), against the
+/// fresh open on one thread. On wasm32 both run on one thread.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_dxm__recalculating_with_spills_on_four_threads_matches_a_fresh_open() {
+    differential(&fixture(), "Calc", true, 4);
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn dc_2m0__recalculating_on_four_threads_matches_a_fresh_open() {
