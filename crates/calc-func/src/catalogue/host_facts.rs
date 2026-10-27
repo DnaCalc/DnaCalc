@@ -26,14 +26,14 @@ use crate::call::EvalServices;
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::address;
-use crate::value::{CalcArray, CalcValue, CellKey, CoreValue, ReferenceLike, WorksheetErrorCode};
+use crate::value::{CalcArray, CalcValue, CellKey, CoreRef, ReferenceLike, WorksheetErrorCode};
 
 const CODE: u16 = 204;
 
 /// The first cell of a reference argument.
 fn first_cell(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<CellKey> {
-    match a[index].core() {
-        CoreValue::Reference(reference) => Ok(reference.areas()[0].first()),
+    match a[index].core_ref() {
+        CoreRef::Reference(reference) => Ok(reference.areas()[0].first()),
         _ => Err(site.not_modelled(Some(index))),
     }
 }
@@ -90,9 +90,9 @@ fn cell(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Cal
         "contents" => cell_value(site, at, 1, sv),
         "type" => {
             let value = cell_value(site, at, 1, sv)?;
-            let kind = match value.core() {
-                CoreValue::Empty | CoreValue::Missing => "b",
-                CoreValue::Text(_) => "l",
+            let kind = match value.core_ref() {
+                CoreRef::Empty | CoreRef::Missing => "b",
+                CoreRef::Text(_) => "l",
                 _ => "v",
             };
             Ok(crate::catalogue::kit::text_value(kind))
@@ -121,8 +121,8 @@ fn fieldvalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     if a.iter().any(CalcValue::is_missing) {
         return Err(site.not_modelled(None));
     }
-    match a[1].core() {
-        CoreValue::Error(code) => fail(*code),
+    match a[1].core_ref() {
+        CoreRef::Error(code) => fail(code),
         _ => fail(WorksheetErrorCode::Field),
     }
 }
@@ -131,10 +131,10 @@ fn sheet(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<Ca
     let sheet = if a.is_empty() || a[0].is_missing() {
         sv.host().and_then(|host| host.caller()).map(|cell| cell.sheet())
     } else {
-        match a[0].core() {
-            CoreValue::Reference(reference) => Some(reference.sheet()),
-            CoreValue::Error(code) => return fail(*code),
-            CoreValue::Text(text) => {
+        match a[0].core_ref() {
+            CoreRef::Reference(reference) => Some(reference.sheet()),
+            CoreRef::Error(code) => return fail(code),
+            CoreRef::Text(text) => {
                 let name = text.to_string_lossy();
                 match sv.host() {
                     Some(host) => match host.sheet_named(&name) {
@@ -159,7 +159,7 @@ fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     if !a.is_empty() && !a[0].is_missing() {
         // The sheets the reference spans: one, or each sheet of a 3-D reference (L3, dc-m3u;
         // Excel 16.0, 2026-10-23: `=SHEETS(Ja:Ma!A1)` is 3).
-        if let CoreValue::Reference(reference) = a[0].core() {
+        if let CoreRef::Reference(reference) = a[0].core_ref() {
             let mut sheets: Vec<_> = reference.areas().iter().map(|area| area.sheet()).collect();
             sheets.sort();
             sheets.dedup();
@@ -168,8 +168,8 @@ fn sheets(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
         // A value that is no reference is #N/A, an error value the result (Excel 16.0.20430,
         // 2026-10-25, dc-6au: `=SHEETS(1)`, `=SHEETS("a")`, `=SHEETS({1,2})` and
         // `=SHEETS(A1:A3*1)` are #N/A, `=SHEETS(#REF!)` #REF!).
-        return match a[0].core() {
-            CoreValue::Error(code) => fail(*code),
+        return match a[0].core_ref() {
+            CoreRef::Error(code) => fail(code),
             _ => fail(WorksheetErrorCode::NA),
         };
     }
@@ -216,9 +216,9 @@ fn address_fn(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         1
     };
     let a1 = if given(3) {
-        match a[3].core() {
-            CoreValue::Logical(b) => *b,
-            CoreValue::Text(_) => site.argument(3, coerce::logical(&a[3]))?,
+        match a[3].core_ref() {
+            CoreRef::Logical(b) => b,
+            CoreRef::Text(_) => site.argument(3, coerce::logical(&a[3]))?,
             _ => num(site, a, 3)? != 0.0,
         }
     } else {
@@ -248,7 +248,7 @@ fn transpose(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
         for r in 0..g.rows {
             let value = g.cells[r * g.cols + c].clone();
             // A blank cell transposes as 0, as an array formula over a blank cell gives.
-            row.push(if matches!(value.core(), CoreValue::Empty) {
+            row.push(if matches!(value.core_ref(), CoreRef::Empty) {
                 CalcValue::number(0.0)
             } else {
                 value

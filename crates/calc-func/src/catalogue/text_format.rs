@@ -14,7 +14,7 @@ use crate::format::{self, Failure};
 use crate::locale::{CalcEnvironment, FormatProfile};
 use crate::coerce::{self, Numeric};
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 use crate::value_text::{self, ReadContext, Reading, Unread};
 
 const CODE: u16 = 202;
@@ -28,8 +28,8 @@ fn refused(site: &Site<'_>) -> Step<CalcValue> {
 /// ([`crate::value_text`]): #VALUE! for text the grammar does not read and for a value that is
 /// not text; an error is the result; refused without a profile.
 pub(super) fn read_value(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<Reading> {
-    match a[index].core() {
-        CoreValue::Text(text) => {
+    match a[index].core_ref() {
+        CoreRef::Text(text) => {
             let environment = site.environment().ok_or_else(|| site.not_modelled(None))?;
             let profile = environment
                 .profile
@@ -45,7 +45,7 @@ pub(super) fn read_value(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step
                 Unread::NotModelled => site.not_modelled(Some(index)),
             })
         }
-        CoreValue::Error(code) => fail(*code),
+        CoreRef::Error(code) => fail(code),
         _ if a[index].callable_value().is_some() => Err(site.not_modelled(Some(index))),
         _ => fail(WorksheetErrorCode::Value),
     }
@@ -54,12 +54,12 @@ pub(super) fn read_value(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step
 /// VALUE: a number as it is, a blank as 0, a logical #VALUE!, text read as number text, a date
 /// or a time.
 fn value(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
-    match a[0].core() {
-        CoreValue::Number(_) | CoreValue::Empty | CoreValue::Missing => {
+    match a[0].core_ref() {
+        CoreRef::Number(_) | CoreRef::Empty | CoreRef::Missing => {
             site.number(site.number_argument(0, &a[0])?)
         }
-        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
-        CoreValue::Text(_) => {
+        CoreRef::Logical(_) => fail(WorksheetErrorCode::Value),
+        CoreRef::Text(_) => {
             if let Ok(Numeric::Decimal(decimal)) = coerce::number(&a[0]) {
                 return site.number(site.argument(0, decimal.nearest())?);
             }
@@ -93,13 +93,13 @@ fn rendered(site: &Site<'_>, result: Result<String, Failure>) -> Step<CalcValue>
 fn text(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let (environment, profile) = profile(site)?;
     let code = text_arg(site, a, 1)?.to_string_lossy();
-    let number = match a[0].core() {
-        CoreValue::Number(_) | CoreValue::Empty | CoreValue::Missing => {
+    let number = match a[0].core_ref() {
+        CoreRef::Number(_) | CoreRef::Empty | CoreRef::Missing => {
             site.number_argument(0, &a[0])?
         }
-        CoreValue::Error(code) => return fail(*code),
-        CoreValue::Logical(_) | CoreValue::Text(_) => {
-            let as_number = if matches!(a[0].core(), CoreValue::Text(_)) {
+        CoreRef::Error(code) => return fail(code),
+        CoreRef::Logical(_) | CoreRef::Text(_) => {
+            let as_number = if matches!(a[0].core_ref(), CoreRef::Text(_)) {
                 match site.number_argument(0, &a[0]) {
                     Ok(n) => Some(n),
                     Err(Exit::Error(WorksheetErrorCode::Value)) => None,
@@ -182,7 +182,7 @@ fn delimiters(
     let g = grid(site, a, index, sv)?;
     let mut out = Vec::with_capacity(g.cells.len());
     for value in &g.cells {
-        if matches!(value.core(), CoreValue::Array(_) | CoreValue::Reference(_)) {
+        if matches!(value.core_ref(), CoreRef::Array(_) | CoreRef::Reference(_)) {
             return Err(site.not_modelled(Some(index)));
         }
         let units = site.argument(index, coerce::text(value))?;
@@ -247,7 +247,7 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
     let pad = match a.get(5) {
         None => CalcValue::error(WorksheetErrorCode::NA),
         Some(value) if value.is_missing() => CalcValue::error(WorksheetErrorCode::NA),
-        Some(value) if matches!(value.core(), CoreValue::Empty) => CalcValue::number(0.0),
+        Some(value) if matches!(value.core_ref(), CoreRef::Empty) => CalcValue::number(0.0),
         Some(value) => value.clone(),
     };
     let mut row_texts = match &rows_by {
@@ -279,16 +279,16 @@ fn textsplit(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Ste
 
 /// A value's text as VALUETOTEXT and ARRAYTOTEXT write it, concise or strict (text quoted).
 fn value_text(site: &Site<'_>, index: usize, value: &CalcValue, strict: bool) -> Step<String> {
-    Ok(match value.core() {
-        CoreValue::Number(_) => {
+    Ok(match value.core_ref() {
+        CoreRef::Number(_) => {
             String::from_utf16_lossy(&site.argument(index, coerce::text(value))?)
         }
-        CoreValue::Text(t) if strict => format!("\"{}\"", t.to_string_lossy().replace('"', "\"\"")),
-        CoreValue::Text(t) => t.to_string_lossy(),
-        CoreValue::Logical(b) => if *b { "TRUE" } else { "FALSE" }.to_owned(),
-        CoreValue::Error(code) => k::error_literal(*code).to_owned(),
-        CoreValue::Empty | CoreValue::Missing => String::new(),
-        CoreValue::Array(_) | CoreValue::Reference(_) => return Err(site.not_modelled(Some(index))),
+        CoreRef::Text(t) if strict => format!("\"{}\"", t.to_string_lossy().replace('"', "\"\"")),
+        CoreRef::Text(t) => t.to_string_lossy(),
+        CoreRef::Logical(b) => if b { "TRUE" } else { "FALSE" }.to_owned(),
+        CoreRef::Error(code) => k::error_literal(code).to_owned(),
+        CoreRef::Empty | CoreRef::Missing => String::new(),
+        CoreRef::Array(_) | CoreRef::Reference(_) => return Err(site.not_modelled(Some(index))),
     })
 }
 
@@ -302,8 +302,8 @@ fn arraytotext(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> S
     // An array that is one error value is the result; an error inside an array is shown (Excel
     // 16.0.20430, 2026-10-25, dc-6au: `=ARRAYTOTEXT(#REF!)` #REF!, `=ARRAYTOTEXT(#DIV/0!,1)`
     // #DIV/0!, `=ARRAYTOTEXT({1,#N/A})` "1, #N/A").
-    if let CoreValue::Error(code) = a[0].core() {
-        return fail(*code);
+    if let CoreRef::Error(code) = a[0].core_ref() {
+        return fail(code);
     }
     let strict = binary_flag(site, a, 1)?;
     let g = grid(site, a, 0, sv)?;
@@ -467,9 +467,9 @@ fn phonetic(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step
 fn hyperlink(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
     let location = text_arg(site, a, 0)?;
     match a.get(1) {
-        Some(value) if !value.is_missing() => match value.core() {
-            CoreValue::Empty => Ok(CalcValue::number(0.0)),
-            CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(1))),
+        Some(value) if !value.is_missing() => match value.core_ref() {
+            CoreRef::Empty => Ok(CalcValue::number(0.0)),
+            CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(1))),
             _ if value.callable_value().is_some() => Err(site.not_modelled(Some(1))),
             _ => Ok(value.clone()),
         },

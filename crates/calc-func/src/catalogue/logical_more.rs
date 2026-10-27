@@ -13,7 +13,7 @@
 
 use super::comparison::{Want, order};
 use super::kit::{fail, flag};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 use std::cmp::Ordering;
 
 const CODE: u16 = 201;
@@ -40,8 +40,8 @@ ported_family! {
         fail(WorksheetErrorCode::NA)
     }
     2 switch "SWITCH" (3, 254) [V "expression", V "value1", V "result1"] |s, a, sv| {
-        if let CoreValue::Error(code) = a[0].core() {
-            return fail(*code);
+        if let CoreRef::Error(code) = a[0].core_ref() {
+            return fail(code);
         }
         let has_default = a.len() % 2 == 0;
         let cases = if has_default { a.len() - 1 } else { a.len() };

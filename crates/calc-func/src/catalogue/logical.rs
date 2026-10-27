@@ -30,7 +30,7 @@ use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation
 use crate::call::{EagerKernel, EvalServices, FunctionFault, LazyArguments};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CallableArityShape, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
 
 const CODE: u16 = 5;
 
@@ -200,22 +200,22 @@ fn tally(site: &Site<'_>, arguments: &[CalcValue], services: &mut EvalServices<'
     };
     for (index, argument) in arguments.iter().enumerate() {
         if !matches!(
-            argument.core(),
-            CoreValue::Reference(_) | CoreValue::Array(_)
+            argument.core_ref(),
+            CoreRef::Reference(_) | CoreRef::Array(_)
         ) {
             take(direct(site, index, argument)?);
         }
     }
     for (index, argument) in arguments.iter().enumerate() {
-        match argument.core() {
-            CoreValue::Reference(reference) => {
+        match argument.core_ref() {
+            CoreRef::Reference(reference) => {
                 let cells = reader(site, services, index)?;
                 read_reference(site, cells, reference, index, &mut |_, _, value| {
                     take(held(site, index, value)?);
                     Ok(())
                 })?;
             }
-            CoreValue::Array(array) => {
+            CoreRef::Array(array) => {
                 for element in array.iter_row_major() {
                     take(held(site, index, element)?);
                 }
@@ -229,15 +229,15 @@ fn tally(site: &Site<'_>, arguments: &[CalcValue], services: &mut EvalServices<'
 /// A direct argument, at `index`, as a logical, or `None` when it is skipped.
 fn direct(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<bool>> {
     not_callable(site, index, value)?;
-    match value.core() {
-        CoreValue::Number(n) => site
-            .argument(index, coerce::operand(*n))
+    match value.core_ref() {
+        CoreRef::Number(n) => site
+            .argument(index, coerce::operand(n))
             .map(|n| Some(n != 0.0)),
-        CoreValue::Logical(b) => Ok(Some(*b)),
-        CoreValue::Text(text) => Ok(coerce::spelled_logical(text)),
-        CoreValue::Missing | CoreValue::Empty => Ok(Some(false)),
-        CoreValue::Error(code) => Err(Exit::Error(*code)),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+        CoreRef::Logical(b) => Ok(Some(b)),
+        CoreRef::Text(text) => Ok(coerce::spelled_logical(text)),
+        CoreRef::Missing | CoreRef::Empty => Ok(Some(false)),
+        CoreRef::Error(code) => Err(Exit::Error(code)),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }
 
@@ -245,14 +245,14 @@ fn direct(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<bool>
 /// skipped.
 fn held(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<bool>> {
     not_callable(site, index, value)?;
-    match value.core() {
-        CoreValue::Number(n) => site
-            .argument(index, coerce::operand(*n))
+    match value.core_ref() {
+        CoreRef::Number(n) => site
+            .argument(index, coerce::operand(n))
             .map(|n| Some(n != 0.0)),
-        CoreValue::Logical(b) => Ok(Some(*b)),
-        CoreValue::Text(_) | CoreValue::Empty | CoreValue::Missing => Ok(None),
-        CoreValue::Error(code) => Err(Exit::Error(*code)),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+        CoreRef::Logical(b) => Ok(Some(b)),
+        CoreRef::Text(_) | CoreRef::Empty | CoreRef::Missing => Ok(None),
+        CoreRef::Error(code) => Err(Exit::Error(code)),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }
 

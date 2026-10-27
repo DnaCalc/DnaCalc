@@ -29,7 +29,7 @@ use crate::call::{CellReader, EagerKernel, EvalServices, FunctionFault, Unreadab
 use crate::coerce::{self, Numeric, Stop};
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CallableArityShape, CellKey, CoreValue, GridArea, ReferenceLike, WorksheetErrorCode,
+    CalcValue, CallableArityShape, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
 use std::ops::ControlFlow;
 
@@ -138,8 +138,8 @@ fn sum(
 fn direct_first(site: &Site<'_>, arguments: &[CalcValue]) -> Step<()> {
     for (index, argument) in arguments.iter().enumerate() {
         if !matches!(
-            argument.core(),
-            CoreValue::Reference(_) | CoreValue::Array(_)
+            argument.core_ref(),
+            CoreRef::Reference(_) | CoreRef::Array(_)
         ) {
             site.number_argument(index, argument)?;
         }
@@ -283,11 +283,11 @@ fn counts_as_number(
     origin: Origin,
     value: &CalcValue,
 ) -> Step<bool> {
-    match (origin, value.core()) {
-        (_, CoreValue::Number(n)) => finite(site, index, *n).map(|()| true),
-        (Origin::Direct, CoreValue::Logical(_) | CoreValue::Empty | CoreValue::Missing) => Ok(true),
+    match (origin, value.core_ref()) {
+        (_, CoreRef::Number(n)) => finite(site, index, n).map(|()| true),
+        (Origin::Direct, CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing) => Ok(true),
         // Whether the text reads as a number decides; its value is not used, so nothing rounds.
-        (Origin::Direct, CoreValue::Text(_)) => match coerce::number(value) {
+        (Origin::Direct, CoreRef::Text(_)) => match coerce::number(value) {
             Ok(Numeric::Decimal(decimal)) => match decimal.nearest() {
                 Ok(_) => Ok(true),
                 // Decimal text beyond the range Excel reads is no number, not an error.
@@ -298,9 +298,9 @@ fn counts_as_number(
             Err(Stop::Error(_)) => Ok(false),
             Err(stop) => Err(site.stop(stop, Some(index))),
         },
-        (_, CoreValue::Array(_) | CoreValue::Reference(_)) => Err(site.not_modelled(Some(index))),
-        (_, CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Error(_))
-        | (Origin::Held, CoreValue::Empty | CoreValue::Missing) => Ok(false),
+        (_, CoreRef::Array(_) | CoreRef::Reference(_)) => Err(site.not_modelled(Some(index))),
+        (_, CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_))
+        | (Origin::Held, CoreRef::Empty | CoreRef::Missing) => Ok(false),
     }
 }
 
@@ -314,14 +314,14 @@ fn counta(
     let site = Site::new(COUNTA, services);
     let mut counted = 0u64;
     let read = each_value(&site, arguments, services, &mut |index, origin, value| {
-        match (origin, value.core()) {
-            (_, CoreValue::Number(n)) => finite(&site, index, *n)?,
-            (Origin::Held, CoreValue::Empty | CoreValue::Missing) => return Ok(()),
-            (_, CoreValue::Array(_) | CoreValue::Reference(_)) => {
+        match (origin, value.core_ref()) {
+            (_, CoreRef::Number(n)) => finite(&site, index, n)?,
+            (Origin::Held, CoreRef::Empty | CoreRef::Missing) => return Ok(()),
+            (_, CoreRef::Array(_) | CoreRef::Reference(_)) => {
                 return Err(site.not_modelled(Some(index)));
             }
-            (_, CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Error(_))
-            | (Origin::Direct, CoreValue::Empty | CoreValue::Missing) => {}
+            (_, CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_))
+            | (Origin::Direct, CoreRef::Empty | CoreRef::Missing) => {}
         }
         counted += 1;
         Ok(())
@@ -356,7 +356,7 @@ fn blanks(
     argument: &CalcValue,
     services: &mut EvalServices<'_>,
 ) -> Step<CalcValue> {
-    let CoreValue::Reference(reference) = argument.core() else {
+    let CoreRef::Reference(reference) = argument.core_ref() else {
         return Err(Exit::Fault(FunctionFault::ReferenceRequired {
             id: site.id(),
             index: 0,
@@ -368,9 +368,9 @@ fn blanks(
     let cells = reader(site, services, 0)?;
     let mut held = 0u64;
     read_reference(site, cells, reference, 0, &mut |_, _, value| {
-        let blank = match value.core() {
-            CoreValue::Empty | CoreValue::Missing => true,
-            CoreValue::Text(text) => text.len_utf16_code_units() == 0,
+        let blank = match value.core_ref() {
+            CoreRef::Empty | CoreRef::Missing => true,
+            CoreRef::Text(text) => text.len_utf16_code_units() == 0,
             _ => false,
         };
         held += u64::from(!blank);
@@ -458,8 +458,8 @@ fn factor(
     services: &mut EvalServices<'_>,
 ) -> Step<Factor> {
     let entry = |value: &CalcValue| number_of(site, Held::Numbers, index, Origin::Held, value);
-    match argument.core() {
-        CoreValue::Reference(reference) => {
+    match argument.core_ref() {
+        CoreRef::Reference(reference) => {
             let [area] = reference.areas() else {
                 return Err(site.not_modelled(Some(index)));
             };
@@ -488,7 +488,7 @@ fn factor(
                 numbers,
             })
         }
-        CoreValue::Array(array) => {
+        CoreRef::Array(array) => {
             let mut numbers = Vec::new();
             for (offset, element) in array.iter_row_major().enumerate() {
                 if let Some(n) = entry(element)? {
@@ -502,8 +502,8 @@ fn factor(
                 numbers,
             })
         }
-        CoreValue::Empty | CoreValue::Missing => Err(Exit::Error(WorksheetErrorCode::Value)),
-        CoreValue::Number(_) | CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Error(_) => {
+        CoreRef::Empty | CoreRef::Missing => Err(Exit::Error(WorksheetErrorCode::Value)),
+        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => {
             Ok(Factor {
                 rows: 1,
                 columns: 1,
@@ -555,14 +555,14 @@ pub(super) fn number_of(
     if origin == Origin::Direct {
         return site.number_argument(index, value).map(Some);
     }
-    match (held, value.core()) {
-        (_, CoreValue::Number(n)) => site.argument(index, coerce::operand(*n)).map(Some),
-        (_, CoreValue::Error(code)) => Err(Exit::Error(*code)),
-        (Held::Values, CoreValue::Text(_)) => Ok(Some(0.0)),
-        (Held::Values, CoreValue::Logical(b)) => Ok(Some(if *b { 1.0 } else { 0.0 })),
-        (Held::Numbers, CoreValue::Text(_) | CoreValue::Logical(_))
-        | (_, CoreValue::Empty | CoreValue::Missing) => Ok(None),
-        (_, CoreValue::Array(_) | CoreValue::Reference(_)) => Err(site.not_modelled(Some(index))),
+    match (held, value.core_ref()) {
+        (_, CoreRef::Number(n)) => site.argument(index, coerce::operand(n)).map(Some),
+        (_, CoreRef::Error(code)) => Err(Exit::Error(code)),
+        (Held::Values, CoreRef::Text(_)) => Ok(Some(0.0)),
+        (Held::Values, CoreRef::Logical(b)) => Ok(Some(if b { 1.0 } else { 0.0 })),
+        (Held::Numbers, CoreRef::Text(_) | CoreRef::Logical(_))
+        | (_, CoreRef::Empty | CoreRef::Missing) => Ok(None),
+        (_, CoreRef::Array(_) | CoreRef::Reference(_)) => Err(site.not_modelled(Some(index))),
     }
 }
 
@@ -595,14 +595,14 @@ pub(super) fn each_value(
     visit: &mut dyn FnMut(usize, Origin, &CalcValue) -> Step<()>,
 ) -> Step<()> {
     for (index, argument) in arguments.iter().enumerate() {
-        match argument.core() {
-            CoreValue::Reference(reference) => {
+        match argument.core_ref() {
+            CoreRef::Reference(reference) => {
                 let cells = reader(site, services, index)?;
                 read_reference(site, cells, reference, index, &mut |_, _, value| {
                     visit(index, Origin::Held, value)
                 })?;
             }
-            CoreValue::Array(array) => {
+            CoreRef::Array(array) => {
                 for element in array.iter_row_major() {
                     visit(index, Origin::Held, element)?;
                 }

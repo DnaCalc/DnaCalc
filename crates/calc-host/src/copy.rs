@@ -33,7 +33,7 @@
 
 use crate::command::CellEdit;
 use crate::state::HostState;
-use calc_doc_model::value::{CalcValue, CellKey, CoreValue, GridArea};
+use calc_doc_model::value::{CalcValue, CellKey, CoreRef, GridArea};
 use calc_doc_model::{ArrayFormula, ArrayKind, CellInput, CellText, FiniteNumber};
 use std::collections::BTreeSet;
 use std::fmt;
@@ -113,11 +113,11 @@ fn offset(
 /// A value as the input a cell holds for it (a spilled cell copied as its value); `None` for a
 /// value no cell holds as an input (an array, a reference, an empty value).
 fn value_input(value: &CalcValue) -> Option<CellInput> {
-    Some(match value.core() {
-        CoreValue::Number(number) => CellInput::Number(FiniteNumber::new(*number)?),
-        CoreValue::Text(text) => CellInput::Text(CellText::new(text.clone())?),
-        CoreValue::Logical(logical) => CellInput::Logical(*logical),
-        CoreValue::Error(code) => CellInput::Error(*code),
+    Some(match value.core_ref() {
+        CoreRef::Number(number) => CellInput::Number(FiniteNumber::new(number)?),
+        CoreRef::Text(text) => CellInput::Text(CellText::new(text.clone())?),
+        CoreRef::Logical(logical) => CellInput::Logical(logical),
+        CoreRef::Error(code) => CellInput::Error(code),
         _ => return None,
     })
 }

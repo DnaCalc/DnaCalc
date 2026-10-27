@@ -15,7 +15,7 @@ use crate::call::{EagerKernel, EvalServices};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcArray, CalcValue, CallableArityShape, CoreValue, ExcelText, WorksheetErrorCode,
+    CalcArray, CalcValue, CallableArityShape, CoreRef, ExcelText, WorksheetErrorCode,
 };
 
 /// A value parameter: the caller dereferences a reference first.
@@ -99,7 +99,7 @@ macro_rules! ported_family {
 pub(super) fn scalars(site: &Site<'_>, arguments: &[CalcValue], parameters: &[Parameter]) -> Step<()> {
     let last = parameters.len().saturating_sub(1);
     for (index, argument) in arguments.iter().enumerate() {
-        if matches!(argument.core(), CoreValue::Array(_))
+        if matches!(argument.core_ref(), CoreRef::Array(_))
             && parameters.get(index.min(last)).map(|p| p.class) == Some(ParameterClass::Value)
         {
             return Err(site.not_modelled(Some(index)));
@@ -259,8 +259,8 @@ pub(super) fn grid(
     services: &mut EvalServices<'_>,
 ) -> Step<Grid> {
     let argument = &arguments[index];
-    match argument.core() {
-        CoreValue::Reference(reference) => {
+    match argument.core_ref() {
+        CoreRef::Reference(reference) => {
             let [area] = reference.areas() else {
                 return Err(site.not_modelled(Some(index)));
             };
@@ -284,7 +284,7 @@ pub(super) fn grid(
                 held: true,
             })
         }
-        CoreValue::Array(array) => {
+        CoreRef::Array(array) => {
             let shape = array.shape();
             Ok(Grid {
                 rows: shape.rows,
@@ -313,10 +313,10 @@ pub(super) fn grid_number(
     if !held {
         return site.number_argument(index, value).map(Some);
     }
-    match value.core() {
-        CoreValue::Number(n) => site.argument(index, coerce::operand(*n)).map(Some),
-        CoreValue::Error(code) => Err(Exit::Error(*code)),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+    match value.core_ref() {
+        CoreRef::Number(n) => site.argument(index, coerce::operand(n)).map(Some),
+        CoreRef::Error(code) => Err(Exit::Error(code)),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
         _ => Ok(None),
     }
 }

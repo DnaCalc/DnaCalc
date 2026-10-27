@@ -23,7 +23,7 @@ use super::kit::{fail, grid, Grid};
 use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, variance_from_values};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
 type W = WorksheetErrorCode;
 
@@ -47,9 +47,9 @@ enum Kind {
 
 /// A field label's text: text as it is; a number or a logical as their text.
 fn label(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Vec<u16>>> {
-    match value.core() {
-        CoreValue::Empty | CoreValue::Missing => Ok(None),
-        CoreValue::Error(code) => fail(*code),
+    match value.core_ref() {
+        CoreRef::Empty | CoreRef::Missing => Ok(None),
+        CoreRef::Error(code) => fail(code),
         _ => Ok(Some(
             site.argument(index, crate::coerce::text(value))?.into_owned(),
         )),
@@ -64,9 +64,9 @@ fn same_label(a: &[u16], b: &[u16]) -> bool {
 /// The database's column for a field argument.
 fn field(site: &Site<'_>, a: &[CalcValue], headers: &[Option<Vec<u16>>], optional: bool) -> Step<Option<usize>> {
     let value = &a[1];
-    match value.core() {
-        CoreValue::Missing | CoreValue::Empty if optional => Ok(None),
-        CoreValue::Text(text) => {
+    match value.core_ref() {
+        CoreRef::Missing | CoreRef::Empty if optional => Ok(None),
+        CoreRef::Text(text) => {
             let units = text.utf16_code_units();
             headers
                 .iter()
@@ -74,7 +74,7 @@ fn field(site: &Site<'_>, a: &[CalcValue], headers: &[Option<Vec<u16>>], optiona
                 .map(Some)
                 .ok_or(Exit::Error(W::Value))
         }
-        CoreValue::Error(code) => fail(*code),
+        CoreRef::Error(code) => fail(code),
         _ => {
             let n = site.number_argument(1, value)?;
             let column = n.trunc();
@@ -152,9 +152,9 @@ fn criterion_verdict(site: &Site<'_>, criterion: &Criterion, cell: &CalcValue) -
 }
 
 fn database(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, kind: Kind) -> Step<CalcValue> {
-    if !matches!(a[0].core(), CoreValue::Reference(_) | CoreValue::Array(_)) {
-        return match a[0].core() {
-            CoreValue::Error(code) => fail(*code),
+    if !matches!(a[0].core_ref(), CoreRef::Reference(_) | CoreRef::Array(_)) {
+        return match a[0].core_ref() {
+            CoreRef::Error(code) => fail(code),
             _ => fail(W::Value),
         };
     }
@@ -168,9 +168,9 @@ fn database(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, kind: K
     }
     let optional = matches!(kind, Kind::Count | Kind::CountA);
     let column = field(site, a, &headers, optional)?;
-    if !matches!(a[2].core(), CoreValue::Reference(_) | CoreValue::Array(_)) {
-        return match a[2].core() {
-            CoreValue::Error(code) => fail(*code),
+    if !matches!(a[2].core_ref(), CoreRef::Reference(_) | CoreRef::Array(_)) {
+        return match a[2].core_ref() {
+            CoreRef::Error(code) => fail(code),
             _ => fail(W::Value),
         };
     }
@@ -185,7 +185,7 @@ fn database(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, kind: K
             [] => fail(W::Value),
             [one] => {
                 let value = cell(*one).clone();
-                Ok(if matches!(value.core(), CoreValue::Empty) {
+                Ok(if matches!(value.core_ref(), CoreRef::Empty) {
                     CalcValue::number(0.0)
                 } else {
                     value
@@ -197,7 +197,7 @@ fn database(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, kind: K
     if kind == Kind::CountA {
         let mut count = 0usize;
         for &record in &records {
-            if !matches!(cell(record).core(), CoreValue::Empty | CoreValue::Missing) {
+            if !matches!(cell(record).core_ref(), CoreRef::Empty | CoreRef::Missing) {
                 count += 1;
             }
         }
@@ -205,9 +205,9 @@ fn database(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, kind: K
     }
     let mut numbers = Vec::new();
     for &record in &records {
-        match cell(record).core() {
-            CoreValue::Number(n) => numbers.push(site.argument(0, crate::coerce::operand(*n))?),
-            CoreValue::Error(code) => return fail(*code),
+        match cell(record).core_ref() {
+            CoreRef::Number(n) => numbers.push(site.argument(0, crate::coerce::operand(n))?),
+            CoreRef::Error(code) => return fail(code),
             _ => {}
         }
     }

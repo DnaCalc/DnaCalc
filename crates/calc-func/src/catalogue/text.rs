@@ -4,7 +4,7 @@ use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CoreValue, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText};
+use crate::value::{CalcValue, CoreRef, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText};
 
 const CODE: u16 = 3;
 
@@ -40,8 +40,8 @@ fn concatenate(
 /// whose result another operator or function reads is unmeasured.
 fn joined(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     site.scalar_operands(arguments)?;
-    if let Some(code) = arguments.iter().find_map(|argument| match argument.core() {
-        CoreValue::Error(code) => Some(*code),
+    if let Some(code) = arguments.iter().find_map(|argument| match argument.core_ref() {
+        CoreRef::Error(code) => Some(code),
         _ => None,
     }) {
         return Err(Exit::Error(code));

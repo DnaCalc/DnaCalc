@@ -20,7 +20,7 @@ use super::kit::{fail, grid};
 use crate::call::{CallAbandoned, EvalServices};
 use crate::kernel::{Site, Step};
 use crate::ported::dynamic_array_reshape_family::coerce_prepared_to_number;
-use crate::value::{ArrayShape, CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{ArrayShape, CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 
 type W = WorksheetErrorCode;
 
@@ -29,7 +29,7 @@ const CODE: u16 = 311;
 /// Argument `index` as the helper reads it: a reference to one cell as the cell's value, a larger
 /// reference as the array of its values, anything else as it is.
 fn prepared(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    if !matches!(a[index].core(), CoreValue::Reference(_)) {
+    if !matches!(a[index].core_ref(), CoreRef::Reference(_)) {
         return Ok(a[index].clone());
     }
     let g = grid(site, a, index, sv)?;
@@ -67,9 +67,9 @@ fn item(cell: &CalcValue) -> CalcValue {
     if cell.callable_value().is_some() {
         return cell.clone();
     }
-    match cell.core() {
-        CoreValue::Empty | CoreValue::Missing => CalcValue::empty(),
-        CoreValue::Array(_) | CoreValue::Reference(_) => CalcValue::error(W::Value),
+    match cell.core_ref() {
+        CoreRef::Empty | CoreRef::Missing => CalcValue::empty(),
+        CoreRef::Array(_) | CoreRef::Reference(_) => CalcValue::error(W::Value),
         _ => cell.clone(),
     }
 }
@@ -79,9 +79,9 @@ fn cell(value: CalcValue) -> Option<CalcValue> {
     if value.callable_value().is_some() {
         return Some(value);
     }
-    match value.core() {
-        CoreValue::Array(_) | CoreValue::Reference(_) => None,
-        CoreValue::Missing => Some(CalcValue::empty()),
+    match value.core_ref() {
+        CoreRef::Array(_) | CoreRef::Reference(_) => None,
+        CoreRef::Missing => Some(CalcValue::empty()),
         _ => Some(value),
     }
 }
@@ -160,8 +160,8 @@ fn by(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, columns: bool
     let f = lambda(a, 1, 1)?;
     // An array argument that is one error value is the result (Excel 16.0.20430, 2026-10-25,
     // dc-6au: `=BYCOL(#REF!,LAMBDA(x,x))` is #REF!, not the #CALC! of a LAMBDA returning a row).
-    if let CoreValue::Error(code) = source.core() {
-        return fail(*code);
+    if let CoreRef::Error(code) = source.core_ref() {
+        return fail(code);
     }
     let source = match source.as_array() {
         Some(array) if source.callable_value().is_none() => array.clone(),

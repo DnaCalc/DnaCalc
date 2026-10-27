@@ -60,7 +60,7 @@ use crate::call::{CellReader, EvalServices, FunctionFault, LazyArguments, Unread
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    ArrayShape, CalcArray, CalcValue, CallableArityShape, CellKey, CoreValue, GridArea,
+    ArrayShape, CalcArray, CalcValue, CallableArityShape, CellKey, CoreRef, GridArea,
     ReferenceLike, WorksheetErrorCode,
 };
 use std::cmp::Ordering;
@@ -268,13 +268,13 @@ impl Item<'_> {
 /// A held value as an item. A blank cell is Blank; an array or a reference held in a cell or an
 /// array, and a number that is not a worksheet number, are refused naming argument `index`.
 fn item<'v>(site: &Site<'_>, index: usize, value: &'v CalcValue) -> Step<Item<'v>> {
-    Ok(match value.core() {
-        CoreValue::Number(n) => Item::Number(site.argument(index, coerce::operand(*n))?),
-        CoreValue::Text(text) => Item::Text(text.utf16_code_units()),
-        CoreValue::Logical(b) => Item::Logical(*b),
-        CoreValue::Error(code) => Item::Error(*code),
-        CoreValue::Empty | CoreValue::Missing => Item::Blank,
-        CoreValue::Array(_) | CoreValue::Reference(_) => {
+    Ok(match value.core_ref() {
+        CoreRef::Number(n) => Item::Number(site.argument(index, coerce::operand(n))?),
+        CoreRef::Text(text) => Item::Text(text.utf16_code_units()),
+        CoreRef::Logical(b) => Item::Logical(b),
+        CoreRef::Error(code) => Item::Error(code),
+        CoreRef::Empty | CoreRef::Missing => Item::Blank,
+        CoreRef::Array(_) | CoreRef::Reference(_) => {
             return Err(site.not_modelled(Some(index)));
         }
     })
@@ -292,9 +292,9 @@ enum BlankKey {
 /// The lookup value, argument 0: its error is the result, an array is refused (Excel lifts the
 /// function over it), and a blank or omitted value reads as `blank` says.
 fn lookup_key<'v>(site: &Site<'_>, value: &'v CalcValue, blank: BlankKey) -> Step<Item<'v>> {
-    match value.core() {
-        CoreValue::Error(code) => Err(Exit::Error(*code)),
-        CoreValue::Empty | CoreValue::Missing if blank == BlankKey::Zero => Ok(Item::Number(0.0)),
+    match value.core_ref() {
+        CoreRef::Error(code) => Err(Exit::Error(code)),
+        CoreRef::Empty | CoreRef::Missing if blank == BlankKey::Zero => Ok(Item::Number(0.0)),
         _ => item(site, 0, value),
     }
 }
@@ -554,7 +554,7 @@ impl Line<'_> {
                             Err(unreadable())
                         } else {
                             next = at + 1;
-                            if matches!(value.core(), CoreValue::Empty | CoreValue::Missing) {
+                            if matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
                                 Ok(ControlFlow::Continue(()))
                             } else {
                                 visit(at, value)
@@ -580,7 +580,7 @@ impl Line<'_> {
                 for at in 0..self.len() as usize {
                     let (row, column) = if along_row { (fixed, at) } else { (at, fixed) };
                     let value = array.get(row, column).expect("a cell of the array");
-                    if matches!(value.core(), CoreValue::Empty | CoreValue::Missing) {
+                    if matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
                         continue;
                     }
                     if visit(at as u64, value)?.is_break() {
@@ -590,7 +590,7 @@ impl Line<'_> {
                 Ok(())
             }
             Line::One(value) => {
-                if !matches!(value.core(), CoreValue::Empty | CoreValue::Missing) {
+                if !matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
                     // The only cell: whether the visit breaks changes nothing.
                     let _ = visit(0, value)?;
                 }
@@ -787,8 +787,8 @@ impl<'a> Grid<'a> {
                 let value = array
                     .get(row as usize, column as usize)
                     .expect("a cell of the array");
-                Ok(match value.core() {
-                    CoreValue::Missing => CalcValue::empty(),
+                Ok(match value.core_ref() {
+                    CoreRef::Missing => CalcValue::empty(),
                     _ => value.clone(),
                 })
             }
@@ -815,15 +815,15 @@ enum Shape<'a> {
 }
 
 fn shape(value: &CalcValue, index: usize) -> Shape<'_> {
-    match value.core() {
-        CoreValue::Reference(reference) => match reference.areas() {
+    match value.core_ref() {
+        CoreRef::Reference(reference) => match reference.areas() {
             [area] => Shape::Grid(Grid::Area { area: *area, index }),
             _ => Shape::Areas,
         },
-        CoreValue::Array(array) => Shape::Grid(Grid::Array(array)),
-        CoreValue::Error(code) => Shape::Error(*code),
-        CoreValue::Empty | CoreValue::Missing => Shape::Blank,
-        CoreValue::Number(_) | CoreValue::Text(_) | CoreValue::Logical(_) => {
+        CoreRef::Array(array) => Shape::Grid(Grid::Array(array)),
+        CoreRef::Error(code) => Shape::Error(code),
+        CoreRef::Empty | CoreRef::Missing => Shape::Blank,
+        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) => {
             Shape::Grid(Grid::One(value))
         }
     }
@@ -1562,9 +1562,9 @@ fn selector(site: &Site<'_>, index: usize, value: Option<&CalcValue>) -> Step<f6
 
 fn indexed(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
     let source = &arguments[0];
-    match source.core() {
-        CoreValue::Error(code) => return Err(Exit::Error(*code)),
-        CoreValue::Empty | CoreValue::Missing => {
+    match source.core_ref() {
+        CoreRef::Error(code) => return Err(Exit::Error(code)),
+        CoreRef::Empty | CoreRef::Missing => {
             return Err(Exit::Error(WorksheetErrorCode::Value));
         }
         _ => {}
@@ -1583,8 +1583,8 @@ fn indexed(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
         return Err(value_error);
     }
     let (row, column, area_number) = (row.trunc(), column.trunc(), area_number.trunc());
-    let grid = match source.core() {
-        CoreValue::Reference(reference) => {
+    let grid = match source.core_ref() {
+        CoreRef::Reference(reference) => {
             let areas = reference.areas();
             if area_number > areas.len() as f64 {
                 return Err(ref_error());
@@ -1594,7 +1594,7 @@ fn indexed(site: &Site<'_>, arguments: &[CalcValue]) -> Step<CalcValue> {
                 index: 0,
             }
         }
-        CoreValue::Array(array) => {
+        CoreRef::Array(array) => {
             if area_number > 1.0 {
                 return Err(ref_error());
             }
@@ -1657,8 +1657,8 @@ fn select(array: &CalcArray, row: u64, column: u64) -> CalcValue {
         let value = array
             .get(row as usize - 1, column as usize - 1)
             .expect("an element of the array");
-        return match value.core() {
-            CoreValue::Missing => CalcValue::empty(),
+        return match value.core_ref() {
+            CoreRef::Missing => CalcValue::empty(),
             _ => value.clone(),
         };
     }
@@ -1702,7 +1702,7 @@ fn choose(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(CHOOSE, services);
     let selector = arguments.argument(0)?;
-    if matches!(selector.core(), CoreValue::Array(_)) {
+    if matches!(selector.core_ref(), CoreRef::Array(_)) {
         return Err(FunctionFault::NotImplemented {
             id: CHOOSE,
             argument: Some(0),
@@ -1776,9 +1776,9 @@ fn position_of(site: &Site<'_>, arguments: &[CalcValue], of_row: bool) -> Step<C
     let Some(argument) = arguments.first() else {
         return Err(site.not_modelled(None));
     };
-    let area = match argument.core() {
-        CoreValue::Error(code) => return Err(Exit::Error(*code)),
-        CoreValue::Reference(reference) => match reference.areas() {
+    let area = match argument.core_ref() {
+        CoreRef::Error(code) => return Err(Exit::Error(code)),
+        CoreRef::Reference(reference) => match reference.areas() {
             [area] => *area,
             _ => return Err(Exit::Error(WorksheetErrorCode::Ref)),
         },
@@ -1827,19 +1827,19 @@ fn columns(
 }
 
 fn extent(site: &Site<'_>, argument: &CalcValue, of_rows: bool) -> Step<CalcValue> {
-    let count = match argument.core() {
-        CoreValue::Reference(reference) => match reference.areas() {
+    let count = match argument.core_ref() {
+        CoreRef::Reference(reference) => match reference.areas() {
             [area] if of_rows => u64::from(area.row_count()),
             [area] => u64::from(area.column_count()),
             _ => return Err(Exit::Error(WorksheetErrorCode::Ref)),
         },
-        CoreValue::Array(array) => {
+        CoreRef::Array(array) => {
             let shape = array.shape();
             (if of_rows { shape.rows } else { shape.cols }) as u64
         }
-        CoreValue::Error(code) => return Err(Exit::Error(*code)),
-        CoreValue::Number(_) | CoreValue::Text(_) | CoreValue::Logical(_) => 1,
-        CoreValue::Empty | CoreValue::Missing => {
+        CoreRef::Error(code) => return Err(Exit::Error(code)),
+        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) => 1,
+        CoreRef::Empty | CoreRef::Missing => {
             return Err(Exit::Error(WorksheetErrorCode::Value));
         }
     };
@@ -1853,9 +1853,9 @@ fn areas(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(AREAS, services);
-    Site::finish(match arguments[0].core() {
-        CoreValue::Reference(reference) => site.number(reference.area_count() as f64),
-        CoreValue::Error(code) => Err(Exit::Error(*code)),
+    Site::finish(match arguments[0].core_ref() {
+        CoreRef::Reference(reference) => site.number(reference.area_count() as f64),
+        CoreRef::Error(code) => Err(Exit::Error(code)),
         _ => Err(Exit::Error(WorksheetErrorCode::Value)),
     })
 }
