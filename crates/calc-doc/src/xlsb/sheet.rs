@@ -291,7 +291,12 @@ fn write(data: &[u8], sheet: Option<u32>, shared: &Shared) -> Read<Vec<u8>> {
                 let alignment = c.u32("BrtPhoneticInfo")? & 0x3;
                 let mut attributes = vec![("fontId", font.to_string())];
                 if kind != 1 {
-                    let name = ["halfwidthKatakana", "fullwidthKatakana", "Hiragana", "noConversion"];
+                    let name = [
+                        "halfwidthKatakana",
+                        "fullwidthKatakana",
+                        "Hiragana",
+                        "noConversion",
+                    ];
                     attributes.push(("type", name[kind as usize].to_owned()));
                 }
                 if alignment != 1 {
@@ -1559,7 +1564,7 @@ impl Rule {
                 BRT_BEGIN_COLOR_SCALE => {
                     x.open("colorScale", &[]);
                     for value in &self.values {
-                        x.empty("cfvo", value);
+                        x.empty("cfvo", &without_gte(value));
                     }
                     for color in &self.colors {
                         x.empty("color", color);
@@ -1582,7 +1587,7 @@ impl Rule {
                     }
                     x.open("dataBar", &attributes);
                     for value in &self.values {
-                        x.empty("cfvo", value);
+                        x.empty("cfvo", &without_gte(value));
                     }
                     for color in &self.colors {
                         x.empty("color", color);
@@ -1616,6 +1621,16 @@ impl Rule {
         x.close("cfRule");
         Ok(())
     }
+}
+
+/// A threshold's attributes without `gte`, which only an icon set's thresholds hold (BrtCFVO's
+/// fGTE is ignored for a colour scale or a data bar).
+fn without_gte(value: &[(&'static str, String)]) -> Vec<(&'static str, String)> {
+    value
+        .iter()
+        .filter(|(name, _)| *name != "gte")
+        .cloned()
+        .collect()
 }
 
 /// A `<cfvo>`'s attributes from BrtCFVO (2.4.334).

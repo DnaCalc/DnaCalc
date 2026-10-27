@@ -322,8 +322,13 @@ fn reason(failure: &calc_host::OpenFailure) -> String {
 
 /// The name a saved package is written under: the workbook's stem, what was saved, and the
 /// workbook's own extension (Excel opens a macro-enabled package only under `.xlsm`).
-fn saved_name(name: &str, what: &str) -> String {
+/// A binary workbook is saved as SpreadsheetML: `.xlsm` when it is macro-enabled, `.xlsx`
+/// otherwise.
+fn saved_name(name: &str, what: &str, macros: bool) -> String {
     match name.rsplit_once('.') {
+        Some((stem, extension)) if extension.eq_ignore_ascii_case("xlsb") => {
+            format!("{stem}.{what}.{}", if macros { "xlsm" } else { "xlsx" })
+        }
         Some((stem, extension)) => format!("{stem}.{what}.{}", extension.to_ascii_lowercase()),
         None => format!("{name}.{what}.xlsx"),
     }
@@ -355,12 +360,17 @@ fn one(file: &Path, out: &Path, twins: bool) -> Result<(), String> {
                 record["twin"] = twin(file, &bytes, &host, out);
             }
             record["sheets"] = json!(host.sheets().len());
+            let macros = host.model().definitions().macro_enabled();
             record["unchanged"] = unchanged(
                 &bytes,
                 &host,
-                &packages.join(saved_name(&name, "unchanged")),
+                &packages.join(saved_name(&name, "unchanged", macros)),
             );
-            record["edited"] = edited(&bytes, &host, &packages.join(saved_name(&name, "edited")));
+            record["edited"] = edited(
+                &bytes,
+                &host,
+                &packages.join(saved_name(&name, "edited", macros)),
+            );
         }
     }
     record["total_s"] = json!(started.elapsed().as_secs_f64());
@@ -419,6 +429,30 @@ fn twin(file: &Path, bytes: &[u8], host: &HostState, out: &Path) -> Value {
     if difference.is_none() {
         difference =
             formats_difference(&twin, host, &[]).map(|detail| ("styles".to_owned(), detail));
+    }
+    if difference.is_none() {
+        difference = twin
+            .loaded()
+            .sheets()
+            .iter()
+            .zip(host.loaded().sheets())
+            .find(|(a, b)| a.conditional_formats() != b.conditional_formats())
+            .map(|(a, b)| {
+                let first = a
+                    .conditional_formats()
+                    .iter()
+                    .zip(b.conditional_formats())
+                    .find(|(x, y)| x != y);
+                (
+                    "conditional_formats".to_owned(),
+                    clip(&format!(
+                        "sheet {:?}: {} and {} blocks; first {first:?}",
+                        a.id(),
+                        a.conditional_formats().len(),
+                        b.conditional_formats().len()
+                    )),
+                )
+            });
     }
     if difference.is_none() {
         let settings = |h: &HostState| {

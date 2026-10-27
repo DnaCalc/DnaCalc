@@ -152,6 +152,19 @@ impl Workbook {
         &self.name
     }
 
+    /// The name a save is offered under: the workbook's, but an Excel binary workbook's (`.xlsb`),
+    /// which is saved as SpreadsheetML (dc-5sr), with `.xlsm` when it is macro-enabled and
+    /// `.xlsx` otherwise.
+    pub fn save_name(&self) -> String {
+        match self.name.rsplit_once('.') {
+            Some((stem, extension)) if extension.eq_ignore_ascii_case("xlsb") => {
+                let macros = self.host().model().definitions().macro_enabled();
+                format!("{stem}.{}", if macros { "xlsm" } else { "xlsx" })
+            }
+            _ => self.name.clone(),
+        }
+    }
+
     /// Whether an edit committed since the workbook was opened or last saved.
     pub fn changed(&self) -> bool {
         self.changed

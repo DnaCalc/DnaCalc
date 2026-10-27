@@ -1,4 +1,5 @@
-//! The package for the CalcDoc codec: reading, writing and preserving .xlsx/.xlsm packages (ZIP/XML).
+//! The package for the CalcDoc codec: reading, writing and preserving .xlsx/.xlsm packages (ZIP/XML),
+//! and reading .xlsb packages as the .xlsx they stand for.
 //!
 //! [`model`] re-exports calc-doc-model, the engine-neutral authored model and operation codec this
 //! codec reads into and writes from.
@@ -13,7 +14,9 @@
 //!   document type declarations (and so every declared entity), declared or actual sizes past
 //!   the limits, a compressed payload larger than its declared size allows (refused before the
 //!   part read reads any of it; open still streams it for its CRC) and bytes after a payload's
-//!   final DEFLATE block are typed refusals.
+//!   final DEFLATE block are typed refusals. An Excel binary workbook (.xlsb) is converted, as
+//!   it is opened, into the SpreadsheetML package it stands for ([`convert_binary_workbook`]),
+//!   which everything after reads and a save writes.
 //! - [`load`] reads an opened package's workbook: its sheets, from the workbook part and its
 //!   relationships, and each worksheet's cells (numbers, shared and inline strings, logicals,
 //!   errors and formulas, a shared formula's members each with its own text) into a

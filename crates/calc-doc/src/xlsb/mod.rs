@@ -226,12 +226,8 @@ pub(crate) fn convert(package: &Package, workbook: &str) -> Result<Vec<u8>, Open
             continue;
         }
         let kind = match part.content_type() {
-            Some(content_type) => kind_of(content_type).map_err(|other| {
-                refusal(
-                    name,
-                    format!("a part of the content type {other}"),
-                )
-            })?,
+            Some(content_type) => kind_of(content_type)
+                .map_err(|other| refusal(name, format!("a part of the content type {other}")))?,
             None => Kind::Kept,
         };
         kinds.insert(name.to_owned(), kind);

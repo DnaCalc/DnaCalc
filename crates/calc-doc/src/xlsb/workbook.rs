@@ -213,7 +213,10 @@ pub(crate) fn read(
                 BRT_FILE_SHARING => {
                     let read_only = c.u16("BrtFileSharing")? != 0;
                     let password = c.u16("BrtFileSharing")?;
-                    let user = text(&c.wide("BrtFileSharing")?);
+                    let user = c
+                        .nullable_wide("BrtFileSharing")?
+                        .map(|u| text(&u))
+                        .unwrap_or_default();
                     book.sharing = Some((read_only, password, user));
                 }
                 BRT_SUP_SELF => book.links.push(Link::This),

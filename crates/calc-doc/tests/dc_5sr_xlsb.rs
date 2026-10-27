@@ -97,6 +97,14 @@ fn difference(a: &LoadedWorkbook, b: &LoadedWorkbook) -> Option<String> {
         if m != n {
             return Some(format!("styled cells of {:?}", s.id()));
         }
+        if s.conditional_formats() != t.conditional_formats() {
+            return Some(format!(
+                "conditional formats of {:?}: {:?} and {:?}",
+                s.id(),
+                s.conditional_formats(),
+                t.conditional_formats()
+            ));
+        }
         if s.geometry() != t.geometry() {
             return Some(format!(
                 "geometry of {:?}: {:?} and {:?}",
