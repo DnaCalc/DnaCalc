@@ -435,7 +435,7 @@ impl<'a, 'r> Pass<'a, 'r> {
                 (XmlEvent::Start(element), tag) => {
                     let end = self.reader.element_end()?;
                     let local = (element.name.namespace.as_deref() == Some(MAIN_NAMESPACE))
-                        .then(|| element.name.local.clone());
+                        .then(|| element.name.local.to_string());
                     children.push(Child {
                         local,
                         element,

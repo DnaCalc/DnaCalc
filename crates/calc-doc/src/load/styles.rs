@@ -221,7 +221,7 @@ pub(crate) fn read_styles(package: &Package, part: &str) -> Result<StyleTable, L
                 }
             }
             XmlEvent::Start(element) => {
-                let local = element.name.local.clone();
+                let local = String::from(element.name.local.clone());
                 let parent = path.last().map(String::as_str);
                 // The innermost open item, which a child element adds to.
                 let current = open.iter_mut().rev().flatten().next();

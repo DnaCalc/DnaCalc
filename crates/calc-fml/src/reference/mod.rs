@@ -42,7 +42,7 @@ pub use read::{
     read_cells,
 };
 pub use structured::{TableInfo, TableLookup};
-pub use template::template_key;
+pub use template::{template_key, template_key_of_chars};
 pub use transform::{
     EditAxis, StructuralEdit, convert_notation, transform_formula, transform_name,
 };
