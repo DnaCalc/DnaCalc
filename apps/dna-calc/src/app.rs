@@ -16,6 +16,9 @@
 //! deck, the inspector and registry rails, and the profile badge.
 
 use crate::atlas::AtlasSkin;
+use crate::canvas::CanvasSkin;
+use crate::ledger::LedgerSkin;
+use crate::tree::TreeSkin;
 use crate::cells;
 use crate::controller::{Controller, EditOrigin};
 use crate::grid::{self, GridSkin};
@@ -58,6 +61,9 @@ pub fn registry() -> SkinRegistry {
         .with_skin(Arc::new(GridSkin))
         .with_skin(Arc::new(NotebookSkin))
         .with_skin(Arc::new(AtlasSkin))
+        .with_skin(Arc::new(TreeSkin))
+        .with_skin(Arc::new(CanvasSkin))
+        .with_skin(Arc::new(LedgerSkin))
 }
 
 /// Offers `bytes` as a file the browser downloads under `name`.

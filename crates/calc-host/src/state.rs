@@ -316,6 +316,62 @@ impl HostState {
         self.engine.spill(anchor).map(|spill| spill.area())
     }
 
+    /// What the formula in the cell `at` reads (dc-gf0, a skin's dependency trace): each placed
+    /// reference and each area its last evaluation computed (INDIRECT's, OFFSET's, a spill's),
+    /// as areas in the order the engine holds them, each once. Whole rows or columns are the
+    /// areas of those rows or columns; a reference over several sheets (`Jan:Mar!A1`) is its area
+    /// on its first sheet. `None` when the cell holds no formula, or holds one the engine has not
+    /// bound yet (a workbook opened and not calculated).
+    pub fn precedents(&self, at: CellKey) -> Option<Vec<GridArea>> {
+        let node = self.engine.node(self.engine.node_at(at)?)?;
+        let placed = node.prerequisites()?;
+        let mut areas: Vec<GridArea> = Vec::new();
+        for prerequisite in placed.iter().chain(node.dynamic_prerequisites()) {
+            let area = match *prerequisite {
+                calc_engine::Prerequisite::Cell(cell) => GridArea::cell(cell),
+                calc_engine::Prerequisite::Area(area) => area,
+                calc_engine::Prerequisite::AxisValue(interval) => {
+                    let (first, last) = match interval.axis() {
+                        calc_doc_model::Axis::Rows => (
+                            CellKey::new(interval.sheet(), interval.first(), 1),
+                            CellKey::new(
+                                interval.sheet(),
+                                interval.last(),
+                                calc_doc_model::value::MAX_COLUMNS,
+                            ),
+                        ),
+                        calc_doc_model::Axis::Columns => (
+                            CellKey::new(interval.sheet(), 1, interval.first()),
+                            CellKey::new(
+                                interval.sheet(),
+                                calc_doc_model::value::MAX_ROWS,
+                                interval.last(),
+                            ),
+                        ),
+                    };
+                    match (first, last) {
+                        (Ok(first), Ok(last)) => match GridArea::new(first, last) {
+                            Ok(area) => area,
+                            Err(_) => continue,
+                        },
+                        _ => continue,
+                    }
+                }
+                calc_engine::Prerequisite::SheetSpan(span) => span.target(),
+            };
+            if !areas.contains(&area) {
+                areas.push(area);
+            }
+        }
+        Some(areas)
+    }
+
+    /// The cells whose formulas read the cell `at` (dc-gf0): those the engine's graph finds, in
+    /// cell order. A formula not bound yet is not among them.
+    pub fn dependents(&self, at: CellKey) -> Vec<CellKey> {
+        self.engine.dependents_at(&self.model, at)
+    }
+
     pub fn holds_formula(&self, at: CellKey) -> bool {
         if matches!(
             self.model.cell(at),

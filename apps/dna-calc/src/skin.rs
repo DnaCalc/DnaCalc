@@ -2,8 +2,8 @@
 //! skin is shown.
 //!
 //! A skin is one way of looking at and editing the one open workbook: the Excel grid, the
-//! notebook, the atlas, and in time the tree and the canvas (calc-doc's skin layout already holds
-//! their views, `calc_doc_model::ViewKind`). The application shows exactly one skin at a time.
+//! notebook, the atlas, the tree, the canvas and the ledger. The application shows exactly one
+//! skin at a time.
 //!
 //! - **Switching re-projects, it never reloads.** [`switch_skin`] writes the active skin's
 //!   identity and nothing else: no intent reaches the workbook, so the session's intent log does
@@ -35,11 +35,25 @@ pub enum SkinId {
     Notebook,
     /// The workbook's map: its sheets, what each holds, and how its formulas were calculated.
     Atlas,
+    /// The workbook as a foldable outline: its names, sheets, rows and cells.
+    Tree,
+    /// The active cell's calculation as a flow: what it reads to the left, what reads it to the
+    /// right.
+    Canvas,
+    /// The formula cells as one audit table, filtered and sorted.
+    Ledger,
 }
 
 impl SkinId {
     /// Every skin, in the order the switcher lists them.
-    pub const ALL: [SkinId; 3] = [SkinId::Grid, SkinId::Notebook, SkinId::Atlas];
+    pub const ALL: [SkinId; 6] = [
+        SkinId::Grid,
+        SkinId::Notebook,
+        SkinId::Atlas,
+        SkinId::Tree,
+        SkinId::Canvas,
+        SkinId::Ledger,
+    ];
 
     /// The skin's stable name: the page's `data-skin` and the switcher's value.
     pub const fn stable_id(self) -> &'static str {
@@ -47,6 +61,9 @@ impl SkinId {
             SkinId::Grid => "grid",
             SkinId::Notebook => "notebook",
             SkinId::Atlas => "atlas",
+            SkinId::Tree => "tree",
+            SkinId::Canvas => "canvas",
+            SkinId::Ledger => "ledger",
         }
     }
 
