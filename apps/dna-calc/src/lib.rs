@@ -25,6 +25,5 @@ pub mod ledger;
 pub mod notebook;
 pub mod skin;
 pub mod tree;
-pub mod watch;
 pub mod web;
 pub mod workbook;

@@ -2258,7 +2258,7 @@ fn dc_09v__copy_and_cut_take_cell_formats() {
 
 /// dc-gf0's cases, as tests/fixtures/dc_gf0/make-cut.ps1 makes them in Excel: name, source sheet,
 /// source range, target sheet, target top-left cell, and the package Excel saved after the cut.
-const GF0_CASES: [(&str, &str, &str, &str, &str, &[u8]); 4] = [
+const GF0_CASES: [(&str, &str, &str, &str, &str, &[u8]); 5] = [
     (
         "same-sheet",
         "Data",
@@ -2291,14 +2291,26 @@ const GF0_CASES: [(&str, &str, &str, &str, &str, &[u8]); 4] = [
         "F1",
         include_bytes!("fixtures/dc_gf0/cut-middle-to-target.xlsx"),
     ),
+    (
+        "local-name-to-other",
+        "Data",
+        "D2",
+        "Other",
+        "G1",
+        include_bytes!("fixtures/dc_gf0/cut-local-name-to-other.xlsx"),
+    ),
 ];
 
-/// The defined names as `name formula`, in the workbook's order.
+/// The defined names as `name scope formula`, in name order (a name an edit defines is the
+/// workbook's last; Excel writes its names sorted).
 fn gf0_names(host: &HostState) -> Vec<String> {
-    host.defined_names()
+    let mut names: Vec<String> = host
+        .defined_names()
         .iter()
         .map(|name| format!("{} {:?} {}", name.name, name.scope, name.formula))
-        .collect()
+        .collect();
+    names.sort();
+    names
 }
 
 /// Each formula cell's calculated value (A1:J16 of each sheet), by sheet name and position.
@@ -2329,7 +2341,7 @@ fn dc_gf0__cuts_move_cells_references_and_names_as_excel_does() {
         let mut session = session(base);
         let opened = open(base);
         let excel_after = open(excel);
-        let (first, last) = from.split_once(':').unwrap();
+        let (first, last) = from.split_once(':').unwrap_or((from, from));
         let source = sheet(session.host(), from_sheet);
         let target = sheet(session.host(), to_sheet);
         let receipt = session.dispatch(SkinIntent::Copy {
@@ -2431,4 +2443,12 @@ fn dc_gf0__precedents_and_dependents_from_the_graph() {
     );
     assert_eq!(host.dependents(at(s, "B1")), vec![at(s, "C1"), at(s, "D1")]);
     assert_eq!(host.dependents(at(s, "D1")), Vec::<CellKey>::new());
+    assert_eq!(
+        host.input_cells(s),
+        vec![at(s, "A1"), at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
+    assert_eq!(
+        host.formula_cells(s),
+        vec![at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
 }

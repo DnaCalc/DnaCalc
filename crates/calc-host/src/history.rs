@@ -186,15 +186,16 @@ pub(crate) fn inverse(
     for edit in edits {
         if let CellEdit::SetName { name, scope, .. } = edit
             && named.insert((name.to_ascii_lowercase(), *scope))
-            && let Some(held) = definitions
+        {
+            // A name the edit defined goes again.
+            let held = definitions
                 .names()
                 .iter()
-                .find(|held| held.scope == *scope && held.name.eq_ignore_ascii_case(name))
-        {
+                .find(|held| held.scope == *scope && held.name.eq_ignore_ascii_case(name));
             inverse.push(CellEdit::SetName {
-                name: held.name.clone(),
+                name: held.map_or_else(|| name.clone(), |held| held.name.clone()),
                 scope: *scope,
-                formula: held.formula.clone(),
+                formula: held.map(|held| held.formula.clone()),
             });
         }
     }

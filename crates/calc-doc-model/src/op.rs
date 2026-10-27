@@ -36,14 +36,16 @@ pub enum WorkbookOp {
     /// calculation.
     SetFormat { at: CellKey, format: Option<u32> },
     /// Give the defined name `name` of `scope` (matched regardless of ASCII case, as Excel matches
-    /// names) the formula `formula`, as the model holds a name's formula (dc-gf0: a cut moves the
-    /// cells a name refers to). An unknown name is refused ([`crate::ApplyError::UnknownName`]).
+    /// names) the formula `formula`, as the model holds a name's formula, defining the name when
+    /// the root holds none of that scope; `None` removes it (dc-gf0: a cut moves the cells a name
+    /// refers to, and a formula moved to another sheet takes the sheet-scoped names it uses with
+    /// it). Removing a name the root does not hold is refused ([`crate::ApplyError::UnknownName`]).
     /// The model changes no cell for it: a formula that uses the name reads the new formula when
     /// it is bound again.
     SetNameFormula {
         name: String,
         scope: crate::definitions::NameScope,
-        formula: String,
+        formula: Option<String>,
     },
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
