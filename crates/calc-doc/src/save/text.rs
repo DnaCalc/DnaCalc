@@ -17,7 +17,7 @@ fn escape_unit(unit: u16, out: &mut Vec<u8>) {
 /// U+FFFE, U+FFFF and unpaired surrogates) and the carriage return, which an XML reader would turn
 /// into a line feed; and the underscore that starts text a reader would decode as such an escape,
 /// as `_x005F_`. The loader's decoding gives back exactly `units`.
-pub(super) fn xstring(units: &[u16], out: &mut Vec<u8>) {
+pub(crate) fn xstring(units: &[u16], out: &mut Vec<u8>) {
     let mut index = 0;
     for decoded in char::decode_utf16(units.iter().copied()) {
         let width = decoded.as_ref().map_or(1, |c| c.len_utf16());
@@ -49,13 +49,13 @@ pub(super) fn xstring(units: &[u16], out: &mut Vec<u8>) {
 
 /// Whether text written in a `<t>` element needs `xml:space="preserve"`: it starts or ends with
 /// whitespace a reader that collapses it would drop.
-pub(super) fn needs_preserve(units: &[u16]) -> bool {
+pub(crate) fn needs_preserve(units: &[u16]) -> bool {
     let space = |unit: &u16| matches!(*unit, 0x20 | 0x09 | 0x0A | 0x0D);
     units.first().is_some_and(space) || units.last().is_some_and(space)
 }
 
 /// Appends an attribute value, quoted with `"`.
-pub(super) fn attribute_value(value: &str, out: &mut Vec<u8>) {
+pub(crate) fn attribute_value(value: &str, out: &mut Vec<u8>) {
     out.push(b'"');
     for c in value.chars() {
         match c {
@@ -74,7 +74,7 @@ pub(super) fn attribute_value(value: &str, out: &mut Vec<u8>) {
 /// A finite number as a cell's `<v>` holds it: the shortest text that reads back as the same
 /// binary64, positional from 1E-5 up to 1E+15 and otherwise with an upper-case `E` and a signed
 /// exponent (`1E+16`, `1.5E-7`), which the loader reads back as the same binary64.
-pub(super) fn number(value: f64) -> String {
+pub(crate) fn number(value: f64) -> String {
     let magnitude = value.abs();
     if value == 0.0 || (1e-5..1e15).contains(&magnitude) {
         return format!("{value}");
@@ -88,7 +88,7 @@ pub(super) fn number(value: f64) -> String {
 }
 
 /// An `A1` address.
-pub(super) fn a1(row: u32, column: u32) -> String {
+pub(crate) fn a1(row: u32, column: u32) -> String {
     format!("{}{row}", crate::load::address::column_letters(column))
 }
 

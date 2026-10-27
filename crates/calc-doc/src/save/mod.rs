@@ -23,7 +23,7 @@ mod strings;
 mod structural;
 #[cfg(test)]
 mod tests;
-mod text;
+pub(crate) mod text;
 
 use crate::error::PartReadError;
 use crate::load::LoadedSheet;

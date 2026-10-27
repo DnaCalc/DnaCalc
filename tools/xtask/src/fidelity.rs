@@ -24,6 +24,13 @@
 //! 4. **The summary.** `<out>/summary.json` and `<out>/summary.md`: the counts, refusals by reason
 //!    and differences by kind; each workbook's record is `<out>/workbooks/<name>.json`.
 //!
+//! `--twins` (bead `dc-5sr`) takes only the `.xlsb` workbooks of `<dir>` and, besides the above,
+//! opens each one's twin, the `.xlsx` or `.xlsm` of the same stem that Excel saved from the same
+//! workbook, and compares the two opened models (cells, sheets, names, arrays, tables, data tables,
+//! hidden rows, unloaded cells, settings, cell formats, layout, each sheet's styled cells and
+//! geometry, the date system and the calculation mode). The SpreadsheetML package each `.xlsb` is
+//! read as is written to `<out>/converted/`.
+//!
 //! `--out` defaults to `target/fidelity`. A summary of workbooks outside the repository belongs
 //! outside it too: the per-workbook records quote cells and names; the counts alone may be
 //! committed.
@@ -44,13 +51,14 @@ use std::process::{Command, ExitCode};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask fidelity <dir> [--out <dir>] [--timeout <s>]";
+pub const USAGE: &str = "usage: cargo xtask fidelity <dir> [--out <dir>] [--timeout <s>] [--twins]";
 
 struct Args {
     dir: PathBuf,
     out: PathBuf,
     timeout: Duration,
     one: Option<PathBuf>,
+    twins: bool,
 }
 
 fn parse(raw: &[String]) -> Result<Args, String> {
@@ -58,6 +66,7 @@ fn parse(raw: &[String]) -> Result<Args, String> {
     let mut out = PathBuf::from("target").join("fidelity");
     let mut timeout = Duration::from_secs(600);
     let mut one = None;
+    let mut twins = false;
     let mut rest = raw.iter();
     while let Some(arg) = rest.next() {
         let mut value = |name: &str| {
@@ -75,6 +84,7 @@ fn parse(raw: &[String]) -> Result<Args, String> {
                 )
             }
             "--one" => one = Some(PathBuf::from(value("--one")?)),
+            "--twins" => twins = true,
             other if other.starts_with("--") => return Err(format!("unknown option {other}")),
             other => {
                 if dir.replace(PathBuf::from(other)).is_some() {
@@ -93,6 +103,7 @@ fn parse(raw: &[String]) -> Result<Args, String> {
         out,
         timeout,
         one,
+        twins,
     })
 }
 
@@ -105,7 +116,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         }
     };
     let result = match &args.one {
-        Some(file) => one(file, &args.out),
+        Some(file) => one(file, &args.out, args.twins),
         None => all(&args),
     };
     match result {
@@ -117,8 +128,8 @@ pub fn run(raw: &[String]) -> ExitCode {
     }
 }
 
-/// The workbooks of `dir`, in name order.
-fn workbooks(dir: &Path) -> Result<Vec<PathBuf>, String> {
+/// The workbooks of `dir`, in name order: only the `.xlsb` ones when `twins`.
+fn workbooks(dir: &Path, twins: bool) -> Result<Vec<PathBuf>, String> {
     let mut found: Vec<PathBuf> = fs::read_dir(dir)
         .map_err(|e| format!("cannot read {}: {e}", dir.display()))?
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
@@ -131,7 +142,11 @@ fn workbooks(dir: &Path) -> Result<Vec<PathBuf>, String> {
                 .to_ascii_lowercase();
             path.is_file()
                 && !name.starts_with("~$")
-                && matches!(extension.as_str(), "xlsx" | "xlsm" | "xlsb")
+                && if twins {
+                    extension == "xlsb"
+                } else {
+                    matches!(extension.as_str(), "xlsx" | "xlsm" | "xlsb")
+                }
         })
         .collect();
     found.sort();
@@ -147,7 +162,7 @@ fn record_path(out: &Path, file: &Path) -> PathBuf {
 }
 
 fn all(args: &Args) -> Result<(), String> {
-    let files = workbooks(&args.dir)?;
+    let files = workbooks(&args.dir, args.twins)?;
     fs::create_dir_all(args.out.join("workbooks"))
         .map_err(|e| format!("cannot create {}: {e}", args.out.display()))?;
     let me = std::env::current_exe().map_err(|e| format!("cannot find this executable: {e}"))?;
@@ -157,12 +172,17 @@ fn all(args: &Args) -> Result<(), String> {
         let path = record_path(&args.out, file);
         let _ = fs::remove_file(&path);
         let begun = Instant::now();
-        let mut child = Command::new(&me)
+        let mut command = Command::new(&me);
+        command
             .arg("fidelity")
             .arg("--one")
             .arg(file)
             .arg("--out")
-            .arg(&args.out)
+            .arg(&args.out);
+        if args.twins {
+            command.arg("--twins");
+        }
+        let mut child = command
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -242,8 +262,19 @@ fn outcome(record: &Value) -> String {
     if let Some(reason) = record["refused"]["reason"].as_str() {
         return format!("refused: {reason}");
     }
+    let twin = match &record["twin"] {
+        Value::Null => String::new(),
+        twin if twin["equal"] == true => "twin equal, ".to_owned(),
+        twin => format!(
+            "twin differs: {}, ",
+            twin["difference"]["kind"]
+                .as_str()
+                .or(twin["failure"].as_str())
+                .unwrap_or("")
+        ),
+    };
     format!(
-        "unchanged {}, edited {}",
+        "{twin}unchanged {}, edited {}",
         if record["unchanged"]["model_equal"] == true {
             "equal"
         } else {
@@ -298,7 +329,7 @@ fn saved_name(name: &str, what: &str) -> String {
     }
 }
 
-fn one(file: &Path, out: &Path) -> Result<(), String> {
+fn one(file: &Path, out: &Path, twins: bool) -> Result<(), String> {
     let name = file
         .file_name()
         .and_then(|n| n.to_str())
@@ -320,6 +351,9 @@ fn one(file: &Path, out: &Path) -> Result<(), String> {
         }
         Ok(host) => {
             record["open_s"] = json!(started.elapsed().as_secs_f64());
+            if twins {
+                record["twin"] = twin(file, &bytes, &host, out);
+            }
             record["sheets"] = json!(host.sheets().len());
             record["unchanged"] = unchanged(
                 &bytes,
@@ -335,6 +369,77 @@ fn one(file: &Path, out: &Path) -> Result<(), String> {
         &record_path(out, file),
         &serde_json::to_vec_pretty(&record).unwrap(),
     )
+}
+
+/// The twin of the binary workbook `file` (the `.xlsx` or `.xlsm` of its stem), opened and
+/// compared with the binary workbook's opened model; the package the binary workbook is read as is
+/// written to `<out>/converted/`.
+fn twin(file: &Path, bytes: &[u8], host: &HostState, out: &Path) -> Value {
+    let converted = calc_host::convert_binary_workbook(
+        Arc::new(MemorySource::new(bytes.to_vec())),
+        &OpenPolicy::default(),
+    );
+    if let Ok(Some(package)) = &converted {
+        let folder = out.join("converted");
+        let _ = fs::create_dir_all(&folder);
+        let stem = file
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("workbook");
+        let extension = if host.model().definitions().macro_enabled() {
+            "xlsm"
+        } else {
+            "xlsx"
+        };
+        let _ = fs::write(folder.join(format!("{stem}.{extension}")), package);
+    }
+    let Some(path) = ["xlsx", "xlsm"]
+        .iter()
+        .map(|extension| file.with_extension(extension))
+        .find(|path| path.is_file())
+    else {
+        return json!({"failure": "no twin"});
+    };
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_owned();
+    let twin_bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(e) => return json!({"name": name, "failure": format!("read: {e}")}),
+    };
+    let twin = match open(&twin_bytes) {
+        Ok(twin) => twin,
+        Err(e) => {
+            return json!({"name": name, "failure": format!("twin refused: {}", reason(&e)), "message": e.to_string()});
+        }
+    };
+    let mut difference = model_difference(twin.model(), host.model(), false);
+    if difference.is_none() {
+        difference =
+            formats_difference(&twin, host, &[]).map(|detail| ("styles".to_owned(), detail));
+    }
+    if difference.is_none() {
+        let settings = |h: &HostState| {
+            format!(
+                "{:?} {:?}",
+                h.loaded().date_system(),
+                h.loaded().calc_mode()
+            )
+        };
+        if settings(&twin) != settings(host) {
+            difference = Some((
+                "settings".to_owned(),
+                format!("{} and {}", settings(&twin), settings(host)),
+            ));
+        }
+    }
+    json!({
+        "name": name,
+        "equal": difference.is_none(),
+        "difference": difference.map(|(kind, detail)| json!({"kind": kind, "detail": detail})),
+    })
 }
 
 fn unchanged(bytes: &[u8], host: &HostState, path: &Path) -> Value {
@@ -679,6 +784,7 @@ fn summarize(records: &[Value], dir: &Path, wall: Duration) -> Value {
     let mut unchanged_kinds: BTreeMap<String, u64> = BTreeMap::new();
     let mut edited_kinds: BTreeMap<String, u64> = BTreeMap::new();
     let mut extensions: BTreeMap<String, u64> = BTreeMap::new();
+    let mut twin_kinds: BTreeMap<String, u64> = BTreeMap::new();
     let (mut formula_cells, mut calculated, mut cached_equal, mut cached_other, mut not_cached) =
         (0u64, 0u64, 0u64, 0u64, 0u64);
     for record in records {
@@ -699,6 +805,19 @@ fn summarize(records: &[Value], dir: &Path, wall: Duration) -> Value {
             continue;
         }
         *counts.entry("opened").or_default() += 1;
+        match &record["twin"] {
+            Value::Null => {}
+            twin if twin["equal"] == true => *counts.entry("twin_equal").or_default() += 1,
+            twin => {
+                *counts.entry("twin_differs").or_default() += 1;
+                let kind = twin["difference"]["kind"]
+                    .as_str()
+                    .or(twin["failure"].as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                *twin_kinds.entry(kind).or_default() += 1;
+            }
+        }
         let unchanged = &record["unchanged"];
         if unchanged["byte_equal"] == true {
             *counts.entry("unchanged_byte_equal").or_default() += 1;
@@ -762,8 +881,17 @@ fn summarize(records: &[Value], dir: &Path, wall: Duration) -> Value {
         not_cached += caches["not_cached"].as_u64().unwrap_or(0);
     }
     let get = |key: &str| counts.get(key).copied().unwrap_or(0);
+    let twins = if get("twin_equal") + get("twin_differs") > 0 {
+        format!(
+            "; same model as its twin {} of {} opened",
+            get("twin_equal"),
+            get("opened")
+        )
+    } else {
+        String::new()
+    };
     let headline = format!(
-        "{} workbooks: opened {}, refused {}, crashed {}; unchanged save reopened equal {} (byte-equal {}); edited save reopened equal {} of {} saved",
+        "{} workbooks: opened {}, refused {}, crashed {}; unchanged save reopened equal {} (byte-equal {}); edited save reopened equal {} of {} saved{twins}",
         get("workbooks"),
         get("opened"),
         get("refused"),
@@ -786,6 +914,7 @@ fn summarize(records: &[Value], dir: &Path, wall: Duration) -> Value {
         "crashed_by_reason": crashed,
         "unchanged_differences_by_kind": unchanged_kinds,
         "edited_differences_by_kind": edited_kinds,
+        "twin_differences_by_kind": twin_kinds,
         "edited_caches": {"formula_cells": formula_cells, "calculated": calculated, "cached_equal": cached_equal, "cached_other": cached_other, "not_cached": not_cached},
     })
 }
@@ -810,6 +939,7 @@ fn summary_md(summary: &Value) -> String {
             "edited_differences_by_kind",
         ),
         ("Edited save: cached values", "edited_caches"),
+        ("Twins: differences by kind", "twin_differences_by_kind"),
     ] {
         out.push_str(&format!("## {title}\n\n"));
         if let Some(map) = summary[key].as_object() {

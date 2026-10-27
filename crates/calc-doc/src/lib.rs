@@ -73,6 +73,7 @@ mod opc;
 mod policy;
 mod save;
 mod source;
+mod xlsb;
 mod xml;
 mod zip;
 
@@ -128,7 +129,28 @@ pub fn open(
     policy: &OpenPolicy,
 ) -> Result<OpenedDocument, OpenError> {
     let package = opc::Package::open(source, policy)?;
+    // An Excel binary workbook is read as the SpreadsheetML package it stands for.
+    if let Some(workbook) = xlsb::binary_workbook(&package) {
+        let converted = xlsb::convert(&package, &workbook)?;
+        let package = opc::Package::open(Arc::new(MemorySource::new(converted)), policy)?;
+        return Ok(OpenedDocument {
+            package: Arc::new(package),
+        });
+    }
     Ok(OpenedDocument {
         package: Arc::new(package),
     })
+}
+
+/// The SpreadsheetML package (the bytes of an .xlsx or .xlsm archive) an Excel binary workbook
+/// stands for, as [`open`] reads it; `None` when `source` is not an Excel binary workbook.
+pub fn convert_binary_workbook(
+    source: Arc<dyn PackageRead>,
+    policy: &OpenPolicy,
+) -> Result<Option<Vec<u8>>, OpenError> {
+    let package = opc::Package::open(source, policy)?;
+    match xlsb::binary_workbook(&package) {
+        Some(workbook) => xlsb::convert(&package, &workbook).map(Some),
+        None => Ok(None),
+    }
 }

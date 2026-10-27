@@ -908,7 +908,11 @@ $excel = $null
 $workbook = $null
 try {
     $req = [System.IO.File]::ReadAllText($Request, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-    $package = Read-Package $req.input
+    # An .xlsb input is inventoried from its Excel-saved SpreadsheetML twin (bead dc-5sr): this
+    # script reads SpreadsheetML parts only. Excel opens the input itself.
+    $inventoryPath = $req.input
+    if ($req.PSObject.Properties.Name -contains 'inventory' -and $req.inventory) { $inventoryPath = $req.inventory }
+    $package = Read-Package $inventoryPath
     $Output.sheets = $package.sheets
     $Output.formulas = $package.formulas
     $inventory = @{}

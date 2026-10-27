@@ -371,7 +371,22 @@ impl<'a> XmlReader<'a> {
                     return Ok(Some(XmlEvent::End(name)));
                 }
                 Event::Text(text) => {
-                    let text = text.unescape().map_err(|error| self.error(error))?;
+                    // End-of-line handling (XML 1.0, 2.11): a carriage return and line feed, and
+                    // a carriage return alone, read as a line feed before references are
+                    // replaced, so `&#13;` still gives a carriage return (Excel 16.0.20430 reads
+                    // the raw CR LF of its own shared strings as one line feed: measured
+                    // 2026-10-27, bead dc-5sr).
+                    let text = if text.contains(&b'\r') {
+                        let raw = std::str::from_utf8(&text)
+                            .map_err(|_| self.malformed("text that is not UTF-8"))?;
+                        let normalized = raw.replace("\r\n", "\n").replace('\r', "\n");
+                        quick_xml::escape::unescape(&normalized)
+                            .map_err(|error| self.error(quick_xml::Error::from(error)))?
+                            .into_owned()
+                            .into()
+                    } else {
+                        text.unescape().map_err(|error| self.error(error))?
+                    };
                     if self.depth > 0 {
                         return Ok(Some(XmlEvent::Text(text.into_owned())));
                     }

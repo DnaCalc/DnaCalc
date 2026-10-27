@@ -6,7 +6,10 @@
 //! ```text
 //! <work>/in/<fixture name>       the copy of the fixture Excel opens, read-only
 //! <work>/in/<companion name>     each companion file (the target of an external link, say)
-//! <work>/out/<fixture name>      the package Excel saves, then reopens read-only
+//! <work>/inventory/<twin name>  for an .xlsb fixture, the copy of its SpreadsheetML twin, which
+//!                                the worker reads as the package's inventory; Excel never opens it
+//! <work>/out/<fixture name>      the package Excel saves, then reopens read-only (for an .xlsb
+//!                                fixture, under the stem and extension of its twin)
 //! <work>/capture-worker.ps1      the worker script this package embeds
 //! <work>/request.json            the worker's request
 //! <work>/result.json             the worker's result
@@ -92,8 +95,14 @@ impl Default for CalculationPolicy {
 pub struct CaptureRequest {
     /// The case the record is for.
     pub case: String,
-    /// The workbook to capture (`.xlsx` or `.xlsm`).
+    /// The workbook to capture (`.xlsx` or `.xlsm`, or `.xlsb` with an `inventory`).
     pub fixture: PathBuf,
+    /// For an Excel binary workbook (`.xlsb`) fixture, the SpreadsheetML twin Excel saved from
+    /// the same workbook (`.xlsx` or `.xlsm`): the worker reads its package in place of the
+    /// fixture's for the inventory (sheets, formula cells, cached values) and the refusals, since
+    /// it reads SpreadsheetML parts only, and Excel's saved package takes its extension (bead
+    /// dc-5sr). Excel opens the fixture itself. `None` for any other fixture.
+    pub inventory: Option<PathBuf>,
     /// Files copied beside the fixture's copy (the target of an external link, say).
     pub companions: Vec<PathBuf>,
     /// The capture's work directory; it must not exist yet, or be empty.
@@ -263,12 +272,35 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
         .extension()
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase);
-    if !matches!(extension.as_deref(), Some("xlsx" | "xlsm")) {
-        return Err(setup(format!(
-            "{} is not an .xlsx or .xlsm workbook",
-            request.fixture.display()
-        )));
-    }
+    let inventory = match (extension.as_deref(), &request.inventory) {
+        (Some("xlsx" | "xlsm"), None) => None,
+        (Some("xlsb"), Some(twin)) => {
+            let twin_name = file_name(twin)?;
+            let twin_extension = Path::new(&twin_name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(str::to_ascii_lowercase);
+            if !matches!(twin_extension.as_deref(), Some("xlsx" | "xlsm")) {
+                return Err(setup(format!(
+                    "the inventory {} of an .xlsb workbook is not an .xlsx or .xlsm workbook",
+                    twin.display()
+                )));
+            }
+            Some((twin.clone(), twin_name, twin_extension.unwrap_or_default()))
+        }
+        (Some("xlsb"), None) => {
+            return Err(setup(format!(
+                "{} is an .xlsb workbook, which a capture takes only with its Excel-saved .xlsx or .xlsm twin as its inventory",
+                request.fixture.display()
+            )));
+        }
+        _ => {
+            return Err(setup(format!(
+                "{} is not an .xlsx or .xlsm workbook",
+                request.fixture.display()
+            )));
+        }
+    };
     let input_bytes = fs::read(&request.fixture)
         .map_err(|e| setup(format!("cannot read {}: {e}", request.fixture.display())))?;
     let source = format!("sha256:{}", sha256_hex(&input_bytes));
@@ -325,14 +357,35 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
             ))
         })?;
     }
-    let output_package = output_dir.join(&name);
+    let output_package = match &inventory {
+        Some((_, _, twin_extension)) => {
+            let stem = Path::new(&name)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            output_dir.join(format!("{stem}.{twin_extension}"))
+        }
+        None => output_dir.join(&name),
+    };
+    let inventory_copy = match &inventory {
+        Some((twin, twin_name, _)) => {
+            let folder = work.join("inventory");
+            fs::create_dir_all(&folder)
+                .map_err(|e| setup(format!("cannot create {}: {e}", folder.display())))?;
+            let copy = folder.join(twin_name);
+            fs::copy(twin, &copy)
+                .map_err(|e| setup(format!("cannot copy the inventory {}: {e}", twin.display())))?;
+            Some(copy)
+        }
+        None => None,
+    };
     let script = work.join("capture-worker.ps1");
     let request_file = work.join("request.json");
     let result_file = work.join("result.json");
     fs::write(&script, WORKER_SCRIPT)
         .map_err(|e| setup(format!("cannot write {}: {e}", script.display())))?;
     let policy = request.policy;
-    let worker_request = serde_json::json!({
+    let mut worker_request = serde_json::json!({
         "format": "dnacalc-capture-request",
         "version": 1,
         "input": input_copy.to_string_lossy(),
@@ -344,6 +397,9 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
             "max_change": format!("{:016x}", policy.max_change.to_bits()),
         },
     });
+    if let Some(copy) = &inventory_copy {
+        worker_request["inventory"] = serde_json::json!(copy.to_string_lossy());
+    }
     fs::write(&request_file, worker_request.to_string())
         .map_err(|e| setup(format!("cannot write {}: {e}", request_file.display())))?;
 
@@ -480,9 +536,10 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
         record.environment.as_mut(),
         calculation_clock(clock_before, clock_after),
     ) {
-        environment
-            .settings
-            .push(("calculation_clock".to_owned(), format!("{:016x}", clock.to_bits())));
+        environment.settings.push((
+            "calculation_clock".to_owned(),
+            format!("{:016x}", clock.to_bits()),
+        ));
     }
     let encoded = record.encode().map_err(|e| CaptureError::Result {
         message: e.to_string(),
@@ -533,8 +590,14 @@ mod tests {
         assert_eq!(super::serial_day(1900, 3, 1), 61);
         assert_eq!(super::serial_day(2026, 1, 1), 46023);
         assert_eq!(super::serial_day(2026, 10, 25), 46320);
-        assert_eq!(super::calculation_clock(Some(46320.25), Some(46320.75)), Some(46320.25));
-        assert_eq!(super::calculation_clock(Some(46320.99), Some(46321.01)), None);
+        assert_eq!(
+            super::calculation_clock(Some(46320.25), Some(46320.75)),
+            Some(46320.25)
+        );
+        assert_eq!(
+            super::calculation_clock(Some(46320.99), Some(46321.01)),
+            None
+        );
     }
 
     #[test]
@@ -639,6 +702,7 @@ mod tests {
         let request = CaptureRequest {
             case: "k".to_owned(),
             fixture: PathBuf::from("no-such-fixture.txt"),
+            inventory: None,
             companions: Vec::new(),
             work_dir: std::env::temp_dir().join("calc-oracle-excel-unit-never-created"),
             timeout: Duration::from_secs(1),
