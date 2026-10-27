@@ -226,6 +226,7 @@ mod tests {
             formula: true,
             format: crate::cells::FormatShown::General,
             color: None,
+            conditional: None,
         }
     }
 
