@@ -1,0 +1,283 @@
+{
+  "format": "dnacalc-d2b-ofgem-round-trip",
+  "what": "Each Ofgem workbook opened in a calc-host HostSession, one insertion and one deletion of rows or columns dispatched as SkinIntent::EditAxis (each recalculated in automatic mode), saved with HostSession::save. Then: excel_same_edits is compare-structural.ps1, which opens the original in Excel, makes the same insertion and deletion with Excel's own Insert and Delete, calculates both it and the saved package in full and compares every cell of every sheet (formula text as Excel shows it, value, input); parts is compare-structural-parts.py, which compares what lies on the cells (merged cells, hyperlinks, validations, conditional formats, row heights, column widths, number formats, comments, notes, threaded comments, drawing anchors, tables, defined names) of the saved package with the package Excel saved after its own edits; the saved package captured in Excel (cargo xtask capture, a full rebuild) and compared (cargo xtask compare). Fail = mismatched + refused + failed or missing.",
+  "code": "6012758",
+  "excel": "16.0 build 20430",
+  "workbooks": [
+    {
+      "workbook": "Annex-4-policy-cost-allowance-methodology-v1.25.xlsx",
+      "source_sha256": "1f75eb46e93e54b486542025de142abd2d036255d8c9c1effa34b4a624ff06e5",
+      "steps": [
+        "3i New FIT methodology!insert rows 40 2",
+        "3b RO!delete columns 10 1"
+      ],
+      "step_results": [
+        "3i New FIT methodology!insert rows 40 2: revision 1, 10582 results published",
+        "3b RO!delete columns 10 1: revision 2, 10580 results published"
+      ],
+      "save": "SaveReceipt { bytes_written: 472352, entries_copied: 100, parts_written: 18, revision: Some(AuthoredRevision(2)), caches_dropped: 0, sheets_rewritten_for_caches: 8, values_written: 10580, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+      "saved_sha256": "81388f8b6aec96bb40d639c57c8ff5a8d2a4859061514132e3c7ca34852b91da",
+      "excel_opened_without_repair": true,
+      "excel_same_edits": {
+        "formula_cells": 10580,
+        "formulas_equal": 10580,
+        "values_equal": 10580,
+        "input_cells": 7273,
+        "inputs_equal": 7273
+      },
+      "excel_same_edits_differences": [],
+      "parts": {
+        "defined_names": {
+          "items": 183,
+          "equal": 183
+        },
+        "merged": {
+          "items": 351,
+          "equal": 351
+        },
+        "hyperlinks": {
+          "items": 25,
+          "equal": 25
+        },
+        "validations": {
+          "items": 0,
+          "equal": 0
+        },
+        "conditional": {
+          "items": 0,
+          "equal": 0
+        },
+        "rows": {
+          "items": 300,
+          "equal": 300
+        },
+        "columns": {
+          "items": 13086,
+          "equal": 13086
+        },
+        "number_formats": {
+          "items": 14510,
+          "equal": 14510
+        },
+        "filter": {
+          "items": 0,
+          "equal": 0
+        },
+        "comments": {
+          "items": 68,
+          "equal": 68
+        },
+        "notes": {
+          "items": 68,
+          "equal": 68
+        },
+        "threaded_comments": {
+          "items": 0,
+          "equal": 0
+        },
+        "drawing_anchors": {
+          "items": 1,
+          "equal": 1
+        },
+        "tables": {
+          "items": 0,
+          "equal": 0
+        }
+      },
+      "parts_all_equal": true,
+      "parts_differences": [],
+      "capture": "10580 formula cells, 10580 raw observations, 10580 saved caches, 10580 reopened values, 0 capture failures",
+      "capture_failures": [],
+      "saved_values_equal_excel": 10580,
+      "formula_cells": 10580,
+      "pass": 10580,
+      "fail": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "failed_or_missing": 0,
+      "pass_rate": "100.000%"
+    },
+    {
+      "workbook": "Annex-9-Levelisation-allowance-methodology-and-levelised-cap-levels-v1.11.xlsx",
+      "source_sha256": "5a7277ca7af148d1b918d87a29fab5fa9100e8764a88b9042d7969b7dbe1a6f8",
+      "steps": [
+        "1c Consumption adjusted levels!insert columns 10 1",
+        "3a DTC_Other!delete rows 20 1"
+      ],
+      "step_results": [
+        "1c Consumption adjusted levels!insert columns 10 1: revision 1, 32880 results published",
+        "3a DTC_Other!delete rows 20 1: revision 2, 32880 results published"
+      ],
+      "save": "SaveReceipt { bytes_written: 1213342, entries_copied: 88, parts_written: 14, revision: Some(AuthoredRevision(2)), caches_dropped: 0, sheets_rewritten_for_caches: 6, values_written: 32880, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+      "saved_sha256": "f6407015b4c1836ee2f0fd7b6a1edb56477f7ead2a2beb2f1c16bf55ca718f76",
+      "excel_opened_without_repair": true,
+      "excel_same_edits": {
+        "formula_cells": 32880,
+        "formulas_equal": 32880,
+        "values_equal": 32880,
+        "input_cells": 23425,
+        "inputs_equal": 23425
+      },
+      "excel_same_edits_differences": [],
+      "parts": {
+        "defined_names": {
+          "items": 209,
+          "equal": 209
+        },
+        "merged": {
+          "items": 335,
+          "equal": 335
+        },
+        "hyperlinks": {
+          "items": 0,
+          "equal": 0
+        },
+        "validations": {
+          "items": 6,
+          "equal": 6
+        },
+        "conditional": {
+          "items": 0,
+          "equal": 0
+        },
+        "rows": {
+          "items": 709,
+          "equal": 709
+        },
+        "columns": {
+          "items": 11406,
+          "equal": 11406
+        },
+        "number_formats": {
+          "items": 68759,
+          "equal": 68759
+        },
+        "filter": {
+          "items": 0,
+          "equal": 0
+        },
+        "comments": {
+          "items": 48,
+          "equal": 48
+        },
+        "notes": {
+          "items": 48,
+          "equal": 48
+        },
+        "threaded_comments": {
+          "items": 0,
+          "equal": 0
+        },
+        "drawing_anchors": {
+          "items": 12,
+          "equal": 12
+        },
+        "tables": {
+          "items": 0,
+          "equal": 0
+        }
+      },
+      "parts_all_equal": true,
+      "parts_differences": [],
+      "capture": "32880 formula cells, 32880 raw observations, 32880 saved caches, 32880 reopened values, 0 capture failures",
+      "capture_failures": [],
+      "saved_values_equal_excel": 32880,
+      "formula_cells": 32880,
+      "pass": 32880,
+      "fail": 0,
+      "mismatched": 0,
+      "refused": 0,
+      "failed_or_missing": 0,
+      "pass_rate": "100.000%"
+    },
+    {
+      "workbook": "Default-tariff-cap-level-v1.31.xlsx",
+      "source_sha256": "f3635a64e583a9031ec0ed9aea636709cc6117f3719e9a29d1174917aa3da0ae",
+      "steps": [
+        "3b CM!insert rows 10 2",
+        "3a DF!delete columns 12 1"
+      ],
+      "step_results": [
+        "3b CM!insert rows 10 2: revision 1, 165810 results published",
+        "3a DF!delete columns 12 1: revision 2, 165780 results published"
+      ],
+      "save": "SaveReceipt { bytes_written: 4089566, entries_copied: 203, parts_written: 34, revision: Some(AuthoredRevision(2)), caches_dropped: 0, sheets_rewritten_for_caches: 15, values_written: 165780, values_left_to_excel: 0, gap_bytes_dropped: 0 }",
+      "saved_sha256": "32d0eb02abd6c355ccad1d80a100b64041125469eecdf453c79208b2ff410901",
+      "excel_opened_without_repair": true,
+      "excel_same_edits": {
+        "formula_cells": 165780,
+        "formulas_equal": 165780,
+        "values_equal": 165780,
+        "input_cells": 109469,
+        "inputs_equal": 109469
+      },
+      "excel_same_edits_differences": [],
+      "parts": {
+        "defined_names": {
+          "items": 1560,
+          "equal": 1560
+        },
+        "merged": {
+          "items": 553,
+          "equal": 553
+        },
+        "hyperlinks": {
+          "items": 10,
+          "equal": 10
+        },
+        "validations": {
+          "items": 1,
+          "equal": 1
+        },
+        "conditional": {
+          "items": 0,
+          "equal": 0
+        },
+        "rows": {
+          "items": 3920,
+          "equal": 3920
+        },
+        "columns": {
+          "items": 37033,
+          "equal": 37033
+        },
+        "number_formats": {
+          "items": 262909,
+          "equal": 262909
+        },
+        "filter": {
+          "items": 0,
+          "equal": 0
+        },
+        "comments": {
+          "items": 119,
+          "equal": 119
+        },
+        "notes": {
+          "items": 119,
+          "equal": 119
+        },
+        "threaded_comments": {
+          "items": 1,
+          "equal": 1
+        },
+        "drawing_anchors": {
+          "items": 39,
+          "equal": 39
+        },
+        "tables": {
+          "items": 0,
+          "equal": 0
+        }
+      },
+      "parts_all_equal": true,
+      "parts_differences": [],
+      "capture": "pending: the Excel capture of the saved package was still running when this record was written"
+    }
+  ],
+  "notes": [
+    "The packages, Excel's edited packages, captures and compare outputs are kept outside the repository at C:/Work/DnaCalc/corpus/d2b-roundtrip.",
+    "parts compares a row's height only where it is custom, and in a sheet whose rows are hidden unless they state a height (sheetFormatPr zeroHeight) only a row with a custom height: Excel fits every other height to the row's contents when it saves, and decides from it whether such a row shows, so its own save of the original changes them whatever the edits.",
+    "The saved packages are byte-identical when saved again with the committed code (6012758); the first captures of the Annex 9 and Default packages timed out after 12 hours with Excel hung while several other captures shared the machine, and were taken again on their own."
+  ]
+}
