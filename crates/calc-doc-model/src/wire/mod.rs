@@ -227,6 +227,8 @@ pub enum EncodeError {
     /// The operation at this index authors an array formula, which wire version 1 has no form
     /// for.
     ArrayFormula { operation: usize },
+    /// The operation at this index sets a cell format, which wire version 1 has no form for.
+    CellFormat { operation: usize },
 }
 
 impl fmt::Display for EncodeError {
@@ -241,6 +243,10 @@ impl fmt::Display for EncodeError {
             EncodeError::ArrayFormula { operation } => write!(
                 f,
                 "operation {operation} authors an array formula, which wire version 1 has no form for"
+            ),
+            EncodeError::CellFormat { operation } => write!(
+                f,
+                "operation {operation} sets a cell format, which wire version 1 has no form for"
             ),
         }
     }
@@ -260,6 +266,9 @@ pub fn encode_batch(batch: &OpBatch, root: &ModelRoot) -> Result<Vec<u8>, Encode
     for (index, operation) in batch.operations.iter().enumerate() {
         if matches!(operation, WorkbookOp::SetArray { .. }) {
             return Err(EncodeError::ArrayFormula { operation: index });
+        }
+        if matches!(operation, WorkbookOp::SetFormat { .. }) {
+            return Err(EncodeError::CellFormat { operation: index });
         }
         operations.push(WireOp::from_op(operation, root, &mut claimed)?);
     }

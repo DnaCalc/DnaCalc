@@ -292,11 +292,13 @@ fn dc_09v__edited_workbooks_save_for_excel() {
     let fill = book.dispatch(SkinIntent::Copy {
         from: area(sheet1, "B1", "B1"),
         to: area(sheet1, "B2", "B3"),
+        cut: false,
     });
     assert!(fill.accepted(), "{:?}", fill.error);
     let paste = book.dispatch(SkinIntent::Copy {
         from: area(sheet1, "A1", "B3"),
         to: area(sheet1, "D5", "D5"),
+        cut: false,
     });
     assert!(paste.accepted(), "{:?}", paste.error);
     assert_eq!(shown(&book, at(sheet1, "E7")).text, "30");

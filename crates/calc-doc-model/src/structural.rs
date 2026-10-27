@@ -354,6 +354,12 @@ impl ModelRoot {
                         table.moved(|area| moved_area(edit, area), |at| moved_cell(edit, at))
                     })
                     .collect(),
+            )
+            .with_formats(
+                definitions
+                    .cell_formats()
+                    .filter_map(|(at, format)| Some((moved_cell(edit, at)?, format)))
+                    .collect::<Vec<_>>(),
             );
         let layout = parts.layout.with_anchors(|area| moved_area(edit, area));
         self.rebuilt(

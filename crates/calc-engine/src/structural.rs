@@ -10,7 +10,8 @@
 //! and pending: the next recalculation binds each formula's rewritten text and calculates it.
 //! Nothing of the graph is patched in place; that refinement (ceng-m4.1's) is not done.
 //!
-//! [`relocate_formula`] is the text a copy of a formula cell writes in another cell (dc-09v).
+//! [`relocate_formula`] is the text a copy of a formula cell writes in another cell, and
+//! [`move_references`] the text a move (cut and paste) of cells leaves a formula with (dc-09v).
 
 use crate::read::SnapshotCatalog;
 use calc_doc_model::{
@@ -20,7 +21,7 @@ use calc_fml::reference::{
     EditAxis, ReferenceNotation, StructuralEdit, convert_notation, transform_formula,
     transform_name,
 };
-use calc_value::{CellKey, ExcelText};
+use calc_value::{CellKey, ExcelText, GridArea};
 
 /// The formula rewriter of structural edits: CalcFml's reference transform over the root before
 /// the edit.
@@ -127,6 +128,30 @@ pub fn relocate_formula(
     )?;
     FormulaText::new(ExcelText::from_utf16_code_units(
         placed.encode_utf16().collect(),
+    ))
+    .ok()
+}
+
+/// The text a move of the cells of `area` to `to` (cut and paste on one sheet) leaves the formula
+/// in the cell `at` with, as Excel's move adjusts references: a reference to a moved cell, or to a
+/// range all of whose cells moved, follows them (CalcFml's [`StructuralEdit::MoveCells`]); `at`
+/// is the formula's cell before the move. `None` when no reference of it changes (dc-09v).
+pub fn move_references(
+    root: &ModelRoot,
+    formula: &FormulaText,
+    at: CellKey,
+    area: GridArea,
+    to: CellKey,
+) -> Option<FormulaText> {
+    let text = String::from_utf16(formula.text().utf16_code_units()).ok()?;
+    let moved = transform_formula(
+        &text,
+        at,
+        &StructuralEdit::MoveCells { area, to },
+        &SnapshotCatalog(root),
+    )?;
+    FormulaText::new(ExcelText::from_utf16_code_units(
+        moved.encode_utf16().collect(),
     ))
     .ok()
 }

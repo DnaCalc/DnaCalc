@@ -398,6 +398,11 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     controller.paste();
                     return;
                 }
+                "x" => {
+                    ev.prevent_default();
+                    controller.cut();
+                    return;
+                }
                 "d" => {
                     ev.prevent_default();
                     controller.fill(true);

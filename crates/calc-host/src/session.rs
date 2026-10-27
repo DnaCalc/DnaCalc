@@ -146,8 +146,14 @@ pub enum SkinIntent {
     /// Copies the cells of `from` into `to` as Excel's copy and paste does: values as they are,
     /// formulas relocated, `to` filled by repeating `from` (a fill down or right is the copy of
     /// its first row or column over the rest), a single cell taking `from`'s shape
-    /// ([`crate::CopyRefusal`] says what is refused). One transaction, one undo step (dc-09v).
-    Copy { from: GridArea, to: GridArea },
+    /// ([`crate::CopyRefusal`] says what is refused). With `cut`, a move: the source's cells go to
+    /// the target, the source is emptied, and every reference to the moved cells follows them, as
+    /// Excel's cut and paste does. One transaction, one undo step (dc-09v).
+    Copy {
+        from: GridArea,
+        to: GridArea,
+        cut: bool,
+    },
 }
 
 /// Why an intent changed nothing.
@@ -405,13 +411,15 @@ impl HostSession {
                 self.edit(edits, &mut receipt)
             }
             SkinIntent::EditAxis(edit) => self.edit(vec![CellEdit::Axis(edit)], &mut receipt),
-            SkinIntent::Copy { from, to } => match crate::copy::copy_edits(&self.host, from, to) {
-                Ok(edits) => {
-                    let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
-                    self.edit(edits, &mut receipt)
+            SkinIntent::Copy { from, to, cut } => {
+                match crate::copy::copy_edits(&self.host, from, to, cut) {
+                    Ok(edits) => {
+                        let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
+                        self.edit(edits, &mut receipt)
+                    }
+                    Err(refusal) => Err(IntentError::Copy(refusal)),
                 }
-                Err(refusal) => Err(IntentError::Copy(refusal)),
-            },
+            }
             SkinIntent::Undo => self.undo(&mut receipt),
             SkinIntent::Redo => self.redo(&mut receipt),
             SkinIntent::Recalculate => {

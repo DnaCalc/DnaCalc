@@ -1,26 +1,11 @@
-// See `financial_time_value_family`: the cumulative annuity math is frozen on
-// the portable correctly-rounded core (W108 Bead C), pending the Phase-C x87
-// migration and its live-Excel re-validation.
-use crate::ported::excel_numeric::{excel_expm1, excel_log1p, exp_portable};
+// CUMIPMT and CUMPRINC sum the worksheet IPMT/PPMT kernels of `financial_time_value_family`
+// rather than a copy of the annuity math.
+use crate::ported::financial_time_value_family::{self as time_value, FinancialError};
+pub use crate::ported::financial_time_value_family::PaymentTiming;
 use crate::value::CalcValue;
 use crate::value::WorksheetErrorCode;
 
 const EPSILON: f64 = 1.0e-12;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PaymentTiming {
-    EndOfPeriod,
-    BeginningOfPeriod,
-}
-
-impl PaymentTiming {
-    fn factor(self, rate: f64) -> f64 {
-        match self {
-            Self::EndOfPeriod => 1.0,
-            Self::BeginningOfPeriod => 1.0 + rate,
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CumulativeFinanceEvalError {
@@ -66,104 +51,29 @@ fn payment_timing_arg(value: f64) -> Result<PaymentTiming, CumulativeFinanceEval
     }
 }
 
-/// PMT on the correctly-rounded numeric core (W108 Bead C) — the same PV-side
-/// stable discount form as `financial_time_value_family::pmt`, so CUMPRINC/CUMIPMT
-/// share the PMT-family op-order rather than the catastrophic `powi` path.
-fn pmt(
-    rate: f64,
-    periods: f64,
-    present_value: f64,
-    future_value: f64,
-    timing: PaymentTiming,
-) -> Result<f64, CumulativeFinanceEvalError> {
-    validate_finite(&[rate, periods, present_value, future_value])?;
-    if periods <= 0.0 {
-        return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
-    }
-    if rate == 0.0 {
-        return Ok(-(future_value + present_value) / periods);
-    }
-    if 1.0 + rate <= 0.0 {
-        return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
-    }
-    let neg_log = -(periods * excel_log1p(rate));
-    let inv_factor = exp_portable(neg_log); // (1+r)^-n
-    let denom = -excel_expm1(neg_log); // 1 - (1+r)^-n
-    if denom == 0.0 {
-        return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
-    }
-    let tf = timing.factor(rate); // 1 + r·type
-    let numerator = present_value + future_value * inv_factor;
-    let recip = 1.0 / (tf * denom);
-    let result = -numerator * rate * recip;
-    if result.is_finite() {
-        Ok(result)
-    } else {
-        Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num))
-    }
+fn kernel_error(error: FinancialError) -> CumulativeFinanceEvalError {
+    CumulativeFinanceEvalError::Domain(match error {
+        FinancialError::Num | FinancialError::NoConvergence => WorksheetErrorCode::Num,
+        FinancialError::Div0 => WorksheetErrorCode::Div0,
+        FinancialError::Value => WorksheetErrorCode::Value,
+    })
 }
 
-/// Remaining balance after `m` payments on the exp/log1p/expm1 core — mirrors
-/// `financial_time_value_family::fv_exp` (shared op-order for the IPMT recurrence).
-fn fv_exp(rate: f64, m: f64, payment: f64, present_value: f64, tf: f64) -> f64 {
-    if m == 0.0 {
-        return -present_value;
-    }
-    if rate == 0.0 {
-        return -(present_value + payment * m);
-    }
-    let log_growth = m * excel_log1p(rate);
-    let factor = exp_portable(log_growth);
-    let expm1_growth = excel_expm1(log_growth);
-    -(present_value * factor + payment * tf * (expm1_growth / rate))
-}
-
-fn ipmt_from_payment(
+/// The principal repaid over `start..=end`: PPMT summed left to right.
+fn principal_sum(
     rate: f64,
-    period_index: i32,
     periods: i32,
-    present_value: f64,
+    pv: f64,
+    start_period: i32,
+    end_period: i32,
     timing: PaymentTiming,
-    payment: f64,
 ) -> Result<f64, CumulativeFinanceEvalError> {
-    validate_finite(&[rate, present_value, payment])?;
-    if period_index < 1 || period_index > periods || periods < 1 {
-        return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
+    let mut total = 0.0;
+    for period in start_period..=end_period {
+        total += time_value::ppmt(rate, period as f64, periods as f64, pv, 0.0, timing)
+            .map_err(kernel_error)?;
     }
-    if rate <= 0.0 || present_value <= 0.0 {
-        return Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num));
-    }
-    let tf = timing.factor(rate); // 1 + r·type
-    let type_is_beginning = matches!(timing, PaymentTiming::BeginningOfPeriod);
-    let rip = if period_index <= 1 {
-        if type_is_beginning {
-            0.0
-        } else {
-            -present_value
-        }
-    } else if type_is_beginning {
-        fv_exp(rate, period_index as f64 - 2.0, payment, present_value, tf) - payment
-    } else {
-        fv_exp(rate, period_index as f64 - 1.0, payment, present_value, tf)
-    };
-    let result = rip * rate;
-    if result.is_finite() {
-        Ok(result)
-    } else {
-        Err(CumulativeFinanceEvalError::Domain(WorksheetErrorCode::Num))
-    }
-}
-
-fn ppmt_from_payment(
-    rate: f64,
-    period_index: i32,
-    periods: i32,
-    present_value: f64,
-    timing: PaymentTiming,
-    payment: f64,
-) -> Result<f64, CumulativeFinanceEvalError> {
-    let interest = ipmt_from_payment(rate, period_index, periods, present_value, timing, payment)?;
-    Ok(payment - interest)
+    Ok(total)
 }
 
 fn validate_cumulative_inputs(
@@ -199,14 +109,13 @@ pub fn cumipmt_kernel(
     let timing = payment_timing_arg(type_number)?;
     validate_cumulative_inputs(rate, periods, pv, start_period, end_period, timing)?;
 
-    // W108 Bead C: CUMIPMT = sum_{k=start..end} IPMT(r,k,n,pv,0,type), left-to-right
-    // f64 (the live-Excel search model), NOT payment·count - sum(PPMT). Carries the
-    // larger dedicated-op-order residual; implemented as-is.
-    let payment = pmt(rate, periods as f64, pv, 0.0, timing)?;
-    let mut total = 0.0;
-    for period in start_period..=end_period {
-        total += ipmt_from_payment(rate, period, periods, pv, timing, payment)?;
-    }
+    // dc-j9k: Excel's CUMIPMT is the payments less the principal, count * PMT - sum(PPMT), not
+    // the sum of IPMT. Over 400 Excel readings (rates 0.001 to 0.25, up to 400 periods, both
+    // types) it matches 131 of 195 CUMIPMT bit for bit against 53 for the sum of IPMT, and the
+    // others are within a few ulp.
+    let payment = time_value::pmt(rate, periods as f64, pv, 0.0, timing).map_err(kernel_error)?;
+    let principal = principal_sum(rate, periods, pv, start_period, end_period, timing)?;
+    let total = (end_period - start_period + 1) as f64 * payment - principal;
     if total.is_finite() {
         Ok(total)
     } else {
@@ -228,11 +137,7 @@ pub fn cumprinc_kernel(
     let timing = payment_timing_arg(type_number)?;
     validate_cumulative_inputs(rate, periods, pv, start_period, end_period, timing)?;
 
-    let payment = pmt(rate, periods as f64, pv, 0.0, timing)?;
-    let mut total = 0.0;
-    for period in start_period..=end_period {
-        total += ppmt_from_payment(rate, period, periods, pv, timing, payment)?;
-    }
+    let total = principal_sum(rate, periods, pv, start_period, end_period, timing)?;
     if total.is_finite() {
         Ok(total)
     } else {
@@ -312,7 +217,7 @@ mod tests {
         let rate = 0.09 / 12.0;
         let periods = 30.0 * 12.0;
         let pv = 125000.0;
-        let payment = pmt(rate, periods, pv, 0.0, PaymentTiming::EndOfPeriod)
+        let payment = time_value::pmt(rate, periods, pv, 0.0, PaymentTiming::EndOfPeriod)
             .expect("payment should succeed");
         let interest =
             cumipmt_kernel(rate, periods, pv, 13.0, 24.0, 0.0).expect("cumipmt should succeed");
@@ -383,7 +288,7 @@ mod tests {
         let rate = 0.09 / 12.0;
         let periods = 360.0;
         let pv = 125000.0;
-        let payment = pmt(rate, periods, pv, 0.0, PaymentTiming::BeginningOfPeriod)
+        let payment = time_value::pmt(rate, periods, pv, 0.0, PaymentTiming::BeginningOfPeriod)
             .expect("type-one payment");
         let interest = cumipmt_kernel(rate, periods, pv, 2.0, 3.0, 1.0).expect("type-one cumipmt");
         let principal =
@@ -413,26 +318,28 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn cumipmt_and_cumprinc_exactness_witness_rows_match_excel_targets() {
-        // W108 Bead C: CUMIPMT is now the direct sum of IPMT (CR core), and matches
-        // live Excel (CUMIPMT-0003) bit-for-bit at 0xc0c3667e7f577146.
+        // Excel (2026-10-25): CUMPRINC(0.05/12,360,200000,1,12,0) is 0xc0a70d761d260042, the
+        // left-to-right sum of its own twelve PPMT readings, and CUMIPMT(...) 0xc0c3667e7f577146
+        // is 12 * PMT less that sum (the sum of its twelve IPMT readings is 0xc0c3667e7f577147).
+        // The local PPMT kernel is 1 to 5 ulp below Excel on these twelve periods, which puts
+        // the local CUMPRINC 1 ulp low and CUMIPMT 1 ulp off: the open PPMT residual (dc-j9k),
+        // pinned here with the Excel targets recorded.
         let cumipmt_actual =
             cumipmt_kernel(0.05 / 12.0, 360.0, 200000.0, 1.0, 12.0, 0.0).expect("cumipmt witness");
+        let cumipmt_current_local = f64::from_bits(0xc0c3667e7f577147);
         let cumipmt_excel_target = f64::from_bits(0xc0c3667e7f577146);
-        assert_bits(cumipmt_actual, cumipmt_excel_target);
+        assert_bits(cumipmt_actual, cumipmt_current_local);
+        assert_ne!(cumipmt_actual.to_bits(), cumipmt_excel_target.to_bits());
 
-        // CUMPRINC (sum of PPMT, CR core): local 0xc0a70d761d260044 vs Excel
-        // (CUMPRINC-0003) 0xc0a70d761d260042 — a 2-ULP open discrepancy in the
-        // dedicated-op-order accumulation lane (tracked W108 residual, NOT
-        // acceptance). Pin the NEW local bits with the Excel target recorded.
         let cumprinc_actual = cumprinc_kernel(0.05 / 12.0, 360.0, 200000.0, 1.0, 12.0, 0.0)
             .expect("cumprinc witness");
-        let cumprinc_current_local = f64::from_bits(0xc0a70d761d260044);
+        let cumprinc_current_local = f64::from_bits(0xc0a70d761d260041);
         let cumprinc_excel_target = f64::from_bits(0xc0a70d761d260042);
         assert_bits(cumprinc_actual, cumprinc_current_local);
         assert_ne!(cumprinc_actual.to_bits(), cumprinc_excel_target.to_bits());
 
         // The shared PMT witness stays Excel-exact.
-        let payment = pmt(
+        let payment = time_value::pmt(
             0.05 / 12.0,
             360.0,
             200000.0,

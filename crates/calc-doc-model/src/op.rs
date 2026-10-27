@@ -31,6 +31,10 @@ pub enum WorkbookOp {
         array: ArrayFormula,
         input: CellInput,
     },
+    /// Give one cell a cell format: an index into the workbook's cell formats (a cell's `s`), or
+    /// `None` to return it to the format the file gave it (dc-09v). It changes no input and no
+    /// calculation.
+    SetFormat { at: CellKey, format: Option<u32> },
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.
