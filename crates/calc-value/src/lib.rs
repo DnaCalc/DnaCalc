@@ -26,7 +26,7 @@ pub use grid::{CellKey, GridArea, GridError, MAX_COLUMNS, MAX_ROWS};
 pub use id::{IdAllocator, IdError, NameId, NodeId, SheetId, TableId, WorkbookId};
 pub use numeric::{NumericMode, NumericTargetId};
 pub use value::{
-    ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CoreValue,
+    ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CoreRef, CoreValue,
     EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, OpaqueCallable, ReferenceError, ReferenceLike,
     WorksheetErrorCode,
 };

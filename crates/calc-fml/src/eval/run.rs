@@ -34,7 +34,7 @@ use crate::reference::{
     FormulaAnchor, ReadContractError, ReferenceCatalog, ReferenceNotation, SpillExtent, bind_text,
 };
 use calc_func::value::{
-    CalcArray, CalcValue, CellKey, CoreValue, GridArea, NumericMode, ReferenceLike,
+    CalcArray, CalcValue, CellKey, CoreRef, GridArea, NumericMode, ReferenceLike,
     WorksheetErrorCode,
 };
 use calc_func::{
@@ -193,15 +193,15 @@ pub fn evaluate(
     };
     let at = instance.anchor.cell();
     let outcome = run.block(0).and_then(|value| {
-        let value = match (instance.plan.form, value.core()) {
-            (FormulaForm::Legacy, CoreValue::Reference(reference)) => {
+        let value = match (instance.plan.form, value.core_ref()) {
+            (FormulaForm::Legacy, CoreRef::Reference(reference)) => {
                 match refops::intersect_cell(reference, at) {
                     Some(cell) => reader.value_of(&ReferenceLike::cell(cell))?,
                     None => CalcValue::error(WorksheetErrorCode::Value),
                 }
             }
-            (FormulaForm::Legacy, CoreValue::Array(_)) => refops::implicit(&value, at),
-            (FormulaForm::Dynamic, CoreValue::Reference(reference)) => {
+            (FormulaForm::Legacy, CoreRef::Array(_)) => refops::implicit(&value, at),
+            (FormulaForm::Dynamic, CoreRef::Reference(reference)) => {
                 reader.values_of(reference)?
             }
             _ => value,
@@ -396,8 +396,8 @@ impl Run<'_, '_> {
 
     /// `value` admitted where one value is taken; see [`Run::admit`].
     fn admit_value(&self, value: CalcValue, admission: Admission) -> Result<CalcValue, EvalFault> {
-        match value.core() {
-            CoreValue::Reference(reference) => {
+        match value.core_ref() {
+            CoreRef::Reference(reference) => {
                 if let [area] = reference.areas()
                     && area.cell_count() == 1
                 {
@@ -416,7 +416,7 @@ impl Run<'_, '_> {
                     }),
                 }
             }
-            CoreValue::Array(_) if value.callable_value().is_none() => match admission {
+            CoreRef::Array(_) if value.callable_value().is_none() => match admission {
                 Admission::Lift | Admission::IntersectReferences => Ok(value),
                 Admission::IntersectAll => {
                     Ok(refops::implicit(&value, self.instance.anchor.cell()))
@@ -690,8 +690,8 @@ impl Run<'_, '_> {
     /// reference to one cell as its value, a larger range lifted as the array of its values when
     /// the call lifts ranges, and refused otherwise.
     fn lift_operand(&self, value: CalcValue, admission: Admission) -> Result<CalcValue, EvalFault> {
-        match value.core() {
-            CoreValue::Reference(reference) => {
+        match value.core_ref() {
+            CoreRef::Reference(reference) => {
                 if let [area] = reference.areas()
                     && area.cell_count() == 1
                 {
@@ -758,8 +758,8 @@ impl Run<'_, '_> {
         let argc = arguments.len();
         let Some(closure) = Closure::of(callee) else {
             // Excel 16.0, 2026-10-23: `=(A1)(2)` is #REF! and `=LET(x,1,x(2))` #VALUE!.
-            return Ok(match callee.core() {
-                CoreValue::Reference(_) => CalcValue::error(WorksheetErrorCode::Ref),
+            return Ok(match callee.core_ref() {
+                CoreRef::Reference(_) => CalcValue::error(WorksheetErrorCode::Ref),
                 _ => CalcValue::error(WorksheetErrorCode::Value),
             });
         };
@@ -825,8 +825,8 @@ impl Run<'_, '_> {
     /// that cell spills nothing.
     fn spill(&mut self) -> Result<(), EvalFault> {
         let operand = self.stack.pop().expect("an operand");
-        let value = match operand.core() {
-            CoreValue::Reference(reference) => match reference.areas() {
+        let value = match operand.core_ref() {
+            CoreRef::Reference(reference) => match reference.areas() {
                 [area] if area.cell_count() == 1 => match self.reader.spill_extent(area.first()) {
                     SpillExtent::Area(area) => CalcValue::reference(ReferenceLike::area(area)),
                     SpillExtent::None => CalcValue::error(WorksheetErrorCode::Ref),
@@ -839,7 +839,7 @@ impl Run<'_, '_> {
                 },
                 _ => CalcValue::error(WorksheetErrorCode::Ref),
             },
-            CoreValue::Error(_) if operand.callable_value().is_none() => operand,
+            CoreRef::Error(_) if operand.callable_value().is_none() => operand,
             _ => CalcValue::error(WorksheetErrorCode::Value),
         };
         self.stack.push(value);
@@ -918,14 +918,14 @@ fn lifted_array(value: &CalcValue) -> Option<&CalcArray> {
 
 /// One element's result of a lifted call, as the array of results holds it.
 fn lifted_element(value: CalcValue) -> Result<CalcValue, EvalFault> {
-    match value.core() {
-        CoreValue::Reference(_) => Err(not_modelled(
+    match value.core_ref() {
+        CoreRef::Reference(_) => Err(not_modelled(
             "a function lifted over an array whose result is a reference",
         )),
-        CoreValue::Array(_) if value.callable_value().is_none() => Err(not_modelled(
+        CoreRef::Array(_) if value.callable_value().is_none() => Err(not_modelled(
             "a function lifted over an array whose result is an array",
         )),
-        CoreValue::Missing => Ok(CalcValue::empty()),
+        CoreRef::Missing => Ok(CalcValue::empty()),
         _ => Ok(value),
     }
 }
@@ -988,10 +988,10 @@ impl CallableInvoker for Callables<'_, '_, '_> {
         let value = self
             .run
             .call_closure(callable, arguments.to_vec())
-            .and_then(|value| match value.core() {
+            .and_then(|value| match value.core_ref() {
                 // A LAMBDA's value that is a reference reaches the helper as its value: one
                 // cell's value, or the array of a larger range's values.
-                CoreValue::Reference(reference) => match reference.areas() {
+                CoreRef::Reference(reference) => match reference.areas() {
                     [area] if area.cell_count() == 1 => self.run.reader.value_of(reference),
                     _ => self.run.reader.values_of(reference),
                 },

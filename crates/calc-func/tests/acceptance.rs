@@ -13,10 +13,10 @@
 #![allow(non_snake_case)]
 
 use calc_func::value::{
-    ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CellKey, CoreValue,
-    ExcelText, GridArea, GridError, IdAllocator, IdError, MAX_COLUMNS, MAX_ROWS, NameId, NodeId,
-    NumericMode, NumericTargetId, OpaqueCallable, ReferenceError, ReferenceLike, SheetId, TableId,
-    WorkbookId, WorksheetErrorCode,
+    ArrayShape, CalcArray, CalcValue, CallableArityShape, CallableValue, CellKey, CoreRef,
+    CoreValue, ExcelText, GridArea, GridError, IdAllocator, IdError, MAX_COLUMNS, MAX_ROWS, NameId,
+    NodeId, NumericMode, NumericTargetId, OpaqueCallable, ReferenceError, ReferenceLike, SheetId,
+    TableId, WorkbookId, WorksheetErrorCode,
 };
 use calc_func::{
     ArgumentDemand, CellReader, EvalServices, FunctionCallScratch, FunctionCallTarget,
@@ -347,6 +347,7 @@ macro_rules! send_sync_types {
 send_sync_types![
     CalcValue,
     CoreValue,
+    CoreRef<'static>,
     CalcArray,
     ArrayShape,
     ExcelText,
