@@ -1,5 +1,6 @@
-//! Excel binary workbooks (.xlsb, MS-XLSB; dc-5sr): a package whose workbook, worksheets, styles,
-//! shared strings, tables, external links, comments and metadata are parts of binary records
+//! Excel binary workbooks (.xlsb, MS-XLSB; dc-5sr): a package whose workbook, worksheets, macro
+//! sheets (dc-xuw), styles, shared strings, tables, external links, comments and metadata are
+//! parts of binary records
 //! instead of SpreadsheetML. [`crate::open`] reads such a package by converting it, before
 //! anything else reads it, into the SpreadsheetML package it stands for: each binary part becomes
 //! the XML part of the same content (`xl/workbook.bin` becomes `xl/workbook.xml`), with its
@@ -9,12 +10,15 @@
 //! carried over as they are; the binary index of each sheet, the calculation chain and the
 //! volatile dependencies, which only speed up Excel's reading, are left out. The loader then reads
 //! the converted package as it reads any, so the model of an .xlsb is the model of the .xlsx Excel
-//! saves for it, and a save writes an .xlsx.
+//! saves for it, and a save writes an .xlsx (an .xlsm for a workbook with a VBA project or a macro
+//! sheet).
 //!
 //! A part of a kind this conversion does not read (a pivot table or cache, a query table, a
-//! connection list, a slicer, a macro sheet) refuses the workbook with a typed reason
-//! ([`crate::OpenError::BinaryWorkbook`]), as does a record or a formula token it cannot read:
-//! what is not read is not dropped silently.
+//! connection list, a slicer) refuses the workbook with a typed reason
+//! ([`crate::OpenError::BinaryWorkbook`]), as does a record of a read kind or a formula token it
+//! cannot read. The records a converted part leaves out are listed with it ([`sheet`],
+//! [`styles`], [`parts`]); of them the loader reads only a data bar's Excel 2010 properties
+//! (its lengths and fill), so a data bar converts with SpreadsheetML 2006's.
 
 mod commands;
 mod formula;
