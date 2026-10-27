@@ -369,7 +369,9 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         || formats.iter().any(|formats| !formats.is_empty());
     let mut layout = layout_changes(package, edit)?;
     let mut out = Changes::default();
-    if !cells_changed && layout.is_none() {
+    // A defined name's formula an edit changed (rows or columns inserted or deleted, cells moved).
+    let names_changed = base.definitions().names() != model.definitions().names();
+    if !cells_changed && layout.is_none() && !names_changed {
         return Ok(out);
     }
     let mut chain = None;
@@ -668,9 +670,9 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
         .as_mut()
         .map(|layout| std::mem::take(&mut layout.names))
         .unwrap_or_default();
-    // Rows or columns inserted or deleted: each defined name whose formula the edits rewrote, and
-    // the other parts the edits' passes moved.
-    if let Some(moved) = moved.as_mut() {
+    // Each defined name whose formula the edits rewrote (rows or columns inserted or deleted,
+    // cells moved by a cut, dc-gf0), and the other parts the edits' passes moved.
+    if names_changed {
         for (loaded, now) in base
             .definitions()
             .names()
@@ -695,6 +697,8 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 now.formula.encode_utf16().collect(),
             ));
         }
+    }
+    if let Some(moved) = moved.as_mut() {
         for (part, content) in std::mem::take(&mut moved.parts) {
             out.rewritten.insert(part, content);
         }

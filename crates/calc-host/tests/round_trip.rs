@@ -2255,3 +2255,143 @@ fn dc_09v__copy_and_cut_take_cell_formats() {
     assert_eq!(code(session.host(), "A4"), r"0.00;[Red]\(0.00\)");
     assert_eq!(code(session.host(), "H4"), "General");
 }
+
+/// dc-gf0's cases, as tests/fixtures/dc_gf0/make-cut.ps1 makes them in Excel: name, source sheet,
+/// source range, target sheet, target top-left cell, and the package Excel saved after the cut.
+const GF0_CASES: [(&str, &str, &str, &str, &str, &[u8]); 4] = [
+    (
+        "same-sheet",
+        "Data",
+        "A1:B3",
+        "Data",
+        "E5",
+        include_bytes!("fixtures/dc_gf0/cut-same-sheet.xlsx"),
+    ),
+    (
+        "to-target-sheet",
+        "Data",
+        "A1:B3",
+        "Target Sheet",
+        "C2",
+        include_bytes!("fixtures/dc_gf0/cut-to-target-sheet.xlsx"),
+    ),
+    (
+        "to-other",
+        "Data",
+        "A1:A3",
+        "Other",
+        "E1",
+        include_bytes!("fixtures/dc_gf0/cut-to-other.xlsx"),
+    ),
+    (
+        "middle-to-target",
+        "Data",
+        "A2:A3",
+        "Target Sheet",
+        "F1",
+        include_bytes!("fixtures/dc_gf0/cut-middle-to-target.xlsx"),
+    ),
+];
+
+/// The defined names as `name formula`, in the workbook's order.
+fn gf0_names(host: &HostState) -> Vec<String> {
+    host.defined_names()
+        .iter()
+        .map(|name| format!("{} {:?} {}", name.name, name.scope, name.formula))
+        .collect()
+}
+
+/// Each formula cell's calculated value (A1:J16 of each sheet), by sheet name and position.
+fn gf0_values(host: &HostState) -> BTreeMap<(String, u32, u32), CachedValue> {
+    d2b_cells(host)
+        .into_iter()
+        .filter_map(|(key, cell)| match cell.value() {
+            ProjectedValue::Calculated { value, .. } => Some((key, cached_of(value))),
+            ProjectedValue::FileCached(cache) => Some((key, cache.value().clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// dc-gf0: a cut and paste moves cells as Excel's does, on one sheet and to another, against the
+/// packages Excel saved after the same cuts (tests/fixtures/dc_gf0, Excel 16.0.20430): every
+/// cell's input (each reference to the moved cells following them, `#REF!` for a reference to
+/// cells the paste wrote over, a range losing a band moved to another sheet or written over, a
+/// formula moved to another sheet reading the cells it read), every defined name's formula (an
+/// absolute one following the cells, a mixed one kept), and every formula's value as Excel
+/// calculated it. One undo step takes it back; the save writes the cells and the names, and the
+/// package reopens as Excel's does.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_gf0__cuts_move_cells_references_and_names_as_excel_does() {
+    let base = include_bytes!("fixtures/dc_gf0/cut-base.xlsx");
+    for (case, from_sheet, from, to_sheet, to, excel) in GF0_CASES {
+        let mut session = session(base);
+        let opened = open(base);
+        let excel_after = open(excel);
+        let (first, last) = from.split_once(':').unwrap();
+        let source = sheet(session.host(), from_sheet);
+        let target = sheet(session.host(), to_sheet);
+        let receipt = session.dispatch(SkinIntent::Copy {
+            from: GridArea::new(at(source, first), at(source, last)).unwrap(),
+            to: GridArea::cell(at(target, to)),
+            cut: true,
+        });
+        assert!(receipt.accepted(), "{case}: {:?}", receipt.error);
+        assert_eq!(
+            d2b_inputs(session.host()),
+            d2b_inputs(&excel_after),
+            "{case}: inputs"
+        );
+        assert_eq!(
+            gf0_names(session.host()),
+            gf0_names(&excel_after),
+            "{case}: names"
+        );
+        assert_eq!(
+            gf0_values(session.host()),
+            gf0_values(&excel_after),
+            "{case}: values"
+        );
+
+        let mut saved = Vec::new();
+        session
+            .save(&SavePolicy::default(), &mut saved)
+            .expect("saved");
+        let reopened = open(&saved);
+        assert_eq!(
+            d2b_inputs(&reopened),
+            d2b_inputs(&excel_after),
+            "{case}: saved inputs"
+        );
+        assert_eq!(
+            gf0_names(&reopened),
+            gf0_names(&excel_after),
+            "{case}: saved names"
+        );
+        // Native-only: the package is written where DNACALC_RIF_SAVE_DIR names, for Excel to
+        // reopen (tests/fixtures/d2/measure-saved-open.ps1).
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Ok(dir) = std::env::var("DNACALC_RIF_SAVE_DIR") {
+            let path = std::path::Path::new(&dir).join(format!("dc-gf0-cut-{case}.xlsx"));
+            std::fs::write(&path, &saved).expect("written");
+        }
+
+        assert!(session.dispatch(SkinIntent::Undo).accepted(), "{case}");
+        assert_eq!(
+            d2b_inputs(session.host()),
+            d2b_inputs(&opened),
+            "{case}: undone inputs"
+        );
+        assert_eq!(
+            gf0_names(session.host()),
+            gf0_names(&opened),
+            "{case}: undone names"
+        );
+        assert_eq!(
+            gf0_values(session.host()),
+            gf0_values(&opened),
+            "{case}: undone values"
+        );
+    }
+}

@@ -15,17 +15,21 @@
 //!   takes the source's shape;
 //! - copies each cell's format (its cell format, the `s` of the file) with it.
 //!
-//! A cut (a move) puts the source's cells and their formats at the target and empties the source,
-//! whose cells return to the default format, on one sheet. A
-//! moved formula keeps its text, and every formula of the workbook (the moved ones included)
-//! whose references point at moved cells follows them ([`calc_engine::move_references`]), as
-//! Excel's move does; a legacy array moves whole.
+//! A cut (a move) puts the source's cells and their formats at the target, on the same sheet or
+//! another, and empties the source, whose cells return to the default format. Every formula of
+//! the workbook (the moved ones included) is adjusted as Excel's move adjusts it
+//! ([`calc_engine::move_references`], measured in Excel: calc-host's
+//! tests/fixtures/dc_gf0/cut-excel.json): a reference to moved cells follows them, one to cells
+//! the paste writes over is `#REF!`, and a formula moved to another sheet keeps reading the cells
+//! it read. Each defined name whose reference is absolute follows the moved cells too
+//! ([`calc_engine::move_name`]), and the formulas that use a name so changed are set again, so
+//! they are bound to its new formula; a legacy array moves whole (dc-09v, dc-gf0).
 //!
 //! Every edit is read from the revision before the copy, so a target that overlaps its source
 //! copies what the source held, and the edits commit as one transaction and one undo step.
 //!
-//! Left as Excel's copy does differently, for now: a defined name that refers to moved cells
-//! keeps its reference (no command edits names yet).
+//! Left as Excel does differently, for now: a sheet-scoped name used without its sheet in a
+//! formula that moves to another sheet is not given its sheet.
 
 use crate::command::CellEdit;
 use crate::state::HostState;
@@ -53,8 +57,6 @@ pub enum CopyRefusal {
     Unrelocatable { at: CellKey },
     /// The source holds part of a legacy array formula, which is copied or moved only whole.
     PartOfArray { anchor: CellKey },
-    /// A cut whose target is on another sheet than its source (not built).
-    CutAcrossSheets,
 }
 
 impl fmt::Display for CopyRefusal {
@@ -87,9 +89,6 @@ impl fmt::Display for CopyRefusal {
                 anchor.row(),
                 anchor.column()
             ),
-            CopyRefusal::CutAcrossSheets => {
-                f.write_str("moving cells to another sheet is not built yet")
-            }
         }
     }
 }
@@ -158,9 +157,6 @@ pub(crate) fn copy_edits(
     }
     if cut && (to.row_count() != source_rows || to.column_count() != source_cols) {
         return Err(shape);
-    }
-    if cut && to.sheet() != from.sheet() {
-        return Err(CopyRefusal::CutAcrossSheets);
     }
     if to.cell_count() > COPY_LIMIT {
         return Err(CopyRefusal::TooLarge {
@@ -327,6 +323,70 @@ pub(crate) fn copy_edits(
                 }
             }
         }
+        // Each defined name whose reference follows the moved cells, and the formulas that use
+        // it, set again so they are bound to its new formula.
+        let mut renamed: Vec<String> = Vec::new();
+        for name in definitions.names() {
+            if let Some(formula) =
+                calc_engine::move_name(model, &name.formula, name.scope, from, to.first())
+            {
+                renamed.push(name.name.to_ascii_lowercase());
+                edits.push(CellEdit::SetName {
+                    name: name.name.clone(),
+                    scope: name.scope,
+                    formula,
+                });
+            }
+        }
+        if !renamed.is_empty() {
+            let set: BTreeSet<CellKey> = edits
+                .iter()
+                .filter_map(|edit| match edit {
+                    CellEdit::Set { at, .. } => Some(*at),
+                    CellEdit::SetArray { array, .. } => Some(array.anchor()),
+                    _ => None,
+                })
+                .collect();
+            for entry in model.sheets() {
+                for (at, input) in model.sheet_cells(entry.id()).into_iter().flatten() {
+                    let CellInput::Formula(formula) = input else {
+                        continue;
+                    };
+                    if from.contains(at) || to.contains(at) || set.contains(&at) {
+                        continue;
+                    }
+                    let text = formula.text().to_string_lossy().to_ascii_lowercase();
+                    if !renamed.iter().any(|name| uses_name(&text, name)) {
+                        continue;
+                    }
+                    match definitions
+                        .array_containing(at)
+                        .filter(|a| a.anchor() == at)
+                    {
+                        Some(array) => edits.push(CellEdit::SetArray {
+                            array: *array,
+                            formula: formula.clone(),
+                        }),
+                        None => edits.push(CellEdit::Set {
+                            at,
+                            input: CellInput::Formula(formula.clone()),
+                        }),
+                    }
+                }
+            }
+        }
     }
     Ok(edits)
+}
+
+/// Whether the formula `text` (lower case) holds `name` (lower case) as a whole word: a name a
+/// formula may use. A text or another name that holds it as a word counts too, which only sets a
+/// formula again that did not need it.
+fn uses_name(text: &str, name: &str) -> bool {
+    let word = |c: char| c.is_alphanumeric() || c == '_' || c == '.' || c == '\\';
+    text.match_indices(name).any(|(at, _)| {
+        let before = text[..at].chars().next_back();
+        let after = text[at + name.len()..].chars().next();
+        !before.is_some_and(word) && !after.is_some_and(word)
+    })
 }
