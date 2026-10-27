@@ -72,6 +72,12 @@ pub const GRID_CSS: &str = r#"
 .dc-corner{position:absolute;left:0;top:0;background:#eaeef2;border-right:1px solid #d0d7de;border-bottom:1px solid #d0d7de;box-sizing:border-box}
 .dc-selection{position:absolute;box-sizing:border-box;background:#1a7f3722;border:1px solid #1a7f37;pointer-events:none}
 .dc-active{position:absolute;box-sizing:border-box;border:2px solid #1a7f37;pointer-events:none}
+.dc-dropdown{position:absolute;box-sizing:border-box;width:17px;border:1px solid #8c959f;background:#f6f8fa;font-size:9px;line-height:1;padding:0;cursor:pointer;z-index:2;color:#24292f}
+.dc-list{list-style:none;margin:0;padding:0;position:absolute;box-sizing:border-box;min-width:80px;max-height:160px;overflow:auto;border:1px solid #8c959f;background:#fff;z-index:3;box-shadow:0 2px 6px #0003}
+.dc-list li{padding:1px 6px;white-space:nowrap;cursor:default}
+.dc-list li:hover{background:#dbe9f9}
+.dc-prompt{position:absolute;box-sizing:border-box;max-width:220px;border:1px solid #8c959f;background:#ffffe1;padding:3px 6px;font-size:12px;z-index:2;pointer-events:none;white-space:normal}
+.dc-prompt b{display:block}
 .dc-cell-editor{position:absolute;box-sizing:border-box;border:2px solid #1a7f37;font:13px system-ui,"Segoe UI",sans-serif;padding:0 3px;margin:0;outline:none;background:#fff;z-index:2;min-width:120px}
 "#;
 
@@ -216,6 +222,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();
     let editor: NodeRef<leptos::html::Input> = NodeRef::new();
     let note = RwSignal::new(String::new());
+    // Whether the active cell's validation list is open.
+    let list_open = RwSignal::new(false);
     // Whether a press on a cell is being dragged to extend the selection.
     let dragging = StoredValue::new(false);
 
@@ -433,6 +441,15 @@ fn grid_view(controller: Controller) -> impl IntoView {
             ev.prevent_default();
             controller.recalculate();
             return;
+        }
+        // Alt+Down opens the active cell's validation list, as in Excel; Escape closes it.
+        if ev.alt_key() && chord.key == "ArrowDown" {
+            ev.prevent_default();
+            list_open.set(true);
+            return;
+        }
+        if chord.key == "Escape" && list_open.get_untracked() {
+            list_open.set(false);
         }
         if let Some(action) = resolve_action(&sheet_keymap(), &chord) {
             ev.prevent_default();
@@ -717,6 +734,87 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let rect = active_rect();
         view! { <div class="dc-active" data-dnacalc="active-cell" style=rect_style(&rect)></div> }
     };
+    // The active cell's data validation (dc-6yw): a list's drop-down button at its right edge, the
+    // list it opens (Alt+Down too, as in Excel), and the rule's input message below the cell.
+    let rule = Memo::new(move |_| {
+        let at = controller.active_key()?;
+        controller.with(|book| book.validation(at))
+    });
+    Effect::new(move |_| {
+        controller.active.track();
+        list_open.set(false);
+    });
+    let dropdown_view = move || {
+        let rule = rule.get()?;
+        if !rule.dropdown {
+            return None;
+        }
+        let rect = active_rect();
+        let style = format!(
+            "left:{};top:{};height:{}",
+            px(rect.x + rect.w),
+            px(rect.y),
+            px(rect.h)
+        );
+        Some(view! {
+            <button
+                type="button"
+                class="dc-dropdown"
+                data-dnacalc="dropdown"
+                title="Pick from the list"
+                style=style
+                on:mousedown=move |ev| ev.stop_propagation()
+                on:click=move |_| list_open.update(|open| *open = !*open)
+            >"▼"</button>
+        })
+    };
+    let list_view = move || {
+        if !list_open.get() {
+            return None;
+        }
+        let at = controller.active_key_untracked()?;
+        let items = controller.with_untracked(|book| book.validation_items(at));
+        let rect = active_rect();
+        let style = format!("left:{};top:{}", px(rect.x), px(rect.y + rect.h));
+        let rows = items
+            .into_iter()
+            .map(|item| {
+                let text = item.clone();
+                view! {
+                    <li
+                        data-dnacalc="dropdown-item"
+                        on:click=move |_| {
+                            list_open.set(false);
+                            controller.enter(at, text.clone());
+                            focus_grid();
+                        }
+                    >{item}</li>
+                }
+            })
+            .collect_view();
+        Some(view! {
+            <ul class="dc-list" data-dnacalc="dropdown-list" style=style
+                on:mousedown=move |ev| ev.stop_propagation()>{rows}</ul>
+        })
+    };
+    let prompt_view = move || {
+        let (title, text) = rule.get()?.prompt?;
+        if list_open.get() {
+            return None;
+        }
+        let rect = active_rect();
+        let style = format!(
+            "left:{};top:{}",
+            px(rect.x + 8.0),
+            px(rect.y + rect.h + 4.0)
+        );
+        Some(view! {
+            <div class="dc-prompt" data-dnacalc="validation-prompt" style=style>
+                {(!title.is_empty()).then(|| view! { <b>{title}</b> })}
+                {text}
+            </div>
+        })
+    };
     let editor_view = move || {
         (controller.editing.get() == Some(EditOrigin::Cell)).then(|| {
             let rect = active_rect();
@@ -812,6 +910,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         {cells_view}
                         {selection_view}
                         {active_view}
+                        {dropdown_view}
+                        {prompt_view}
+                        {list_view}
                         {move || {
                             let (columns, rows) = headers_view();
                             view! { {columns}{rows} }

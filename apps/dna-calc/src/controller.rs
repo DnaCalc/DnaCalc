@@ -490,18 +490,37 @@ impl Controller {
             return false;
         };
         let text = self.edit_text.get_untracked();
+        let note = self.book.with_value(|book| book.validation_note(at, &text));
         let receipt = self.dispatch(SkinIntent::EnterCell { at, text });
         if receipt.accepted() {
             self.editing.set(None);
+            self.validation_said(note);
             true
         } else {
             false
         }
     }
 
-    /// Text entered into any cell, one undoable edit (the notebook's blocks).
+    /// Text entered into any cell, one undoable edit (the notebook's blocks, a drop-down's item).
     pub fn enter(&self, at: CellKey, text: String) -> IntentReceipt {
-        self.dispatch(SkinIntent::EnterCell { at, text })
+        let note = self.book.with_value(|book| book.validation_note(at, &text));
+        let receipt = self.dispatch(SkinIntent::EnterCell { at, text });
+        if receipt.accepted() {
+            self.validation_said(note);
+        }
+        receipt
+    }
+
+    /// A warning or information rule's message about an entry the session took, on the status
+    /// line (Excel asks, or tells, in a dialog; the entry is kept here).
+    fn validation_said(&self, note: Option<calc_host::ValidationFailure>) {
+        if let Some(failure) = note {
+            let kind = match failure.style {
+                calc_host::ErrorStyle::Warning => "Warning",
+                _ => "Information",
+            };
+            self.say(format!("{kind}, entry kept: {failure}"), true);
+        }
     }
 
     /// Inserts (`insert`) or deletes rows or columns: the selected whole rows (a row header's

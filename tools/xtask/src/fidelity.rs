@@ -436,7 +436,10 @@ fn twin(file: &Path, bytes: &[u8], host: &HostState, out: &Path) -> Value {
             .sheets()
             .iter()
             .zip(host.loaded().sheets())
-            .find(|(a, b)| a.conditional_formats() != b.conditional_formats())
+            .find(|(a, b)| {
+                a.conditional_formats() != b.conditional_formats()
+                    || a.validations() != b.validations()
+            })
             .map(|(a, b)| {
                 let first = a
                     .conditional_formats()
@@ -446,10 +449,12 @@ fn twin(file: &Path, bytes: &[u8], host: &HostState, out: &Path) -> Value {
                 (
                     "conditional_formats".to_owned(),
                     clip(&format!(
-                        "sheet {:?}: {} and {} blocks; first {first:?}",
+                        "sheet {:?}: {} and {} blocks; first {first:?}; validations {:?} and {:?}",
                         a.id(),
                         a.conditional_formats().len(),
-                        b.conditional_formats().len()
+                        b.conditional_formats().len(),
+                        a.validations(),
+                        b.validations()
                     )),
                 )
             });

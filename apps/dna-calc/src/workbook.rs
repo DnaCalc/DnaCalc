@@ -295,6 +295,39 @@ impl Workbook {
         shown
     }
 
+    /// The data validation rule of a cell (dc-6yw): its drop-down and input message.
+    pub fn validation(&self, at: CellKey) -> Option<calc_host::ValidationRule> {
+        self.session.host().validation(at)
+    }
+
+    /// The items a cell's list drop-down offers, as text to enter (dc-6yw).
+    pub fn validation_items(&self, at: CellKey) -> Vec<String> {
+        use calc_host::value::CoreValue;
+        let Some(items) = self.session.host().validation_list(at) else {
+            return Vec::new();
+        };
+        items
+            .iter()
+            .filter_map(|item| match item.core() {
+                CoreValue::Text(text) => Some(text.to_string_lossy()),
+                CoreValue::Number(n) => Some(format!("{n}")),
+                CoreValue::Logical(b) => Some(if *b { "TRUE" } else { "FALSE" }.to_owned()),
+                _ => None,
+            })
+            .filter(|text| !text.is_empty())
+            .collect()
+    }
+
+    /// What a warning or information rule of the cell says about `text` as its entry, which the
+    /// session takes (a stop rule's refusal comes back as the intent's error).
+    pub fn validation_note(&self, at: CellKey, text: &str) -> Option<calc_host::ValidationFailure> {
+        let host = self.session.host();
+        let input = calc_host::interpret_entry_in(text, Some(&host.entry_environment())).ok()?;
+        host.check_entry(at, input.as_ref())
+            .err()
+            .filter(|failure| failure.style != calc_host::ErrorStyle::Stop)
+    }
+
     /// Text typed into a cell, read as Excel reads a cell entry: one undoable edit.
     pub fn enter(&mut self, at: CellKey, text: &str) -> IntentReceipt {
         self.dispatch(SkinIntent::EnterCell {

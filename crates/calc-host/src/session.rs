@@ -173,6 +173,8 @@ pub enum IntentError {
     UnknownSheet(SheetId),
     /// The copy was refused; the workbook is as it was.
     Copy(crate::copy::CopyRefusal),
+    /// The cell's data validation, a stop rule, does not allow the entry (dc-6yw).
+    Validation(crate::validation::ValidationFailure),
 }
 
 impl fmt::Display for IntentError {
@@ -189,6 +191,7 @@ impl fmt::Display for IntentError {
                 write!(f, "the session has no subscription {}", id.get())
             }
             IntentError::UnknownSheet(sheet) => write!(f, "the workbook holds no sheet {sheet:?}"),
+            IntentError::Validation(failure) => write!(f, "{failure}"),
             IntentError::Copy(refusal) => write!(f, "the copy was refused: {refusal}"),
         }
     }
@@ -392,7 +395,21 @@ impl HostSession {
         };
         let outcome = match intent.clone() {
             SkinIntent::EnterCell { at, text } => {
-                match interpret_entry_in(&text, Some(&self.host.entry_environment())) {
+                let entry = interpret_entry_in(&text, Some(&self.host.entry_environment()));
+                // A stop rule of the cell's data validation refuses an entry it does not allow.
+                let refused = match &entry {
+                    Ok(input) => match self.host.check_entry(at, input.as_ref()) {
+                        Err(failure) if failure.style == crate::validation::ErrorStyle::Stop => {
+                            Some(failure)
+                        }
+                        _ => None,
+                    },
+                    Err(_) => None,
+                };
+                match entry {
+                    _ if refused.is_some() => Err(IntentError::Validation(
+                        refused.expect("checked just above"),
+                    )),
                     Ok(Some(input)) => {
                         let edit = self.entry_edit(at, input);
                         self.edit(vec![edit], &mut receipt)

@@ -52,6 +52,8 @@ pub(super) struct SheetLoad {
     pub(super) geometry: super::geometry::SheetGeometry,
     /// The sheet's conditional formats (dc-6yw).
     pub(super) conditional_formats: Vec<super::conditional::ConditionalFormat>,
+    /// The sheet's data validations (dc-6yw).
+    pub(super) validations: Vec<super::validation::Validation>,
 }
 
 /// An area some of whose cells are still to be read, whose cells are not inputs: what an array
@@ -809,6 +811,7 @@ pub(super) fn load_sheet(
             auto_filter: None,
             geometry: super::geometry::SheetGeometry::default(),
             conditional_formats: Vec::new(),
+            validations: Vec::new(),
         },
         groups: BTreeMap::new(),
         members: Vec::new(),
@@ -827,7 +830,17 @@ pub(super) fn load_sheet(
                 sheet.load.conditional_formats.push(block);
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "extLst") => {
-                super::conditional::read_extensions(&mut events, &mut bars)?;
+                super::conditional::read_extensions(
+                    &mut events,
+                    &mut bars,
+                    &mut sheet.load.validations,
+                )?;
+            }
+            Some(XmlEvent::Start(element))
+                if element.name.is(MAIN_NAMESPACE, "dataValidations") =>
+            {
+                let read = super::validation::read_validations(&mut events)?;
+                sheet.load.validations.extend(read);
             }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetData") => {
                 if sheet_data {
