@@ -273,15 +273,20 @@ fn read_rule_extension_id(events: &mut Events<'_>) -> Result<Option<String>, Loa
 }
 
 /// Reads the worksheet's `<extLst>`, whose start tag was just read, for the data bars of Excel
-/// 2010's conditional formats (`x14:cfRule type="dataBar" id`), by id.
+/// 2010's conditional formats (`x14:cfRule type="dataBar" id`), by id, and its data validations
+/// (`x14:dataValidation`).
 pub(crate) fn read_extensions(
     events: &mut Events<'_>,
     bars: &mut BTreeMap<String, DataBarExtension>,
+    validations: &mut Vec<super::validation::Validation>,
 ) -> Result<(), LoadError> {
     let mut depth = 1u32;
     let mut rule_id: Option<String> = None;
     while depth > 0 {
         match events.next()? {
+            Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "dataValidation") => {
+                validations.push(super::validation::read_x14(events, &element)?);
+            }
             Some(XmlEvent::Start(element)) if element.name.is(X14_NAMESPACE, "cfRule") => {
                 rule_id = element.attribute("id").map(|id| id.trim().to_owned());
                 depth += 1;

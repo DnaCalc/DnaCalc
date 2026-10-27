@@ -36,11 +36,13 @@ pub(crate) mod strings;
 mod styles;
 pub(crate) mod tables;
 mod theme;
+pub(crate) mod validation;
 
 pub use conditional::{
     ColorScale, ConditionalFormat, ConditionalRule, DataBar, IconSet, Threshold,
 };
 pub use error::{CellError, LoadError};
+pub use validation::Validation;
 pub use geometry::{ColumnSpan, RowFormat, SheetGeometry};
 pub use manifest::LayoutWarning;
 
@@ -99,9 +101,15 @@ pub struct LoadedSheet {
     value_caches: BTreeMap<(u32, u32), FileCached>,
     geometry: SheetGeometry,
     conditional_formats: Arc<[ConditionalFormat]>,
+    validations: Arc<[Validation]>,
 }
 
 impl LoadedSheet {
+    /// The sheet's data validations as the file states them, in document order (dc-6yw).
+    pub fn validations(&self) -> &[Validation] {
+        &self.validations
+    }
+
     /// The sheet's conditional formats as the file states them, in document order (dc-6yw).
     pub fn conditional_formats(&self) -> &[ConditionalFormat] {
         &self.conditional_formats
@@ -956,6 +964,7 @@ pub fn load(
                     value_caches: loaded.value_caches,
                     geometry: loaded.geometry,
                     conditional_formats: loaded.conditional_formats.into(),
+                    validations: loaded.validations.into(),
                 });
             }
             Err(error) => {

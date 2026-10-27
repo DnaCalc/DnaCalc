@@ -63,10 +63,12 @@ mod recalc;
 mod save;
 mod session;
 mod state;
+pub mod validation;
 
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
 pub use conditional::{BarLook, CellLook, ConditionalFormats, IconLook, LookColor};
 pub use copy::{COPY_LIMIT, CopyRefusal};
+pub use validation::{ErrorStyle, ValidationFailure, ValidationRule};
 pub use entry::{EntryRefusal, interpret_entry, interpret_entry_in};
 pub use history::{Irreversible, IrreversibleReason, Selection};
 pub use project::{

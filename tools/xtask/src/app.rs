@@ -1574,6 +1574,63 @@ const CALC_CASES: &[Case] = &[
         ],
         checks: &[Check::AttrHas(cell!("A3"), "style", "background-color:#ffc7ce")],
     },
+    // dc-6yw: data validation (calc-host's dc_6yw/dv-excel.txt).
+    Case {
+        name: "a list cell shows its drop-down and input message",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx"),
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("validation-prompt", "ColourPick a colour"),
+            Check::Attr("dropdown", "title", "Pick from the list"),
+        ],
+    },
+    Case {
+        name: "the drop-down lists the rule's items",
+        actions: &[Action::Click("dropdown")],
+        checks: &[Check::Items("dropdown-list", &["Red", "Green", "Blue"])],
+    },
+    Case {
+        name: "a picked item is the cell's entry",
+        actions: &[Action::Click("[data-dnacalc=\"dropdown-list\"] li:nth-child(2)")],
+        checks: &[Check::Text(cell!("A1"), "Green"), Check::Absent("dropdown-list")],
+    },
+    Case {
+        name: "a list read from cells lists their values",
+        actions: &[Action::Into("name-box", "B1\u{E007}"), Action::Click("dropdown")],
+        checks: &[Check::Items("dropdown-list", &["North", "South", "East"])],
+    },
+    Case {
+        name: "a stop rule refuses an entry it does not allow, with its message",
+        actions: &[
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Keys("grid", "P"),
+            Action::Keys("cell-editor", "urple\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("status", "Not a colour: Choose Red, Green or Blue"),
+            Check::Attr("status", "data-refused", "true"),
+            Check::Absent(cell!("A2")),
+        ],
+    },
+    Case {
+        name: "a warning rule keeps the entry and says its message",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Keys("grid", "-"),
+            Action::Keys("cell-editor", "1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(
+                "status",
+                "Warning, entry kept: Microsoft Excel: A positive number is expected",
+            ),
+            Check::Text(cell!("D1"), "-1"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -1845,8 +1902,11 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         let split = text.chars().next().map_or(0, char::len_utf8);
         let (first, rest) = text.split_at(split);
         let started_edit = (|| {
-            let element = session.element(&tab)?;
-            session.post(&format!("/element/{element}/click"), json!({}))?;
+            // The tab is clicked in the page: a long row of tabs may hide it from a pointer.
+            session.script(&format!(
+                "document.querySelector('{}').click(); return null;",
+                tab.replace('\'', "\\'")
+            ))?;
             session.clear(&select(app, "name-box"))?;
             session.keys(&select(app, "name-box"), &format!("{cell}{ENTER}"))?;
             session.keys(&select(app, "grid"), first)

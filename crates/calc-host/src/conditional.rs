@@ -598,12 +598,12 @@ fn tinted((r, g, b): (u8, u8, u8), tint: f64) -> (u8, u8, u8) {
 
 /// The value a rule reads of a cell: its literal, or its formula's calculated or file-cached
 /// value; `None` for a blank cell, and for a formula with no value (refused or stale).
-fn cell_value(host: &HostState, at: CellKey) -> Option<CalcValue> {
+pub(crate) fn cell_value(host: &HostState, at: CellKey) -> Option<CalcValue> {
     let page = project(host, &ProjectionRequest { cells: vec![at] }).ok()?;
     projected_value(page.cells().first()?.value())
 }
 
-fn projected_value(value: &ProjectedValue) -> Option<CalcValue> {
+pub(crate) fn projected_value(value: &ProjectedValue) -> Option<CalcValue> {
     match value {
         ProjectedValue::Literal(value) => Some(value.clone()),
         ProjectedValue::Calculated { value, .. } => Some(value.clone()),
@@ -648,53 +648,8 @@ impl HostState {
     pub fn conditional_formats(&self, sheet: SheetId) -> ConditionalFormats {
         let mut rules = Vec::new();
         if let Some(loaded) = self.loaded.sheet(sheet) {
-            // The positions of the sheet's blocks as the session's insertions and deletions moved
-            // them.
-            let moves: Vec<calc_fml::reference::StructuralEdit> = self
-                .axis_edits
-                .iter()
-                .filter(|edit| edit.sheet() == sheet)
-                .map(|edit| {
-                    let axis = match edit.axis() {
-                        calc_doc_model::Axis::Rows => calc_fml::reference::EditAxis::Rows,
-                        calc_doc_model::Axis::Columns => calc_fml::reference::EditAxis::Columns,
-                    };
-                    match edit.change() {
-                        calc_doc_model::AxisChange::Insert => {
-                            calc_fml::reference::StructuralEdit::Insert {
-                                sheet,
-                                axis,
-                                first: edit.first(),
-                                count: edit.count(),
-                            }
-                        }
-                        calc_doc_model::AxisChange::Delete => {
-                            calc_fml::reference::StructuralEdit::Delete {
-                                sheet,
-                                axis,
-                                first: edit.first(),
-                                count: edit.count(),
-                            }
-                        }
-                    }
-                })
-                .collect();
             for block in loaded.conditional_formats() {
-                let areas: Vec<GridArea> = block
-                    .areas
-                    .iter()
-                    .filter_map(|&(top, left, bottom, right)| {
-                        let mut area = GridArea::new(
-                            CellKey::new(sheet, top, left).ok()?,
-                            CellKey::new(sheet, bottom, right).ok()?,
-                        )
-                        .ok()?;
-                        for edit in &moves {
-                            area = edit.area(area)?;
-                        }
-                        Some(area)
-                    })
-                    .collect();
+                let areas = self.current_areas(sheet, &block.areas);
                 let Some(origin) = areas.first().map(|area| area.first()) else {
                     continue;
                 };
@@ -709,6 +664,57 @@ impl HostState {
             rules,
             refused: std::cell::Cell::new(0),
         }
+    }
+
+    /// Areas the file states for `sheet`, as (top, left, bottom, right), where the session's row
+    /// and column insertions and deletions have moved them; an area all of whose cells were
+    /// deleted is left out.
+    pub(crate) fn current_areas(
+        &self,
+        sheet: SheetId,
+        areas: &[(u32, u32, u32, u32)],
+    ) -> Vec<GridArea> {
+        use calc_fml::reference::{EditAxis, StructuralEdit};
+        let moves: Vec<StructuralEdit> = self
+            .axis_edits
+            .iter()
+            .filter(|edit| edit.sheet() == sheet)
+            .map(|edit| {
+                let axis = match edit.axis() {
+                    calc_doc_model::Axis::Rows => EditAxis::Rows,
+                    calc_doc_model::Axis::Columns => EditAxis::Columns,
+                };
+                let (first, count) = (edit.first(), edit.count());
+                match edit.change() {
+                    calc_doc_model::AxisChange::Insert => StructuralEdit::Insert {
+                        sheet,
+                        axis,
+                        first,
+                        count,
+                    },
+                    calc_doc_model::AxisChange::Delete => StructuralEdit::Delete {
+                        sheet,
+                        axis,
+                        first,
+                        count,
+                    },
+                }
+            })
+            .collect();
+        areas
+            .iter()
+            .filter_map(|&(top, left, bottom, right)| {
+                let mut area = GridArea::new(
+                    CellKey::new(sheet, top, left).ok()?,
+                    CellKey::new(sheet, bottom, right).ok()?,
+                )
+                .ok()?;
+                for edit in &moves {
+                    area = edit.area(area)?;
+                }
+                Some(area)
+            })
+            .collect()
     }
 
     fn prepare(&self, rule: &ConditionalRule, areas: &[GridArea], origin: CellKey) -> Prepared {

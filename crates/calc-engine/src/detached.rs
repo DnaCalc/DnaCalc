@@ -38,6 +38,26 @@ impl DetachedFormula {
     /// Compiles `text` (A1 notation, without `=`) as a legacy formula at `origin`, its sheets and
     /// names bound through `inputs`.
     pub fn compile(inputs: &ModelRoot, text: &str, origin: CellKey) -> Result<Self, NotModeled> {
+        Self::compile_in(inputs, text, origin, FormulaForm::Legacy)
+    }
+
+    /// [`DetachedFormula::compile`] in the dynamic-array form, where a range of one area is the
+    /// array of its values rather than the cell implicit intersection picks (a validation list's
+    /// source).
+    pub fn compile_dynamic(
+        inputs: &ModelRoot,
+        text: &str,
+        origin: CellKey,
+    ) -> Result<Self, NotModeled> {
+        Self::compile_in(inputs, text, origin, FormulaForm::Dynamic)
+    }
+
+    fn compile_in(
+        inputs: &ModelRoot,
+        text: &str,
+        origin: CellKey,
+        form: FormulaForm,
+    ) -> Result<Self, NotModeled> {
         let source = format!("={text}");
         let mut plans = PlanCache::new();
         let plan = compile_loaded_with(
@@ -46,7 +66,7 @@ impl DetachedFormula {
             FormulaAnchor::new(origin),
             &SnapshotCatalog(inputs),
             &mut plans,
-            FormulaForm::Legacy,
+            form,
         )
         .map_err(NotModeled::Compile)?;
         Ok(DetachedFormula { plan })
