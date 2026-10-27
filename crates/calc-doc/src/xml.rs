@@ -425,15 +425,16 @@ impl<'a> XmlReader<'a> {
 
     fn element_name(&mut self, name: QName<'_>) -> Result<XmlName, XmlError> {
         let position = self.position();
-        let (resolved, local) = self.inner.resolve_element(name);
-        let namespace = match (name.prefix(), &self.default_namespace) {
+        let (local, prefix) = name.decompose();
+        let namespace = match (prefix, &self.default_namespace) {
+            // Kept from the last name without a prefix: no resolution.
             (None, Some(held)) => held.clone(),
             (None, None) => {
-                let resolved = namespace(resolved, position)?;
+                let resolved = namespace(self.inner.resolve_element(name).0, position)?;
                 self.default_namespace = Some(resolved.clone());
                 resolved
             }
-            (Some(_), _) => namespace(resolved, position)?,
+            (Some(_), _) => namespace(self.inner.resolve_element(name).0, position)?,
         };
         Ok(XmlName {
             namespace,
@@ -495,7 +496,11 @@ impl<'a> XmlReader<'a> {
                     // A start tag that may declare a namespace (any `xmlns` in its attributes)
                     // ends what the reader knows of the default namespace.
                     let raw = start.attributes_raw();
-                    if raw.windows(5).any(|window| window == b"xmlns") {
+                    let declares = raw
+                        .iter()
+                        .enumerate()
+                        .any(|(at, byte)| *byte == b'x' && raw[at..].starts_with(b"xmlns"));
+                    if declares {
                         self.default_namespace = None;
                         self.declaring.push(self.depth);
                     }

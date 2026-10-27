@@ -84,7 +84,8 @@ use calc_doc_model::{
     ModelRoot,
 };
 use calc_fml::reference::{
-    CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape, template_key,
+    CellRun, FormulaAnchor, ReferenceNotation, ReferenceReader, ReferenceShape,
+    template_key_of_chars,
 };
 use calc_fml::{
     EvalFault, EvalFrame, EvalScratch, EvaluationObserver, EvaluationReport, EvaluationServices,
@@ -1109,14 +1110,18 @@ fn bind(
     };
     // A formula whose template was compiled before (a copy of a filled or shared formula) is
     // placed from that plan without being parsed; the plan is the one compiling it would give.
-    let binding = match String::from_utf16(text.text().utf16_code_units()) {
+    // The stored UTF-16 text decoded into characters once (dc-dxm), for the template and, when
+    // the template is new, the compilation; an unpaired surrogate refuses it.
+    let decoded: Result<Vec<char>, _> =
+        char::decode_utf16(text.text().utf16_code_units().iter().copied()).collect();
+    let binding = match decoded {
         Err(_) => Binding::Refused(NotModeled::FormulaText),
-        Ok(source) => {
-            let key = template_key(&source, anchor).map(|key| (at.sheet(), form, key));
+        Ok(chars) => {
+            let key = template_key_of_chars(&chars, anchor).map(|key| (at.sheet(), form, key));
             match key.as_ref().and_then(|key| state.templates.get(key)) {
                 Some(plan) => Binding::Placed(instantiate(plan, anchor), role),
                 None => match compile_loaded_with(
-                    &parse_formula(&source),
+                    &parse_formula(&chars.iter().collect::<String>()),
                     ReferenceNotation::A1,
                     anchor,
                     &SnapshotCatalog(inputs),
@@ -1187,7 +1192,7 @@ fn bind_table_cell(state: &mut EngineState, inputs: &ModelRoot, node: NodeId, at
 
 /// What a placed formula reads: one prerequisite per distinct placed reference.
 fn prerequisites(instance: &FormulaInstance) -> Vec<Prerequisite> {
-    let mut out: Vec<Prerequisite> = Vec::new();
+    let mut out: Vec<Prerequisite> = Vec::with_capacity(instance.areas().len());
     for (operand, placed) in instance.plan().references().iter().zip(instance.areas()) {
         let Ok(area) = placed else {
             continue;
