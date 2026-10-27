@@ -651,11 +651,12 @@ pub struct FormulaCell {
     /// The formula text Excel reported for the cell (a version 2 record of a live capture);
     /// `None` when the record does not carry it, as no version 1 record does.
     pub formula: Option<String>,
-    /// The workbook saves the formula as a dynamic-array formula over this one cell (an array
-    /// formula `t="array"` whose `ref` is the cell itself, with cell metadata `cm`), which Excel
-    /// with dynamic arrays writes for a formula that could return an array. Its kind is
-    /// [`FormulaKind::Ordinary`]: it is one formula cell of the inventory, with no spill range.
-    /// Always false in a version 1 record.
+    /// The formula is a dynamic-array formula (cell metadata `cm` naming the dynamic-array
+    /// metadata) that does not spill after Excel's rebuild, whatever range the input package
+    /// declared for it: Excel with dynamic arrays writes one for a formula that could return an
+    /// array. Its kind is [`FormulaKind::Ordinary`]: it is one formula cell of the inventory, with
+    /// no spill range. A formula that spills is not flagged; its observation is the array its
+    /// spill range shows. Always false in a version 1 record.
     pub dynamic_array: bool,
 }
 
@@ -812,7 +813,8 @@ impl SavedCache {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Observation {
     /// Excel's raw `Value2`, numbers as their binary64 bits, read from the Excel of the record's
-    /// environment.
+    /// environment; for a formula that spills, the array of its spill range's `Value2`, which a
+    /// result is compared with by shape and element (dc-677).
     ExcelRaw(CalcValue),
     /// The cache of a package Excel saved after it recalculated it.
     ExcelSavedCache(SavedCache),

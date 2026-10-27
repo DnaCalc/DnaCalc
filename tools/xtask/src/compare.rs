@@ -60,16 +60,18 @@ use crate::compare_triage::{
 use crate::verdict::parse_target;
 use calc_engine::ObservedEvaluation;
 use calc_fml::ExecutedCall;
-use calc_host::value::{CalcValue, CellKey, GridArea, NumericMode, NumericTargetId, SheetId};
+use calc_host::value::{
+    ArrayShape, CalcArray, CalcValue, CellKey, GridArea, NumericMode, NumericTargetId, SheetId,
+};
 use calc_host::{
-    CalcMode, CellRun, HostOptions, HostProgress, HostState, LoadError, MemorySource,
-    OpenFailure, OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest, ReadObserver,
-    RecalcContext, RecalcFailed, WorkBudget, project, step,
+    CalcMode, CellRun, HostOptions, HostProgress, HostState, LoadError, MemorySource, OpenFailure,
+    OpenPolicy, PackageRead, ProjectedValue, ProjectionRequest, ReadObserver, RecalcContext,
+    RecalcFailed, WorkBudget, project, step,
 };
 use calc_verdict::{
     CalculationContext, CaptureRecord, CellAddress, CellResult, Evaluation, EvaluationRecord,
-    InstrumentRecord, InstrumentedEvaluation, JudgeError, MissingCapture, Provenance, ResultSet,
-    RunIdentity, VerdictPolicy, judge, sha256_hex,
+    FormulaKind, InstrumentRecord, InstrumentedEvaluation, JudgeError, MissingCapture, Provenance,
+    ResultSet, RunIdentity, VerdictPolicy, judge, sha256_hex,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -487,6 +489,37 @@ pub(crate) fn locale_profile(
 /// The run of the workbook in `fixture` for `capture`: open, step, project. `name` is the
 /// workbook's file name, by which INDIRECT's text may name it, as Excel opened it from the
 /// capture's copy of the same name.
+/// The array the published spill of the array formula anchored at `at` shows, its cells in
+/// row-major order, when it fills more than its anchor and every cell of it projects as
+/// calculated; `None` otherwise.
+fn spilled_array(host: &HostState, at: CellKey) -> Option<CalcValue> {
+    let area = host.spill_area(at)?;
+    if area.cell_count() < 2 {
+        return None;
+    }
+    let (first, last) = (area.first(), area.last());
+    let mut cells = Vec::with_capacity(area.cell_count() as usize);
+    for row in first.row()..=last.row() {
+        for column in first.column()..=last.column() {
+            cells.push(CellKey::new(at.sheet(), row, column).ok()?);
+        }
+    }
+    let page = project(host, &ProjectionRequest { cells }).ok()?;
+    let values = page
+        .cells()
+        .iter()
+        .map(|cell| match cell.value() {
+            ProjectedValue::Calculated { value, .. } => Some(value.clone()),
+            _ => None,
+        })
+        .collect::<Option<Vec<CalcValue>>>()?;
+    let shape = ArrayShape {
+        rows: (last.row() - first.row() + 1) as usize,
+        cols: (last.column() - first.column() + 1) as usize,
+    };
+    CalcArray::new(shape, values).map(CalcValue::array)
+}
+
 fn run_workbook(
     fixture: &[u8],
     name: Option<&str>,
@@ -656,7 +689,15 @@ fn run_workbook(
                     revision: calculation.revision().get(),
                     context: context.clone(),
                 },
-                Some(value.clone()),
+                // A dynamic array's anchor is compared by the whole array its spill shows, as the
+                // capture records Excel's (dc-677); a legacy array's cells each by its own value.
+                Some(match formula.kind {
+                    FormulaKind::Ordinary | FormulaKind::SharedMaster { .. } | FormulaKind::SharedChild { .. } => {
+                        key.and_then(|at| spilled_array(&host, at))
+                            .unwrap_or_else(|| value.clone())
+                    }
+                    _ => value.clone(),
+                }),
                 Dna::Calculated,
             ),
             ProjectedValue::NotModeled { refusal, .. } => {
@@ -840,10 +881,7 @@ fn compare(request: &Request) -> Result<(), Failure> {
     )
     .map_err(judge_failure)?;
 
-    let name = request
-        .fixture
-        .file_name()
-        .and_then(|name| name.to_str());
+    let name = request.fixture.file_name().and_then(|name| name.to_str());
     let mut run = run_workbook(&fixture, name, &capture, numeric.clone())?;
     let started = Instant::now();
     let report = judge(&capture, &run.results, &run.record, &policy).map_err(judge_failure)?;
@@ -1232,8 +1270,9 @@ mod tests {
     /// missing function.
     #[test]
     fn a_kernel_refusal_is_not_modelled_under_its_owner() {
-        let calc =
-            super::test_package::calc_sheet(r#"<c r="C1" t="e"><f>INFO("system")</f><v>#VALUE!</v></c>"#);
+        let calc = super::test_package::calc_sheet(
+            r#"<c r="C1" t="e"><f>INFO("system")</f><v>#VALUE!</v></c>"#,
+        );
         let fixture = super::test_package::package(&super::test_package::inputs_sheet(""), &calc);
         let capture = CaptureRecord::decode(
             br#"{"format": "dnacalc-capture-record", "version": 1, "case": "k", "source": "sha256:00", "acquisition": {"kind": "file_cache_replay"}, "environment": null, "sheets": [{"name": "Inputs", "visibility": "visible"}, {"name": "Calc", "visibility": "visible"}], "formulas": [{"sheet": "Calc", "row": 1, "column": 3, "kind": "ordinary"}], "observations": []}"#,

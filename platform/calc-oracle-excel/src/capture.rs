@@ -29,6 +29,13 @@ use std::time::Duration;
 /// terminated.
 const EXIT_GRACE: Duration = Duration::from_secs(15);
 
+/// The longest full path of a workbook Excel opens, in characters (Microsoft's documented limit
+/// for a path and file name together). A capture whose copy of its input, or the package it
+/// saves, would have a longer one is refused before Excel starts (dc-677): Excel 16.0.20430's
+/// Open of the copy of Annex 9's saved package failed under the old default work directory
+/// ("Open method of Workbooks class failed") and opened under a short one.
+const EXCEL_PATH_LIMIT: usize = 218;
+
 /// The calculation mode the capture sets (Excel's `Application.Calculation`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CalculationMode {
@@ -234,6 +241,18 @@ pub fn capture(request: &CaptureRequest) -> Result<CaptureOutcome, CaptureError>
         )));
     }
     let (input_dir, output_dir) = (work.join("in"), work.join("out"));
+    // Excel opens no file whose full path is longer than EXCEL_PATH_LIMIT characters: its Open
+    // then fails ("Open method of Workbooks class failed"), which a capture would report as the
+    // worker's failure with no word of the path.
+    for path in [input_dir.join(&name), output_dir.join(&name)] {
+        let length = path.to_string_lossy().encode_utf16().count();
+        if length > EXCEL_PATH_LIMIT {
+            return Err(setup(format!(
+                "the path {} is {length} characters, more than the {EXCEL_PATH_LIMIT} Excel opens; give a shorter --work-dir",
+                path.display()
+            )));
+        }
+    }
     for dir in [&input_dir, &output_dir] {
         fs::create_dir_all(dir)
             .map_err(|e| setup(format!("cannot create {}: {e}", dir.display())))?;

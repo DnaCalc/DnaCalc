@@ -47,7 +47,7 @@
 #      (with iteration on, a workbook with a circular reference leaves CalculationState pending,
 #      which is recorded as the setting calculation_state), and reads each inventory cell's formula (Formula2 only), raw Value2
 #      (numbers as their binary64 bits) and spill (Read-Spill: Range.HasSpill, and for a spill the
-#      address, rows and columns of Range.SpillingToRange), the environment and settings, the
+#      address, rows, columns and Value2 of Range.SpillingToRange), the environment and settings, the
 #      workbook's links (an OLE or DDE link is an isolation failure) and its data connections (one
 #      that refreshes on open, or whose setting cannot be read, is an isolation failure), and
 #      cross-checks Excel's own formula cells against the inventory (a listed cell in the spill
@@ -728,10 +728,12 @@ function Read-Value($Cell) {
 
 # Whether a formula cell spills, read through Get-ComProperty: $null when Range.HasSpill reads as
 # False; the relative A1 address (Address(False, False)), Rows.Count and Columns.Count of
-# Range.SpillingToRange when it reads as True; or, as unread, why that cannot be read (a read that
-# fails or gives another type, a SpillingToRange that reads as nothing). A spilling cell's Value2 is
-# only the top-left value of its array, so the conversion records a spill, never that value, and
-# refuses the capture when a spill cannot be read.
+# Range.SpillingToRange when it reads as True, with the range's Value2 as values (each element
+# through Convert-Value, in row-major order: the array the formula returns, dc-677); or, as unread,
+# why that cannot be read (a read that fails or gives another type, a SpillingToRange that reads as
+# nothing, a Value2 that is not an array of that shape). A spilling cell's own Value2 is only the
+# top-left value of its array, so the conversion records the spill's values as the cell's
+# observation, never that value, and refuses the capture when a spill cannot be read.
 function Read-Spill($Cell) {
     try {
         $has = Get-ComProperty $Cell 'HasSpill'
@@ -746,7 +748,16 @@ function Read-Spill($Cell) {
         if (-not ($rows -is [int] -and $columns -is [int])) {
             throw ('the Rows.Count and Columns.Count of Range.SpillingToRange read as ' + (Get-Shown $rows) + ' and ' + (Get-Shown $columns))
         }
-        return [ordered]@{ ref = $address; rows = $rows; columns = $columns }
+        $array = Get-ComProperty $range 'Value2'
+        if (-not ($array -is [System.Array] -and $array.Rank -eq 2 -and $array.GetLength(0) -eq $rows -and $array.GetLength(1) -eq $columns)) {
+            throw ('the Value2 of Range.SpillingToRange reads as ' + (Get-Shown $array) + ', not an array of ' + $rows + ' rows and ' + $columns + ' columns')
+        }
+        $values = New-Object System.Collections.ArrayList
+        $top = $array.GetLowerBound(0); $left = $array.GetLowerBound(1)
+        for ($r = 0; $r -lt $rows; $r++) {
+            for ($c = 0; $c -lt $columns; $c++) { [void]$values.Add((Convert-Value $array[($top + $r), ($left + $c)])) }
+        }
+        return [ordered]@{ ref = $address; rows = $rows; columns = $columns; values = $values }
     } catch {
         return [ordered]@{ unread = $_.Exception.Message }
     }
@@ -880,7 +891,7 @@ if ([string]::IsNullOrEmpty($Request) -or [string]::IsNullOrEmpty($Result)) {
 
 $Output = [ordered]@{
     format = 'dnacalc-capture-worker-result'
-    version = 2
+    version = 3
     excel_pid = $null
     fatal = $null
     environment = $null
