@@ -509,6 +509,58 @@ pub fn rate(
     timing: PaymentTiming,
     guess: Option<f64>,
 ) -> Result<f64, FinancialError> {
+    let root = rate_root(periods, payment_value, present_value, future_value, timing, guess)?;
+    Ok(polish_root(root, |r| {
+        balance_equation(r, periods, payment_value, present_value, future_value, timing)
+    }))
+}
+
+/// A root `seed` of `f`, polished by Newton steps (a central-difference slope) to full binary64
+/// convergence (dc-ifc): Excel's RATE converges fully where the 1e-7 tolerance of the search
+/// stops early (RATE(48,-200,8000): Excel 7e-16 from the exact root, the search's root 2e-13).
+/// The steps stop when they no longer contract, keeping whichever adjacent value has the smaller
+/// residual, or when `f` fails, keeping the last value.
+pub(crate) fn polish_root(seed: f64, f: impl Fn(f64) -> Result<f64, FinancialError>) -> f64 {
+    let mut rate = seed;
+    let mut last_step = f64::INFINITY;
+    for _ in 0..60 {
+        let Ok(value) = f(rate) else { break };
+        if value == 0.0 {
+            break;
+        }
+        let h = rate.abs().max(1e-4) * 1e-6;
+        let (Ok(up), Ok(down)) = (f(rate + h), f(rate - h)) else { break };
+        let slope = (up - down) / (2.0 * h);
+        if !slope.is_finite() || slope == 0.0 {
+            break;
+        }
+        let next = rate - value / slope;
+        if !next.is_finite() || next.to_bits() == rate.to_bits() || next <= MIN_VALID_RATE {
+            break;
+        }
+        let step = (next - rate).abs();
+        if step >= last_step {
+            if f(next).is_ok_and(|v| v.abs() <= value.abs()) {
+                rate = next;
+            }
+            break;
+        }
+        last_step = step;
+        rate = next;
+    }
+    rate
+}
+
+/// RATE's root search: secant steps from the guess, bisection once a bracket is found, to a
+/// residual of at most [`RATE_TOLERANCE`].
+fn rate_root(
+    periods: f64,
+    payment_value: f64,
+    present_value: f64,
+    future_value: f64,
+    timing: PaymentTiming,
+    guess: Option<f64>,
+) -> Result<f64, FinancialError> {
     validate_finite(&[periods, payment_value, present_value, future_value])?;
     let mut prev_rate = 0.0;
     let mut prev_value = balance_equation(
@@ -1282,8 +1334,10 @@ mod tests {
             None,
         )
         .expect("rate witness");
-        let current_local = 0.0041666445363460975_f64;
-        let excel_target = 0.004166644536345589_f64;
+        // dc-ifc: polished to full convergence, 55 ulp below Excel (0x3f71110b2048574f); the
+        // search's 1e-7 residual stopped 586 ulp above it (0.0041666445363460975).
+        let current_local = f64::from_bits(0x3f71110b20485718);
+        let excel_target = f64::from_bits(0x3f71110b2048574f);
 
         assert_bits(actual, current_local);
         assert_ne!(actual.to_bits(), excel_target.to_bits());
