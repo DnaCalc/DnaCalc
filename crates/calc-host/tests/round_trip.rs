@@ -2395,3 +2395,40 @@ fn dc_gf0__cuts_move_cells_references_and_names_as_excel_does() {
         );
     }
 }
+
+/// dc-gf0: the precedents and dependents the engine's graph holds, for a skin's trace: a formula's
+/// placed references as areas (whole columns as the column's area), and the formula cells that
+/// read a cell, in cell order; a literal has no precedents.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_gf0__precedents_and_dependents_from_the_graph() {
+    let mut session = session(&calc_host::blank_package());
+    let s = session.host().sheets()[0].id();
+    for (address, text) in [
+        ("A1", "1"),
+        ("B1", "=A1*2"),
+        ("C1", "=SUM(A1:B1)"),
+        ("D1", "=SUM(A:A)+B1"),
+    ] {
+        let receipt = session.dispatch(SkinIntent::EnterCell {
+            at: at(s, address),
+            text: text.to_owned(),
+        });
+        assert!(receipt.accepted(), "{address}: {:?}", receipt.error);
+    }
+    let host = session.host();
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    assert_eq!(host.precedents(at(s, "A1")), None);
+    assert_eq!(host.precedents(at(s, "B1")), Some(vec![area("A1", "A1")]));
+    assert_eq!(host.precedents(at(s, "C1")), Some(vec![area("A1", "B1")]));
+    assert_eq!(
+        host.precedents(at(s, "D1")),
+        Some(vec![area("A1", "A1048576"), area("B1", "B1")])
+    );
+    assert_eq!(
+        host.dependents(at(s, "A1")),
+        vec![at(s, "B1"), at(s, "C1"), at(s, "D1")]
+    );
+    assert_eq!(host.dependents(at(s, "B1")), vec![at(s, "C1"), at(s, "D1")]);
+    assert_eq!(host.dependents(at(s, "D1")), Vec::<CellKey>::new());
+}
