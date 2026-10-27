@@ -1376,6 +1376,50 @@ const CALC_CASES: &[Case] = &[
             Check::Attr(cell!("A4"), "style", "left:48px;top:102px;width:117px;height:20px;color:#ff0000"),
         ],
     },
+    Case {
+        name: "a row inserted at 2 moves the cells below with their formats and row heights",
+        actions: &[
+            Action::Click("[data-dnacalc=\"row-header\"][data-row=\"2\"]"),
+            Action::Click("insert-cells"),
+        ],
+        checks: &[
+            Check::Absent(cell!("A2")),
+            Check::Text(cell!("A3"), "25%"),
+            Check::Text(cell!("A4"), "2024-01-31"),
+            // The file's 30-point row 3 is now row 4.
+            Check::Attr(cell!("A4"), "style", "left:48px;top:82px;width:117px;height:40px"),
+        ],
+    },
+    Case {
+        name: "a column inserted before B takes A's width, and B's cells and widths move right",
+        actions: &[
+            Action::Click("[data-dnacalc=\"column-header\"][data-column=\"B\"]"),
+            Action::Click("insert-cells"),
+        ],
+        checks: &[
+            Check::Absent(cell!("B1")),
+            // B is 117 px like A; the file's B (180 px) is C, its hidden C is D.
+            Check::Text(cell!("C1"), "wide"),
+            Check::Attr(cell!("C1"), "style", "left:282px;top:22px;width:180px;height:20px"),
+            Check::Text(cell!("E1"), "after hidden"),
+            Check::Attr(cell!("E1"), "style", "left:462px;top:22px;width:64px;height:20px"),
+        ],
+    },
+    Case {
+        name: "Ctrl+X and Ctrl+V move a formatted cell with its format",
+        actions: &[
+            Action::Into("name-box", "A3\u{E007}"),
+            Action::Keys("grid", concat!("\u{E009}", "x", "\u{E000}")),
+            Action::Into("name-box", "I3\u{E007}"),
+            Action::Keys("grid", concat!("\u{E009}", "v", "\u{E000}")),
+        ],
+        checks: &[Check::Absent(cell!("A3")), Check::Text(cell!("I3"), "25%")],
+    },
+    Case {
+        name: "Save after the insertions and the move writes the package",
+        actions: &[Action::Click("save")],
+        checks: &[Check::Starts("status", "Saved formats.xlsx: ")],
+    },
 ];
 
 /// The script that reads what one check looks at.
