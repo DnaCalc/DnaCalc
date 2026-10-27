@@ -255,6 +255,10 @@ fn host_facts() {
     text(call_in(&e, None, Some(&mut facts), "FORMULATEXT", vec![b2.clone()]), "=2+3");
     error(call_in(&e, None, Some(&mut facts), "FORMULATEXT", vec![b1.clone()]), NA);
     exact(call_in(&e, None, Some(&mut facts), "SHEET", vec![]), 1.0);
+    // dc-6yw: ROW() and COLUMN() without a reference are the caller's (A1 here).
+    exact(call_in(&e, None, Some(&mut facts), "ROW", vec![]), 1.0);
+    exact(call_in(&e, None, Some(&mut facts), "COLUMN", vec![]), 1.0);
+    refused(call("ROW", vec![]));
     exact(call_in(&e, None, Some(&mut facts), "SHEETS", vec![]), 3.0);
     exact(call("SHEETS", vec![b1.clone()]), 1.0);
     text(call_in(&e, None, Some(&mut facts), "CELL", vec![t("address"), b2.clone()]), "$B$2");

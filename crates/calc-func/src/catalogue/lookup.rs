@@ -1733,22 +1733,38 @@ fn choose(
 /// is 3), which CalcFml's compile does. A reference of several areas is #REF!, and a value that is
 /// not a reference (blank included) #VALUE!; an error argument is the result. An area of more than
 /// [`POSITIONS_LIMIT`] rows is not modelled: its array is not built. Without an argument it is the
-/// formula's own row, which the services do not supply: not modelled.
+/// formula's own row, the caller the host names ([`crate::HostFacts::caller`]: a cell's formula,
+/// or the cell a conditional format's formula is placed at, dc-6yw); not modelled when the host
+/// names none.
 fn row(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ROW, services);
+    if arguments.is_empty() {
+        let caller = services.host().and_then(|host| host.caller());
+        return Site::finish(match caller {
+            Some(at) => site.number(f64::from(at.row())),
+            None => Err(site.not_modelled(None)),
+        });
+    }
     Site::finish(position_of(&site, arguments, true))
 }
 
 /// COLUMN([reference]): ROW for columns; an area of several columns gives the row of every
-/// column's number.
+/// column's number; without an argument, the caller's column.
 fn column(
     arguments: &[CalcValue],
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(COLUMN, services);
+    if arguments.is_empty() {
+        let caller = services.host().and_then(|host| host.caller());
+        return Site::finish(match caller {
+            Some(at) => site.number(f64::from(at.column())),
+            None => Err(site.not_modelled(None)),
+        });
+    }
     Site::finish(position_of(&site, arguments, false))
 }
 

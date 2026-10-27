@@ -676,6 +676,8 @@ pub enum Check {
     Value(&'static str, &'static str),
     /// The element's attribute.
     Attr(&'static str, &'static str, &'static str),
+    /// The element's attribute holds this text (a part of a style).
+    AttrHas(&'static str, &'static str, &'static str),
     /// DNA OneCalc: the array result's cells, row by row.
     Array(&'static [&'static [&'static str]]),
     /// DNA OneCalc: the text of the highlighted run with this role.
@@ -1541,6 +1543,94 @@ const CALC_CASES: &[Case] = &[
             Check::Value(BAR, "=SUM(Data!A1:C3)"),
         ],
     },
+    // dc-6yw: conditional formats as Excel shows them (calc-host's dc_6yw/cf-excel.txt).
+    Case {
+        name: "conditional formats colour cells as Excel shows them",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/conditional-formats.xlsx"),
+            Action::Click("skin-grid"),
+        ],
+        checks: &[
+            Check::AttrHas(cell!("A2"), "style", "background-color:#ffc7ce"),
+            Check::AttrHas(cell!("A2"), "style", "color:#9c0006"),
+            Check::AttrHas(cell!("B1"), "style", "font-weight:700"),
+            Check::AttrHas(cell!("C2"), "style", "background-color:#ffeb9c"),
+            Check::AttrHas(cell!("D2"), "style", "font-style:italic"),
+            Check::AttrHas(cell!("E2"), "style", "background-color:#86c97e"),
+            Check::AttrHas(cell!("J2"), "style", "background-color:#83cceb"),
+            Check::Attr(cell!("H2"), "data-icon", "3Arrows:2"),
+            Check::Attr(cell!("H3"), "data-icon", "3Arrows:0"),
+            Check::Attr(cell!("G6"), "data-bar", "1.0000"),
+            Check::Text(cell!("N1"), "400.0%"),
+            Check::Text(cell!("N2"), "9"),
+        ],
+    },
+    Case {
+        name: "a conditional format follows an edit: A3 set to 8 turns red",
+        actions: &[
+            Action::Into("name-box", "A3\u{E007}"),
+            Action::Keys("grid", "8"),
+            Action::Keys("cell-editor", ENTER),
+        ],
+        checks: &[Check::AttrHas(cell!("A3"), "style", "background-color:#ffc7ce")],
+    },
+    // dc-6yw: data validation (calc-host's dc_6yw/dv-excel.txt).
+    Case {
+        name: "a list cell shows its drop-down and input message",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/data-validation.xlsx"),
+            Action::Click("skin-grid"),
+            Action::Into("name-box", "A1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("validation-prompt", "ColourPick a colour"),
+            Check::Attr("dropdown", "title", "Pick from the list"),
+        ],
+    },
+    Case {
+        name: "the drop-down lists the rule's items",
+        actions: &[Action::Click("dropdown")],
+        checks: &[Check::Items("dropdown-list", &["Red", "Green", "Blue"])],
+    },
+    Case {
+        name: "a picked item is the cell's entry",
+        actions: &[Action::Click("[data-dnacalc=\"dropdown-list\"] li:nth-child(2)")],
+        checks: &[Check::Text(cell!("A1"), "Green"), Check::Absent("dropdown-list")],
+    },
+    Case {
+        name: "a list read from cells lists their values",
+        actions: &[Action::Into("name-box", "B1\u{E007}"), Action::Click("dropdown")],
+        checks: &[Check::Items("dropdown-list", &["North", "South", "East"])],
+    },
+    Case {
+        name: "a stop rule refuses an entry it does not allow, with its message",
+        actions: &[
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Keys("grid", "P"),
+            Action::Keys("cell-editor", "urple\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("status", "Not a colour: Choose Red, Green or Blue"),
+            Check::Attr("status", "data-refused", "true"),
+            Check::Absent(cell!("A2")),
+        ],
+    },
+    Case {
+        name: "a warning rule keeps the entry and says its message",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Keys("grid", "-"),
+            Action::Keys("cell-editor", "1\u{E007}"),
+        ],
+        checks: &[
+            Check::Text(
+                "status",
+                "Warning, entry kept: Microsoft Excel: A positive number is expected",
+            ),
+            Check::Text(cell!("D1"), "-1"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -1561,7 +1651,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         ),
         Check::Absent(name) => format!("return {} === null;", q(name)),
         Check::Value(name, _) => format!("var e = {}; return e ? e.value : null;", q(name)),
-        Check::Attr(name, attribute, _) => format!(
+        Check::Attr(name, attribute, _) | Check::AttrHas(name, attribute, _) => format!(
             "var e = {}; return e ? e.getAttribute('{attribute}') : null;",
             q(name)
         ),
@@ -1582,6 +1672,7 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
             seen.as_str() == Some(expected)
         }
         Check::Starts(_, prefix) => seen.as_str().is_some_and(|text| text.starts_with(prefix)),
+        Check::AttrHas(_, _, part) => seen.as_str().is_some_and(|text| text.contains(part)),
         Check::Items(_, expected) => seen.as_array().is_some_and(|items| {
             items.len() == expected.len()
                 && items
@@ -1623,6 +1714,9 @@ fn describe(check: &Check) -> String {
         Check::Value(name, expected) => format!("the field {name} holds {expected:?}"),
         Check::Attr(name, attribute, expected) => {
             format!("{name} has {attribute}={expected:?}")
+        }
+        Check::AttrHas(name, attribute, part) => {
+            format!("{name}'s {attribute} holds {part:?}")
         }
         Check::Array(rows) => format!("result-array is {rows:?}"),
         Check::Highlighted(role_name, text) => format!("{text:?} is highlighted as {role_name}"),
@@ -1808,8 +1902,11 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         let split = text.chars().next().map_or(0, char::len_utf8);
         let (first, rest) = text.split_at(split);
         let started_edit = (|| {
-            let element = session.element(&tab)?;
-            session.post(&format!("/element/{element}/click"), json!({}))?;
+            // The tab is clicked in the page: a long row of tabs may hide it from a pointer.
+            session.script(&format!(
+                "document.querySelector('{}').click(); return null;",
+                tab.replace('\'', "\\'")
+            ))?;
             session.clear(&select(app, "name-box"))?;
             session.keys(&select(app, "name-box"), &format!("{cell}{ENTER}"))?;
             session.keys(&select(app, "grid"), first)

@@ -51,6 +51,7 @@
 //!   without each being parsed.
 
 mod data_table;
+mod detached;
 mod edit;
 mod graph;
 mod random;
@@ -61,6 +62,7 @@ mod spill;
 mod state;
 mod structural;
 
+pub use detached::DetachedFormula;
 pub use edit::{
     CommitReceipt, InputSeed, NodeChange, PrepareError, PreparedEngineChange, commit_edit,
     prepare_edit,

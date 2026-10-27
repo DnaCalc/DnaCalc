@@ -25,6 +25,7 @@
 //! give a save any revision of its model together with the records the save rewrites from.
 
 pub(crate) mod address;
+pub(crate) mod conditional;
 mod error;
 pub(crate) mod geometry;
 pub(crate) mod manifest;
@@ -34,8 +35,14 @@ mod shift;
 pub(crate) mod strings;
 mod styles;
 pub(crate) mod tables;
+mod theme;
+pub(crate) mod validation;
 
+pub use conditional::{
+    ColorScale, ConditionalFormat, ConditionalRule, DataBar, IconSet, Threshold,
+};
 pub use error::{CellError, LoadError};
+pub use validation::Validation;
 pub use geometry::{ColumnSpan, RowFormat, SheetGeometry};
 pub use manifest::LayoutWarning;
 
@@ -46,10 +53,9 @@ use crate::save::{DocumentSnapshot, SaveRefusal};
 use crate::xml::{XmlElement, XmlEvent, XmlPart, XmlReader};
 use calc_doc_model::value::{CellKey, ExcelText, GridArea, IdAllocator, SheetId};
 use calc_doc_model::{
-    IterationSettings,
-    AuthoredRevision, Definitions, FileCached, LocatorName, ModelRoot, NameScope, RowHidden,
-    SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayoutEdit, SourcePart, StyleTable,
-    WorkbookOp,
+    AuthoredRevision, Definitions, FileCached, IterationSettings, LocatorName, ModelRoot,
+    NameScope, RowHidden, SheetEntry, SheetKey, SheetName, SheetVisibility, SkinLayoutEdit,
+    SourcePart, StyleTable, WorkbookOp,
 };
 use manifest::{DefinedName, ManifestState};
 use std::collections::{BTreeMap, BTreeSet};
@@ -72,6 +78,7 @@ const WORKSHEET: &str =
 pub(crate) const SHARED_STRINGS: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 const STYLES: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
+const THEME: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
 
 /// The content types of a workbook part: a workbook, a macro-enabled workbook, and their
 /// templates.
@@ -93,9 +100,21 @@ pub struct LoadedSheet {
     formulas: BTreeMap<(u32, u32), FormulaRecord>,
     value_caches: BTreeMap<(u32, u32), FileCached>,
     geometry: SheetGeometry,
+    conditional_formats: Arc<[ConditionalFormat]>,
+    validations: Arc<[Validation]>,
 }
 
 impl LoadedSheet {
+    /// The sheet's data validations as the file states them, in document order (dc-6yw).
+    pub fn validations(&self) -> &[Validation] {
+        &self.validations
+    }
+
+    /// The sheet's conditional formats as the file states them, in document order (dc-6yw).
+    pub fn conditional_formats(&self) -> &[ConditionalFormat] {
+        &self.conditional_formats
+    }
+
     /// The sheet's row heights, column widths and hidden rows and columns as the file states
     /// them (dc-09v).
     pub fn geometry(&self) -> &SheetGeometry {
@@ -236,6 +255,7 @@ pub struct LoadedWorkbook {
     sheets: Arc<[LoadedSheet]>,
     cell_formats: u32,
     styles: Arc<StyleTable>,
+    theme_colors: Arc<[String]>,
     date_system: DateSystem,
     calc_mode: CalcMode,
     defined_names_not_loaded: usize,
@@ -274,6 +294,12 @@ impl LoadedWorkbook {
     /// index ([`LoadedSheet::style`]) names one of its cell formats.
     pub fn styles(&self) -> &Arc<StyleTable> {
         &self.styles
+    }
+
+    /// The theme part's twelve colours as `RRGGBB`, in its colour scheme's order (dk1, lt1, dk2,
+    /// lt2, accent1 to accent6, hlink, folHlink); empty without a theme part (dc-6yw).
+    pub fn theme_colors(&self) -> &[String] {
+        &self.theme_colors
     }
 
     /// The date system the workbook part names.
@@ -864,7 +890,8 @@ pub fn load(
             content_type: content_type.map(str::to_owned),
         });
     }
-    let macro_enabled = content_type.is_some_and(|content_type| content_type.contains("macroEnabled"));
+    let macro_enabled =
+        content_type.is_some_and(|content_type| content_type.contains("macroEnabled"));
     let WorkbookPart {
         sheets: declared,
         date_system,
@@ -881,6 +908,10 @@ pub fn load(
         None => StyleTable::default(),
     };
     let cell_formats = u32::try_from(styles.cell_formats.len()).unwrap_or(u32::MAX);
+    let theme_colors = match workbook_part_of(package, &workbook, THEME)? {
+        Some(part) => theme::read_theme(package, &part)?,
+        None => Vec::new(),
+    };
     let metadata = metadata::read(package, &workbook)?;
 
     let mut issued = Vec::with_capacity(declared.len());
@@ -932,6 +963,8 @@ pub fn load(
                     formulas: loaded.formulas,
                     value_caches: loaded.value_caches,
                     geometry: loaded.geometry,
+                    conditional_formats: loaded.conditional_formats.into(),
+                    validations: loaded.validations.into(),
                 });
             }
             Err(error) => {
@@ -1027,6 +1060,7 @@ pub fn load(
         sheets: sheets.into(),
         cell_formats,
         styles: Arc::new(styles),
+        theme_colors: theme_colors.into(),
         date_system,
         calc_mode,
         defined_names_not_loaded: defined_names.len() - layout.locators_resolved,
