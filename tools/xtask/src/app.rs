@@ -1420,6 +1420,113 @@ const CALC_CASES: &[Case] = &[
         actions: &[Action::Click("save")],
         checks: &[Check::Starts("status", "Saved formats.xlsx: ")],
     },
+    // dc-gf0: the tree, canvas and ledger skins over calc-host's dc_gf0 workbook (Data, Other and
+    // Target Sheet, six defined names, formulas across the sheets).
+    Case {
+        name: "the tree outlines the workbook: its names, its sheets, their rows and cells",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx"),
+            Action::Click("skin-tree"),
+        ],
+        checks: &[
+            Check::Text("[data-dnacalc=\"tree-row\"][data-key=\"names\"] .dc-count", "6"),
+            Check::Text("[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"] .dc-count", "13 cells"),
+            Check::Text(
+                "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"] [data-dnacalc=\"tree-value\"]",
+                "108",
+            ),
+            Check::Text(
+                "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"D1\"] [data-dnacalc=\"tree-dependents\"]",
+                "read by 2 formulas",
+            ),
+        ],
+    },
+    Case {
+        name: "a sheet of the tree folds and unfolds",
+        actions: &[Action::Click(
+            "[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"] [data-dnacalc=\"tree-toggle\"]",
+        )],
+        checks: &[
+            Check::Attr("[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"]", "data-folded", "true"),
+            Check::Absent("[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"]"),
+        ],
+    },
+    Case {
+        name: "unfolded again, a click on a cell makes it the active cell",
+        actions: &[
+            Action::Click(
+                "[data-dnacalc=\"tree-row\"][data-key=\"sheet:Data\"] [data-dnacalc=\"tree-toggle\"]",
+            ),
+            Action::Click("[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"]"),
+        ],
+        checks: &[
+            Check::Value("name-box", "B3"),
+            Check::Value(BAR, "=A1+Other!A1+D1"),
+            Check::Attr("[data-dnacalc=\"tree-row\"][data-focused=\"true\"]", "data-cell", "B3"),
+        ],
+    },
+    Case {
+        name: "Down and Enter in the tree move to the next cell and select it",
+        actions: &[Action::Keys("tree", concat!("\u{E015}", "\u{E007}"))],
+        checks: &[
+            Check::Attr("[data-dnacalc=\"tree-row\"][data-focused=\"true\"]", "data-cell", "C3"),
+            Check::Value("name-box", "C3"),
+        ],
+    },
+    Case {
+        name: "the canvas centres on the active cell, what it reads to the left, what reads it to the right",
+        actions: &[Action::Into("name-box", "B1\u{E007}"), Action::Click("skin-canvas")],
+        checks: &[
+            Check::Attr("[data-dnacalc=\"canvas-node\"][data-center=\"true\"]", "data-node", "B1"),
+            Check::Text(
+                "[data-dnacalc=\"canvas-node\"][data-node=\"B1\"] [data-dnacalc=\"canvas-value\"]",
+                "10",
+            ),
+            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"A1\"]", "data-column", "-1"),
+            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"C1\"]", "data-column", "1"),
+            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"Other!B3\"]", "data-column", "1"),
+            Check::Text(
+                "canvas-read-by",
+                "Data!C1, Other!B3, Other!B4, Other!B12, Other!B13",
+            ),
+        ],
+    },
+    Case {
+        name: "a click on a chip moves the canvas, and [ reaches one step further back",
+        actions: &[
+            Action::Click("[data-dnacalc=\"canvas-node\"][data-node=\"C1\"]"),
+            Action::Keys("canvas", "["),
+        ],
+        checks: &[
+            Check::Value("name-box", "C1"),
+            Check::Text("canvas-depth", "2 back, 1 forward"),
+            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"B1\"]", "data-column", "-1"),
+            Check::Attr("[data-dnacalc=\"canvas-node\"][data-node=\"A1\"]", "data-column", "-2"),
+        ],
+    },
+    Case {
+        name: "the ledger lists every formula cell of the workbook",
+        actions: &[Action::Click("skin-ledger")],
+        checks: &[Check::Starts("ledger-count", "22 of 22 formula cells")],
+    },
+    Case {
+        name: "the ledger keeps the cells holding a text",
+        actions: &[Action::Choose("ledger-filter", "text"), Action::Into("ledger-text", "Other!")],
+        checks: &[Check::Starts("ledger-count", "14 of 22 formula cells")],
+    },
+    Case {
+        name: "sorted by value, the largest comes first, and a click selects it on its sheet",
+        actions: &[
+            Action::Choose("ledger-filter", ""),
+            Action::Choose("ledger-sort", "value-desc"),
+            Action::Click("[data-dnacalc=\"ledger-row\"] td"),
+        ],
+        checks: &[
+            Check::Attr("[data-dnacalc=\"ledger-row\"]", "data-cell", "Other!B12"),
+            Check::Value("name-box", "B12"),
+            Check::Value(BAR, "=SUM(Data!A1:C3)"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.

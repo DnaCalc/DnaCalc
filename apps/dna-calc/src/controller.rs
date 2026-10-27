@@ -448,6 +448,16 @@ impl Controller {
         self.select(1, 1);
     }
 
+    /// Makes `at` the active cell, showing its sheet (a skin's jump to a cell: the tree's, the
+    /// canvas's, the ledger's).
+    pub fn go_to(&self, at: CellKey) {
+        if Some(at.sheet()) != self.sheet.get_untracked() {
+            self.cancel_edit();
+            self.sheet.set(Some(at.sheet()));
+        }
+        self.select(at.row(), at.column());
+    }
+
     /// Starts an edit of the active cell: with `seed`, or the cell's input when `None`.
     pub fn begin_edit(&self, origin: EditOrigin, seed: Option<String>) {
         let text = match seed {
