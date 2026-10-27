@@ -21,7 +21,7 @@
 use super::{ArgumentDemand, CatalogueEntry, Family, FunctionId, Kernel, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault, LazyArguments};
 use crate::kernel::Site;
-use crate::value::{CalcValue, CallableArityShape, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CallableArityShape, CoreRef, WorksheetErrorCode};
 
 const CODE: u16 = 8;
 
@@ -89,8 +89,8 @@ fn fallback_selected(
     if not_scalar(&value) {
         return Site::finish(Err(site.not_modelled(Some(0))));
     }
-    let chosen = match value.core() {
-        CoreValue::Error(code) if catches(*code) => {
+    let chosen = match value.core_ref() {
+        CoreRef::Error(code) if catches(code) => {
             let fallback = arguments.argument(1)?;
             if not_scalar(&fallback) {
                 return Site::finish(Err(site.not_modelled(Some(1))));
@@ -108,7 +108,7 @@ fn fallback_selected(
 
 /// Whether `value` is an array or a callable, which these kernels refuse as not modelled.
 fn not_scalar(value: &CalcValue) -> bool {
-    value.callable_value().is_some() || matches!(value.core(), CoreValue::Array(_))
+    value.callable_value().is_some() || matches!(value.core_ref(), CoreRef::Array(_))
 }
 
 /// IFERROR and IFNA through `invoke` on arguments that record what the call interface asks for.

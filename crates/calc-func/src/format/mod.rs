@@ -1054,19 +1054,19 @@ pub fn cell_text(
     value: &crate::value::CalcValue,
     code: &str,
 ) -> Result<String, CellFormatError> {
-    use crate::value::CoreValue;
+    use crate::value::CoreRef;
     let failure = |failure: Failure| match failure {
         Failure::Value => CellFormatError::Unshowable,
         Failure::NotModelled => CellFormatError::NotModelled,
     };
-    match value.core() {
-        CoreValue::Number(number) => text(profile, system, *number, code).map_err(failure),
-        CoreValue::Text(text) => {
+    match value.core_ref() {
+        CoreRef::Number(number) => text(profile, system, number, code).map_err(failure),
+        CoreRef::Text(text) => {
             text_of_text(&text.to_string_lossy(), code, profile).map_err(failure)
         }
-        CoreValue::Logical(true) => Ok("TRUE".to_owned()),
-        CoreValue::Logical(false) => Ok("FALSE".to_owned()),
-        CoreValue::Empty => Ok(String::new()),
+        CoreRef::Logical(true) => Ok("TRUE".to_owned()),
+        CoreRef::Logical(false) => Ok("FALSE".to_owned()),
+        CoreRef::Empty => Ok(String::new()),
         _ => Err(CellFormatError::NotModelled),
     }
 }
@@ -1123,11 +1123,11 @@ impl FormatColor {
 /// [`text_of_text`] would render it with, read up to its first character that is not in a
 /// bracketed token; `None` when the section names none or the value takes no section.
 pub fn cell_color(code: &str, value: &crate::value::CalcValue) -> Option<FormatColor> {
-    use crate::value::CoreValue;
+    use crate::value::CoreRef;
     let sections = sections(code);
-    let section = match value.core() {
-        CoreValue::Number(number) => choose(&sections, *number).ok()?.0,
-        CoreValue::Text(_) => match sections.get(3) {
+    let section = match value.core_ref() {
+        CoreRef::Number(number) => choose(&sections, number).ok()?.0,
+        CoreRef::Text(_) => match sections.get(3) {
             Some(section) => section.clone(),
             None if sections.len() == 1 && sections[0].contains('@') => sections[0].clone(),
             None => return None,

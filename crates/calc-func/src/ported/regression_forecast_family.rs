@@ -3,7 +3,7 @@
 //! statistics family reads a reference argument into an array before the call.
 
 use crate::ported::excel_numeric;
-use crate::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcArray, CalcValue, CoreRef, CoreValue, WorksheetErrorCode};
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,8 +65,8 @@ struct RegressionFit {
 /// An argument as the regression functions read it: the caller has read a reference into an
 /// array; an empty or omitted argument is #VALUE!.
 fn resolve_arg_eval(arg: &CalcValue) -> Result<CalcValue, WorksheetErrorCode> {
-    match arg.core() {
-        CoreValue::Missing | CoreValue::Empty => Err(WorksheetErrorCode::Value),
+    match arg.core_ref() {
+        CoreRef::Missing | CoreRef::Empty => Err(WorksheetErrorCode::Value),
         _ => Ok(arg.clone()),
     }
 }
@@ -77,30 +77,30 @@ fn optional_arg_value(
 ) -> Result<Option<CalcValue>, WorksheetErrorCode> {
     match arg {
         None => Ok(None),
-        Some(value) if matches!(value.core(), CoreValue::Missing) => Ok(None),
+        Some(value) if matches!(value.core_ref(), CoreRef::Missing) => Ok(None),
         Some(other) => Ok(Some(resolve_arg_eval(other)?)),
     }
 }
 
 fn numeric_from_cell(cell: &CalcValue) -> Result<f64, WorksheetErrorCode> {
-    match cell.core() {
-        CoreValue::Number(n) => Ok(*n),
-        CoreValue::Error(code) => Err(*code),
-        CoreValue::Text(_)
-        | CoreValue::Logical(_)
-        | CoreValue::Empty
-        | CoreValue::Missing
-        | CoreValue::Array(_)
-        | CoreValue::Reference(_) => Err(WorksheetErrorCode::Value,),
+    match cell.core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Error(code) => Err(code),
+        CoreRef::Text(_)
+        | CoreRef::Logical(_)
+        | CoreRef::Empty
+        | CoreRef::Missing
+        | CoreRef::Array(_)
+        | CoreRef::Reference(_) => Err(WorksheetErrorCode::Value,),
     }
 }
 
 fn numeric_scalar_from_eval(value: &CalcValue) -> Result<f64, WorksheetErrorCode> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(*n),
-        CoreValue::Logical(flag) => Ok(if *flag { 1.0 } else { 0.0 }),
-        CoreValue::Error(code) => Err(*code),
-        CoreValue::Array(array) => {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Logical(flag) => Ok(if flag { 1.0 } else { 0.0 }),
+        CoreRef::Error(code) => Err(code),
+        CoreRef::Array(array) => {
             let shape = array.shape();
             if shape.rows == 1 && shape.cols == 1 {
                 numeric_from_cell(array.get(0, 0).expect("single-cell array"))
@@ -108,7 +108,7 @@ fn numeric_scalar_from_eval(value: &CalcValue) -> Result<f64, WorksheetErrorCode
                 Err(WorksheetErrorCode::Value,)
             }
         }
-        CoreValue::Text(_) | CoreValue::Reference(_) => Err(WorksheetErrorCode::Value,),
+        CoreRef::Text(_) | CoreRef::Reference(_) => Err(WorksheetErrorCode::Value,),
         _ => Err(WorksheetErrorCode::Value,),
     }
 }
@@ -119,8 +119,8 @@ fn bool_flag_from_eval_or_default(
 ) -> Result<bool, WorksheetErrorCode> {
     match value {
         None => Ok(default),
-        Some(value) if matches!(value.core(), CoreValue::Logical(_)) => match value.core() {
-            CoreValue::Logical(flag) => Ok(*flag),
+        Some(value) if matches!(value.core_ref(), CoreRef::Logical(_)) => match value.core_ref() {
+            CoreRef::Logical(flag) => Ok(flag),
             _ => unreachable!("guarded logical"),
         },
         Some(other) => Ok(numeric_scalar_from_eval(&other)? != 0.0),
@@ -130,13 +130,13 @@ fn bool_flag_from_eval_or_default(
 fn collect_numeric_vector_from_eval(
     value: &CalcValue,
 ) -> Result<NumericVector, WorksheetErrorCode> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(NumericVector {
-            values: vec![*n],
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(NumericVector {
+            values: vec![n],
             shape: VectorShape::Scalar,
         }),
-        CoreValue::Error(code) => Err(*code),
-        CoreValue::Array(array) => {
+        CoreRef::Error(code) => Err(code),
+        CoreRef::Array(array) => {
             let shape = array.shape();
             if shape.rows > 1 && shape.cols > 1 {
                 return Err(WorksheetErrorCode::Ref);
@@ -157,7 +157,7 @@ fn collect_numeric_vector_from_eval(
                 shape: vector_shape,
             })
         }
-        CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Reference(_) => Err(
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => Err(
             WorksheetErrorCode::Value,
         ),
         _ => Err(WorksheetErrorCode::Value,),
@@ -199,14 +199,14 @@ impl NumericMatrix {
 fn collect_numeric_matrix_from_eval(
     value: &CalcValue,
 ) -> Result<NumericMatrix, WorksheetErrorCode> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(NumericMatrix {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(NumericMatrix {
             rows: 1,
             cols: 1,
-            values: vec![*n],
+            values: vec![n],
         }),
-        CoreValue::Error(code) => Err(*code),
-        CoreValue::Array(array) => {
+        CoreRef::Error(code) => Err(code),
+        CoreRef::Array(array) => {
             let shape = array.shape();
             let mut values = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
@@ -218,7 +218,7 @@ fn collect_numeric_matrix_from_eval(
                 values,
             })
         }
-        CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Reference(_) => Err(
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => Err(
             WorksheetErrorCode::Value,
         ),
         _ => Err(WorksheetErrorCode::Value,),
@@ -951,13 +951,13 @@ pub(crate) fn eval_trend_surface(
     let known_y = collect_numeric_vector_arg(&args[0])?;
     let known_x_raw = args
         .get(1)
-        .filter(|arg| !matches!(arg.core(), CoreValue::Missing))
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
     let new_x_raw = args
         .get(2)
-        .filter(|arg| !matches!(arg.core(), CoreValue::Missing))
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x)?;
@@ -972,13 +972,13 @@ pub(crate) fn eval_growth_surface(
     let known_y = collect_numeric_vector_arg(&args[0])?;
     let known_x_raw = args
         .get(1)
-        .filter(|arg| !matches!(arg.core(), CoreValue::Missing))
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
     let new_x_raw = args
         .get(2)
-        .filter(|arg| !matches!(arg.core(), CoreValue::Missing))
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let new_x = prediction_input_from_optional(new_x_raw, &known_y, &known_x)?;
@@ -1011,7 +1011,7 @@ pub(crate) fn eval_linest_surface(
     let known_y = collect_numeric_vector_arg(&args[0])?;
     let known_x_raw = args
         .get(1)
-        .filter(|arg| !matches!(arg.core(), CoreValue::Missing))
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
@@ -1027,7 +1027,7 @@ pub(crate) fn eval_logest_surface(
     let known_y = collect_numeric_vector_arg(&args[0])?;
     let known_x_raw = args
         .get(1)
-        .filter(|arg| !matches!(arg.core(), CoreValue::Missing))
+        .filter(|arg| !matches!(arg.core_ref(), CoreRef::Missing))
         .map(|arg| collect_numeric_matrix_arg(arg))
         .transpose()?;
     let known_x = predictor_input_from_optional(known_x_raw, &known_y)?;
@@ -1079,7 +1079,7 @@ mod tests {
         ];
         for (x, ys, xs, want) in cases {
             let got = forecast_pair_kernel(x, &nv(ys), &nv(xs)).expect("numeric");
-            let CoreValue::Number(v) = got.core() else {
+            let CoreRef::Number(v) = got.core_ref() else {
                 panic!("expected number");
             };
             assert_eq!(v.to_bits(), want, "x={x}");
@@ -1132,15 +1132,15 @@ mod tests {
     }
 
     fn expect_number(value: CalcValue) -> f64 {
-        match value.core() {
-            CoreValue::Number(n) => *n,
+        match value.core_ref() {
+            CoreRef::Number(n) => n,
             other => panic!("expected scalar, got {other:?}"),
         }
     }
 
     fn expect_row_array(value: CalcValue) -> Vec<f64> {
-        match value.core() {
-            CoreValue::Array(array) => {
+        match value.core_ref() {
+            CoreRef::Array(array) => {
                 assert_eq!(
                     array.shape(),
                     ArrayShape {
@@ -1150,8 +1150,8 @@ mod tests {
                 );
                 array
                     .iter_row_major()
-                    .map(|cell| match cell.core() {
-                        CoreValue::Number(n) => *n,
+                    .map(|cell| match cell.core_ref() {
+                        CoreRef::Number(n) => n,
                         other => panic!("unexpected cell: {other:?}"),
                     })
                     .collect()
@@ -1185,8 +1185,8 @@ mod tests {
             ]
         )
         .unwrap();
-        match got.core() {
-            CoreValue::Array(array) => {
+        match got.core_ref() {
+            CoreRef::Array(array) => {
                 assert_eq!(array.shape(), ArrayShape { rows: 2, cols: 1 });
                 assert_close(numeric_from_cell(array.get(0, 0).unwrap()).unwrap(), 8.0);
                 assert_close(numeric_from_cell(array.get(1, 0).unwrap()).unwrap(), 10.0);
@@ -1206,8 +1206,8 @@ mod tests {
             ]
         )
         .unwrap();
-        match got.core() {
-            CoreValue::Array(array) => {
+        match got.core_ref() {
+            CoreRef::Array(array) => {
                 assert_close(numeric_from_cell(array.get(0, 0).unwrap()).unwrap(), 16.0);
                 assert_close(numeric_from_cell(array.get(1, 0).unwrap()).unwrap(), 32.0);
             }
@@ -1232,8 +1232,8 @@ mod tests {
             ]
         )
         .unwrap();
-        match got.core() {
-            CoreValue::Array(array) => {
+        match got.core_ref() {
+            CoreRef::Array(array) => {
                 assert_eq!(array.shape(), ArrayShape { rows: 2, cols: 1 });
                 assert_close(numeric_from_cell(array.get(0, 0).unwrap()).unwrap(), 48.0);
                 assert_close(
@@ -1383,8 +1383,8 @@ mod tests {
             ]
         )
         .unwrap();
-        match got.core() {
-            CoreValue::Array(array) => {
+        match got.core_ref() {
+            CoreRef::Array(array) => {
                 assert_eq!(array.shape(), ArrayShape { rows: 2, cols: 2 });
                 assert_close(numeric_from_cell(array.get(0, 0).unwrap()).unwrap(), 2.0);
                 assert_close(numeric_from_cell(array.get(0, 1).unwrap()).unwrap(), 4.0);
@@ -1412,8 +1412,8 @@ mod tests {
             ]
         )
         .unwrap();
-        match got.core() {
-            CoreValue::Array(array) => {
+        match got.core_ref() {
+            CoreRef::Array(array) => {
                 assert_eq!(array.shape(), ArrayShape { rows: 2, cols: 1 });
                 assert_close(numeric_from_cell(array.get(0, 0).unwrap()).unwrap(), 12.0);
                 assert_close(numeric_from_cell(array.get(1, 0).unwrap()).unwrap(), 15.0);
@@ -1424,12 +1424,12 @@ mod tests {
 
     /// The cells of an array result: a number as its bits, an error as its code.
     fn block(value: CalcValue) -> Vec<Result<u64, WorksheetErrorCode>> {
-        match value.core() {
-            CoreValue::Array(array) => array
+        match value.core_ref() {
+            CoreRef::Array(array) => array
                 .iter_row_major()
-                .map(|cell| match cell.core() {
-                    CoreValue::Number(n) => Ok(n.to_bits()),
-                    CoreValue::Error(e) => Err(*e),
+                .map(|cell| match cell.core_ref() {
+                    CoreRef::Number(n) => Ok(n.to_bits()),
+                    CoreRef::Error(e) => Err(e),
                     other => panic!("unexpected cell: {other:?}"),
                 })
                 .collect(),

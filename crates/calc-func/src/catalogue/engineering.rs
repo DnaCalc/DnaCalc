@@ -15,7 +15,7 @@ use crate::ported::complex_family::{
 };
 use crate::ported::engineering_radix_family as radix;
 use crate::ported::{self as k};
-use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 use crate::ported::excel_numeric::crt_log;
 
 const CODE: u16 = 105;
@@ -23,9 +23,9 @@ const CODE: u16 = 105;
 /// The radix functions' rule for the kinds they refuse: a logical is #VALUE!, an empty argument
 /// #N/A.
 fn radix_kind(a: &[CalcValue], index: usize) -> Step<()> {
-    match a[index].core() {
-        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
-        CoreValue::Missing => fail(WorksheetErrorCode::NA),
+    match a[index].core_ref() {
+        CoreRef::Logical(_) => fail(WorksheetErrorCode::Value),
+        CoreRef::Missing => fail(WorksheetErrorCode::NA),
         _ => Ok(()),
     }
 }
@@ -72,16 +72,16 @@ fn between(
 
 /// A value as a complex number.
 fn complex_of(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<ParsedComplex> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(ParsedComplex::new(*n, 0.0, None)),
-        CoreValue::Text(t) => match String::from_utf16(t.utf16_code_units()) {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(ParsedComplex::new(n, 0.0, None)),
+        CoreRef::Text(t) => match String::from_utf16(t.utf16_code_units()) {
             Ok(text) => parse_complex_text(&text).ok_or(Exit::Error(WorksheetErrorCode::Num)),
             Err(_) => Err(site.not_modelled(Some(index))),
         },
-        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
-        CoreValue::Error(code) => fail(*code),
-        CoreValue::Empty | CoreValue::Missing => Ok(ParsedComplex::new(0.0, 0.0, None)),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+        CoreRef::Logical(_) => fail(WorksheetErrorCode::Value),
+        CoreRef::Error(code) => fail(code),
+        CoreRef::Empty | CoreRef::Missing => Ok(ParsedComplex::new(0.0, 0.0, None)),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }
 
@@ -114,8 +114,8 @@ fn complex_number(
 /// COMPLEX's real and imaginary coefficients: a number, numeric text, a blank as 0; a logical is
 /// #VALUE!.
 fn coefficient(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
-    match a[index].core() {
-        CoreValue::Logical(_) => fail(WorksheetErrorCode::Value),
+    match a[index].core_ref() {
+        CoreRef::Logical(_) => fail(WorksheetErrorCode::Value),
         _ => num(site, a, index),
     }
 }
@@ -168,10 +168,10 @@ ported_family! {
     30 complex "COMPLEX" (2, 3) [V "real_num", V "i_num", V "suffix"] |s, a, sv| {
         let re = coefficient(s, a, 0)?;
         let im = coefficient(s, a, 1)?;
-        let suffix = match a.get(2).map(CalcValue::core) {
-            None | Some(CoreValue::Missing | CoreValue::Empty) => 'i',
-            Some(CoreValue::Error(code)) => return fail(*code),
-            Some(CoreValue::Text(_)) => match text(s, a, 2)?.trim() {
+        let suffix = match a.get(2).map(CalcValue::core_ref) {
+            None | Some(CoreRef::Missing | CoreRef::Empty) => 'i',
+            Some(CoreRef::Error(code)) => return fail(code),
+            Some(CoreRef::Text(_)) => match text(s, a, 2)?.trim() {
                 "" | "i" => 'i',
                 "j" => 'j',
                 _ => return fail(WorksheetErrorCode::Value),

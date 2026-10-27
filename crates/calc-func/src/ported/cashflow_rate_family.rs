@@ -1,5 +1,5 @@
 use crate::value::WorksheetErrorCode;
-use crate::value::{CalcValue, CoreValue};
+use crate::value::{CalcValue, CoreRef, CoreValue};
 use crate::ported::excel_numeric::crt_pow;
 
 const ROOT_TOLERANCE: f64 = 1e-8;
@@ -24,24 +24,24 @@ pub enum CashflowRateEvalError {
 }
 
 fn numeric_from_cell(cell: &CalcValue) -> Result<f64, CashflowRateEvalError> {
-    match cell.core() {
-        CoreValue::Number(n) => Ok(*n),
-        CoreValue::Error(code) => Err(CashflowRateEvalError::Domain(*code)),
-        CoreValue::Text(_)
-        | CoreValue::Logical(_)
-        | CoreValue::Empty
-        | CoreValue::Missing
-        | CoreValue::Array(_)
-        | CoreValue::Reference(_) => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),
+    match cell.core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Text(_)
+        | CoreRef::Logical(_)
+        | CoreRef::Empty
+        | CoreRef::Missing
+        | CoreRef::Array(_)
+        | CoreRef::Reference(_) => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),
     }
 }
 
 pub(crate) fn scalar_number_from_eval(value: &CalcValue) -> Result<f64, CashflowRateEvalError> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(*n),
-        CoreValue::Logical(flag) => Ok(if *flag { 1.0 } else { 0.0 }),
-        CoreValue::Error(code) => Err(CashflowRateEvalError::Domain(*code)),
-        CoreValue::Array(array) => {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Logical(flag) => Ok(if flag { 1.0 } else { 0.0 }),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Array(array) => {
             let shape = array.shape();
             if shape.rows == 1 && shape.cols == 1 {
                 numeric_from_cell(array.get(0, 0).expect("single cell"))
@@ -49,7 +49,7 @@ pub(crate) fn scalar_number_from_eval(value: &CalcValue) -> Result<f64, Cashflow
                 Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value))
             }
         }
-        CoreValue::Text(_) | CoreValue::Reference(_) => {
+        CoreRef::Text(_) | CoreRef::Reference(_) => {
             Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value))
         }
         _ => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),
@@ -57,10 +57,10 @@ pub(crate) fn scalar_number_from_eval(value: &CalcValue) -> Result<f64, Cashflow
 }
 
 pub(crate) fn collect_numeric_vector_from_eval(value: &CalcValue) -> Result<Vec<f64>, CashflowRateEvalError> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(vec![*n]),
-        CoreValue::Error(code) => Err(CashflowRateEvalError::Domain(*code)),
-        CoreValue::Array(array) => {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(vec![n]),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Array(array) => {
             let shape = array.shape();
             if shape.rows > 1 && shape.cols > 1 {
                 return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Ref));
@@ -71,7 +71,7 @@ pub(crate) fn collect_numeric_vector_from_eval(value: &CalcValue) -> Result<Vec<
             }
             Ok(out)
         }
-        CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Reference(_) => {
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => {
             Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value))
         }
         _ => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),
@@ -86,33 +86,33 @@ pub(crate) fn collect_numeric_vector_from_eval(value: &CalcValue) -> Result<Vec<
 /// strict positional collector used by XNPV/XIRR, whose values must stay aligned
 /// with the parallel dates array.
 pub(crate) fn collect_irr_values_from_eval(value: &CalcValue) -> Result<Vec<f64>, CashflowRateEvalError> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(vec![*n]),
-        CoreValue::Error(code) => Err(CashflowRateEvalError::Domain(*code)),
-        CoreValue::Array(array) => {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(vec![n]),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Array(array) => {
             let shape = array.shape();
             if shape.rows > 1 && shape.cols > 1 {
                 return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Ref));
             }
             let mut out = Vec::with_capacity(shape.rows * shape.cols);
             for cell in array.iter_row_major() {
-                match cell.core() {
-                    CoreValue::Number(n) => out.push(*n),
-                    CoreValue::Error(_) => {
+                match cell.core_ref() {
+                    CoreRef::Number(n) => out.push(n),
+                    CoreRef::Error(_) => {
                         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value));
                     }
-                    CoreValue::Text(_)
-                    | CoreValue::Logical(_)
-                    | CoreValue::Empty
-                    | CoreValue::Missing => {} // ignored, like Excel
-                    CoreValue::Array(_) | CoreValue::Reference(_) => {
+                    CoreRef::Text(_)
+                    | CoreRef::Logical(_)
+                    | CoreRef::Empty
+                    | CoreRef::Missing => {} // ignored, like Excel
+                    CoreRef::Array(_) | CoreRef::Reference(_) => {
                         return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value));
                     }
                 }
             }
             Ok(out)
         }
-        CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Reference(_) => {
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => {
             Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value))
         }
         _ => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),
@@ -131,10 +131,10 @@ fn serial_from_number(value: f64) -> Result<i64, CashflowRateEvalError> {
 }
 
 pub(crate) fn collect_serial_vector_from_eval(value: &CalcValue) -> Result<Vec<i64>, CashflowRateEvalError> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(vec![serial_from_number(*n)?]),
-        CoreValue::Error(code) => Err(CashflowRateEvalError::Domain(*code)),
-        CoreValue::Array(array) => {
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(vec![serial_from_number(n)?]),
+        CoreRef::Error(code) => Err(CashflowRateEvalError::Domain(code)),
+        CoreRef::Array(array) => {
             let shape = array.shape();
             if shape.rows > 1 && shape.cols > 1 {
                 return Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Ref));
@@ -145,7 +145,7 @@ pub(crate) fn collect_serial_vector_from_eval(value: &CalcValue) -> Result<Vec<i
             }
             Ok(out)
         }
-        CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Reference(_) => {
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Reference(_) => {
             Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value))
         }
         _ => Err(CashflowRateEvalError::Domain(WorksheetErrorCode::Value)),

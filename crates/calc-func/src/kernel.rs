@@ -9,7 +9,7 @@ use crate::decimal::ExactDecimal;
 use crate::locale::CalcEnvironment;
 use crate::ported::excel_numeric;
 use crate::value_text;
-use crate::value::{CalcValue, CoreValue, NumericMode, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, NumericMode, WorksheetErrorCode};
 
 /// Why a kernel stopped before its value.
 #[derive(Debug)]
@@ -111,7 +111,7 @@ impl<'m> Site<'m> {
     /// the grammar does not read it, `None` when the call has no profile, and the refusal of text
     /// whose reading is not modelled. Reading rounds once to binary64, an arithmetic site.
     pub(crate) fn read_text(&self, index: usize, value: &CalcValue) -> Step<Option<f64>> {
-        let CoreValue::Text(text) = value.core() else {
+        let CoreRef::Text(text) = value.core_ref() else {
             return Ok(None);
         };
         let Some(environment) = self.environment.as_ref() else {
@@ -140,7 +140,7 @@ impl<'m> Site<'m> {
     pub(crate) fn scalar_operands(&self, operands: &[CalcValue]) -> Step<()> {
         match operands
             .iter()
-            .position(|operand| matches!(operand.core(), CoreValue::Array(_)))
+            .position(|operand| matches!(operand.core_ref(), CoreRef::Array(_)))
         {
             Some(index) => Err(self.not_modelled(Some(index))),
             None => Ok(()),

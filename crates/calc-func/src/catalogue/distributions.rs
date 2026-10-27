@@ -19,7 +19,7 @@ use crate::ported::{
     statistical_tests_family as st,
 };
 use crate::ported::{self as k};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
 const CODE: u16 = 104;
 
@@ -353,8 +353,8 @@ fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) ->
     // 16.0.20430, 2026-10-25, dc-6au: `=CHISQ.TEST(#REF!,1)`, `=CHISQ.TEST(1,#REF!)` and
     // `=CHISQ.TEST(A1:A2,#REF!)` are #REF!, `=CHISQ.TEST(#DIV/0!,A1:A2)` #DIV/0!).
     for argument in &a[..2] {
-        if let CoreValue::Error(code) = argument.core() {
-            return fail(*code);
+        if let CoreRef::Error(code) = argument.core_ref() {
+            return fail(code);
         }
     }
     let actual = grid(site, a, 0, sv)?;
@@ -374,9 +374,9 @@ fn chisq_test_of(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) ->
     }
     let mut statistic = 0.0;
     for (x, e) in actual.cells.iter().zip(&expected.cells) {
-        let (x, e) = match (x.core(), e.core()) {
-            (CoreValue::Error(code), _) | (_, CoreValue::Error(code)) => return fail(*code),
-            (CoreValue::Number(x), CoreValue::Number(e)) => (*x, *e),
+        let (x, e) = match (x.core_ref(), e.core_ref()) {
+            (CoreRef::Error(code), _) | (_, CoreRef::Error(code)) => return fail(code),
+            (CoreRef::Number(x), CoreRef::Number(e)) => (x, e),
             _ => return fail(WorksheetErrorCode::Value),
         };
         if e <= 0.0 {

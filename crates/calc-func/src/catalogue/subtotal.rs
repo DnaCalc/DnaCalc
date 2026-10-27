@@ -16,7 +16,7 @@ use crate::call::{EvalServices, SubtotalExclusions};
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::percentile_common::{percentile_exc_kernel, percentile_inc_kernel};
 use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, variance_from_values};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 use std::collections::BTreeSet;
 
 const CODE: u16 = 102;
@@ -40,7 +40,7 @@ fn held_values(
 ) -> Step<Vec<CalcValue>> {
     let mut found = Vec::new();
     for (index, argument) in a.iter().enumerate().skip(from) {
-        let CoreValue::Reference(reference) = argument.core() else {
+        let CoreRef::Reference(reference) = argument.core_ref() else {
             // SUBTOTAL and AGGREGATE's reference form read references only; an array here is
             // not modelled.
             return Err(site.not_modelled(Some(index)));
@@ -77,7 +77,7 @@ fn held_values(
             {
                 return Ok(());
             }
-            if rule.errors && matches!(value.core(), CoreValue::Error(_)) {
+            if rule.errors && matches!(value.core_ref(), CoreRef::Error(_)) {
                 return Ok(());
             }
             found.push(value.clone());
@@ -91,9 +91,9 @@ fn held_values(
 fn numbers_of(values: &[CalcValue]) -> Step<Vec<f64>> {
     let mut found = Vec::new();
     for value in values {
-        match value.core() {
-            CoreValue::Number(n) => found.push(*n),
-            CoreValue::Error(code) => return fail(*code),
+        match value.core_ref() {
+            CoreRef::Number(n) => found.push(n),
+            CoreRef::Error(code) => return fail(code),
             _ => {}
         }
     }
@@ -105,14 +105,14 @@ fn compute(site: &Site<'_>, number: i64, values: &[CalcValue]) -> Step<CalcValue
     if number == 3 {
         let counted = values
             .iter()
-            .filter(|v| !matches!(v.core(), CoreValue::Empty | CoreValue::Missing))
+            .filter(|v| !matches!(v.core_ref(), CoreRef::Empty | CoreRef::Missing))
             .count();
         return site.number(counted as f64);
     }
     if number == 2 {
         let counted = values
             .iter()
-            .filter(|v| matches!(v.core(), CoreValue::Number(_)))
+            .filter(|v| matches!(v.core_ref(), CoreRef::Number(_)))
             .count();
         return site.number(counted as f64);
     }
@@ -212,7 +212,7 @@ ported_family! {
             // `=AGGREGATE(9,0,1)` and `=AGGREGATE(1,1,A1:A3*1)` are #VALUE!). An error value
             // there is not measured and stays refused.
             if a[2..].iter().any(|argument| {
-                !matches!(argument.core(), CoreValue::Reference(_) | CoreValue::Error(_))
+                !matches!(argument.core_ref(), CoreRef::Reference(_) | CoreRef::Error(_))
                     && !argument.is_missing()
             }) {
                 return fail(WorksheetErrorCode::Value);
@@ -225,11 +225,11 @@ ported_family! {
             return fail(WorksheetErrorCode::Value);
         }
         let k = num(s, a, 3)?;
-        let values = match a[2].core() {
-            CoreValue::Reference(_) => held_values(s, &a[..3], 2, sv, rule)?,
-            CoreValue::Array(array) => array
+        let values = match a[2].core_ref() {
+            CoreRef::Reference(_) => held_values(s, &a[..3], 2, sv, rule)?,
+            CoreRef::Array(array) => array
                 .iter_row_major()
-                .filter(|v| !(rule.errors && matches!(v.core(), CoreValue::Error(_))))
+                .filter(|v| !(rule.errors && matches!(v.core_ref(), CoreRef::Error(_))))
                 .cloned()
                 .collect(),
             _ => vec![a[2].clone()],

@@ -3,7 +3,7 @@
 
 use crate::state::HostState;
 use calc_doc::{PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, StructuralEdits, WriteError};
-use calc_doc_model::value::{CellKey, CoreValue, GridArea};
+use calc_doc_model::value::{CellKey, CoreRef, GridArea};
 use calc_doc_model::{CachedValue, CellInput, CellText, FiniteNumber};
 use calc_engine::FormulaResult;
 use std::collections::BTreeMap;
@@ -31,13 +31,13 @@ impl fmt::Display for SaveFailed {
 impl std::error::Error for SaveFailed {}
 
 /// The cached value a calculated value is saved as; `None` for a value no cell holds as a cache.
-fn cached(core: &CoreValue) -> Option<CachedValue> {
+fn cached(core: CoreRef<'_>) -> Option<CachedValue> {
     match core {
-        CoreValue::Number(number) => FiniteNumber::new(*number).map(CachedValue::Number),
-        CoreValue::Text(text) => CellText::new(text.clone()).map(CachedValue::Text),
-        CoreValue::Logical(logical) => Some(CachedValue::Logical(*logical)),
-        CoreValue::Error(code) => Some(CachedValue::Error(*code)),
-        CoreValue::Empty | CoreValue::Missing | CoreValue::Array(_) | CoreValue::Reference(_) => {
+        CoreRef::Number(number) => FiniteNumber::new(number).map(CachedValue::Number),
+        CoreRef::Text(text) => CellText::new(text.clone()).map(CachedValue::Text),
+        CoreRef::Logical(logical) => Some(CachedValue::Logical(logical)),
+        CoreRef::Error(code) => Some(CachedValue::Error(code)),
+        CoreRef::Empty | CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => {
             None
         }
     }
@@ -76,7 +76,7 @@ pub fn save(
             let Some(FormulaResult::Calculated { value, .. }) = host.engine.result(at) else {
                 continue;
             };
-            let Some(cached_value) = cached(value.core()) else {
+            let Some(cached_value) = cached(value.core_ref()) else {
                 continue;
             };
             values.insert(at, cached_value);
@@ -91,7 +91,7 @@ pub fn save(
                         if member == at {
                             continue;
                         }
-                        if let Some(member_value) = cached(spill.value_at(member).core()) {
+                        if let Some(member_value) = cached(spill.value_at(member).core_ref()) {
                             values.insert(member, member_value);
                         }
                     }

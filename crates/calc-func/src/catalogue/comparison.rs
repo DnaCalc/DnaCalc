@@ -31,7 +31,7 @@ use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::decimal::{ExactDecimal, Natural};
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CoreValue};
+use crate::value::{CalcValue, CoreRef};
 use std::cmp::Ordering;
 
 const CODE: u16 = 2;
@@ -206,13 +206,13 @@ pub(super) fn order(site: &Site<'_>, arguments: &[CalcValue], want: Want) -> Ste
     site.scalar_operands(arguments)?;
     let mut operands = [Operand::Blank; 2];
     for (index, argument) in arguments.iter().enumerate() {
-        operands[index] = match argument.core() {
-            CoreValue::Number(n) => Operand::Number(site.argument(index, coerce::operand(*n))?),
-            CoreValue::Text(text) => Operand::Text(text.utf16_code_units()),
-            CoreValue::Logical(b) => Operand::Logical(*b),
-            CoreValue::Empty | CoreValue::Missing => Operand::Blank,
-            CoreValue::Error(code) => return Err(Exit::Error(*code)),
-            CoreValue::Array(_) | CoreValue::Reference(_) => {
+        operands[index] = match argument.core_ref() {
+            CoreRef::Number(n) => Operand::Number(site.argument(index, coerce::operand(n))?),
+            CoreRef::Text(text) => Operand::Text(text.utf16_code_units()),
+            CoreRef::Logical(b) => Operand::Logical(b),
+            CoreRef::Empty | CoreRef::Missing => Operand::Blank,
+            CoreRef::Error(code) => return Err(Exit::Error(code)),
+            CoreRef::Array(_) | CoreRef::Reference(_) => {
                 return Err(site.not_modelled(Some(index)));
             }
         };

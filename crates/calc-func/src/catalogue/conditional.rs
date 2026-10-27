@@ -68,7 +68,7 @@ use crate::call::{EagerKernel, EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CallableArityShape, CellKey, CoreValue, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS,
+    CalcValue, CallableArityShape, CellKey, CoreRef, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS,
     ReferenceLike, WorksheetErrorCode,
 };
 use std::cmp::Ordering;
@@ -335,7 +335,7 @@ struct Plan {
 
 /// The reference argument at `index` as a range of one area.
 fn range(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<Range> {
-    let CoreValue::Reference(reference) = arguments[index].core() else {
+    let CoreRef::Reference(reference) = arguments[index].core_ref() else {
         return Err(Exit::Fault(FunctionFault::ReferenceRequired {
             id: site.id(),
             index,
@@ -600,7 +600,7 @@ fn read_range(
         &reference,
         range.index,
         &mut |area, key, value| {
-            if matches!(value.core(), CoreValue::Empty | CoreValue::Missing) {
+            if matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
                 return Ok(());
             }
             let at = offset(area, key);
@@ -661,15 +661,15 @@ fn target_cells(
 /// What a target cell gives a matched row: a number, an error, or nothing (text, logicals and
 /// blank cells are skipped).
 fn used(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Option<Used>> {
-    match value.core() {
-        CoreValue::Number(n) => Ok(Some(Used::Number(
-            site.argument(index, coerce::operand(*n))?,
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(Some(Used::Number(
+            site.argument(index, coerce::operand(n))?,
         ))),
-        CoreValue::Error(code) => Ok(Some(Used::Error(*code))),
-        CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Empty | CoreValue::Missing => {
+        CoreRef::Error(code) => Ok(Some(Used::Error(code))),
+        CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing => {
             Ok(None)
         }
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }
 
@@ -797,8 +797,8 @@ fn criterion(
     argument: &CalcValue,
 ) -> Step<Criterion> {
     let dereferenced;
-    let value = match argument.core() {
-        CoreValue::Reference(reference) => {
+    let value = match argument.core_ref() {
+        CoreRef::Reference(reference) => {
             let [area] = reference.areas() else {
                 return Err(site.not_modelled(Some(index)));
             };
@@ -821,17 +821,17 @@ fn criterion(
         }
         _ => argument,
     };
-    match value.core() {
-        CoreValue::Number(n) => Ok(Criterion::Number(
+    match value.core_ref() {
+        CoreRef::Number(n) => Ok(Criterion::Number(
             Op::Equal,
-            site.argument(index, coerce::operand(*n))?,
+            site.argument(index, coerce::operand(n))?,
         )),
-        CoreValue::Logical(b) => Ok(Criterion::Logical(Op::Equal, *b)),
-        CoreValue::Error(code) => Ok(Criterion::Error(Op::Equal, *code)),
+        CoreRef::Logical(b) => Ok(Criterion::Logical(Op::Equal, b)),
+        CoreRef::Error(code) => Ok(Criterion::Error(Op::Equal, code)),
         // An empty cell given as the criterion, and an omitted criterion, are the value 0.
-        CoreValue::Empty | CoreValue::Missing => Ok(Criterion::Number(Op::Equal, 0.0)),
-        CoreValue::Text(text) => criterion_text(site, index, text.utf16_code_units()),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+        CoreRef::Empty | CoreRef::Missing => Ok(Criterion::Number(Op::Equal, 0.0)),
+        CoreRef::Text(text) => criterion_text(site, index, text.utf16_code_units()),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }
 
@@ -844,10 +844,10 @@ pub(super) fn database_criterion(
     index: usize,
     value: &CalcValue,
 ) -> Step<Option<Criterion>> {
-    match value.core() {
-        CoreValue::Empty | CoreValue::Missing => Ok(None),
-        CoreValue::Text(text) if text.len_utf16_code_units() == 0 => Ok(None),
-        CoreValue::Text(text) => {
+    match value.core_ref() {
+        CoreRef::Empty | CoreRef::Missing => Ok(None),
+        CoreRef::Text(text) if text.len_utf16_code_units() == 0 => Ok(None),
+        CoreRef::Text(text) => {
             let units = text.utf16_code_units();
             let written = [b'<', b'>', b'='].iter().any(|&b| units[0] == u16::from(b));
             let criterion = criterion_text(site, index, units)?;
@@ -866,13 +866,13 @@ pub(super) fn database_criterion(
                 other => other,
             }))
         }
-        CoreValue::Number(n) => Ok(Some(Criterion::Number(
+        CoreRef::Number(n) => Ok(Some(Criterion::Number(
             Op::Equal,
-            site.argument(index, coerce::operand(*n))?,
+            site.argument(index, coerce::operand(n))?,
         ))),
-        CoreValue::Logical(b) => Ok(Some(Criterion::Logical(Op::Equal, *b))),
-        CoreValue::Error(code) => Err(Exit::Error(*code)),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(index))),
+        CoreRef::Logical(b) => Ok(Some(Criterion::Logical(Op::Equal, b))),
+        CoreRef::Error(code) => Err(Exit::Error(code)),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(index))),
     }
 }
 
@@ -998,10 +998,10 @@ impl Criterion {
     /// The verdict of a cell of the range at argument `index` holding `value` (Empty for a blank
     /// cell).
     pub(super) fn verdict(&self, site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Match> {
-        if let CoreValue::Number(n) = value.core() {
-            site.argument(index, coerce::operand(*n))?;
+        if let CoreRef::Number(n) = value.core_ref() {
+            site.argument(index, coerce::operand(n))?;
         }
-        let blank = matches!(value.core(), CoreValue::Empty | CoreValue::Missing);
+        let blank = matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing);
         match self {
             Criterion::BlankOrEmptyText => Ok(Match::of(
                 blank
@@ -1013,11 +1013,11 @@ impl Criterion {
             Criterion::NotBlank => Ok(Match::of(!blank)),
             Criterion::Never => Ok(Match::No),
             Criterion::Number(op, operand) => {
-                let cell = match value.core() {
-                    CoreValue::Number(n) => Some(*n),
+                let cell = match value.core_ref() {
+                    CoreRef::Number(n) => Some(n),
                     // Text is never a number to an ordering or to <>; only = reads it as one.
-                    CoreValue::Text(_) if *op != Op::Equal => None,
-                    CoreValue::Text(_) => match site.number_argument(index, value) {
+                    CoreRef::Text(_) if *op != Op::Equal => None,
+                    CoreRef::Text(_) => match site.number_argument(index, value) {
                         Ok(n) => Some(n),
                         // Text that reads as no number (see the criterion's operand above).
                         Err(Exit::Error(_)) => None,
@@ -1033,9 +1033,9 @@ impl Criterion {
                 };
                 Ok(verdict)
             }
-            Criterion::Logical(op, operand) => Ok(match value.core() {
-                CoreValue::Logical(b) => Match::of(op.holds(b.cmp(operand))),
-                CoreValue::Text(text)
+            Criterion::Logical(op, operand) => Ok(match value.core_ref() {
+                CoreRef::Logical(b) => Match::of(op.holds(b.cmp(operand))),
+                CoreRef::Text(text)
                     if spells(text.utf16_code_units(), TRUE_TEXT)
                         || spells(text.utf16_code_units(), FALSE_TEXT) =>
                 {
@@ -1043,20 +1043,20 @@ impl Criterion {
                 }
                 _ => Match::of(*op == Op::NotEqual),
             }),
-            Criterion::Error(op, operand) => Ok(match value.core() {
-                CoreValue::Error(code) => {
-                    let ordering = if code == operand {
+            Criterion::Error(op, operand) => Ok(match value.core_ref() {
+                CoreRef::Error(code) => {
+                    let ordering = if code == *operand {
                         Some(Ordering::Equal)
                     } else if op.is_equality() {
                         Some(Ordering::Less)
                     } else {
-                        rank(*code)
+                        rank(code)
                             .zip(rank(*operand))
                             .map(|(code, operand)| code.cmp(&operand))
                     };
                     ordering.map_or(Match::Unknown, |ordering| Match::of(op.holds(ordering)))
                 }
-                CoreValue::Text(text)
+                CoreRef::Text(text)
                     if ERROR_CRITERIA.iter().any(|(spelling, code)| {
                         (code == operand || !op.is_equality())
                             && spells(text.utf16_code_units(), spelling)

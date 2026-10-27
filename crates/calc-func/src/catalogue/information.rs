@@ -39,7 +39,7 @@ use crate::call::{EagerKernel, EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcArray, CalcValue, CallableArityShape, CoreValue, GridArea, ReferenceLike,
+    CalcArray, CalcValue, CallableArityShape, CoreRef, GridArea, ReferenceLike,
     WorksheetErrorCode,
 };
 
@@ -119,23 +119,23 @@ pub(super) const FAMILY: Family = Family {
 /// The argument's worksheet value, or the refusal of a value no kernel here reads: an omitted
 /// argument, an array (lifted or intersected by array evaluation), a callable and a number that is
 /// not finite (see the module documentation).
-fn scalar<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<&'v CoreValue> {
-    match value.core() {
+fn scalar<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<CoreRef<'v>> {
+    match value.core_ref() {
         _ if value.callable_value().is_some() => Err(site.not_modelled(Some(0))),
-        CoreValue::Missing | CoreValue::Array(_) => Err(site.not_modelled(Some(0))),
-        CoreValue::Number(n) if !n.is_finite() => Err(site.not_modelled(Some(0))),
+        CoreRef::Missing | CoreRef::Array(_) => Err(site.not_modelled(Some(0))),
+        CoreRef::Number(n) if !n.is_finite() => Err(site.not_modelled(Some(0))),
         core => Ok(core),
     }
 }
 
 /// The argument's worksheet value as [`scalar`] reads it; #BLOCKED! and #CONNECT! are errors like
 /// any other (see the module documentation).
-fn known<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<&'v CoreValue> {
+fn known<'v>(site: &Site<'_>, value: &'v CalcValue) -> Step<CoreRef<'v>> {
     scalar(site, value)
 }
 
 /// How a kernel reads its argument's value: [`scalar`] or [`known`].
-type Read = for<'v> fn(&Site<'_>, &'v CalcValue) -> Step<&'v CoreValue>;
+type Read = for<'v> fn(&Site<'_>, &'v CalcValue) -> Step<CoreRef<'v>>;
 
 /// An IS predicate: `holds` applied to the argument's value as `read` gives it, which is not
 /// converted (a number held as text is text, as Microsoft's IS functions page states). The caller
@@ -145,7 +145,7 @@ fn predicate(
     arguments: &[CalcValue],
     services: &EvalServices<'_>,
     read: Read,
-    holds: fn(&CoreValue) -> bool,
+    holds: fn(CoreRef<'_>) -> bool,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(id, services);
     Site::finish(read(&site, &arguments[0]).map(|core| CalcValue::logical(holds(core))))
@@ -158,7 +158,7 @@ fn isblank(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     predicate(ISBLANK, arguments, services, known, |core| {
-        matches!(core, CoreValue::Empty)
+        matches!(core, CoreRef::Empty)
     })
 }
 
@@ -173,7 +173,7 @@ fn iserr(
         arguments,
         services,
         known,
-        |core| matches!(core, CoreValue::Error(code) if *code != WorksheetErrorCode::NA),
+        |core| matches!(core, CoreRef::Error(code) if code != WorksheetErrorCode::NA),
     )
 }
 
@@ -183,7 +183,7 @@ fn iserror(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     predicate(ISERROR, arguments, services, known, |core| {
-        matches!(core, CoreValue::Error(_))
+        matches!(core, CoreRef::Error(_))
     })
 }
 
@@ -193,7 +193,7 @@ fn isna(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     predicate(ISNA, arguments, services, known, |core| {
-        matches!(core, CoreValue::Error(WorksheetErrorCode::NA))
+        matches!(core, CoreRef::Error(WorksheetErrorCode::NA))
     })
 }
 
@@ -203,7 +203,7 @@ fn isnumber(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     predicate(ISNUMBER, arguments, services, scalar, |core| {
-        matches!(core, CoreValue::Number(_))
+        matches!(core, CoreRef::Number(_))
     })
 }
 
@@ -213,7 +213,7 @@ fn istext(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     predicate(ISTEXT, arguments, services, scalar, |core| {
-        matches!(core, CoreValue::Text(_))
+        matches!(core, CoreRef::Text(_))
     })
 }
 
@@ -223,7 +223,7 @@ fn isnontext(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     predicate(ISNONTEXT, arguments, services, scalar, |core| {
-        !matches!(core, CoreValue::Text(_))
+        !matches!(core, CoreRef::Text(_))
     })
 }
 
@@ -233,7 +233,7 @@ fn islogical(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     predicate(ISLOGICAL, arguments, services, scalar, |core| {
-        matches!(core, CoreValue::Logical(_))
+        matches!(core, CoreRef::Logical(_))
     })
 }
 
@@ -245,9 +245,9 @@ fn isref(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISREF, services);
     let argument = &arguments[0];
-    let step = match argument.core() {
-        CoreValue::Reference(_) => Ok(CalcValue::logical(true)),
-        CoreValue::Array(_) => Ok(CalcValue::logical(false)),
+    let step = match argument.core_ref() {
+        CoreRef::Reference(_) => Ok(CalcValue::logical(true)),
+        CoreRef::Array(_) => Ok(CalcValue::logical(false)),
         _ => scalar(&site, argument).map(|_| CalcValue::logical(false)),
     };
     Site::finish(step)
@@ -261,8 +261,8 @@ fn isformula(
     services: &mut EvalServices<'_>,
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(ISFORMULA, services);
-    let cell = match arguments[0].core() {
-        CoreValue::Reference(reference) => reference.areas()[0].first(),
+    let cell = match arguments[0].core_ref() {
+        CoreRef::Reference(reference) => reference.areas()[0].first(),
         _ => return Site::finish(Err(site.not_modelled(Some(0)))),
     };
     let known = services.host().and_then(|host| host.is_formula(cell));
@@ -304,7 +304,7 @@ fn each(
     services: &mut EvalServices<'_>,
     apply: fn(&Site<'_>, &CalcValue, &mut EvalServices<'_>) -> Step<CalcValue>,
 ) -> Step<CalcValue> {
-    let CoreValue::Array(array) = argument.core() else {
+    let CoreRef::Array(array) = argument.core_ref() else {
         return apply(site, argument, services);
     };
     if argument.callable_value().is_some() {
@@ -339,15 +339,15 @@ const PARITY_TOLERANCE: f64 = 1e-10;
 /// rounds; its truncation toward zero and the remainder by 2 are exact. Every binary64 of 2^53 or
 /// more is an even integer.
 fn odd(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) -> Step<bool> {
-    let value = match argument.core() {
-        CoreValue::Reference(reference) => match one_cell(reference) {
+    let value = match argument.core_ref() {
+        CoreRef::Reference(reference) => match one_cell(reference) {
             Some(area) => referenced(site, area, services)?,
             None => return Err(Exit::Error(WorksheetErrorCode::Value)),
         },
         _ => argument.clone(),
     };
     let number = match scalar(site, &value)? {
-        CoreValue::Logical(_) => return Err(Exit::Error(WorksheetErrorCode::Value)),
+        CoreRef::Logical(_) => return Err(Exit::Error(WorksheetErrorCode::Value)),
         _ => site.number_argument(0, &value)?,
     };
     Ok(site.add(number.abs(), PARITY_TOLERANCE)?.trunc() % 2.0 != 0.0)
@@ -367,10 +367,10 @@ fn type_of(
 ) -> Result<CalcValue, FunctionFault> {
     let site = Site::new(TYPE, services);
     let argument = &arguments[0];
-    let step = match argument.core() {
-        CoreValue::Array(_) => Ok(64.0),
-        CoreValue::Reference(reference) if reference.area_count() > 1 => Ok(16.0),
-        CoreValue::Reference(reference) => match one_cell(reference) {
+    let step = match argument.core_ref() {
+        CoreRef::Array(_) => Ok(64.0),
+        CoreRef::Reference(reference) if reference.area_count() > 1 => Ok(16.0),
+        CoreRef::Reference(reference) => match one_cell(reference) {
             Some(area) => {
                 referenced(&site, area, services).and_then(|value| type_code(&site, &value))
             }
@@ -383,11 +383,11 @@ fn type_of(
 
 fn type_code(site: &Site<'_>, value: &CalcValue) -> Step<f64> {
     Ok(match known(site, value)? {
-        CoreValue::Number(_) | CoreValue::Empty => 1.0,
-        CoreValue::Text(_) => 2.0,
-        CoreValue::Logical(_) => 4.0,
-        CoreValue::Error(_) => 16.0,
-        CoreValue::Missing | CoreValue::Array(_) | CoreValue::Reference(_) => {
+        CoreRef::Number(_) | CoreRef::Empty => 1.0,
+        CoreRef::Text(_) => 2.0,
+        CoreRef::Logical(_) => 4.0,
+        CoreRef::Error(_) => 16.0,
+        CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => {
             return Err(site.not_modelled(Some(0)));
         }
     })
@@ -407,21 +407,21 @@ fn n(arguments: &[CalcValue], services: &mut EvalServices<'_>) -> Result<CalcVal
 
 /// N of one argument or array element.
 fn n_of(site: &Site<'_>, argument: &CalcValue, services: &mut EvalServices<'_>) -> Step<CalcValue> {
-    let value = match argument.core() {
-        CoreValue::Reference(reference) => {
+    let value = match argument.core_ref() {
+        CoreRef::Reference(reference) => {
             let first = GridArea::cell(reference.areas()[0].first());
             referenced(site, first, services)?
         }
         _ => argument.clone(),
     };
     known(site, &value).and_then(|core| match core {
-        CoreValue::Number(x) => site
-            .argument(0, coerce::operand(*x))
+        CoreRef::Number(x) => site
+            .argument(0, coerce::operand(x))
             .and_then(|x| site.number(x)),
-        CoreValue::Logical(b) => Ok(CalcValue::number(if *b { 1.0 } else { 0.0 })),
-        CoreValue::Error(code) => Err(Exit::Error(*code)),
-        CoreValue::Text(_) | CoreValue::Empty => Ok(CalcValue::number(0.0)),
-        CoreValue::Missing | CoreValue::Array(_) | CoreValue::Reference(_) => {
+        CoreRef::Logical(b) => Ok(CalcValue::number(if b { 1.0 } else { 0.0 })),
+        CoreRef::Error(code) => Err(Exit::Error(code)),
+        CoreRef::Text(_) | CoreRef::Empty => Ok(CalcValue::number(0.0)),
+        CoreRef::Missing | CoreRef::Array(_) | CoreRef::Reference(_) => {
             Err(site.not_modelled(Some(0)))
         }
     })
@@ -444,7 +444,7 @@ fn error_type(
     let step = scalar(&site, &arguments[0]).and_then(|core| {
         use WorksheetErrorCode as W;
         let number = match core {
-            CoreValue::Error(code) => match code {
+            CoreRef::Error(code) => match code {
                 W::Null => 1.0,
                 W::Div0 => 2.0,
                 W::Value => 3.0,
