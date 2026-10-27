@@ -4108,8 +4108,8 @@ fn xml_facts(part: &XmlPart) -> XmlFacts {
     }
     let root = root.expect("a document element");
     XmlFacts {
-        namespace: root.namespace,
-        root: root.local,
+        namespace: root.namespace.map(String::from),
+        root: String::from(root.local),
         elements,
         attributes,
         text_sha256: sha256(text.as_bytes()),

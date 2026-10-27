@@ -123,6 +123,11 @@ struct Sheet<'a> {
     members: Vec<Member>,
     /// The areas whose cells, beside the anchor, are filled rather than authored.
     filled: Vec<Filled>,
+    /// The formula records and cell styles in cell order, as read; [`SheetLoad::formulas`] and
+    /// [`SheetLoad::styles`] are built from them in one pass at the end (dc-dxm), rather than by
+    /// inserting each cell into a map.
+    formulas: Vec<((u32, u32), FormulaRecord)>,
+    styles: Vec<((u32, u32), u32)>,
 }
 
 impl Sheet<'_> {
@@ -258,9 +263,8 @@ impl Sheet<'_> {
         cache: Option<CachedValue>,
     ) {
         let cache = cache.map(|value| FileCached::new(value, Arc::clone(&self.part)));
-        self.load
-            .formulas
-            .insert((row, column), FormulaRecord { shared, cache });
+        self.formulas
+            .push(((row, column), FormulaRecord { shared, cache }));
     }
 
     fn shared(&self, index: u32, group: &Group) -> SharedFormula {
@@ -383,7 +387,7 @@ impl Sheet<'_> {
             }
         }
         if style != 0 {
-            self.load.styles.insert((row, column), style);
+            self.styles.push(((row, column), style));
         }
         let kind = kind.as_deref();
         if let Some(data_table) = self.filled_at(row, column) {
@@ -778,6 +782,8 @@ pub(super) fn load_sheet(
         groups: BTreeMap::new(),
         members: Vec::new(),
         filled: Vec::new(),
+        formulas: Vec::new(),
+        styles: Vec::new(),
     };
     let mut sheet_data = false;
     let mut bars = BTreeMap::new();
@@ -831,6 +837,9 @@ pub(super) fn load_sheet(
         return Err(events.invalid("a worksheet without sheetData"));
     }
     sheet.finish_members()?;
+    // The cells were read in order, each once, so each map is built from a sorted list.
+    sheet.load.formulas = std::mem::take(&mut sheet.formulas).into_iter().collect();
+    sheet.load.styles = std::mem::take(&mut sheet.styles).into_iter().collect();
     let mut load = sheet.load;
     load.conditional_formats =
         super::conditional::with_extensions(std::mem::take(&mut load.conditional_formats), &bars);

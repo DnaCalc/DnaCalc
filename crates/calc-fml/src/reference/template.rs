@@ -17,7 +17,6 @@
 use super::notation::{self, Spelled};
 use super::{AxisRef, FormulaAnchor};
 use crate::syntax::{TokenKind, lex_chars};
-use std::fmt::Write;
 
 /// The template of the formula `text`, in A1 notation, anchored at `anchor`; `None` when the text
 /// holds a construct the template cannot be sure of. The template does not name the anchor's
@@ -98,12 +97,32 @@ pub fn template_key(text: &str, anchor: FormulaAnchor) -> Option<String> {
     Some(key)
 }
 
-/// Appends an axis to a template: `$` and the coordinate, or `~` and the offset.
+/// Appends an axis to a template: `$` and the coordinate, or `~` and the offset, in decimal
+/// (written digit by digit rather than through the formatter, dc-dxm: the formatter was a tenth
+/// of binding a workbook in the browser).
 fn push_axis(key: &mut String, axis: AxisRef) {
-    let _ = match axis {
-        AxisRef::Absolute(index) => write!(key, "${index}"),
-        AxisRef::Relative(offset) => write!(key, "~{offset}"),
+    let (mark, negative, magnitude) = match axis {
+        AxisRef::Absolute(index) => ('$', false, index),
+        AxisRef::Relative(offset) => ('~', offset < 0, offset.unsigned_abs()),
     };
+    key.push(mark);
+    if negative {
+        key.push('-');
+    }
+    let mut digits = [0u8; 10];
+    let mut at = digits.len();
+    let mut rest = magnitude;
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (rest % 10) as u8;
+        rest /= 10;
+        if rest == 0 {
+            break;
+        }
+    }
+    for digit in &digits[at..] {
+        key.push(char::from(*digit));
+    }
 }
 
 #[cfg(test)]
@@ -114,6 +133,23 @@ mod tests {
     fn anchor(row: u32, column: u32) -> FormulaAnchor {
         let mut ids: IdAllocator<SheetId> = IdAllocator::new();
         FormulaAnchor::new(CellKey::new(ids.issue().unwrap(), row, column).unwrap())
+    }
+
+    /// dc-dxm: an axis is written as the formatter wrote it.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_dxm__axes_are_written_as_the_formatter_wrote_them() {
+        for index in [0u32, 1, 9, 10, 99, 1_048_576, u32::MAX] {
+            let mut key = String::new();
+            push_axis(&mut key, AxisRef::Absolute(index));
+            assert_eq!(key, format!("${index}"));
+        }
+        for offset in [0i32, 1, -1, 9, -10, 16_383, -1_048_575, i32::MIN, i32::MAX] {
+            let mut key = String::new();
+            push_axis(&mut key, AxisRef::Relative(offset));
+            assert_eq!(key, format!("~{offset}"));
+        }
     }
 
     /// A filled formula has one template down its column; an absolute reference, another

@@ -504,6 +504,8 @@ impl<'a> Events<'a> {
         let mut text = String::new();
         loop {
             match self.next()? {
+                // The first run of text is taken as it is (dc-dxm), without copying it.
+                Some(XmlEvent::Text(more)) if text.is_empty() => text = more,
                 Some(XmlEvent::Text(more)) => text.push_str(&more),
                 Some(XmlEvent::End(_)) => return Ok(text),
                 Some(XmlEvent::Start(_)) => {
