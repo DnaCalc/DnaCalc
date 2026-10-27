@@ -5419,9 +5419,9 @@ fn argument_classes_rows(s: &mut TestSheet, quiet: bool) -> Rows {
         s,
         "COUNTBLANK",
         [err(Ref)],
-        Expect::Required(0),
-        Unsupported(
-            "an error value given for the reference-only parameter is refused at admission; Excel likely returns the error (unmeasured)"
+        E(Ref),
+        Measured(
+            "dc-ifc: #REF! given to the reference-only parameter is the result (Excel 16.0.20430, 2026-10-27: ERROR.TYPE(COUNTBLANK(#REF!)) is 4)"
         )
     );
 

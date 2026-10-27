@@ -1990,7 +1990,7 @@ fn target(notation: Notation, token: &Token) -> Result<Target, CompileError> {
 /// spelling as written.
 fn call_target(name: &Token) -> Result<Target, CompileError> {
     catalogue()
-        .resolve_surface(Notation::Call, file_unprefixed(name.text()))
+        .resolve_surface(Notation::Call, file_function(name.text()))
         .map(Target)
         .map_err(|_| CompileError::UnknownFunction {
             span: name.span(),
@@ -2003,11 +2003,27 @@ fn call_target(name: &Token) -> Result<Target, CompileError> {
 /// one. A spelling with `_xlfn.` names the function whatever prefix a file stores it with
 /// ([`file_unprefixed`]). An entry whose file prefix is not known is read by its plain name.
 fn unknown_on_load(spelling: &str, target: Target) -> bool {
-    without_prefix(spelling, "_xlfn.").is_none()
+    !spelling.eq_ignore_ascii_case(FIELD_ACCESS)
+        && without_prefix(spelling, "_xlfn.").is_none()
         && match target.0.file_prefix() {
             Some(FilePrefix::Xlfn | FilePrefix::XlfnXlws) => true,
             Some(FilePrefix::Bare) | None => false,
         }
+}
+
+/// The name a file stores a field access (`A1.Price`, a linked data type's field) under:
+/// `_FV(A1,"Price")`, which Excel loads as FIELDVALUE (dc-ifc: Excel 16.0.20430 gives #FIELD! for
+/// `_FV(A1,"Price")` over a number, as for FIELDVALUE).
+const FIELD_ACCESS: &str = "_FV";
+
+/// The catalogue spelling a file's call written `spelling` names: FIELDVALUE for a field access
+/// ([`FIELD_ACCESS`]), otherwise the spelling without its file prefixes ([`file_unprefixed`]).
+fn file_function(spelling: &str) -> &str {
+    if spelling.eq_ignore_ascii_case(FIELD_ACCESS) {
+        "FIELDVALUE"
+    } else {
+        file_unprefixed(spelling)
+    }
 }
 
 /// `spelling` without a leading `_xlfn.`, and without a `_xlws.` right after that, each matched

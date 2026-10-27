@@ -10,7 +10,7 @@
 
 use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
 use crate::locale::CalcEnvironment;
-use crate::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode, SheetId};
+use crate::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode, SheetId, WorksheetErrorCode};
 use std::fmt;
 use std::ops::ControlFlow;
 
@@ -407,6 +407,15 @@ fn run_eager(
 ) -> Result<CalcValue, FunctionFault> {
     for index in 0..arguments.count() {
         let value = arguments.argument(index);
+        // #REF! given to a parameter that takes only a reference is the call's result (dc-ifc,
+        // Excel 16.0.20430 on 2026-10-27: OFFSET(#REF!,0,0), SUM(OFFSET(#REF!,0,0,1,1)),
+        // AREAS(#REF!), ISFORMULA(#REF!), FORMULATEXT(#REF!), CELL("row",#REF!), SUMIF(#REF!,1)
+        // and ROWS(#REF!) are #REF!; Excel refuses to enter any other value there).
+        if entry.parameter_class(index) == ParameterClass::Reference
+            && matches!(value.core(), CoreValue::Error(WorksheetErrorCode::Ref))
+        {
+            return Ok(CalcValue::error(WorksheetErrorCode::Ref));
+        }
         admit_argument(entry, index, &value)?;
         evaluated.push(value);
     }
@@ -544,11 +553,16 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn a_reference_only_parameter_admits_only_references() {
         let reference_only = entry(ParameterClass::Reference, returns_empty);
+        // #REF! there is the call's result (see run_eager).
+        assert_eq!(
+            call(&reference_only, CalcValue::error(crate::value::WorksheetErrorCode::Ref)),
+            Ok(CalcValue::error(crate::value::WorksheetErrorCode::Ref))
+        );
         for refused in [
             CalcValue::number(1.0),
             CalcValue::empty(),
             CalcValue::missing(),
-            CalcValue::error(crate::value::WorksheetErrorCode::Ref),
+            CalcValue::error(crate::value::WorksheetErrorCode::NA),
         ] {
             assert_eq!(
                 call(&reference_only, refused),
