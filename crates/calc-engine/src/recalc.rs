@@ -2100,6 +2100,10 @@ type SharedObserver<'l, 'o> = &'l RefCell<&'o mut dyn ReadObserver>;
 /// it, for one formula's evaluation. It keeps every area the evaluation read.
 struct Observed<'l, 'o> {
     observer: SharedObserver<'l, 'o>,
+    /// Whether the observer observes nothing ([`ReadObserver::is_silent`]): each run then goes
+    /// to the evaluation as the engine's reader gives it, without the observer being shown it
+    /// (dc-dxm), which is what showing it would come to.
+    silent: bool,
     formula: CellKey,
     cells: &'l mut dyn ReferenceReader,
     footprint: &'l RefCell<Vec<GridArea>>,
@@ -2108,6 +2112,17 @@ struct Observed<'l, 'o> {
 }
 
 impl ReferenceReader for Observed<'_, '_> {
+    fn read_cell(
+        &mut self,
+        at: CellKey,
+    ) -> Result<calc_fml::reference::CellRead, calc_fml::reference::ReadContractError> {
+        if self.silent && self.stopped.is_none() {
+            self.footprint.borrow_mut().push(GridArea::cell(at));
+            return self.cells.read_cell(at);
+        }
+        calc_fml::reference::read_cell_by_area(self, at)
+    }
+
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         let total = area.cell_count();
         if self.stopped.is_some() {
@@ -2115,6 +2130,10 @@ impl ReferenceReader for Observed<'_, '_> {
             return;
         }
         self.footprint.borrow_mut().push(area);
+        if self.silent {
+            self.cells.read_area(area, sink);
+            return;
+        }
         let mut observer = self.observer.borrow_mut();
         let formula = self.formula;
         let mut offset = 0u64;
@@ -2193,6 +2212,8 @@ impl calc_fml::HostFacts for Observed<'_, '_> {
 /// calculate, is not passed on. It holds nothing the engine stages or publishes.
 struct Instrument<'l, 'o> {
     observer: SharedObserver<'l, 'o>,
+    /// Whether the observer observes nothing: it is then not shown calls or outcomes.
+    silent: bool,
     formula: CellKey,
     calculation: &'l Calculation,
     footprint: &'l RefCell<Vec<GridArea>>,
@@ -2202,16 +2223,20 @@ struct Instrument<'l, 'o> {
 
 impl EvaluationObserver for Instrument<'_, '_> {
     fn called(&mut self, call: ExecutedCall) {
-        self.observer.borrow_mut().called(self.formula, call);
+        if !self.silent {
+            self.observer.borrow_mut().called(self.formula, call);
+        }
     }
 
     fn resolved(&mut self, reference: ResolvedReference) {
         self.footprint.borrow_mut().push(reference.area());
-        self.observer.borrow_mut().resolved(self.formula, reference);
+        if !self.silent {
+            self.observer.borrow_mut().resolved(self.formula, reference);
+        }
     }
 
     fn returned(&mut self, report: EvaluationReport<'_>) {
-        if self.uncomputed.get().is_some() || self.kept_read.get() {
+        if self.silent || self.uncomputed.get().is_some() || self.kept_read.get() {
             return;
         }
         self.observer
@@ -2325,10 +2350,12 @@ fn evaluate_with(
     let mut cells = WorkbookReader::new(view, &uncomputed).with_batch(batch);
     let catalog = SnapshotCatalog(inputs);
     let mut random = RandomStream::new(state.random_seed, calculation.tick().get(), formula);
+    let silent = observer.is_silent();
     let observer = RefCell::new(observer);
     let (outcome, stopped) = {
         let mut observed = Observed {
             observer: &observer,
+            silent,
             formula,
             cells: &mut cells,
             footprint: &footprint,
@@ -2336,6 +2363,7 @@ fn evaluate_with(
         };
         let instrument: &mut dyn EvaluationObserver = &mut Instrument {
             observer: &observer,
+            silent,
             formula,
             calculation: &calculation,
             footprint: &footprint,

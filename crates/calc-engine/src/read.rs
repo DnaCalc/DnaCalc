@@ -13,7 +13,7 @@ use crate::spill::{Spill, SpillIndex};
 use crate::state::EngineState;
 use calc_doc_model::{CellInput, ModelRoot, NameScope, RowHidden};
 use calc_fml::reference::{
-    CellRun, NameDefinition, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
+    CellRead, CellRun, NameDefinition, ReadContractError, NameScope as FmlNameScope, ReferenceReader, SpillExtent, TableInfo,
     TableLookup,
 };
 use calc_fml::{
@@ -367,6 +367,12 @@ impl Progress {
             .is_some_and(|status| *status != 0)
     }
 
+    /// The node's status: 0 when this recalculation does not calculate it, else scheduled or
+    /// evaluated.
+    fn status(&self, node: NodeId) -> u8 {
+        self.status.get(Self::slot(node)).copied().unwrap_or(0)
+    }
+
     pub(crate) fn is_evaluated(&self, node: NodeId) -> bool {
         self.status.get(Self::slot(node)) == Some(&EVALUATED)
     }
@@ -421,13 +427,14 @@ impl<'a> RecalcView<'a> {
     /// [`RecalcView::standing`] of `node`, whose anchor is `at` (dc-dxm: a read of a formula cell
     /// knows the cell already).
     pub(crate) fn standing_at(&self, node: NodeId, at: CellKey) -> NodeStanding<'a> {
-        if self.progress.is_scheduled(node) {
-            match self.progress.staged(node) {
-                Some(result) if self.progress.is_evaluated(node) => NodeStanding::Staged(result),
-                _ => NodeStanding::Pending,
-            }
-        } else {
-            NodeStanding::Published(self.state.result_of(node, at))
+        // The node's status read once (dc-dxm), then its staged result only when it has one.
+        match self.progress.status(node) {
+            0 => NodeStanding::Published(self.state.result_of(node, at)),
+            EVALUATED => match self.progress.staged(node) {
+                Some(result) => NodeStanding::Staged(result),
+                None => NodeStanding::Pending,
+            },
+            _ => NodeStanding::Pending,
         }
     }
 
@@ -615,6 +622,17 @@ impl<'a> WorkbookReader<'a> {
         }
     }
 
+    /// [`WorkbookReader::formula_value`] of the formula cell `at`, whose node is `node`.
+    fn node_value(&mut self, node: NodeId, at: CellKey) -> Option<&'a CalcValue> {
+        match self.node_lookup(node, at) {
+            Ok(value) => value,
+            Err(unread) => {
+                self.unread(at, unread);
+                None
+            }
+        }
+    }
+
     /// The effect of reading a cell [`WorkbookReader::formula_lookup`] gives no value for.
     fn unread(&mut self, at: CellKey, unread: Unread) {
         match unread {
@@ -633,6 +651,11 @@ impl<'a> WorkbookReader<'a> {
         let Some(node) = self.view.state.node_at(at) else {
             return Ok(None);
         };
+        self.node_lookup(node, at)
+    }
+
+    /// [`WorkbookReader::formula_lookup`] of the formula cell `at`, whose node is `node`.
+    fn node_lookup(&self, node: NodeId, at: CellKey) -> Result<Option<&'a CalcValue>, Unread> {
         let result = match self.view.standing_at(node, at) {
             NodeStanding::Pending => {
                 if let Some(value) = self.view.iterates.and_then(|iterates| iterates.get(&node))
@@ -778,7 +801,46 @@ impl<'a> WorkbookReader<'a> {
     }
 }
 
+/// One cell that holds an input or a formula node, as [`WorkbookReader::single`] reads it.
+enum Single<'a> {
+    Formula(&'a CalcValue),
+    Literal(CalcValue),
+    Missing,
+}
+
+impl<'a> WorkbookReader<'a> {
+    /// One cell that holds an input or has a formula node, read straight from the engine's index
+    /// and its page without the walk of an area (most reads; dc-10d9, dc-dxm), as the walk would
+    /// give it, the cell of a what-if table's node included; `None` for an empty cell, which an
+    /// overlay may fill and the walk reads.
+    fn single(&mut self, at: CellKey) -> Option<Single<'a>> {
+        if let Some(node) = self.view.state.node_at(at) {
+            return Some(match self.node_value(node, at) {
+                Some(value) => Single::Formula(value),
+                None => Single::Missing,
+            });
+        }
+        let input = self.view.inputs.cell(at)?;
+        Some(match literal_value(input) {
+            Some(value) => Single::Literal(value),
+            None => match self.formula_value(at) {
+                Some(value) => Single::Formula(value),
+                None => Single::Missing,
+            },
+        })
+    }
+}
+
 impl ReferenceReader for WorkbookReader<'_> {
+    fn read_cell(&mut self, at: CellKey) -> Result<CellRead, ReadContractError> {
+        Ok(match self.single(at) {
+            Some(Single::Formula(value)) => CellRead::Value(value.clone()),
+            Some(Single::Literal(value)) => CellRead::Value(value),
+            Some(Single::Missing) => CellRead::Missing,
+            None => return calc_fml::reference::read_cell_by_area(self, at),
+        })
+    }
+
     fn read_area(&mut self, area: GridArea, sink: &mut dyn FnMut(CellRun<'_>) -> ControlFlow<()>) {
         let total = area.cell_count();
         let inputs = self.view.inputs;
@@ -788,22 +850,13 @@ impl ReferenceReader for WorkbookReader<'_> {
         // A formula cell (dc-dxm: found in the engine's own index first, without the page walk):
         // its value as `formula_value` gives it, which is what the walk would give, the cell of a
         // what-if table's node included.
-        if total == 1 && self.view.state.node_at(area.first()).is_some() {
-            let _ = match self.formula_value(area.first()) {
-                Some(value) => sink(CellRun::Values(std::slice::from_ref(value))),
-                None => sink(CellRun::Missing(1)),
-            };
-            return;
-        }
         if total == 1
-            && let Some(input) = inputs.cell(area.first())
+            && let Some(single) = self.single(area.first())
         {
-            let _ = match literal_value(input) {
-                Some(value) => sink(CellRun::Values(&[value])),
-                None => match self.formula_value(area.first()) {
-                    Some(value) => sink(CellRun::Values(std::slice::from_ref(value))),
-                    None => sink(CellRun::Missing(1)),
-                },
+            let _ = match single {
+                Single::Formula(value) => sink(CellRun::Values(std::slice::from_ref(value))),
+                Single::Literal(value) => sink(CellRun::Values(&[value])),
+                Single::Missing => sink(CellRun::Missing(1)),
             };
             return;
         }
