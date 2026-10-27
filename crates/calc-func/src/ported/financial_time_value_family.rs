@@ -963,7 +963,12 @@ pub fn rri(periods: f64, present_value: f64, future_value: f64) -> Result<f64, F
     if present_value == future_value {
         return Ok(0.0);
     }
-    if present_value <= 0.0 || future_value < 0.0 {
+    // A present value of 0 and values of opposite signs are #NUM!; two negative values have a
+    // positive ratio and are computed like positive ones (dc-ifc, Excel 16.0.20430 on 2026-10-27:
+    // RRI(1,-1,-3) is 2, RRI(2,-4,-9) 0.5, RRI(2,-5,0) and RRI(2,5,0) -1, RRI(2,0,5),
+    // RRI(2,-5,5) and RRI(2,5,-5) #NUM!).
+    let opposite = (present_value < 0.0) != (future_value < 0.0) && future_value != 0.0;
+    if present_value == 0.0 || opposite {
         return Err(FinancialError::Num);
     }
 

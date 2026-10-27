@@ -1444,6 +1444,17 @@ mod tests {
         ));
     }
 
+    /// A file's field access `_FV(value, field)` is FIELDVALUE (dc-ifc): #FIELD! for a value that is
+    /// no linked data type, as Excel gives it.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_field_access_is_fieldvalue() {
+        assert_eq!(
+            evaluated("=_FV(1,\"Price\")", CalcValue::empty()),
+            Ok(CalcValue::error(WorksheetErrorCode::Field))
+        );
+    }
+
     /// ROW and COLUMN of several rows or columns in a legacy formula, with Excel's values (dc-b1l,
     /// Excel 16.0.20430 on 2026-10-25): `@` before the call except where an array is taken.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
