@@ -2167,3 +2167,91 @@ fn dc_09v__copy_arrays_and_cut_moves_references() {
         Some(CalcValue::number(6.0))
     );
 }
+
+/// dc-09v: a copy takes each cell's format with it and a cut moves it, leaving the source in the
+/// default format; each is one undo step, and the save writes the formats (each cell's `s`), so
+/// the package reopens with them.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn dc_09v__copy_and_cut_take_cell_formats() {
+    let mut session = session(include_bytes!("fixtures/dc_09v/formats.xlsx"));
+    let s = sheet(session.host(), "Formats");
+    let area = |a: &str, b: &str| GridArea::new(at(s, a), at(s, b)).unwrap();
+    let code = |host: &HostState, address: &str| {
+        host.number_format(at(s, address))
+            .map(str::to_owned)
+            .unwrap_or_default()
+    };
+    let copy = |session: &mut HostSession, from: GridArea, to: GridArea, cut: bool| {
+        let receipt = session.dispatch(SkinIntent::Copy { from, to, cut });
+        assert!(receipt.accepted(), "{:?}", receipt.error);
+    };
+    copy(&mut session, area("A1", "A1"), area("G1", "G1"), false);
+    assert_eq!(code(session.host(), "G1"), r"#\,##0.00");
+    copy(&mut session, area("A2", "A3"), area("G2", "G2"), false);
+    assert_eq!(code(session.host(), "G2"), "0%");
+    assert_eq!(code(session.host(), "G3"), r"yyyy\-mm\-dd");
+    // An empty unformatted cell copied over a formatted one takes its format away.
+    copy(&mut session, area("Z99", "Z99"), area("G3", "G3"), false);
+    assert_eq!(code(session.host(), "G3"), "General");
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(code(session.host(), "G3"), r"yyyy\-mm\-dd");
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(code(session.host(), "G2"), "General");
+    assert_eq!(code(session.host(), "G3"), "General");
+    assert_eq!(code(session.host(), "G1"), r"#\,##0.00");
+    // A cut moves the format: the source is left in the default format.
+    copy(&mut session, area("A4", "A4"), area("H4", "H4"), true);
+    assert_eq!(code(session.host(), "H4"), r"0.00;[Red]\(0.00\)");
+    assert_eq!(code(session.host(), "A4"), "General");
+    // A row inserted above it moves the copied format with its cell.
+    let receipt = session.dispatch(SkinIntent::EditAxis(
+        AxisEdit::new(s, Axis::Rows, AxisChange::Insert, 2, 1).unwrap(),
+    ));
+    assert!(receipt.accepted(), "{:?}", receipt.error);
+    assert_eq!(code(session.host(), "H5"), r"0.00;[Red]\(0.00\)");
+    assert_eq!(code(session.host(), "H4"), "General");
+
+    let mut saved = Vec::new();
+    session
+        .save(&SavePolicy::default(), &mut saved)
+        .expect("saved");
+    let reopened = open(&saved);
+    let r = sheet(&reopened, "Formats");
+    for (address, expected) in [
+        ("G1", r"#\,##0.00"),
+        ("H5", r"0.00;[Red]\(0.00\)"),
+        ("H4", "General"),
+        ("A5", "General"),
+        ("A1", r"#\,##0.00"),
+        ("A3", "0%"),
+        ("G3", "General"),
+    ] {
+        assert_eq!(
+            reopened.number_format(at(r, address)),
+            Some(expected),
+            "{address} reopened"
+        );
+    }
+    assert!(matches!(
+        value(&reopened, at(r, "H5")),
+        ProjectedValue::Literal(_)
+    ));
+    // Native-only: the package is written where DNACALC_RIF_SAVE_DIR names, for Excel to reopen
+    // (tests/fixtures/d2/measure-saved-open.ps1).
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Ok(dir) = std::env::var("DNACALC_RIF_SAVE_DIR") {
+        let path = std::path::Path::new(&dir).join("dc-09v-copied-formats.xlsx");
+        std::fs::write(&path, &saved).expect("written");
+        println!(
+            "ACCEPT-NOTE: dc_09v copied formats written to {}",
+            path.display()
+        );
+    }
+
+    // Undo takes the insertion and then the cut back, the source's format with it.
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert!(session.dispatch(SkinIntent::Undo).accepted());
+    assert_eq!(code(session.host(), "A4"), r"0.00;[Red]\(0.00\)");
+    assert_eq!(code(session.host(), "H4"), "General");
+}

@@ -309,6 +309,13 @@ impl HostState {
     /// set a comparison's inventory holds: a cell whose input is a formula, every cell of a legacy
     /// (Ctrl+Shift+Enter) array formula's area, and every cell of a what-if data table's results.
     /// The cells a dynamic array spills into beside its anchor are not formula cells (dc-rif).
+    /// The area the published result of the array formula anchored at `anchor` fills: its spill
+    /// range, a legacy array's area, or the anchor alone; `None` when no array result is
+    /// published there (dc-677: what a comparison compares a dynamic array's anchor by).
+    pub fn spill_area(&self, anchor: CellKey) -> Option<GridArea> {
+        self.engine.spill(anchor).map(|spill| spill.area())
+    }
+
     pub fn holds_formula(&self, at: CellKey) -> bool {
         if matches!(
             self.model.cell(at),
@@ -367,13 +374,23 @@ impl HostState {
     /// names a format the styles part neither declares nor builds in (dc-09v). A cell an edit
     /// sets keeps the format of its place; a cell moved by an inserted or deleted row or column
     /// keeps its own, and an inserted one takes the format of the cell before the inserted band
-    /// ([`HostState::opened_position`]); no command sets a format yet.
+    /// ([`HostState::opened_position`]); a cell format an edit gave the cell
+    /// ([`crate::CellEdit::SetFormat`], a copy's) comes first.
     pub fn number_format(&self, at: CellKey) -> Option<&str> {
-        let style = match (self.loaded.sheet(at.sheet()), self.opened_position(at)) {
+        self.loaded.styles().number_format_code(self.cell_style(at))
+    }
+
+    /// The cell format (an index into the workbook's cell formats, a cell's `s`) of the cell at
+    /// `at`: the one an edit gave it, or else the one the file gave its place
+    /// ([`HostState::number_format`]).
+    pub fn cell_style(&self, at: CellKey) -> u32 {
+        if let Some(format) = self.model.definitions().cell_format(at) {
+            return format;
+        }
+        match (self.loaded.sheet(at.sheet()), self.opened_position(at)) {
             (Some(sheet), Some((row, column))) => sheet.style(row, column),
             _ => 0,
-        };
-        self.loaded.styles().number_format_code(style)
+        }
     }
 
     /// The RGB (`#rrggbb`) of entry `index` (1 to 56) of the workbook's color palette when the file

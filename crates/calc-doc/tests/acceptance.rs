@@ -489,6 +489,13 @@ fn describe(op: &WorkbookOp) -> String {
             array.kind(),
             describe_input(input)
         ),
+        WorkbookOp::SetFormat { at, format } => format!(
+            "format {:?} R{}C{} {:?}",
+            at.sheet(),
+            at.row(),
+            at.column(),
+            format
+        ),
         WorkbookOp::EditAxis(edit) => format!(
             "axis {:?} {:?} {:?} first {} count {} last {}",
             edit.sheet(),
@@ -604,6 +611,8 @@ fn features(op: &WorkbookOp, out: &mut BTreeSet<String>) {
         // Wire version 1 has no form for an authored array formula (EncodeError::ArrayFormula),
         // so no fixture holds one and it is not among the required features.
         WorkbookOp::SetArray { .. } => "op:set_array".to_owned(),
+        // Wire version 1 has no form for a cell format either (EncodeError::CellFormat).
+        WorkbookOp::SetFormat { .. } => "op:set_format".to_owned(),
         WorkbookOp::EditAxis(edit) => {
             out.insert("op:edit_axis".to_owned());
             let axis = match edit.axis() {

@@ -116,9 +116,10 @@
 //!   constants in A1:A2, Sheet1!B1 =SEQUENCE(3,2) saved as a dynamic-array formula spilling over
 //!   B1:C3, D1 an ordinary formula and E1 a dynamic-array formula over E1 alone. Each result is
 //!   converted with the conversion [`capture`] applies and judged by calc-verdict:
-//!   - B1 spilling over B1:C3: B1 stays in the inventory with no raw observation, saved cache or
-//!     reopened value, a spill failure names Sheet1!B1:C3 with 3 rows and 2 columns, and a
-//!     calculated B1 equal to the value its Value2 shows (1) is `not_run`, never matched;
+//!   - B1 spilling over B1:C3: B1 stays in the inventory with the 3 by 2 array its spill range
+//!     shows as its raw observation and its reopened value, no saved cache and no failure
+//!     (dc-677); a calculated B1 equal to that array is matched, and one equal to the value its
+//!     own Value2 shows (1), or an array of another shape, is mismatched;
 //!   - B1 not spilling, though the input saved it over B1:C3: recorded as Excel shows it, flagged
 //!     as a dynamic-array formula, with a save failure for the saved range;
 //!   - the stand-in saving `worker/spill-saved-cm.xlsx`, whose B1's cell metadata names no
@@ -145,7 +146,7 @@
 
 #[cfg(windows)]
 use calc_oracle_excel::{
-    CalculationPolicy, CaptureError, CaptureRequest, ReportedExcel, STAGE_SPILL, Worker, capture,
+    CalculationPolicy, CaptureError, CaptureRequest, ReportedExcel, Worker, capture,
     excel_available, run_isolated, sha256_hex, windows_powershell,
 };
 #[cfg(windows)]
@@ -899,20 +900,21 @@ mod windows {
     /// read as their generator's output, and the conversion's spill rules (`src/convert.rs`). They
     /// are unit tests because the conversion is crate-private: the record it gives is stamped a
     /// live capture.
-    const SPILL_UNIT_TESTS: [&str; 13] = [
-        "worker_tests::a_formula_that_spills_is_recorded_as_a_spill_never_as_a_scalar",
+    const SPILL_UNIT_TESTS: [&str; 14] = [
+        "worker_tests::a_formula_that_spills_is_recorded_as_its_array_never_as_a_scalar",
         "worker_tests::a_dynamic_array_formula_that_does_not_spill_is_recorded_as_excel_shows_it",
         "worker_tests::a_saved_package_that_disagrees_with_the_spill_is_a_save_failure",
         "worker_tests::a_spilling_cell_without_a_saved_formula_is_a_save_failure_naming_it",
         "worker_tests::a_spill_that_cannot_be_read_refuses_the_capture",
         "worker_tests::cells_excel_lists_in_a_spill_range_are_spill_members_not_inventory_failures",
         "worker_tests::fixtures_are_the_output_of_their_generator",
-        "convert::tests::a_cell_that_spills_is_recorded_as_a_spill_never_as_a_scalar",
+        "convert::tests::a_cell_that_spills_is_recorded_as_its_array_never_as_a_scalar",
         "convert::tests::a_spill_whose_shape_cannot_be_read_refuses_the_capture",
         "convert::tests::a_saved_ref_that_disagrees_with_the_spill_is_a_save_failure",
         "convert::tests::a_dynamic_array_input_that_no_longer_spills_is_recorded_as_excel_shows_it",
         "convert::tests::a_spill_that_changes_after_reopening_is_a_reopen_failure",
         "convert::tests::spill_members_must_lie_in_a_recorded_spill",
+        "convert::tests::a_spill_value_that_cannot_be_recorded_is_a_spill_failure",
     ];
 
     /// The stand-in part: runs [`SPILL_UNIT_TESTS`] by their exact names with cargo, in a target
@@ -1093,10 +1095,11 @@ mod windows {
         // rows and 2 columns. The worker writes a spill as unread when HasSpill is not a boolean,
         // the address not a text or a count not an integer, and the conversion then refuses the
         // capture, so a capture taken shows each read of the type the worker expects.
+        let number = |n: f64| serde_json::json!({"number": format!("{:016x}", n.to_bits())});
         for list in ["cells", "reopened"] {
             assert_eq!(
                 at(list, B1)["spill"],
-                serde_json::json!({"ref": "B1:C3", "rows": 3, "columns": 2}),
+                serde_json::json!({"ref": "B1:C3", "rows": 3, "columns": 2, "values": [number(1.0), number(2.0), number(3.0), number(4.0), number(5.0), number(6.0)]}),
                 "Sheet1!B1 in the result's {list}"
             );
             for column in [D1, E1] {
@@ -1119,13 +1122,13 @@ mod windows {
             .collect();
         assert_eq!(
             b1_failures,
-            [(
-                STAGE_SPILL,
-                "Excel reports a spill over Sheet1!B1:C3 (3 rows by 2 columns) after the full rebuild; CaptureRecord version 2 holds no array, so the cell's value, saved cache and reopened value are not recorded and it is not compared as a scalar"
-            )],
+            [],
             "the failures of Sheet1!B1 (a save failure here would be the saved package disagreeing)"
         );
-        assert_eq!(raw_at(&record.observations, "Sheet1", 1, 2), None);
+        assert_eq!(
+            raw_at(&record.observations, "Sheet1", 1, 2),
+            Some(&sequence_3_by_2())
+        );
         assert_eq!(
             raw_bits(&record.observations, "Sheet1", 1, 4),
             Some(2f64.to_bits())
@@ -1135,7 +1138,7 @@ mod windows {
             Some(6f64.to_bits())
         );
         println!(
-            "ACCEPT-NOTE: {SPILL_CASE}: Excel {} reports Sheet1!B1 (=SEQUENCE(3,2)) with HasSpill True and SpillingToRange B1:C3 (Address(False, False)), Rows.Count 3 and Columns.Count 2 as integers, after the full rebuild and after reopening; D1 and E1 with HasSpill False; the record has B1's spill failure and no observation for it, and D1 = 2, E1 = 6",
+            "ACCEPT-NOTE: {SPILL_CASE}: Excel {} reports Sheet1!B1 (=SEQUENCE(3,2)) with HasSpill True and SpillingToRange B1:C3 (Address(False, False)), Rows.Count 3 and Columns.Count 2 as integers and Value2 1 to 6, after the full rebuild and after reopening; D1 and E1 with HasSpill False; the record has B1's 3 by 2 array as its observation and no failure for it (dc-677), and D1 = 2, E1 = 6",
             record
                 .environment
                 .as_ref()
@@ -1210,9 +1213,12 @@ mod windows {
             .map(|failure| failure.message.as_str())
             .collect();
         assert!(inventory.is_empty(), "inventory failures: {inventory:?}");
-        let judged =
-            judged(record).unwrap_or_else(|e| panic!("calc-verdict refuses the record: {e}"));
-        assert_eq!(judged[0], ("B1".to_owned(), "not_run"), "{judged:?}");
+        let scalar = judged(&record, CalcValue::number(1.0))
+            .unwrap_or_else(|e| panic!("calc-verdict refuses the record: {e}"));
+        assert_eq!(scalar[0], ("B1".to_owned(), "mismatched"), "{scalar:?}");
+        let judged = judged(&record, sequence_3_by_2())
+            .unwrap_or_else(|e| panic!("calc-verdict refuses the record: {e}"));
+        assert_eq!(judged[0], ("B1".to_owned(), "matched"), "{judged:?}");
         println!(
             "ACCEPT-NOTE: {SPILL_CASE}: SpecialCells(xlCellTypeFormulas) listed {} of the cells B1 spills into ({members:?}, as (row, column)), each recorded as a spill member and none as an inventory failure; calc-verdict judges the record: {judged:?}",
             if members.is_empty() { "none" } else { "some" }
@@ -1220,12 +1226,29 @@ mod windows {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// The verdicts calc-verdict gives `record`'s B1, D1 and E1 when a run calculated B1 as 1 (the
-    /// top-left value of its array), D1 as 2 and E1 as 6, with an evaluation of each, or why it
-    /// refuses to judge the record.
-    fn judged(record: &CaptureRecord) -> Result<Vec<(String, &'static str)>, String> {
+    /// SEQUENCE(3,2): the array of 3 rows by 2 columns holding 1 to 6 in row-major order.
+    fn sequence_3_by_2() -> CalcValue {
+        CalcValue::array(
+            calc_verdict::value::CalcArray::new(
+                calc_verdict::value::ArrayShape { rows: 3, cols: 2 },
+                (1..=6).map(|n| CalcValue::number(f64::from(n))).collect(),
+            )
+            .unwrap(),
+        )
+    }
+
+    /// The verdicts calc-verdict gives `record`'s B1, D1 and E1 when a run calculated B1 as `b1`,
+    /// D1 as 2 and E1 as 6, with an evaluation of each, or why it refuses to judge the record.
+    fn judged(
+        record: &CaptureRecord,
+        b1: CalcValue,
+    ) -> Result<Vec<(String, &'static str)>, String> {
         let session = record.session.as_ref().expect("a version 2 record");
-        let cells = [(B1, 1.0), (D1, 2.0), (E1, 6.0)];
+        let cells = [
+            (B1, b1),
+            (D1, CalcValue::number(2.0)),
+            (E1, CalcValue::number(6.0)),
+        ];
         let cell = |column: u64| CellAddress::new("Sheet1", 1, column as u32).unwrap();
         let results = ResultSet {
             case: record.case.clone(),
@@ -1243,7 +1266,7 @@ mod windows {
                         revision: session.revision,
                         context: session.context.clone(),
                     },
-                    value: Some(CalcValue::number(*value)),
+                    value: Some(value.clone()),
                 })
                 .collect(),
         };

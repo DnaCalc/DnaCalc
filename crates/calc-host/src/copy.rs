@@ -12,9 +12,11 @@
 //!   copied with it (the anchor copied with it spills again at the target);
 //! - fills a target that is a whole multiple of the source's shape by repeating the source (a fill
 //!   down or right is the copy of its first row or column over the rest); a single target cell
-//!   takes the source's shape.
+//!   takes the source's shape;
+//! - copies each cell's format (its cell format, the `s` of the file) with it.
 //!
-//! A cut (a move) puts the source's cells at the target and empties the source, on one sheet. A
+//! A cut (a move) puts the source's cells and their formats at the target and empties the source,
+//! whose cells return to the default format, on one sheet. A
 //! moved formula keeps its text, and every formula of the workbook (the moved ones included)
 //! whose references point at moved cells follows them ([`calc_engine::move_references`]), as
 //! Excel's move does; a legacy array moves whole.
@@ -184,6 +186,15 @@ pub(crate) fn copy_edits(
 
     let mut edits = Vec::with_capacity(to.cell_count() as usize);
     let (top, left) = (to.first().row(), to.first().column());
+    // A cell's format, set only where it changes.
+    let restyle = |edits: &mut Vec<CellEdit>, at: CellKey, style: u32| {
+        if host.cell_style(at) != style {
+            edits.push(CellEdit::SetFormat {
+                at,
+                format: Some(style),
+            });
+        }
+    };
     // A cut empties the source's cells the target does not cover first; the target's edits then
     // write over the rest.
     if cut {
@@ -194,6 +205,7 @@ pub(crate) fn copy_edits(
                     edits.push(CellEdit::Clear {
                         area: GridArea::cell(at),
                     });
+                    restyle(&mut edits, at, 0);
                 }
             }
         }
@@ -217,6 +229,7 @@ pub(crate) fn copy_edits(
                 from.first().column() + (column - left) % source_cols,
             )
             .expect("inside the source area");
+            restyle(&mut edits, target, host.cell_style(source));
             if let Some(array) = legacy.iter().find(|array| array.area().contains(source)) {
                 // A legacy array is written once, from its anchor, over its shape.
                 if array.anchor() != source {

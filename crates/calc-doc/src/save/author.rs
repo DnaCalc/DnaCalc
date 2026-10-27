@@ -352,7 +352,21 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             None => sheet_changes(base, model, sheet.id()),
         })
         .collect();
-    let cells_changed = !changes.iter().all(SheetChanges::is_empty) || moved.is_some();
+    // The cell formats edits gave each sheet's cells (dc-09v), by (row, column).
+    let formats: Vec<BTreeMap<(u32, u32), u32>> = sheets
+        .iter()
+        .map(|sheet| {
+            model
+                .definitions()
+                .cell_formats()
+                .filter(|(at, _)| at.sheet() == sheet.id())
+                .map(|(at, format)| ((at.row(), at.column()), format))
+                .collect()
+        })
+        .collect();
+    let cells_changed = !changes.iter().all(SheetChanges::is_empty)
+        || moved.is_some()
+        || formats.iter().any(|formats| !formats.is_empty());
     let mut layout = layout_changes(package, edit)?;
     let mut out = Changes::default();
     if !cells_changed && layout.is_none() {
@@ -530,6 +544,7 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                     .flatten()
                     .any(|(_, input)| matches!(input, CellInput::Formula(_)));
                 !changes.is_empty()
+                    || !formats[index].is_empty()
                     || moved_part
                     || moves[index].is_some()
                     || !cleared.is_empty()
@@ -591,13 +606,14 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                 cut_groups: moved
                     .as_ref()
                     .map_or(&no_groups, |moved| &moved.unshared[index]),
+                formats: &formats[index],
             };
             let rewritten = sheet::rewrite(&xml, &job, &mut strings)?;
             out.rewritten.insert(name.to_owned(), rewritten.bytes);
             out.caches_dropped += rewritten.caches_dropped;
             out.values_written += rewritten.values_written;
             out.values_left_to_excel += rewritten.values_left_to_excel;
-            if changes.is_empty() {
+            if changes.is_empty() && formats[index].is_empty() {
                 out.sheets_rewritten_for_caches += 1;
             }
         }

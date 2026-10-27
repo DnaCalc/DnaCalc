@@ -32,6 +32,10 @@ pub enum CellEdit {
     /// the cells and what moves with them shift, and every formula's and defined name's
     /// references adjust as Excel's do. A command holding one holds only axis edits.
     Axis(AxisEdit),
+    /// Gives a cell a cell format: an index into the workbook's cell formats (a cell's `s`), or
+    /// `None` to return it to the format the file gave it ([`calc_doc_model::WorkbookOp::SetFormat`],
+    /// dc-09v). It changes no input and no value.
+    SetFormat { at: CellKey, format: Option<u32> },
 }
 
 impl CellEdit {
@@ -44,6 +48,7 @@ impl CellEdit {
                 input: CellInput::Formula(formula),
             },
             CellEdit::Axis(edit) => WorkbookOp::EditAxis(edit),
+            CellEdit::SetFormat { at, format } => WorkbookOp::SetFormat { at, format },
         }
     }
 }

@@ -4,11 +4,11 @@
 //! whether it spills, Excel's build, compatibility, CPU, OS, locale, date system and calculation
 //! settings, saves the workbook, reopens it and captures it again, and writes the whole as a
 //! CaptureRecord version 2 of calc-verdict. A formula cell that spills after the rebuild is
-//! recorded as a spill with its shape (a failure at [`STAGE_SPILL`] naming its range, rows and
-//! columns, checked against the saved package's `ref` and its cell metadata, which must name the
-//! dynamic-array metadata XLDAPR), never by the top-left value of its array as a scalar, and is
-//! not comparable until bead dc-dw44 carries arrays in CaptureRecord and calc-verdict; the cells it
-//! spills into never enter the formula inventory. A spill that cannot be read refuses the capture,
+//! recorded by the array its spill range shows (dc-677: its raw observation and its reopened
+//! value, the spill's shape checked against the saved package's `ref` and its cell metadata,
+//! which must name the dynamic-array metadata XLDAPR), never by the top-left value of its array
+//! as a scalar; a value of the array the record cannot hold is a failure at [`STAGE_SPILL`]. The
+//! cells it spills into never enter the formula inventory. A spill that cannot be read refuses the capture,
 //! so an Excel without Range.HasSpill (one older than dynamic arrays) refuses every capture that
 //! holds a formula (`convert.rs` holds the detail).
 //!

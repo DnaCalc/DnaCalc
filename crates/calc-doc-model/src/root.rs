@@ -517,6 +517,8 @@ impl ModelRoot {
         // The array formulas the batch authors, with the operation that authored each, less those
         // a later operation of the batch set or cleared the anchor of.
         let mut added: Vec<(usize, ArrayFormula)> = Vec::new();
+        // The cell formats the batch sets, in order.
+        let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetCell { at, input } => {
@@ -542,6 +544,10 @@ impl ModelRoot {
                     self.clear_into(&mut touched, sheet, area);
                     self.set_into(&mut touched, sheet, array.anchor(), input);
                     added.push((operation, *array));
+                }
+                WorkbookOp::SetFormat { at, format } => {
+                    self.position_of(operation, at.sheet())?;
+                    formats.push((*at, *format));
                 }
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
@@ -586,10 +592,17 @@ impl ModelRoot {
             }
         }
         let added: Vec<ArrayFormula> = added.into_iter().map(|(_, array)| array).collect();
-        let definitions = match self.definitions.after_edits(touched_anchor, &added) {
+        let mut definitions = match self.definitions.after_edits(touched_anchor, &added) {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
+        if !formats.is_empty() {
+            let mut next = Definitions::clone(&definitions);
+            for (at, format) in formats {
+                next = next.with_format_of(at, format);
+            }
+            definitions = Arc::new(next);
+        }
         Ok(Arc::new(ModelRoot {
             revision,
             sheets: self.sheets.clone(),
