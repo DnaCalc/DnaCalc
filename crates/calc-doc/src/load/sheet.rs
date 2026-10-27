@@ -50,6 +50,8 @@ pub(super) struct SheetLoad {
     pub(super) auto_filter: Option<(u32, u32, u32, u32)>,
     /// The rows' and columns' sizes and hidden flags (dc-09v).
     pub(super) geometry: super::geometry::SheetGeometry,
+    /// The sheet's conditional formats (dc-6yw).
+    pub(super) conditional_formats: Vec<super::conditional::ConditionalFormat>,
 }
 
 /// An area some of whose cells are still to be read, whose cells are not inputs: what an array
@@ -771,14 +773,25 @@ pub(super) fn load_sheet(
             hidden_rows: Vec::new(),
             auto_filter: None,
             geometry: super::geometry::SheetGeometry::default(),
+            conditional_formats: Vec::new(),
         },
         groups: BTreeMap::new(),
         members: Vec::new(),
         filled: Vec::new(),
     };
     let mut sheet_data = false;
+    let mut bars = BTreeMap::new();
     loop {
         match events.next()? {
+            Some(XmlEvent::Start(element))
+                if element.name.is(MAIN_NAMESPACE, "conditionalFormatting") =>
+            {
+                let block = super::conditional::read_block(&mut events, &element)?;
+                sheet.load.conditional_formats.push(block);
+            }
+            Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "extLst") => {
+                super::conditional::read_extensions(&mut events, &mut bars)?;
+            }
             Some(XmlEvent::Start(element)) if element.name.is(MAIN_NAMESPACE, "sheetData") => {
                 if sheet_data {
                     return Err(events.invalid("a worksheet with two sheetData elements"));
@@ -818,5 +831,8 @@ pub(super) fn load_sheet(
         return Err(events.invalid("a worksheet without sheetData"));
     }
     sheet.finish_members()?;
-    Ok(sheet.load)
+    let mut load = sheet.load;
+    load.conditional_formats =
+        super::conditional::with_extensions(std::mem::take(&mut load.conditional_formats), &bars);
+    Ok(load)
 }

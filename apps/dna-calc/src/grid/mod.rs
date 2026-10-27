@@ -23,6 +23,7 @@
 //! intents.
 
 pub mod geometry;
+pub mod icons;
 pub mod render_plan;
 pub mod selection;
 pub mod viewport;
@@ -62,6 +63,7 @@ pub const GRID_CSS: &str = r#"
 .dc-cell[data-kind=number]{justify-content:flex-end}
 .dc-cell[data-kind=logical],.dc-cell[data-kind=error]{justify-content:center}
 .dc-cell[data-kind=error]{color:#cf222e}
+.dc-cell .dc-icon{display:inline-flex;margin-right:auto;padding-right:4px}
 .dc-cell[data-provenance=refused]{color:#a40e26;background:repeating-linear-gradient(135deg,#ffebe9 0 6px,#fff5f4 6px 12px);font-style:italic;justify-content:center}
 .dc-cell[data-provenance=file-cache]{color:#6e7781;font-style:italic}
 .dc-cell[data-provenance=stale]{color:#9a6700;background:#fff8c5}
@@ -268,7 +270,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 mirror
                     .cells()
                     .filter(|cell| Some(cell.at().sheet()) == sheet)
-                    .map(|cell| cells::shown(cell, book.profile(), book.cell_format(cell.at())))
+                    .map(|cell| book.shown(cell))
                     .collect()
             })
         });
@@ -595,11 +597,45 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|cell| {
                     let address = cells::address(cell.row, cell.col);
-                    let style = match &cell.shown.color {
-                        Some(color) => format!("{};color:{color}", rect_style(&cell.rect)),
-                        None => rect_style(&cell.rect),
-                    };
+                    let mut style = rect_style(&cell.rect);
+                    let conditional = cell.shown.conditional.clone().unwrap_or_default();
+                    // A conditional format's font colour comes before the number format's.
+                    if let Some(color) = conditional.font_color.as_ref().or(cell.shown.color.as_ref()) {
+                        style.push_str(&format!(";color:{color}"));
+                    }
+                    if let Some(fill) = &conditional.fill {
+                        style.push_str(&format!(";background-color:{fill}"));
+                    }
+                    if let Some((share, color, gradient)) = &conditional.bar {
+                        let end = if *gradient { "#ffffff" } else { color.as_str() };
+                        style.push_str(&format!(
+                            ";background-image:linear-gradient(to right,{color},{end});background-size:{:.1}% 72%;background-position:left center;background-repeat:no-repeat",
+                            share * 100.0
+                        ));
+                    }
+                    if conditional.bold {
+                        style.push_str(";font-weight:700");
+                    }
+                    if conditional.italic {
+                        style.push_str(";font-style:italic");
+                    }
+                    match (conditional.underline, conditional.strike) {
+                        (true, true) => style.push_str(";text-decoration:underline line-through"),
+                        (true, false) => style.push_str(";text-decoration:underline"),
+                        (false, true) => style.push_str(";text-decoration:line-through"),
+                        (false, false) => {}
+                    }
                     let shown = cell.shown.clone();
+                    let icon = conditional
+                        .icon
+                        .as_ref()
+                        .map(|(set, index)| (format!("{set}:{index}"), icons::icon_svg(set, *index)));
+                    let text = if conditional.hide_value { String::new() } else { shown.text.clone() };
+                    let icon_name = icon.as_ref().map(|(name, _)| name.clone());
+                    let bar = conditional
+                        .bar
+                        .as_ref()
+                        .map(|(share, _, _)| format!("{share:.4}"));
                     view! {
                         <div
                             class="dc-cell"
@@ -609,9 +645,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
                             data-provenance=shown.provenance.name()
                             data-format=shown.format.name()
                             data-formula=if shown.formula { "true" } else { "false" }
+                            data-icon=icon_name
+                            data-bar=bar
                             style=style
                         >
-                            {shown.text}
+                            {icon.map(|(_, markup)| view! { <span class="dc-icon" inner_html=markup></span> })}
+                            {text}
                         </div>
                     }
                 })

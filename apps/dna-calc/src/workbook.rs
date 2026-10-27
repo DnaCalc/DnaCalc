@@ -89,6 +89,9 @@ pub struct Workbook {
     /// How long opening recalculated the workbook, in milliseconds of the browser's clock;
     /// `None` when it did not (the file calculates manually).
     calculated_on_open: Option<f64>,
+    /// Each sheet's conditional formats, prepared for the values as they stand; emptied when an
+    /// intent commits an edit or recalculates (dc-6yw).
+    conditional: RefCell<std::collections::BTreeMap<SheetId, Rc<calc_host::ConditionalFormats>>>,
 }
 
 impl std::fmt::Debug for Workbook {
@@ -122,6 +125,7 @@ impl Workbook {
             inbox: Rc::default(),
             calculated_on_open: None,
             palette: None,
+            conditional: RefCell::default(),
         };
         let palette: Vec<Option<String>> = (1..=56u8)
             .map(|index| workbook.host().palette_color(index))
@@ -183,7 +187,99 @@ impl Workbook {
         if receipt.committed.is_some() {
             self.changed = true;
         }
+        if receipt.committed.is_some() || receipt.recalc.is_some() {
+            self.conditional.borrow_mut().clear();
+        }
         receipt
+    }
+
+    /// The conditional formats of a sheet, prepared once for the values as they stand.
+    pub fn conditional_formats(&self, sheet: SheetId) -> Rc<calc_host::ConditionalFormats> {
+        Rc::clone(
+            self.conditional
+                .borrow_mut()
+                .entry(sheet)
+                .or_insert_with(|| Rc::new(self.host().conditional_formats(sheet))),
+        )
+    }
+
+    /// A palette colour as `#rrggbb`: the eight basic colours (0 to 7), the workbook's palette
+    /// (8 to 63, its entries 1 to 56), the system's foreground (64) and background (65).
+    fn indexed_color(&self, index: u32) -> Option<String> {
+        const BASIC: [&str; 8] = [
+            "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
+        ];
+        match index {
+            0..=7 => Some(BASIC[index as usize].to_owned()),
+            8..=63 => {
+                let entry = (index - 7) as usize;
+                self.palette
+                    .as_ref()
+                    .and_then(|palette| palette.get(entry - 1).cloned().flatten())
+                    .or_else(|| Some(calc_func::DEFAULT_PALETTE[entry - 1].to_owned()))
+            }
+            64 => Some("#000000".to_owned()),
+            65 => Some("#ffffff".to_owned()),
+            _ => None,
+        }
+    }
+
+    fn look_color(&self, color: &Option<calc_host::LookColor>) -> Option<String> {
+        match color.as_ref()? {
+            calc_host::LookColor::Rgb(text) => Some(text.clone()),
+            calc_host::LookColor::Indexed(index) => self.indexed_color(*index),
+        }
+    }
+
+    /// A projected cell as a skin shows it, in its number format and with what its sheet's
+    /// conditional formats give it (dc-6yw): a rule's number format in place of the cell's, its
+    /// fill, font, data bar and icon.
+    pub fn shown(&self, cell: &calc_host::ProjectedCell) -> cells::CellShown {
+        let at = cell.at();
+        let formats = self.conditional_formats(at.sheet());
+        let look = if formats.rule_count() == 0 {
+            None
+        } else {
+            formats.look(self.host(), at)
+        };
+        let Some(look) = look else {
+            return cells::shown(cell, self.profile(), self.cell_format(at));
+        };
+        let format = match look.number_format.as_deref() {
+            Some(code) => Some(cells::CellFormat {
+                code,
+                date1904: self.host().declared_date1904(),
+                palette: self.palette.as_deref(),
+            }),
+            None => self.cell_format(at),
+        };
+        let mut shown = cells::shown(cell, self.profile(), format);
+        let font_color = self.look_color(&look.font_color);
+        let bar = look.bar.as_ref().map(|bar| {
+            (
+                bar.fraction,
+                self.look_color(&bar.color)
+                    .unwrap_or_else(|| "#638ec6".to_owned()),
+                bar.gradient,
+            )
+        });
+        let hide_value = look.bar.as_ref().is_some_and(|bar| !bar.show_value)
+            || look.icon.as_ref().is_some_and(|icon| !icon.show_value);
+        shown.conditional = Some(cells::ConditionalShown {
+            fill: self.look_color(&look.fill),
+            font_color,
+            bold: look.bold.unwrap_or(false),
+            italic: look.italic.unwrap_or(false),
+            underline: look.underline.unwrap_or(false),
+            strike: look.strike.unwrap_or(false),
+            bar,
+            icon: look
+                .icon
+                .as_ref()
+                .map(|icon| (icon.set.clone(), icon.index)),
+            hide_value,
+        });
+        shown
     }
 
     /// Text typed into a cell, read as Excel reads a cell entry: one undoable edit.

@@ -62,6 +62,25 @@ pub struct CellShown {
     pub format: FormatShown,
     /// The color the number format gives the text (`[Red]`, `[Color10]`), as `#rrggbb`.
     pub color: Option<String>,
+    /// What the sheet's conditional formats give the cell (dc-6yw), its colours resolved.
+    pub conditional: Option<ConditionalShown>,
+}
+
+/// A cell's look under its conditional formats, as the grid draws it: colours as `#rrggbb`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ConditionalShown {
+    pub fill: Option<String>,
+    pub font_color: Option<String>,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strike: bool,
+    /// A data bar: the share of the cell's width (0 to 1), its colour, whether it is a gradient.
+    pub bar: Option<(f64, String, bool)>,
+    /// An icon: its set's name and its index.
+    pub icon: Option<(String, usize)>,
+    /// The value is hidden (a data bar or icon set that shows no value).
+    pub hide_value: bool,
 }
 
 /// The sheet names of a host, for DNA OneCalc's labels.
@@ -242,6 +261,7 @@ pub fn shown(
         formula,
         format,
         color,
+        conditional: None,
     }
 }
 
