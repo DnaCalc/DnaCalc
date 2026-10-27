@@ -394,9 +394,9 @@ pub struct EngineState {
     pub(crate) random_seed: u64,
     /// The plan of each formula template compiled ([`calc_fml::reference::template_key`]), per
     /// sheet and form, so a formula whose template was compiled is placed without parsing. Like
-    /// the plan cache's plans, they were compiled against the state's sheets and defined names,
-    /// which no edit the engine admits changes (sheet edits are refused, dc-m3u; the model
-    /// has no edit of a defined name).
+    /// the plan cache's plans, they were compiled against the state's sheets and defined names:
+    /// sheet edits are refused (dc-m3u), and an edit that sets a defined name's formula (dc-gf0)
+    /// empties them when it commits.
     pub(crate) templates: HashMap<(SheetId, FormulaForm, String), Arc<CompiledPlan>>,
     /// The environment every evaluation runs in: the workbook's date system, the host's locale
     /// profile and clock (calc-func's CalcEnvironment). `None` refuses the date, time and

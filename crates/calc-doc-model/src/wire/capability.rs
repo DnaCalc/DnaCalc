@@ -565,6 +565,9 @@ impl WireOp {
             WorkbookOp::SetFormat { .. } => {
                 unreachable!("encode_batch refuses a cell format before it reaches here")
             }
+            WorkbookOp::SetNameFormula { .. } => {
+                unreachable!("encode_batch refuses a name's formula before it reaches here")
+            }
         })
     }
 
