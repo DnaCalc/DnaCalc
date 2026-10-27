@@ -23,7 +23,7 @@ mod strings;
 mod structural;
 #[cfg(test)]
 mod tests;
-mod text;
+pub(crate) mod text;
 
 use crate::error::PartReadError;
 use crate::load::LoadedSheet;
@@ -176,6 +176,11 @@ pub enum SaveRefusal {
     },
     /// Two sheets of the workbook are this one part, which the save would rewrite for one of them.
     SharedSheetPart { part: String },
+    /// The revision changes a cell, a format or the rows or columns of an Excel 4.0 macro sheet
+    /// (`part`), whose part this writer does not rewrite, or inserts or deletes rows or columns
+    /// of a workbook with one, whose formulas' references the save cannot move: a macro sheet is
+    /// saved as it was read (dc-xuw).
+    MacroSheetChanged { part: String },
     /// A formula the revision sets in a cell (of the worksheet part `part`) is longer than
     /// [`crate::FORMULA_MAX_UTF16_CODE_UNITS`], so [`crate::load`] would refuse the saved package.
     /// [`crate::prepare_edit`] refuses such a formula; this refuses one in a revision made
@@ -259,6 +264,10 @@ impl fmt::Display for SaveRefusal {
                     "two sheets are the part {part:?}, which the save would rewrite"
                 )
             }
+            Self::MacroSheetChanged { part } => write!(
+                f,
+                "the revision changes the Excel 4.0 macro sheet {part:?}, which is saved only as it was read"
+            ),
             Self::FormulaTooLong {
                 part,
                 row,

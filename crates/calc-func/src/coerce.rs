@@ -30,7 +30,7 @@
 
 use crate::number_text;
 use crate::number_words;
-use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 use std::borrow::Cow;
 
 /// Why a coercion produced no value.
@@ -130,13 +130,13 @@ impl Decimal {
 /// text through [`text_as_decimal`], an error as itself. An array (whose operator lifts over its
 /// elements) and a reference are not read here.
 pub(crate) fn number(value: &CalcValue) -> Result<Numeric, Stop> {
-    match value.core() {
-        CoreValue::Number(n) => operand(*n).map(Numeric::Number),
-        CoreValue::Logical(b) => Ok(Numeric::Number(if *b { 1.0 } else { 0.0 })),
-        CoreValue::Text(text) => text_as_decimal(text).map(Numeric::Decimal),
-        CoreValue::Empty | CoreValue::Missing => Ok(Numeric::Number(0.0)),
-        CoreValue::Error(code) => Err(Stop::Error(*code)),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(Stop::NotModelled),
+    match value.core_ref() {
+        CoreRef::Number(n) => operand(n).map(Numeric::Number),
+        CoreRef::Logical(b) => Ok(Numeric::Number(if b { 1.0 } else { 0.0 })),
+        CoreRef::Text(text) => text_as_decimal(text).map(Numeric::Decimal),
+        CoreRef::Empty | CoreRef::Missing => Ok(Numeric::Number(0.0)),
+        CoreRef::Error(code) => Err(Stop::Error(code)),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(Stop::NotModelled),
     }
 }
 
@@ -157,16 +157,16 @@ pub(crate) fn operand(n: f64) -> Result<f64, Stop> {
 /// cfunc_m1_2, and IF over the date label 2020/01/02 in dc_e00t's; OxFunc's
 /// `parse_excel_logical_text` records the same rule).
 pub(crate) fn logical(value: &CalcValue) -> Result<bool, Stop> {
-    match value.core() {
-        CoreValue::Number(n) => operand(*n).map(|n| n != 0.0),
-        CoreValue::Logical(b) => Ok(*b),
-        CoreValue::Text(text) => match spelled_logical(text) {
+    match value.core_ref() {
+        CoreRef::Number(n) => operand(n).map(|n| n != 0.0),
+        CoreRef::Logical(b) => Ok(b),
+        CoreRef::Text(text) => match spelled_logical(text) {
             Some(logical) => Ok(logical),
             None => Err(Stop::Error(WorksheetErrorCode::Value)),
         },
-        CoreValue::Empty | CoreValue::Missing => Ok(false),
-        CoreValue::Error(code) => Err(Stop::Error(*code)),
-        CoreValue::Array(_) | CoreValue::Reference(_) => Err(Stop::NotModelled),
+        CoreRef::Empty | CoreRef::Missing => Ok(false),
+        CoreRef::Error(code) => Err(Stop::Error(code)),
+        CoreRef::Array(_) | CoreRef::Reference(_) => Err(Stop::NotModelled),
     }
 }
 
@@ -190,16 +190,16 @@ pub(crate) fn spelled_logical(text: &ExcelText) -> Option<bool> {
 /// is not finite is no worksheet value, and a number near a 16th-digit tie whose side decides its
 /// text has no text here; both are refused as not modelled.
 pub(crate) fn text(value: &CalcValue) -> Result<Cow<'_, [u16]>, Stop> {
-    match value.core() {
-        CoreValue::Text(text) => Ok(Cow::Borrowed(text.utf16_code_units())),
-        CoreValue::Number(n) if n.is_finite() => number_text::text(*n)
+    match value.core_ref() {
+        CoreRef::Text(text) => Ok(Cow::Borrowed(text.utf16_code_units())),
+        CoreRef::Number(n) if n.is_finite() => number_text::text(n)
             .map(|text| Cow::Owned(text.encode_utf16().collect()))
             .ok_or(Stop::NotModelled),
-        CoreValue::Logical(true) => Ok(Cow::Borrowed(&TRUE_TEXT)),
-        CoreValue::Logical(false) => Ok(Cow::Borrowed(&FALSE_TEXT)),
-        CoreValue::Empty | CoreValue::Missing => Ok(Cow::Borrowed(&[])),
-        CoreValue::Error(code) => Err(Stop::Error(*code)),
-        CoreValue::Number(_) | CoreValue::Array(_) | CoreValue::Reference(_) => {
+        CoreRef::Logical(true) => Ok(Cow::Borrowed(&TRUE_TEXT)),
+        CoreRef::Logical(false) => Ok(Cow::Borrowed(&FALSE_TEXT)),
+        CoreRef::Empty | CoreRef::Missing => Ok(Cow::Borrowed(&[])),
+        CoreRef::Error(code) => Err(Stop::Error(code)),
+        CoreRef::Number(_) | CoreRef::Array(_) | CoreRef::Reference(_) => {
             Err(Stop::NotModelled)
         }
     }

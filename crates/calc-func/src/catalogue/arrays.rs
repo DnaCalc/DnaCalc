@@ -24,7 +24,7 @@ use crate::ported::dynamic_array_reshape_family::{
     self as k, CoercionError, DynamicArrayReshapeEvalError as E,
 };
 use crate::value::{
-    ArrayShape, CalcArray, CalcValue, CellKey, CoreValue, GridArea, ReferenceLike, WorksheetErrorCode,
+    ArrayShape, CalcArray, CalcValue, CellKey, CoreRef, GridArea, ReferenceLike, WorksheetErrorCode,
 };
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -42,7 +42,7 @@ fn prepared(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step
 }
 
 fn prepared_one(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    if !matches!(a[index].core(), CoreValue::Reference(_)) {
+    if !matches!(a[index].core_ref(), CoreRef::Reference(_)) {
         return Ok(a[index].clone());
     }
     let g = grid(site, a, index, sv)?;
@@ -196,8 +196,8 @@ fn choose(
 fn as_array(value: &CalcValue) -> CalcArray {
     match value.as_array() {
         Some(array) => array.clone(),
-        None => CalcArray::from_scalar(match value.core() {
-            CoreValue::Missing => CalcValue::empty(),
+        None => CalcArray::from_scalar(match value.core_ref() {
+            CoreRef::Missing => CalcValue::empty(),
             _ => value.clone(),
         }),
     }
@@ -208,7 +208,7 @@ fn integer(site: &Site<'_>, value: Option<&CalcValue>) -> Step<Option<isize>> {
     let Some(value) = value else {
         return Ok(None);
     };
-    if matches!(value.core(), CoreValue::Missing | CoreValue::Empty) {
+    if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) {
         return Ok(None);
     }
     match k::coerce_prepared_to_number(value) {
@@ -231,11 +231,11 @@ fn descending(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
 
 /// A logical flag argument (by_col, exactly_once): omitted or blank is FALSE.
 fn flag(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
-    match value.map(CalcValue::core) {
-        None | Some(CoreValue::Missing | CoreValue::Empty) => Ok(false),
-        Some(CoreValue::Logical(b)) => Ok(*b),
-        Some(CoreValue::Number(n)) => Ok(*n != 0.0),
-        Some(CoreValue::Error(code)) => fail(*code),
+    match value.map(CalcValue::core_ref) {
+        None | Some(CoreRef::Missing | CoreRef::Empty) => Ok(false),
+        Some(CoreRef::Logical(b)) => Ok(b),
+        Some(CoreRef::Number(n)) => Ok(n != 0.0),
+        Some(CoreRef::Error(code)) => fail(code),
         Some(_) => match integer(site, value)? {
             Some(n) => Ok(n != 0),
             None => Ok(false),
@@ -245,27 +245,27 @@ fn flag(site: &Site<'_>, value: Option<&CalcValue>) -> Step<bool> {
 
 /// The rank of a value's kind in the sort order.
 fn kind(value: &CalcValue) -> u8 {
-    match value.core() {
-        CoreValue::Empty | CoreValue::Missing => 0,
-        CoreValue::Number(_) => 1,
-        CoreValue::Text(_) => 2,
-        CoreValue::Logical(_) => 3,
-        CoreValue::Error(_) => 4,
-        CoreValue::Array(_) | CoreValue::Reference(_) => 5,
+    match value.core_ref() {
+        CoreRef::Empty | CoreRef::Missing => 0,
+        CoreRef::Number(_) => 1,
+        CoreRef::Text(_) => 2,
+        CoreRef::Logical(_) => 3,
+        CoreRef::Error(_) => 4,
+        CoreRef::Array(_) | CoreRef::Reference(_) => 5,
     }
 }
 
 /// The order of two values for SORT and SORTBY.
 fn order(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<Ordering> {
-    match (x.core(), y.core()) {
-        (CoreValue::Number(a), CoreValue::Number(b)) => comparison::numbers(site, *a, *b),
-        (CoreValue::Text(a), CoreValue::Text(b)) => {
+    match (x.core_ref(), y.core_ref()) {
+        (CoreRef::Number(a), CoreRef::Number(b)) => comparison::numbers(site, a, b),
+        (CoreRef::Text(a), CoreRef::Text(b)) => {
             comparison::texts(a.utf16_code_units(), b.utf16_code_units(), Want::Order)
                 .map_err(|_| site.not_modelled(None))
         }
-        (CoreValue::Logical(a), CoreValue::Logical(b)) => Ok(a.cmp(b)),
-        (CoreValue::Error(a), CoreValue::Error(b)) => Ok((*a as u8).cmp(&(*b as u8))),
-        (CoreValue::Array(_) | CoreValue::Reference(_), _) | (_, CoreValue::Array(_) | CoreValue::Reference(_)) => {
+        (CoreRef::Logical(a), CoreRef::Logical(b)) => Ok(a.cmp(&b)),
+        (CoreRef::Error(a), CoreRef::Error(b)) => Ok((a as u8).cmp(&(b as u8))),
+        (CoreRef::Array(_) | CoreRef::Reference(_), _) | (_, CoreRef::Array(_) | CoreRef::Reference(_)) => {
             Err(site.not_modelled(None))
         }
         _ => Ok(kind(x).cmp(&kind(y))),
@@ -377,8 +377,8 @@ fn sortby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
     // `=SORTBY(1,#REF!)` #REF!, `=SORTBY(1,#DIV/0!)` #DIV/0!, `=SORTBY({3;1;2},{3;1;2},#REF!)`
     // and `=SORTBY(1,1,#REF!)` #REF!).
     for argument in &args {
-        if let CoreValue::Error(code) = argument.core() {
-            return fail(*code);
+        if let CoreRef::Error(code) = argument.core_ref() {
+            return fail(code);
         }
     }
     let array = as_array(&args[0]);
@@ -418,13 +418,13 @@ fn sortby(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>) -> Step<C
 /// Whether two cells are the same for UNIQUE: numbers when equal as binary64 (OxFunc's rule), text
 /// ignoring case under the collation, and otherwise equal kinds with equal values.
 fn same(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<bool> {
-    match (x.core(), y.core()) {
-        (CoreValue::Text(a), CoreValue::Text(b)) => {
+    match (x.core_ref(), y.core_ref()) {
+        (CoreRef::Text(a), CoreRef::Text(b)) => {
             comparison::texts(a.utf16_code_units(), b.utf16_code_units(), Want::Equality)
                 .map(Ordering::is_eq)
                 .map_err(|_| site.not_modelled(None))
         }
-        (CoreValue::Number(a), CoreValue::Number(b)) => Ok(a == b),
+        (CoreRef::Number(a), CoreRef::Number(b)) => Ok(a == b),
         _ => order(site, x, y).map(Ordering::is_eq),
     }
 }
@@ -434,15 +434,15 @@ fn same(site: &Site<'_>, x: &CalcValue, y: &CalcValue) -> Step<bool> {
 fn bucket(cells: &[CalcValue]) -> String {
     let mut key = String::new();
     for cell in cells {
-        match cell.core() {
-            CoreValue::Number(n) => key.push_str(&format!("n{:x}|", (*n + 0.0).to_bits())),
-            CoreValue::Text(t) => {
+        match cell.core_ref() {
+            CoreRef::Number(n) => key.push_str(&format!("n{:x}|", (n + 0.0).to_bits())),
+            CoreRef::Text(t) => {
                 key.push('t');
                 key.push_str(&t.to_string_lossy().to_lowercase());
                 key.push('|');
             }
-            CoreValue::Logical(b) => key.push_str(if *b { "T|" } else { "F|" }),
-            CoreValue::Error(code) => key.push_str(&format!("e{}|", *code as u8)),
+            CoreRef::Logical(b) => key.push_str(if b { "T|" } else { "F|" }),
+            CoreRef::Error(code) => key.push_str(&format!("e{}|", code as u8)),
             _ => key.push_str("b|"),
         }
     }

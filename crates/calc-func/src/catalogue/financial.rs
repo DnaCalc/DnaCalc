@@ -24,7 +24,7 @@ use crate::ported::cumulative_finance_family as cumulative;
 use crate::ported::depreciation_family as dep;
 use crate::ported::dollar_fraction_family as dollar;
 use crate::ported::financial_time_value_family::{self as tv, FinancialError, PaymentTiming};
-use crate::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 
 type W = WorksheetErrorCode;
 
@@ -58,7 +58,7 @@ fn timing(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<PaymentTiming>
 /// cell as the cell's value, a larger reference as the array of its values, anything else as it
 /// is.
 fn resolved(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_>) -> Step<CalcValue> {
-    if !matches!(a[index].core(), CoreValue::Reference(_)) {
+    if !matches!(a[index].core_ref(), CoreRef::Reference(_)) {
         return Ok(a[index].clone());
     }
     let g = grid(site, a, index, sv)?;
@@ -121,8 +121,8 @@ fn cumulative_out(
 /// DOLLARDE's and DOLLARFR's argument: a logical is #VALUE! (OxFunc's surface admits numbers,
 /// numeric text and blank cells only).
 fn dollar_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
-    match a[index].core() {
-        CoreValue::Logical(_) => fail(W::Value),
+    match a[index].core_ref() {
+        CoreRef::Logical(_) => fail(W::Value),
         _ => num(site, a, index),
     }
 }
@@ -136,10 +136,10 @@ fn schedule(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalService
     }
     let mut rates = Vec::with_capacity(g.cells.len());
     for cell in &g.cells {
-        match cell.core() {
-            CoreValue::Number(n) => rates.push(*n),
-            CoreValue::Empty => rates.push(0.0),
-            CoreValue::Error(code) => return fail(*code),
+        match cell.core_ref() {
+            CoreRef::Number(n) => rates.push(n),
+            CoreRef::Empty => rates.push(0.0),
+            CoreRef::Error(code) => return fail(code),
             _ => return fail(W::Value),
         }
     }

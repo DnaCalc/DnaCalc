@@ -75,6 +75,10 @@ const OFFICE_DOCUMENT: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
 const WORKSHEET: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
+/// An Excel 4.0 macro sheet, and an international one (dc-xuw).
+const MACRO_SHEET: &str = "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet";
+const INTERNATIONAL_MACRO_SHEET: &str =
+    "http://schemas.microsoft.com/office/2006/relationships/xlIntlMacrosheet";
 pub(crate) const SHARED_STRINGS: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
 const STYLES: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
@@ -101,10 +105,18 @@ pub struct LoadedSheet {
     value_caches: BTreeMap<(u32, u32), FileCached>,
     geometry: SheetGeometry,
     conditional_formats: Arc<[ConditionalFormat]>,
+    macro_sheet: bool,
     validations: Arc<[Validation]>,
 }
 
 impl LoadedSheet {
+    /// Whether the sheet is an Excel 4.0 macro sheet (dc-xuw): its formula cells are unloaded
+    /// ([`calc_doc_model::UnloadedCell::MacroSheet`]) and a save that would change its part is
+    /// refused ([`crate::SaveRefusal::MacroSheetChanged`]).
+    pub fn is_macro_sheet(&self) -> bool {
+        self.macro_sheet
+    }
+
     /// The sheet's data validations as the file states them, in document order (dc-6yw).
     pub fn validations(&self) -> &[Validation] {
         &self.validations
@@ -559,6 +571,8 @@ struct DeclaredSheet {
     visibility: SheetVisibility,
     relationship: String,
     part: String,
+    /// An Excel 4.0 macro sheet rather than a worksheet.
+    macro_sheet: bool,
 }
 
 /// The type of the workbook part's relationship `id` and the part it targets.
@@ -777,7 +791,8 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 .ok_or(events.invalid("a sheet without an r:id"))?
                 .to_owned();
             let (kind, part) = target(package, workbook, &relationship)?;
-            if kind != WORKSHEET {
+            let macro_sheet = kind == MACRO_SHEET || kind == INTERNATIONAL_MACRO_SHEET;
+            if kind != WORKSHEET && !macro_sheet {
                 return Err(LoadError::UnsupportedSheet {
                     name: String::from_utf16_lossy(&units),
                     kind,
@@ -789,6 +804,7 @@ fn read_workbook(package: &Package, workbook: &str) -> Result<WorkbookPart, Load
                 visibility,
                 relationship,
                 part,
+                macro_sheet,
             });
         }
     }
@@ -940,7 +956,13 @@ pub fn load(
     let mut data_tables = Vec::new();
     let mut hidden_rows: Vec<(SheetId, u32, Option<(u32, u32, u32, u32)>)> = Vec::new();
     for (declared, &id) in declared.iter().zip(&issued) {
-        let loaded = sheet::load_sheet(package, &context, id, &declared.part)
+        let loaded = sheet::load_sheet(
+            package,
+            &context,
+            id,
+            &declared.part,
+            declared.macro_sheet,
+        )
             .and_then(|loaded| Ok((loaded, tables::read_tables(package, &declared.part, id)?)));
         match loaded {
             Ok((loaded, sheet_tables)) => {
@@ -964,6 +986,7 @@ pub fn load(
                     value_caches: loaded.value_caches,
                     geometry: loaded.geometry,
                     conditional_formats: loaded.conditional_formats.into(),
+                    macro_sheet: declared.macro_sheet,
                     validations: loaded.validations.into(),
                 });
             }

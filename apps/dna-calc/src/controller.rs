@@ -636,7 +636,7 @@ impl Controller {
     /// Saves the workbook as a package's bytes, with its name; the status line says how it went.
     pub fn save(&self) -> Option<(String, Vec<u8>)> {
         let outcome = self.book.try_update_value(|book| {
-            let name = book.name().to_owned();
+            let name = book.save_name();
             book.save().map(|(bytes, _)| (name, bytes))
         })?;
         self.revision.update(|n| *n += 1);

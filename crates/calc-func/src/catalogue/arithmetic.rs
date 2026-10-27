@@ -16,7 +16,7 @@ use super::{CatalogueEntry, Family, FunctionId, Notation, Parameter};
 use crate::call::{EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 
 const CODE: u16 = 1;
 
@@ -172,12 +172,12 @@ fn unary_plus(
     let site = Site::new(UNARY_PLUS, services);
     Site::finish(site.scalar_operands(arguments).and_then(|()| {
         let operand = &arguments[0];
-        match operand.core() {
-            CoreValue::Number(n) => site.number(site.argument(0, coerce::operand(*n))?),
-            CoreValue::Empty | CoreValue::Missing => site.number(0.0),
-            CoreValue::Text(_) | CoreValue::Logical(_) => Ok(operand.clone()),
-            CoreValue::Error(code) => Err(Exit::Error(*code)),
-            CoreValue::Array(_) | CoreValue::Reference(_) => Err(site.not_modelled(Some(0))),
+        match operand.core_ref() {
+            CoreRef::Number(n) => site.number(site.argument(0, coerce::operand(n))?),
+            CoreRef::Empty | CoreRef::Missing => site.number(0.0),
+            CoreRef::Text(_) | CoreRef::Logical(_) => Ok(operand.clone()),
+            CoreRef::Error(code) => Err(Exit::Error(code)),
+            CoreRef::Array(_) | CoreRef::Reference(_) => Err(site.not_modelled(Some(0))),
         }
     }))
 }

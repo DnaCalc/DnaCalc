@@ -23,7 +23,7 @@ use crate::state::HostState;
 use crate::{ProjectionRequest, project};
 use calc_doc::Validation;
 use calc_doc_model::CellInput;
-use calc_doc_model::value::{CalcValue, CellKey, CoreValue};
+use calc_doc_model::value::{CalcValue, CellKey, CoreRef};
 use calc_engine::DetachedFormula;
 use std::fmt;
 
@@ -147,8 +147,8 @@ impl HostState {
             DetachedFormula::compile_dynamic(&self.model, formula.trim_start_matches('='), origin)
                 .ok()?;
         let value = compiled.evaluate(&self.engine, &self.model, at).ok()?;
-        match value.core() {
-            CoreValue::Reference(reference) => {
+        match value.core_ref() {
+            CoreRef::Reference(reference) => {
                 let mut cells = Vec::new();
                 for area in reference.areas() {
                     for row in area.first().row()..=area.last().row() {
@@ -170,7 +170,7 @@ impl HostState {
                         .collect(),
                 )
             }
-            CoreValue::Array(array) => Some(array.iter_row_major().cloned().collect()),
+            CoreRef::Array(array) => Some(array.iter_row_major().cloned().collect()),
             _ => Some(vec![value]),
         }
     }
@@ -222,9 +222,9 @@ impl HostState {
             match compiled
                 .evaluate(&self.engine, &self.model, at)
                 .ok()?
-                .core()
+                .core_ref()
             {
-                CoreValue::Number(n) => Some(*n),
+                CoreRef::Number(n) => Some(n),
                 _ => None,
             }
         };
@@ -289,14 +289,14 @@ impl HostState {
 /// number when it is one), a text exactly for a list written in the rule and regardless of case
 /// for one read from cells, a logical by value.
 fn matches(item: &CalcValue, input: &CellInput, literal: bool) -> bool {
-    match (item.core(), input) {
-        (CoreValue::Number(a), CellInput::Number(b)) => *a == b.get(),
-        (CoreValue::Text(a), CellInput::Number(b)) => a
+    match (item.core_ref(), input) {
+        (CoreRef::Number(a), CellInput::Number(b)) => a == b.get(),
+        (CoreRef::Text(a), CellInput::Number(b)) => a
             .to_string_lossy()
             .trim()
             .parse::<f64>()
             .is_ok_and(|a| a == b.get()),
-        (CoreValue::Text(a), CellInput::Text(b)) => {
+        (CoreRef::Text(a), CellInput::Text(b)) => {
             let (a, b) = (a.to_string_lossy(), b.text().to_string_lossy());
             if literal {
                 a == b
@@ -304,7 +304,7 @@ fn matches(item: &CalcValue, input: &CellInput, literal: bool) -> bool {
                 a.to_lowercase() == b.to_lowercase()
             }
         }
-        (CoreValue::Logical(a), CellInput::Logical(b)) => a == b,
+        (CoreRef::Logical(a), CellInput::Logical(b)) => a == *b,
         _ => false,
     }
 }

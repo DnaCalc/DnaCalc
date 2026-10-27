@@ -17,7 +17,7 @@ use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::text_kernels as k;
 use crate::value::{
-    CalcValue, CoreValue, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, WorksheetErrorCode,
+    CalcValue, CoreRef, EXCEL_TEXT_MAX_UTF16_CODE_UNITS, ExcelText, WorksheetErrorCode,
 };
 
 /// F2's families take codes from 200 up, clear of the other lanes' families.
@@ -114,7 +114,7 @@ fn cells(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut crate::call::E
 
 /// One cell's text for CONCAT and TEXTJOIN.
 fn cell_text(site: &Site<'_>, index: usize, value: &CalcValue) -> Step<Vec<u16>> {
-    if value.callable_value().is_some() || matches!(value.core(), CoreValue::Array(_) | CoreValue::Reference(_)) {
+    if value.callable_value().is_some() || matches!(value.core_ref(), CoreRef::Array(_) | CoreRef::Reference(_)) {
         return Err(site.not_modelled(Some(index)));
     }
     Ok(site.argument(index, coerce::text(value))?.into_owned())
@@ -155,8 +155,8 @@ fn concatenate(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
 /// `=TEXTJOIN(Fe:Ma!A1,1,"a","b","c")` "a2b3c").
 fn delimiters(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices<'_>) -> Step<Vec<Vec<u16>>> {
     let mut found = Vec::new();
-    match a[0].core() {
-        CoreValue::Reference(reference) => {
+    match a[0].core_ref() {
+        CoreRef::Reference(reference) => {
             for &area in reference.areas() {
                 let one = [CalcValue::reference(crate::value::ReferenceLike::area(area))];
                 for value in &grid(site, &one, 0, sv)?.cells {
@@ -164,7 +164,7 @@ fn delimiters(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServic
                 }
             }
         }
-        CoreValue::Array(_) => {
+        CoreRef::Array(_) => {
             for value in &cells(site, a, 0, sv)?.cells {
                 found.push(cell_text(site, 0, value)?);
             }
@@ -182,7 +182,7 @@ fn textjoin(site: &Site<'_>, a: &[CalcValue], sv: &mut crate::call::EvalServices
     for index in 2..a.len() {
         let g = cells(site, a, index, sv)?;
         for value in &g.cells {
-            if ignore_empty && matches!(value.core(), CoreValue::Empty | CoreValue::Missing) {
+            if ignore_empty && matches!(value.core_ref(), CoreRef::Empty | CoreRef::Missing) {
                 continue;
             }
             let units = cell_text(site, index, value)?;
@@ -286,10 +286,10 @@ ported_family! {
         capped(k::substitute(&text, &old, &new, instance), WorksheetErrorCode::Value)
     }
     27 t_fn "T" (1, 1) [V "value"] |s, a, sv| {
-        match a[0].core() {
-            CoreValue::Text(_) => Ok(a[0].clone()),
-            CoreValue::Error(code) => fail(*code),
-            CoreValue::Number(_) | CoreValue::Logical(_) | CoreValue::Empty | CoreValue::Missing
+        match a[0].core_ref() {
+            CoreRef::Text(_) => Ok(a[0].clone()),
+            CoreRef::Error(code) => fail(code),
+            CoreRef::Number(_) | CoreRef::Logical(_) | CoreRef::Empty | CoreRef::Missing
                 if a[0].callable_value().is_none() =>
             {
                 Ok(CalcValue::text(ExcelText::from_utf16_code_units(Vec::new())))

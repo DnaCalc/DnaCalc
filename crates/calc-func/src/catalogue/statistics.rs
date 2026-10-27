@@ -19,7 +19,7 @@ use crate::ported::percentrank_common::{PercentRankMode, percentrank};
 use crate::ported::rank_common::{RankOrder, rank_avg, rank_eq};
 use crate::ported::variance_common::{VarianceDivisor, stdev_from_values, variance_from_values};
 use crate::ported::{self as k};
-use crate::value::{CalcArray, CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcArray, CalcValue, CoreRef, WorksheetErrorCode};
 use std::collections::BTreeMap;
 use crate::ported::excel_numeric::{crt_exp, crt_log};
 
@@ -39,7 +39,7 @@ fn list(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalServices<'_
 /// any held error, as MEDIAN, DEVSQ and HARMEAN order them.
 fn direct_first(site: &Site<'_>, a: &[CalcValue]) -> Step<()> {
     for (index, argument) in a.iter().enumerate() {
-        if !matches!(argument.core(), CoreValue::Reference(_) | CoreValue::Array(_)) {
+        if !matches!(argument.core_ref(), CoreRef::Reference(_) | CoreRef::Array(_)) {
             site.number_argument(index, argument)?;
         }
     }
@@ -67,9 +67,9 @@ fn nth(site: &Site<'_>, a: &[CalcValue], sv: &mut EvalServices<'_>, largest: boo
 
 /// RANK's number: a number as it is, an error as itself, anything else #N/A.
 fn rank_number(a: &[CalcValue]) -> Step<f64> {
-    match a[0].core() {
-        CoreValue::Number(n) => Ok(*n),
-        CoreValue::Error(code) => fail(*code),
+    match a[0].core_ref() {
+        CoreRef::Number(n) => Ok(n),
+        CoreRef::Error(code) => fail(code),
         _ => fail(WorksheetErrorCode::NA),
     }
 }
@@ -439,8 +439,8 @@ fn regression(
 ) -> Step<CalcValue> {
     let mut read = Vec::with_capacity(a.len());
     for (index, argument) in a.iter().enumerate() {
-        read.push(match argument.core() {
-            CoreValue::Reference(_) => {
+        read.push(match argument.core_ref() {
+            CoreRef::Reference(_) => {
                 let g = grid(site, a, index, sv)?;
                 let rows: Vec<Vec<CalcValue>> =
                     g.cells.chunks(g.cols).map(<[CalcValue]>::to_vec).collect();
@@ -452,15 +452,15 @@ fn regression(
         });
     }
     let result = evaluate(&read).map_err(Exit::Error)?;
-    match result.core() {
-        CoreValue::Number(n) => site.number(*n),
-        CoreValue::Array(array) => {
+    match result.core_ref() {
+        CoreRef::Number(n) => site.number(n),
+        CoreRef::Array(array) => {
             let mut rows = Vec::with_capacity(array.shape().rows);
             for r in 0..array.shape().rows {
                 let mut row = Vec::with_capacity(array.shape().cols);
                 for cell in array.row_slice(r).unwrap_or(&[]) {
-                    row.push(match cell.core() {
-                        CoreValue::Number(n) => match site.number(*n) {
+                    row.push(match cell.core_ref() {
+                        CoreRef::Number(n) => match site.number(n) {
                             Ok(v) => v,
                             Err(Exit::Error(code)) => CalcValue::error(code),
                             Err(fault) => return Err(fault),
@@ -484,9 +484,9 @@ fn strict_numbers(site: &Site<'_>, a: &[CalcValue], index: usize, sv: &mut EvalS
     let g = grid(site, a, index, sv)?;
     let mut found = Vec::with_capacity(g.cells.len());
     for cell in &g.cells {
-        match cell.core() {
-            CoreValue::Number(n) => found.push(*n),
-            CoreValue::Error(code) => return fail(*code),
+        match cell.core_ref() {
+            CoreRef::Number(n) => found.push(n),
+            CoreRef::Error(code) => return fail(code),
             _ => return fail(WorksheetErrorCode::Value),
         }
     }
