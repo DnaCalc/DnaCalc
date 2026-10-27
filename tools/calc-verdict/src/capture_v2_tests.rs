@@ -2,7 +2,7 @@
 //! capture's revision and context, the shared ranges, the round-trip lists, the capture's
 //! failures), the file-cache replay and the absent-capture marker.
 
-use crate::evaluations::{Evaluation, EvaluationRecord};
+use crate::evaluations::{Evaluation, EvaluationRecord, InstrumentRecord, InstrumentedEvaluation};
 use crate::result::{CellResult, Provenance, ResultSet, RunIdentity};
 use crate::value::{CalcValue, NumericMode, NumericTargetId, WorksheetErrorCode};
 use crate::{
@@ -1020,6 +1020,75 @@ fn legacy_values() -> Vec<(CellAddress, f64)> {
         (cell("Calc", 2, 12), 20.0),
         (cell("Calc", 3, 12), 30.0),
     ]
+}
+
+/// In a version 2 record a legacy array formula is evaluated once, at its anchor, and its range's
+/// cells are proven by that evaluation's array as the range shows it (dc-nam): L1:L3 publish 10,
+/// 20 and 30 from {10;20;30}; a member publishing another value stays unproven.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn legacy_array_cells_are_proven_by_their_anchors_evaluation() {
+    let capture = legacy();
+    let results_of = |values: &[(CellAddress, f64)]| ResultSet {
+        case: "c".to_owned(),
+        source: "sha256:in".to_owned(),
+        run: RunIdentity {
+            revision: 1,
+            context: CONTEXT.to_owned(),
+        },
+        results: values
+            .iter()
+            .map(|(cell, value)| CellResult {
+                cell: cell.clone(),
+                provenance: Provenance::Calculated {
+                    tick: 1,
+                    revision: 1,
+                    context: CONTEXT.to_owned(),
+                },
+                value: Some(CalcValue::number(*value)),
+            })
+            .collect(),
+    };
+    let column = CalcValue::array(
+        crate::value::CalcArray::from_rows(vec![
+            vec![CalcValue::number(10.0)],
+            vec![CalcValue::number(20.0)],
+            vec![CalcValue::number(30.0)],
+        ])
+        .unwrap(),
+    );
+    let evaluated = |cell: CellAddress, returned: CalcValue| InstrumentedEvaluation {
+        evaluation: Evaluation {
+            cell,
+            tick: 1,
+            revision: 1,
+            context: CONTEXT.to_owned(),
+        },
+        returned: Ok(returned),
+    };
+    let record = InstrumentRecord {
+        case: "c".to_owned(),
+        source: "sha256:in".to_owned(),
+        evaluations: vec![
+            evaluated(cell("Calc", 1, 12), column),
+            evaluated(cell("Calc", 1, 14), CalcValue::number(6.0)),
+            evaluated(cell("Calc", 1, 15), CalcValue::number(1.0)),
+        ],
+    };
+    let report = judge(&capture, &results_of(&legacy_values()), &record, &VerdictPolicy::default())
+        .unwrap();
+    assert!(
+        report
+            .cells
+            .iter()
+            .all(|cell| matches!(cell.verdict, Verdict::Matched { .. })),
+        "{:?}",
+        report.cells.iter().map(|cell| &cell.verdict).collect::<Vec<_>>()
+    );
+    let mut wrong = legacy_values();
+    wrong[4].1 = 10.0;
+    let report = judge(&capture, &results_of(&wrong), &record, &VerdictPolicy::default()).unwrap();
+    assert!(matches!(report.cells[4].verdict, Verdict::Unproven { .. }));
 }
 
 /// The legacy array kinds decode from their JSON form (an anchor with its range, a member naming

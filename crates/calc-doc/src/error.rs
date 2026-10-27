@@ -74,6 +74,9 @@ pub enum OpenError {
     InvalidContentTypes { detail: &'static str },
     /// A relationships part does not have the shape OPC gives it.
     InvalidRelationships { part: String, detail: &'static str },
+    /// An Excel binary workbook (.xlsb) holds a part, a record or a formula token its conversion
+    /// to SpreadsheetML does not read (bead dc-5sr): `part` names the part, `detail` what in it.
+    BinaryWorkbook { part: String, detail: String },
 }
 
 impl fmt::Display for OpenError {
@@ -133,6 +136,10 @@ impl fmt::Display for OpenError {
             Self::InvalidRelationships { part, detail } => {
                 write!(f, "the relationships part {part:?} is invalid: {detail}")
             }
+            Self::BinaryWorkbook { part, detail } => write!(
+                f,
+                "the binary workbook part {part:?} holds {detail}, which is not read"
+            ),
         }
     }
 }

@@ -318,7 +318,7 @@ pub fn app() -> impl IntoView {
                     <input
                         type="file"
                         data-dnacalc="open-file"
-                        accept=".xlsx,.xlsm"
+                        accept=".xlsx,.xlsm,.xlsb"
                         style="display:none"
                         on:change=move |ev| {
                             use wasm_bindgen::JsCast;

@@ -84,7 +84,7 @@ pub use session::{
 };
 pub use state::{HostOptions, HostState, OpenFailure, RecalcContext};
 
-pub use calc_doc::blank_package;
+pub use calc_doc::{blank_package, convert_binary_workbook};
 pub use calc_doc::{
     CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,

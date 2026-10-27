@@ -337,6 +337,15 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     }
     // Rows or columns inserted or deleted: the package's parts moved with them first, and each
     // moved sheet's changes found against the cells its cells moved from.
+    // A macro sheet's formulas are not read, so references they hold cannot be moved: a
+    // structural edit of a workbook with a macro sheet is refused (dc-xuw).
+    if structural.is_some()
+        && let Some(sheet) = sheets.iter().find(|sheet| sheet.is_macro_sheet())
+    {
+        return Err(SaveRefusal::MacroSheetChanged {
+            part: sheet.part().name().to_owned(),
+        });
+    }
     let mut moved = match structural {
         Some(structural) => Some(structural::moved(package, sheets, base, structural)?),
         None => None,
@@ -563,6 +572,11 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
             });
             if rewritten[index] && shared {
                 return Err(SaveRefusal::SharedSheetPart {
+                    part: name.to_owned(),
+                });
+            }
+            if rewritten[index] && sheet.is_macro_sheet() {
+                return Err(SaveRefusal::MacroSheetChanged {
                     part: name.to_owned(),
                 });
             }

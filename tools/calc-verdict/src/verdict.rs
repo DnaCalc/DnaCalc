@@ -56,7 +56,9 @@
 //! The cells of a legacy array formula's range ([`FormulaKind::LegacyArrayAnchor`] and
 //! [`FormulaKind::LegacyArrayMember`]) are judged like ordinary formula cells, each by its own
 //! value; the record is refused when its inventory does not list every cell of each range once,
-//! the anchor and each member naming it.
+//! the anchor and each member naming it. The formula is evaluated once, at its anchor, so each cell
+//! of the range is proven by the anchor's evaluation: the value the range shows there, as a legacy
+//! array fills it, must be the one the cell publishes (dc-nam).
 //!
 //! A record whose environment lists COM add-ins connected during the capture (the setting
 //! [`crate::SETTING_COM_ADD_INS_CONNECTED`]) was taken in an Excel instance that was not isolated
@@ -873,12 +875,43 @@ pub fn judge<'e>(
                         },
                         equals(),
                     )
-                } else if let Some(returned) = unproven(
-                    evaluated
+                } else if let Some(returned) = {
+                    // A legacy array formula is evaluated once, at its anchor; each cell of its
+                    // range is proven by that evaluation's array, filled as a legacy array fills
+                    // its range ([`legacy_fill`]).
+                    let (proving, offset) = match formula.kind {
+                        FormulaKind::LegacyArrayMember {
+                            anchor_row,
+                            anchor_column,
+                        } => (
+                            CellAddress::new(formula.cell.sheet(), anchor_row, anchor_column),
+                            Some((
+                                formula.cell.row() - anchor_row,
+                                formula.cell.column() - anchor_column,
+                            )),
+                        ),
+                        FormulaKind::LegacyArrayAnchor { .. } => (None, Some((0, 0))),
+                        _ => (None, None),
+                    };
+                    let own = evaluated
                         .get(&(&formula.cell, *tick, *revision, context.as_str()))
-                        .copied(),
-                    value,
-                ) {
+                        .copied();
+                    match offset {
+                        None => unproven(own, value),
+                        // A member evaluated on its own (a version 1 record lists one) is proven
+                        // by that evaluation; otherwise by its anchor's.
+                        Some((row, column)) => {
+                            let evaluation = own.or_else(|| {
+                                proving.as_ref().and_then(|anchor| {
+                                    evaluated
+                                        .get(&(anchor, *tick, *revision, context.as_str()))
+                                        .copied()
+                                })
+                            });
+                            unproven_filled(evaluation, value, row, column)
+                        }
+                    }
+                } {
                     (
                         Verdict::Unproven {
                             tick: *tick,
@@ -1060,6 +1093,47 @@ fn unproven(
             (!gave_published).then(|| Some(returned.clone()))
         }
     }
+}
+
+/// [`unproven`] for the cell at `row` and `column` of a legacy array formula's range, proven by
+/// the anchor's evaluation: the value its range shows there ([`legacy_fill`]) must be the one the
+/// cell publishes (dc-nam). The reported `returned` is the evaluation's own value.
+fn unproven_filled(
+    evaluation: Option<Option<&Returned>>,
+    published: Option<&CalcValue>,
+    row: u32,
+    column: u32,
+) -> Option<Option<Returned>> {
+    match evaluation {
+        None => Some(None),
+        Some(None) => None,
+        Some(Some(returned)) => {
+            let gave_published = match (returned, published) {
+                (Ok(value), Some(published)) => {
+                    compare(&legacy_fill(value, row, column), published).is_none()
+                }
+                _ => false,
+            };
+            (!gave_published).then(|| Some(returned.clone()))
+        }
+    }
+}
+
+/// The value a legacy array formula's range shows at `row` and `column` from its anchor for the
+/// evaluation's value `value`, as Excel fills it: a single value everywhere, a row of one row down
+/// every row and a column of one column across every column, an element where the array has
+/// one, and #N/A beyond it.
+fn legacy_fill(value: &CalcValue, row: u32, column: u32) -> CalcValue {
+    let CoreValue::Array(array) = value.core() else {
+        return value.clone();
+    };
+    let shape = array.shape();
+    let r = if shape.rows == 1 { 0 } else { row as usize };
+    let c = if shape.cols == 1 { 0 } else { column as usize };
+    array
+        .get(r, c)
+        .cloned()
+        .unwrap_or_else(|| CalcValue::error(WorksheetErrorCode::NA))
 }
 
 /// Whether `published` is the #SPILL! an anchor shows for the array `returned` it cannot spill.
