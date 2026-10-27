@@ -85,12 +85,12 @@ pub use calc_doc::{
     CalcMode, CellError, EditError, LoadError, MemorySource, OpenError, OpenPolicy, PackageRead,
     PackageWrite, SavePolicy, SaveReceipt, SaveRefusal, WriteError,
 };
-pub use calc_doc::{ColumnSpan, RowFormat, SheetGeometry};
+pub use calc_doc::{ColumnSpan, LoadedSheet, LoadedWorkbook, RowFormat, SheetGeometry};
 pub use calc_doc_model::value;
 pub use calc_doc_model::{
     ArrayFormula, ArrayKind, AuthoredRevision, Axis, AxisChange, AxisEdit, AxisEditError,
     CachedValue, CellInput, CellText, DefinedName, FileCached, FiniteNumber, FormulaText,
-    NameScope, SheetEntry, SourcePart,
+    Definitions, ModelRoot, NameScope, SheetEntry, SourcePart,
 };
 pub use calc_engine::{
     CacheWithoutFormula, CalcTick, Calculation, NotModeled, PrepareError, ReadObserver,

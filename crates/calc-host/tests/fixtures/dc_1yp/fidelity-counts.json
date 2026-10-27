@@ -1,0 +1,71 @@
+{
+  "format": "dnacalc-dc-1yp-fidelity-counts",
+  "what": "Document fidelity over the dc-ifc set: every .xlsx, .xlsm and .xlsb under C:/Work/DnaCalc outside target, .git, node_modules and lock files, from the legacy repositories, OxFunc-Evidence and DnaTreeCalc, deduplicated by content hash (the 290 copies the exactness lane collected in C:/Work/DnaCalc/corpus/local-ifc; none is an .xlsb). Phase 1 is cargo xtask fidelity (calc-host open; unchanged save and reopen; edited save of one value and one formula reading it, recalculated, and reopen). Phase 2 is open-in-excel.ps1: each original, unchanged save and edited save opened in Excel with a normal load (CorruptLoad 0, which fails rather than repairs), one Excel at a time. Counts only; no workbook content.",
+  "repository": "0bcd3f7a393a65eaffc65182d3b2548149fcb479+dirty",
+  "excel": "16.0.20430",
+  "phase_1": {
+    "counts": {
+      "edited_equal": 285,
+      "edited_formats_equal": 285,
+      "edited_model_equal": 285,
+      "edited_no_sheet": 1,
+      "edited_saved": 285,
+      "opened": 286,
+      "refused": 4,
+      "unchanged_byte_equal": 285,
+      "unchanged_model_equal": 286,
+      "workbooks": 290
+    },
+    "extensions": {
+      "xlsm": 44,
+      "xlsx": 246
+    },
+    "refused_by_reason": {
+      "Workbook/Cell": 2,
+      "Workbook/UnsupportedSheet": 2
+    },
+    "crashed_by_reason": {},
+    "unchanged_differences_by_kind": {},
+    "edited_differences_by_kind": {},
+    "edited_caches": {
+      "cached_equal": 18123,
+      "cached_other": 0,
+      "calculated": 18123,
+      "formula_cells": 20585,
+      "not_cached": 0
+    }
+  },
+  "phase_1_before_the_metadata_fix": {
+    "edited_reopen_refused": 1,
+    "edited_saved_without_a_value_calculated": 12
+  },
+  "phase_2": {
+    "opened_files": 861,
+    "opened_clean": 838,
+    "originals": 290,
+    "originals_excel_opens": 280,
+    "of_the_280_excel_opens": {
+      "calc_doc_opens": 278,
+      "calc_doc_refuses_macro_sheet": 2,
+      "unchanged_save_excel_clean": 278,
+      "edited_save_excel_clean": 278
+    },
+    "of_the_10_excel_refuses": {
+      "calc_doc_refuses_by_design": 2,
+      "calc_doc_opens": 8,
+      "unchanged_save_excel_clean": 1,
+      "edited_save_excel_clean": 1,
+      "no_sheet_to_edit": 1
+    },
+    "unchanged_saves": 286,
+    "unchanged_saves_excel_clean": 279,
+    "edited_saves": 285,
+    "edited_saves_excel_clean": 279
+  },
+  "notes": [
+    "The 2 refusals by design are test fixtures built to be refused (a formula inside an array formula's area; array cell metadata that names no dynamic-array properties); Excel refuses both too.",
+    "The 8 opened workbooks Excel refuses as authored are hand-built test packages; each save Excel refuses is a workbook Excel refuses as authored. One (unreferenced bytes between ZIP entries) opens in Excel only after the save, which drops those bytes; it is also the one unchanged save not byte-equal to the original.",
+    "The 2 macro-sheet workbooks (an Excel 4.0 macro sheet among the sheets) are refused with a typed reason (Workbook/UnsupportedSheet); dc-xuw owns carrying such a sheet.",
+    "An .xlsb (made in Excel to try it) is refused with a typed reason (Workbook/NotASpreadsheet, the binary workbook content type); none is in the set, and dc-5sr owns reading one."
+  ]
+}
