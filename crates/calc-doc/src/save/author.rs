@@ -673,13 +673,13 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
     // Each defined name whose formula the edits rewrote (rows or columns inserted or deleted,
     // cells moved by a cut, dc-gf0), and the other parts the edits' passes moved.
     if names_changed {
-        for (loaded, now) in base
-            .definitions()
-            .names()
-            .iter()
-            .zip(model.definitions().names())
-        {
-            if loaded.formula == now.formula {
+        // No edit removes a name the file holds (an undo removes only a name an edit defined), so
+        // each name of the model is the file's, changed or not, or one an edit defined.
+        for now in model.definitions().names() {
+            let loaded = base.definitions().names().iter().find(|loaded| {
+                loaded.scope == now.scope && loaded.name.eq_ignore_ascii_case(&now.name)
+            });
+            if loaded.is_some_and(|loaded| loaded.formula == now.formula) {
                 continue;
             }
             let sheet = match now.scope {
@@ -691,11 +691,15 @@ pub(super) fn plan(package: &Package, edit: &Edited) -> Result<Changes, SaveRefu
                     }
                 }
             };
-            names.replaced.push((
+            let change = (
                 now.name.clone(),
                 sheet,
                 now.formula.encode_utf16().collect(),
-            ));
+            );
+            match loaded {
+                Some(_) => names.replaced.push(change),
+                None => names.defined.push(change),
+            }
         }
     }
     if let Some(moved) = moved.as_mut() {

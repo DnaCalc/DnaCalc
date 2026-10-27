@@ -562,14 +562,30 @@ impl ModelRoot {
                     scope,
                     formula,
                 } => {
+                    if let crate::NameScope::Sheet(sheet) = scope {
+                        self.position_of(operation, *sheet)?;
+                    }
                     let all = names.get_or_insert_with(|| self.definitions.names().to_vec());
-                    let Some(held) = all
-                        .iter_mut()
-                        .find(|held| held.scope == *scope && held.name.eq_ignore_ascii_case(name))
-                    else {
-                        return Err(ApplyError::UnknownName { operation });
-                    };
-                    held.formula = formula.clone();
+                    let held = all.iter().position(|held| {
+                        held.scope == *scope && held.name.eq_ignore_ascii_case(name)
+                    });
+                    match (held, formula) {
+                        (Some(at), Some(formula)) => all[at].formula = formula.clone(),
+                        (Some(at), None) => {
+                            all.remove(at);
+                        }
+                        (None, Some(formula)) => all.push(crate::DefinedName {
+                            name: name.clone(),
+                            scope: *scope,
+                            formula: formula.clone(),
+                            hidden: false,
+                            comment: None,
+                            function: false,
+                            vb_procedure: false,
+                            xlm: false,
+                        }),
+                        (None, None) => return Err(ApplyError::UnknownName { operation }),
+                    }
                 }
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),

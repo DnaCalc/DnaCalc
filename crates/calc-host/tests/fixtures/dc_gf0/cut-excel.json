@@ -246,6 +246,57 @@
                                                                       "Rate":  "=0.05"
                                                                   }
                                                     }
-                                       }
+                                       },
+                  "local-name-to-other":  {
+                                              "from":  "Data!D2",
+                                              "to":  "Other!G1",
+                                              "book":  {
+                                                           "sheets":  {
+                                                                          "Data":  {
+                                                                                       "A1":  "1",
+                                                                                       "B1":  "=A1*10",
+                                                                                       "C1":  "=B1+1",
+                                                                                       "D1":  "7",
+                                                                                       "A2":  "2",
+                                                                                       "B2":  "=SUM(A1:A3)",
+                                                                                       "C2":  "=SUM(A1:A5)",
+                                                                                       "A3":  "3",
+                                                                                       "B3":  "=A1+Other!A1+D1",
+                                                                                       "C3":  "=$A$2*A3",
+                                                                                       "D3":  "=SUM(PartRange)",
+                                                                                       "C4":  "=InputCell+SUM(InputRange)"
+                                                                                   },
+                                                                          "Other":  {
+                                                                                        "A1":  "100",
+                                                                                        "B1":  "=Data!A1",
+                                                                                        "G1":  "=LocalIn*2",
+                                                                                        "B2":  "=SUM(Data!A1:A3)",
+                                                                                        "B3":  "=Data!B1*2",
+                                                                                        "B4":  "=SUM(Data!A1:B3)",
+                                                                                        "B5":  "=Data!D1",
+                                                                                        "B6":  "=Data!E5",
+                                                                                        "B7":  "=\u0027Target Sheet\u0027!C2+\u0027Target Sheet\u0027!F1",
+                                                                                        "B8":  "=E2",
+                                                                                        "B9":  "=SUM(Data!A1:A4)",
+                                                                                        "B10":  "=SUM(Data!E5:E6)",
+                                                                                        "B11":  "=SUM(Data!E4:E6)",
+                                                                                        "B12":  "=SUM(Data!A1:C3)",
+                                                                                        "B13":  "=SUM(Data!A1:B4)"
+                                                                                    },
+                                                                          "Target Sheet":  {
+                                                                                               "A1":  "target"
+                                                                                           }
+                                                                      },
+                                                           "names":  {
+                                                                         "InputCell":  "=Data!$A$1",
+                                                                         "InputRange":  "=Data!$A$1:$A$3",
+                                                                         "Data!LocalIn":  "=Data!$A$2",
+                                                                         "Other!LocalIn":  "=Data!$A$2",
+                                                                         "MixedRow":  "=Data!$A1",
+                                                                         "PartRange":  "=Data!$A$1:$A$5",
+                                                                         "Rate":  "=0.05"
+                                                                     }
+                                                       }
+                                          }
               }
 }

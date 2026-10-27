@@ -42,7 +42,8 @@ pub enum CellEdit {
     SetName {
         name: String,
         scope: calc_doc_model::NameScope,
-        formula: String,
+        /// `None` removes the name; a name the workbook does not hold is defined.
+        formula: Option<String>,
     },
 }
 
