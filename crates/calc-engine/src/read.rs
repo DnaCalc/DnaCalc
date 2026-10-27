@@ -341,6 +341,14 @@ impl Progress {
         node.slot() as usize
     }
 
+    /// Makes room for the staged results of the nodes of slots below `slots` at once (dc-dxm), so
+    /// that staging does not grow the storage, moving what it staged, as it goes.
+    pub(crate) fn reserve_slots(&mut self, slots: usize) {
+        if self.staged.len() < slots {
+            self.staged.resize_with(slots, || None);
+        }
+    }
+
     /// Schedules `node`, which then stands as not yet evaluated.
     pub(crate) fn schedule(&mut self, node: NodeId) {
         let slot = Self::slot(node);

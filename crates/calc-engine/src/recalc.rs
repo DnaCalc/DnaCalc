@@ -247,6 +247,12 @@ impl<T> BySlot<T> {
         }
     }
 
+    fn reserve_slots(&mut self, slots: usize) {
+        if self.entries.len() < slots {
+            self.entries.resize_with(slots, || None);
+        }
+    }
+
     fn insert(&mut self, node: NodeId, value: T) {
         let slot = node.slot() as usize;
         if slot >= self.entries.len() {
@@ -541,6 +547,15 @@ pub fn begin_recalc(
     for node in &order {
         progress.schedule(*node);
     }
+    // The storage of what the first wave stages, made at once when the wave holds a good share
+    // of the nodes (dc-dxm); a small wave grows it as it stages.
+    let (mut filled, mut dynamic) = (BySlot::default(), BySlot::default());
+    if order.len() * 4 >= state.nodes.len() {
+        let slots = state.nodes.len();
+        progress.reserve_slots(slots);
+        filled.reserve_slots(slots);
+        dynamic.reserve_slots(slots);
+    }
     state.last_tick = state
         .last_tick
         .checked_add(1)
@@ -556,8 +571,8 @@ pub fn begin_recalc(
         waiting: BTreeMap::new(),
         waits_on: BTreeMap::new(),
         spills: SpillIndex::default(),
-        filled: BySlot::default(),
-        dynamic: BySlot::default(),
+        filled,
+        dynamic,
         rewave: BTreeSet::new(),
         waves: 0,
         local: EvalLocal::default(),
@@ -696,9 +711,9 @@ fn apply(
 #[cfg(not(target_arch = "wasm32"))]
 mod parallel {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use crate::Unobserved;
-    use std::sync::Mutex;
+    use std::sync::OnceLock;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// How many formulas a thread takes from a level at a time.
     const CHUNK: usize = 32;
@@ -725,8 +740,8 @@ mod parallel {
             && inputs.definitions().data_tables().is_empty()
     }
 
-    /// Each position of the order's level, or `None` when a node's readers are not known.
-    fn levels(state: &EngineState, order: &[NodeId]) -> Option<Vec<u32>> {
+    /// The positions of `order` grouped by level, or `None` when a node's readers are not known.
+    fn levels(state: &EngineState, order: &[NodeId]) -> Option<Levels> {
         const NONE: u32 = u32::MAX;
         let mut position = vec![NONE; state.nodes.len()];
         for (at, node) in order.iter().enumerate() {
@@ -747,19 +762,6 @@ mod parallel {
                 }
             }
         }
-        Some(level)
-    }
-
-    pub(super) fn evaluate_levels(
-        state: &EngineState,
-        inputs: &ModelRoot,
-        work: &mut RecalcWork,
-        observer: &mut dyn ReadObserver,
-    ) {
-        let Some(level) = levels(state, &work.order) else {
-            return;
-        };
-        // The positions of each level, each level in the order's order.
         let count = level.iter().max().map_or(0, |max| *max as usize + 1);
         let mut starts = vec![0usize; count + 1];
         for held in &level {
@@ -774,6 +776,30 @@ mod parallel {
             grouped[next[*held as usize]] = at;
             next[*held as usize] += 1;
         }
+        Some(Levels { starts, grouped })
+    }
+
+    pub(super) fn evaluate_levels(
+        state: &EngineState,
+        inputs: &ModelRoot,
+        work: &mut RecalcWork,
+        observer: &mut dyn ReadObserver,
+    ) {
+        // The levels of the order of every formula are kept with it (dc-dxm).
+        let found;
+        let kept = &state.readers_cache;
+        let levels = if kept.full_order.as_ref() == Some(&work.order) {
+            kept.full_levels
+                .get_or_init(|| levels(state, &work.order))
+                .as_ref()
+        } else {
+            found = levels(state, &work.order);
+            found.as_ref()
+        };
+        let Some(Levels { starts, grouped }) = levels else {
+            return;
+        };
+        let count = starts.len() - 1;
         let threads = state.threads;
         let mut locals: Vec<EvalLocal> = (0..threads).map(|_| EvalLocal::default()).collect();
         for held in 0..count {
@@ -789,6 +815,9 @@ mod parallel {
             } else {
                 let attempts = evaluate_level(state, inputs, work, positions, &mut locals);
                 for (at, attempt) in positions.iter().zip(attempts) {
+                    let attempt = attempt
+                        .into_inner()
+                        .expect("every formula of the level was evaluated");
                     if work.failure.is_some() {
                         break;
                     }
@@ -812,22 +841,22 @@ mod parallel {
     }
 
     /// The attempts of a level's formulas, in `positions`' order, evaluated on `locals.len()`
-    /// threads against what earlier levels staged.
+    /// threads against what earlier levels staged: each thread sets the attempts of the formulas
+    /// it takes, at their places.
     fn evaluate_level(
         state: &EngineState,
         inputs: &ModelRoot,
         work: &RecalcWork,
         positions: &[usize],
         locals: &mut [EvalLocal],
-    ) -> Vec<Result<Attempt, RecalcFailure>> {
+    ) -> Vec<OnceLock<Result<Attempt, RecalcFailure>>> {
         let shared = shared_of!(work);
         let order = &work.order;
         let cursor = AtomicUsize::new(0);
-        let gathered: Mutex<Vec<(usize, Result<Attempt, RecalcFailure>)>> =
-            Mutex::new(Vec::with_capacity(positions.len()));
+        let attempts: Vec<OnceLock<Result<Attempt, RecalcFailure>>> =
+            positions.iter().map(|_| OnceLock::new()).collect();
         std::thread::scope(|scope| {
             let worker = |local: &mut EvalLocal| {
-                let mut mine = Vec::new();
                 let mut silent = Unobserved;
                 loop {
                     let from = cursor.fetch_add(CHUNK, Ordering::Relaxed);
@@ -838,13 +867,11 @@ mod parallel {
                         let node = order[positions[index]];
                         let attempt =
                             evaluate_with(state, inputs, &shared, local, node, &mut silent);
-                        mine.push((index, attempt));
+                        if attempts[index].set(attempt).is_err() {
+                            unreachable!("each formula of a level is taken once");
+                        }
                     }
                 }
-                gathered
-                    .lock()
-                    .expect("no worker panics while holding the results")
-                    .append(&mut mine);
             };
             let (own, others) = locals.split_first_mut().expect("at least one thread");
             for local in others {
@@ -852,12 +879,7 @@ mod parallel {
             }
             worker(own);
         });
-        let mut gathered = gathered
-            .into_inner()
-            .expect("no worker panicked holding the results");
-        gathered.sort_unstable_by_key(|(index, _)| *index);
-        debug_assert_eq!(gathered.len(), positions.len());
-        gathered.into_iter().map(|(_, attempt)| attempt).collect()
+        attempts
     }
 }
 
@@ -883,7 +905,9 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
     // published result no live node there replaced. They are sorted by cell at the end.
     let mut changes: Vec<(CellKey, ValueChange)> = Vec::with_capacity(work.progress.scheduled());
     let mut spill_changes = Vec::new();
+    let mut published = vec![false; state.nodes.len()];
     for (node, result) in std::mem::take(&mut work.progress).into_staged() {
+        published[node.slot() as usize] = true;
         let at = live_anchor(state, node);
         let before = state.spills.remove(at).map(|spill| spill.area());
         let after = work.spills.get(at).cloned();
@@ -899,10 +923,20 @@ pub fn finish(state: &mut EngineState, mut work: RecalcWork) -> Result<ValueDelt
             });
         }
         state.results.publish(node, at, result);
-        state.pending.remove(&node);
-        state.entered.remove(&node);
         changes.push((at, ValueChange::Published { at, node }));
     }
+    // The published nodes are no longer pending, nor entered since the last publication: each set
+    // is built anew from the nodes that stay, in node order, which builds it in one pass (dc-dxm),
+    // rather than by removing the published nodes one at a time.
+    let stays = |node: &NodeId| !published.get(node.slot() as usize).copied().unwrap_or(false);
+    state.pending = std::mem::take(&mut state.pending)
+        .into_iter()
+        .filter(stays)
+        .collect();
+    state.entered = std::mem::take(&mut state.entered)
+        .into_iter()
+        .filter(stays)
+        .collect();
     for (node, dynamic) in std::mem::take(&mut work.dynamic).into_entries() {
         state.set_dynamic(node, dynamic);
     }
@@ -1226,6 +1260,20 @@ pub(crate) struct ReadersCache {
     /// with the key unchanged, the next one of every formula has the same closure and the same
     /// order.
     full_order: Option<Vec<NodeId>>,
+    /// The levels of `full_order` (dc-dxm), found by the first parallel recalculation of every
+    /// formula that needs them, and kept with the order.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    full_levels: std::sync::OnceLock<Option<Levels>>,
+}
+
+/// The positions of an order grouped by level (dc-2m0): a node's level is one more than the
+/// highest level of the nodes of the order it reads. `grouped[starts[l]..starts[l + 1]]` are the
+/// positions of level `l`, in the order's order.
+#[derive(Debug)]
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub(crate) struct Levels {
+    starts: Vec<usize>,
+    grouped: Vec<usize>,
 }
 
 impl ReadersCache {
@@ -1242,6 +1290,7 @@ impl ReadersCache {
         if self.key.as_ref() != Some(&key) {
             self.entries.clear();
             self.full_order = None;
+            self.full_levels = std::sync::OnceLock::new();
             self.ranks.clear();
             self.ranks.resize(state.nodes.len(), u32::MAX);
             for (rank, node) in state.by_anchor.values().enumerate() {
@@ -1375,6 +1424,7 @@ fn schedule(
             });
             if every && let Ok(kept) = &ordered {
                 cache.full_order = Some(kept.clone());
+                cache.full_levels = std::sync::OnceLock::new();
             }
             (closure, ordered)
         }
