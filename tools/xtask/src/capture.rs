@@ -256,7 +256,6 @@ fn run_code(raw: &[String]) -> u8 {
     let request = CaptureRequest {
         case: args.case.clone(),
         fixture: args.fixture.clone(),
-        inventory: None,
         companions: args.companions.clone(),
         work_dir: work_dir.clone(),
         timeout: args.timeout,
