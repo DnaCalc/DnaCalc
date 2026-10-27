@@ -94,7 +94,7 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
             CellEdit::Set { at, .. } => GridArea::cell(*at),
             CellEdit::Clear { area } => *area,
             CellEdit::SetArray { array, .. } => array.area(),
-            CellEdit::Axis(_) | CellEdit::SetFormat { .. } => continue,
+            CellEdit::Axis(_) | CellEdit::SetFormat { .. } | CellEdit::SetName { .. } => continue,
         };
         if !areas.contains(&area) {
             areas.push(area);
@@ -108,8 +108,9 @@ fn touched(edits: &[CellEdit]) -> Vec<GridArea> {
 /// edit touches authored again over its area, then each cell of the touched areas and of those
 /// arrays' areas that held an input set to it again (re-authoring an array clears its area, a
 /// value blocking a dynamic array's spill included), then each cell format an edit sets returned to
-/// the one the cell held. Refused when an edit touches an unloaded cell, whose content no edit
-/// authors.
+/// the one the cell held, and each defined name an edit sets to the formula it held (the formulas
+/// that use it are among the cells the edits set, so they are set again). Refused when an edit
+/// touches an unloaded cell, whose content no edit authors.
 pub(crate) fn inverse(
     model: &Arc<ModelRoot>,
     axis_edits: &[AxisEdit],
@@ -178,6 +179,22 @@ pub(crate) fn inverse(
             inverse.push(CellEdit::SetFormat {
                 at: *at,
                 format: definitions.cell_format(*at),
+            });
+        }
+    }
+    let mut named = std::collections::HashSet::new();
+    for edit in edits {
+        if let CellEdit::SetName { name, scope, .. } = edit
+            && named.insert((name.to_ascii_lowercase(), *scope))
+            && let Some(held) = definitions
+                .names()
+                .iter()
+                .find(|held| held.scope == *scope && held.name.eq_ignore_ascii_case(name))
+        {
+            inverse.push(CellEdit::SetName {
+                name: held.name.clone(),
+                scope: *scope,
+                formula: held.formula.clone(),
             });
         }
     }

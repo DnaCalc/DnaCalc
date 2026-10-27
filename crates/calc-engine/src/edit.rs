@@ -121,6 +121,9 @@ pub struct PreparedEngineChange<'s, 'r> {
     /// For a structural batch, where each formula node's anchor goes (`None`: its cell or sheet
     /// is deleted).
     moves: Option<Vec<(NodeId, Option<CellKey>)>>,
+    /// The batch sets a defined name's formula (dc-gf0): the compiled templates, which hold the
+    /// names' formulas as they were, go when it commits.
+    names_changed: bool,
 }
 
 impl<'r> PreparedEngineChange<'_, 'r> {
@@ -215,6 +218,8 @@ pub fn prepare_edit<'s, 'r>(
             node_changes: Vec::new(),
             seeds: Vec::new(),
             moves: Some(moves),
+            // A structural commit empties the templates anyway.
+            names_changed: false,
         });
     }
 
@@ -277,8 +282,12 @@ pub fn prepare_edit<'s, 'r>(
                     unreachable!("structural batches are staged above")
                 }
             },
-            // A cell format (dc-09v) changes no input and no calculation.
-            WorkbookOp::EditSkinLayout(_) | WorkbookOp::SetFormat { .. } => {}
+            // A cell format (dc-09v) changes no input and no calculation. A defined name's formula
+            // (dc-gf0) changes no cell: a caller that changes one sets the formulas that use the
+            // name again in the same batch, which binds them anew.
+            WorkbookOp::EditSkinLayout(_)
+            | WorkbookOp::SetFormat { .. }
+            | WorkbookOp::SetNameFormula { .. } => {}
         }
     }
 
@@ -431,6 +440,10 @@ pub fn prepare_edit<'s, 'r>(
         node_changes,
         seeds,
         moves: None,
+        names_changed: change
+            .operations
+            .iter()
+            .any(|op| matches!(op, WorkbookOp::SetNameFormula { .. })),
     })
 }
 
@@ -468,6 +481,7 @@ fn structural_moves(
                 | WorkbookOp::Clear { .. }
                 | WorkbookOp::SetArray { .. }
                 | WorkbookOp::SetFormat { .. }
+                | WorkbookOp::SetNameFormula { .. }
         )
     }) {
         return Err(PrepareError::StructuralEdit {
@@ -484,7 +498,8 @@ fn structural_moves(
             WorkbookOp::SetCell { .. }
             | WorkbookOp::Clear { .. }
             | WorkbookOp::SetArray { .. }
-            | WorkbookOp::SetFormat { .. } => unreachable!("refused above"),
+            | WorkbookOp::SetFormat { .. }
+            | WorkbookOp::SetNameFormula { .. } => unreachable!("refused above"),
             WorkbookOp::EditAxis(edit) => {
                 require_sheet(inputs, operation, edit.sheet())?;
                 for (_, anchor) in &mut moves {
@@ -556,6 +571,9 @@ impl CommitReceipt {
 pub fn commit_edit(mut change: PreparedEngineChange<'_, '_>) -> CommitReceipt {
     let node_changes = std::mem::take(&mut change.node_changes);
     let state = &mut *change.state;
+    if change.names_changed {
+        state.templates.clear();
+    }
     if let Some(moves) = change.moves.take() {
         let removed = state.apply_moves(moves);
         state.set_revision(change.next);

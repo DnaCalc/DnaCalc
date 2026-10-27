@@ -35,6 +35,16 @@ pub enum WorkbookOp {
     /// `None` to return it to the format the file gave it (dc-09v). It changes no input and no
     /// calculation.
     SetFormat { at: CellKey, format: Option<u32> },
+    /// Give the defined name `name` of `scope` (matched regardless of ASCII case, as Excel matches
+    /// names) the formula `formula`, as the model holds a name's formula (dc-gf0: a cut moves the
+    /// cells a name refers to). An unknown name is refused ([`crate::ApplyError::UnknownName`]).
+    /// The model changes no cell for it: a formula that uses the name reads the new formula when
+    /// it is bound again.
+    SetNameFormula {
+        name: String,
+        scope: crate::definitions::NameScope,
+        formula: String,
+    },
     /// Insert or delete rows or columns of one sheet.
     EditAxis(AxisEdit),
     /// Insert, rename, move, remove or show or hide a sheet.

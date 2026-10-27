@@ -159,6 +159,8 @@ pub enum ApplyError {
     ArrayOverlap { operation: usize, anchor: CellKey },
     /// [`ModelRoot::restored`] was given a root of another lineage.
     ForeignRoot,
+    /// The operation at this index names a defined name the root does not hold.
+    UnknownName { operation: usize },
 }
 
 impl fmt::Display for ApplyError {
@@ -201,6 +203,10 @@ impl fmt::Display for ApplyError {
             ApplyError::ForeignRoot => {
                 f.write_str("the root to restore is not of this root's lineage")
             }
+            ApplyError::UnknownName { operation } => write!(
+                f,
+                "operation {operation} names a defined name the root does not hold"
+            ),
         }
     }
 }
@@ -519,6 +525,8 @@ impl ModelRoot {
         let mut added: Vec<(usize, ArrayFormula)> = Vec::new();
         // The cell formats the batch sets, in order.
         let mut formats: Vec<(CellKey, Option<u32>)> = Vec::new();
+        // The defined names' formulas the batch sets, as the names will read.
+        let mut names: Option<Vec<crate::DefinedName>> = None;
         for (operation, op) in batch.operations.iter().enumerate() {
             match op {
                 WorkbookOp::SetCell { at, input } => {
@@ -548,6 +556,20 @@ impl ModelRoot {
                 WorkbookOp::SetFormat { at, format } => {
                     self.position_of(operation, at.sheet())?;
                     formats.push((*at, *format));
+                }
+                WorkbookOp::SetNameFormula {
+                    name,
+                    scope,
+                    formula,
+                } => {
+                    let all = names.get_or_insert_with(|| self.definitions.names().to_vec());
+                    let Some(held) = all
+                        .iter_mut()
+                        .find(|held| held.scope == *scope && held.name.eq_ignore_ascii_case(name))
+                    else {
+                        return Err(ApplyError::UnknownName { operation });
+                    };
+                    held.formula = formula.clone();
                 }
                 WorkbookOp::EditAxis(_) => return Err(ApplyError::AxisEdit { operation }),
                 WorkbookOp::EditSheet(_) => return Err(ApplyError::SheetEdit { operation }),
@@ -596,10 +618,13 @@ impl ModelRoot {
             Some(definitions) => Arc::new(definitions),
             None => Arc::clone(&self.definitions),
         };
-        if !formats.is_empty() {
+        if !formats.is_empty() || names.is_some() {
             let mut next = Definitions::clone(&definitions);
             for (at, format) in formats {
                 next = next.with_format_of(at, format);
+            }
+            if let Some(names) = names {
+                next = next.with_names(names);
             }
             definitions = Arc::new(next);
         }

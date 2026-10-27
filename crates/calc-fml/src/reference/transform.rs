@@ -70,11 +70,16 @@ pub enum StructuralEdit {
         order: Vec<(SheetId, String)>,
     },
     /// The cells of `area` moved (cut and pasted) so that its top-left cell is `to`, on the same
-    /// sheet (dc-09v). As Excel's move does, a cell reference to a moved cell, and a range
-    /// reference all of whose cells moved, follow the cells; a range only partly moved, and
-    /// whole rows or columns, keep their text. A defined name's reference moves only when every
-    /// coordinate it holds is absolute.
-    MoveCells { area: GridArea, to: CellKey },
+    /// sheet or another (dc-09v, dc-gf0); `source_name` and `target_name` are the names of
+    /// `area`'s sheet and `to`'s, as the workbook holds them. See [`move_site`] for the rules,
+    /// measured in Excel. A defined name's reference moves only when every coordinate it holds is
+    /// absolute.
+    MoveCells {
+        area: GridArea,
+        to: CellKey,
+        source_name: String,
+        target_name: String,
+    },
 }
 
 impl StructuralEdit {
@@ -105,14 +110,14 @@ impl StructuralEdit {
     /// The cell `at` moves to; `None` when the edit deletes it (its row, its column or its sheet)
     /// or pushes it off the grid.
     pub fn cell(&self, at: CellKey) -> Option<CellKey> {
-        if let StructuralEdit::MoveCells { area, to } = self {
+        if let StructuralEdit::MoveCells { area, to, .. } = self {
             if !area.contains(at) {
                 return Some(at);
             }
             let row = i64::from(at.row()) + i64::from(to.row()) - i64::from(area.first().row());
             let column =
                 i64::from(at.column()) + i64::from(to.column()) - i64::from(area.first().column());
-            return CellKey::new(at.sheet(), u32::try_from(row).ok()?, u32::try_from(column).ok()?)
+            return CellKey::new(to.sheet(), u32::try_from(row).ok()?, u32::try_from(column).ok()?)
                 .ok();
         }
         if let StructuralEdit::RemoveSheet { sheet, .. } = self
@@ -292,9 +297,34 @@ fn transform(
     let units: Vec<u16> = source.encode_utf16().collect();
     let mut replacements: Vec<(TextSpan, String)> = Vec::new();
     match edit {
-        StructuralEdit::Insert { .. }
-        | StructuralEdit::Delete { .. }
-        | StructuralEdit::MoveCells { .. } => {
+        StructuralEdit::MoveCells {
+            area,
+            to,
+            source_name,
+            target_name,
+        } => {
+            let anchor = FormulaAnchor::new(at);
+            // A formula moves with the cells when its cell is one of them; a name never moves.
+            let moving = !name && area.contains(at) && area.sheet() != to.sheet();
+            let mv = Move {
+                source: Rect::of(*area),
+                source_sheet: area.sheet(),
+                target: Rect::of(target_area(*area, *to)?),
+                target_sheet: to.sheet(),
+                source_qualifier: format!("{}!", quoted_if_needed(source_name)),
+                target_qualifier: format!("{}!", quoted_if_needed(target_name)),
+                moving,
+            };
+            for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
+                if name && !matches!(name_ends(&site, &units, edit), NameEnds::Absolute) {
+                    continue;
+                }
+                if let Some(text) = move_site(&site, &units, anchor, &mv) {
+                    replacements.push((site.span, text));
+                }
+            }
+        }
+        StructuralEdit::Insert { .. } | StructuralEdit::Delete { .. } => {
             let anchor = FormulaAnchor::new(at);
             for site in bind_references(&tree, ReferenceNotation::A1, anchor, catalog) {
                 if name {
@@ -523,7 +553,6 @@ fn axis_site(
         StructuralEdit::Insert { sheet, axis, .. } | StructuralEdit::Delete { sheet, axis, .. } => {
             (*sheet, Some(*axis))
         }
-        StructuralEdit::MoveCells { area, .. } => (area.sheet(), None),
         _ => return None,
     };
     let sheet = match operand.sheet {
@@ -573,7 +602,6 @@ fn axis_site(
         }
         ReferenceShape::Rows { .. } | ReferenceShape::Columns { .. } => {
             let rows = matches!(operand.shape, ReferenceShape::Rows { .. });
-            // A move leaves whole rows and columns as they are.
             let axis = axis?;
             if (axis == EditAxis::Rows) != rows {
                 return None;
@@ -612,6 +640,223 @@ fn axis_site(
                 _ => None,
             }
         }
+    }
+}
+
+/// A rectangle of one sheet, 1-based and inclusive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Rect {
+    top: u32,
+    left: u32,
+    bottom: u32,
+    right: u32,
+}
+
+impl Rect {
+    fn of(area: GridArea) -> Rect {
+        Rect {
+            top: area.first().row(),
+            left: area.first().column(),
+            bottom: area.last().row(),
+            right: area.last().column(),
+        }
+    }
+
+    fn within(self, other: Rect) -> bool {
+        other.top <= self.top
+            && self.bottom <= other.bottom
+            && other.left <= self.left
+            && self.right <= other.right
+    }
+
+    fn meets(self, other: Rect) -> bool {
+        self.top <= other.bottom
+            && other.top <= self.bottom
+            && self.left <= other.right
+            && other.left <= self.right
+    }
+
+    /// This rectangle without the cells of `gone`, when what is left is one rectangle: `gone`
+    /// covers a band at one edge, the whole width (or height) of it. `None` otherwise, when the
+    /// reference keeps its cells.
+    fn without(self, gone: Rect) -> Option<Rect> {
+        let cut = Rect {
+            top: self.top.max(gone.top),
+            left: self.left.max(gone.left),
+            bottom: self.bottom.min(gone.bottom),
+            right: self.right.min(gone.right),
+        };
+        if (cut.left, cut.right) == (self.left, self.right) {
+            if cut.top == self.top && cut.bottom < self.bottom {
+                return Some(Rect {
+                    top: cut.bottom + 1,
+                    ..self
+                });
+            }
+            if cut.bottom == self.bottom && cut.top > self.top {
+                return Some(Rect {
+                    bottom: cut.top - 1,
+                    ..self
+                });
+            }
+        }
+        if (cut.top, cut.bottom) == (self.top, self.bottom) {
+            if cut.left == self.left && cut.right < self.right {
+                return Some(Rect {
+                    left: cut.right + 1,
+                    ..self
+                });
+            }
+            if cut.right == self.right && cut.left > self.left {
+                return Some(Rect {
+                    right: cut.left - 1,
+                    ..self
+                });
+            }
+        }
+        None
+    }
+}
+
+/// The area `area` covers when its top-left cell is moved to `to`; `None` when it would leave
+/// the grid.
+fn target_area(area: GridArea, to: CellKey) -> Option<GridArea> {
+    let last = CellKey::new(
+        to.sheet(),
+        to.row().checked_add(area.row_count() - 1)?,
+        to.column().checked_add(area.column_count() - 1)?,
+    )
+    .ok()?;
+    GridArea::new(to, last).ok()
+}
+
+/// A move of cells, as [`move_site`] applies it to one formula.
+struct Move {
+    source: Rect,
+    source_sheet: SheetId,
+    target: Rect,
+    target_sheet: SheetId,
+    /// `Sheet!` for the source's and the target's sheets, quoted as a qualifier needs.
+    source_qualifier: String,
+    target_qualifier: String,
+    /// The formula is in a moved cell and moves to another sheet with it.
+    moving: bool,
+}
+
+/// What a move (cut and paste, dc-gf0) does to one reference, as Excel 16.0.20430 did it
+/// (2026-10-27, through COM `Range.Cut(Destination)`; calc-host's
+/// tests/fixtures/dc_gf0/cut-excel.json):
+///
+/// - A reference all of whose cells moved follows them: `=A1` becomes `=E5`; on another sheet it
+///   is written with the target sheet's qualifier (`='Target Sheet'!C2`, and `=Other!E1` in a
+///   formula on Other itself), except an unqualified one in a formula that moves with it.
+/// - A reference all of whose cells the paste writes over (and that did not move) is `#REF!`,
+///   with its qualifier (`=Data!#REF!`, `=SUM(Data!#REF!)`).
+/// - A range the paste writes over in part loses the band it writes over when that leaves one
+///   rectangle (`=SUM(Data!E4:E6)` with E5:F7 pasted over is `=SUM(Data!E4:E4)`); otherwise it
+///   keeps its text.
+/// - A move to another sheet also takes the moved cells out of a range that held them in part,
+///   the same way (`=SUM(A1:A5)` after A1:A3 moved away is `=SUM(A4:A5)`, `SUM(Data!A1:C3)` after
+///   A1:B3 is `SUM(Data!C1:C3)`; a band in the middle leaves it as written). A move on one sheet
+///   leaves such a range as written.
+/// - A formula that moves to another sheet keeps reading the cells it read: each unqualified
+///   reference that does not follow the move takes the source sheet's qualifier (`=Data!D1`).
+fn move_site(
+    site: &ReferenceSite,
+    units: &[u16],
+    anchor: FormulaAnchor,
+    mv: &Move,
+) -> Option<String> {
+    let operand = site.binding.as_ref().ok()?;
+    if site.this_row {
+        return None;
+    }
+    let text = String::from_utf16(&units[site.span.start..site.span.end()]).ok()?;
+    let (qualifier, body) = split_qualifier(&text);
+    let ends: Vec<&str> = split_range(body);
+    let qualified = !qualifier.is_empty() || ends.iter().any(|end| !split_end(end).1.is_empty());
+    // A formula moving to another sheet: an unqualified reference that does not follow names
+    // its old sheet.
+    let kept_qualifier = if mv.moving && !qualified {
+        mv.source_qualifier.as_str()
+    } else {
+        qualifier
+    };
+    let unchanged = || {
+        (mv.moving && !qualified).then(|| format!("{}{text}", mv.source_qualifier))
+    };
+    let sheet = match operand.sheet {
+        SheetTarget::Anchor => anchor.sheet(),
+        SheetTarget::Sheet(sheet) => sheet,
+        SheetTarget::Deleted | SheetTarget::Span { .. } => return unchanged(),
+    };
+    let rect = match operand.shape {
+        ReferenceShape::Cell(_) | ReferenceShape::Area { .. } => {
+            Rect::of(operand.instantiate(anchor).ok()?)
+        }
+        ReferenceShape::Deleted | ReferenceShape::Rows { .. } | ReferenceShape::Columns { .. } => {
+            return unchanged();
+        }
+    };
+    let cell = matches!(operand.shape, ReferenceShape::Cell(_));
+    let write = |qualifier: &str, area: Rect, keep_end_qualifiers: bool| -> Option<String> {
+        if cell {
+            let [end] = ends[..] else { return None };
+            let (end_text, _) = split_end(end);
+            return Some(format!(
+                "{qualifier}{}",
+                cell_text(end_text, area.top, area.left)
+            ));
+        }
+        let [first, last] = ends[..] else { return None };
+        let (first_text, first_qualifier) = split_end(first);
+        let (last_text, last_qualifier) = split_end(last);
+        let (first_qualifier, last_qualifier) = if keep_end_qualifiers {
+            (first_qualifier, last_qualifier)
+        } else {
+            ("", "")
+        };
+        Some(format!(
+            "{qualifier}{first_qualifier}{}:{last_qualifier}{}",
+            cell_text(first_text, area.top, area.left),
+            cell_text(last_text, area.bottom, area.right)
+        ))
+    };
+    let cross = mv.source_sheet != mv.target_sheet;
+    if sheet == mv.source_sheet && rect.within(mv.source) {
+        let rows = i64::from(mv.target.top) - i64::from(mv.source.top);
+        let columns = i64::from(mv.target.left) - i64::from(mv.source.left);
+        let shift = |position: u32, by: i64| u32::try_from(i64::from(position) + by).ok();
+        let moved = Rect {
+            top: shift(rect.top, rows)?,
+            left: shift(rect.left, columns)?,
+            bottom: shift(rect.bottom, rows)?,
+            right: shift(rect.right, columns)?,
+        };
+        if !cross {
+            return write(qualifier, moved, true);
+        }
+        // An unqualified reference in a formula that moves with the cells stays unqualified.
+        let to = if mv.moving && !qualified {
+            ""
+        } else {
+            mv.target_qualifier.as_str()
+        };
+        return write(to, moved, false);
+    }
+    if sheet == mv.target_sheet && rect.within(mv.target) {
+        return Some(format!("{kept_qualifier}#REF!"));
+    }
+    let gone = if sheet == mv.target_sheet && rect.meets(mv.target) {
+        Some(mv.target)
+    } else if cross && sheet == mv.source_sheet && rect.meets(mv.source) {
+        Some(mv.source)
+    } else {
+        None
+    };
+    match gone.and_then(|gone| rect.without(gone)) {
+        Some(left) if !cell => write(kept_qualifier, left, true),
+        _ => unchanged(),
     }
 }
 
@@ -1282,6 +1527,8 @@ mod tests {
         let edit = StructuralEdit::MoveCells {
             area,
             to: at(one, 5, 5),
+            source_name: "Sheet1".to_owned(),
+            target_name: "Sheet1".to_owned(),
         };
         let moved = |text: &str, sheet| transform_formula(text, at(sheet, 10, 1), &edit, &catalog);
         assert_eq!(moved("B2*2", one).as_deref(), Some("E5*2"));
@@ -1300,6 +1547,61 @@ mod tests {
         assert_eq!(transform_name("Sheet1!B$2", one, &edit, &catalog), None);
         assert_eq!(edit.cell(at(one, 3, 2)), Some(at(one, 6, 5)));
         assert_eq!(edit.cell(at(one, 1, 1)), Some(at(one, 1, 1)));
+    }
+
+    /// dc-gf0: a move of Sheet1!A1:B3 to Sheet2!C2, the forms Excel 16.0.20430 wrote for the same
+    /// move (calc-host's tests/fixtures/dc_gf0/cut-excel.json, with Data as Sheet1 and Other as
+    /// Sheet2): references to the moved cells follow with Sheet2's qualifier, a formula that moves
+    /// keeps reading its old sheet's cells, a range loses the band that moved away, and a
+    /// reference to the cells written over is `#REF!`.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_move_to_another_sheet_qualifies_and_cuts_as_excel_does() {
+        let (catalog, one, two) = fixture();
+        let at = |sheet, row, column| CellKey::new(sheet, row, column).unwrap();
+        let edit = StructuralEdit::MoveCells {
+            area: GridArea::new(at(one, 1, 1), at(one, 3, 2)).unwrap(),
+            to: at(two, 2, 3),
+            source_name: "Sheet1".to_owned(),
+            target_name: "Sheet2".to_owned(),
+        };
+        let moved = |text: &str, cell: CellKey| transform_formula(text, cell, &edit, &catalog);
+        // Formulas that move with the cells.
+        assert_eq!(moved("A1*10", at(one, 1, 2)).as_deref(), Some("C2*10"));
+        assert_eq!(
+            moved("A1+Sheet2!A1+D1", at(one, 3, 2)).as_deref(),
+            Some("C2+Sheet2!A1+Sheet1!D1")
+        );
+        // Formulas that stay.
+        assert_eq!(moved("B1+1", at(one, 1, 3)).as_deref(), Some("Sheet2!D2+1"));
+        assert_eq!(
+            moved("$A$2*A3", at(one, 3, 3)).as_deref(),
+            Some("Sheet2!$C$3*Sheet2!C4")
+        );
+        assert_eq!(moved("SUM(A1:A5)", at(one, 2, 3)).as_deref(), Some("SUM(A4:A5)"));
+        assert_eq!(moved("SUM(A2:A5)", at(one, 2, 3)).as_deref(), Some("SUM(A4:A5)"));
+        assert_eq!(moved("SUM(A1:B5)", at(one, 2, 3)).as_deref(), Some("SUM(A4:B5)"));
+        assert_eq!(moved("SUM(A1:C2)", at(one, 2, 3)).as_deref(), Some("SUM(C1:C2)"));
+        assert_eq!(moved("SUM(A1:C5)", at(one, 2, 3)), None, "no band of whole rows or columns");
+        assert_eq!(moved("Sheet1!A1", at(two, 1, 2)).as_deref(), Some("Sheet2!C2"));
+        assert_eq!(
+            moved("SUM(Sheet1!A1:C3)", at(two, 1, 2)).as_deref(),
+            Some("SUM(Sheet1!C1:C3)")
+        );
+        // The cells the paste writes over.
+        assert_eq!(moved("C3", at(two, 9, 1)).as_deref(), Some("#REF!"));
+        assert_eq!(moved("Sheet2!C2:D3", at(one, 9, 1)).as_deref(), Some("Sheet2!#REF!"));
+        assert_eq!(moved("SUM(C1:C3)", at(two, 9, 1)).as_deref(), Some("SUM(C1:C1)"));
+        // Names: an absolute one follows or is cut; a mixed one stays.
+        assert_eq!(
+            transform_name("Sheet1!$A$1:$A$3", one, &edit, &catalog).as_deref(),
+            Some("Sheet2!$C$2:$C$4")
+        );
+        assert_eq!(
+            transform_name("Sheet1!$A$1:$A$5", one, &edit, &catalog).as_deref(),
+            Some("Sheet1!$A$4:$A$5")
+        );
+        assert_eq!(transform_name("Sheet1!$A1", one, &edit, &catalog), None);
     }
 
 }
