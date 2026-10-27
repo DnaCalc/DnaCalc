@@ -24,8 +24,15 @@ use crate::syntax::{TokenKind, lex_chars};
 /// references depend on it.
 pub fn template_key(text: &str, anchor: FormulaAnchor) -> Option<String> {
     let chars: Vec<char> = text.chars().collect();
-    let tokens = lex_chars(&chars);
-    let mut key = String::with_capacity(text.len() + 16);
+    template_key_of_chars(&chars, anchor)
+}
+
+/// [`template_key`] of a formula's text already decoded into characters (dc-dxm: the engine
+/// decodes a stored formula's UTF-16 text into characters once, for its template and, when the
+/// template is new, its compilation).
+pub fn template_key_of_chars(chars: &[char], anchor: FormulaAnchor) -> Option<String> {
+    let tokens = lex_chars(chars);
+    let mut key = String::with_capacity(chars.len() + 16);
     let mut word = String::new();
     let significant = |index: usize, step: isize| -> Option<TokenKind> {
         let mut at = index as isize + step;
