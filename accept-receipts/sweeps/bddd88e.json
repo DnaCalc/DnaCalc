@@ -1,0 +1,809 @@
+{
+  "format": "dnacalc-sweep/1",
+  "bead": "dc-71y",
+  "commit": "bddd88e538043ac7a75bed4d206ef9ec5dd02fd6",
+  "what": "V3, the milestone sweep: every workspace package's tests at one master commit on Windows, Linux (the WSL clone) and wasm (headless Chrome and Firefox), with the corpus comparison and both apps' browser smoke suites at the same commit (the corpus and smoke sections extend dnacalc-sweep/1 as first written for dc-ns0)",
+  "status_rule": "per package, as `cargo xtask check` prints it: passed when cargo exited 0 and the harnesses ran at least one test with none failing; zero_tests when they ran none (never counted as passed); failed otherwise. The wasm statuses are those of `cargo xtask ci wasm` (its status_rule is in target/ci/wasm/executed-targets.json). The corpus headline is pass = matched Excel and fail = mismatched + refused + failed or missing over all formula cells (owner ruling 2026-10-23).",
+  "platforms": {
+    "windows": {
+      "command": "cargo xtask check --wasm",
+      "os": "Windows 11 Pro 10.0.26200",
+      "rustc_host": "x86_64-pc-windows-msvc",
+      "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+      "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+      "toolchain_pin": {
+        "channel": "1.94.1",
+        "file": "rust-toolchain.toml",
+        "rustc_matches": true
+      },
+      "git": {
+        "branch": "master",
+        "dirty": false,
+        "dirty_entries": 0,
+        "dirty_paths": [],
+        "head": "bddd88e538043ac7a75bed4d206ef9ec5dd02fd6"
+      },
+      "build": "passed",
+      "result_line": "passed: 5 architecture checks, build and 13 packages, and wasm in Chrome and Firefox",
+      "packages": [
+        {
+          "package": "calc-value",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 2
+        },
+        {
+          "package": "calc-func",
+          "status": "passed",
+          "passed": 530,
+          "failed": 0,
+          "ignored": 4,
+          "harnesses": 10
+        },
+        {
+          "package": "calc-verdict",
+          "status": "passed",
+          "passed": 50,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "calc-fml",
+          "status": "passed",
+          "passed": 111,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "calc-doc-model",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 2
+        },
+        {
+          "package": "calc-doc",
+          "status": "passed",
+          "passed": 42,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 7
+        },
+        {
+          "package": "calc-engine",
+          "status": "passed",
+          "passed": 29,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "calc-host",
+          "status": "passed",
+          "passed": 44,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 6
+        },
+        {
+          "package": "dna-onecalc",
+          "status": "passed",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 4
+        },
+        {
+          "package": "dna-calc",
+          "status": "passed",
+          "passed": 74,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 4
+        },
+        {
+          "package": "calc-platform-desktop",
+          "status": "passed",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 2
+        },
+        {
+          "package": "calc-oracle-excel",
+          "status": "passed",
+          "passed": 59,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "xtask",
+          "status": "passed",
+          "passed": 105,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 1
+        }
+      ],
+      "test_totals": {
+        "passed": 1084,
+        "failed": 0,
+        "ignored": 4
+      },
+      "package_counts": {
+        "passed": 13,
+        "zero_tests": 0,
+        "failed": 0
+      }
+    },
+    "linux": {
+      "command": "cargo xtask check",
+      "runner": "~/linux-receipt.sh dc-71y \"cargo xtask check\" with DNACALC_PULL_FROM=/mnt/c/Work/DnaCalc/DnaCalc-cfml (the WSL clone ~/DnaCalc pulled master from the lane clone, fast-forward adf6780..bddd88e, status clean)",
+      "os": "Ubuntu 22.04.1 LTS on WSL2, Linux 6.18.54.1-microsoft-standard-WSL2 x86_64",
+      "rustc_host": "x86_64-unknown-linux-gnu",
+      "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)",
+      "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+      "cargo_source": "crates.io replaced by the vendored copy ~/cargo-vendor (WSL has no network); every one of the 194 registry packages in Cargo.lock was present there, so no re-vendoring",
+      "head": "bddd88e538043ac7a75bed4d206ef9ec5dd02fd6",
+      "started": "2026-10-27T12:43:15+02:00",
+      "finished": "2026-10-27T12:52:57+02:00",
+      "build": "passed",
+      "result_line": "passed: 5 architecture checks, build and 13 packages",
+      "packages": [
+        {
+          "package": "calc-value",
+          "status": "passed",
+          "passed": 18,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 2
+        },
+        {
+          "package": "calc-func",
+          "status": "passed",
+          "passed": 525,
+          "failed": 0,
+          "ignored": 4,
+          "harnesses": 10
+        },
+        {
+          "package": "calc-verdict",
+          "status": "passed",
+          "passed": 50,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "calc-fml",
+          "status": "passed",
+          "passed": 111,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "calc-doc-model",
+          "status": "passed",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 2
+        },
+        {
+          "package": "calc-doc",
+          "status": "passed",
+          "passed": 42,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 7
+        },
+        {
+          "package": "calc-engine",
+          "status": "passed",
+          "passed": 29,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "calc-host",
+          "status": "passed",
+          "passed": 44,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 6
+        },
+        {
+          "package": "dna-onecalc",
+          "status": "passed",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 4
+        },
+        {
+          "package": "dna-calc",
+          "status": "passed",
+          "passed": 74,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 4
+        },
+        {
+          "package": "calc-platform-desktop",
+          "status": "passed",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 2
+        },
+        {
+          "package": "calc-oracle-excel",
+          "status": "passed",
+          "passed": 27,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 3
+        },
+        {
+          "package": "xtask",
+          "status": "passed",
+          "passed": 105,
+          "failed": 0,
+          "ignored": 0,
+          "harnesses": 1
+        }
+      ],
+      "test_totals": {
+        "passed": 1047,
+        "failed": 0,
+        "ignored": 4
+      },
+      "package_counts": {
+        "passed": 13,
+        "zero_tests": 0,
+        "failed": 0
+      }
+    },
+    "wasm": {
+      "command": "cargo xtask ci wasm (run by cargo xtask check --wasm on Windows)",
+      "triple": "wasm32-unknown-unknown",
+      "started_utc": "2026-10-27T10:49:16Z",
+      "duration_s": 887.849,
+      "result": "passed",
+      "problems": [],
+      "browsers": {
+        "chrome": {
+          "driver": "ChromeDriver 155.0.8059.39 (3ff7ac5a9224be9156d7f8703a06e22890aafd34-refs/branch-heads/8059@{#935})",
+          "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36"
+        },
+        "firefox": {
+          "driver": "geckodriver 0.37.0 (253b85235865 2026-06-02 09:23 +0000)",
+          "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0"
+        }
+      },
+      "wasm_bindgen_test_runner": "wasm-bindgen-test-runner 0.2.117",
+      "fixtures": [
+        {
+          "fixture": "route-probe",
+          "browser": "chromium",
+          "executed_in": "Chrome",
+          "outcome": "passed",
+          "passed": 1,
+          "failed": 0
+        },
+        {
+          "fixture": "route-probe",
+          "browser": "firefox",
+          "executed_in": "Firefox",
+          "outcome": "passed",
+          "passed": 1,
+          "failed": 0
+        }
+      ],
+      "not_on_wasm": "the native-only packages calc-platform-desktop, calc-oracle-excel and xtask; doc tests; each package's acceptance target",
+      "packages": [
+        {
+          "package": "calc-value",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 18,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 18,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          }
+        },
+        {
+          "package": "calc-func",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 488,
+            "failed": 0,
+            "ignored": 2,
+            "browser_started": true
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 488,
+            "failed": 0,
+            "ignored": 2,
+            "browser_started": true
+          }
+        },
+        {
+          "package": "calc-verdict",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 46,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 46,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          }
+        },
+        {
+          "package": "calc-fml",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 62,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 62,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          }
+        },
+        {
+          "package": "calc-doc-model",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 5,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 5,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          }
+        },
+        {
+          "package": "calc-doc",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 29,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 29,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          }
+        },
+        {
+          "package": "calc-engine",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 4,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true
+          }
+        },
+        {
+          "package": "calc-host",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 35,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true,
+            "runner_reported_no_tests_for": [
+              "threads"
+            ]
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 35,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true,
+            "runner_reported_no_tests_for": [
+              "threads"
+            ]
+          }
+        },
+        {
+          "package": "dna-onecalc",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 14,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true,
+            "runner_reported_no_tests_for": [
+              "dna-onecalc-web"
+            ]
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 14,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true,
+            "runner_reported_no_tests_for": [
+              "dna-onecalc-web"
+            ]
+          }
+        },
+        {
+          "package": "dna-calc",
+          "status": "passed",
+          "chromium": {
+            "status": "passed",
+            "passed": 71,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true,
+            "runner_reported_no_tests_for": [
+              "dna-calc-web"
+            ]
+          },
+          "firefox": {
+            "status": "passed",
+            "passed": 71,
+            "failed": 0,
+            "ignored": 0,
+            "browser_started": true,
+            "runner_reported_no_tests_for": [
+              "dna-calc-web"
+            ]
+          }
+        }
+      ],
+      "test_totals": {
+        "chromium": {
+          "passed": 772,
+          "failed": 0,
+          "ignored": 2
+        },
+        "firefox": {
+          "passed": 772,
+          "failed": 0,
+          "ignored": 2
+        }
+      },
+      "package_counts": {
+        "passed": 10,
+        "zero_tests": 0,
+        "failed": 0
+      }
+    }
+  },
+  "architecture": {
+    "command": "cargo xtask check (the five checks it runs first, at the same commit on Windows and on Linux)",
+    "result": "5/5 passed on both",
+    "checks": {
+      "dependencies": "ok: 7 layering rules and the portable/native-only rule over normal and build dependencies with all features, on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown",
+      "os-imports": "ok: 302 non-test source files of 10 portable packages against 4 denied std modules, 1 ABIs, 1 attributes and the include macros, plus 0 build-script files for the include macros; 12 OS-binding crates as direct dependencies on x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu and wasm32-unknown-unknown and in the wasm32-unknown-unknown closure",
+      "wasm-refusal": "ok: 3 native-only packages (calc-platform-desktop, calc-oracle-excel, xtask) compiled afresh for wasm32-unknown-unknown; each must fail through its own compile_error!",
+      "tree-reference-tokens": "ok: 302 non-test source files and 0 build-script files of 10 portable packages against 6 denied phrases and the include macros",
+      "word-scan": "ok: 68 occurrences in 10 of 21 files, 3 in 1 of 90 tracker records, 1 in 1 of 563 commit messages; baseline 68 / 14 / 1 owned by dc-0nvp (recorded 2026-10-14); 25 occurrences masked by 4 excluded identifiers"
+    }
+  },
+  "corpus": {
+    "command": "cargo xtask corpus C:/Work/DnaCalc/corpus/ofgem-price-cap-2026q4 --oracle --out C:/Work/DnaCalc/corpus/v3-bddd88e",
+    "summary": "C:/Work/DnaCalc/corpus/v3-bddd88e/summary.md and summary.json, outside the repository (they name the Ofgem workbooks)",
+    "repository": "bddd88e538043ac7a75bed4d206ef9ec5dd02fd6",
+    "excel_build": "16.0.20430.20182",
+    "finished_utc": "2026-10-27T11:07:19Z",
+    "totals": {
+      "workbooks": 21,
+      "compared": 19,
+      "not_compared": 2,
+      "formula_cells": 224156,
+      "pass": 223590,
+      "fail": 566,
+      "mismatched": 539,
+      "refused": 26,
+      "failed_or_missing": 1,
+      "pass_rate": 0.997475
+    },
+    "workbooks": [
+      {
+        "workbook": "Annex-4-policy-cost-allowance-methodology-v1.25.xlsx",
+        "formula_cells": 10582,
+        "pass": 10582,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "Annex-9-Levelisation-allowance-methodology-and-levelised-cap-levels-v1.11.xlsx",
+        "formula_cells": 32880,
+        "pass": 32880,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "Default-tariff-cap-level-v1.31.xlsx",
+        "formula_cells": 165810,
+        "pass": 165810,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-engine/dc_10y/oracle.xlsx",
+        "formula_cells": 1436,
+        "pass": 1431,
+        "fail": 5,
+        "mismatched": 5,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-engine/dc_10y_iteration/oracle.xlsx",
+        "formula_cells": 17,
+        "pass": 17,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-engine/l3/oracle.xlsx",
+        "formula_cells": 112,
+        "pass": 112,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-fml/dc_51ka/oracle.xlsx",
+        "formula_cells": 183,
+        "pass": 183,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-fml/dc_ibp2/oracle.xlsx",
+        "formula_cells": 83,
+        "pass": 83,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-fml/dc_l10u/oracle.xlsx",
+        "formula_cells": 57,
+        "pass": 57,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/catalogue/oracle.xlsx",
+        "formula_cells": 8806,
+        "pass": 8267,
+        "fail": 539,
+        "mismatched": 534,
+        "refused": 5,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/cdoc_jpha/oracle.xlsx",
+        "formula_cells": 1526,
+        "pass": 1519,
+        "fail": 7,
+        "mismatched": 0,
+        "refused": 7,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/cfunc_m1_2/oracle.xlsx",
+        "formula_cells": 234,
+        "pass": 234,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/cfunc_m3_2/oracle.xlsx",
+        "not_compared": {
+          "stage": "capture",
+          "reason": "capture worker failed: the worker (PID 39124) exited with Some(1): Exception calling \"InvokeMember\" with \"5\" argument(s): \"Open method of Workbooks class failed\" (capture-worker.ps1 line 681)"
+        }
+      },
+      {
+        "workbook": "calc-func/cfunc_m3_4/oracle.xlsx",
+        "not_compared": {
+          "stage": "capture",
+          "reason": "capture worker failed: the worker (PID 51356) exited with Some(1): Exception calling \"InvokeMember\" with \"5\" argument(s): \"Open method of Workbooks class failed\" (capture-worker.ps1 line 681)"
+        }
+      },
+      {
+        "workbook": "calc-func/cfunc_m3_5/oracle.xlsx",
+        "formula_cells": 136,
+        "pass": 136,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/cfunc_m3_6/oracle.xlsx",
+        "formula_cells": 596,
+        "pass": 596,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/dc_e00t/oracle.xlsx",
+        "formula_cells": 1144,
+        "pass": 1144,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/dc_fwpz/oracle.xlsx",
+        "formula_cells": 115,
+        "pass": 115,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/dc_nzpw/oracle.xlsx",
+        "formula_cells": 186,
+        "pass": 184,
+        "fail": 2,
+        "mismatched": 0,
+        "refused": 1,
+        "failed_or_missing": 1
+      },
+      {
+        "workbook": "calc-func/dc_q9rb/oracle.xlsx",
+        "formula_cells": 86,
+        "pass": 73,
+        "fail": 13,
+        "mismatched": 0,
+        "refused": 13,
+        "failed_or_missing": 0
+      },
+      {
+        "workbook": "calc-func/dc_xrxb/oracle.xlsx",
+        "formula_cells": 167,
+        "pass": 167,
+        "fail": 0,
+        "mismatched": 0,
+        "refused": 0,
+        "failed_or_missing": 0
+      }
+    ],
+    "ofgem": "the three Ofgem workbooks: 209,272 formula cells, 209,272 pass (100.00%)"
+  },
+  "smoke": {
+    "command": "cargo xtask app smoke calc; cargo xtask app smoke onecalc (headless Chrome and Firefox through chromedriver and geckodriver)",
+    "tree": "the working tree at bddd88e (the clone had pulled five later commits, up to 92f9ed0; its tracked files were set to bddd88e's for the run (git diff bddd88e empty) and back after)",
+    "dna_calc": {
+      "result_line": "passed: 56 cases per browser; chromium: 56 passed, 0 failed; firefox: 56 passed, 0 failed",
+      "cases_per_browser": 56,
+      "chromium": {
+        "passed": 56,
+        "failed": 0
+      },
+      "firefox": {
+        "passed": 56,
+        "failed": 0
+      }
+    },
+    "dna_onecalc": {
+      "result_line": "passed: 23 cases per browser; chromium: 23 passed, 0 failed; firefox: 23 passed, 0 failed",
+      "cases_per_browser": 23,
+      "chromium": {
+        "passed": 23,
+        "failed": 0
+      },
+      "firefox": {
+        "passed": 23,
+        "failed": 0
+      }
+    }
+  },
+  "failure_causes": [
+    {
+      "cause": "cfunc_m3_2 and cfunc_m3_4 oracle workbooks are not compared: Excel does not open them (capture worker: \"Open method of Workbooks class failed\"), and they have no committed capture; their formula cells are in no corpus summary since V1",
+      "where": "corpus",
+      "bead": "dc-14j",
+      "filed": "filed by this sweep"
+    },
+    {
+      "cause": "539 mismatches, all in the catalogue oracle but 5 in dc_10y (Z.TEST, ZTEST, NORM.S.DIST 2 ulp): kernels short of Excel's exact bits (CUMPRINC, PPMT, IPMT, CUMIPMT, GEOMEAN, INDEX over them, distributions and others, 1 ulp to within 15 significant digits; one IMSEC text)",
+      "where": "corpus",
+      "bead": "dc-j9k",
+      "filed": "open before this sweep"
+    },
+    {
+      "cause": "26 refusals: & at a 16th-digit tie (13); the comparison operators <, = and > (5) and MATCH and XMATCH (1 each), which dc-b1l's note counts as text comparison beyond ASCII (7); GETPIVOTDATA (2), INFO (2), FILTERXML (1), TYPE of a range in a legacy formula (1)",
+      "where": "corpus",
+      "bead": "dc-b1l (DnaCalc-ceng, in progress) and dc-uar",
+      "filed": "open before this sweep; its 2026-10-27 note lists the same 59-to-26 remainder"
+    },
+    {
+      "cause": "1 failed or missing: dc_nzpw information_functions!D157 =N(B9) over a #BUSY! literal cell, which the committed capture holds no Excel value for",
+      "where": "corpus",
+      "bead": "dc-b1l (its table row: N(B9) of a #BUSY! literal cell)",
+      "filed": "open before this sweep"
+    }
+  ],
+  "platform_differences": [
+    "calc-func: 530 tests on Windows, 525 on Linux: the tests that compare with the MSVC runtime run under cfg(target_env = \"msvc\") only",
+    "calc-oracle-excel: 59 tests on Windows, 27 on Linux: the rest are Windows-only (Excel and COM)",
+    "wasm runs only the tests marked for the browsers: 772 per browser against 1,084 native tests on Windows; native-only tests are listed per package by cargo xtask check --wasm (16 in calc-func, 1 in calc-doc, 3 in calc-host, 3 in dna-calc)"
+  ],
+  "tests_failed_anywhere": 0
+}
