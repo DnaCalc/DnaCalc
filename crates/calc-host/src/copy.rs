@@ -326,15 +326,61 @@ pub(crate) fn copy_edits(
         // Each defined name whose reference follows the moved cells, and the formulas that use
         // it, set again so they are bound to its new formula.
         let mut renamed: Vec<String> = Vec::new();
+        let mut moved_names: Vec<(String, calc_doc_model::NameScope, String)> = Vec::new();
         for name in definitions.names() {
             if let Some(formula) =
                 calc_engine::move_name(model, &name.formula, name.scope, from, to.first())
             {
                 renamed.push(name.name.to_ascii_lowercase());
+                moved_names.push((name.name.clone(), name.scope, formula.clone()));
                 edits.push(CellEdit::SetName {
                     name: name.name.clone(),
                     scope: name.scope,
-                    formula,
+                    formula: Some(formula),
+                });
+            }
+        }
+        // A formula moved to another sheet that uses a name scoped to its old sheet, without the
+        // sheet, takes the name with it: the target sheet is given a name of that scope with the
+        // same formula, unless it holds one already, as Excel does (Excel 16.0.20430, 2026-10-27:
+        // =LocalIn*2 moved from Data to Other kept its text and Other gained LocalIn =
+        // Data!$A$2; tests/fixtures/dc_gf0/cut-excel.json, local-name-to-other).
+        if from.sheet() != to.sheet() {
+            let source = calc_doc_model::NameScope::Sheet(from.sheet());
+            let target = calc_doc_model::NameScope::Sheet(to.sheet());
+            let moving: Vec<String> = model
+                .cells(from)
+                .into_iter()
+                .flatten()
+                .filter_map(|(_, input)| match input {
+                    CellInput::Formula(formula) => {
+                        Some(formula.text().to_string_lossy().to_ascii_lowercase())
+                    }
+                    _ => None,
+                })
+                .collect();
+            for name in definitions
+                .names()
+                .iter()
+                .filter(|name| name.scope == source)
+            {
+                let lower = name.name.to_ascii_lowercase();
+                let taken = definitions
+                    .names()
+                    .iter()
+                    .any(|held| held.scope == target && held.name.eq_ignore_ascii_case(&name.name));
+                if taken || !moving.iter().any(|text| uses_name(text, &lower)) {
+                    continue;
+                }
+                let formula = moved_names
+                    .iter()
+                    .find(|(moved, scope, _)| *scope == source && moved == &name.name)
+                    .map_or_else(|| name.formula.clone(), |(_, _, formula)| formula.clone());
+                renamed.push(lower);
+                edits.push(CellEdit::SetName {
+                    name: name.name.clone(),
+                    scope: target,
+                    formula: Some(formula),
                 });
             }
         }

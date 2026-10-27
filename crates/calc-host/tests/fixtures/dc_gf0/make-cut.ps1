@@ -5,10 +5,11 @@
 # formula (RefersTo), as Excel holds them after the move. The calc-host case
 # (tests/round_trip.rs, dc_gf0__) makes the same moves and compares.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File make-cut.ps1 -Dir <fixtures/dc_gf0>
+#   powershell -NoProfile -ExecutionPolicy Bypass -File make-cut.ps1 -Dir <fixtures/dc_gf0> [-Only <case>,...]
 #
-# It stops only the Excel instance it started.
-param([Parameter(Mandatory = $true)][string]$Dir)
+# With -Only, the cut-base.xlsx already there is kept and only the cases named are made again,
+# their records replacing those in cut-excel.json. It stops only the Excel instance it started.
+param([Parameter(Mandatory = $true)][string]$Dir, [string[]]$Only)
 $ErrorActionPreference = 'Stop'
 Add-Type -Namespace GF0 -Name Win -MemberDefinition '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr hWnd, out uint pid);'
 $Dir = (Resolve-Path $Dir).Path
@@ -20,7 +21,9 @@ $cases = @(
   @('same-sheet', 'Data', 'A1:B3', 'Data', 'E5'),
   @('to-target-sheet', 'Data', 'A1:B3', 'Target Sheet', 'C2'),
   @('to-other', 'Data', 'A1:A3', 'Other', 'E1'),
-  @('middle-to-target', 'Data', 'A2:A3', 'Target Sheet', 'F1')
+  @('middle-to-target', 'Data', 'A2:A3', 'Target Sheet', 'F1'),
+  # A formula using LocalIn, a name scoped to Data, without its sheet, moved to Other.
+  @('local-name-to-other', 'Data', 'D2', 'Other', 'G1')
 )
 
 function Read-Book($wb) {
@@ -43,6 +46,23 @@ $excel = New-Object -ComObject Excel.Application
 [void][GF0.Win]::GetWindowThreadProcessId([System.IntPtr]$excel.Hwnd, [ref]$xpid)
 try {
   $excel.Visible = $false; $excel.DisplayAlerts = $false
+  if ($Only) {
+    $out = Get-Content -Raw -Encoding UTF8 $json | ConvertFrom-Json
+    foreach ($case in $cases) {
+      if ($Only -notcontains $case[0]) { continue }
+      $book = $excel.Workbooks.Open($base)
+      [void]$book.Worksheets.Item($case[1]).Range($case[2]).Cut($book.Worksheets.Item($case[3]).Range($case[4]))
+      $excel.Calculate()
+      $record = [ordered]@{
+        from = "$($case[1])!$($case[2])"; to = "$($case[3])!$($case[4])"; book = (Read-Book $book)
+      }
+      $out.cases | Add-Member -NotePropertyName $case[0] -NotePropertyValue $record -Force
+      $book.SaveAs((Join-Path $Dir "cut-$($case[0]).xlsx"), 51)
+      $book.Close($false)
+    }
+    $out | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $json
+    return
+  }
   $wb = $excel.Workbooks.Add()
   while ($wb.Worksheets.Count -lt 3) { [void]$wb.Worksheets.Add([Type]::Missing, $wb.Worksheets.Item($wb.Worksheets.Count)) }
   $data = $wb.Worksheets.Item(1); $data.Name = 'Data'

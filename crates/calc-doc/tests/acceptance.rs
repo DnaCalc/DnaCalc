@@ -500,7 +500,7 @@ fn describe(op: &WorkbookOp) -> String {
             name,
             scope,
             formula,
-        } => format!("name {name} {scope:?} {formula}"),
+        } => format!("name {name} {scope:?} {formula:?}"),
         WorkbookOp::EditAxis(edit) => format!(
             "axis {:?} {:?} {:?} first {} count {} last {}",
             edit.sheet(),
