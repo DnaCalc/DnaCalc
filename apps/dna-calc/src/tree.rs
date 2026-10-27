@@ -1,14 +1,21 @@
 //! The tree skin: the workbook as a foldable outline. The workbook holds its defined names and its
 //! sheets; a sheet holds its rows that hold cells; a row holds its cells, each shown with what was
-//! entered, its value with its provenance, and how many formulas read it. A branch folds and
+//! entered and its value with its provenance, and the focused cell with how many formulas read it
+//! (asked of the engine's graph for that cell only: asked for every cell shown, it cost tens of
+//! seconds on the default tariff cap workbook, dc-gf0). A branch folds and
 //! unfolds (a click on its toggle, or Left and Right); Up and Down move through the outline; a
 //! click on a cell, or Enter on it, makes it the workbook's active cell (calc-host's selection,
 //! the grid's and the formula bar's), and the outline follows the active cell when another skin
 //! or the formula bar moves it.
 //!
-//! The skin keeps every sheet's cells through one calc-host subscription per sheet
-//! ([`crate::watch`]) and changes nothing but the selection. A sheet shows [`ROW_PAGE`] rows at
-//! first and more on request; a row shows at most [`ROW_CELLS`] cells.
+//! The outline is read from calc-host after each change: which cells of each sheet hold an input
+//! ([`calc_host::HostState::input_cells`], from the document, without projecting them), and the
+//! projections of the cells the outline shows only. A sheet shows [`ROW_PAGE`] rows at first and
+//! more on request; a row shows at most [`ROW_CELLS`] cells; every sheet but the active one starts
+//! folded. So a change costs a walk over the workbook's cell keys and the shown cells' values,
+//! not a projection of every cell (measured on the 165,810-formula default tariff cap workbook,
+//! dc-gf0). A dynamic array's spilled cells hold no input and are not listed. The skin changes
+//! nothing but the selection.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnatreecalc-skins/src/tree.rs`: the
 //! depth-first `visible_rows` over the fold set (`fold`, `unfold`, `toggle_fold`), the dependents
@@ -21,16 +28,14 @@
 use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
-use crate::watch::{self, SheetMirror};
-use calc_host::ProjectedCell;
 use calc_host::value::{CellKey, SheetId};
 use leptos::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The rows a sheet shows at first, and how many more each request shows.
-pub const ROW_PAGE: usize = 100;
+pub const ROW_PAGE: usize = 50;
 /// The most cells one row of the outline lists.
-pub const ROW_CELLS: usize = 50;
+pub const ROW_CELLS: usize = 30;
 
 pub const TREE_CSS: &str = r#"
 .dc-tree{overflow:auto;flex:1 1 auto;padding:8px 12px;font:13px system-ui,"Segoe UI",sans-serif;outline:none}
@@ -290,8 +295,26 @@ pub fn outline_sheet(
 }
 
 fn tree_view(controller: Controller) -> impl IntoView {
-    let sheets = watch::watch_sheets(controller);
-    let folded: RwSignal<BTreeSet<Branch>> = RwSignal::new(BTreeSet::new());
+    // Every sheet but the active one starts folded: set before the first render (an effect runs
+    // after it, which first drew every sheet unfolded), and again for each workbook opened.
+    let initially_folded = move || -> BTreeSet<Branch> {
+        let active = controller.sheet.get_untracked();
+        controller.with_untracked(|book| {
+            book.sheets()
+                .into_iter()
+                .filter(|tab| Some(tab.id) != active)
+                .map(|tab| Branch::Sheet(tab.id))
+                .collect()
+        })
+    };
+    let folded: RwSignal<BTreeSet<Branch>> = RwSignal::new(initially_folded());
+    Effect::new(move |opened: Option<u64>| {
+        let generation = controller.generation.get();
+        if opened.is_some_and(|opened| opened != generation) {
+            folded.set(initially_folded());
+        }
+        generation
+    });
     let shown_rows: RwSignal<BTreeMap<SheetId, usize>> = RwSignal::new(BTreeMap::new());
     let focus: RwSignal<Option<Focus>> = RwSignal::new(None);
 
@@ -310,19 +333,13 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 .collect();
             (book.name().to_owned(), names)
         });
-        let sheets = sheets.with(|sheets| {
-            sheets
-                .iter()
-                .map(|sheet| {
-                    let limit = shown.get(&sheet.id).copied().unwrap_or(ROW_PAGE);
-                    sheet.mirror.with(|mirror| {
-                        outline_sheet(
-                            sheet.id,
-                            sheet.name.get_value(),
-                            mirror.cells().map(ProjectedCell::at),
-                            limit,
-                        )
-                    })
+        let sheets = controller.with_untracked(|book| {
+            book.sheets()
+                .into_iter()
+                .map(|tab| {
+                    let limit = shown.get(&tab.id).copied().unwrap_or(ROW_PAGE);
+                    let cells = book.host().input_cells(tab.id);
+                    outline_sheet(tab.id, tab.name, cells.into_iter(), limit)
                 })
                 .collect()
         });
@@ -335,15 +352,26 @@ fn tree_view(controller: Controller) -> impl IntoView {
     let rows =
         Memo::new(move |_| outline.with(|outline| folded.with(|f| visible_rows(outline, f))));
 
-    // The outline follows the active cell (the grid's, the formula bar's, an undo's).
+    // The outline follows the active cell (the grid's, the formula bar's, an undo's), unfolding
+    // its sheet.
     Effect::new(move |_| {
         if let Some(at) = controller.active_key() {
             focus.set(Some(Focus::Cell(at)));
+            if folded.with_untracked(|f| f.contains(&Branch::Sheet(at.sheet()))) {
+                folded.update(|f| apply_fold(f, Branch::Sheet(at.sheet()), false));
+            }
         }
     });
 
-    let mirror_of = move |sheet: SheetId| -> Option<SheetMirror> {
-        sheets.with_untracked(|sheets| sheets.iter().find(|s| s.id == sheet).copied())
+    let sheet_name = move |sheet: SheetId| -> String {
+        outline.with_untracked(|outline| {
+            outline
+                .sheets
+                .iter()
+                .find(|s| s.id == sheet)
+                .map(|s| s.name.clone())
+                .unwrap_or_default()
+        })
     };
     let activate = move |row: &TreeRow| match row {
         TreeRow::Cell { at } => controller.go_to(*at),
@@ -443,7 +471,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                     Branch::Names => ("names", "names".to_owned(), format!("{count}")),
                     Branch::Sheet(_) => ("sheet", format!("sheet:{label}"), format!("{count} cells")),
                     Branch::Row(sheet, row) => {
-                        let name = mirror_of(sheet).map(|s| s.name.get_value()).unwrap_or_default();
+                        let name = sheet_name(sheet);
                         ("row", format!("row:{name}!{row}"), format!("{count} cells"))
                     }
                 };
@@ -472,12 +500,10 @@ fn tree_view(controller: Controller) -> impl IntoView {
             }
             .into_any(),
             TreeRow::Cell { at } => {
-                let cell = mirror_of(at.sheet())
-                    .and_then(|sheet| sheet.mirror.with_untracked(|m| m.cell(at).cloned()));
-                let (input, value, provenance, dependents, sheet_name) = controller.with_untracked(|book| {
+                let (input, value, provenance, sheet_name) = controller.with_untracked(|book| {
                     let profile = book.profile().cloned();
-                    let sheet_name = mirror_of(at.sheet()).map(|s| s.name.get_value()).unwrap_or_default();
-                    match &cell {
+                    let sheet_name = sheet_name(at.sheet());
+                    match &book.cell(at) {
                         Some(cell) => {
                             let shown = cells::shown(cell, profile.as_ref(), book.cell_format(at));
                             let value = if shown.provenance == Provenance::Refused {
@@ -489,19 +515,25 @@ fn tree_view(controller: Controller) -> impl IntoView {
                                 cells::input_text(cell.input()),
                                 value,
                                 shown.provenance,
-                                book.host().dependents(at).len(),
                                 sheet_name,
                             )
                         }
-                        None => (String::new(), String::new(), Provenance::Empty, 0, sheet_name),
+                        None => (String::new(), String::new(), Provenance::Empty, sheet_name),
                     }
                 });
                 let address = cells::address(at.row(), at.column());
                 let data_cell = address.clone();
-                let read_by = match dependents {
-                    0 => String::new(),
-                    1 => "read by 1 formula".to_owned(),
-                    n => format!("read by {n} formulas"),
+                // The dependents of the focused cell only, read again after each change.
+                let read_by = move || {
+                    if !focused() {
+                        return String::new();
+                    }
+                    controller.revision.track();
+                    match controller.with_untracked(|book| book.host().dependents(at).len()) {
+                        0 => "read by no formula".to_owned(),
+                        1 => "read by 1 formula".to_owned(),
+                        n => format!("read by {n} formulas"),
+                    }
                 };
                 view! {
                     <li data-dnacalc="tree-row" data-kind="cell" data-sheet=sheet_name data-cell=data_cell

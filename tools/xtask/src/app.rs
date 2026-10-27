@@ -28,7 +28,12 @@
 //! prints only what the page reports about it: the open and edit timings and the formula counts by
 //! provenance. The workbook's content is not printed. With `--profile <file>`, Chrome's CPU profile
 //! of the open (the DevTools protocol's Profiler, sampled every 200 microseconds, through
-//! chromedriver's `goog/cdp/execute`) is written to the file, for dc-26q.
+//! chromedriver's `goog/cdp/execute`) is written to the file, for dc-26q. With `--skins` (and
+//! `--edit`), each of the grid, tree, canvas and ledger skins is shown in turn and the time it
+//! takes to show is printed, then the edit is entered through the formula bar with that skin
+//! shown (a number, one more for each skin, so each edit changes the cell) and the time until the
+//! page's work for it is done is printed (dc-gf0): both measured in the page, from just before
+//! the click or the Enter key to the first timer task that finds the skin's mark there.
 //!
 //! Exit code: 0 when every case passed in every browser run, 1 otherwise, 2 for a usage error.
 
@@ -43,7 +48,7 @@ use std::process::{Child, Command, ExitCode, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// One browser application: its package, its entry, its page, and how its page reports itself.
 pub struct App {
@@ -131,6 +136,8 @@ struct WorkbookRun {
     /// Where to write Chrome's CPU profile of the open (`--profile`), through the DevTools
     /// protocol chromedriver relays; Firefox's run takes none.
     profile: Option<PathBuf>,
+    /// Time each skin's showing and the edit with it shown (`--skins`).
+    skins: bool,
 }
 
 pub fn run(raw: &[String]) -> ExitCode {
@@ -172,8 +179,13 @@ pub fn run(raw: &[String]) -> ExitCode {
             let mut workbook: Option<PathBuf> = None;
             let mut edit = None;
             let mut profile = None;
+            let mut skins = false;
             let mut args = rest.iter();
             while let Some(arg) = args.next() {
+                if arg == "--skins" && app.key == "calc" {
+                    skins = true;
+                    continue;
+                }
                 match (arg.as_str(), args.next()) {
                     ("--bundle", Some(dir)) => bundle_dir = Some(PathBuf::from(dir)),
                     ("--browser", Some(name)) => only = Some(name.clone()),
@@ -190,13 +202,14 @@ pub fn run(raw: &[String]) -> ExitCode {
                     _ => return usage(raw),
                 }
             }
-            if edit.is_some() && workbook.is_none() {
+            if (edit.is_some() && workbook.is_none()) || (skins && edit.is_none()) {
                 return usage(raw);
             }
             let workbook = workbook.map(|path| WorkbookRun {
                 path,
                 edit,
                 profile,
+                skins,
             });
             smoke(&ws, app, bundle_dir, only.as_deref(), workbook.as_ref())
         }
@@ -1435,10 +1448,6 @@ const CALC_CASES: &[Case] = &[
                 "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"] [data-dnacalc=\"tree-value\"]",
                 "108",
             ),
-            Check::Text(
-                "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"D1\"] [data-dnacalc=\"tree-dependents\"]",
-                "read by 2 formulas",
-            ),
         ],
     },
     Case {
@@ -1463,6 +1472,11 @@ const CALC_CASES: &[Case] = &[
             Check::Value("name-box", "B3"),
             Check::Value(BAR, "=A1+Other!A1+D1"),
             Check::Attr("[data-dnacalc=\"tree-row\"][data-focused=\"true\"]", "data-cell", "B3"),
+            // Other!B4, B12 and B13 sum ranges that hold Data!B3.
+            Check::Text(
+                "[data-dnacalc=\"tree-row\"][data-sheet=\"Data\"][data-cell=\"B3\"] [data-dnacalc=\"tree-dependents\"]",
+                "read by 3 formulas",
+            ),
         ],
     },
     Case {
@@ -1781,7 +1795,15 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         }
         thread::sleep(Duration::from_millis(200));
     }
-    if let Some((sheet, cell, text)) = &run.edit {
+    if run.skins
+        && let Some(edit) = &run.edit
+    {
+        failures.extend(measure_skins(app, session, browser, edit));
+        if !failures.is_empty() {
+            return failures;
+        }
+    }
+    if let Some((sheet, cell, text)) = run.edit.as_ref().filter(|_| !run.skins) {
         let tab = format!("[data-dnacalc=\"sheet-tab\"][data-sheet=\"{sheet}\"]");
         let split = text.chars().next().map_or(0, char::len_utf8);
         let (first, rest) = text.split_at(split);
@@ -1853,6 +1875,82 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         Err(e) => failures.push(format!("cannot read the fault record: {e}")),
     }
     failures
+}
+
+/// The skins `--skins` times, each with the selector of what shows it is there.
+const TIMED_SKINS: [(&str, &str); 4] = [
+    ("grid", "[data-skin=\"grid\"]"),
+    ("tree", "[data-dnacalc=\"tree-row\"][data-kind=\"cell\"]"),
+    ("canvas", "[data-dnacalc=\"canvas-node\"][data-center=\"true\"]"),
+    ("ledger", "[data-dnacalc=\"ledger-row\"]"),
+];
+
+/// Milliseconds in the page from the mark `window.__dcT0` until `css` selects an element, seen
+/// from a timer task: one runs only once the page's work for the click or the key (the handler,
+/// the intent, the reactive updates it queued) is done.
+fn painted_after_mark(session: &Session, css: &str) -> Result<f64, String> {
+    let script = format!(
+        "var done = arguments[arguments.length - 1]; var sel = '{}';\
+         function check() {{ var ms = performance.now() - window.__dcT0; if (document.querySelector(sel)) {{ done(ms); }} else if (ms > 100000) {{ done(-1); }} else {{ setTimeout(check, 2); }} }} setTimeout(check, 0);",
+        css.replace('\'', "\\'")
+    );
+    let value = session.post("/execute/async", json!({ "script": script, "args": [] }))?;
+    match value.get("value").unwrap_or(&value).as_f64() {
+        Some(ms) if ms >= 0.0 => Ok(ms),
+        Some(_) => Err(format!("nothing matched {css} within 100 s")),
+        None => Err(format!("no time from the page: {value}")),
+    }
+}
+
+/// `--skins`: shows each skin of [`TIMED_SKINS`] and enters the edit with it shown, printing the
+/// times the page measured.
+fn measure_skins(
+    app: &App,
+    session: &Session,
+    browser: &str,
+    (sheet, cell, text): &(String, String, String),
+) -> Vec<String> {
+    let label = app.label;
+    if let Err(e) = session.post("/timeouts", json!({ "script": 600_000 })) {
+        return vec![format!("the script timeout was not set: {e}")];
+    }
+    let base: f64 = text.parse().unwrap_or(1.0);
+    for (index, (skin, mark)) in TIMED_SKINS.iter().enumerate() {
+        let shown = (|| {
+            session.script("window.__dcT0 = performance.now(); return null;")?;
+            act_click(app, session, &format!("skin-{skin}"))?;
+            painted_after_mark(session, mark)
+        })();
+        let shown = match shown {
+            Ok(ms) => ms,
+            Err(e) => return vec![format!("the {skin} skin did not show: {e}")],
+        };
+        let value = base + index as f64;
+        let edited = (|| {
+            // The tab is clicked in the page: a long row of tabs may hide it from a pointer.
+            let tab = format!("[data-dnacalc=\"sheet-tab\"][data-sheet=\"{sheet}\"]");
+            session.script(&format!(
+                "document.querySelector('{}').click(); return null;",
+                tab.replace('\'', "\\'")
+            ))?;
+            session.clear(&select(app, "name-box"))?;
+            session.keys(&select(app, "name-box"), &format!("{cell}{ENTER}"))?;
+            session.clear(BAR)?;
+            session.keys(BAR, &value.to_string())?;
+            session.script("window.__dcT0 = performance.now(); return null;")?;
+            session.keys(BAR, ENTER)?;
+            painted_after_mark(session, mark)
+        })();
+        let edited = match edited {
+            Ok(ms) => ms,
+            Err(e) => return vec![format!("the edit with the {skin} skin shown failed: {e}")],
+        };
+        println!(
+            "{label} WORKBOOK {browser} skin {skin}: shown in {shown:.0} ms; edit {sheet}!{cell}={value} done in {edited:.0} ms; {}",
+            text_of(app, session, "status")
+        );
+    }
+    Vec::new()
 }
 
 fn act_click(app: &App, session: &Session, name: &str) -> Result<(), String> {

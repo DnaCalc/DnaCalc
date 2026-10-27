@@ -7,8 +7,11 @@
 //! grouped by provenance. A click on a row makes that cell the active cell.
 //!
 //! A formula cell is one Excel counts as holding a formula ([`calc_host::HostState::holds_formula`],
-//! the atlas's and the corpus comparison's set). The skin keeps every sheet's cells through one
-//! calc-host subscription per sheet ([`crate::watch`]), shows [`PAGE`] rows at a time and changes
+//! the atlas's and the corpus comparison's set). After each change the skin reads which cells
+//! those are ([`calc_host::HostState::formula_cells`], from the document, without projecting
+//! them) and projects only the [`PAGE`] rows it shows; a filter or a sort that reads values (errors,
+//! a provenance, a text, by value) projects every formula cell of its scope, which on a workbook
+//! of a hundred thousand formulas takes seconds per change (measured, dc-gf0). The skin changes
 //! nothing but the selection.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnatreecalc-skins/src/ledger.rs`: the
@@ -22,7 +25,6 @@
 use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
-use crate::watch;
 use calc_host::value::{CellKey, CoreValue};
 use calc_host::{ProjectedCell, ProjectedValue};
 use leptos::prelude::*;
@@ -195,6 +197,31 @@ pub fn group_by_provenance(entries: &[Entry], rows: &[usize]) -> Vec<(Provenance
     groups
 }
 
+/// The rows of a filter and a sort that read no value, as indexes into `keys` (in address
+/// order): every cell, or those whose formulas read the active cell (`readers`).
+pub fn key_rows(
+    keys: &[CellKey],
+    filter: &Filter,
+    sort: Sort,
+    readers: &BTreeSet<CellKey>,
+) -> Vec<usize> {
+    let mut rows: Vec<usize> = (0..keys.len())
+        .filter(|index| !matches!(filter, Filter::ReadsActive) || readers.contains(&keys[*index]))
+        .collect();
+    if sort == Sort::AddressDescending {
+        rows.reverse();
+    }
+    rows
+}
+
+/// Whether a filter or a sort reads the cells' values, so every formula cell is projected.
+pub fn reads_values(filter: &Filter, sort: Sort) -> bool {
+    matches!(
+        filter,
+        Filter::Errors | Filter::Provenance(_) | Filter::Text(_)
+    ) || matches!(sort, Sort::ValueAscending | Sort::ValueDescending)
+}
+
 /// A projected formula cell as a ledger entry.
 pub fn entry(cell: &ProjectedCell, label: String) -> Entry {
     let shown = cells::shown(cell, None, None);
@@ -222,7 +249,6 @@ pub fn entry(cell: &ProjectedCell, label: String) -> Entry {
 }
 
 fn ledger_view(controller: Controller) -> impl IntoView {
-    let sheets = watch::watch_sheets(controller);
     let filter_choice = RwSignal::new(String::new());
     let text = RwSignal::new(String::new());
     let sort_choice = RwSignal::new(String::new());
@@ -230,32 +256,44 @@ fn ledger_view(controller: Controller) -> impl IntoView {
     let this_sheet = RwSignal::new(false);
     let page = RwSignal::new(0usize);
 
-    let entries = Memo::new(move |_| {
+    // The formula cells of the scope, in address order; their labels are made for the rows shown.
+    let keys = Memo::new(move |_| {
         controller.revision.track();
         let only = this_sheet.get().then(|| controller.sheet.get()).flatten();
-        sheets.with(|sheets| {
-            controller.with_untracked(|book| {
-                let host = book.host();
-                let mut out = Vec::new();
-                for sheet in sheets {
-                    if only.is_some_and(|only| only != sheet.id) {
-                        continue;
-                    }
-                    let name = sheet.name.get_value();
-                    sheet.mirror.with(|mirror| {
-                        for cell in mirror.cells() {
-                            if host.holds_formula(cell.at()) {
-                                let label = format!(
-                                    "{name}!{}",
-                                    cells::address(cell.at().row(), cell.at().column())
-                                );
-                                out.push(entry(cell, label));
-                            }
-                        }
-                    });
+        controller.with_untracked(|book| {
+            let mut out: Vec<CellKey> = Vec::new();
+            for tab in book.sheets() {
+                if only.is_none_or(|only| only == tab.id) {
+                    out.extend(book.host().formula_cells(tab.id));
                 }
-                out
-            })
+            }
+            out
+        })
+    });
+    let label = move |at: CellKey| {
+        controller.with_untracked(|book| {
+            let sheet = book
+                .sheets()
+                .into_iter()
+                .find(|tab| tab.id == at.sheet())
+                .map(|tab| tab.name)
+                .unwrap_or_default();
+            format!("{sheet}!{}", cells::address(at.row(), at.column()))
+        })
+    };
+    let filter = Memo::new(move |_| filter_for_choice(&filter_choice.get(), &text.get()));
+    let sort = Memo::new(move |_| sort_for_choice(&sort_choice.get()));
+    // Every formula cell's entry, only for a filter or a sort that reads values.
+    let entries = Memo::new(move |_| {
+        if !reads_values(&filter.get(), sort.get()) {
+            return Vec::new();
+        }
+        keys.with(|keys| {
+            let projected = controller.with_untracked(|book| book.project(keys.clone()));
+            projected
+                .iter()
+                .map(|cell| entry(cell, label(cell.at())))
+                .collect::<Vec<_>>()
         })
     });
     let readers = Memo::new(move |_| {
@@ -269,9 +307,14 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         controller.with_untracked(|book| book.host().dependents(at).into_iter().collect())
     });
     let rows = Memo::new(move |_| {
-        let filter = filter_for_choice(&filter_choice.get(), &text.get());
-        let sort = sort_for_choice(&sort_choice.get());
-        entries.with(|entries| readers.with(|readers| ledger_rows(entries, &filter, sort, readers)))
+        let (filter, sort) = (filter.get(), sort.get());
+        readers.with(|readers| {
+            if reads_values(&filter, sort) {
+                entries.with(|entries| ledger_rows(entries, &filter, sort, readers))
+            } else {
+                keys.with(|keys| key_rows(keys, &filter, sort, readers))
+            }
+        })
     });
     Effect::new(move |_| {
         rows.track();
@@ -279,8 +322,17 @@ fn ledger_view(controller: Controller) -> impl IntoView {
     });
     let pages = move || rows.with(Vec::len).div_ceil(PAGE).max(1);
 
-    let row_view = move |index: usize| {
-        let entry = entries.with_untracked(|entries| entries[index].clone());
+    // One page's entries, projected.
+    let page_entries = move |indexes: &[usize]| -> Vec<Entry> {
+        let chosen: Vec<CellKey> =
+            keys.with_untracked(|keys| indexes.iter().map(|i| keys[*i]).collect());
+        let projected = controller.with_untracked(|book| book.project(chosen));
+        projected
+            .iter()
+            .map(|cell| entry(cell, label(cell.at())))
+            .collect()
+    };
+    let row_view = move |entry: Entry| {
         let at = entry.at;
         let (format, reads, read_by) = controller.with_untracked(|book| {
             let host = book.host();
@@ -309,13 +361,16 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         let first = page.get() * PAGE;
         let shown: Vec<usize> =
             rows.with(|rows| rows.iter().skip(first).take(PAGE).copied().collect());
+        let shown = page_entries(&shown);
         if !grouped.get() {
             return shown.into_iter().map(row_view).collect_view().into_any();
         }
-        let groups = entries.with_untracked(|entries| group_by_provenance(entries, &shown));
+        let order: Vec<usize> = (0..shown.len()).collect();
+        let groups = group_by_provenance(&shown, &order);
         groups
             .into_iter()
             .map(|(provenance, members)| {
+                let members: Vec<Entry> = members.into_iter().map(|i| shown[i].clone()).collect();
                 let count = members.len();
                 view! {
                     <tr class="dc-group" data-dnacalc="ledger-group" data-provenance=provenance.name()>
@@ -360,7 +415,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
                     on:click=move |_| page.update(|p| *p = p.saturating_sub(1))>"Previous"</button>
                 <span data-dnacalc="ledger-count">
                     {move || format!("{} of {} formula cells; page {} of {}",
-                        rows.with(Vec::len), entries.with(Vec::len), page.get() + 1, pages())}
+                        rows.with(Vec::len), keys.with(Vec::len), page.get() + 1, pages())}
                 </span>
                 <button type="button" data-dnacalc="ledger-next"
                     on:click=move |_| page.update(|p| if *p + 1 < pages() { *p += 1 })>"Next"</button>
@@ -454,6 +509,30 @@ mod tests {
         assert_eq!(filter_for_choice("reads-active", ""), Filter::ReadsActive);
         assert_eq!(sort_for_choice("value-desc"), Sort::ValueDescending);
         assert_eq!(sort_for_choice("nonsense"), Sort::Address);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn rows_without_values_come_from_the_keys_alone() {
+        let entries = entries();
+        let keys: Vec<CellKey> = entries.iter().map(|e| e.at).collect();
+        let none = BTreeSet::new();
+        assert_eq!(
+            key_rows(&keys, &Filter::All, Sort::Address, &none),
+            vec![0, 1, 2, 3, 4]
+        );
+        assert_eq!(
+            key_rows(&keys, &Filter::All, Sort::AddressDescending, &none),
+            vec![4, 3, 2, 1, 0]
+        );
+        let readers = BTreeSet::from([keys[1]]);
+        assert_eq!(
+            key_rows(&keys, &Filter::ReadsActive, Sort::Address, &readers),
+            vec![1]
+        );
+        assert!(!reads_values(&Filter::ReadsActive, Sort::Address));
+        assert!(reads_values(&Filter::All, Sort::ValueDescending));
+        assert!(reads_values(&Filter::Errors, Sort::Address));
     }
 
     /// Ported from ledger.rs `group_rows_by_calc_class_orders_groups_by_first_appearance`.
