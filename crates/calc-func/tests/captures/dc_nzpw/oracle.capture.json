@@ -55,17 +55,18 @@
       "opened_read_only": "true",
       "external_links": "",
       "ole_dde_links": "",
-      "connections": ""
+      "connections": "",
+      "calculation_clock": "40e69e1d8928074e"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:bac864f8aca3b0157bb0e1e08036c58bd52ada9ee49ff0c6c1f6bc139f293d6d; repository dd7f67a4fbb317fef0efe878f4dad78ca3c873bd+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:bac864f8aca3b0157bb0e1e08036c58bd52ada9ee49ff0c6c1f6bc139f293d6d; repository 3ac241fd472aeff04f41d9838b74f13519fc77a3+dirty",
     "packages": {
       "input": "sha256:a00beb0092961e06082007939d1d8d92c53e7f7f6f2f73e8d7048ec9b3875460",
-      "output": "sha256:148d31248f6a3ff7648074f394265f0f35412b668c87dfead7d10dec29599d3f"
+      "output": "sha256:9abe71c313e78cd0231dd938263d736c3385cbb4cdce7ed210f705f59e31b9e5"
     },
     "failures": [
       {"stage":"value","sheet":"information_functions","row":157,"column":4,"message":"Excel error code 2051 is not one this value model holds"},

@@ -11,6 +11,15 @@
 //! answers are all facts about Excel and the operating system that no host supplies, and every
 //! INFO call with a known type text is refused. GETPIVOTDATA needs a pivot table, which no
 //! workbook model holds, and is refused.
+//!
+//! FIELDVALUE reads a field of a linked data type (a stock, a geography). No value the model holds
+//! is one: calc-doc's reader leaves a workbook cell holding a linked data type unloaded, so a
+//! formula reading it is refused before FIELDVALUE runs. Measured in Excel 16.0.20430 through COM
+//! on 2026-10-25 (`Range.Formula2`, read through ERROR.TYPE; the catalogue oracle's dcb1l_language
+//! rows): FIELDVALUE of a number, a text, a logical, an error (`NA()`), a blank cell or a LAMBDA is
+//! #FIELD! whatever the field name, and an error given as the field name is the result
+//! (`FIELDVALUE(1/0,NA())` is #N/A); arrays at either argument lift in a dynamic-array formula,
+//! and a legacy formula intersects them first, wherever the call is (CalcFml's legacy places).
 
 use super::kit::{fail, grid, num, text_arg};
 use crate::call::EvalServices;
@@ -102,6 +111,19 @@ fn info(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
         "directory" | "numfile" | "origin" | "osversion" | "recalc" | "release" | "system"
         | "memavail" | "memused" | "totmem" => Err(site.not_modelled(Some(0))),
         _ => fail(WorksheetErrorCode::Value),
+    }
+}
+
+/// FIELDVALUE: #FIELD!, since no value the model holds is a linked data type (see the module
+/// documentation), or the error given as the field name. An omitted argument is refused: Excel's
+/// result for one is not measured.
+fn fieldvalue(site: &Site<'_>, a: &[CalcValue]) -> Step<CalcValue> {
+    if a.iter().any(CalcValue::is_missing) {
+        return Err(site.not_modelled(None));
+    }
+    match a[1].core() {
+        CoreValue::Error(code) => fail(*code),
+        _ => fail(WorksheetErrorCode::Field),
     }
 }
 
@@ -254,4 +276,5 @@ ported_family! {
         Err(s.not_modelled(None))
     }
     8 transpose_fn "TRANSPOSE" (1, 1) [R "array"] |s, a, sv| { transpose(s, a, sv) }
+    9 fieldvalue_fn "FIELDVALUE" (2, 2) [V "value", V "field_name"] |s, a, sv| { fieldvalue(s, a) }
 }

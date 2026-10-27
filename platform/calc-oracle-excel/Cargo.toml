@@ -22,4 +22,6 @@ serde_json = "=1.0.154"
 # windows-sys is already in the workspace lock (through winapi-util) under the reviewed license
 # expression MIT OR Apache-2.0.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
+# GetLocalTime (Win32_System_SystemInformation) reads the local clock the capture records as the
+# setting calculation_clock.
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_SystemInformation", "Win32_System_Threading"] }

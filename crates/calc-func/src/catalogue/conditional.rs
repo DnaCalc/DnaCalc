@@ -7,10 +7,14 @@
 //! from its top-left cell to the criteria range's size; the *IFS functions require every range to
 //! have the target range's shape (COUNTIFS: the first criteria range's) and return #VALUE!
 //! otherwise, decided before any cell or criterion is read. A range argument that is not a
-//! reference ends the call in ReferenceRequired, and a reference of several areas is not
-//! modelled. Neither is a shaped third argument that extends past the reference the formula
-//! gives: its cells past that reference are not among the formula's references, so a
-//! recalculation that follows them would not see those cells change (dc-m3u owns that).
+//! reference ends the call in ReferenceRequired, and a reference of several areas is #VALUE!,
+//! before any criterion is read (dc-b1l, measured in Excel 16.0.20430 on 2026-10-25: a union at
+//! any range of each function, with a text or an error criterion). A shaped third argument may
+//! extend past the reference the formula gives: the call reads the cells past it through the
+//! cell reader, and the engine files every area an evaluation read beyond its placed references
+//! as a dynamic prerequisite (L2), so a change there recalculates the formula. Past the last row
+//! of the sheet it holds no cells (Excel: SUMIF(B3:B6,"a",A1048575) adds A1048576 alone); past
+//! the last column it is not modelled, since Excel's alignment of the cut rows is not measured.
 //!
 //! A criterion is read once, before any range. A reference criterion is dereferenced through the
 //! cell reader, a blank cell reading as Empty. A number, a logical, an error, or Empty or an
@@ -64,8 +68,8 @@ use crate::call::{EagerKernel, EvalServices, FunctionFault};
 use crate::coerce;
 use crate::kernel::{Exit, Site, Step};
 use crate::value::{
-    CalcValue, CallableArityShape, CellKey, CoreValue, ExcelText, GridArea, ReferenceLike,
-    WorksheetErrorCode,
+    CalcValue, CallableArityShape, CellKey, CoreValue, ExcelText, GridArea, MAX_COLUMNS, MAX_ROWS,
+    ReferenceLike, WorksheetErrorCode,
 };
 use std::cmp::Ordering;
 
@@ -339,14 +343,14 @@ fn range(site: &Site<'_>, arguments: &[CalcValue], index: usize) -> Step<Range> 
     };
     match reference.areas() {
         [area] => Ok(Range { index, area: *area }),
-        _ => Err(site.not_modelled(Some(index))),
+        _ => Err(Exit::Error(WorksheetErrorCode::Value)),
     }
 }
 
 /// The plan of COUNTIF (no target), SUMIF and AVERAGEIF: the range, its criterion, and the
 /// target, which is the range when the third argument is omitted and otherwise the third
-/// argument's top-left cell extended to the range's size. A target that extends past the third
-/// argument is not modelled (see the module documentation).
+/// argument's top-left cell extended to the range's size, cut at the sheet's last row; one cut at
+/// the last column is not modelled (see the module documentation).
 fn single(
     site: &Site<'_>,
     arguments: &[CalcValue],
@@ -360,18 +364,15 @@ fn single(
         (true, Some(_)) => {
             let given = range(site, arguments, 2)?;
             let (rows, columns) = criteria_range.shape();
-            let (given_rows, given_columns) = given.shape();
-            if rows > given_rows || columns > given_columns {
+            let first = given.area.first();
+            let last_column = u64::from(first.column()) + u64::from(columns) - 1;
+            if last_column > u64::from(MAX_COLUMNS) {
                 return Err(site.not_modelled(Some(2)));
             }
-            let first = given.area.first();
-            let last = CellKey::new(
-                first.sheet(),
-                first.row() + (rows - 1),
-                first.column() + (columns - 1),
-            )
-            .expect("a cell of the given area");
-            let area = GridArea::new(first, last).expect("an area inside the given one");
+            let last_row = (u64::from(first.row()) + u64::from(rows) - 1).min(u64::from(MAX_ROWS));
+            let last = CellKey::new(first.sheet(), last_row as u32, last_column as u32)
+                .expect("a cell on the sheet");
+            let area = GridArea::new(first, last).expect("an area from the given first cell");
             Some(Range { index: 2, area })
         }
     };
