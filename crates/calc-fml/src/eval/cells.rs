@@ -6,7 +6,9 @@
 //! missing cell so that the evaluation reports which input it lacked.
 
 use super::run::EvalFault;
-use crate::reference::{CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells};
+use crate::reference::{
+    CellRead, CellRun, ReadContractError, ReferenceReader, SpillExtent, read_cells,
+};
 use calc_func::value::{
     ArrayShape, CalcArray, CalcValue, CellKey, GridArea, ReferenceLike, SheetId, WorksheetErrorCode,
 };
@@ -69,27 +71,13 @@ impl<'r> SharedReader<'r> {
             [area] if area.cell_count() == 1 => *area,
             areas => return Err(EvalFault::AreaAsValue { area: areas[0] }),
         };
-        let mut value = None;
-        let mut missing = false;
-        let mut reader = self.reader.borrow_mut();
-        let read = read_cells(&mut **reader, area, &mut |_, run| {
-            match run {
-                CellRun::Values(values) => value = values.first().cloned(),
-                CellRun::Blank(_) => value = Some(CalcValue::empty()),
-                CellRun::Missing(_) => missing = true,
-            }
-            ControlFlow::Break(())
-        });
-        if let Err(error) = read {
-            return Err(EvalFault::ReadContract(error));
+        let read = self.reader.borrow_mut().read_cell(area.first());
+        match read {
+            Ok(CellRead::Value(value)) => Ok(value),
+            Ok(CellRead::Blank) => Ok(CalcValue::empty()),
+            Ok(CellRead::Missing) => Err(EvalFault::MissingInput { cell: area.first() }),
+            Err(error) => Err(EvalFault::ReadContract(error)),
         }
-        if missing {
-            return Err(EvalFault::MissingInput { cell: area.first() });
-        }
-        value.ok_or(EvalFault::ReadContract(ReadContractError {
-            area,
-            covered: 0,
-        }))
     }
 
     /// The values of a reference as an array, where a dynamic-array formula lifts over a range:
