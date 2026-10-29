@@ -25,6 +25,8 @@
 use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
+use crate::wire;
+use crate::workbook::Workbook;
 use calc_host::value::{CellKey, CoreValue};
 use calc_host::{ProjectedCell, ProjectedValue};
 use leptos::prelude::*;
@@ -232,6 +234,85 @@ pub fn entry(cell: &ProjectedCell, label: String) -> Entry {
     }
 }
 
+/// One page of the ledger as the page shows it (the workbook's server works it out, dc-p96): the
+/// formula cells of the scope ([`calc_host::HostState::formula_cells`]), kept and ordered by the
+/// filter and the sort (a filter or a sort that reads values projects every formula cell of the
+/// scope), and the page's rows projected with their format and their read counts.
+pub fn view_model(
+    book: &Workbook,
+    sheet: Option<calc_host::value::SheetId>,
+    filter_choice: &str,
+    text: &str,
+    sort_choice: &str,
+    page: usize,
+    active: Option<CellKey>,
+) -> wire::Ledger {
+    let host = book.host();
+    let mut keys: Vec<CellKey> = Vec::new();
+    for tab in book.sheets() {
+        if sheet.is_none_or(|only| only == tab.id) {
+            keys.extend(host.formula_cells(tab.id));
+        }
+    }
+    let names: std::collections::BTreeMap<_, _> = book
+        .sheets()
+        .into_iter()
+        .map(|tab| (tab.id, tab.name))
+        .collect();
+    let label = |at: CellKey| {
+        format!(
+            "{}!{}",
+            names.get(&at.sheet()).cloned().unwrap_or_default(),
+            cells::address(at.row(), at.column())
+        )
+    };
+    let filter = filter_for_choice(filter_choice, text);
+    let sort = sort_for_choice(sort_choice);
+    let readers: BTreeSet<CellKey> = match (&filter, active) {
+        (Filter::ReadsActive, Some(at)) => host.dependents(at).into_iter().collect(),
+        _ => BTreeSet::new(),
+    };
+    let rows = if reads_values(&filter, sort) {
+        let entries: Vec<Entry> = book
+            .project(keys.clone())
+            .iter()
+            .map(|cell| entry(cell, label(cell.at())))
+            .collect();
+        ledger_rows(&entries, &filter, sort, &readers)
+    } else {
+        key_rows(&keys, &filter, sort, &readers)
+    };
+    let chosen: Vec<CellKey> = rows
+        .iter()
+        .skip(page * PAGE)
+        .take(PAGE)
+        .map(|i| keys[*i])
+        .collect();
+    let shown = book
+        .project(chosen)
+        .iter()
+        .map(|cell| {
+            let entry = entry(cell, label(cell.at()));
+            let at = entry.at;
+            wire::LedgerRow {
+                at: wire::Key::of(at),
+                label: entry.label,
+                formula: entry.formula,
+                value: entry.value,
+                provenance: entry.provenance,
+                format: host.number_format(at).unwrap_or("General").to_owned(),
+                reads: host.precedents(at).map_or(0, |areas| areas.len()) as u64,
+                read_by: host.dependents(at).len() as u64,
+            }
+        })
+        .collect();
+    wire::Ledger {
+        keys: keys.len() as u64,
+        rows: rows.len() as u64,
+        page: shown,
+    }
+}
+
 fn ledger_view(controller: Controller) -> impl IntoView {
     let filter_choice = RwSignal::new(String::new());
     let text = RwSignal::new(String::new());
@@ -239,122 +320,79 @@ fn ledger_view(controller: Controller) -> impl IntoView {
     let grouped = RwSignal::new(false);
     let this_sheet = RwSignal::new(false);
     let page = RwSignal::new(0usize);
-
-    // The formula cells of the scope, in address order; their labels are made for the rows shown.
-    let keys = Memo::new(move |_| {
-        controller.revision.track();
-        let only = this_sheet.get().then(|| controller.sheet.get()).flatten();
-        controller.with_untracked(|book| {
-            let mut out: Vec<CellKey> = Vec::new();
-            for tab in book.sheets() {
-                if only.is_none_or(|only| only == tab.id) {
-                    out.extend(book.host().formula_cells(tab.id));
-                }
-            }
-            out
-        })
-    });
-    let label = move |at: CellKey| {
-        controller.with_untracked(|book| {
-            let sheet = book
-                .sheets()
-                .into_iter()
-                .find(|tab| tab.id == at.sheet())
-                .map(|tab| tab.name)
-                .unwrap_or_default();
-            format!("{sheet}!{}", cells::address(at.row(), at.column()))
-        })
-    };
-    let filter = Memo::new(move |_| filter_for_choice(&filter_choice.get(), &text.get()));
-    let sort = Memo::new(move |_| sort_for_choice(&sort_choice.get()));
-    // Every formula cell's entry, only for a filter or a sort that reads values.
-    let entries = Memo::new(move |_| {
-        if !reads_values(&filter.get(), sort.get()) {
-            return Vec::new();
-        }
-        keys.with(|keys| {
-            let projected = controller.with_untracked(|book| book.project(keys.clone()));
-            projected
-                .iter()
-                .map(|cell| entry(cell, label(cell.at())))
-                .collect::<Vec<_>>()
-        })
-    });
-    let readers = Memo::new(move |_| {
-        controller.revision.track();
-        if filter_choice.get() != "reads-active" {
-            return BTreeSet::new();
-        }
-        let Some(at) = controller.active_key() else {
-            return BTreeSet::new();
-        };
-        controller.with_untracked(|book| book.host().dependents(at).into_iter().collect())
-    });
-    let rows = Memo::new(move |_| {
-        let (filter, sort) = (filter.get(), sort.get());
-        readers.with(|readers| {
-            if reads_values(&filter, sort) {
-                entries.with(|entries| ledger_rows(entries, &filter, sort, readers))
-            } else {
-                keys.with(|keys| key_rows(keys, &filter, sort, readers))
-            }
-        })
-    });
+    // A new filter, sort or scope starts at the first page.
     Effect::new(move |_| {
-        rows.track();
+        filter_choice.track();
+        text.track();
+        sort_choice.track();
+        this_sheet.track();
         page.set(0);
     });
-    let pages = move || rows.with(Vec::len).div_ceil(PAGE).max(1);
-
-    // One page's entries, projected.
-    let page_entries = move |indexes: &[usize]| -> Vec<Entry> {
-        let chosen: Vec<CellKey> =
-            keys.with_untracked(|keys| indexes.iter().map(|i| keys[*i]).collect());
-        let projected = controller.with_untracked(|book| book.project(chosen));
-        projected
-            .iter()
-            .map(|cell| entry(cell, label(cell.at())))
-            .collect()
-    };
-    let row_view = move |entry: Entry| {
-        let at = entry.at;
-        let (format, reads, read_by) = controller.with_untracked(|book| {
-            let host = book.host();
-            (
-                host.number_format(at).unwrap_or("General").to_owned(),
-                host.precedents(at).map_or(0, |areas| areas.len()),
-                host.dependents(at).len(),
-            )
+    let ledger: RwSignal<wire::Ledger> = RwSignal::new(wire::Ledger::default());
+    Effect::new(move |_| {
+        controller.revision.track();
+        let sheet = this_sheet
+            .get()
+            .then(|| controller.sheet.get())
+            .flatten()
+            .map(wire::Sheet::of);
+        let filter = filter_choice.get();
+        let active = if filter == "reads-active" {
+            controller.active_key().map(wire::Key::of)
+        } else {
+            None
+        };
+        let request = wire::Request::Ledger {
+            sheet,
+            filter,
+            text: text.get(),
+            sort: sort_choice.get(),
+            page: page.get() as u64,
+            active,
+        };
+        controller.ask(request, move |reply| {
+            if let wire::Reply::Ledger(found) = reply {
+                ledger.set(found);
+            }
         });
+    });
+    let pages = move || ledger.with(|l| (l.rows as usize).div_ceil(PAGE).max(1));
+
+    let row_view = move |row: wire::LedgerRow| {
+        let Some(at) = row.at.cell() else {
+            return ().into_any();
+        };
         let active = move || controller.active_key() == Some(at);
         view! {
-            <tr data-dnacalc="ledger-row" data-cell=entry.label.clone() data-provenance=entry.provenance.name()
+            <tr data-dnacalc="ledger-row" data-cell=row.label.clone() data-provenance=row.provenance.name()
                 data-active=move || active().to_string() on:click=move |_| controller.go_to(at)>
-                <td class="dc-mono">{entry.label.clone()}</td>
-                <td class="dc-mono">{entry.formula.clone()}</td>
-                <td class="dc-mono" data-dnacalc="ledger-value">{entry.value.clone()}</td>
-                <td><span class="dc-chip" data-provenance=entry.provenance.name()>{entry.provenance.name()}</span></td>
-                <td class="dc-mono">{format}</td>
-                <td>{reads}</td>
-                <td>{read_by}</td>
+                <td class="dc-mono">{row.label.clone()}</td>
+                <td class="dc-mono">{row.formula.clone()}</td>
+                <td class="dc-mono" data-dnacalc="ledger-value">{row.value.clone()}</td>
+                <td><span class="dc-chip" data-provenance=row.provenance.name()>{row.provenance.name()}</span></td>
+                <td class="dc-mono">{row.format.clone()}</td>
+                <td>{row.reads}</td>
+                <td>{row.read_by}</td>
             </tr>
         }
         .into_any()
     };
     let body = move || {
-        let first = page.get() * PAGE;
-        let shown: Vec<usize> =
-            rows.with(|rows| rows.iter().skip(first).take(PAGE).copied().collect());
-        let shown = page_entries(&shown);
+        let shown = ledger.with(|l| l.page.clone());
         if !grouped.get() {
             return shown.into_iter().map(row_view).collect_view().into_any();
         }
-        let order: Vec<usize> = (0..shown.len()).collect();
-        let groups = group_by_provenance(&shown, &order);
+        // Grouped by provenance in the page's order: the groups in the order of their first row.
+        let mut groups: Vec<(Provenance, Vec<wire::LedgerRow>)> = Vec::new();
+        for row in shown {
+            match groups.iter_mut().find(|(p, _)| *p == row.provenance) {
+                Some((_, members)) => members.push(row),
+                None => groups.push((row.provenance, vec![row])),
+            }
+        }
         groups
             .into_iter()
             .map(|(provenance, members)| {
-                let members: Vec<Entry> = members.into_iter().map(|i| shown[i].clone()).collect();
                 let count = members.len();
                 view! {
                     <tr class="dc-group" data-dnacalc="ledger-group" data-provenance=provenance.name()>
@@ -398,7 +436,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
                     on:click=move |_| page.update(|p| *p = p.saturating_sub(1))>"Previous"</button>
                 <span data-dnacalc="ledger-count">
                     {move || format!("{} of {} formula cells; page {} of {}",
-                        rows.with(Vec::len), keys.with(Vec::len), page.get() + 1, pages())}
+                        ledger.with(|l| l.rows), ledger.with(|l| l.keys), page.get() + 1, pages())}
                 </span>
                 <button type="button" data-dnacalc="ledger-next"
                     on:click=move |_| page.update(|p| if *p + 1 < pages() { *p += 1 })>"Next"</button>

@@ -148,6 +148,32 @@ pub enum Request {
     Charts(Sheet),
     /// The cell's data validation: its rule and, for a list, its items.
     Validation(Key),
+    /// The atlas: the census and the session's state.
+    Atlas,
+    /// The tree's outline: each sheet's first rows (`shown`, per sheet; [`crate::tree::ROW_PAGE`]
+    /// for a sheet not named) and the cells of the rows of the `open` sheets.
+    Outline {
+        shown: Vec<(Sheet, u64)>,
+        open: Vec<Sheet>,
+    },
+    /// The formula cells that read the cell.
+    Dependents(Key),
+    /// The canvas around `center`: `back` steps of what it reads, `forward` of what reads it.
+    Canvas {
+        center: Key,
+        back: u8,
+        forward: u8,
+    },
+    /// One page of the ledger: the formula cells of the workbook (or of `sheet`), kept by the
+    /// filter's choice and its text, in the sort's order (`active` for "reading the active cell").
+    Ledger {
+        sheet: Option<Sheet>,
+        filter: String,
+        text: String,
+        sort: String,
+        page: u64,
+        active: Option<Key>,
+    },
 }
 
 /// The workbook as the page's shell shows it.
@@ -307,6 +333,108 @@ pub enum Reply {
     UsedArea(Option<Area>),
     Charts(Vec<Chart>),
     Validation(Option<Validation>),
+    Atlas(Atlas),
+    Outline(Outline),
+    Keys(Vec<Key>),
+    Canvas(Canvas),
+    Ledger(Ledger),
+}
+
+/// One page of the ledger: how many formula cells its scope holds, how many the filter keeps,
+/// and the page's rows.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Ledger {
+    pub keys: u64,
+    pub rows: u64,
+    pub page: Vec<LedgerRow>,
+}
+
+/// One formula cell as the ledger's row shows it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LedgerRow {
+    pub at: Key,
+    pub label: String,
+    pub formula: String,
+    pub value: String,
+    pub provenance: Provenance,
+    pub format: String,
+    pub reads: u64,
+    pub read_by: u64,
+}
+
+/// The canvas as the page draws it: the chips at their places, the counts left out, the wires,
+/// the plane's size, and the inspector of the centre cell.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Canvas {
+    pub chips: Vec<Chip>,
+    /// Columns that leave chips out: the column, where the count goes, how many.
+    pub hidden: Vec<(i32, f64, f64, usize)>,
+    pub wires_svg: String,
+    pub width: f64,
+    pub height: f64,
+    pub inspector: Inspector,
+}
+
+/// One chip: a cell (with what was entered, its value and provenance) or a range.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Chip {
+    pub column: i32,
+    pub x: f64,
+    pub y: f64,
+    pub label: String,
+    /// The cell, for a cell's chip; `None` for a range's.
+    pub cell: Option<Key>,
+    pub input: String,
+    pub value: String,
+    pub provenance: Provenance,
+    /// A range's cell count.
+    pub count: u64,
+}
+
+/// The centre cell as the canvas's panel shows it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Inspector {
+    pub label: String,
+    pub input: String,
+    pub value: String,
+    pub why: String,
+    pub format: String,
+    pub reads: Vec<String>,
+    pub read_by: Vec<String>,
+}
+
+/// The tree's outline: the workbook's name, its defined names (`Name = formula`), its sheets
+/// (each with its cell count, its first rows' cells and how many rows follow) and the cells of
+/// the open sheets' rows, as the page shows them.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Outline {
+    pub workbook: String,
+    pub names: Vec<String>,
+    pub sheets: Vec<OutlineSheet>,
+    pub cells: Vec<Cell>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OutlineSheet {
+    pub sheet: Sheet,
+    pub name: String,
+    pub cells: u64,
+    pub rows: Vec<(u32, Vec<Key>)>,
+    pub more_rows: u64,
+}
+
+/// What the atlas shows: the formula cells by provenance and the session's calculation state.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Atlas {
+    pub census: crate::workbook::Census,
+    /// The calculation mode, in words.
+    pub mode: String,
+    pub revision: u64,
+    pub undo: usize,
+    pub redo: usize,
+    pub intents: usize,
+    pub name: String,
+    pub changed: bool,
 }
 
 /// One cell of a subscription, as the page shows it.

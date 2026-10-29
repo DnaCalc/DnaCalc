@@ -457,7 +457,7 @@ impl Workbook {
 }
 
 /// One sheet's formula cells by provenance.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SheetCensus {
     pub name: String,
     /// The used area's label, when the sheet holds anything.
@@ -471,7 +471,7 @@ pub struct SheetCensus {
 }
 
 /// The workbook's formula cells by provenance, per sheet, and the refusals by reason.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Census {
     pub sheets: Vec<SheetCensus>,
     pub refusals: std::collections::BTreeMap<String, usize>,
