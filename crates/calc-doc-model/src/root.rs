@@ -567,7 +567,7 @@ impl ModelRoot {
                     }
                     let all = names.get_or_insert_with(|| self.definitions.names().to_vec());
                     let held = all.iter().position(|held| {
-                        held.scope == *scope && held.name.eq_ignore_ascii_case(name)
+                        held.scope == *scope && calc_value::workbook_names_equal(&held.name, name)
                     });
                     match (held, formula) {
                         (Some(at), Some(formula)) => all[at].formula = formula.clone(),

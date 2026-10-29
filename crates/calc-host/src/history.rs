@@ -12,7 +12,7 @@
 //! commits forward, so an entry here carries the inverse edits instead.
 
 use crate::command::CellEdit;
-use calc_doc_model::value::{CellKey, GridArea};
+use calc_doc_model::value::{CellKey, GridArea, fold_workbook_name, workbook_names_equal};
 use calc_doc_model::{AxisEdit, CellInput, ModelRoot};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -185,13 +185,13 @@ pub(crate) fn inverse(
     let mut named = std::collections::HashSet::new();
     for edit in edits {
         if let CellEdit::SetName { name, scope, .. } = edit
-            && named.insert((name.to_ascii_lowercase(), *scope))
+            && named.insert((fold_workbook_name(name), *scope))
         {
             // A name the edit defined goes again.
             let held = definitions
                 .names()
                 .iter()
-                .find(|held| held.scope == *scope && held.name.eq_ignore_ascii_case(name));
+                .find(|held| held.scope == *scope && workbook_names_equal(&held.name, name));
             inverse.push(CellEdit::SetName {
                 name: held.map_or_else(|| name.clone(), |held| held.name.clone()),
                 scope: *scope,
