@@ -30,11 +30,12 @@ pub mod selection;
 pub mod viewport;
 
 use crate::cells;
+use crate::controller::ViewMirror;
 use crate::controller::{Controller, EditOrigin};
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::style::css;
+use crate::wire;
 use calc_host::value::{CellKey, GridArea};
-use calc_host::{DeltaMirror, Interest, SubscriptionId};
 use geometry::{
     GridMetrics, HitTarget, Viewport, cell_rect, hit_test, visible_col_range, visible_row_range,
 };
@@ -178,19 +179,45 @@ fn grid_view(controller: Controller) -> impl IntoView {
         width: 1000.0,
         height: 560.0,
     });
-    let sheet_metrics = Memo::new(move |_| {
-        let sheet = controller.sheet.get();
-        controller.with(|book| {
-            sheet_metrics(
-                sheet
-                    .and_then(|sheet| book.host().sheet_geometry(sheet))
-                    .as_ref(),
-            )
-        })
+    // The sheet's sizes, its used area and its charts, asked of the workbook's server again
+    // when the sheet or the workbook changes (dc-p96).
+    let geometry: RwSignal<Option<calc_host::SheetGeometry>> = RwSignal::new(None);
+    let used: RwSignal<Option<GridArea>> = RwSignal::new(None);
+    let charts: RwSignal<Vec<wire::Chart>> = RwSignal::new(Vec::new());
+    Effect::new(move |_| {
+        controller.revision.track();
+        let Some(sheet) = controller.sheet.get() else {
+            return;
+        };
+        let sheet = wire::Sheet::of(sheet);
+        controller.ask(wire::Request::Geometry(sheet), move |reply| {
+            if let wire::Reply::Geometry(g) = reply {
+                let g = Some(g.geometry());
+                if geometry.get_untracked() != g {
+                    geometry.set(g);
+                }
+            }
+        });
+        controller.ask(wire::Request::UsedArea(sheet), move |reply| {
+            if let wire::Reply::UsedArea(area) = reply {
+                let area = area.and_then(wire::Area::area);
+                if used.get_untracked() != area {
+                    used.set(area);
+                }
+            }
+        });
+        controller.ask(wire::Request::Charts(sheet), move |reply| {
+            if let wire::Reply::Charts(drawn) = reply
+                && charts.get_untracked() != drawn
+            {
+                charts.set(drawn);
+            }
+        });
     });
+    let sheet_metrics = Memo::new(move |_| geometry.with(|g| sheet_metrics(g.as_ref())));
     let metrics = Memo::new(move |_| sheet_metrics.with(|m| m.scaled(zoom.get())));
-    let mirror = RwSignal::new(DeltaMirror::default());
-    let subscription: StoredValue<Option<(u64, SubscriptionId)>> = StoredValue::new(None);
+    let mirror = RwSignal::new(ViewMirror::default());
+    let subscription: StoredValue<Option<(u64, u64)>> = StoredValue::new(None);
     let scroller: NodeRef<leptos::html::Div> = NodeRef::new();
     let layer: NodeRef<leptos::html::Div> = NodeRef::new();
     let editor: NodeRef<leptos::html::Input> = NodeRef::new();
@@ -200,10 +227,6 @@ fn grid_view(controller: Controller) -> impl IntoView {
     // Whether a press on a cell is being dragged to extend the selection.
     let dragging = StoredValue::new(false);
 
-    let used = Memo::new(move |_| {
-        let sheet = controller.sheet.get()?;
-        controller.with(|book| book.used_area(sheet))
-    });
     let grid_extent = Memo::new(move |_| {
         extent(
             used.get(),
@@ -226,11 +249,11 @@ fn grid_view(controller: Controller) -> impl IntoView {
         };
         match subscription.get_value() {
             Some((held, id)) if held == generation => {
-                controller.set_interest(id, Interest::Area(area));
+                controller.set_interest(id, wire::Interest::Area(wire::Area::of(area)));
             }
             _ => {
-                let id = controller.subscribe(Interest::Area(area), mirror);
-                subscription.set_value(id.map(|id| (generation, id)));
+                let id = controller.subscribe(wire::Interest::Area(wire::Area::of(area)), mirror);
+                subscription.set_value(Some((generation, id)));
             }
         }
     });
@@ -246,14 +269,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let sheet = controller.sheet.get();
         // Only the shown sheet's cells: until the interest moves to a sheet just shown, the
         // mirror still holds the previous sheet's. Each in its number format.
-        let shown: Vec<cells::CellShown> = controller.with(|book| {
-            mirror.with(|mirror| {
-                mirror
-                    .cells()
-                    .filter(|cell| Some(cell.at().sheet()) == sheet)
-                    .map(|cell| book.shown(cell))
-                    .collect()
-            })
+        let shown: Vec<cells::CellShown> = mirror.with(|mirror| {
+            mirror
+                .cells()
+                .filter(|(at, _)| Some(at.sheet()) == sheet)
+                .filter_map(|(_, cell)| cell.shown())
+                .collect()
         });
         let extent = grid_extent.get();
         build_render_plan(
@@ -347,10 +368,12 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
     // Enters the cell editor's text and moves as Excel does after Enter or Tab.
     let commit_and = move |action: NavAction| {
-        if controller.commit_edit() {
-            go(action);
-            focus_grid();
-        }
+        controller.commit_edit(move |accepted| {
+            if accepted {
+                go(action);
+                focus_grid();
+            }
+        });
     };
 
     let on_keydown = move |ev: leptos::ev::KeyboardEvent| {
@@ -470,6 +493,26 @@ fn grid_view(controller: Controller) -> impl IntoView {
             y,
         ))
     };
+    let press = move |target: HitTarget, shift: bool| {
+        match target {
+            HitTarget::Cell { row, col } if shift => controller.extend((row, col)),
+            HitTarget::Cell { row, col } => {
+                move_to(row, col);
+                dragging.set_value(true);
+            }
+            HitTarget::ColumnHeader { col } if shift => {
+                controller.select_range((1, controller.active.get_untracked().1), (MAX_ROW, col))
+            }
+            HitTarget::ColumnHeader { col } => controller.select_range((1, col), (MAX_ROW, col)),
+            HitTarget::RowHeader { row } if shift => {
+                controller.select_range((controller.active.get_untracked().0, 1), (row, MAX_COLUMN))
+            }
+            HitTarget::RowHeader { row } => controller.select_range((row, 1), (row, MAX_COLUMN)),
+            HitTarget::Corner => controller.select_range((1, 1), (MAX_ROW, MAX_COLUMN)),
+            HitTarget::Outside => {}
+        }
+        focus_grid();
+    };
     let on_mousedown = move |ev: leptos::ev::MouseEvent| {
         if ev.button() != 0 {
             return;
@@ -489,30 +532,20 @@ fn grid_view(controller: Controller) -> impl IntoView {
         if matches!(target, HitTarget::Outside) {
             return;
         }
-        if controller.editing.get_untracked().is_some() && !controller.commit_edit() {
-            return;
-        }
         ev.prevent_default();
         note.set(String::new());
         let shift = ev.shift_key();
-        match target {
-            HitTarget::Cell { row, col } if shift => controller.extend((row, col)),
-            HitTarget::Cell { row, col } => {
-                move_to(row, col);
-                dragging.set_value(true);
-            }
-            HitTarget::ColumnHeader { col } if shift => {
-                controller.select_range((1, controller.active.get_untracked().1), (MAX_ROW, col))
-            }
-            HitTarget::ColumnHeader { col } => controller.select_range((1, col), (MAX_ROW, col)),
-            HitTarget::RowHeader { row } if shift => {
-                controller.select_range((controller.active.get_untracked().0, 1), (row, MAX_COLUMN))
-            }
-            HitTarget::RowHeader { row } => controller.select_range((row, 1), (row, MAX_COLUMN)),
-            HitTarget::Corner => controller.select_range((1, 1), (MAX_ROW, MAX_COLUMN)),
-            HitTarget::Outside => {}
+        // An edit in progress is entered first; a refused entry keeps it, and the press does
+        // nothing more.
+        if controller.editing.get_untracked().is_some() {
+            controller.commit_edit(move |accepted| {
+                if accepted {
+                    press(target, shift);
+                }
+            });
+        } else {
+            press(target, shift);
         }
-        focus_grid();
     };
     let on_mousemove = move |ev: leptos::ev::MouseEvent| {
         if !dragging.get_value() || ev.buttons() & 1 == 0 {
@@ -690,8 +723,11 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let clip = |near: f64, far: f64, len: f64| (near.max(-2.0), far.min(len + 2.0));
         let (x0, x1) = clip(top_left.x, bottom_right.x + bottom_right.w, v.width);
         let (y0, y1) = clip(top_left.y, bottom_right.y + bottom_right.h, v.height);
-        let label = controller.with_untracked(|book| cells::area_label(book.host(), area));
-        let label = label.rsplit('!').next().unwrap_or_default().to_owned();
+        let label = format!(
+            "{}:{}",
+            cells::address(first.row(), first.column()),
+            cells::address(last.row(), last.column())
+        );
         let style = format!(
             "left:{};top:{};width:{};height:{}",
             px(x0),
@@ -709,37 +745,33 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
     // The sheet's charts (dc-6yw), as the workbook holds their series now: read again after every
     // change, drawn where their frames are, the ones in view only.
-    let charts = Memo::new(move |_| {
-        let sheet = controller.sheet.get()?;
-        Some(controller.with(|book| book.host().charts(sheet).0))
-    });
     let charts_view = move || {
         let m = metrics.get();
         let v = viewport.get();
         let z = zoom.get();
-        let corner = |c: &calc_host::ChartCorner| {
-            let r = cell_rect(&m, &v, c.cell.row(), c.cell.column());
-            (r.x + c.dx * z, r.y + c.dy * z)
+        let corner = |(key, dx, dy): &(wire::Key, f64, f64)| {
+            let at = key.cell()?;
+            let r = cell_rect(&m, &v, at.row(), at.column());
+            Some((r.x + dx * z, r.y + dy * z))
         };
         charts
             .get()
-            .unwrap_or_default()
             .into_iter()
             .filter_map(|view| {
-                let (x0, y0, x1, y1) = match view.place {
-                    calc_host::ChartPlace::Cells { from, to } => {
-                        let ((a, b), (c, d)) = (corner(&from), corner(&to));
+                let (x0, y0, x1, y1) = match &view.place {
+                    wire::ChartPlace::Cells { from, to } => {
+                        let ((a, b), (c, d)) = (corner(from)?, corner(to)?);
                         (a, b, c, d)
                     }
-                    calc_host::ChartPlace::Sized {
+                    wire::ChartPlace::Sized {
                         from,
                         width,
                         height,
                     } => {
-                        let (a, b) = corner(&from);
+                        let (a, b) = corner(from)?;
                         (a, b, a + width * z, b + height * z)
                     }
-                    calc_host::ChartPlace::Absolute {
+                    wire::ChartPlace::Absolute {
                         x,
                         y,
                         width,
@@ -753,12 +785,8 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 if x1 <= x0 || y1 <= y0 || x1 < 0.0 || y1 < 0.0 || x0 > v.width || y0 > v.height {
                     return None;
                 }
-                let markup = chart::chart_svg(&view, (x1 - x0) / z, (y1 - y0) / z);
-                let kind = view
-                    .plots
-                    .first()
-                    .map(|plot| format!("{:?}", plot.kind).to_lowercase())
-                    .unwrap_or_default();
+                let markup = view.svg.clone();
+                let kind = view.kind.clone();
                 let style = format!(
                     "left:{};top:{};width:{};height:{}",
                     px(x0),
@@ -775,9 +803,20 @@ fn grid_view(controller: Controller) -> impl IntoView {
     };
     // The active cell's data validation (dc-6yw): a list's drop-down button at its right edge, the
     // list it opens (Alt+Down too, as in Excel), and the rule's input message below the cell.
-    let rule = Memo::new(move |_| {
-        let at = controller.active_key()?;
-        controller.with(|book| book.validation(at))
+    let rule: RwSignal<Option<wire::Validation>> = RwSignal::new(None);
+    Effect::new(move |_| {
+        controller.revision.track();
+        let Some(at) = controller.active_key() else {
+            rule.set(None);
+            return;
+        };
+        controller.ask(wire::Request::Validation(wire::Key::of(at)), move |reply| {
+            if let wire::Reply::Validation(found) = reply
+                && rule.get_untracked() != found
+            {
+                rule.set(found);
+            }
+        });
     });
     Effect::new(move |_| {
         controller.active.track();
@@ -812,7 +851,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
             return None;
         }
         let at = controller.active_key_untracked()?;
-        let items = controller.with_untracked(|book| book.validation_items(at));
+        let items = rule.with_untracked(|rule| rule.as_ref().map(|r| r.items.clone()))?;
         let rect = active_rect();
         let style = format!("left:{};top:{}", px(rect.x), px(rect.y + rect.h));
         let rows = items
@@ -824,7 +863,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         data-dnacalc="dropdown-item"
                         on:click=move |_| {
                             list_open.set(false);
-                            controller.enter(at, text.clone());
+                            controller.enter(at, text.clone(), |_| {});
                             focus_grid();
                         }
                     >{item}</li>

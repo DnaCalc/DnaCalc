@@ -4,8 +4,9 @@
 //! and entered with Enter, one undoable edit through calc-host, as the grid enters it; a refused
 //! entry keeps the text and shows why.
 //!
-//! The skin subscribes to the whole sheet ([`calc_host::Interest::Sheet`]) while it is shown and
-//! pages through the cells its mirror holds, [`PAGE`] blocks at a time.
+//! The skin subscribes to the whole sheet while it is shown and pages through the cells its mirror
+//! holds, [`PAGE`] blocks at a time; each cell comes from the workbook's server as the page shows
+//! it (dc-p96: its text, provenance, input and the words for where its value came from).
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-notebook/src/lib.rs` and
 //! `src/model.rs` (`derive_entries`: one block per authored cell in row order, the entry kinds,
@@ -15,9 +16,9 @@
 //! notebook lists the sheet's cells.
 
 use crate::cells::{self, Provenance};
-use crate::controller::Controller;
+use crate::controller::{Controller, ViewMirror};
 use crate::skin::{Skin, SkinContext, SkinId};
-use calc_host::{DeltaMirror, Interest, SubscriptionId};
+use crate::wire;
 use leptos::prelude::*;
 
 /// The blocks one page shows.
@@ -50,8 +51,8 @@ pub fn block_kind(shown: &cells::CellShown, has_input: bool) -> &'static str {
 }
 
 fn notebook_view(controller: Controller) -> impl IntoView {
-    let mirror = RwSignal::new(DeltaMirror::default());
-    let subscription: StoredValue<Option<(u64, SubscriptionId)>> = StoredValue::new(None);
+    let mirror = RwSignal::new(ViewMirror::default());
+    let subscription: StoredValue<Option<(u64, u64)>> = StoredValue::new(None);
     let page = RwSignal::new(0usize);
     Effect::new(move |_| {
         let generation = controller.generation.get();
@@ -61,11 +62,12 @@ fn notebook_view(controller: Controller) -> impl IntoView {
         page.set(0);
         match subscription.get_value() {
             Some((held, id)) if held == generation => {
-                controller.set_interest(id, Interest::Sheet(sheet));
+                controller.set_interest(id, wire::Interest::Sheet(wire::Sheet::of(sheet)));
             }
             _ => {
-                let id = controller.subscribe(Interest::Sheet(sheet), mirror);
-                subscription.set_value(id.map(|id| (generation, id)));
+                let id =
+                    controller.subscribe(wire::Interest::Sheet(wire::Sheet::of(sheet)), mirror);
+                subscription.set_value(Some((generation, id)));
             }
         }
     });
@@ -78,39 +80,34 @@ fn notebook_view(controller: Controller) -> impl IntoView {
     });
     // Only the shown sheet's cells: until the interest moves to a sheet just shown, the mirror still
     // holds the previous sheet's.
-    let on_sheet =
-        move |cell: &calc_host::ProjectedCell| Some(cell.at().sheet()) == controller.sheet.get();
+    let on_sheet = move |at: &calc_host::value::CellKey| Some(at.sheet()) == controller.sheet.get();
     let count = Memo::new(move |_| {
-        mirror.with(|mirror| mirror.cells().filter(|cell| on_sheet(cell)).count())
+        mirror.with(|mirror| mirror.cells().filter(|(at, _)| on_sheet(at)).count())
     });
     let pages = move || count.get().div_ceil(PAGE).max(1);
 
     let blocks = move || {
-        let profile = controller.with(|book| book.profile().cloned());
         let first = page.get() * PAGE;
-        let cells: Vec<_> = mirror.with(|mirror| {
+        let cells: Vec<(calc_host::value::CellKey, wire::Cell)> = mirror.with(|mirror| {
             mirror
                 .cells()
-                .filter(|cell| on_sheet(cell))
+                .filter(|(at, _)| on_sheet(at))
                 .skip(first)
                 .take(PAGE)
-                .cloned()
+                .map(|(at, cell)| (*at, cell.clone()))
                 .collect()
         });
         cells
             .into_iter()
-            .map(|cell| {
-                let shown = controller.with_untracked(|book| {
-                    cells::shown(&cell, profile.as_ref(), book.cell_format(cell.at()))
-                });
-                let at = cell.at();
+            .filter_map(|(at, cell)| Some((at, cell.shown()?, cell)))
+            .map(|(at, shown, cell)| {
                 let address = cells::address(at.row(), at.column());
                 let label = address.clone();
-                let kind = block_kind(&shown, cell.input().is_some());
-                let why = controller.with_untracked(|book| cells::provenance_text(book.host(), &cell));
-                let text = RwSignal::new(cells::input_text(cell.input()));
+                let editable = !cell.input.is_empty();
+                let kind = block_kind(&shown, editable);
+                let why = cell.why.clone();
+                let text = RwSignal::new(cell.input.clone());
                 let outcome = RwSignal::new(String::new());
-                let editable = cell.input().is_some();
                 let value = if shown.provenance == Provenance::Refused {
                     "refused".to_owned()
                 } else {
@@ -133,10 +130,8 @@ fn notebook_view(controller: Controller) -> impl IntoView {
                                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                                     if ev.key() == "Enter" {
                                         ev.prevent_default();
-                                        let receipt = controller.enter(at, text.get_untracked());
-                                        outcome.set(match receipt.error {
-                                            Some(error) => error.to_string(),
-                                            None => String::new(),
+                                        controller.enter(at, text.get_untracked(), move |done| {
+                                            outcome.set(done.error.clone().unwrap_or_default());
                                         });
                                     }
                                 }

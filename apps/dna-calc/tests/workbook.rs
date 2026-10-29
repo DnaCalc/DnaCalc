@@ -6,7 +6,7 @@
 #![allow(non_snake_case)]
 
 use calc_host::value::{CellKey, GridArea, SheetId};
-use calc_host::{DeltaMirror, Interest, ProjectedValue, SkinIntent};
+use calc_host::{DeltaMirror, Interest, SkinIntent};
 use dna_calc::cells::{self, Provenance};
 use dna_calc::controller::{Controller, EditOrigin};
 use dna_calc::workbook::{Workbook, host_options};
@@ -172,25 +172,33 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
     let owner = Owner::new();
     owner.with(|| {
         let controller = Controller::new();
+        // The controller's answers come through callbacks (dc-p96); in process they come at once.
+        let commit = |controller: &Controller| {
+            let accepted = std::rc::Rc::new(std::cell::Cell::new(None));
+            let seen = accepted.clone();
+            controller.commit_edit(move |ok| seen.set(Some(ok)));
+            accepted.get().expect("the server answered")
+        };
         let sheet1 = controller.sheet.get_untracked().expect("a sheet");
         controller.select(2, 1);
         controller.begin_edit(EditOrigin::Cell, Some("4".to_owned()));
-        assert!(controller.commit_edit());
+        assert!(commit(&controller));
         assert_eq!(controller.editing.get_untracked(), None);
         controller.select(3, 1);
         controller.edit_text.set("=A2*2".to_owned());
         controller.editing.set(Some(EditOrigin::Bar));
-        assert!(controller.commit_edit());
-        // The application's selection subscription holds the active cell.
+        assert!(commit(&controller));
+        // The application's selection subscription holds the active cell, as the page shows it.
         let a3 = controller
             .selection
             .with_untracked(|mirror| mirror.cell(at(sheet1, "A3")).cloned())
             .expect("the selection holds A3");
-        assert!(matches!(a3.value(), ProjectedValue::Calculated { .. }));
-        assert_eq!(cells::shown(&a3, None, None).text, "8");
+        assert_eq!(a3.provenance, Provenance::Calculated);
+        assert_eq!(a3.text, "8");
+        assert_eq!(a3.input, "=A2*2");
         // A refused entry keeps the edit open and says why.
         controller.begin_edit(EditOrigin::Cell, Some("=".to_owned()));
-        assert!(!controller.commit_edit());
+        assert!(!commit(&controller));
         assert_eq!(controller.editing.get_untracked(), Some(EditOrigin::Cell));
         assert!(controller.status.get_untracked().refused);
         controller.cancel_edit();
@@ -199,7 +207,10 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         controller.undo();
         assert_eq!(controller.active.get_untracked(), (3, 1));
         // Saving names the workbook and its size.
-        let (name, bytes) = controller.save().expect("saved");
+        let saved = std::rc::Rc::new(std::cell::RefCell::new(None));
+        let into = saved.clone();
+        controller.save(move |name, bytes| *into.borrow_mut() = Some((name, bytes)));
+        let (name, bytes) = saved.borrow_mut().take().expect("saved");
         assert_eq!(name, "Book1.xlsx");
         assert!(
             controller
@@ -210,7 +221,10 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         );
         // Opening replaces the workbook: a new generation at the first sheet's A1.
         let generation = controller.generation.get_untracked();
-        controller.open("d1.saved.xlsx", fixture()).expect("opens");
+        let opened = std::rc::Rc::new(std::cell::Cell::new(None));
+        let seen = opened.clone();
+        controller.open("d1.saved.xlsx", fixture(), move |ok| seen.set(Some(ok)));
+        assert_eq!(opened.get(), Some(true));
         assert_eq!(controller.generation.get_untracked(), generation + 1);
         assert_eq!(controller.active.get_untracked(), (1, 1));
         assert!(controller.sheets().iter().any(|tab| tab.name == "Calc"));
@@ -220,28 +234,22 @@ fn dc_rif__the_controller_edits_the_active_cell_and_follows_the_selection() {
         let data = sheets.iter().find(|tab| tab.name == "Data").unwrap().id;
         let calc = sheets.iter().find(|tab| tab.name == "Calc").unwrap().id;
         controller.show_sheet(data);
-        let before = controller
-            .active_cell()
-            .map(|cell| cells::input_text(cell.input()));
+        let before = controller.active_cell().map(|cell| cell.input);
         assert!(before.is_some(), "Data!A1 holds an input");
         controller.begin_edit(EditOrigin::Cell, Some("5".to_owned()));
-        assert!(controller.commit_edit());
+        assert!(commit(&controller));
         controller.show_sheet(calc);
         controller.undo();
         assert_eq!(controller.sheet.get_untracked(), Some(data));
         assert_eq!(controller.active.get_untracked(), (1, 1));
-        assert_eq!(
-            controller
-                .active_cell()
-                .map(|cell| cells::input_text(cell.input())),
-            before
-        );
+        assert_eq!(controller.active_cell().map(|cell| cell.input), before);
         // A package that is not one is refused, and the workbook stays.
-        assert!(
-            controller
-                .open("junk.xlsx", b"not a package".to_vec())
-                .is_err()
-        );
+        let opened = std::rc::Rc::new(std::cell::Cell::new(None));
+        let seen = opened.clone();
+        controller.open("junk.xlsx", b"not a package".to_vec(), move |ok| {
+            seen.set(Some(ok))
+        });
+        assert_eq!(opened.get(), Some(false));
         assert!(controller.status.get_untracked().refused);
         assert!(controller.sheets().iter().any(|tab| tab.name == "Calc"));
     });

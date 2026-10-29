@@ -168,6 +168,14 @@ macro_rules! generational_id {
             pub const fn generation(self) -> u32 {
                 self.generation
             }
+
+            /// The ID with this slot and generation: an ID an allocator issued elsewhere, read
+            /// back from a message that carried its [`Self::slot`] and [`Self::generation`] (DNA
+            /// Calc's page and its calculation worker, dc-p96). It is live in no allocator on
+            /// this side, and names whatever the issuing side's ID names.
+            pub const fn from_parts(slot: u32, generation: u32) -> Self {
+                $name { slot, generation }
+            }
         }
 
         impl IdAllocator<$name> {

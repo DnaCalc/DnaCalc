@@ -1,49 +1,405 @@
-//! The messages between the page and the calculation worker (dc-p96).
+//! The messages between the page and the workbook's server (dc-p96).
 //!
-//! The workbook's session moves off the page's main thread into a dedicated web worker
-//! ([`crate::worker`]); the page keeps what its skins show and talks to the worker through
-//! [`crate::client`]. Every message is one JSON text (serde_json) carried by `postMessage`. Both
-//! sides are the same wasm build, so the messages are not versioned; they are tested to read back
-//! as they were written ([`decode`] of [`encode`]).
+//! The workbook's session lives with a [`crate::server::Server`]: in the calculation worker
+//! ([`crate::worker`]), or, until every skin reads through these messages, on the page itself
+//! ([`crate::port`]'s in-process transport, which passes the same messages). The page sends a
+//! [`Request`] and gets one [`Reply`]; the server also pushes [`Event`]s (the cells of the page's
+//! subscriptions as they change). Every message is one JSON text (serde_json) through
+//! `postMessage`; a workbook's bytes (to open, or saved) travel beside it. Both sides are the same
+//! wasm build, so the messages are not versioned; they are tested to read back as they were
+//! written.
 //!
-//! - The worker's first message, once its module and wasm are loaded, is
-//!   [`FromWorker::Started`]; the page sends nothing before it.
-//! - The page sends [`ToWorker`]: a request with an id the page chose.
-//! - The worker answers each request once, with [`FromWorker::Reply`] under the same id, or
-//!   [`FromWorker::Failed`] when it could not.
+//! What crosses is what the page shows, worked out by the server: a cell travels as its
+//! [`CellShown`] (its text in its number format, its provenance, its conditional look), its input
+//! as text, and the words that say where its value came from; never the engine's values.
 
+use crate::cells::{CellShown, ConditionalShown, FormatShown, Provenance};
+use calc_host::value::{CellKey, GridArea, SheetId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-/// The page to the worker.
+/// A cell: its sheet's slot and generation, its row and its column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Key(pub u32, pub u32, pub u32, pub u32);
+
+impl Key {
+    pub fn of(at: CellKey) -> Key {
+        Key(
+            at.sheet().slot(),
+            at.sheet().generation(),
+            at.row(),
+            at.column(),
+        )
+    }
+
+    pub fn cell(self) -> Option<CellKey> {
+        CellKey::new(SheetId::from_parts(self.0, self.1), self.2, self.3).ok()
+    }
+}
+
+/// A sheet: its slot and generation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Sheet(pub u32, pub u32);
+
+impl Sheet {
+    pub fn of(sheet: SheetId) -> Sheet {
+        Sheet(sheet.slot(), sheet.generation())
+    }
+
+    pub fn id(self) -> SheetId {
+        SheetId::from_parts(self.0, self.1)
+    }
+}
+
+/// An area: its first and last cells.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Area(pub Key, pub Key);
+
+impl Area {
+    pub fn of(area: GridArea) -> Area {
+        Area(Key::of(area.first()), Key::of(area.last()))
+    }
+
+    pub fn area(self) -> Option<GridArea> {
+        GridArea::new(self.0.cell()?, self.1.cell()?).ok()
+    }
+}
+
+/// What a subscription follows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Interest {
+    Area(Area),
+    Sheet(Sheet),
+    /// The session's selection.
+    Selection,
+}
+
+/// What the page asks the session to do: calc-host's skin intents as the page sends them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Intent {
+    EnterCell {
+        at: Key,
+        text: String,
+    },
+    Clear {
+        area: Area,
+    },
+    /// Inserts (`insert`) or deletes `count` rows (`rows`) or columns from `start`.
+    EditAxis {
+        sheet: Sheet,
+        rows: bool,
+        insert: bool,
+        start: u32,
+        count: u32,
+    },
+    Copy {
+        from: Area,
+        to: Area,
+        cut: bool,
+    },
+    Undo,
+    Redo,
+    Recalculate,
+    SetCalcMode {
+        manual: bool,
+    },
+    Select {
+        active: Key,
+        area: Area,
+    },
+}
+
+/// The page to the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ToWorker {
+pub struct ToServer {
     pub id: u64,
     pub request: Request,
 }
 
-/// What the page asks of the worker.
+/// What the page asks of the server.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
-    /// An answer, to show the worker is there and to time a round trip.
+    /// An answer, to show the server is there and to time a round trip.
     Ping,
+    /// A new, empty workbook.
+    New,
+    /// Opens the bytes that travel beside the message, under `name`.
+    Open {
+        name: String,
+    },
+    /// Saves the workbook: its bytes travel back beside the reply.
+    Save,
+    Intent(Intent),
+    /// Registers subscription `id` (the page's number for it); its cells come as events.
+    Subscribe {
+        id: u64,
+        interest: Interest,
+    },
+    SetInterest {
+        id: u64,
+        interest: Interest,
+    },
+    Unsubscribe {
+        id: u64,
+    },
+    /// A sheet's sizes, as the grid lays it out.
+    Geometry(Sheet),
+    UsedArea(Sheet),
+    /// The sheet's charts, drawn.
+    Charts(Sheet),
+    /// The cell's data validation: its rule and, for a list, its items.
+    Validation(Key),
 }
 
-/// What the worker answers.
+/// The workbook as the page's shell shows it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Summary {
+    pub name: String,
+    pub changed: bool,
+    /// The sheets in workbook order, with their names.
+    pub sheets: Vec<(Sheet, String)>,
+    pub manual: bool,
+    /// The session's authored revision, which advances with every committed change.
+    pub revision: u64,
+}
+
+impl dna_onecalc::display::SheetNames for Summary {
+    fn sheet_name_of(&self, sheet: SheetId) -> Option<String> {
+        self.sheets
+            .iter()
+            .find(|(s, _)| s.id() == sheet)
+            .map(|(_, name)| name.clone())
+    }
+}
+
+/// What an intent (or an open, a new workbook, a save) did.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Outcome {
+    pub accepted: bool,
+    pub committed: bool,
+    pub recalculated: bool,
+    /// Why the intent was refused.
+    pub error: Option<String>,
+    /// The outcome of the recalculation the intent ran, in words (`recalculated`, ...).
+    pub recalc: Option<String>,
+    /// How long the server took, in milliseconds.
+    pub elapsed_ms: f64,
+    /// The session's selection after the intent: its active cell and first area.
+    pub selection: Option<(Key, Option<Area>)>,
+    /// For an entry the session took: what a warning or information rule of the cell said about
+    /// it (the rule's kind, and its title and message), as Excel would ask or tell.
+    pub note: Option<(String, String)>,
+    pub summary: Summary,
+}
+
+/// A sheet's sizes as the file states them (calc-host's sheet geometry).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Geometry {
+    pub default_row_height: Option<f64>,
+    pub default_column_width: Option<f64>,
+    pub base_column_width: Option<f64>,
+    /// Column spans: first, last, width in characters, hidden.
+    pub columns: Vec<(u32, u32, Option<f64>, bool)>,
+    /// Rows: row, height in points, hidden.
+    pub rows: Vec<(u32, Option<f64>, bool)>,
+}
+
+impl Geometry {
+    pub fn of(geometry: &calc_host::SheetGeometry) -> Geometry {
+        Geometry {
+            default_row_height: geometry.default_row_height,
+            default_column_width: geometry.default_column_width,
+            base_column_width: geometry.base_column_width,
+            columns: geometry
+                .columns
+                .iter()
+                .map(|span| (span.first, span.last, span.width, span.hidden))
+                .collect(),
+            rows: geometry
+                .rows
+                .iter()
+                .map(|(&row, format)| (row, format.height, format.hidden))
+                .collect(),
+        }
+    }
+
+    pub fn geometry(&self) -> calc_host::SheetGeometry {
+        calc_host::SheetGeometry {
+            default_row_height: self.default_row_height,
+            default_column_width: self.default_column_width,
+            base_column_width: self.base_column_width,
+            columns: self
+                .columns
+                .iter()
+                .map(|&(first, last, width, hidden)| calc_host::ColumnSpan {
+                    first,
+                    last,
+                    width,
+                    hidden,
+                })
+                .collect(),
+            rows: self
+                .rows
+                .iter()
+                .map(|&(row, height, hidden)| (row, calc_host::RowFormat { height, hidden }))
+                .collect(),
+        }
+    }
+}
+
+/// A chart as the grid places it: its frame's corners (cells and offsets in pixels at 100%), or
+/// its position and size, and its drawing.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Chart {
+    pub name: String,
+    pub kind: String,
+    pub place: ChartPlace,
+    /// The chart's SVG, for a frame of the size `place` gives at 100%.
+    pub svg: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ChartPlace {
+    Cells {
+        from: (Key, f64, f64),
+        to: (Key, f64, f64),
+    },
+    Sized {
+        from: (Key, f64, f64),
+        width: f64,
+        height: f64,
+    },
+    Absolute {
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    },
+}
+
+/// A cell's data validation as a skin shows it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Validation {
+    pub dropdown: bool,
+    /// The input message: title and text.
+    pub prompt: Option<(String, String)>,
+    /// A list's items as text to enter.
+    pub items: Vec<String>,
+}
+
+/// What the server answers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Reply {
-    /// The answer to [`Request::Ping`]: the package version the worker runs.
-    Pong { version: String },
+    /// The answer to [`Request::Ping`]: the package version the server runs.
+    Pong {
+        version: String,
+    },
+    /// A new workbook, an open, a save or an intent: what it did. A refused open leaves the
+    /// workbook as it was and says why in `error`.
+    Done {
+        outcome: Outcome,
+        /// For an open: the time it took to read and to calculate.
+        opened: Option<(f64, Option<f64>)>,
+        /// For a save: the name to offer the bytes under.
+        saved: Option<String>,
+    },
+    Subscribed,
+    Geometry(Geometry),
+    UsedArea(Option<Area>),
+    Charts(Vec<Chart>),
+    Validation(Option<Validation>),
 }
 
-/// The worker to the page.
+/// One cell of a subscription, as the page shows it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum FromWorker {
+pub struct Cell {
+    pub at: Key,
+    pub text: String,
+    pub kind: String,
+    pub provenance: Provenance,
+    pub formula: bool,
+    pub format: FormatShown,
+    pub color: Option<String>,
+    pub conditional: Option<ConditionalShown>,
+    /// The cell's input as it would be edited (`=A1+1`, `12`), empty for none.
+    pub input: String,
+    /// Where the value came from, in words.
+    pub why: String,
+}
+
+impl Cell {
+    pub fn of(shown: &CellShown, input: String, why: String) -> Cell {
+        Cell {
+            at: Key::of(shown.at),
+            text: shown.text.clone(),
+            kind: shown.kind.to_owned(),
+            provenance: shown.provenance,
+            formula: shown.formula,
+            format: shown.format,
+            color: shown.color.clone(),
+            conditional: shown.conditional.clone(),
+            input,
+            why,
+        }
+    }
+
+    /// The cell as the grid draws it.
+    pub fn shown(&self) -> Option<CellShown> {
+        Some(CellShown {
+            at: self.at.cell()?,
+            text: self.text.clone(),
+            kind: match self.kind.as_str() {
+                "number" => "number",
+                "text" => "text",
+                "logical" => "logical",
+                "error" => "error",
+                "array" => "array",
+                _ => "",
+            },
+            provenance: self.provenance,
+            formula: self.formula,
+            format: self.format,
+            color: self.color.clone(),
+            conditional: self.conditional.clone(),
+        })
+    }
+}
+
+/// Changed cells of the page's subscription `id`, as calc-host's deltas give them: `reset` means
+/// these are all of its cells.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Cells {
+    pub id: u64,
+    pub seq: u64,
+    pub reset: bool,
+    pub cells: Vec<Cell>,
+    /// Cells that became empty.
+    pub emptied: Vec<Key>,
+}
+
+/// What the server tells the page without being asked.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Event {
+    Cells(Cells),
+}
+
+/// The server to the page. A message lives only until it is encoded or applied, so its
+/// variants' sizes are left as they are.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
+pub enum FromServer {
     /// The worker is loaded and listening.
     Started,
-    /// The answer to the request `id`.
-    Reply { id: u64, reply: Reply },
+    /// The answer to the request `id`, and whether bytes travel beside it.
+    Reply {
+        id: u64,
+        reply: Reply,
+    },
     /// The request `id` (or, with no id, a message that was not a request) could not be served.
-    Failed { id: Option<u64>, message: String },
+    Failed {
+        id: Option<u64>,
+        message: String,
+    },
+    Event(Event),
 }
 
 /// A message as the JSON text `postMessage` carries.
@@ -56,15 +412,6 @@ pub fn decode<T: DeserializeOwned>(text: &str) -> Result<T, String> {
     serde_json::from_str(text).map_err(|e| format!("not a message: {e}"))
 }
 
-/// The worker's answer to a request: what it serves without a workbook.
-pub fn serve(request: &Request) -> Reply {
-    match request {
-        Request::Ping => Reply::Pong {
-            version: env!("CARGO_PKG_VERSION").to_owned(),
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -72,24 +419,67 @@ mod tests {
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn messages_read_back_as_written() {
-        let request = ToWorker {
+        let at = Key(3, 1, 7, 2);
+        let request = ToServer {
             id: 7,
-            request: Request::Ping,
+            request: Request::Intent(Intent::EnterCell {
+                at,
+                text: "=A1+0.1".to_owned(),
+            }),
         };
-        assert_eq!(decode::<ToWorker>(&encode(&request)), Ok(request));
+        assert_eq!(decode::<ToServer>(&encode(&request)), Ok(request));
+        let cell = Cell {
+            at,
+            text: "0.30000000000000004".to_owned(),
+            kind: "number".to_owned(),
+            provenance: Provenance::Calculated,
+            formula: true,
+            format: FormatShown::General,
+            color: None,
+            conditional: Some(ConditionalShown {
+                bar: Some((0.25, "#638ec6".to_owned(), true)),
+                ..ConditionalShown::default()
+            }),
+            input: "=A1+0.1".to_owned(),
+            why: "calculated".to_owned(),
+        };
         for message in [
-            FromWorker::Started,
-            FromWorker::Reply {
+            FromServer::Started,
+            FromServer::Reply {
                 id: 7,
-                reply: serve(&Request::Ping),
+                reply: Reply::Pong {
+                    version: "0.1.0".to_owned(),
+                },
             },
-            FromWorker::Failed {
+            FromServer::Failed {
                 id: None,
                 message: "no".to_owned(),
             },
+            FromServer::Event(Event::Cells(Cells {
+                id: 1,
+                seq: 2,
+                reset: false,
+                cells: vec![cell.clone()],
+                emptied: vec![at],
+            })),
         ] {
-            assert_eq!(decode::<FromWorker>(&encode(&message)), Ok(message));
+            assert_eq!(decode::<FromServer>(&encode(&message)), Ok(message));
         }
-        assert!(decode::<ToWorker>("{\"id\":1}").is_err());
+        assert_eq!(cell.shown().map(|shown| shown.kind), Some("number"));
+        assert!(decode::<ToServer>("{\"id\":1}").is_err());
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn numbers_cross_exactly() {
+        let geometry = Geometry {
+            default_row_height: Some(0.1 + 0.2),
+            default_column_width: Some(8.43),
+            base_column_width: None,
+            columns: vec![(1, 3, Some(1.0 / 3.0), false)],
+            rows: vec![(2, Some(f64::MIN_POSITIVE), true)],
+        };
+        let back: Reply = decode(&encode(&Reply::Geometry(geometry.clone()))).unwrap();
+        assert_eq!(back, Reply::Geometry(geometry));
     }
 }

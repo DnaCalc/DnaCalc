@@ -1,6 +1,6 @@
 //! The page's side of the calculation worker (dc-p96): starts the worker from `worker.js` in the
-//! bundle's asset folder, holds requests until it reports [`FromWorker::Started`], sends each as a
-//! [`ToWorker`] and hands each answer to the callback that asked.
+//! bundle's asset folder, holds requests until it reports [`FromServer::Started`], sends each as a
+//! [`ToServer`] and hands each answer to the callback that asked.
 //!
 //! Following DnaTreeCalc's worker client (bf6dfd7, `src/dnatreecalc-web/src/worker_client.rs`:
 //! the worker and its handler in a thread-local, an id per request); the worker is a module
@@ -9,7 +9,7 @@
 //! `ready` or `failed: ...`, and the first round trip in `data-dnacalc-worker-ms`).
 
 #[cfg(target_arch = "wasm32")]
-use crate::wire::{self, FromWorker, Reply, Request, ToWorker};
+use crate::wire::{self, FromServer, Reply, Request, ToServer};
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
 #[cfg(target_arch = "wasm32")]
@@ -24,7 +24,7 @@ struct Client {
     started: bool,
     next_id: u64,
     /// Requests made before the worker started, in order.
-    waiting: Vec<ToWorker>,
+    waiting: Vec<ToServer>,
     answers: BTreeMap<u64, Answer>,
     _on_message: wasm_bindgen::prelude::Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
@@ -60,6 +60,7 @@ pub fn spawn() {
                 }
                 mark("ready");
             }
+            Ok(_) => mark("failed: the worker answered a ping with something else"),
             Err(e) => mark(&format!("failed: {e}")),
         });
     }
@@ -113,7 +114,7 @@ pub fn request(request: Request, answer: impl FnOnce(Result<Reply, String>) + 's
         let id = client.next_id;
         client.next_id += 1;
         client.answers.insert(id, Box::new(answer));
-        let message = ToWorker { id, request };
+        let message = ToServer { id, request };
         if client.started {
             let _ = client
                 .worker
@@ -133,7 +134,7 @@ fn receive(event: web_sys::MessageEvent) {
     let Some(text) = event.data().as_string() else {
         return;
     };
-    let message = match wire::decode::<FromWorker>(&text) {
+    let message = match wire::decode::<FromServer>(&text) {
         Ok(message) => message,
         Err(e) => {
             mark(&format!("failed: {e}"));
@@ -144,7 +145,7 @@ fn receive(event: web_sys::MessageEvent) {
         let mut client = client.borrow_mut();
         let client = client.as_mut()?;
         match message {
-            FromWorker::Started => {
+            FromServer::Started => {
                 client.started = true;
                 for waiting in client.waiting.drain(..) {
                     let _ = client
@@ -153,15 +154,16 @@ fn receive(event: web_sys::MessageEvent) {
                 }
                 None
             }
-            FromWorker::Reply { id, reply } => client.answers.remove(&id).map(|a| (a, Ok(reply))),
-            FromWorker::Failed {
+            FromServer::Reply { id, reply } => client.answers.remove(&id).map(|a| (a, Ok(reply))),
+            FromServer::Failed {
                 id: Some(id),
                 message,
             } => client.answers.remove(&id).map(|a| (a, Err(message))),
-            FromWorker::Failed { id: None, message } => {
+            FromServer::Failed { id: None, message } => {
                 mark(&format!("failed: {message}"));
                 None
             }
+            FromServer::Event(_) => None,
         }
     });
     // The callback runs with the client released, so it may send another request.

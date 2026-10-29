@@ -16,7 +16,7 @@ use dna_onecalc::display::{self, SheetNames};
 use dna_onecalc::result;
 
 /// Where a shown value came from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Provenance {
     /// The cell holds nothing.
     Empty,
@@ -67,7 +67,7 @@ pub struct CellShown {
 }
 
 /// A cell's look under its conditional formats, as the grid draws it: colours as `#rrggbb`.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ConditionalShown {
     pub fill: Option<String>,
     pub font_color: Option<String>,
@@ -137,7 +137,7 @@ fn kind(value: &CalcValue) -> &'static str {
 }
 
 /// How a cell's number format applied to what it shows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum FormatShown {
     /// The General format (or no value to format).
     General,

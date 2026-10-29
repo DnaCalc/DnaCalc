@@ -1,31 +1,33 @@
-//! The application's controller: the open [`Workbook`] behind reactive signals, shared by the
+//! The application's controller: the workbook's server behind reactive signals, shared by the
 //! shell and every skin. It is `Copy`, so any view can hold it.
 //!
-//! - Reads go through [`Controller::with`], which tracks [`Controller::revision`], so a view that
-//!   reads the workbook is shown again after every change.
-//! - Changes go through [`Controller::dispatch`] (a [`SkinIntent`]): after the session returns,
-//!   the deltas its subscriptions received are applied to the mirrors registered for them
-//!   ([`Controller::subscribe`]), the revision advances, and a refused intent's reason goes to the
-//!   status line.
-//! - The application's own subscription follows the host's selection ([`Interest::Selection`]):
-//!   the formula bar and the status line show the active cell from it.
+//! The workbook itself lives with its server ([`crate::server`]), reached through
+//! [`crate::port`] by messages ([`crate::wire`], dc-p96): the controller sends a request and
+//! applies the reply when it comes, so nothing here waits for the server.
+//!
+//! - Changes go through [`Controller::dispatch`] (a [`wire::Intent`]): when the outcome comes,
+//!   the summary (sheets, name, calculation mode) is updated, the revision advances on a commit
+//!   or a recalculation, the active cell follows the session's selection, and a refused intent's
+//!   reason goes to the status line. The server pushes the cells of the page's subscriptions as
+//!   they change; [`Controller::subscribe`] registers a [`ViewMirror`] for one.
+//! - The application's own subscription follows the session's selection: the formula bar and the
+//!   status line show the active cell from it.
+//! - Skins not yet moved to the messages read the workbook through [`Controller::with`], which
+//!   tracks [`Controller::revision`]; it reads the in-process server's workbook.
 //!
 //! The active sheet and cell are the controller's, so they stay when the skin changes; every move
-//! of the active cell is also a host selection ([`SkinIntent::Select`]), so an undo restores the
-//! selection the edit was made in.
+//! of the active cell is also a session selection, so an undo restores the selection the edit was
+//! made in.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-app/src/app.rs` (`CalcApp`'s workspace,
 //! delta and selection signals, the dispatcher that marks the document changed) and
 //! `src/dnacalc-skin-leptos/src/state_handles.rs` (shared state behind one handle), onto calc-host's
 //! session.
 
-use crate::cells;
-use crate::workbook::{OpenRefused, SheetTab, Workbook};
+use crate::port;
+use crate::wire::{self, Area, Cells, Event, Intent, Key, Outcome, Reply, Request, Sheet, Summary};
+use crate::workbook::{SheetTab, Workbook};
 use calc_host::value::{CellKey, GridArea, SheetId};
-use calc_host::{
-    CalcMode, CellEdit, DeltaMirror, IntentReceipt, Interest, ProjectedCell, Selection, SkinIntent,
-    SubscriptionId,
-};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
 
@@ -50,6 +52,47 @@ pub enum EditOrigin {
 pub struct Timings {
     pub open_ms: Option<f64>,
     pub last_intent_ms: Option<f64>,
+}
+
+/// The cells of one subscription as the server last sent them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ViewMirror {
+    seq: u64,
+    cells: BTreeMap<CellKey, wire::Cell>,
+}
+
+impl ViewMirror {
+    /// Applies the server's changed cells: a reset replaces every cell. A change that is not the
+    /// next of the subscription is refused (`false`) unless it is a reset.
+    pub fn apply(&mut self, cells: &Cells) -> bool {
+        if !cells.reset && cells.seq != self.seq + 1 {
+            return false;
+        }
+        if cells.reset {
+            self.cells.clear();
+        }
+        for at in &cells.emptied {
+            if let Some(at) = at.cell() {
+                self.cells.remove(&at);
+            }
+        }
+        for cell in &cells.cells {
+            if let Some(at) = cell.at.cell() {
+                self.cells.insert(at, cell.clone());
+            }
+        }
+        self.seq = cells.seq;
+        true
+    }
+
+    pub fn cell(&self, at: CellKey) -> Option<&wire::Cell> {
+        self.cells.get(&at)
+    }
+
+    /// Every cell, in cell order.
+    pub fn cells(&self) -> impl Iterator<Item = (&CellKey, &wire::Cell)> {
+        self.cells.iter()
+    }
 }
 
 /// The bytes of the wasm instance's linear memory; `None` off the browser.
@@ -86,8 +129,10 @@ pub fn now_ms() -> f64 {
 
 #[derive(Clone, Copy)]
 pub struct Controller {
-    book: StoredValue<Workbook, LocalStorage>,
-    mirrors: StoredValue<BTreeMap<SubscriptionId, RwSignal<DeltaMirror>>, LocalStorage>,
+    mirrors: StoredValue<BTreeMap<u64, RwSignal<ViewMirror>>, LocalStorage>,
+    next_subscription: StoredValue<u64>,
+    /// The workbook as the shell shows it: name, sheets, calculation mode, revision.
+    pub summary: RwSignal<Summary>,
     /// Advances with every change to the workbook, an open included.
     pub revision: RwSignal<u64>,
     /// Advances with every workbook opened: subscriptions belong to one generation.
@@ -102,8 +147,8 @@ pub struct Controller {
     pub clipboard: RwSignal<Option<GridArea>>,
     /// Whether the range on the clipboard was cut (Ctrl+X): a paste moves it.
     pub cut: RwSignal<bool>,
-    /// The cells of the host's selection, as the application's subscription delivered them.
-    pub selection: RwSignal<DeltaMirror>,
+    /// The cells of the session's selection, as the application's subscription delivered them.
+    pub selection: RwSignal<ViewMirror>,
     pub status: RwSignal<Status>,
     /// Where an edit is in progress, if one is.
     pub editing: RwSignal<Option<EditOrigin>>,
@@ -116,8 +161,9 @@ impl Controller {
     /// A controller over a new workbook.
     pub fn new() -> Controller {
         let controller = Controller {
-            book: StoredValue::new_local(Workbook::new_blank()),
             mirrors: StoredValue::new_local(BTreeMap::new()),
+            next_subscription: StoredValue::new(1),
+            summary: RwSignal::new(Summary::default()),
             revision: RwSignal::new(0),
             generation: RwSignal::new(0),
             sheet: RwSignal::new(None),
@@ -125,36 +171,56 @@ impl Controller {
             corner: RwSignal::new((1, 1)),
             clipboard: RwSignal::new(None),
             cut: RwSignal::new(false),
-            selection: RwSignal::new(DeltaMirror::default()),
+            selection: RwSignal::new(ViewMirror::default()),
             status: RwSignal::new(Status::default()),
             editing: RwSignal::new(None),
             edit_text: RwSignal::new(String::new()),
             timings: RwSignal::new(Timings::default()),
         };
-        controller.installed("New workbook".to_owned());
+        port::start();
+        port::set_events(move |event| controller.receive(event));
+        controller.new_workbook();
         controller
     }
 
-    /// Reads the workbook, tracking the revision.
+    /// Reads the open workbook, tracking the revision (the skins that do not yet read through
+    /// messages).
     pub fn with<R>(&self, f: impl FnOnce(&Workbook) -> R) -> R {
         self.revision.track();
-        self.book.with_value(f)
+        port::with_book(f)
     }
 
     /// Reads the workbook without tracking.
     pub fn with_untracked<R>(&self, f: impl FnOnce(&Workbook) -> R) -> R {
-        self.book.with_value(f)
+        port::with_book(f)
     }
 
     /// Changes the workbook outside an intent (a census through short subscriptions).
     pub fn update_untracked<R>(&self, f: impl FnOnce(&mut Workbook) -> R) -> R {
-        self.book
-            .try_update_value(f)
-            .expect("the workbook lives as long as the page")
+        port::with_book_mut(f)
     }
 
+    /// Asks the server; `answer` gets the reply when it comes (a failure goes to the status line).
+    pub fn ask(&self, request: Request, answer: impl FnOnce(Reply) + 'static) {
+        let controller = *self;
+        port::call(request, None, move |reply, _| match reply {
+            Ok(reply) => answer(reply),
+            Err(message) => controller.say(format!("The workbook did not answer: {message}"), true),
+        });
+    }
+
+    /// The sheets, in workbook order.
     pub fn sheets(&self) -> Vec<SheetTab> {
-        self.with(Workbook::sheets)
+        self.summary.with(|summary| {
+            summary
+                .sheets
+                .iter()
+                .map(|(sheet, name)| SheetTab {
+                    id: sheet.id(),
+                    name: name.clone(),
+                })
+                .collect()
+        })
     }
 
     /// The active cell's key.
@@ -171,7 +237,7 @@ impl Controller {
     }
 
     /// The active cell as the selection subscription holds it; `None` when it is empty.
-    pub fn active_cell(&self) -> Option<ProjectedCell> {
+    pub fn active_cell(&self) -> Option<wire::Cell> {
         let at = self.active_key()?;
         self.selection.with(|mirror| mirror.cell(at).cloned())
     }
@@ -183,40 +249,46 @@ impl Controller {
         });
     }
 
-    /// Replaces the workbook with `book`: a new generation, the first sheet active at A1, and the
-    /// application's selection subscription.
-    fn install(&self, book: Workbook, message: String) {
-        self.book.set_value(book);
-        self.installed(message);
+    /// The server's events: a subscription's changed cells go to its mirror.
+    fn receive(&self, event: Event) {
+        match event {
+            Event::Cells(cells) => {
+                if let Some(mirror) = self.mirrors.with_value(|m| m.get(&cells.id).copied()) {
+                    mirror.update(|mirror| {
+                        if !mirror.apply(&cells) {
+                            // A gap means a change was lost: the next reset brings the mirror back.
+                            *mirror = ViewMirror::default();
+                        }
+                    });
+                }
+            }
+        }
     }
 
-    fn installed(&self, message: String) {
+    /// A new workbook is open (an open or a new workbook): a new generation, the first sheet
+    /// active at A1, and the application's selection subscription.
+    fn installed(&self, summary: Summary, message: String) {
         self.mirrors.update_value(BTreeMap::clear);
-        let first = self
-            .book
-            .with_value(|book| book.sheets().first().map(|tab| tab.id));
+        let first = summary.sheets.first().map(|(sheet, _)| sheet.id());
+        self.summary.set(summary);
         self.sheet.set(first);
         self.active.set((1, 1));
         self.corner.set((1, 1));
         self.clipboard.set(None);
         self.editing.set(None);
-        let selection = self.selection;
-        selection.set(DeltaMirror::default());
-        if let Some(id) = self
-            .book
-            .try_update_value(|book| book.subscribe(Interest::Selection).ok())
-            .flatten()
+        self.selection.set(ViewMirror::default());
+        self.subscribe(wire::Interest::Selection, self.selection);
+        if let Some(at) = self.active_key_untracked()
+            && let Ok(area) = GridArea::new(at, at)
         {
-            self.mirrors.update_value(|mirrors| {
-                mirrors.insert(id, selection);
-            });
+            self.dispatch(
+                Intent::Select {
+                    active: Key::of(at),
+                    area: Area::of(area),
+                },
+                |_| {},
+            );
         }
-        if let Some(at) = self.active_key_untracked() {
-            self.book.update_value(|book| {
-                book.dispatch(SkinIntent::Select(Selection::cell(at)));
-            });
-        }
-        self.route_deltas();
         self.generation.update(|n| *n += 1);
         self.revision.update(|n| *n += 1);
         self.say(message, false);
@@ -224,81 +296,85 @@ impl Controller {
 
     /// A new, empty workbook.
     pub fn new_workbook(&self) {
-        self.install(Workbook::new_blank(), "New workbook".to_owned());
+        let controller = *self;
+        port::call(Request::New, None, move |reply, _| {
+            if let Ok(Reply::Done { outcome, .. }) = reply {
+                controller.installed(outcome.summary, "New workbook".to_owned());
+            }
+        });
     }
 
     /// Opens a package's bytes under `name`; the current workbook stays when it is refused.
-    pub fn open(&self, name: &str, bytes: Vec<u8>) -> Result<(), OpenRefused> {
-        let started = now_ms();
+    /// `opened` hears whether it opened.
+    pub fn open(&self, name: &str, bytes: Vec<u8>, opened: impl FnOnce(bool) + 'static) {
+        let controller = *self;
         let size = bytes.len();
-        crate::workbook::reserve_for_open(size);
-        match Workbook::open(name, bytes) {
-            Ok(book) => {
-                let elapsed = now_ms() - started;
-                self.timings
-                    .update(|timings| timings.open_ms = Some(elapsed));
-                let message = match book.calculated_on_open() {
-                    Some(calculated) => format!(
-                        "Opened {name}: {size} bytes in {elapsed:.0} ms: read in {:.0} ms, calculated in {calculated:.0} ms",
-                        elapsed - calculated
-                    ),
-                    None => format!(
-                        "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
-                    ),
-                };
-                self.install(book, message);
-                Ok(())
-            }
-            Err(refused) => {
-                self.say(format!("{name} did not open: {}", refused.0), true);
-                Err(refused)
-            }
-        }
+        let name = name.to_owned();
+        port::call(
+            Request::Open { name: name.clone() },
+            Some(bytes),
+            move |reply, _| match reply {
+                Ok(Reply::Done {
+                    outcome,
+                    opened: Some((elapsed, calculated)),
+                    ..
+                }) => {
+                    controller
+                        .timings
+                        .update(|timings| timings.open_ms = Some(elapsed));
+                    let message = match calculated {
+                        Some(calculated) => format!(
+                            "Opened {name}: {size} bytes in {elapsed:.0} ms: read in {:.0} ms, calculated in {calculated:.0} ms",
+                            elapsed - calculated
+                        ),
+                        None => format!(
+                            "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
+                        ),
+                    };
+                    controller.installed(outcome.summary, message);
+                    opened(true);
+                }
+                Ok(Reply::Done { outcome, .. }) => {
+                    controller.say(
+                        format!("{name} did not open: {}", outcome.error.unwrap_or_default()),
+                        true,
+                    );
+                    opened(false);
+                }
+                Ok(_) | Err(_) => {
+                    controller.say(format!("{name} did not open"), true);
+                    opened(false);
+                }
+            },
+        );
     }
 
-    /// Applies the waiting deltas to their mirrors.
-    fn route_deltas(&self) {
-        let deltas = self
-            .book
-            .try_update_value(Workbook::take_deltas)
-            .unwrap_or_default();
-        if deltas.is_empty() {
-            return;
-        }
-        let mirrors = self.mirrors.get_value();
-        for delta in deltas {
-            if let Some(mirror) = mirrors.get(&delta.subscription) {
-                mirror.update(|mirror| {
-                    if mirror.apply(&delta).is_err() {
-                        // A gap means a delta was lost: the next reset brings the mirror back.
-                        *mirror = DeltaMirror::default();
-                    }
-                });
+    /// Carries out an intent; when its outcome comes, applies it (the summary, the revision, the
+    /// selection, the status line) and hands it to `then`.
+    pub fn dispatch(&self, intent: Intent, then: impl FnOnce(&Outcome) + 'static) {
+        let controller = *self;
+        port::call(Request::Intent(intent), None, move |reply, _| match reply {
+            Ok(Reply::Done { outcome, .. }) => {
+                controller.applied(&outcome);
+                then(&outcome);
             }
-        }
-    }
-
-    /// Carries out an intent, applies its deltas, and reports a refusal on the status line.
-    pub fn dispatch(&self, intent: SkinIntent) -> IntentReceipt {
-        let started = now_ms();
-        let receipt = self
-            .book
-            .try_update_value(|book| book.dispatch(intent))
-            .expect("the workbook lives as long as the page");
-        let elapsed = now_ms() - started;
-        self.timings
-            .update(|timings| timings.last_intent_ms = Some(elapsed));
-        self.route_deltas();
-        // The active cell follows the host's selection: an undo or a redo restores the selection
-        // of its edit, which may be on another sheet, and then that sheet is shown (as Excel
-        // does), so the formula bar and the status line read the cell the selection holds.
-        let restored = self.book.with_value(|book| {
-            let selection = book.session().selection();
-            selection
-                .active
-                .map(|at| (at, selection.areas.first().copied()))
+            Ok(_) => controller.say("The workbook answered an intent with something else", true),
+            Err(message) => controller.say(format!("The workbook did not answer: {message}"), true),
         });
-        if let Some((at, area)) = restored {
+    }
+
+    fn applied(&self, outcome: &Outcome) {
+        self.timings
+            .update(|timings| timings.last_intent_ms = Some(outcome.elapsed_ms));
+        if outcome.summary != self.summary.get_untracked() {
+            self.summary.set(outcome.summary.clone());
+        }
+        // The active cell follows the session's selection: an undo or a redo restores the
+        // selection of its edit, which may be on another sheet, and then that sheet is shown (as
+        // Excel does), so the formula bar and the status line read the cell the selection holds.
+        if let Some((at, area)) = &outcome.selection
+            && let Some(at) = at.cell()
+        {
             if Some(at.sheet()) != self.sheet.get_untracked() {
                 self.editing.set(None);
                 self.sheet.set(Some(at.sheet()));
@@ -306,34 +382,35 @@ impl Controller {
             if (at.row(), at.column()) != self.active.get_untracked() {
                 self.active.set((at.row(), at.column()));
             }
-            let corner = area.map_or((at.row(), at.column()), |area| opposite(area, at));
+            let corner = area
+                .and_then(Area::area)
+                .map_or((at.row(), at.column()), |area| opposite(area, at));
             if corner != self.corner.get_untracked() {
                 self.corner.set(corner);
             }
         }
         // Only a change of the workbook or its calculation advances the revision: a selection or
         // an interest moved changes no cell, so what reads the workbook is not read again.
-        if receipt.committed.is_some() || receipt.recalc.is_some() {
+        if outcome.committed || outcome.recalculated {
             self.revision.update(|n| *n += 1);
         }
-        match &receipt.error {
-            Some(error) => self.say(error.to_string(), true),
+        match &outcome.error {
+            Some(error) => self.say(error.clone(), true),
             None => {
-                if let Some(progress) = &receipt.recalc {
+                if let Some(recalc) = &outcome.recalc {
                     self.say(
-                        format!(
-                            "{} in {elapsed:.0} ms",
-                            capitalised(&Workbook::recalc_text(progress))
-                        ),
+                        format!("{} in {:.0} ms", capitalised(recalc), outcome.elapsed_ms),
                         false,
                     );
                 }
+                if let Some((kind, text)) = &outcome.note {
+                    self.say(format!("{kind}, entry kept: {text}"), true);
+                }
             }
         }
-        receipt
     }
 
-    /// Moves the active cell and the host's selection to one cell.
+    /// Moves the active cell and the session's selection to one cell.
     pub fn select(&self, row: u32, column: u32) {
         self.select_range((row, column), (row, column));
     }
@@ -345,10 +422,13 @@ impl Controller {
         if let (Some(at), Some(area)) =
             (self.active_key_untracked(), self.selected_area_untracked())
         {
-            self.dispatch(SkinIntent::Select(Selection {
-                active: Some(at),
-                areas: vec![area],
-            }));
+            self.dispatch(
+                Intent::Select {
+                    active: Key::of(at),
+                    area: Area::of(area),
+                },
+                |_| {},
+            );
         }
     }
 
@@ -375,6 +455,18 @@ impl Controller {
         .ok()
     }
 
+    /// A cell's label with its sheet's name: `Sheet1!B3`.
+    pub fn cell_label(&self, at: CellKey) -> String {
+        self.summary
+            .with_untracked(|summary| dna_onecalc::display::cell(summary, at))
+    }
+
+    /// An area's label with its sheet's name: `Sheet1!A1:B3`.
+    pub fn area_label(&self, area: GridArea) -> String {
+        self.summary
+            .with_untracked(|summary| dna_onecalc::display::area(summary, area))
+    }
+
     /// Copies the selected range (Ctrl+C): a paste copies from it.
     pub fn copy(&self) {
         self.take(false);
@@ -389,7 +481,7 @@ impl Controller {
         if let Some(area) = self.selected_area_untracked() {
             self.clipboard.set(Some(area));
             self.cut.set(cut);
-            let label = self.with_untracked(|book| cells::area_label(book.host(), area));
+            let label = self.area_label(area);
             let verb = if cut { "Cut" } else { "Copied" };
             self.say(format!("{verb} {label}: select where to paste it"), false);
         }
@@ -408,11 +500,20 @@ impl Controller {
             return;
         };
         let cut = self.cut.get_untracked();
-        let receipt = self.dispatch(SkinIntent::Copy { from, to, cut });
-        if cut && receipt.accepted() {
-            self.clipboard.set(None);
-            self.cut.set(false);
-        }
+        let controller = *self;
+        self.dispatch(
+            Intent::Copy {
+                from: Area::of(from),
+                to: Area::of(to),
+                cut,
+            },
+            move |outcome| {
+                if cut && outcome.accepted {
+                    controller.clipboard.set(None);
+                    controller.cut.set(false);
+                }
+            },
+        );
     }
 
     /// Fills the selected range down from its first row (Ctrl+D) or right from its first column
@@ -421,15 +522,15 @@ impl Controller {
         let Some(area) = self.selected_area_untracked() else {
             return;
         };
-        let parts = fill_parts(area, down);
-        match parts {
-            Some((from, to)) => {
-                self.dispatch(SkinIntent::Copy {
-                    from,
-                    to,
+        match fill_parts(area, down) {
+            Some((from, to)) => self.dispatch(
+                Intent::Copy {
+                    from: Area::of(from),
+                    to: Area::of(to),
                     cut: false,
-                });
-            }
+                },
+                |_| {},
+            ),
             None => self.say(
                 if down {
                     "Fill down needs a range of more than one row"
@@ -465,9 +566,8 @@ impl Controller {
             None => self
                 .active_key_untracked()
                 .and_then(|at| {
-                    self.selection.with_untracked(|mirror| {
-                        mirror.cell(at).map(|cell| cells::input_text(cell.input()))
-                    })
+                    self.selection
+                        .with_untracked(|mirror| mirror.cell(at).map(|cell| cell.input.clone()))
                 })
                 .unwrap_or_default(),
         };
@@ -483,44 +583,39 @@ impl Controller {
         }
     }
 
-    /// Enters the edited text into the active cell. `true` when the entry was accepted; a refused
-    /// entry keeps the edit open with the reason on the status line.
-    pub fn commit_edit(&self) -> bool {
+    /// Enters the edited text into the active cell. `then` hears whether the entry was
+    /// accepted; a refused entry keeps the edit open with the reason on the status line.
+    pub fn commit_edit(&self, then: impl FnOnce(bool) + 'static) {
         let Some(at) = self.active_key_untracked() else {
-            return false;
+            then(false);
+            return;
         };
         let text = self.edit_text.get_untracked();
-        let note = self.book.with_value(|book| book.validation_note(at, &text));
-        let receipt = self.dispatch(SkinIntent::EnterCell { at, text });
-        if receipt.accepted() {
-            self.editing.set(None);
-            self.validation_said(note);
-            true
-        } else {
-            false
-        }
+        let controller = *self;
+        self.dispatch(
+            Intent::EnterCell {
+                at: Key::of(at),
+                text,
+            },
+            move |outcome| {
+                if outcome.accepted {
+                    controller.editing.set(None);
+                }
+                then(outcome.accepted);
+            },
+        );
     }
 
-    /// Text entered into any cell, one undoable edit (the notebook's blocks, a drop-down's item).
-    pub fn enter(&self, at: CellKey, text: String) -> IntentReceipt {
-        let note = self.book.with_value(|book| book.validation_note(at, &text));
-        let receipt = self.dispatch(SkinIntent::EnterCell { at, text });
-        if receipt.accepted() {
-            self.validation_said(note);
-        }
-        receipt
-    }
-
-    /// A warning or information rule's message about an entry the session took, on the status
-    /// line (Excel asks, or tells, in a dialog; the entry is kept here).
-    fn validation_said(&self, note: Option<calc_host::ValidationFailure>) {
-        if let Some(failure) = note {
-            let kind = match failure.style {
-                calc_host::ErrorStyle::Warning => "Warning",
-                _ => "Information",
-            };
-            self.say(format!("{kind}, entry kept: {failure}"), true);
-        }
+    /// Text entered into any cell, one undoable edit (the notebook's blocks, a drop-down's item);
+    /// `then` gets the outcome.
+    pub fn enter(&self, at: CellKey, text: String, then: impl FnOnce(&Outcome) + 'static) {
+        self.dispatch(
+            Intent::EnterCell {
+                at: Key::of(at),
+                text,
+            },
+            then,
+        );
     }
 
     /// Inserts (`insert`) or deletes rows or columns: the selected whole rows (a row header's
@@ -534,14 +629,10 @@ impl Controller {
         let (first, last) = (area.first(), area.last());
         let whole_rows = first.column() == 1 && last.column() == calc_host::value::MAX_COLUMNS;
         let whole_columns = first.row() == 1 && last.row() == calc_host::value::MAX_ROWS;
-        let (axis, start, count) = if whole_rows && !whole_columns {
-            (calc_host::Axis::Rows, first.row(), area.row_count())
+        let (rows, start, count) = if whole_rows && !whole_columns {
+            (true, first.row(), area.row_count())
         } else if whole_columns && !whole_rows {
-            (
-                calc_host::Axis::Columns,
-                first.column(),
-                area.column_count(),
-            )
+            (false, first.column(), area.column_count())
         } else {
             self.say(
                 "Select whole rows or columns (click a row or column header) to insert or delete them",
@@ -549,107 +640,113 @@ impl Controller {
             );
             return;
         };
-        let change = if insert {
-            calc_host::AxisChange::Insert
-        } else {
-            calc_host::AxisChange::Delete
-        };
-        match calc_host::AxisEdit::new(area.sheet(), axis, change, start, count) {
-            Ok(edit) => {
-                self.dispatch(SkinIntent::EditAxis(edit));
-            }
-            Err(error) => self.say(format!("{error:?}"), true),
-        }
+        self.dispatch(
+            Intent::EditAxis {
+                sheet: Sheet::of(area.sheet()),
+                rows,
+                insert,
+                start,
+                count,
+            },
+            |_| {},
+        );
     }
 
     /// Clears the selected range (Delete).
     pub fn clear_active(&self) {
         if let Some(area) = self.selected_area_untracked() {
-            self.dispatch(SkinIntent::Edit {
-                edits: vec![CellEdit::Clear { area }],
-            });
+            self.dispatch(
+                Intent::Clear {
+                    area: Area::of(area),
+                },
+                |_| {},
+            );
         }
     }
 
     pub fn undo(&self) {
         self.cancel_edit();
-        self.dispatch(SkinIntent::Undo);
+        self.dispatch(Intent::Undo, |_| {});
     }
 
     pub fn redo(&self) {
         self.cancel_edit();
-        self.dispatch(SkinIntent::Redo);
+        self.dispatch(Intent::Redo, |_| {});
     }
 
     pub fn recalculate(&self) {
-        self.dispatch(SkinIntent::Recalculate);
+        self.dispatch(Intent::Recalculate, |_| {});
     }
 
-    pub fn calc_mode(&self) -> CalcMode {
-        self.with(|book| book.session().calc_mode())
+    /// Whether the workbook calculates manually.
+    pub fn manual(&self) -> bool {
+        self.summary.with(|summary| summary.manual)
     }
 
-    pub fn set_calc_mode(&self, mode: CalcMode) {
-        self.dispatch(SkinIntent::SetCalcMode(mode));
-        // Manual mode recalculates nothing, but the mode itself changed.
-        self.revision.update(|n| *n += 1);
+    pub fn set_calc_mode(&self, manual: bool) {
+        let controller = *self;
+        self.dispatch(Intent::SetCalcMode { manual }, move |_| {
+            // Manual mode recalculates nothing, but the mode itself changed.
+            controller.revision.update(|n| *n += 1);
+        });
     }
 
-    /// Registers a subscription whose deltas go to `mirror`.
-    pub fn subscribe(
-        &self,
-        interest: Interest,
-        mirror: RwSignal<DeltaMirror>,
-    ) -> Option<SubscriptionId> {
-        let id = self
-            .book
-            .try_update_value(|book| book.subscribe(interest).ok())
-            .flatten()?;
+    /// Registers a subscription whose cells go to `mirror`; its number for later changes.
+    pub fn subscribe(&self, interest: wire::Interest, mirror: RwSignal<ViewMirror>) -> u64 {
+        let id = self.next_subscription.get_value();
+        self.next_subscription.set_value(id + 1);
+        mirror.set(ViewMirror::default());
         self.mirrors.update_value(|mirrors| {
             mirrors.insert(id, mirror);
         });
-        mirror.set(DeltaMirror::default());
-        self.route_deltas();
-        Some(id)
+        self.ask(Request::Subscribe { id, interest }, |_| {});
+        id
     }
 
     /// Moves a subscription's interest; its mirror is given the new interest's cells.
-    pub fn set_interest(&self, subscription: SubscriptionId, interest: Interest) {
-        self.book.update_value(|book| {
-            book.dispatch(SkinIntent::SetInterest {
-                subscription,
-                interest,
-            });
-        });
-        self.route_deltas();
+    pub fn set_interest(&self, id: u64, interest: wire::Interest) {
+        self.ask(Request::SetInterest { id, interest }, |_| {});
     }
 
-    pub fn unsubscribe(&self, subscription: SubscriptionId) {
+    pub fn unsubscribe(&self, id: u64) {
         self.mirrors.update_value(|mirrors| {
-            mirrors.remove(&subscription);
+            mirrors.remove(&id);
         });
-        self.book.update_value(|book| {
-            book.unsubscribe(subscription);
-        });
+        self.ask(Request::Unsubscribe { id }, |_| {});
     }
 
-    /// Saves the workbook as a package's bytes, with its name; the status line says how it went.
-    pub fn save(&self) -> Option<(String, Vec<u8>)> {
-        let outcome = self.book.try_update_value(|book| {
-            let name = book.save_name();
-            book.save().map(|(bytes, _)| (name, bytes))
-        })?;
-        self.revision.update(|n| *n += 1);
-        match outcome {
-            Ok((name, bytes)) => {
-                self.say(format!("Saved {name}: {} bytes", bytes.len()), false);
-                Some((name, bytes))
+    /// Saves the workbook as a package's bytes; `saved` gets its name and bytes, and the status
+    /// line says how it went.
+    pub fn save(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
+        let controller = *self;
+        port::call(Request::Save, None, move |reply, bytes| {
+            controller.revision.update(|n| *n += 1);
+            match (reply, bytes) {
+                (
+                    Ok(Reply::Done {
+                        outcome,
+                        saved: Some(name),
+                        ..
+                    }),
+                    Some(bytes),
+                ) => {
+                    controller.summary.set(outcome.summary);
+                    controller.say(format!("Saved {name}: {} bytes", bytes.len()), false);
+                    saved(name, bytes);
+                }
+                (Ok(Reply::Done { outcome, .. }), _) => controller.say(
+                    format!(
+                        "The workbook was not saved: {}",
+                        outcome.error.unwrap_or_default()
+                    ),
+                    true,
+                ),
+                (Ok(_), _) => controller.say("The workbook was not saved", true),
+                (Err(message), _) => {
+                    controller.say(format!("The workbook was not saved: {message}"), true)
+                }
             }
-            Err(failure) => {
-                self.say(format!("The workbook was not saved: {failure}"), true);
-                None
-            }
-        }
+        });
     }
 }
 

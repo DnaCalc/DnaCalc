@@ -17,18 +17,17 @@
 
 use crate::atlas::AtlasSkin;
 use crate::canvas::CanvasSkin;
-use crate::ledger::LedgerSkin;
-use crate::tree::TreeSkin;
 use crate::cells;
 use crate::controller::{Controller, EditOrigin};
 use crate::grid::{self, GridSkin};
+use crate::ledger::LedgerSkin;
 use crate::notebook::NotebookSkin;
 use crate::skin::{SkinContext, SkinRegistry, SkinResolution, resolve_active_skin, switch_skin};
-use calc_host::CalcMode;
+use crate::tree::TreeSkin;
+
 use dna_onecalc::formula_field::FormulaAssist;
 use leptos::prelude::*;
 use std::sync::Arc;
-
 
 /// The skins DNA Calc registers, in the switcher's order.
 pub fn registry() -> SkinRegistry {
@@ -84,7 +83,7 @@ fn open_chosen(controller: Controller, input: web_sys::HtmlInputElement) {
         match wasm_bindgen_futures::JsFuture::from(file.array_buffer()).await {
             Ok(buffer) => {
                 let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
-                let _ = controller.open(&name, bytes);
+                controller.open(&name, bytes, |_| {});
             }
             Err(error) => controller.status.set(crate::controller::Status {
                 text: format!("{name} could not be read: {error:?}"),
@@ -110,7 +109,7 @@ pub fn app() -> impl IntoView {
         if controller.editing.get().is_none() {
             let text = controller
                 .active_cell()
-                .map(|cell| cells::input_text(cell.input()))
+                .map(|cell| cell.input)
                 .unwrap_or_default();
             controller.edit_text.set(text);
             assist.reset();
@@ -141,9 +140,11 @@ pub fn app() -> impl IntoView {
                 if controller.editing.get_untracked().is_none() {
                     controller.editing.set(Some(EditOrigin::Bar));
                 }
-                if controller.commit_edit() {
-                    grid::focus_grid();
-                }
+                controller.commit_edit(|accepted| {
+                    if accepted {
+                        grid::focus_grid();
+                    }
+                });
             }
             "Escape" => {
                 ev.prevent_default();
@@ -155,14 +156,14 @@ pub fn app() -> impl IntoView {
     );
 
     let save = move |_| {
-        if let Some((name, bytes)) = controller.save()
-            && let Err(error) = download(&name, &bytes)
-        {
-            controller.status.set(crate::controller::Status {
-                text: format!("Saved, but the download did not start: {error}"),
-                refused: true,
-            });
-        }
+        controller.save(move |name, bytes| {
+            if let Err(error) = download(&name, &bytes) {
+                controller.status.set(crate::controller::Status {
+                    text: format!("Saved, but the download did not start: {error}"),
+                    refused: true,
+                });
+            }
+        });
     };
 
     let skin_buttons = {
@@ -255,11 +256,11 @@ pub fn app() -> impl IntoView {
     };
 
     let document_line = move || {
-        controller.with(|book| {
+        controller.summary.with(|summary| {
             format!(
                 "{}{}",
-                book.name(),
-                if book.changed() { " (changed)" } else { "" }
+                summary.name,
+                if summary.changed { " (changed)" } else { "" }
             )
         })
     };
@@ -268,17 +269,19 @@ pub fn app() -> impl IntoView {
             return String::new();
         };
         let cell = controller.active_cell();
-        controller.with(|book| {
-            let label = cells::cell_label(book.host(), at);
-            match cell {
-                Some(cell) => format!("{label}: {}", cells::provenance_text(book.host(), &cell)),
-                None => format!("{label}: empty"),
-            }
-        })
+        controller.summary.track();
+        let label = controller.cell_label(at);
+        match cell {
+            Some(cell) => format!("{label}: {}", cell.why),
+            None => format!("{label}: empty"),
+        }
     };
-    let mode_value = move || match controller.calc_mode() {
-        CalcMode::Manual => "manual",
-        _ => "automatic",
+    let mode_value = move || {
+        if controller.manual() {
+            "manual"
+        } else {
+            "automatic"
+        }
     };
 
     view! {
@@ -326,11 +329,7 @@ pub fn app() -> impl IntoView {
                     aria-label="Calculation mode"
                     prop:value=mode_value
                     on:change=move |ev| {
-                        controller.set_calc_mode(if event_target_value(&ev) == "manual" {
-                            CalcMode::Manual
-                        } else {
-                            CalcMode::Automatic
-                        })
+                        controller.set_calc_mode(event_target_value(&ev) == "manual")
                     }
                 >
                     <option value="automatic">"Automatic"</option>
