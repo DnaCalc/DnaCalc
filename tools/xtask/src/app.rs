@@ -65,6 +65,9 @@ pub struct App {
     pub entry: &'static str,
     /// The page, relative to the workspace root.
     pub page: &'static str,
+    /// Further scripts copied beside the page, relative to the workspace root (DNA Calc's
+    /// calculation worker, `web/worker.js`, dc-p96).
+    pub scripts: &'static [&'static str],
     /// The stylesheets, relative to the workspace root, in order: the bundle's `app.css` is
     /// Strand's token stylesheet (`dna_strand::stylesheet`) followed by these (dc-xib).
     pub styles: &'static [&'static str],
@@ -96,6 +99,7 @@ pub static APPS: [App; 2] = [
         package: "dna-onecalc",
         entry: "dna-onecalc-web",
         page: "apps/dna-onecalc/web/index.html",
+        scripts: &[],
         styles: &[
             "apps/dna-onecalc/web/css/formula-field.css",
             "apps/dna-onecalc/web/css/surface.css",
@@ -113,6 +117,7 @@ pub static APPS: [App; 2] = [
         package: "dna-calc",
         entry: "dna-calc-web",
         page: "apps/dna-calc/web/index.html",
+        scripts: &["apps/dna-calc/web/worker.js"],
         styles: &[
             "apps/dna-onecalc/web/css/formula-field.css",
             "apps/dna-calc/web/css/shell.css",
@@ -330,6 +335,14 @@ pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(Strin
     let boot = app.boot();
     fs::copy(ws.root.join(&boot), out.join("boot.js"))
         .map_err(|e| format!("cannot copy {boot}: {e}"))?;
+    for script in app.scripts {
+        let name = Path::new(script)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| format!("{script} has no file name"))?;
+        fs::copy(ws.root.join(script), out.join(name))
+            .map_err(|e| format!("cannot copy {script}: {e}"))?;
+    }
     let mut sheet = dna_strand::stylesheet();
     for style in app.styles {
         let text = fs::read_to_string(ws.root.join(style))
@@ -1040,6 +1053,11 @@ const CALC_CASES: &[Case] = &[
             Check::Value("name-box", "A1"),
             Check::Attr("[data-dnacalc=\"skin-grid\"]", "aria-pressed", "true"),
         ],
+    },
+    Case {
+        name: "the calculation worker starts from its own script and answers (dc-p96)",
+        actions: &[],
+        checks: &[Check::Attr("[data-dnacalc-worker]", "data-dnacalc-worker", "ready")],
     },
     Case {
         name: "typed numbers replace the cell, Enter enters them and moves down",
@@ -2082,6 +2100,28 @@ fn text_of(app: &App, session: &Session, name: &str) -> String {
 
 /// Opens a workbook from outside the repository, enters the edit, and reports what the page says
 /// about it: timings and counts only.
+/// Starts (or restarts) the page's freeze meter (dc-p96): a timer task that runs as often as the
+/// page lets it and keeps the longest gap between two runs, the longest the page's main thread
+/// was busy and could not answer input.
+fn freeze_reset(session: &Session) {
+    let _ = session.script(
+        "window.__dcFreezeMax = 0; if (!window.__dcFreezeTick) { window.__dcFreezeLast = performance.now(); window.__dcFreezeTick = function () { var now = performance.now(); window.__dcFreezeMax = Math.max(window.__dcFreezeMax, now - window.__dcFreezeLast); window.__dcFreezeLast = now; setTimeout(window.__dcFreezeTick, 0); }; setTimeout(window.__dcFreezeTick, 0); } else { window.__dcFreezeLast = performance.now(); } return null;",
+    );
+}
+
+/// The longest gap the freeze meter saw since [`freeze_reset`], after letting it run once more.
+fn freeze_read(session: &Session) -> String {
+    thread::sleep(Duration::from_millis(300));
+    match session
+        .script("return window.__dcFreezeMax || null;")
+        .ok()
+        .and_then(|v| v.as_f64())
+    {
+        Some(ms) => format!("{ms:.0} ms"),
+        None => "an unknown time".to_owned(),
+    }
+}
+
 fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) -> Vec<String> {
     let mut failures = Vec::new();
     let name = run
@@ -2102,6 +2142,7 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             }
         }
     }
+    freeze_reset(session);
     if let Err(e) = upload(app, session, "open-file", &run.path) {
         return vec![format!("the workbook was not chosen: {e}")];
     }
@@ -2111,6 +2152,10 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
         let status = text_of(app, session, "status");
         if status.starts_with(&opened) {
             println!("{label} WORKBOOK {browser} open: {status}");
+            println!(
+                "{label} WORKBOOK {browser} open froze the page for at most {}",
+                freeze_read(session)
+            );
             if profiling && let Some(path) = &run.profile {
                 match session.post(
                     "/goog/cdp/execute",
@@ -2158,6 +2203,7 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
             return failures;
         }
         let before = text_of(app, session, "status");
+        freeze_reset(session);
         if let Err(e) = session.keys(&select(app, "cell-editor"), &format!("{rest}{ENTER}")) {
             failures.push(format!("the edit was not entered: {e}"));
             return failures;
@@ -2169,6 +2215,10 @@ fn run_workbook(app: &App, session: &Session, browser: &str, run: &WorkbookRun) 
                 println!(
                     "{label} WORKBOOK {browser} edit {sheet}!{cell}: {status} (seen after {:.1} s)",
                     started.elapsed().as_secs_f64()
+                );
+                println!(
+                    "{label} WORKBOOK {browser} edit froze the page for at most {}",
+                    freeze_read(session)
                 );
                 break;
             }

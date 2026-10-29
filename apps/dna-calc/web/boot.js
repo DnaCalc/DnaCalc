@@ -30,6 +30,9 @@ function loading() {
   return document.getElementById("dnacalc-loading");
 }
 
+// The folder this module came from: the calculation worker (worker.js) is beside it (dc-p96).
+window.__dnacalcAssets = new URL(".", import.meta.url).href;
+
 // The glue is imported only after the listeners are in place, relative to this file, so the page
 // may put both in an asset folder of their own.
 import("./dna-calc-web.js")

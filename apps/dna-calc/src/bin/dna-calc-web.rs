@@ -5,7 +5,13 @@
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
 pub fn start() {
-    dna_calc::web::start();
+    // The same module starts the page and, in its own module worker, the calculation worker.
+    if dna_calc::worker::in_worker() {
+        dna_calc::worker::start();
+    } else {
+        dna_calc::web::start();
+        dna_calc::client::spawn();
+    }
 }
 
 #[cfg(target_arch = "wasm32")]

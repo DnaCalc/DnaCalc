@@ -16,11 +16,14 @@
 //!   attributes).
 //! - [`app`]: the shell (file commands, formula bar, skin switcher, sheet tabs, status line).
 //! - [`web`]: the browser entry of the bundle (`cargo xtask app bundle calc`).
+//! - [`worker`], [`client`] and [`wire`]: the calculation worker, the page's side of it and the
+//!   messages between them (dc-p96).
 
 pub mod app;
 pub mod atlas;
 pub mod canvas;
 pub mod cells;
+pub mod client;
 pub mod controller;
 pub mod grid;
 pub mod ledger;
@@ -29,4 +32,6 @@ pub mod skin;
 pub mod style;
 pub mod tree;
 pub mod web;
+pub mod wire;
 pub mod workbook;
+pub mod worker;

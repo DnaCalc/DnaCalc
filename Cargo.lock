@@ -415,6 +415,8 @@ dependencies = [
  "dna-onecalc",
  "js-sys",
  "leptos",
+ "serde",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
