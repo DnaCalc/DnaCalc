@@ -8,34 +8,9 @@
   html, body { margin: 0; height: 100%; background: #fff; }
   #dnacalc-loading { font-family: system-ui, sans-serif; color: #57606a; padding: 16px; }
 </style>
-<script>
-  // Every uncaught error and unhandled rejection is recorded, so a trap the app cannot report
-  // itself (a panic in a reactive effect shows only as "RuntimeError: unreachable") is still
-  // seen by the browser smoke test (`cargo xtask app smoke calc`), which reads this list.
-  window.__dnacalcFaults = [];
-  window.addEventListener("error", function (event) {
-    window.__dnacalcFaults.push("error: " + (event.error && event.error.stack ? event.error.stack : event.message));
-  });
-  window.addEventListener("unhandledrejection", function (event) {
-    var reason = event.reason;
-    window.__dnacalcFaults.push("unhandledrejection: " + (reason && reason.stack ? reason.stack : String(reason)));
-  });
-</script>
 </head>
 <body>
 <div id="dnacalc"><p id="dnacalc-loading">Loading DNA Calc…</p></div>
-<script type="module">
-  import init from "./dna-calc-web.js";
-  init({ module_or_path: new URL("./dna-calc-web_bg.wasm", import.meta.url) })
-    .then(function () {
-      var loading = document.getElementById("dnacalc-loading");
-      if (loading) { loading.remove(); }
-    })
-    .catch(function (error) {
-      window.__dnacalcFaults.push("load: " + (error && error.stack ? error.stack : String(error)));
-      var loading = document.getElementById("dnacalc-loading");
-      if (loading) { loading.textContent = "DNA Calc did not load: " + error; }
-    });
-</script>
+<script type="module" src="boot.js"></script>
 </body>
 </html>

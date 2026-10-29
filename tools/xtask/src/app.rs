@@ -5,13 +5,15 @@
 //!
 //! `bundle` builds the app's browser entry (`apps/<package>/src/bin/<package>-web.rs`) for
 //! wasm32-unknown-unknown in the workspace's `web` profile (release, optimised for size), runs
-//! wasm-bindgen 0.2.117 (`--target web`) over it, and copies `apps/<package>/web/index.html` beside
-//! the output, into `target/<app>-bundle` unless `--out` names another folder. It prints each
+//! wasm-bindgen 0.2.117 (`--target web`) over it, and copies `apps/<package>/web/index.html` and its
+//! start module `web/boot.js` (the fault record and the loader, so the page holds no inline script)
+//! beside the output, into `target/<app>-bundle` unless `--out` names another folder. It prints each
 //! file's size and the total. Nothing is published: the folder is served only by `smoke`, on
 //! 127.0.0.1.
 //!
 //! `smoke` builds the bundle (or takes the one `--bundle` names), serves it on 127.0.0.1 from a
-//! port the system picks, and drives it in headless Chrome and headless Firefox through their
+//! port the system picks (or drives the page `--url` names: `cargo xtask site smoke` serves a
+//! packed release with the site's headers, dc-ysl), and drives it in headless Chrome and headless Firefox through their
 //! WebDriver servers (chromedriver and geckodriver, found as `cargo xtask accept` finds them:
 //! `CHROMEDRIVER` or `GECKODRIVER` naming a file, else PATH). In each browser it loads the page,
 //! runs the app's cases in order (typing with WebDriver key input, the browser's own key and input
@@ -39,16 +41,18 @@
 
 use crate::accept::{BROWSERS, Browser, find_on_path, variable_file};
 use crate::cargo::{self, WASM_TARGET, Workspace};
+use crate::site::SiteHeaders;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitCode, Stdio};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// One browser application: its package, its entry, its page, and how its page reports itself.
 pub struct App {
@@ -72,6 +76,13 @@ pub struct App {
     /// The page's list of uncaught errors.
     pub faults: &'static str,
     pub cases: &'static [Case],
+}
+
+impl App {
+    /// The page's start module (`web/boot.js` beside the page), relative to the workspace root.
+    pub fn boot(&self) -> String {
+        self.page.replace("index.html", "boot.js")
+    }
 }
 
 /// The applications.
@@ -129,7 +140,7 @@ pub fn run_onecalc(raw: &[String]) -> ExitCode {
 }
 
 /// What `--workbook` asks of a smoke run.
-struct WorkbookRun {
+pub(crate) struct WorkbookRun {
     path: PathBuf,
     /// The sheet, the cell and the text to enter.
     edit: Option<(String, String, String)>,
@@ -175,6 +186,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         }
         "smoke" => {
             let mut bundle_dir = None;
+            let mut url: Option<String> = None;
             let mut only: Option<String> = None;
             let mut workbook: Option<PathBuf> = None;
             let mut edit = None;
@@ -188,6 +200,7 @@ pub fn run(raw: &[String]) -> ExitCode {
                 }
                 match (arg.as_str(), args.next()) {
                     ("--bundle", Some(dir)) => bundle_dir = Some(PathBuf::from(dir)),
+                    ("--url", Some(page)) => url = Some(page.clone()),
                     ("--browser", Some(name)) => only = Some(name.clone()),
                     ("--workbook", Some(path)) if app.key == "calc" => {
                         workbook = Some(PathBuf::from(path))
@@ -211,7 +224,12 @@ pub fn run(raw: &[String]) -> ExitCode {
                 profile,
                 skins,
             });
-            smoke(&ws, app, bundle_dir, only.as_deref(), workbook.as_ref())
+            let target = match (url, bundle_dir) {
+                (Some(_), Some(_)) => return usage(raw),
+                (Some(url), None) => SmokeTarget::Url(url),
+                (None, dir) => SmokeTarget::Bundle(dir),
+            };
+            smoke(&ws, app, target, only.as_deref(), workbook.as_ref())
         }
         _ => usage(raw),
     }
@@ -235,7 +253,7 @@ fn usage(raw: &[String]) -> ExitCode {
 // The bundle.
 
 /// Builds the bundle into `out` and returns its files with their sizes.
-fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
+pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
     let bindgen = find_on_path("wasm-bindgen").ok_or("wasm-bindgen is not on PATH")?;
     let version = cargo::output(Command::new(&bindgen).arg("--version"))?;
     let version = cargo::text(&version.stdout).trim().to_owned();
@@ -292,9 +310,13 @@ fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, S
     }
     fs::copy(ws.root.join(app.page), out.join("index.html"))
         .map_err(|e| format!("cannot copy {}: {e}", app.page))?;
+    let boot = app.boot();
+    fs::copy(ws.root.join(&boot), out.join("boot.js"))
+        .map_err(|e| format!("cannot copy {boot}: {e}"))?;
     let mut files = Vec::new();
     for name in [
         "index.html".to_owned(),
+        "boot.js".to_owned(),
         format!("{}.js", app.entry),
         format!("{}_bg.wasm", app.entry),
     ] {
@@ -319,10 +341,21 @@ fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, S
 // ---------------------------------------------------------------------------------------------
 // The page server.
 
-/// Serves the files of `dir` on 127.0.0.1 from a thread; returns the port.
-fn serve(dir: PathBuf) -> Result<u16, String> {
-    let listener =
-        TcpListener::bind("127.0.0.1:0").map_err(|e| format!("cannot listen on 127.0.0.1: {e}"))?;
+/// Serves the files of `dir` on 127.0.0.1 from a thread; returns the port. With `headers`, every
+/// answer carries the headers the site's Caddy snippet sets for its path (`cargo xtask site
+/// serve`, dc-ysl.4); without, `Cache-Control: no-store` alone.
+pub(crate) fn serve(dir: PathBuf, headers: Option<Arc<SiteHeaders>>) -> Result<u16, String> {
+    serve_on(dir, headers, 0)
+}
+
+/// [`serve`] on a given port (0: one the system picks).
+pub(crate) fn serve_on(
+    dir: PathBuf,
+    headers: Option<Arc<SiteHeaders>>,
+    port: u16,
+) -> Result<u16, String> {
+    let listener = TcpListener::bind(("127.0.0.1", port))
+        .map_err(|e| format!("cannot listen on 127.0.0.1:{port}: {e}"))?;
     let port = listener
         .local_addr()
         .map_err(|e| format!("no local address: {e}"))?
@@ -330,16 +363,52 @@ fn serve(dir: PathBuf) -> Result<u16, String> {
     thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let dir = dir.clone();
+            let headers = headers.clone();
             thread::spawn(move || {
-                let _ = answer(stream, &dir);
+                let _ = answer(stream, &dir, headers.as_deref());
             });
         }
     });
     Ok(port)
 }
 
-/// Answers one request: a file of the bundle by its plain name, `/` as `index.html`.
-fn answer(mut stream: TcpStream, dir: &Path) -> std::io::Result<()> {
+/// The content type of a served file, by its extension, as Caddy's types give it.
+pub(crate) fn content_type(name: &str) -> &'static str {
+    match Path::new(name).extension().and_then(|e| e.to_str()) {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("wasm") => "application/wasm",
+        Some("json") => "application/json",
+        Some("txt") => "text/plain; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        _ => match name.rsplit('/').next() {
+            Some("LICENSE") => "text/plain; charset=utf-8",
+            _ => "application/octet-stream",
+        },
+    }
+}
+
+/// The file a request path names under the served folder: `/` is `index.html`; every segment is
+/// plain (letters, digits, `-`, `_`, `.`), none is empty or `..`.
+fn served_name(path: &str) -> Option<String> {
+    let path = path.split('?').next().unwrap_or("/");
+    let name = match path.trim_start_matches('/') {
+        "" => "index.html".to_owned(),
+        name => name.to_owned(),
+    };
+    let plain = name.split('/').all(|segment| {
+        !segment.is_empty()
+            && segment != ".."
+            && segment != "."
+            && segment
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    });
+    plain.then_some(name)
+}
+
+/// Answers one request: a file of the folder by its path, `/` as `index.html`.
+fn answer(mut stream: TcpStream, dir: &Path, headers: Option<&SiteHeaders>) -> std::io::Result<()> {
     let mut request = Vec::new();
     let mut buffer = [0u8; 4096];
     while !request.windows(4).any(|w| w == b"\r\n\r\n") {
@@ -350,39 +419,32 @@ fn answer(mut stream: TcpStream, dir: &Path) -> std::io::Result<()> {
         request.extend_from_slice(&buffer[..read]);
     }
     let line = String::from_utf8_lossy(&request);
-    let path = line.split_whitespace().nth(1).unwrap_or("/");
-    let path = path.split('?').next().unwrap_or("/");
-    let name = match path.trim_start_matches('/') {
-        "" => "index.html",
-        name => name,
-    };
-    let plain = name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-        && !name.contains("..");
-    let content_type = match Path::new(name).extension().and_then(|e| e.to_str()) {
-        Some("html") => "text/html; charset=utf-8",
-        Some("js") => "text/javascript; charset=utf-8",
-        Some("wasm") => "application/wasm",
-        _ => "application/octet-stream",
-    };
-    let body = if plain {
-        fs::read(dir.join(name)).ok()
-    } else {
-        None
-    };
-    match body {
-        Some(body) => {
+    let path = line.split_whitespace().nth(1).unwrap_or("/").to_owned();
+    let name = served_name(&path);
+    let body = name.as_ref().and_then(|name| fs::read(dir.join(name)).ok());
+    let mut extra = String::new();
+    match headers {
+        Some(headers) => {
+            for (header, value) in headers.for_path(path.split('?').next().unwrap_or("/")) {
+                extra.push_str(&format!("{header}: {value}\r\n"));
+            }
+        }
+        None => extra.push_str("Cache-Control: no-store\r\n"),
+    }
+    match (name, body) {
+        (Some(name), Some(body)) => {
             write!(
                 stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\n{extra}Connection: close\r\n\r\n",
+                content_type(&name),
                 body.len()
             )?;
             stream.write_all(&body)?;
         }
-        None => {
-            stream.write_all(
-                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        _ => {
+            write!(
+                stream,
+                "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n{extra}Connection: close\r\n\r\n"
             )?;
         }
     }
@@ -1631,6 +1693,52 @@ const CALC_CASES: &[Case] = &[
             Check::Text(cell!("D1"), "-1"),
         ],
     },
+    // dc-6yw: charts drawn read-only (calc-host's dc_6yw/charts-excel.txt).
+    Case {
+        name: "charts are drawn where Excel puts them, with their series' values",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),
+            Action::Click("skin-grid"),
+        ],
+        checks: &[
+            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"]", "data-kind", "column"),
+            Check::Text(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-dnacalc=\"chart-title\"]",
+                "Column",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "12",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"1\"][data-point=\"5\"]",
+                "data-value",
+                "13",
+            ),
+            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"]", "data-kind", "line"),
+        ],
+    },
+    Case {
+        name: "a chart follows an edit: B2 set to 40 moves its column and the total's line",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Keys("grid", "4"),
+            Action::Keys("cell-editor", "0\u{E007}"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "40",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "48",
+            ),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -2120,33 +2228,50 @@ fn run_browser(
     outcome
 }
 
-fn smoke(
+/// What a smoke run drives: a bundle folder it serves itself (built first when none is named), or
+/// a page already served at a URL (`--url`; `cargo xtask site smoke` serves a packed release with
+/// the site's headers and passes its URL).
+pub(crate) enum SmokeTarget {
+    Bundle(Option<PathBuf>),
+    Url(String),
+}
+
+pub(crate) fn smoke(
     ws: &Workspace,
     app: &App,
-    bundle_dir: Option<PathBuf>,
+    target: SmokeTarget,
     only: Option<&str>,
     workbook: Option<&WorkbookRun>,
 ) -> ExitCode {
-    let dir = match bundle_dir {
-        Some(dir) => dir,
-        None => {
-            let dir = ws.root.join(app.default_out);
-            if let Err(e) = bundle(ws, app, &dir) {
-                println!("{} RESULT failed: {e}", app.label);
-                return ExitCode::from(1);
-            }
-            dir
+    let page = match target {
+        SmokeTarget::Url(url) => {
+            println!("{} driving the page at {url}", app.label);
+            url
+        }
+        SmokeTarget::Bundle(bundle_dir) => {
+            let dir = match bundle_dir {
+                Some(dir) => dir,
+                None => {
+                    let dir = ws.root.join(app.default_out);
+                    if let Err(e) = bundle(ws, app, &dir) {
+                        println!("{} RESULT failed: {e}", app.label);
+                        return ExitCode::from(1);
+                    }
+                    dir
+                }
+            };
+            let port = match serve(dir.clone(), None) {
+                Ok(port) => port,
+                Err(e) => {
+                    println!("{} RESULT failed: {e}", app.label);
+                    return ExitCode::from(1);
+                }
+            };
+            let page = format!("http://127.0.0.1:{port}/index.html");
+            println!("{} serving {} at {page}", app.label, dir.display());
+            page
         }
     };
-    let port = match serve(dir.clone()) {
-        Ok(port) => port,
-        Err(e) => {
-            println!("{} RESULT failed: {e}", app.label);
-            return ExitCode::from(1);
-        }
-    };
-    let page = format!("http://127.0.0.1:{port}/index.html");
-    println!("{} serving {} at {page}", app.label, dir.display());
     let mut all_passed = true;
     let mut summary = Vec::new();
     for browser in BROWSERS
@@ -2194,6 +2319,22 @@ fn smoke(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn served_paths_stay_inside_the_folder() {
+        assert_eq!(served_name("/").as_deref(), Some("index.html"));
+        assert_eq!(served_name("/build.json?x=1").as_deref(), Some("build.json"));
+        assert_eq!(
+            served_name("/assets/0123456789abcdef/boot.js").as_deref(),
+            Some("assets/0123456789abcdef/boot.js")
+        );
+        assert_eq!(served_name("/assets/../../secret"), None);
+        assert_eq!(served_name("/assets//boot.js"), None);
+        assert_eq!(served_name("/a/./b"), None);
+        assert_eq!(served_name("/a%2fb"), None);
+        assert_eq!(content_type("assets/x/a_bg.wasm"), "application/wasm");
+        assert_eq!(content_type("LICENSE"), "text/plain; charset=utf-8");
+    }
 
     #[test]
     fn chunked_bodies_join() {

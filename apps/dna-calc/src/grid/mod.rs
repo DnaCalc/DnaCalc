@@ -22,6 +22,7 @@
 //! positioned elements, and the legacy projection and dispatcher by calc-host's subscription and
 //! intents.
 
+pub mod chart;
 pub mod geometry;
 pub mod icons;
 pub mod render_plan;
@@ -78,6 +79,8 @@ pub const GRID_CSS: &str = r#"
 .dc-list li:hover{background:#dbe9f9}
 .dc-prompt{position:absolute;box-sizing:border-box;max-width:220px;border:1px solid #8c959f;background:#ffffe1;padding:3px 6px;font-size:12px;z-index:2;pointer-events:none;white-space:normal}
 .dc-prompt b{display:block}
+.dc-chart{position:absolute;box-sizing:border-box;pointer-events:none;z-index:1}
+.dc-chart svg{display:block}
 .dc-cell-editor{position:absolute;box-sizing:border-box;border:2px solid #1a7f37;font:13px system-ui,"Segoe UI",sans-serif;padding:0 3px;margin:0;outline:none;background:#fff;z-index:2;min-width:120px}
 "#;
 
@@ -734,6 +737,72 @@ fn grid_view(controller: Controller) -> impl IntoView {
         let rect = active_rect();
         view! { <div class="dc-active" data-dnacalc="active-cell" style=rect_style(&rect)></div> }
     };
+    // The sheet's charts (dc-6yw), as the workbook holds their series now: read again after every
+    // change, drawn where their frames are, the ones in view only.
+    let charts = Memo::new(move |_| {
+        let sheet = controller.sheet.get()?;
+        Some(controller.with(|book| book.host().charts(sheet).0))
+    });
+    let charts_view = move || {
+        let m = metrics.get();
+        let v = viewport.get();
+        let z = zoom.get();
+        let corner = |c: &calc_host::ChartCorner| {
+            let r = cell_rect(&m, &v, c.cell.row(), c.cell.column());
+            (r.x + c.dx * z, r.y + c.dy * z)
+        };
+        charts
+            .get()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|view| {
+                let (x0, y0, x1, y1) = match view.place {
+                    calc_host::ChartPlace::Cells { from, to } => {
+                        let ((a, b), (c, d)) = (corner(&from), corner(&to));
+                        (a, b, c, d)
+                    }
+                    calc_host::ChartPlace::Sized {
+                        from,
+                        width,
+                        height,
+                    } => {
+                        let (a, b) = corner(&from);
+                        (a, b, a + width * z, b + height * z)
+                    }
+                    calc_host::ChartPlace::Absolute {
+                        x,
+                        y,
+                        width,
+                        height,
+                    } => {
+                        let origin = cell_rect(&m, &v, 1, 1);
+                        let (a, b) = (origin.x + x * z, origin.y + y * z);
+                        (a, b, a + width * z, b + height * z)
+                    }
+                };
+                if x1 <= x0 || y1 <= y0 || x1 < 0.0 || y1 < 0.0 || x0 > v.width || y0 > v.height {
+                    return None;
+                }
+                let markup = chart::chart_svg(&view, (x1 - x0) / z, (y1 - y0) / z);
+                let kind = view
+                    .plots
+                    .first()
+                    .map(|plot| format!("{:?}", plot.kind).to_lowercase())
+                    .unwrap_or_default();
+                let style = format!(
+                    "left:{};top:{};width:{};height:{}",
+                    px(x0),
+                    px(y0),
+                    px(x1 - x0),
+                    px(y1 - y0)
+                );
+                Some(view! {
+                    <div class="dc-chart" data-dnacalc="chart" data-chart=view.name.clone()
+                        data-kind=kind style=style inner_html=markup></div>
+                })
+            })
+            .collect_view()
+    };
     // The active cell's data validation (dc-6yw): a list's drop-down button at its right edge, the
     // list it opens (Alt+Down too, as in Excel), and the rule's input message below the cell.
     let rule = Memo::new(move |_| {
@@ -908,6 +977,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     <div class="dc-layer" node_ref=layer style=layer_style>
                         {gridlines}
                         {cells_view}
+                        {charts_view}
                         {selection_view}
                         {active_view}
                         {dropdown_view}

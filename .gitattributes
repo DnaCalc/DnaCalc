@@ -1,0 +1,4 @@
+# Files that run or are read on the Linux site host keep LF line endings in every checkout
+# (dc-ysl): a CRLF shebang line does not run.
+deploy/host/** text eol=lf
+deploy/caddy/** text eol=lf

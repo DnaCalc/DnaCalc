@@ -66,6 +66,12 @@
 //! through WebDriver, failing on a wrong answer or any panic or uncaught error the page records
 //! (`app.rs`); `cargo xtask onecalc bundle|smoke` is the same for DNA OneCalc.
 //!
+//! `cargo xtask site pack|serve|smoke|verify|publish|status|rollback onecalc|calc ...` packs an
+//! app's release for dnacalc.com (hashed assets, build.json, LICENSE and third-party notices, the
+//! tar the host receives), serves and smoke-tests it under the site's headers, verifies a served
+//! site against its build.json, and gives the owner the publish, status and rollback commands
+//! (`site.rs`, dc-ysl).
+//!
 //! Native only: it drives cargo and git on Windows and Linux hosts, and it refuses to compile for
 //! wasm32.
 
@@ -103,6 +109,7 @@ mod legacy;
 mod manifest;
 mod owners;
 mod rust_source;
+mod site;
 mod text;
 mod verdict;
 mod words;
@@ -121,6 +128,7 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "compare" => compare::run(rest),
         Some((command, rest)) if command == "app" => app::run(rest),
         Some((command, rest)) if command == "onecalc" => app::run_onecalc(rest),
+        Some((command, rest)) if command == "site" => site::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
         Some((command, rest)) if command == "capture" => capture::run(rest),
         #[cfg(not(target_arch = "wasm32"))]
@@ -140,6 +148,7 @@ fn main() -> ExitCode {
                 verdict::USAGE,
                 compare::USAGE,
                 app::USAGE,
+                site::USAGE,
             ];
             #[cfg(not(target_arch = "wasm32"))]
             usages.push(capture::USAGE);
