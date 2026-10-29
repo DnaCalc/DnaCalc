@@ -70,8 +70,8 @@ use calc_host::{
 };
 use calc_verdict::{
     CalculationContext, CaptureRecord, CellAddress, CellResult, Evaluation, EvaluationRecord,
-    FormulaKind, InstrumentRecord, InstrumentedEvaluation, JudgeError, MissingCapture, Provenance,
-    ResultSet, RunIdentity, VerdictPolicy, judge, sha256_hex,
+    FormulaKind, InstrumentRecord, InstrumentedEvaluation, JudgeError, MissingCapture, Observation,
+    Provenance, ResultSet, RunIdentity, VerdictPolicy, judge, sha256_hex,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -478,11 +478,31 @@ pub(crate) fn capture_locale_settings(capture: &CaptureRecord) -> Option<[&str; 
 }
 
 /// The clock Excel's calculation read for `capture`, as a serial date and time in the workbook's
-/// date system: its setting calculation_clock (the local clock when the capture's worker started,
-/// a 1900-system serial as binary64 bits in hex, which calc-oracle-excel records when the run did
-/// not cross midnight), less 1462 days when the setting date1904 is true. `None` when the capture
-/// records none.
+/// date system. Where the inventory holds a cell whose formula is `=NOW()` alone, Excel's raw
+/// value of that cell is the instant its calculation read (dc-jv0: an input Excel reports, as the
+/// capture's own clock reading cannot be, since the worker reads the local clock before Excel
+/// opens the workbook, seconds earlier); otherwise the setting calculation_clock (the local clock
+/// when the capture's worker started, a 1900-system serial as binary64 bits in hex, which
+/// calc-oracle-excel records when the run did not cross midnight), less 1462 days when the
+/// setting date1904 is true. `None` when the capture records neither.
 pub(crate) fn capture_clock(capture: &CaptureRecord) -> Option<f64> {
+    let now_cell = capture.formulas.iter().find_map(|formula| {
+        let text = formula.formula.as_deref()?;
+        if !text.trim().eq_ignore_ascii_case("=NOW()") {
+            return None;
+        }
+        capture
+            .observations
+            .iter()
+            .find(|observed| observed.cell == formula.cell)
+            .and_then(|observed| match &observed.observation {
+                Observation::ExcelRaw(value) => value.as_number(),
+                _ => None,
+            })
+    });
+    if let Some(now) = now_cell.filter(|now| now.is_finite()) {
+        return Some(now);
+    }
     let environment = capture.environment.as_ref()?;
     let setting = |name: &str| {
         environment
