@@ -1,3 +1,15 @@
+//! Bond pricing, yield, accrued interest and coupon-schedule kernels (PRICE, YIELD, ACCRINT,
+//! DURATION, the COUP functions and their relatives).
+//!
+//! Parts of this file are a translation, changed, of ExcelFinancialFunctions by Luca Bolognese
+//! (https://github.com/fsprojects/ExcelFinancialFunctions, `bonds.fs` and `daycountbasis.fs`;
+//! Copyright 2010-2013, Apache License 2.0): `yielddisc_kernel` (`yieldDisc`), the accrued-interest
+//! kernel (after `accrInt`), and the day-count and coupon-date helpers named after their F#
+//! counterparts in their doc comments (`changeMonth`, `dateDiff360Us`, `findPcdNcd`,
+//! `IDayCount.DaysBetween`, `actualCoupDays`, `IDayCount.CoupDays`). They were rewritten in Rust
+//! and changed where Excel measurement required it. The licence text is in
+//! `deploy/notices/ported.txt`. The rest of the file is our own work.
+
 use crate::locale::{DateSystem as WorkbookDateSystem, excel_serial_from_ymd, ymd_from_excel_serial};
 use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
 use crate::ported::excel_numeric::crt_pow;

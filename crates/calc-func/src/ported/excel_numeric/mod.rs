@@ -1,3 +1,61 @@
+//! Excel-faithful elementary numeric core (W108).
+//!
+//! # Backend dispatch
+//! The public entry points ([`excel_exp`], [`excel_log`], [`excel_log10`], the powers, the
+//! trigonometric chains and the x87 double-rounded operations) are **bit-exact to 64-bit
+//! Microsoft Excel** on `x86_64`, where they run x87 instructions (control word `0x133F`,
+//! precision 64, as measured). The exponential and logarithm chains are in [`nt_chains`]
+//! behind a documented interface (under licence review, dc-96l). Each sequence is written once
+//! over the [`Fpu`] trait; on other targets
+//! (wasm32) it runs on [`soft87`], the x87 in software (dc-8dg). The software x87 is exact for
+//! the arithmetic, the loads and stores and the remainder; its transcendental instructions
+//! (`F2XM1`, `FYL2X`, `FPATAN`, `FSIN`, `FCOS`, `FPTAN`) round the exact value once, where the
+//! hardware's microcode rounds a value a few bits wider than the format, so the two can differ
+//! by one unit of the 64-bit significand, and a binary64 result then differs only where that
+//! unit decides the binary64 rounding. The tests measure both rates.
+//!
+//! # Portable core (`expm1`/`log1p`/`sqrt` substrate)
+//! [`exp_portable`] / [`log_portable`] are a pure-Rust, zero-dependency port of
+//! Arm optimized-routines' `exp` and `log` (Szabolcs Nagy; `math/exp.c`, `math/log.c`,
+//! `math/exp_data.c`, `math/log_data.c` of https://github.com/ARM-software/optimized-routines
+//! at 2ee4b0d4, MIT OR Apache-2.0 WITH LLVM-exception, used under MIT; Copyright (c) 2018-2025
+//! Arm Limited; notice in `deploy/notices/ported.txt`), configured without fused multiply-add
+//! and without the rounding intrinsics, `EXP_TABLE_BITS=7` / `LOG_TABLE_BITS=7`, `EXP_POLY_ORDER=5`,
+//! `LOG_POLY_ORDER=6`, `LOG_POLY1_ORDER=12`. Changed from the C: written in Rust, the errno and
+//! exception-flag tails dropped (they do not change the returned value). `excel_expm1` /
+//! `excel_log1p` are our own, built on those same argument-reduction + polynomial kernels;
+//! `excel_sqrt` is the hardware SQRTSD
+//! (SSE2), IEEE-754 correctly-rounded by definition. These have no Excel
+//! worksheet counterpart (they are internal composition helpers) and so are not
+//! routed through the x87 backend.
+//!
+//! # Provenance
+//! `tables.rs` (`EXP_INVLN2N`, `EXP_TAB`, `LOG_TAB`, …) holds Arm's `__exp_data` (N = 128) and
+//! `__log_data` (N = 128, with `tab2`) as bit patterns; every value equals Arm's
+//! `math/exp_data.c` and `math/log_data.c` at 2ee4b0d4 (checked value for value, dc-96l).
+//!
+//! # Determinism contract
+//! * **NO `f64::mul_add` / FMA anywhere.** Every `a*b + c` is two separate IEEE
+//!   ops, so the result never depends on whether the target has hardware FMA.
+//!   (Rust's default codegen never contracts `a*b + c` into an FMA — that only
+//!   happens under explicit `mul_add` or fast-math, neither of which we use.)
+//! * No calls into the platform libm. `f64::sqrt` maps to hardware SQRTSD
+//!   (SSE2), IEEE-754 correctly-rounded on every target, hence deterministic.
+//! * `double_t == f64` here (matching MSVC x64 `FLT_EVAL_METHOD == 0`, the
+//!   environment in which the reference was validated).
+//!
+//! # Accuracy
+//! `<= ~0.502 ULP` vs the correctly-rounded result everywhere ("faithful"
+//! rounding), i.e. correctly rounded on ~99.5% of inputs. This matches Excel's
+//! own ~0.502-ULP bespoke routine on ~99% of inputs; the residual near-midpoint
+//! rows (where a faithful core rounds the opposite way) are the tracked W108
+//! discrepancy, not a defect.
+//!
+//! # External validation
+//! The W108 prototype compared the core bit for bit with the reference C built without fused
+//! multiply-add, and expm1/log1p with an mpmath (240-bit) correctly rounded corpus. The in-crate
+//! golden-witness test below pins a handful of those correctly rounded witnesses so any
+//! accidental change to the core is caught without the large corpus files.
 
 #![allow(clippy::excessive_precision)]
 // Staged for the financial/math kernels (W108 next step). Until those call
@@ -16,6 +74,14 @@ mod x87;
 /// The x87 in software (dc-8dg): the extended format and the x87 operations the chains below
 /// run, in portable Rust, for the targets without the hardware.
 mod soft87;
+
+/// Excel's exponential and logarithm chains, behind the interface its module docs describe;
+/// replaced clean-room under dc-96l.3.
+mod nt_chains;
+pub(crate) use nt_chains::{
+    excel_binom_pmf_exp, excel_exp, excel_exp_rz, excel_log, excel_log10, excel_pow_x87_direct,
+    excel_root_x87,
+};
 
 /// The Microsoft runtime's `pow` in portable Rust (dc-sbo).
 mod crt_pow;
@@ -97,12 +163,6 @@ pub(crate) type Native = Hard;
 #[cfg(not(all(target_arch = "x86_64", not(feature = "soft-x87"))))]
 pub(crate) type Native = Soft;
 
-/// The x87 sign test `FTST` + `C0`: below zero (a negative zero is not).
-fn is_below_zero(x: &Ext80) -> bool {
-    x.0[9] & 0x80 != 0 && (x.0[..8].iter().any(|b| *b != 0) || x.0[8] != 0 || x.0[9] & 0x7f != 0)
-}
-
-// Restricted historical implementation removed (dc-96l.7).
 /// `FPATAN(x, 1)`.
 fn atan_with<F: Fpu>(x: f64) -> f64 {
     F::store(&F::fpatan(&load(x), &ext_one(), CW), CW)
@@ -170,7 +230,6 @@ fn tan_with<F: Fpu>(x: f64) -> f64 {
     F::store(&v, CW)
 }
 
-// Restricted historical implementation removed (dc-96l.7).
 /// Excel `GAMMALN` / `GAMMALN.PRECISE` positive-argument kernel (W109 G3-02).
 /// Distinct from the shared internal `lgamma`; only the published GAMMALN
 /// surfaces route here.
@@ -220,7 +279,42 @@ fn c5() -> f64 {
     EXP_POLY[3]
 }
 
-// Restricted historical implementation removed (dc-96l.7).
+/// Handle results that may overflow/underflow (subnormal range): Arm's `specialcase`
+/// (`math/exp.c`), with the errno-only `check_oflow/uflow` tails reduced to identity (they do
+/// not change the returned value).
+#[inline]
+fn specialcase(tmp: f64, mut sbits: u64, ki: u64) -> f64 {
+    let scale: f64;
+    let mut y: f64;
+    if (ki & 0x80000000) == 0 {
+        // k > 0, exponent of scale might have overflowed by <= 460.
+        sbits = sbits.wrapping_sub(1009u64 << 52);
+        scale = asdouble(sbits);
+        y = f64::from_bits(0x7f00000000000000) /* 0x1p1009 */ * (scale + scale * tmp);
+        return y;
+    }
+    // k < 0, need special care in the subnormal range.
+    sbits = sbits.wrapping_add(1022u64 << 52);
+    scale = asdouble(sbits);
+    y = scale + scale * tmp;
+    if y < 1.0 {
+        // Round y to the right precision before scaling into subnormal range
+        // to avoid double rounding.
+        let hi: f64;
+        let mut lo: f64;
+        lo = scale - y + scale * tmp;
+        hi = 1.0 + y;
+        lo = 1.0 - hi + y + lo;
+        y = (hi + lo) - 1.0;
+        // Avoid -0.0 with downward rounding (WANT_ROUNDING).
+        if y == 0.0 {
+            y = 0.0;
+        }
+    }
+    y = f64::from_bits(0x0010000000000000) /* 0x1p-1022 */ * y;
+    y
+}
+
 /// Excel's internal expm1 (W109 identification, 17,992/18,000 on the
 /// EXPON/GAMMA.DIST-a=1 windows): msvcr100 exports no C99 `expm1`, so Excel
 /// builds it from its own primitives via Kahan's cancellation-free correction
@@ -240,32 +334,58 @@ pub(crate) fn excel_expm1_internal(t: f64) -> f64 {
     }
 }
 
-// Restricted historical implementation removed (dc-96l.7).
-// Restricted historical implementation removed (dc-96l.7).
-/// Shared non-normal-domain result for the `fyl2x` logarithms, so `ln` and `log10` agree with
-/// the portable core on `NaN`, `+Inf`, `0`, and negative inputs. Returns `Some(result)` for
-/// those; `None` means "compute the logarithm of this finite, positive `x`".
-#[inline]
-fn log_domain_guard(x: f64) -> Option<f64> {
-    if x.is_nan() {
-        return Some(f64::NAN);
+/// Portable faithful (`~0.502` ULP) double-precision `e^x` — Arm optimized-routines' `exp`
+/// without fused multiply-add: a correctly-rounded reference in tests and the deterministic substrate the
+/// financial family composes against (W108 Bead C, pending its x87 migration).
+pub(crate) fn exp_portable(x: f64) -> f64 {
+    let mut abstop: u32 = top12(x) & 0x7ff;
+
+    // 0x1p-54 top12, 512.0 top12
+    let t_2m54 = top12(f64::from_bits(0x3c90000000000000)); // 0x1p-54
+    let t_512 = top12(512.0);
+    if abstop.wrapping_sub(t_2m54) >= t_512.wrapping_sub(t_2m54) {
+        if abstop.wrapping_sub(t_2m54) >= 0x80000000 {
+            // Avoid spurious underflow for tiny x. 0 is common input.
+            return 1.0 + x;
+        }
+        if abstop >= top12(1024.0) {
+            if asuint64(x) == asuint64(f64::NEG_INFINITY) {
+                return 0.0;
+            }
+            if abstop >= top12(f64::INFINITY) {
+                return 1.0 + x;
+            }
+            if asuint64(x) >> 63 != 0 {
+                return 0.0; // __math_uflow
+            } else {
+                return f64::INFINITY; // __math_oflow
+            }
+        }
+        // Large x is special cased below.
+        abstop = 0;
     }
-    if x == f64::INFINITY {
-        return Some(f64::INFINITY);
+
+    // exp(x) = 2^(k/N) * exp(r)
+    let z = EXP_INVLN2N * x;
+    // !TOINT_INTRINSICS path
+    let kd0 = z + EXP_SHIFT;
+    let ki = asuint64(kd0);
+    let kd = kd0 - EXP_SHIFT;
+
+    let r = x + kd * EXP_NEGLN2HIN + kd * EXP_NEGLN2LON;
+    let idx = (2 * (ki % N_EXP)) as usize;
+    let top = ki << (52 - EXP_TABLE_BITS);
+    let tail = asdouble(EXP_TAB[idx]);
+    let sbits = EXP_TAB[idx + 1].wrapping_add(top);
+    let r2 = r * r;
+    let tmp = tail + r + r2 * (c2() + r * c3()) + r2 * r2 * (c4() + r * c5());
+    if abstop == 0 {
+        return specialcase(tmp, sbits, ki);
     }
-    if x <= 0.0 {
-        // ln(0) = -Inf (incl. -0.0); ln(negative) = NaN. The worksheet #NUM!
-        // for x <= 0 is applied by the surface layer / kernel guards.
-        return Some(if x == 0.0 {
-            f64::NEG_INFINITY
-        } else {
-            f64::NAN
-        });
-    }
-    None
+    let scale = asdouble(sbits);
+    scale + scale * tmp
 }
 
-// Restricted historical implementation removed (dc-96l.7).
 /// The positive-power staging of Excel's `POWER(x, y)`: `p = exp(y · ln x)` via
 /// the x87 `exp`/`ln`, with the product formed as the x87 **double-rounded**
 /// `t = RN53(RN64(y · ln x))`. Bit-exact to 64-bit Excel on `x86_64`.
@@ -303,7 +423,6 @@ pub(crate) fn excel_pow_chain(base: f64, exp: f64) -> f64 {
     excel_exp(t)
 }
 
-// Restricted historical implementation removed (dc-96l.7).
 /// Excel `SIN` — bit-exact to 64-bit Excel on `x86_64` (W109 G4-01, validated
 /// 1020/1020 live rows incl. held-out, build 20131): the legacy CRT `fFSIN`
 /// chain — `FPREM1(x, FLDPI)` (the 64-bit ROM π, NOT the hardware's internal
@@ -440,7 +559,258 @@ pub(crate) fn excel_atan_reduced(x: f64) -> f64 {
     }
 }
 
-// Restricted historical implementation removed (dc-96l.7).
+/// Portable faithful (`~0.507` ULP) double-precision `ln(x)` — Arm optimized-routines' `log`
+/// without fused multiply-add: a correctly-rounded reference in tests and the deterministic substrate the
+/// financial family composes against (W108 Bead C, pending its x87 migration).
+pub(crate) fn log_portable(x: f64) -> f64 {
+    let ix = asuint64(x);
+    let top = top16(x);
+
+    // Close-to-1.0 fast path.
+    let lo_b = asuint64(1.0 - f64::from_bits(0x3fb0000000000000)); // 1.0 - 0x1p-4
+    let hi_b = asuint64(1.0 + f64::from_bits(0x3fb0900000000000)); // 1.0 + 0x1.09p-4
+    if ix.wrapping_sub(lo_b) < hi_b.wrapping_sub(lo_b) {
+        // Fix sign of zero with downward rounding when x==1.
+        if ix == asuint64(1.0) {
+            return 0.0;
+        }
+        let r = x - 1.0;
+        let r2 = r * r;
+        let r3 = r * r2;
+        let b = &LOG_POLY1;
+        let mut y = r3
+            * (b[1]
+                + r * b[2]
+                + r2 * b[3]
+                + r3 * (b[4]
+                    + r * b[5]
+                    + r2 * b[6]
+                    + r3 * (b[7] + r * b[8] + r2 * b[9] + r3 * b[10])));
+        let w = r * f64::from_bits(0x41a0000000000000); // 0x1p27
+        let rhi = r + w - w;
+        let rlo = r - rhi;
+        let w2 = rhi * rhi * b[0]; // b[0] == -0.5
+        let hi = r + w2;
+        let mut lo = r - hi + w2;
+        lo += b[0] * rlo * (rhi + r);
+        y += lo;
+        y += hi;
+        return y;
+    }
+
+    let mut ix = ix;
+    if top.wrapping_sub(0x0010) >= 0x7ff0 - 0x0010 {
+        // x < 0x1p-1022 or inf or nan.
+        if ix.wrapping_mul(2) == 0 {
+            return f64::NEG_INFINITY; // __math_divzero
+        }
+        if ix == asuint64(f64::INFINITY) {
+            return x; // log(inf) == inf
+        }
+        if (top & 0x8000) != 0 || (top & 0x7ff0) == 0x7ff0 {
+            return (x - x) / (x - x); // __math_invalid -> NaN
+        }
+        // subnormal, normalize
+        ix = asuint64(x * f64::from_bits(0x4330000000000000)); // 0x1p52
+        ix = ix.wrapping_sub(52u64 << 52);
+    }
+
+    let (hi, lo_rest) = log_general_hi_lo(ix);
+    hi + lo_rest
+}
+
+/// Internal: the main `__log` table path, returning the result as an unrounded
+/// (hi, lo_rest) pair such that `log(x) == hi + lo_rest` (before final rounding).
+/// `ix` is `asuint64(x)` for a NORMAL, positive x already outside the close-to-1
+/// window (subnormals must be pre-normalized by the caller as in `excel_log`).
+/// Exposing the split lets `excel_log1p` inject the `1+x` compensation term
+/// into `lo_rest` and round only once.
+#[inline]
+fn log_general_hi_lo(ix: u64) -> (f64, f64) {
+    let tmp = ix.wrapping_sub(OFF);
+    let i = ((tmp >> (52 - LOG_TABLE_BITS)) % N_LOG) as usize;
+    let k = (tmp as i64) >> 52; // arithmetic shift
+    let iz = ix.wrapping_sub(tmp & (0xfffu64 << 52));
+    let (invc, logc) = LOG_TAB[i];
+    let z = asdouble(iz);
+
+    // no-FMA path: r = (z - chi - clo) * invc
+    let (chi, clo) = LOG_TAB2[i];
+    let r = (z - chi - clo) * invc;
+    let kd = k as f64;
+
+    let w = kd * LOG_LN2HI + logc;
+    let hi = w + r;
+    let lo = w - hi + r + kd * LOG_LN2LO;
+
+    let r2 = r * r;
+    let a = &LOG_POLY;
+    // lo_rest = lo + polynomial (everything except the dominant `hi` term)
+    let lo_rest = lo + r2 * a[0] + r * r2 * (a[1] + r * a[2] + r2 * (a[3] + r * a[4]));
+    (hi, lo_rest)
+}
+
+// ============================================================================
+// expm1 — our own, built on exp_portable's argument reduction + polynomial. For non-tiny x we reproduce exp's decomposition
+//   exp(x) = scale * (1 + tmp),   scale = 2^(k/N),   tmp = tail + poly(r)
+// and reconstruct expm1(x) = (scale - 1) + scale*tmp with a compensated
+// subtraction so the leading digits are not lost. For small |x| (k == 0) we
+// evaluate the exp polynomial directly (expm1 ~ r + poly), and for tiny |x| we
+// return x (expm1(x) -> x with no representable correction).
+// ============================================================================
+
+/// e^x - 1 — faithful (~0.5 ULP) deterministic double-precision expm1.
+pub(crate) fn excel_expm1(x: f64) -> f64 {
+    let ix = asuint64(x);
+    let abstop = top12(x) & 0x7ff;
+
+    // |x| < 0x1p-53: expm1(x) == x to nearest (including +-0 and subnormals),
+    // because the next term x^2/2 is below 0.5 ULP of x.
+    if abstop < top12(f64::from_bits(0x3ca0000000000000)) {
+        // 0x1p-53
+        return x;
+    }
+
+    // Special / out-of-range handling.
+    // top12(0x1p6)=... use |x| >= 0x1.63108c75a1937p+9 ~ 708 overflow; and
+    // x <= -0x1.2b708872320e2p+5 (~ -37.4) => expm1 == -1 to nearest.
+    if abstop >= top12(708.0_f64) {
+        // near the exp overflow / large-magnitude regime, or inf/nan
+        if abstop >= 0x7ff {
+            // inf or nan
+            if ix == asuint64(f64::NEG_INFINITY) {
+                return -1.0;
+            }
+            // +inf -> +inf ; nan -> nan (x propagates, +1 keeps nan)
+            return x + x;
+        }
+        if x > 0.0 {
+            // exp overflows -> expm1 overflows to +inf
+            return f64::INFINITY;
+        }
+        // very negative: expm1(x) == -1 (exp(x) underflows below 0.5 ULP of 1)
+        return -1.0;
+    }
+    // For x <= about -37 (still finite, abstop below 708 top12 only if |x|<512),
+    // handle the "expm1 == -1" saturation explicitly: exp(x) < 2^-54 => e^x-1
+    // rounds to -1.
+    if x < -37.0 {
+        return -1.0;
+    }
+
+    // ---- exp's argument reduction (no-FMA path, matches excel_exp) ----
+    let z = EXP_INVLN2N * x;
+    let kd0 = z + EXP_SHIFT;
+    let ki = asuint64(kd0);
+    let kd = kd0 - EXP_SHIFT;
+    let r = x + kd * EXP_NEGLN2HIN + kd * EXP_NEGLN2LON;
+    let idx = (2 * (ki % N_EXP)) as usize;
+    let top = ki << (52 - EXP_TABLE_BITS);
+    let tail = asdouble(EXP_TAB[idx]);
+    let sbits = EXP_TAB[idx + 1].wrapping_add(top);
+    let r2 = r * r;
+    // tmp such that exp(x) = scale * (1 + tmp)
+    let tmp = tail + r + r2 * (c2() + r * c3()) + r2 * r2 * (c4() + r * c5());
+    let scale = asdouble(sbits);
+
+    // expm1(x) = scale*(1+tmp) - 1 = (scale - 1) + scale*tmp
+    // Compute (scale - 1) with a compensated split so we keep the low bits when
+    // scale is close to 1 (small k). Use a two-sum of (scale - 1).
+    let sm1 = scale - 1.0;
+    // exact error of (scale - 1): scale - 1 is exact when |k| small... not
+    // always. Recover the rounding remainder of scale-1 via Dekker two-sum with
+    // the known operands (scale, -1.0).
+    // two_sum(scale, -1.0): s = scale + (-1); bb = s - scale; err = (scale-(s-bb)) + (-1 - bb)
+    let s = sm1;
+    let bb = s - scale;
+    let err = (scale - (s - bb)) + (-1.0 - bb);
+    // result = s + (scale*tmp + err), added in increasing-magnitude order.
+    let y = scale * tmp + err;
+    s + y
+}
+
+// ============================================================================
+// log1p — built on excel_log's poly1 double-double kernel (for small |x|) and
+// the main log table path (for the rest); our own composition.
+// For the rest we form 1+x as a compensated (hi, lo) pair so no precision is
+// lost, take log(hi) via the main kernel, and add the exact correction lo/hi.
+// ============================================================================
+
+/// log(1 + x) — faithful (~0.5 ULP) deterministic double-precision log1p.
+pub(crate) fn excel_log1p(x: f64) -> f64 {
+    let ix = asuint64(x);
+    let top = top16(x);
+
+    // ---- edge cases ----
+    // log1p(0) = +0 ; log1p(-0) = -0 (preserve sign of zero).
+    if x == 0.0 {
+        return x;
+    }
+    if x.is_nan() {
+        return x + x;
+    }
+    if x == f64::INFINITY {
+        return f64::INFINITY;
+    }
+    // x < -1 -> NaN ; x == -1 -> -inf.
+    if x < -1.0 {
+        return (x - x) / (x - x); // NaN
+    }
+    if x == -1.0 {
+        return f64::NEG_INFINITY;
+    }
+
+    // ---- small |x|: direct poly1 double-double kernel with f = x ----
+    // The __log close-to-1 branch computes log(1+r) with r = (input) - 1. Here
+    // the input IS 1+x, so r = x exactly (no rounding), giving a cancellation-
+    // free log1p for |x| in [-0x1p-4, 0x1.09p-4].
+    // Bounds mirror excel_log's close-to-1 window, expressed on x directly.
+    let x_lo = -f64::from_bits(0x3fb0000000000000); // -0x1p-4
+    let x_hi = f64::from_bits(0x3fb0900000000000); //  0x1.09p-4
+    if x >= x_lo && x <= x_hi {
+        let r = x;
+        let r2 = r * r;
+        let r3 = r * r2;
+        let b = &LOG_POLY1;
+        let mut y = r3
+            * (b[1]
+                + r * b[2]
+                + r2 * b[3]
+                + r3 * (b[4]
+                    + r * b[5]
+                    + r2 * b[6]
+                    + r3 * (b[7] + r * b[8] + r2 * b[9] + r3 * b[10])));
+        let w = r * f64::from_bits(0x41a0000000000000); // 0x1p27
+        let rhi = r + w - w;
+        let rlo = r - rhi;
+        let w2 = rhi * rhi * b[0]; // b[0] == -0.5
+        let hi = r + w2;
+        let mut lo = r - hi + w2;
+        lo += b[0] * rlo * (rhi + r);
+        y += lo;
+        y += hi;
+        return y;
+    }
+
+    // ---- general path: form 1+x as compensated (uhi, ulo), then
+    //      log1p(x) = log(uhi) + ulo/uhi. ----
+    let _ = (ix, top);
+    // two_sum(1.0, x) (Knuth, no ordering assumption) so uhi + ulo == 1 + x
+    // EXACTLY. ulo captures the bits of x lost when rounding 1+x.
+    let uhi = 1.0 + x;
+    let bv = uhi - 1.0;
+    let ulo = (1.0 - (uhi - bv)) + (x - bv);
+
+    // uhi is in (0, 2) and normal here (|x| may be up to 1e6). If uhi happens to
+    // land in the close-to-1 window we still get a correct result via the table
+    // kernel below (poly1 already handled small x). Get log(uhi) as (hi, lo_rest)
+    // and inject the correction ulo/uhi BEFORE the single final rounding:
+    //   log(1+x) = log(uhi + ulo) = log(uhi) + ulo/uhi  (d log/du = 1/u).
+    let (hi, mut lo_rest) = log_general_hi_lo(asuint64(uhi));
+    lo_rest += ulo / uhi;
+    hi + lo_rest
+}
+
 /// sqrt(x) — IEEE-754 correctly-rounded, deterministic (hardware SQRTSD).
 #[inline]
 pub(crate) fn excel_sqrt(x: f64) -> f64 {
@@ -456,14 +826,13 @@ pub(crate) fn excel_sqrt_staged(x: f64) -> f64 {
     Native::store(&Native::sqrt(&load(x), CW), CW)
 }
 
+/// Shared by this module's tests and `nt_chains`' tests.
 #[cfg(test)]
-mod tests {
-    use super::*;
-
+mod test_support {
     /// A xorshift generator for the random comparisons.
-    struct Rng(u64);
+    pub(super) struct Rng(pub(super) u64);
     impl Rng {
-        fn next(&mut self) -> u64 {
+        pub(super) fn next(&mut self) -> u64 {
             self.0 ^= self.0 << 13;
             self.0 ^= self.0 >> 7;
             self.0 ^= self.0 << 17;
@@ -471,15 +840,35 @@ mod tests {
         }
         /// A binary64 with a random significand and sign and a leading exponent in
         /// `lo .. lo + span`.
-        fn signed(&mut self, lo: i64, span: u64) -> f64 {
+        pub(super) fn signed(&mut self, lo: i64, span: u64) -> f64 {
             let x = self.positive(lo, span);
             if self.next() & 1 == 0 { x } else { -x }
         }
-        fn positive(&mut self, lo: i64, span: u64) -> f64 {
+        pub(super) fn positive(&mut self, lo: i64, span: u64) -> f64 {
             let e = (1023 + lo + (self.next() % span) as i64) as u64;
             f64::from_bits((self.next() & 0x000f_ffff_ffff_ffff) | (e << 52))
         }
     }
+}
+
+/// The LN witnesses of `x87_excel_ground_truth.tsv` where the software x87 gives the other
+/// neighbour (dc-8dg): the hardware's `FYL2X` and the exactly rounded `FYL2X` differ by one
+/// unit of the 64-bit significand, and that unit decides the binary64 rounding. These rows
+/// were harvested as the hardest near-midpoint LN inputs; on random inputs the LN chains
+/// differ 3 times in 200,000.
+#[cfg(test)]
+const LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY: [u64; 18] = [
+    0x0d45fbbe4b0e7d55, 0x0dbe4e3a44304ad6, 0x11f544676cf1bf2f, 0x1eb393c13e56f40a,
+    0x23a4108745e19fab, 0x2d152de2df4ff1e8, 0x2d20badbb5556728, 0x2d3693905c941f14,
+    0x2e68258fb8991289, 0x420be30a078fed72, 0x4574658f6970c8b6, 0x461d6906690fdadb,
+    0x4d7d2f67e7585ef8, 0x4fb4742155e8cc52, 0x501baf60a3904e63, 0x559d2eada7837182,
+    0x603a2ee36db86f49, 0x6fffb3b90594a629,
+];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_support::Rng;
 
     /// dc-6qki, dc-8dg: the software x87's double-rounded operations equal the x87 hardware's,
     /// operation for operation, over random operands of mixed magnitudes, among which a few
@@ -515,9 +904,8 @@ mod tests {
         assert!(moved.iter().all(|&n| n > 20), "too few near-midpoint cases: {moved:?}");
     }
 
-    /// dc-8dg: each chain written over [`Fpu`] gives, on the hardware backend, the bits of the
-    /// x86_64 entry point (the fused x87 assembly) it stands beside, so the software backend runs
-    /// the sequence the hardware runs.
+    /// dc-8dg: the ATAN chains over [`Fpu`] on the hardware backend give the bits of the x87
+    /// assembly they stand beside.
     #[cfg(target_arch = "x86_64")]
     /// Native-only: it runs the x87 hardware, which only x86_64 has.
     #[test]
@@ -525,16 +913,6 @@ mod tests {
         let mut rng = Rng(0x2545_f491_4f6c_dd1d);
         for _ in 0..20_000 {
             let x = rng.signed(-30, 40);
-            let p = rng.positive(-30, 60);
-            let y = rng.signed(-8, 12);
-            assert_eq!(exp_with::<Hard>(x, CW).to_bits(), x87::exp(x).to_bits(), "exp {x:e}");
-            assert_eq!(ln_with::<Hard>(p).to_bits(), x87::ln(p).to_bits(), "ln {p:e}");
-            assert_eq!(log10_with::<Hard>(p).to_bits(), x87::log10(p).to_bits(), "log10 {p:e}");
-            assert_eq!(
-                pow_direct_with::<Hard>(p, y).to_bits(),
-                x87::pow_direct(p, y).to_bits(),
-                "pow {p:e} {y:e}"
-            );
             assert_eq!(atan_with::<Hard>(x).to_bits(), x87::atan(x).to_bits(), "atan {x:e}");
             assert_eq!(
                 atan_reduced_with::<Hard>(x).to_bits(),
@@ -567,27 +945,6 @@ mod tests {
             }
             eprintln!("{name}: {differ} of {n} differ");
         };
-        run("EXP", 1, &|r| {
-            let x = r.signed(-8, 18);
-            (excel_exp(x), exp_with::<Soft>(x, CW), format!("{x:e}"))
-        });
-        run("LN", 2, &|r| {
-            let x = r.positive(-60, 120);
-            (excel_log(x), ln_with::<Soft>(x), format!("{x:e}"))
-        });
-        run("LOG10", 3, &|r| {
-            let x = r.positive(-60, 120);
-            (excel_log10(x), log10_with::<Soft>(x), format!("{x:e}"))
-        });
-        run("pow chain", 4, &|r| {
-            let (b, y) = (r.positive(-10, 20), r.signed(-6, 10));
-            let soft = exp_with::<Soft>(binary_with::<Soft>(Soft::mul, y, ln_with::<Soft>(b)), CW);
-            (excel_pow_chain(b, y), soft, format!("{b:e}^{y:e}"))
-        });
-        run("pow direct", 5, &|r| {
-            let (b, y) = (r.positive(-10, 20), r.signed(-6, 10));
-            (excel_pow_x87_direct(b, y), pow_direct_with::<Soft>(b, y), format!("{b:e}^{y:e}"))
-        });
         run("ATAN", 6, &|r| {
             let x = r.signed(-30, 60);
             (excel_atan(x), atan_with::<Soft>(x), format!("{x:e}"))
@@ -608,47 +965,26 @@ mod tests {
             let x = r.signed(-20, 47);
             (excel_tan(x), tan_with::<Soft>(x), format!("{x:e}"))
         });
-        run("GEOMEAN root", 11, &|r| {
-            let (p, k) = (r.positive(-40, 80), (r.next() % 30 + 2) as f64);
-            (root_with::<Hard>(p, k), root_with::<Soft>(p, k), format!("{p:e} n={k}"))
-        });
-        run("BINOM pmf exp", 12, &|r| {
-            let (lc, lf) = (r.signed(-4, 10), r.signed(-4, 10));
-            (excel_binom_pmf_exp(lc, lf), binom_pmf_exp_with::<Soft>(lc, lf), format!("{lc:e} {lf:e}"))
-        });
-        run("EXP chop", 13, &|r| {
-            let x = r.signed(-8, 18);
-            (excel_exp_rz(x), exp_with::<Soft>(x, CW | 0x0C00), format!("{x:e}"))
-        });
         run("SQRT staged", 14, &|r| {
             let x = r.positive(-1022, 2046);
             (excel_sqrt_staged(x), Soft::store(&Soft::sqrt(&load(x), CW), CW), format!("{x:e}"))
         });
     }
 
-    /// The LN witnesses of `x87_excel_ground_truth.tsv` where the software x87 gives the other
-    /// neighbour (dc-8dg): the hardware's `FYL2X` and the exactly rounded `FYL2X` differ by one
-    /// unit of the 64-bit significand, and that unit decides the binary64 rounding. These rows
-    /// were harvested as the hardest near-midpoint LN inputs; on random inputs the LN chains
-    /// differ 3 times in 200,000 (`software_chains_against_the_hardware`).
-    const LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY: [u64; 18] = [
-        0x0d45fbbe4b0e7d55, 0x0dbe4e3a44304ad6, 0x11f544676cf1bf2f, 0x1eb393c13e56f40a,
-        0x23a4108745e19fab, 0x2d152de2df4ff1e8, 0x2d20badbb5556728, 0x2d3693905c941f14,
-        0x2e68258fb8991289, 0x420be30a078fed72, 0x4574658f6970c8b6, 0x461d6906690fdadb,
-        0x4d7d2f67e7585ef8, 0x4fb4742155e8cc52, 0x501baf60a3904e63, 0x559d2eada7837182,
-        0x603a2ee36db86f49, 0x6fffb3b90594a629,
-    ];
 
-    /// dc-8dg: the software x87's EXP and LN chains against every EXP/LN witness harvested from
-    /// live Excel (`x87_excel_ground_truth.tsv`, which `x87::tests` replays on the hardware), on
-    /// every target. Every EXP witness matches; the LN witnesses match except the rows named in
+    /// Excel's EXP and LN through the interface the rest of the crate calls
+    /// ([`excel_exp`], [`excel_log`]) against every witness harvested from live Excel
+    /// (`x87_excel_ground_truth.tsv`). On the x87 hardware every row matches (measured on the
+    /// reference x86-64 host, AMD Zen2; the hardest rows depend on the CPU's `F2XM1`/`FYL2X`).
+    /// On the software x87 every EXP row matches and the LN rows match except
     /// [`LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY`], each one unit of the last place
-    /// away, and on x86_64 each of those is shown to be a hardware `FYL2X` result that differs
-    /// from the exactly rounded one.
+    /// away; on x86_64 each of those is shown to be a hardware `FYL2X` result that differs from
+    /// the exactly rounded one.
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    fn software_exp_and_ln_against_live_excel() {
+    fn exp_and_ln_against_live_excel() {
         const GROUND_TRUTH: &str = include_str!("x87_excel_ground_truth.tsv");
+        let software = cfg!(not(all(target_arch = "x86_64", not(feature = "soft-x87"))));
         let (mut exp_rows, mut ln_rows, mut ln_differ) = (0u32, 0u32, Vec::new());
         for line in GROUND_TRUTH.lines().map(str::trim).filter(|l| !l.is_empty()) {
             let mut it = line.split('\t');
@@ -658,13 +994,13 @@ mod tests {
             match func {
                 "EXP" => {
                     exp_rows += 1;
-                    let got = exp_with::<Soft>(x, CW).to_bits();
-                    assert_eq!(got, want, "EXP x={:016x}", x.to_bits());
+                    assert_eq!(excel_exp(x).to_bits(), want, "EXP x={:016x}", x.to_bits());
                 }
                 "LN" => {
                     ln_rows += 1;
-                    let got = ln_with::<Soft>(x).to_bits();
+                    let got = excel_log(x).to_bits();
                     if got != want {
+                        assert!(software, "LN x={:016x}: got {got:016x} want {want:016x}", x.to_bits());
                         assert_eq!(got.abs_diff(want), 1, "LN x={:016x}", x.to_bits());
                         ln_differ.push(x.to_bits());
                     }
@@ -673,19 +1009,30 @@ mod tests {
             }
         }
         assert_eq!((exp_rows, ln_rows), (136, 113));
-        assert_eq!(ln_differ, LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY);
+        if software {
+            assert_eq!(ln_differ, LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY);
+        }
         #[cfg(target_arch = "x86_64")]
-        for bits in ln_differ {
+        for bits in LN_WITNESSES_THE_SOFTWARE_X87_ROUNDS_THE_OTHER_WAY {
             let x = load(f64::from_bits(bits));
             assert_ne!(Hard::fyl2x(&ext_ln2(), &x, CW), Soft::fyl2x(&ext_ln2(), &x, CW), "{bits:016x}");
         }
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn spot_values() {
+        assert_eq!(excel_exp(0.0).to_bits(), 1.0f64.to_bits());
+        assert_eq!(excel_exp(1.0).to_bits(), std::f64::consts::E.to_bits());
+        assert_eq!(excel_log(1.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(excel_log(std::f64::consts::E), 1.0);
+        assert_eq!(excel_log10(1000.0), 3.0);
+    }
+
     // Golden (x_bits, cr_bits) pulled from the W108-A corpus. These pin the
     // *portable* faithful core (`exp_portable`/`log_portable` and the
-    // expm1/log1p/sqrt kernels) to the correctly-rounded value. Excel-parity of
-    // the x87 EXP/LN backend is covered separately by
-    // `x87::tests::matches_live_excel_bit_for_bit`.
+    // expm1/log1p/sqrt kernels) to the correctly-rounded value. Excel parity of
+    // EXP/LN is covered by `exp_and_ln_against_live_excel`.
     const GOLDEN: &[(&str, u64, u64)] = &[
         ("EXP", 0xc034000000000000, 0x3e21b48655f37267),
         ("EXP", 0xc034000000000010, 0x3e21b48655f3714c),
