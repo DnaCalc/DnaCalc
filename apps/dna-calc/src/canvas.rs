@@ -363,7 +363,7 @@ fn canvas_view(controller: Controller) -> impl IntoView {
             },
             move |reply| {
                 if let wire::Reply::Canvas(found) = reply {
-                    traced.set(Some(found));
+                    traced.try_set(Some(found));
                 }
             },
         );

@@ -37,17 +37,25 @@ impl Skin for AtlasSkin {
 }
 
 fn atlas_view(controller: Controller) -> impl IntoView {
-    let atlas: RwSignal<wire::Atlas> = RwSignal::new(wire::Atlas::default());
+    // Nothing is counted until the server's first answer: the totals stay empty until then.
+    let atlas: RwSignal<Option<wire::Atlas>> = RwSignal::new(None);
     Effect::new(move |_| {
         controller.revision.track();
         controller.summary.track();
         controller.ask(wire::Request::Atlas, move |reply| {
             if let wire::Reply::Atlas(found) = reply {
-                atlas.set(found);
+                atlas.try_set(Some(found));
             }
         });
     });
-    let census = Memo::new(move |_| atlas.with(|atlas| atlas.census.clone()));
+    let census = Memo::new(move |_| {
+        atlas.with(|atlas| {
+            atlas
+                .as_ref()
+                .map(|atlas| atlas.census.clone())
+                .unwrap_or_default()
+        })
+    });
     let sheets = move || {
         census.with(|census| {
             census
@@ -71,6 +79,9 @@ fn atlas_view(controller: Controller) -> impl IntoView {
         })
     };
     let totals = move || {
+        if atlas.with(Option::is_none) {
+            return "Counting the workbook's cells".to_owned();
+        }
         census.with(|census| {
             let formulas = census.formulas();
             let calculated = census.calculated();
@@ -108,8 +119,9 @@ fn atlas_view(controller: Controller) -> impl IntoView {
             intents,
             name,
             changed,
+            memory,
             ..
-        } = atlas.get();
+        } = atlas.get().unwrap_or_default();
         let timings = controller.timings.get();
         let ms = |value: Option<f64>| {
             value.map_or_else(|| "none".to_owned(), |ms| format!("{ms:.0} ms"))
@@ -119,7 +131,11 @@ fn atlas_view(controller: Controller) -> impl IntoView {
                 <li>{format!("Workbook {name}{}", if changed { ", changed since opened or saved" } else { "" })}</li>
                 <li data-dnacalc="atlas-mode">{format!("Calculation: {mode}")}</li>
                 <li>{format!("Authored revision {revision}; {undo} steps to undo, {redo} to redo; {intents} intents logged")}</li>
-                <li data-dnacalc="atlas-memory">{crate::controller::memory_bytes().map_or_else(|| "Memory: not in a browser".to_owned(), |bytes| format!("Memory: {:.0} MB of wasm linear memory", bytes / 1_048_576.0))}</li>
+                <li data-dnacalc="atlas-memory">{match (memory, crate::controller::memory_bytes()) {
+                    (Some(worker), Some(page)) if crate::port::in_worker() => format!("Memory: {:.0} MB of wasm linear memory in the calculation worker, {:.0} MB on the page", worker / 1_048_576.0, page / 1_048_576.0),
+                    (_, Some(page)) => format!("Memory: {:.0} MB of wasm linear memory", page / 1_048_576.0),
+                    _ => "Memory: not in a browser".to_owned(),
+                }}</li>
                 <li data-dnacalc="atlas-timings">{format!("Open and first calculation: {}; last intent (an edit, undo, selection or recalculation): {}", ms(timings.open_ms), ms(timings.last_intent_ms))}</li>
             </ul>
         }

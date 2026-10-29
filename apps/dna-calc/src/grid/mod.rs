@@ -193,24 +193,24 @@ fn grid_view(controller: Controller) -> impl IntoView {
         controller.ask(wire::Request::Geometry(sheet), move |reply| {
             if let wire::Reply::Geometry(g) = reply {
                 let g = Some(g.geometry());
-                if geometry.get_untracked() != g {
-                    geometry.set(g);
+                if geometry.try_get_untracked().is_some_and(|old| old != g) {
+                    geometry.try_set(g);
                 }
             }
         });
         controller.ask(wire::Request::UsedArea(sheet), move |reply| {
             if let wire::Reply::UsedArea(area) = reply {
                 let area = area.and_then(wire::Area::area);
-                if used.get_untracked() != area {
-                    used.set(area);
+                if used.try_get_untracked().is_some_and(|old| old != area) {
+                    used.try_set(area);
                 }
             }
         });
         controller.ask(wire::Request::Charts(sheet), move |reply| {
             if let wire::Reply::Charts(drawn) = reply
-                && charts.get_untracked() != drawn
+                && charts.try_get_untracked().is_some_and(|old| old != drawn)
             {
-                charts.set(drawn);
+                charts.try_set(drawn);
             }
         });
     });
@@ -812,9 +812,9 @@ fn grid_view(controller: Controller) -> impl IntoView {
         };
         controller.ask(wire::Request::Validation(wire::Key::of(at)), move |reply| {
             if let wire::Reply::Validation(found) = reply
-                && rule.get_untracked() != found
+                && rule.try_get_untracked().is_some_and(|old| old != found)
             {
-                rule.set(found);
+                rule.try_set(found);
             }
         });
     });

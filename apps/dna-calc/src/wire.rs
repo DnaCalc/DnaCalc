@@ -435,6 +435,8 @@ pub struct Atlas {
     pub intents: usize,
     pub name: String,
     pub changed: bool,
+    /// The server's wasm linear memory, in bytes (the calculation worker's, in a browser).
+    pub memory: Option<f64>,
 }
 
 /// One cell of a subscription, as the page shows it.

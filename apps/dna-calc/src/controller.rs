@@ -12,8 +12,8 @@
 //!   they change; [`Controller::subscribe`] registers a [`ViewMirror`] for one.
 //! - The application's own subscription follows the session's selection: the formula bar and the
 //!   status line show the active cell from it.
-//! - Skins not yet moved to the messages read the workbook through [`Controller::with`], which
-//!   tracks [`Controller::revision`]; it reads the in-process server's workbook.
+//! - A skin reads what it shows with [`Controller::ask`], asking again when
+//!   [`Controller::revision`] advances.
 //!
 //! The active sheet and cell are the controller's, so they stay when the skin changes; every move
 //! of the active cell is also a session selection, so an undo restores the selection the edit was
@@ -26,7 +26,7 @@
 
 use crate::port;
 use crate::wire::{self, Area, Cells, Event, Intent, Key, Outcome, Reply, Request, Sheet, Summary};
-use crate::workbook::{SheetTab, Workbook};
+use crate::workbook::SheetTab;
 use calc_host::value::{CellKey, GridArea, SheetId};
 use leptos::prelude::*;
 use std::collections::BTreeMap;
@@ -183,23 +183,6 @@ impl Controller {
         controller
     }
 
-    /// Reads the open workbook, tracking the revision (the skins that do not yet read through
-    /// messages).
-    pub fn with<R>(&self, f: impl FnOnce(&Workbook) -> R) -> R {
-        self.revision.track();
-        port::with_book(f)
-    }
-
-    /// Reads the workbook without tracking.
-    pub fn with_untracked<R>(&self, f: impl FnOnce(&Workbook) -> R) -> R {
-        port::with_book(f)
-    }
-
-    /// Changes the workbook outside an intent (a census through short subscriptions).
-    pub fn update_untracked<R>(&self, f: impl FnOnce(&mut Workbook) -> R) -> R {
-        port::with_book_mut(f)
-    }
-
     /// Asks the server; `answer` gets the reply when it comes (a failure goes to the status line).
     pub fn ask(&self, request: Request, answer: impl FnOnce(Reply) + 'static) {
         let controller = *self;
@@ -254,7 +237,7 @@ impl Controller {
         match event {
             Event::Cells(cells) => {
                 if let Some(mirror) = self.mirrors.with_value(|m| m.get(&cells.id).copied()) {
-                    mirror.update(|mirror| {
+                    mirror.try_update(|mirror| {
                         if !mirror.apply(&cells) {
                             // A gap means a change was lost: the next reset brings the mirror back.
                             *mirror = ViewMirror::default();

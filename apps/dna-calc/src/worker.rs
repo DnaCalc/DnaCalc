@@ -58,25 +58,37 @@ pub fn start() {
 
 #[cfg(target_arch = "wasm32")]
 fn handle(event: web_sys::MessageEvent) {
-    let Some(text) = event.data().as_string() else {
+    let Some((text, bytes)) = crate::port::unpack(event.data()) else {
         post(&FromServer::Failed {
             id: None,
             message: "a message that is not text".to_owned(),
         });
         return;
     };
-    let (reply, events) = SERVER.with(|server| {
+    let (reply, out, events) = SERVER.with(|server| {
         let mut server = server.borrow_mut();
         let server = server.get_or_insert_with(crate::server::Server::new);
-        let (reply, _bytes) = crate::server::answer_text(server, &text, None);
-        (reply, server.take_events())
+        let (reply, out) = crate::server::answer_text(server, &text, bytes);
+        (reply, out, server.take_events())
     });
     // The events first, as the in-process transport delivers them: a reply finds its
     // subscriptions' cells already applied.
     for event in events {
         post(&FromServer::Event(event));
     }
-    let _ = scope().post_message(&wasm_bindgen::JsValue::from_str(&reply));
+    let message = wasm_bindgen::JsValue::from_str(&reply);
+    match out {
+        None => {
+            let _ = scope().post_message(&message);
+        }
+        Some(bytes) => {
+            // A saved package travels beside the reply, its buffer transferred.
+            let array = js_sys::Uint8Array::from(bytes.as_slice());
+            let buffer = array.buffer();
+            let pair = js_sys::Array::of2(&message, &buffer);
+            let _ = scope().post_message_with_transfer(&pair, &js_sys::Array::of1(&buffer));
+        }
+    }
 }
 
 #[cfg(target_arch = "wasm32")]

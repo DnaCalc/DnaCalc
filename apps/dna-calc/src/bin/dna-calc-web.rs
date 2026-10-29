@@ -9,8 +9,8 @@ pub fn start() {
     if dna_calc::worker::in_worker() {
         dna_calc::worker::start();
     } else {
+        // The page; its controller starts the calculation worker (dna_calc::port).
         dna_calc::web::start();
-        dna_calc::client::spawn();
     }
 }
 

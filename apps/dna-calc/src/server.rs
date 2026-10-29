@@ -180,6 +180,7 @@ impl Server {
                         intents: session.intent_log().len(),
                         name: self.book.name().to_owned(),
                         changed: self.book.changed(),
+                        memory: crate::controller::memory_bytes(),
                         census,
                     }))
                 }

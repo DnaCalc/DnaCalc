@@ -351,10 +351,10 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 names: found.names,
                 sheets,
             };
-            if outline.get_untracked() != next {
-                outline.set(next);
+            if outline.try_get_untracked().is_some_and(|old| old != next) {
+                outline.try_set(next);
             }
-            shown_cells.set(
+            shown_cells.try_set(
                 found
                     .cells
                     .into_iter()
@@ -540,7 +540,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                     controller.revision.track();
                     controller.ask(wire::Request::Dependents(wire::Key::of(at)), move |reply| {
                         if let wire::Reply::Keys(keys) = reply {
-                            read_by.set(match keys.len() {
+                            read_by.try_set(match keys.len() {
                                 0 => "read by no formula".to_owned(),
                                 1 => "read by 1 formula".to_owned(),
                                 n => format!("read by {n} formulas"),

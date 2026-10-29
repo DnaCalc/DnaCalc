@@ -352,7 +352,7 @@ fn ledger_view(controller: Controller) -> impl IntoView {
         };
         controller.ask(request, move |reply| {
             if let wire::Reply::Ledger(found) = reply {
-                ledger.set(found);
+                ledger.try_set(found);
             }
         });
     });
