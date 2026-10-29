@@ -75,7 +75,7 @@ required for every commit.
 
 Before you create a fixture, oracle workbook, generator, test helper, adapter, registry, tool
 command or document, look for the one that already exists and extend it. There is:
-- one catalogue oracle for calc-func, F1's `tests/fixtures/f1_prefix` and its generator, to which
+- one catalogue oracle for calc-func, `crates/calc-func/tests/fixtures/catalogue` and its generator, to which
   each package adds its own section;
 - one corpus harness (`cargo xtask corpus`);
 - one adapter from OxFunc's types (`catalogue/kit.rs`);
