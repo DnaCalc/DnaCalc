@@ -1631,6 +1631,52 @@ const CALC_CASES: &[Case] = &[
             Check::Text(cell!("D1"), "-1"),
         ],
     },
+    // dc-6yw: charts drawn read-only (calc-host's dc_6yw/charts-excel.txt).
+    Case {
+        name: "charts are drawn where Excel puts them, with their series' values",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),
+            Action::Click("skin-grid"),
+        ],
+        checks: &[
+            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"]", "data-kind", "column"),
+            Check::Text(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-dnacalc=\"chart-title\"]",
+                "Column",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "12",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"1\"][data-point=\"5\"]",
+                "data-value",
+                "13",
+            ),
+            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"]", "data-kind", "line"),
+        ],
+    },
+    Case {
+        name: "a chart follows an edit: B2 set to 40 moves its column and the total's line",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Keys("grid", "4"),
+            Action::Keys("cell-editor", "0\u{E007}"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "40",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "48",
+            ),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.

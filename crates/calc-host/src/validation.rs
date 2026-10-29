@@ -143,6 +143,25 @@ impl HostState {
                     .collect(),
             );
         }
+        Some(
+            self.formula_values(formula, origin, at)?
+                .into_iter()
+                .flatten()
+                .collect(),
+        )
+    }
+
+    /// The values a formula gives at `at` (relative to `origin`), evaluated by the one evaluator
+    /// ([`calc_engine::DetachedFormula`], in its dynamic-array form): a reference's cells in
+    /// order, area by area and row by row (`None` for a blank cell or one without a value; at most
+    /// [`LIST_LIMIT`]), an array's values row by row, or the one value. `None` when the formula
+    /// does not compile or evaluate. A validation list's items and a chart's series read this.
+    pub(crate) fn formula_values(
+        &self,
+        formula: &str,
+        origin: CellKey,
+        at: CellKey,
+    ) -> Option<Vec<Option<CalcValue>>> {
         let compiled =
             DetachedFormula::compile_dynamic(&self.model, formula.trim_start_matches('='), origin)
                 .ok()?;
@@ -166,12 +185,12 @@ impl HostState {
                 Some(
                     page.cells()
                         .iter()
-                        .filter_map(|cell| projected_value(cell.value()))
+                        .map(|cell| projected_value(cell.value()))
                         .collect(),
                 )
             }
-            CoreRef::Array(array) => Some(array.iter_row_major().cloned().collect()),
-            _ => Some(vec![value]),
+            CoreRef::Array(array) => Some(array.iter_row_major().cloned().map(Some).collect()),
+            _ => Some(vec![Some(value)]),
         }
     }
 

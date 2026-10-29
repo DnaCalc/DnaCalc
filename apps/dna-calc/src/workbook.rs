@@ -302,18 +302,12 @@ impl Workbook {
 
     /// The items a cell's list drop-down offers, as text to enter (dc-6yw).
     pub fn validation_items(&self, at: CellKey) -> Vec<String> {
-        use calc_host::value::CoreValue;
         let Some(items) = self.session.host().validation_list(at) else {
             return Vec::new();
         };
         items
             .iter()
-            .filter_map(|item| match item.core() {
-                CoreValue::Text(text) => Some(text.to_string_lossy()),
-                CoreValue::Number(n) => Some(format!("{n}")),
-                CoreValue::Logical(b) => Some(if *b { "TRUE" } else { "FALSE" }.to_owned()),
-                _ => None,
-            })
+            .map(calc_host::chart::text_of)
             .filter(|text| !text.is_empty())
             .collect()
     }

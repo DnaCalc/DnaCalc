@@ -2,7 +2,10 @@
 //! same workbook (tests/fixtures/dc_6yw: data-validation.xlsx, authored in Excel by make-dv.ps1,
 //! which wrote each candidate entry and recorded Range.Validation.Value in dv-excel.txt).
 
-use calc_host::value::{CellKey, CoreValue, SheetId};
+// Case names are fixed identities of the form `<bead>__<case>`.
+#![allow(non_snake_case)]
+
+use calc_host::value::{CellKey, CoreRef, SheetId};
 use calc_host::{
     ErrorStyle, HostOptions, HostSession, IntentError, MemorySource, OpenPolicy, PackageRead,
     SkinIntent, interpret_entry_in,
@@ -69,9 +72,9 @@ fn dc_6yw__lists_prompts_and_refusals() {
         host.validation_list(at(sheet, address))
             .expect("a list")
             .iter()
-            .map(|value| match value.core() {
-                CoreValue::Text(text) => text.to_string_lossy(),
-                CoreValue::Number(n) => format!("{n}"),
+            .map(|value| match value.core_ref() {
+                CoreRef::Text(text) => text.to_string_lossy(),
+                CoreRef::Number(n) => format!("{n}"),
                 other => format!("{other:?}"),
             })
             .collect()

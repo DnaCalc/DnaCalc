@@ -3,6 +3,9 @@
 //! make-cf.ps1, which recorded each cell's DisplayFormat in cf-excel.txt and printed the sheet to
 //! cf-excel.pdf, the reference for the data bars and icons DisplayFormat does not report).
 
+// Case names are fixed identities of the form `<bead>__<case>`.
+#![allow(non_snake_case)]
+
 use calc_host::value::{CellKey, SheetId};
 use calc_host::{
     CellLook, HostOptions, HostSession, LookColor, MemorySource, OpenPolicy, PackageRead,
