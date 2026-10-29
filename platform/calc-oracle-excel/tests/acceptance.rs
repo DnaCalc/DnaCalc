@@ -504,6 +504,7 @@ mod windows {
         CaptureRequest {
             case: CASE.to_owned(),
             fixture,
+            inventory: None,
             companions,
             work_dir,
             timeout: Duration::from_secs(300),
@@ -1060,6 +1061,7 @@ mod windows {
         let outcome = capture(&CaptureRequest {
             case: SPILL_CASE.to_owned(),
             fixture: fixtures().join("worker").join("spill.xlsx"),
+            inventory: None,
             companions: Vec::new(),
             work_dir: work.clone(),
             timeout: Duration::from_secs(300),

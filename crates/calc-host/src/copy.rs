@@ -33,7 +33,9 @@
 
 use crate::command::CellEdit;
 use crate::state::HostState;
-use calc_doc_model::value::{CalcValue, CellKey, CoreRef, GridArea};
+use calc_doc_model::value::{
+    CalcValue, CellKey, CoreRef, GridArea, fold_workbook_name, workbook_names_equal,
+};
 use calc_doc_model::{ArrayFormula, ArrayKind, CellInput, CellText, FiniteNumber};
 use std::collections::BTreeSet;
 use std::fmt;
@@ -331,7 +333,7 @@ pub(crate) fn copy_edits(
             if let Some(formula) =
                 calc_engine::move_name(model, &name.formula, name.scope, from, to.first())
             {
-                renamed.push(name.name.to_ascii_lowercase());
+                renamed.push(fold_workbook_name(&name.name));
                 moved_names.push((name.name.clone(), name.scope, formula.clone()));
                 edits.push(CellEdit::SetName {
                     name: name.name.clone(),
@@ -354,7 +356,7 @@ pub(crate) fn copy_edits(
                 .flatten()
                 .filter_map(|(_, input)| match input {
                     CellInput::Formula(formula) => {
-                        Some(formula.text().to_string_lossy().to_ascii_lowercase())
+                        Some(fold_workbook_name(&formula.text().to_string_lossy()))
                     }
                     _ => None,
                 })
@@ -364,11 +366,11 @@ pub(crate) fn copy_edits(
                 .iter()
                 .filter(|name| name.scope == source)
             {
-                let lower = name.name.to_ascii_lowercase();
-                let taken = definitions
-                    .names()
-                    .iter()
-                    .any(|held| held.scope == target && held.name.eq_ignore_ascii_case(&name.name));
+                let lower = fold_workbook_name(&name.name);
+                let taken = definitions.names().iter().any(|held| {
+                    held.scope == target
+                        && workbook_names_equal(&held.name, &name.name)
+                });
                 if taken || !moving.iter().any(|text| uses_name(text, &lower)) {
                     continue;
                 }
@@ -401,7 +403,7 @@ pub(crate) fn copy_edits(
                     if from.contains(at) || to.contains(at) || set.contains(&at) {
                         continue;
                     }
-                    let text = formula.text().to_string_lossy().to_ascii_lowercase();
+                    let text = fold_workbook_name(&formula.text().to_string_lossy());
                     if !renamed.iter().any(|name| uses_name(&text, name)) {
                         continue;
                     }
@@ -425,9 +427,10 @@ pub(crate) fn copy_edits(
     Ok(edits)
 }
 
-/// Whether the formula `text` (lower case) holds `name` (lower case) as a whole word: a name a
-/// formula may use. A text or another name that holds it as a word counts too, which only sets a
-/// formula again that did not need it.
+/// Whether the formula `text` holds `name` as a whole word, both folded as workbook names are
+/// compared (calc-value's `fold_workbook_name`, dc-cpr): a name a formula may use. A text or
+/// another name that holds it as a word counts too, which only sets a formula again that did not
+/// need it.
 fn uses_name(text: &str, name: &str) -> bool {
     let word = |c: char| c.is_alphanumeric() || c == '_' || c == '.' || c == '\\';
     text.match_indices(name).any(|(at, _)| {

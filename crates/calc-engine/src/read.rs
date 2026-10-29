@@ -196,18 +196,14 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
             .map(|sheet| sheet.id())
     }
 
-    /// The snapshot's defined name `name`, matched as sheet names are, from `scope`: the formula
-    /// sheet's own name first, then the workbook's; for a qualified name, the sheet's own. A name
-    /// the snapshot does not hold is unknown (#NAME?). A macro or VBA name, and a qualified name
-    /// that only the workbook holds, are not modelled.
+    /// The snapshot's defined name `name`, matched as Excel matches names (dc-cpr), from `scope`:
+    /// the formula sheet's own name first, then the workbook's; for a qualified name, the sheet's
+    /// own. A name the snapshot does not hold is unknown (#NAME?). A macro or VBA name, and a
+    /// qualified name that only the workbook holds, are not modelled.
     fn defined_name(&self, name: &str, scope: FmlNameScope) -> NameDefinition {
-        let same = |held: &str| {
-            held == name
-                || held
-                    .chars()
-                    .flat_map(char::to_uppercase)
-                    .eq(name.chars().flat_map(char::to_uppercase))
-        };
+        // Defined names compare under the full Unicode case fold, as Excel compares them
+        // (dc-cpr).
+        let same = |held: &str| held == name || calc_value::workbook_names_equal(held, name);
         let names = self.0.definitions().names();
         let find = |wanted: NameScope| {
             names
@@ -235,15 +231,12 @@ impl ReferenceCatalog for SnapshotCatalog<'_> {
         }
     }
 
-    /// The snapshot's table whose display name is `name`, matched as sheet names are (L3).
+    /// The snapshot's table whose display name is `name`, matched as Excel matches names (L3,
+    /// dc-cpr).
     fn table(&self, name: &str) -> TableLookup {
         let found = self.0.definitions().tables().iter().find(|table| {
             table.display_name == name
-                || table
-                    .display_name
-                    .chars()
-                    .flat_map(char::to_uppercase)
-                    .eq(name.chars().flat_map(char::to_uppercase))
+                || calc_value::workbook_names_equal(&table.display_name, name)
         });
         match found {
             Some(table) => TableLookup::Found(table_info(table)),

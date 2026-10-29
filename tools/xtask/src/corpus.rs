@@ -3,8 +3,11 @@
 //! the oracle workbooks committed in this repository, each compared with Excel through the
 //! product route, with one summary of the whole corpus (bead `dc-vcs`).
 //!
-//! 1. **Workbooks.** Every `.xlsx` and `.xlsm` file directly in `<dir>` (not in its subfolders,
-//!    and not an Excel lock file `~$...`), in name order; with `--oracle`, every
+//! 1. **Workbooks.** Every `.xlsx`, `.xlsm` and `.xlsb` file directly in `<dir>` (not in its
+//!    subfolders, and not an Excel lock file `~$...`), in name order; an `.xlsb` is captured with
+//!    its twin, the `.xlsx` or `.xlsm` of its stem in the same folder that Excel saved from the
+//!    same workbook, as the inventory the capture worker reads (bead dc-5sr), and without one it
+//!    is not compared; with `--oracle`, every
 //!    `crates/*/tests/fixtures/*/oracle.xlsx` of the repository, each with its committed capture
 //!    `crates/<crate>/tests/captures/<case>/oracle.capture.json` when there is one.
 //! 2. **Captures, taken once and cached.** The cache (`--cache`, by default
@@ -163,10 +166,12 @@ pub(crate) struct Entry {
     pub(crate) name: String,
     pub(crate) path: PathBuf,
     pub(crate) committed: Option<PathBuf>,
+    /// For an `.xlsb`, its SpreadsheetML twin in the same folder, when there is one.
+    pub(crate) inventory: Option<PathBuf>,
 }
 
-/// The `.xlsx` and `.xlsm` files directly in `dir`, in name order, leaving out Excel's lock
-/// files.
+/// The `.xlsx`, `.xlsm` and `.xlsb` files directly in `dir`, in name order, leaving out Excel's
+/// lock files; each `.xlsb` with its twin.
 pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
     let listing =
         fs::read_dir(dir).map_err(|e| format!("cannot list the folder {}: {e}", dir.display()))?;
@@ -180,12 +185,21 @@ pub(crate) fn folder_workbooks(dir: &Path) -> Result<Vec<Entry>, String> {
             .map(|e| e.to_string_lossy().to_ascii_lowercase());
         if path.is_file()
             && !name.starts_with("~$")
-            && matches!(extension.as_deref(), Some("xlsx" | "xlsm"))
+            && matches!(extension.as_deref(), Some("xlsx" | "xlsm" | "xlsb"))
         {
+            let inventory = (extension.as_deref() == Some("xlsb"))
+                .then(|| {
+                    ["xlsx", "xlsm"]
+                        .iter()
+                        .map(|twin| path.with_extension(twin))
+                        .find(|twin| twin.is_file())
+                })
+                .flatten();
             entries.push(Entry {
                 name,
                 path,
                 committed: None,
+                inventory,
             });
         }
     }
@@ -227,6 +241,7 @@ pub(crate) fn oracle_workbooks(root: &Path) -> Result<Vec<Entry>, String> {
                 name: format!("{crate_name}/{case_name}/oracle.xlsx"),
                 path,
                 committed: committed.is_file().then_some(committed),
+                inventory: None,
             });
         }
     }
@@ -552,6 +567,7 @@ impl Run<'_> {
         let request = CaptureRequest {
             case: format!("corpus__{}", file_safe(&stem)),
             fixture: entry.path.clone(),
+            inventory: entry.inventory.clone(),
             companions: Vec::new(),
             work_dir: self.cache.root.join("work").join(format!(
                 "{}-{}",

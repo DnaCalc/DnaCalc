@@ -413,7 +413,7 @@ impl<'c> Lowering<'c> {
                         self.blocks[block].push(Instruction::Literal(Literal::Logical(true)));
                     } else if text.eq_ignore_ascii_case("FALSE") {
                         self.blocks[block].push(Instruction::Literal(Literal::Logical(false)));
-                    } else if let Some(slot) = self.local(&name_key(text)) {
+                    } else if let Some(slot) = self.local(&parameter_key(text)) {
                         self.blocks[block].push(Instruction::Local(slot));
                     } else {
                         let scope = NameScope::Formula(self.anchor.sheet());
@@ -840,7 +840,7 @@ impl<'c> Lowering<'c> {
         if is_builtin(spelling) || spelling.len() != name.text().len() {
             return Err(unknown);
         }
-        if let Some(slot) = self.local(&name_key(name.text())) {
+        if let Some(slot) = self.local(&parameter_key(name.text())) {
             self.blocks[block].push(Instruction::Local(slot));
         } else {
             let scope = NameScope::Formula(self.anchor.sheet());
@@ -1028,7 +1028,7 @@ impl<'c> Lowering<'c> {
         if !valid {
             return Err(refused);
         }
-        Ok((name_key(text), optional))
+        Ok((parameter_key(text), optional))
     }
 
     /// Pushes onto block `block` the value of the defined name `name` seen from `scope`: its
@@ -1086,7 +1086,7 @@ impl<'c> Lowering<'c> {
         definition: &str,
         span: TextSpan,
     ) -> Result<usize, CompileError> {
-        let key = (name_key(name), definition.to_owned());
+        let key = (calc_func::value::fold_workbook_name(name), definition.to_owned());
         if let Some(block) = self.names.get(&key) {
             return Ok(*block);
         }
@@ -1876,12 +1876,13 @@ fn strip_prefixes(spelling: &str) -> &str {
     }
 }
 
-/// The key a LET name, LAMBDA parameter or defined name is matched by: without a leading
-/// `_xlpm.` (any ASCII case), upper case. Excel matches names regardless of case.
-fn name_key(text: &str) -> String {
-    without_prefix(text, "_xlpm.")
-        .unwrap_or(text)
-        .to_uppercase()
+/// The key a LET name or LAMBDA parameter is matched by: without a leading `_xlpm.` (any ASCII
+/// case), under the simple Unicode case fold Excel matches parameters by (dc-cpr:
+/// `=LET(Größe,21,GRÖßE*2)` finds the parameter, `GRÖSSE` does not and is read as a defined
+/// name; calc-value's `parameter_names_equal`). A defined name's block is keyed by the full fold,
+/// as defined names compare.
+fn parameter_key(text: &str) -> String {
+    calc_func::value::fold_parameter_name(without_prefix(text, "_xlpm.").unwrap_or(text))
 }
 
 /// An array constant: rows of number, text, logical and error constants (a number may carry a

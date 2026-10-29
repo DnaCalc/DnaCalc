@@ -439,9 +439,13 @@ function Read-Package([string]$Path) {
                 }
                 [void]$externalCalls.Add([ordered]@{ where = $where; functions = @($called) })
             }
-            if ($rel.type -ne ($RelPrefix + 'worksheet')) {
-                # Macro sheets and dialog sheets; a macro sheet's relationship type is in
-                # Microsoft's namespace, not the one $RelPrefix names.
+            # An Excel 4.0 macro sheet (dc-xuw) is inventoried as a worksheet is: its document element
+            # is xm:macrosheet, in Microsoft's namespace, and its relationship type is in Microsoft's
+            # namespace too, not the one $RelPrefix names. Its formula cells are inventory cells,
+            # which DNA Calc does not calculate.
+            $macroSheet = $rel.type -eq 'http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet' -or $rel.type -eq 'http://schemas.microsoft.com/office/2006/relationships/xlIntlMacrosheet'
+            if ($rel.type -ne ($RelPrefix + 'worksheet') -and -not $macroSheet) {
+                # Dialog sheets.
                 $kind = $rel.type.Substring($rel.type.LastIndexOf('/') + 1)
                 Add-Failure 'inventory' $null ("sheet $name is a $kind (relationship type " + $rel.type + '), whose cells are not captured')
                 continue
@@ -454,8 +458,10 @@ function Read-Package([string]$Path) {
             [void]$sheets.Add([ordered]@{ name = $name; visibility = $visibility })
             $sheetNames = New-Object System.Xml.XmlNamespaceManager($document.NameTable)
             $sheetNames.AddNamespace('x', $MainNs)
+            $sheetNames.AddNamespace('xm', 'http://schemas.microsoft.com/office/excel/2006/main')
             $sheetStart = $formulas.Count
-            foreach ($c in $document.SelectNodes('/x:worksheet/x:sheetData/x:row/x:c', $sheetNames)) {
+            $cellPath = if ($macroSheet) { '/xm:macrosheet/x:sheetData/x:row/x:c' } else { '/x:worksheet/x:sheetData/x:row/x:c' }
+            foreach ($c in $document.SelectNodes($cellPath, $sheetNames)) {
                 $place = Split-Reference $c.GetAttribute('r')
                 if ($null -eq $place) {
                     Add-Failure 'inventory' $null ("sheet $name has a cell whose reference '" + $c.GetAttribute('r') + "' is not a relative A1 reference")
@@ -684,7 +690,8 @@ function Invoke-ComMethod($Object, [string]$Name, [object[]]$Arguments) {
 }
 
 function Read-Cell($Workbook, $Entry) {
-    return $Workbook.Worksheets.Item($Entry.sheet).Cells.Item($Entry.row, $Entry.column)
+    # Sheets, not Worksheets: an inventory cell may be on a macro sheet (dc-xuw).
+    return $Workbook.Sheets.Item($Entry.sheet).Cells.Item($Entry.row, $Entry.column)
 }
 
 # A property of a COM object, read so that a failed read throws; $Arguments are the index of a
@@ -908,7 +915,11 @@ $excel = $null
 $workbook = $null
 try {
     $req = [System.IO.File]::ReadAllText($Request, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-    $package = Read-Package $req.input
+    # An .xlsb input is inventoried from its Excel-saved SpreadsheetML twin (bead dc-5sr): this
+    # script reads SpreadsheetML parts only. Excel opens the input itself.
+    $inventoryPath = $req.input
+    if ($req.PSObject.Properties.Name -contains 'inventory' -and $req.inventory) { $inventoryPath = $req.inventory }
+    $package = Read-Package $inventoryPath
     $Output.sheets = $package.sheets
     $Output.formulas = $package.formulas
     $inventory = @{}
