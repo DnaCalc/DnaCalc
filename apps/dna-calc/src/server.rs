@@ -163,6 +163,64 @@ impl Server {
                     self.book.used_area(sheet.id()).map(Area::of),
                 )),
                 Request::Charts(sheet) => Ok(Reply::Charts(self.charts(sheet))),
+                Request::Atlas => {
+                    let census = self.book.census();
+                    let session = self.book.session();
+                    let (undo, redo) = session.history_depth();
+                    Ok(Reply::Atlas(wire::Atlas {
+                        mode: match session.calc_mode() {
+                            CalcMode::Automatic => "automatic",
+                            CalcMode::AutomaticExceptTables => "automatic except tables",
+                            CalcMode::Manual => "manual",
+                        }
+                        .to_owned(),
+                        revision: self.book.host().revision().get(),
+                        undo,
+                        redo,
+                        intents: session.intent_log().len(),
+                        name: self.book.name().to_owned(),
+                        changed: self.book.changed(),
+                        census,
+                    }))
+                }
+                Request::Outline { shown, open } => Ok(Reply::Outline(self.outline(&shown, &open))),
+                Request::Dependents(at) => {
+                    let at = cell(at)?;
+                    Ok(Reply::Keys(
+                        self.book
+                            .host()
+                            .dependents(at)
+                            .into_iter()
+                            .map(Key::of)
+                            .collect(),
+                    ))
+                }
+                Request::Canvas {
+                    center,
+                    back,
+                    forward,
+                } => Ok(Reply::Canvas(crate::canvas::view_model(
+                    &self.book,
+                    cell(center)?,
+                    back,
+                    forward,
+                ))),
+                Request::Ledger {
+                    sheet,
+                    filter,
+                    text,
+                    sort,
+                    page,
+                    active,
+                } => Ok(Reply::Ledger(crate::ledger::view_model(
+                    &self.book,
+                    sheet.map(Sheet::id),
+                    &filter,
+                    &text,
+                    &sort,
+                    page as usize,
+                    active.and_then(Key::cell),
+                ))),
                 Request::Validation(at) => {
                     let at = cell(at)?;
                     Ok(Reply::Validation(self.book.validation(at).map(|rule| {
@@ -296,6 +354,69 @@ impl Server {
                 cells,
                 emptied,
             }));
+        }
+    }
+
+    /// The tree's outline ([`crate::tree::outline_sheet`] per sheet) with the open sheets' shown
+    /// cells.
+    fn outline(&self, shown: &[(Sheet, u64)], open: &[Sheet]) -> wire::Outline {
+        let host = self.book.host();
+        let names = host
+            .defined_names()
+            .iter()
+            .map(|name| {
+                let formula = name.formula.strip_prefix('=').unwrap_or(&name.formula);
+                format!("{} = {formula}", name.name)
+            })
+            .collect();
+        let mut sheets = Vec::new();
+        let mut wanted = Vec::new();
+        for tab in self.book.sheets() {
+            let sheet = Sheet::of(tab.id);
+            let limit = shown
+                .iter()
+                .find(|(s, _)| *s == sheet)
+                .map_or(crate::tree::ROW_PAGE, |(_, n)| *n as usize);
+            let outline = crate::tree::outline_sheet(
+                tab.id,
+                tab.name,
+                host.input_cells(tab.id).into_iter(),
+                limit,
+            );
+            if open.contains(&sheet) {
+                for (_, row) in &outline.rows {
+                    wanted.extend(row.iter().take(crate::tree::ROW_CELLS).copied());
+                }
+            }
+            sheets.push(wire::OutlineSheet {
+                sheet,
+                name: outline.name,
+                cells: outline.cells as u64,
+                rows: outline
+                    .rows
+                    .iter()
+                    .map(|(row, cells)| (*row, cells.iter().copied().map(Key::of).collect()))
+                    .collect(),
+                more_rows: outline.more_rows as u64,
+            });
+        }
+        let cells = self
+            .book
+            .project(wanted)
+            .iter()
+            .map(|projected| {
+                Cell::of(
+                    &self.book.shown(projected),
+                    cells::input_text(projected.input()),
+                    cells::provenance_text(host, projected),
+                )
+            })
+            .collect();
+        wire::Outline {
+            workbook: self.book.name().to_owned(),
+            names,
+            sheets,
+            cells,
         }
     }
 

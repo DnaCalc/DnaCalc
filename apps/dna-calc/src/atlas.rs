@@ -11,12 +11,12 @@
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-atlas/src/lib.rs` (the structure
 //! map and the calculation panel, each derived from the workbook on every change and never
-//! blank), over calc-host's projections ([`crate::workbook::Workbook::census`]). The defined-name
-//! catalogue is not listed: calc-host does not expose the names yet.
+//! blank), over calc-host's projections ([`crate::workbook::Workbook::census`]), asked of the
+//! workbook's server after every change (dc-p96). The defined-name catalogue is not listed.
 
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
-use calc_host::CalcMode;
+use crate::wire;
 use leptos::prelude::*;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -36,19 +36,18 @@ impl Skin for AtlasSkin {
     }
 }
 
-fn mode_name(mode: CalcMode) -> &'static str {
-    match mode {
-        CalcMode::Automatic => "automatic",
-        CalcMode::AutomaticExceptTables => "automatic except tables",
-        CalcMode::Manual => "manual",
-    }
-}
-
 fn atlas_view(controller: Controller) -> impl IntoView {
-    let census = Memo::new(move |_| {
+    let atlas: RwSignal<wire::Atlas> = RwSignal::new(wire::Atlas::default());
+    Effect::new(move |_| {
         controller.revision.track();
-        controller.update_untracked(|book| book.census())
+        controller.summary.track();
+        controller.ask(wire::Request::Atlas, move |reply| {
+            if let wire::Reply::Atlas(found) = reply {
+                atlas.set(found);
+            }
+        });
     });
+    let census = Memo::new(move |_| atlas.with(|atlas| atlas.census.clone()));
     let sheets = move || {
         census.with(|census| {
             census
@@ -101,17 +100,16 @@ fn atlas_view(controller: Controller) -> impl IntoView {
         })
     };
     let hud = move || {
-        let (mode, revision, (undo, redo), intents, name, changed) = controller.with(|book| {
-            let session = book.session();
-            (
-                session.calc_mode(),
-                book.host().revision().get(),
-                session.history_depth(),
-                session.intent_log().len(),
-                book.name().to_owned(),
-                book.changed(),
-            )
-        });
+        let wire::Atlas {
+            mode,
+            revision,
+            undo,
+            redo,
+            intents,
+            name,
+            changed,
+            ..
+        } = atlas.get();
         let timings = controller.timings.get();
         let ms = |value: Option<f64>| {
             value.map_or_else(|| "none".to_owned(), |ms| format!("{ms:.0} ms"))
@@ -119,7 +117,7 @@ fn atlas_view(controller: Controller) -> impl IntoView {
         view! {
             <ul data-dnacalc="atlas-hud">
                 <li>{format!("Workbook {name}{}", if changed { ", changed since opened or saved" } else { "" })}</li>
-                <li data-dnacalc="atlas-mode">{format!("Calculation: {}", mode_name(mode))}</li>
+                <li data-dnacalc="atlas-mode">{format!("Calculation: {mode}")}</li>
                 <li>{format!("Authored revision {revision}; {undo} steps to undo, {redo} to redo; {intents} intents logged")}</li>
                 <li data-dnacalc="atlas-memory">{crate::controller::memory_bytes().map_or_else(|| "Memory: not in a browser".to_owned(), |bytes| format!("Memory: {:.0} MB of wasm linear memory", bytes / 1_048_576.0))}</li>
                 <li data-dnacalc="atlas-timings">{format!("Open and first calculation: {}; last intent (an edit, undo, selection or recalculation): {}", ms(timings.open_ms), ms(timings.last_intent_ms))}</li>

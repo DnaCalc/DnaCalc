@@ -9,8 +9,9 @@
 //! reads it. F9 recalculates.
 //!
 //! The graph is calc-host's ([`calc_host::HostState::precedents`] and
-//! [`calc_host::HostState::dependents`], the engine's own edges); the skin changes nothing but the
-//! selection and, with F9, recalculates.
+//! [`calc_host::HostState::dependents`], the engine's own edges), traced by the workbook's server
+//! ([`view_model`], dc-p96); the skin changes nothing but the selection and, with F9,
+//! recalculates.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnatreecalc-skins/src/flow.rs`: the layered
 //! columns of chips with inputs left and results right, the SVG wires drawn from the fixed chip
@@ -26,6 +27,8 @@ use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
 use crate::style::css;
+use crate::wire;
+use crate::workbook::Workbook;
 use calc_host::value::{CellKey, GridArea};
 use leptos::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -223,24 +226,147 @@ fn plane_size(trace: &Trace) -> (f64, f64) {
     )
 }
 
+/// The canvas around `center` as the page draws it (the workbook's server works it out, dc-p96):
+/// the trace, each chip's text, the wires and the centre cell's inspector.
+pub fn view_model(book: &Workbook, center: CellKey, back: u8, forward: u8) -> wire::Canvas {
+    let host = book.host();
+    let profile = book.profile().cloned();
+    let trace = trace(
+        center,
+        back,
+        forward,
+        PER_COLUMN,
+        |at| host.precedents(at),
+        |at| host.dependents(at),
+    );
+    let center_sheet = center.sheet();
+    let mut chips = Vec::new();
+    let mut hidden = Vec::new();
+    for (column, nodes) in &trace.columns {
+        for (row, node) in nodes.iter().enumerate() {
+            let (x, y) = position(&trace, *column, row);
+            let chip = match *node {
+                Node::Cell(at) => {
+                    let label = if at.sheet() == center_sheet {
+                        cells::address(at.row(), at.column())
+                    } else {
+                        cells::cell_label(host, at)
+                    };
+                    let (input, value, provenance) = match book.cell(at) {
+                        Some(cell) => {
+                            let shown = cells::shown(&cell, profile.as_ref(), book.cell_format(at));
+                            let value = if shown.provenance == Provenance::Refused {
+                                "refused".to_owned()
+                            } else {
+                                shown.text
+                            };
+                            (cells::input_text(cell.input()), value, shown.provenance)
+                        }
+                        None => (String::new(), String::new(), Provenance::Empty),
+                    };
+                    wire::Chip {
+                        column: *column,
+                        x,
+                        y,
+                        label,
+                        cell: Some(wire::Key::of(at)),
+                        input,
+                        value,
+                        provenance,
+                        count: 1,
+                    }
+                }
+                Node::Area(area) => wire::Chip {
+                    column: *column,
+                    x,
+                    y,
+                    label: if area.sheet() == center_sheet {
+                        format!(
+                            "{}:{}",
+                            cells::address(area.first().row(), area.first().column()),
+                            cells::address(area.last().row(), area.last().column())
+                        )
+                    } else {
+                        cells::area_label(host, area)
+                    },
+                    cell: None,
+                    input: String::new(),
+                    value: String::new(),
+                    provenance: Provenance::Empty,
+                    count: area.cell_count(),
+                },
+            };
+            chips.push(chip);
+        }
+        if let Some(count) = trace.hidden.get(column) {
+            let (x, y) = position(&trace, *column, nodes.len());
+            hidden.push((*column, x, y, *count));
+        }
+    }
+    let (width, height) = plane_size(&trace);
+    let cell = book.cell(center);
+    let (input, value, why) = match &cell {
+        Some(cell) => {
+            let shown = cells::shown(cell, profile.as_ref(), book.cell_format(center));
+            (
+                cells::input_text(cell.input()),
+                shown.text,
+                cells::provenance_text(host, cell),
+            )
+        }
+        None => (String::new(), String::new(), "empty".to_owned()),
+    };
+    wire::Canvas {
+        wires_svg: wires_svg(&trace),
+        chips,
+        hidden,
+        width,
+        height,
+        inspector: wire::Inspector {
+            label: cells::cell_label(host, center),
+            input,
+            value,
+            why,
+            format: host.number_format(center).unwrap_or("General").to_owned(),
+            reads: host
+                .precedents(center)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|area| cells::area_label(host, area))
+                .collect(),
+            read_by: host
+                .dependents(center)
+                .into_iter()
+                .map(|cell| cells::cell_label(host, cell))
+                .collect(),
+        },
+    }
+}
+
 fn canvas_view(controller: Controller) -> impl IntoView {
     let back = RwSignal::new(1u8);
     let forward = RwSignal::new(1u8);
-    let traced = Memo::new(move |_| {
+    // The canvas around the active cell, asked of the server again after each change.
+    let traced: RwSignal<Option<wire::Canvas>> = RwSignal::new(None);
+    Effect::new(move |_| {
         controller.revision.track();
-        let center = controller.active_key()?;
+        let Some(center) = controller.active_key() else {
+            traced.set(None);
+            return;
+        };
         let (back, forward) = (back.get(), forward.get());
-        Some(controller.with_untracked(|book| {
-            let host = book.host();
-            trace(
-                center,
+        controller.ask(
+            wire::Request::Canvas {
+                center: wire::Key::of(center),
                 back,
                 forward,
-                PER_COLUMN,
-                |at| host.precedents(at),
-                |at| host.dependents(at),
-            )
-        }))
+            },
+            move |reply| {
+                if let wire::Reply::Canvas(found) = reply {
+                    traced.set(Some(found));
+                }
+            },
+        );
     });
 
     let grow = move |signal: RwSignal<u8>, by: i8| {
@@ -267,109 +393,55 @@ fn canvas_view(controller: Controller) -> impl IntoView {
     };
 
     let chips = move || {
-        let Some(trace) = traced.get() else {
+        let Some(canvas) = traced.get() else {
             return ().into_any();
         };
-        let center_sheet = trace
-            .columns
-            .get(&0)
-            .and_then(|nodes| nodes.first())
-            .and_then(|node| match node {
-                Node::Cell(at) => Some(at.sheet()),
-                Node::Area(_) => None,
-            });
-        let (width, height) = plane_size(&trace);
-        let svg = wires_svg(&trace);
         let mut chips = Vec::new();
-        for (column, nodes) in &trace.columns {
-            for (row, node) in nodes.iter().enumerate() {
-                let (x, y) = position(&trace, *column, row);
-                let style = format!(
-                    "left:{x:.0}px;top:{y:.0}px;width:{CHIP_WIDTH:.0}px;height:{CHIP_HEIGHT:.0}px"
-                );
-                let view = match *node {
-                    Node::Cell(at) => {
-                        let (label, input, value, provenance) = controller.with_untracked(|book| {
-                            let host = book.host();
-                            let label = if Some(at.sheet()) == center_sheet {
-                                cells::address(at.row(), at.column())
-                            } else {
-                                cells::cell_label(host, at)
-                            };
-                            let profile = book.profile().cloned();
-                            match book.cell(at) {
-                                Some(cell) => {
-                                    let shown =
-                                        cells::shown(&cell, profile.as_ref(), book.cell_format(at));
-                                    let value = if shown.provenance == Provenance::Refused {
-                                        "refused".to_owned()
-                                    } else {
-                                        shown.text
-                                    };
-                                    (
-                                        label,
-                                        cells::input_text(cell.input()),
-                                        value,
-                                        shown.provenance,
-                                    )
-                                }
-                                None => (label, String::new(), String::new(), Provenance::Empty),
-                            }
-                        });
-                        let go = move |_| controller.go_to(at);
-                        let node_label = label.clone();
-                        view! {
-                            <div class="dc-node" data-dnacalc="canvas-node" data-kind="cell" data-node=node_label
-                                data-column=column.to_string() data-center=(*column == 0).to_string()
-                                data-provenance=provenance.name() use:css=style on:click=go>
-                                <b>{label}</b>
-                                <div class="dc-f">{input}</div>
-                                <div class="dc-v" data-dnacalc="canvas-value">{value}</div>
-                            </div>
-                        }
-                        .into_any()
-                    }
-                    Node::Area(area) => {
-                        let label = controller.with_untracked(|book| {
-                            if Some(area.sheet()) == center_sheet {
-                                format!(
-                                    "{}:{}",
-                                    cells::address(area.first().row(), area.first().column()),
-                                    cells::address(area.last().row(), area.last().column())
-                                )
-                            } else {
-                                cells::area_label(book.host(), area)
-                            }
-                        });
-                        let count = area.cell_count();
-                        let node_label = label.clone();
-                        view! {
-                            <div class="dc-node" data-dnacalc="canvas-node" data-kind="area" data-node=node_label
-                                data-column=column.to_string() data-center="false" use:css=style>
-                                <b>{label}</b>
-                                <div class="dc-f">{format!("a range of {count} cells")}</div>
-                            </div>
-                        }
-                        .into_any()
-                    }
-                };
-                chips.push(view);
-            }
-            if let Some(hidden) = trace.hidden.get(column) {
-                let (x, y) = position(&trace, *column, nodes.len());
-                chips.push(
+        for chip in canvas.chips {
+            let style = format!(
+                "left:{:.0}px;top:{:.0}px;width:{CHIP_WIDTH:.0}px;height:{CHIP_HEIGHT:.0}px",
+                chip.x, chip.y
+            );
+            let node_label = chip.label.clone();
+            let view = match chip.cell.and_then(|key| key.cell()) {
+                Some(at) => {
+                    let go = move |_| controller.go_to(at);
                     view! {
-                        <div class="dc-hidden" data-dnacalc="canvas-hidden" use:css=format!("left:{x:.0}px;top:{y:.0}px")>
-                            {format!("{hidden} more not shown")}
+                        <div class="dc-node" data-dnacalc="canvas-node" data-kind="cell" data-node=node_label
+                            data-column=chip.column.to_string() data-center=(chip.column == 0).to_string()
+                            data-provenance=chip.provenance.name() use:css=style on:click=go>
+                            <b>{chip.label}</b>
+                            <div class="dc-f">{chip.input}</div>
+                            <div class="dc-v" data-dnacalc="canvas-value">{chip.value}</div>
                         </div>
                     }
-                    .into_any(),
-                );
-            }
+                    .into_any()
+                }
+                None => view! {
+                    <div class="dc-node" data-dnacalc="canvas-node" data-kind="area" data-node=node_label
+                        data-column=chip.column.to_string() data-center="false" use:css=style>
+                        <b>{chip.label}</b>
+                        <div class="dc-f">{format!("a range of {} cells", chip.count)}</div>
+                    </div>
+                }
+                .into_any(),
+            };
+            chips.push(view);
         }
+        for (_, x, y, count) in canvas.hidden {
+            chips.push(
+                view! {
+                    <div class="dc-hidden" data-dnacalc="canvas-hidden" use:css=format!("left:{x:.0}px;top:{y:.0}px")>
+                        {format!("{count} more not shown")}
+                    </div>
+                }
+                .into_any(),
+            );
+        }
+        let (width, height) = (canvas.width, canvas.height);
         view! {
             <div class="dc-plane" use:css=format!("width:{width:.0}px;height:{height:.0}px")>
-                <div inner_html=svg></div>
+                <div inner_html=canvas.wires_svg></div>
                 {chips}
             </div>
         }
@@ -377,47 +449,18 @@ fn canvas_view(controller: Controller) -> impl IntoView {
     };
 
     let inspector = move || {
-        controller.revision.track();
-        let Some(at) = controller.active_key() else {
+        let Some(canvas) = traced.get() else {
             return ().into_any();
         };
-        let (label, input, value, why, format, reads, read_by) =
-            controller.with_untracked(|book| {
-                let host = book.host();
-                let profile = book.profile().cloned();
-                let cell = book.cell(at);
-                let (input, value, why) = match &cell {
-                    Some(cell) => {
-                        let shown = cells::shown(cell, profile.as_ref(), book.cell_format(at));
-                        (
-                            cells::input_text(cell.input()),
-                            shown.text,
-                            cells::provenance_text(host, cell),
-                        )
-                    }
-                    None => (String::new(), String::new(), "empty".to_owned()),
-                };
-                let reads: Vec<String> = host
-                    .precedents(at)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|area| cells::area_label(host, area))
-                    .collect();
-                let read_by: Vec<String> = host
-                    .dependents(at)
-                    .into_iter()
-                    .map(|cell| cells::cell_label(host, cell))
-                    .collect();
-                (
-                    cells::cell_label(host, at),
-                    input,
-                    value,
-                    why,
-                    host.number_format(at).unwrap_or("General").to_owned(),
-                    reads,
-                    read_by,
-                )
-            });
+        let wire::Inspector {
+            label,
+            input,
+            value,
+            why,
+            format,
+            reads,
+            read_by,
+        } = canvas.inspector;
         let list = |items: Vec<String>| {
             if items.is_empty() {
                 "nothing".to_owned()
