@@ -27,7 +27,7 @@ decide.
 |---|---|---|---|
 | AMD AOCL-LibM (log, log10, exp tables; sinh, cosh, atan2 and their tables) | `calc-func/src/ported/excel_numeric/crt_libm.rs` | BSD-3-Clause, (C) 2008-2022 AMD | Reproduce the copyright, the conditions and the disclaimer (clause 2). The text is in crt_libm.rs lines 23-39 |
 | Arm optimized-routines `pow` (pow.c, pow_log_data.c at 0b5e3775) | `excel_numeric/crt_pow.rs` | MIT OR Apache-2.0 WITH LLVM-exception; we take MIT | The copyright line and the MIT permission notice (upstream LICENSE, fetched 2026-10-29) |
-| Unicode Character Database 15.0.0 (combining marks table) | `calc-fml/src/syntax/combining_marks.rs` | Unicode License V3 | The Unicode copyright and permission notice |
+| Unicode Character Database 15.0.0 (combining marks table; CaseFolding.txt's simple and full folds, dc-cpr) | `calc-fml/src/syntax/combining_marks.rs`, `calc-value/src/case_folding.rs` | Unicode License V3 | The Unicode copyright and permission notice |
 | fdlibm `e_lgamma_r.c`: six constants (w1 to w6) and the tail's Horner form | `excel_numeric/gammaln.rs` | Sun Microsystems: "provided that this notice is preserved" | Keep the Sun notice. Six constants may not need it; carrying it costs nothing |
 
 ## 2. Reimplemented from published mathematics, or a reference only (no notice)

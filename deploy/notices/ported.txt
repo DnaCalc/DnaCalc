@@ -68,7 +68,8 @@ software is freely granted, provided that this notice
 is preserved.
 
 ==============================================================================
-Unicode Character Database 15.0.0: combining marks (calc-fml, combining_marks.rs)
+Unicode Character Database 15.0.0: combining marks (calc-fml, combining_marks.rs) and the
+case folds of CaseFolding.txt (calc-value, case_folding.rs)
 ==============================================================================
 
 UNICODE LICENSE V3
