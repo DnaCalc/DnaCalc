@@ -1,0 +1,15 @@
+[package]
+name = "dna-strand"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "The package for Strand, DNA Calc's design tokens: palette, contrast law, themes and the token stylesheet both apps load."
+
+[package.metadata.dnacalc]
+portability = "portable"
+
+# Framework-free and dependency-free (ported from DnaTreeCalc's dnacalc-strand at bf6dfd7, without
+# its optional serde feature). The tests run natively and in Chrome and Firefox.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.67"
