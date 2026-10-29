@@ -4,6 +4,9 @@
 //! and `.XValues`) in charts-excel.txt, before and after B2 is set to 40, and printed the sheet to
 //! charts-excel.pdf).
 
+// Case names are fixed identities of the form `<bead>__<case>`.
+#![allow(non_snake_case)]
+
 use calc_host::chart::text_of;
 use calc_host::value::{CellKey, SheetId};
 use calc_host::{

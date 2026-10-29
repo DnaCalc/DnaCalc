@@ -31,7 +31,7 @@ use crate::state::HostState;
 use crate::{ProjectedValue, ProjectionRequest, project};
 use calc_doc::{ConditionalRule, Threshold};
 use calc_doc_model::StyleColor;
-use calc_doc_model::value::{CalcValue, CellKey, CoreValue, GridArea, SheetId};
+use calc_doc_model::value::{CalcValue, CellKey, CoreRef, GridArea, SheetId};
 use calc_engine::DetachedFormula;
 use std::collections::BTreeMap;
 
@@ -387,16 +387,16 @@ fn dress(look: &mut CellLook, dxf: &DxfLook) -> bool {
 
 /// Whether a formula's value holds: TRUE, or a number that is not 0.
 fn truth(value: &CalcValue) -> bool {
-    match value.core() {
-        CoreValue::Logical(b) => *b,
-        CoreValue::Number(n) => *n != 0.0,
+    match value.core_ref() {
+        CoreRef::Logical(b) => b,
+        CoreRef::Number(n) => n != 0.0,
         _ => false,
     }
 }
 
 fn number_of(value: &CalcValue) -> Option<f64> {
-    match value.core() {
-        CoreValue::Number(n) => Some(*n),
+    match value.core_ref() {
+        CoreRef::Number(n) => Some(n),
         _ => None,
     }
 }
@@ -404,11 +404,11 @@ fn number_of(value: &CalcValue) -> Option<f64> {
 /// The key under which Excel takes two values as duplicates: a number by its value, a text
 /// regardless of case, a logical, an error; `None` for a blank.
 fn value_key(value: &CalcValue) -> Option<String> {
-    match value.core() {
-        CoreValue::Number(n) => Some(format!("n{n:?}")),
-        CoreValue::Text(t) => Some(format!("t{}", t.to_string_lossy().to_lowercase())),
-        CoreValue::Logical(b) => Some(format!("b{b}")),
-        CoreValue::Error(e) => Some(format!("e{e:?}")),
+    match value.core_ref() {
+        CoreRef::Number(n) => Some(format!("n{n:?}")),
+        CoreRef::Text(t) => Some(format!("t{}", t.to_string_lossy().to_lowercase())),
+        CoreRef::Logical(b) => Some(format!("b{b}")),
+        CoreRef::Error(e) => Some(format!("e{e:?}")),
         _ => None,
     }
 }

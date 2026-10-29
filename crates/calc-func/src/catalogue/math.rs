@@ -10,7 +10,7 @@ use super::kit::{Grid, fail, given, grid, num, out, out_matrix, out_text, text, 
 use crate::kernel::{Exit, Site, Step};
 use crate::ported::real_policy::ExcelRealPolicy;
 use crate::ported::{self as k};
-use crate::value::{CalcValue, CoreValue, ExcelText, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, ExcelText, WorksheetErrorCode};
 use crate::ported::excel_numeric::crt_pow;
 
 /// F1's families take codes from 100 up, clear of the other lanes' families.
@@ -136,7 +136,7 @@ ported_family! {
         // skipped.
         let mut items = Vec::new();
         values(s, a, 0, a.len(), sv, &mut |held, value| {
-            if held && matches!(value.core(), CoreValue::Empty) {
+            if held && matches!(value.core_ref(), CoreRef::Empty) {
                 return Ok(());
             }
             let n = s.number_argument(0, value)?;
@@ -154,9 +154,9 @@ ported_family! {
     }
     42 roman "ROMAN" (1, 2) [V "number", V "form"] |s, a, sv| {
         let n = num(s, a, 0)?;
-        let form = match a.get(1).map(CalcValue::core) {
-            None | Some(CoreValue::Missing | CoreValue::Empty | CoreValue::Logical(true)) => 0,
-            Some(CoreValue::Logical(false)) => 4,
+        let form = match a.get(1).map(CalcValue::core_ref) {
+            None | Some(CoreRef::Missing | CoreRef::Empty | CoreRef::Logical(true)) => 0,
+            Some(CoreRef::Logical(false)) => 4,
             Some(_) => {
                 let f = num(s, a, 1)?.trunc();
                 if !(0.0..=4.0).contains(&f) {
@@ -185,9 +185,9 @@ ported_family! {
         let coefficients = grid(s, a, 3, sv)?;
         let mut sum = 0.0;
         for (i, cell) in coefficients.cells.iter().enumerate() {
-            let c = match cell.core() {
-                CoreValue::Number(c) => *c,
-                CoreValue::Error(code) => return fail(*code),
+            let c = match cell.core_ref() {
+                CoreRef::Number(c) => c,
+                CoreRef::Error(code) => return fail(code),
                 _ => return fail(WorksheetErrorCode::Value),
             };
             sum += c * crt_pow(x, n + (i as f64) * m);
@@ -255,14 +255,14 @@ fn integer_groups(
         let Grid { cells, held, .. } = grid(site, a, index, services)?;
         let multi = cells.len() > 1;
         for cell in &cells {
-            match cell.core() {
-                CoreValue::Empty | CoreValue::Missing => {
+            match cell.core_ref() {
+                CoreRef::Empty | CoreRef::Missing => {
                     if multi {
                         numbers.push(0.0);
                         any = true;
                     }
                 }
-                CoreValue::Logical(_) => return fail(WorksheetErrorCode::Value),
+                CoreRef::Logical(_) => return fail(WorksheetErrorCode::Value),
                 _ => {
                     numbers.push(site.number_argument(index, cell)?);
                     any = true;
@@ -325,9 +325,9 @@ fn numeric_cells(
     let g = grid(site, a, index, services)?;
     let mut cells = Vec::with_capacity(g.cells.len());
     for cell in &g.cells {
-        cells.push(match cell.core() {
-            CoreValue::Number(n) => Some(*n),
-            CoreValue::Error(code) => return fail(*code),
+        cells.push(match cell.core_ref() {
+            CoreRef::Number(n) => Some(n),
+            CoreRef::Error(code) => return fail(code),
             _ => None,
         });
     }
@@ -347,9 +347,9 @@ fn matrix(
     for r in 0..g.rows {
         let mut row = Vec::with_capacity(g.cols);
         for cell in &g.cells[r * g.cols..(r + 1) * g.cols] {
-            match cell.core() {
-                CoreValue::Number(n) => row.push(*n),
-                CoreValue::Error(code) => return fail(*code),
+            match cell.core_ref() {
+                CoreRef::Number(n) => row.push(n),
+                CoreRef::Error(code) => return fail(code),
                 _ => return fail(WorksheetErrorCode::Value),
             }
         }

@@ -10,7 +10,7 @@
 
 use crate::catalogue::{CatalogueEntry, FunctionCallTarget, FunctionId, Kernel, ParameterClass};
 use crate::locale::CalcEnvironment;
-use crate::value::{CalcValue, CellKey, CoreValue, GridArea, NumericMode, SheetId, WorksheetErrorCode};
+use crate::value::{CalcValue, CellKey, CoreRef, GridArea, NumericMode, SheetId, WorksheetErrorCode};
 use std::fmt;
 use std::ops::ControlFlow;
 
@@ -31,7 +31,7 @@ pub trait CellReader {
     /// Calls `visit` for the cells of `area` that hold a value, in row-major order (each row left
     /// to right, rows top to bottom), until `visit` returns [`ControlFlow::Break`]; it then
     /// returns `Ok`. A cell it does not visit is blank, and it may also visit a blank cell as
-    /// [`CoreValue::Empty`]. [`Unreadable`] when it cannot supply the values of `area`.
+    /// [`CoreRef::Empty`]. [`Unreadable`] when it cannot supply the values of `area`.
     fn read_area(
         &mut self,
         area: GridArea,
@@ -330,8 +330,8 @@ pub enum FunctionFault {
     /// The call reaches an arithmetic site under [`NumericMode::Exact`], for which no
     /// implementation exists.
     ExactUnavailable { id: FunctionId },
-    /// The kernel returned [`CoreValue::Missing`], which marks an omitted argument and is never a
-    /// function's result ([`CoreValue::Empty`] is).
+    /// The kernel returned [`CoreRef::Missing`], which marks an omitted argument and is never a
+    /// function's result ([`CoreRef::Empty`] is).
     MissingReturned { id: FunctionId },
 }
 
@@ -412,7 +412,7 @@ fn run_eager(
         // AREAS(#REF!), ISFORMULA(#REF!), FORMULATEXT(#REF!), CELL("row",#REF!), SUMIF(#REF!,1)
         // and ROWS(#REF!) are #REF!; Excel refuses to enter any other value there).
         if entry.parameter_class(index) == ParameterClass::Reference
-            && matches!(value.core(), CoreValue::Error(WorksheetErrorCode::Ref))
+            && matches!(value.core_ref(), CoreRef::Error(WorksheetErrorCode::Ref))
         {
             return Ok(CalcValue::error(WorksheetErrorCode::Ref));
         }
@@ -427,7 +427,7 @@ fn admit_argument(
     index: usize,
     value: &CalcValue,
 ) -> Result<(), FunctionFault> {
-    let is_reference = matches!(value.core(), CoreValue::Reference(_));
+    let is_reference = matches!(value.core_ref(), CoreRef::Reference(_));
     match entry.parameter_class(index) {
         ParameterClass::Value if is_reference => Err(FunctionFault::ReferenceArgument {
             id: entry.id,

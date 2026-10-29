@@ -5,6 +5,35 @@ This plan replaces the roll-out in `ROLLOUT_BRIEF.md` and the bead-by-bead build
 still holds: the library split, the layering, Excel as the only model, and Rust everywhere,
 running natively and in the browser. What changes is how the work is done.
 
+## 0. Owner direction, 2026-10-27
+
+The bulk port is functionally complete. The work now goes in this order of priority; each line
+names its tracker epic.
+
+1. **Retire the legacy source repositories** (dc-jnt): finish the items each assessment named
+   (`parked/assess/*.md` outside the repository), review their tests under a test migration plan
+   (dc-jnt.1), evaluate local-only content, then archive each GitHub repository read-only.
+2. **Every in-scope function computes as Excel does** (dc-zmk): no refusals left among the
+   functions DNA Calc means to cover (INFO, CELL, FILTERXML, the 16th-digit tie, the missing
+   functions). Out of scope for now: functions whose Excel implementation relies on an external
+   service, and pivot-table functions (moved to dc-8wp). Hard numerical bit-exactness cases such
+   as the PMT family may stay outstanding (dc-j9k).
+3. **Text, collation and character support** (dc-zsn), soon and without blockers.
+4. **Circular references with full Excel parity, iteration optional** (dc-y2o).
+5. **Publish DNA OneCalc and DNA Calc on dnacalc.com** with an owner-approved update pipeline
+   (dc-ysl). The current state of the site does not matter.
+6. **Add-ins** (dc-snz): user-defined functions hosted by DNA OneCalc first (.xll and VBA;
+   JavaScript later), then VBA in workbook files in DNA Calc, then Windows parity with full COM
+   client support. The VBA engine (OxVba, to be renamed) and OxForms continue as their own
+   project, with a debugger and compiled targets beyond Excel's VBA; DNA Calc pins them.
+7. **Pivot tables end to end** (dc-8wp), soon after.
+8. **Functions handbook** (dc-dfl): its own project and the authoritative reference of the
+   functions, referenced to calc-func's implementations and metadata.
+9. **Performance** (dc-dxm, dc-u5c) waits until dnacalc.com is published and the core is
+   settled.
+
+The IDE repositories are reviewed separately and may be rebuilt.
+
 ## 1. Why the change
 
 From 14 to 21 October the repository gained 232 commits and 131k lines of Rust. Yet only 51 of

@@ -17,7 +17,7 @@
 
 use crate::state::HostState;
 use calc_doc::{ChartAnchor, ChartData, DrawingPoint};
-use calc_doc_model::value::{CalcValue, CellKey, CoreValue, SheetId};
+use calc_doc_model::value::{CalcValue, CellKey, CoreRef, SheetId};
 
 /// EMU to a pixel at 96 dots per inch.
 pub const EMU_PER_PIXEL: f64 = 9_525.0;
@@ -326,8 +326,8 @@ impl HostState {
         (
             values
                 .iter()
-                .map(|value| match value.as_ref().map(CalcValue::core) {
-                    Some(CoreValue::Number(n)) => Some(*n),
+                .map(|value| match value.as_ref().map(CalcValue::core_ref) {
+                    Some(CoreRef::Number(n)) => Some(n),
                     _ => None,
                 })
                 .collect(),
@@ -337,12 +337,13 @@ impl HostState {
 }
 
 /// A value as a chart's label shows it: a text as it is, a number in its shortest form (the cell's
-/// number format is not applied), a logical as TRUE or FALSE; anything else as nothing.
+/// number format is not applied), a logical as TRUE or FALSE; anything else as nothing. A chart's
+/// labels and a validation list's items show this.
 pub fn text_of(value: &CalcValue) -> String {
-    match value.core() {
-        CoreValue::Text(text) => text.to_string_lossy(),
-        CoreValue::Number(n) => format!("{n}"),
-        CoreValue::Logical(b) => if *b { "TRUE" } else { "FALSE" }.to_owned(),
+    match value.core_ref() {
+        CoreRef::Text(text) => text.to_string_lossy(),
+        CoreRef::Number(n) => format!("{n}"),
+        CoreRef::Logical(b) => if b { "TRUE" } else { "FALSE" }.to_owned(),
         _ => String::new(),
     }
 }

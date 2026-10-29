@@ -7,7 +7,7 @@ use crate::coerce::{self, Numeric, Stop};
 use crate::value::CalcValue;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use crate::value::{ArrayShape, CalcArray, CoreValue, WorksheetErrorCode};
+use crate::value::{ArrayShape, CalcArray, CoreRef, CoreValue, WorksheetErrorCode};
 
 /// Why a prepared argument did not read as a number or a logical.
 #[derive(Debug, Clone, PartialEq)]
@@ -60,30 +60,30 @@ pub enum DynamicArrayReshapeEvalError {
 }
 
 fn scalar_cell(arg: &CalcValue) -> CalcValue {
-    match arg.core() {
-        CoreValue::Number(n) => CalcValue::number(*n),
-        CoreValue::Text(t) => CalcValue::text(t.clone()),
-        CoreValue::Logical(b) => CalcValue::logical(*b),
-        CoreValue::Error(code) => CalcValue::error(*code),
-        CoreValue::Reference(_) => CalcValue::error(WorksheetErrorCode::Value),
-        CoreValue::Array(_) => CalcValue::error(WorksheetErrorCode::Value),
-        CoreValue::Missing | CoreValue::Empty => CalcValue::empty(),
+    match arg.core_ref() {
+        CoreRef::Number(n) => CalcValue::number(n),
+        CoreRef::Text(t) => CalcValue::text(t.clone()),
+        CoreRef::Logical(b) => CalcValue::logical(b),
+        CoreRef::Error(code) => CalcValue::error(code),
+        CoreRef::Reference(_) => CalcValue::error(WorksheetErrorCode::Value),
+        CoreRef::Array(_) => CalcValue::error(WorksheetErrorCode::Value),
+        CoreRef::Missing | CoreRef::Empty => CalcValue::empty(),
     }
 }
 
 fn materialize_array_arg(arg: &CalcValue) -> CalcArray {
-    match arg.core() {
-        CoreValue::Array(array) => array.clone(),
+    match arg.core_ref() {
+        CoreRef::Array(array) => array.clone(),
         _ => CalcArray::from_scalar(scalar_cell(arg)),
     }
 }
 
 fn scalar_calc_value(value: &CalcValue) -> CalcValue {
-    match value.core() {
-        CoreValue::Array(_) | CoreValue::Reference(_) => {
+    match value.core_ref() {
+        CoreRef::Array(_) | CoreRef::Reference(_) => {
             CalcValue::error(WorksheetErrorCode::Value)
         }
-        CoreValue::Missing | CoreValue::Empty => CalcValue::empty(),
+        CoreRef::Missing | CoreRef::Empty => CalcValue::empty(),
         _ => value.clone(),
     }
 }
@@ -95,8 +95,8 @@ enum StackArgSource<'a> {
 
 impl<'a> StackArgSource<'a> {
     fn new(arg: &'a CalcValue) -> Self {
-        match arg.core() {
-            CoreValue::Array(array) => Self::Array(array),
+        match arg.core_ref() {
+            CoreRef::Array(array) => Self::Array(array),
             _ => Self::Scalar(scalar_cell(arg)),
         }
     }
@@ -118,13 +118,13 @@ impl<'a> StackArgSource<'a> {
 }
 
 fn prepared_from_array_cell(cell: &CalcValue) -> CalcValue {
-    match cell.core() {
-        CoreValue::Number(n) => CalcValue::number(*n),
-        CoreValue::Text(t) => CalcValue::text(t.clone()),
-        CoreValue::Logical(b) => CalcValue::logical(*b),
-        CoreValue::Error(code) => CalcValue::error(*code),
-        CoreValue::Empty | CoreValue::Missing => CalcValue::empty(),
-        CoreValue::Array(_) | CoreValue::Reference(_) => {
+    match cell.core_ref() {
+        CoreRef::Number(n) => CalcValue::number(n),
+        CoreRef::Text(t) => CalcValue::text(t.clone()),
+        CoreRef::Logical(b) => CalcValue::logical(b),
+        CoreRef::Error(code) => CalcValue::error(code),
+        CoreRef::Empty | CoreRef::Missing => CalcValue::empty(),
+        CoreRef::Array(_) | CoreRef::Reference(_) => {
             CalcValue::error(WorksheetErrorCode::Value)
         }
     }
@@ -167,12 +167,12 @@ fn parse_positive_integer(prepared: &CalcValue) -> Result<usize, DynamicArrayRes
 }
 
 fn parse_bool_like(prepared: &CalcValue) -> Result<bool, DynamicArrayReshapeEvalError> {
-    match prepared.core() {
-        CoreValue::Logical(b) => Ok(*b),
-        CoreValue::Number(n) => Ok(*n != 0.0),
-        CoreValue::Empty | CoreValue::Missing => Ok(false),
-        CoreValue::Error(code) => Err(DynamicArrayReshapeEvalError::Preparation(
-            CoercionError::WorksheetError(*code),
+    match prepared.core_ref() {
+        CoreRef::Logical(b) => Ok(b),
+        CoreRef::Number(n) => Ok(n != 0.0),
+        CoreRef::Empty | CoreRef::Missing => Ok(false),
+        CoreRef::Error(code) => Err(DynamicArrayReshapeEvalError::Preparation(
+            CoercionError::WorksheetError(code),
         )),
         _ => Err(DynamicArrayReshapeEvalError::Preparation(
             CoercionError::UnsupportedValueKind("boolean_like"),
@@ -220,8 +220,8 @@ fn build_calc_array(
 }
 
 fn value_from_if_empty_arg(arg: &CalcValue) -> CalcValue {
-    match arg.core() {
-        CoreValue::Missing | CoreValue::Empty => {
+    match arg.core_ref() {
+        CoreRef::Missing | CoreRef::Empty => {
             CalcValue::text(crate::value::ExcelText::from_utf16_code_units(Vec::new()))
         }
         _ => arg.clone(),
@@ -239,14 +239,14 @@ fn column_signature(array: &CalcArray, col: usize) -> Vec<CalcValue> {
 }
 
 fn cell_signature(cell: &CalcValue) -> String {
-    match cell.core() {
-        CoreValue::Number(n) => format!("n:{n:?}"),
-        CoreValue::Text(t) => format!("t:{}", t.to_string_lossy()),
-        CoreValue::Logical(b) => format!("b:{b}"),
-        CoreValue::Error(code) => format!("e:{code:?}"),
-        CoreValue::Empty | CoreValue::Missing => "m:".to_string(),
-        CoreValue::Array(_) => "a:".to_string(),
-        CoreValue::Reference(_) => "r:".to_string(),
+    match cell.core_ref() {
+        CoreRef::Number(n) => format!("n:{n:?}"),
+        CoreRef::Text(t) => format!("t:{}", t.to_string_lossy()),
+        CoreRef::Logical(b) => format!("b:{b}"),
+        CoreRef::Error(code) => format!("e:{code:?}"),
+        CoreRef::Empty | CoreRef::Missing => "m:".to_string(),
+        CoreRef::Array(_) => "a:".to_string(),
+        CoreRef::Reference(_) => "r:".to_string(),
     }
 }
 
@@ -273,24 +273,24 @@ fn flatten_cells(array: &CalcArray, by_col: bool) -> Vec<CalcValue> {
 }
 
 fn compare_cell_values(lhs: &CalcValue, rhs: &CalcValue) -> Ordering {
-    match (lhs.core(), rhs.core()) {
-        (CoreValue::Number(a), CoreValue::Number(b)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
-        (CoreValue::Text(a), CoreValue::Text(b)) => a.to_string_lossy().cmp(&b.to_string_lossy()),
-        (CoreValue::Logical(a), CoreValue::Logical(b)) => a.cmp(b),
-        (CoreValue::Empty | CoreValue::Missing, CoreValue::Empty | CoreValue::Missing) => {
+    match (lhs.core_ref(), rhs.core_ref()) {
+        (CoreRef::Number(a), CoreRef::Number(b)) => a.partial_cmp(&b).unwrap_or(Ordering::Equal),
+        (CoreRef::Text(a), CoreRef::Text(b)) => a.to_string_lossy().cmp(&b.to_string_lossy()),
+        (CoreRef::Logical(a), CoreRef::Logical(b)) => a.cmp(&b),
+        (CoreRef::Empty | CoreRef::Missing, CoreRef::Empty | CoreRef::Missing) => {
             Ordering::Equal
         }
-        (CoreValue::Error(a), CoreValue::Error(b)) => (*a as u8).cmp(&(*b as u8)),
-        (CoreValue::Empty | CoreValue::Missing, _) => Ordering::Less,
-        (_, CoreValue::Empty | CoreValue::Missing) => Ordering::Greater,
-        (CoreValue::Number(_), _) => Ordering::Less,
-        (_, CoreValue::Number(_)) => Ordering::Greater,
-        (CoreValue::Text(_), _) => Ordering::Less,
-        (_, CoreValue::Text(_)) => Ordering::Greater,
-        (CoreValue::Logical(_), _) => Ordering::Less,
-        (_, CoreValue::Logical(_)) => Ordering::Greater,
-        (CoreValue::Error(_), _) => Ordering::Less,
-        (_, CoreValue::Error(_)) => Ordering::Greater,
+        (CoreRef::Error(a), CoreRef::Error(b)) => (a as u8).cmp(&(b as u8)),
+        (CoreRef::Empty | CoreRef::Missing, _) => Ordering::Less,
+        (_, CoreRef::Empty | CoreRef::Missing) => Ordering::Greater,
+        (CoreRef::Number(_), _) => Ordering::Less,
+        (_, CoreRef::Number(_)) => Ordering::Greater,
+        (CoreRef::Text(_), _) => Ordering::Less,
+        (_, CoreRef::Text(_)) => Ordering::Greater,
+        (CoreRef::Logical(_), _) => Ordering::Less,
+        (_, CoreRef::Logical(_)) => Ordering::Greater,
+        (CoreRef::Error(_), _) => Ordering::Less,
+        (_, CoreRef::Error(_)) => Ordering::Greater,
         _ => Ordering::Equal,
     }
 }
@@ -365,7 +365,7 @@ pub(crate) fn drop_span(len: usize, count: isize) -> Result<(usize, usize), Dyna
 pub fn eval_take_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
     let row_count = match args.get(1) {
-        Some(arg) if matches!(arg.core(), CoreValue::Missing) && args.get(2).is_some() => {
+        Some(arg) if matches!(arg.core_ref(), CoreRef::Missing) && args.get(2).is_some() => {
             array.shape().rows as isize
         }
         Some(arg) => parse_integer(arg)?,
@@ -392,7 +392,7 @@ pub fn eval_take_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayR
 pub fn eval_drop_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let array = materialize_array_arg(&args[0]);
     let row_count = match args.get(1) {
-        Some(arg) if matches!(arg.core(), CoreValue::Missing) && args.get(2).is_some() => 0,
+        Some(arg) if matches!(arg.core_ref(), CoreRef::Missing) && args.get(2).is_some() => 0,
         Some(arg) => parse_integer(arg)?,
         None => return Err(DynamicArrayReshapeEvalError::InvalidCount),
     };
@@ -427,7 +427,7 @@ pub fn eval_expand_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
     }
 
     let pad_cell = if let Some(arg) = args.get(3) {
-        if matches!(arg.core(), CoreValue::Array(_)) {
+        if matches!(arg.core_ref(), CoreRef::Array(_)) {
             return Err(DynamicArrayReshapeEvalError::Preparation(
                 CoercionError::UnsupportedValueKind("scalar_pad"),
             ));
@@ -452,11 +452,11 @@ pub fn eval_expand_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
 fn should_ignore_cell(cell: &CalcValue, ignore_mode: usize) -> bool {
     match ignore_mode {
         0 => false,
-        1 => matches!(cell.core(), CoreValue::Empty | CoreValue::Missing),
-        2 => matches!(cell.core(), CoreValue::Error(_)),
+        1 => matches!(cell.core_ref(), CoreRef::Empty | CoreRef::Missing),
+        2 => matches!(cell.core_ref(), CoreRef::Error(_)),
         3 => matches!(
-            cell.core(),
-            CoreValue::Empty | CoreValue::Missing | CoreValue::Error(_)
+            cell.core_ref(),
+            CoreRef::Empty | CoreRef::Missing | CoreRef::Error(_)
         ),
         _ => false,
     }
@@ -466,7 +466,7 @@ fn parse_ignore_mode(arg: Option<&CalcValue>) -> Result<usize, DynamicArrayResha
     let Some(arg) = arg else {
         return Ok(0);
     };
-    if matches!(arg.core(), CoreValue::Missing | CoreValue::Empty) {
+    if matches!(arg.core_ref(), CoreRef::Missing | CoreRef::Empty) {
         return Ok(0);
     }
     let mode = parse_integer(arg)?;
@@ -551,11 +551,11 @@ pub fn eval_wraprows_prepared(
     args: &[CalcValue],
 ) -> Result<CalcValue, DynamicArrayReshapeEvalError> {
     let wrap_count = parse_positive_integer(&args[1])?;
-    match args[0].core() {
-        CoreValue::Number(_) | CoreValue::Text(_) | CoreValue::Logical(_) | CoreValue::Error(_) => {
+    match args[0].core_ref() {
+        CoreRef::Number(_) | CoreRef::Text(_) | CoreRef::Logical(_) | CoreRef::Error(_) => {
             return Ok(args[0].clone());
         }
-        CoreValue::Array(_) | CoreValue::Reference(_) | CoreValue::Missing | CoreValue::Empty => {}
+        CoreRef::Array(_) | CoreRef::Reference(_) | CoreRef::Missing | CoreRef::Empty => {}
     }
 
     let source = materialize_array_arg(&args[0]);
@@ -606,12 +606,12 @@ fn build_filter_mask(
             .map(|row| {
                 include
                     .get(row, 0)
-                    .map_or(Ok(false), |cell| match cell.core() {
-                        CoreValue::Logical(b) => Ok(*b),
-                        CoreValue::Number(n) => Ok(*n != 0.0),
-                        CoreValue::Empty | CoreValue::Missing => Ok(false),
-                        CoreValue::Error(code) => Err(DynamicArrayReshapeEvalError::Preparation(
-                            CoercionError::WorksheetError(*code),
+                    .map_or(Ok(false), |cell| match cell.core_ref() {
+                        CoreRef::Logical(b) => Ok(b),
+                        CoreRef::Number(n) => Ok(n != 0.0),
+                        CoreRef::Empty | CoreRef::Missing => Ok(false),
+                        CoreRef::Error(code) => Err(DynamicArrayReshapeEvalError::Preparation(
+                            CoercionError::WorksheetError(code),
                         )),
                         _ => Err(DynamicArrayReshapeEvalError::InvalidIncludeShape),
                     })
@@ -624,12 +624,12 @@ fn build_filter_mask(
             .map(|col| {
                 include
                     .get(0, col)
-                    .map_or(Ok(false), |cell| match cell.core() {
-                        CoreValue::Logical(b) => Ok(*b),
-                        CoreValue::Number(n) => Ok(*n != 0.0),
-                        CoreValue::Empty | CoreValue::Missing => Ok(false),
-                        CoreValue::Error(code) => Err(DynamicArrayReshapeEvalError::Preparation(
-                            CoercionError::WorksheetError(*code),
+                    .map_or(Ok(false), |cell| match cell.core_ref() {
+                        CoreRef::Logical(b) => Ok(b),
+                        CoreRef::Number(n) => Ok(n != 0.0),
+                        CoreRef::Empty | CoreRef::Missing => Ok(false),
+                        CoreRef::Error(code) => Err(DynamicArrayReshapeEvalError::Preparation(
+                            CoercionError::WorksheetError(code),
                         )),
                         _ => Err(DynamicArrayReshapeEvalError::InvalidIncludeShape),
                     })
@@ -653,8 +653,8 @@ pub fn eval_filter_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
             .collect();
         if selected_rows.is_empty() {
             return if let Some(if_empty) = args.get(2) {
-                Ok(match if_empty.core() {
-                    CoreValue::Array(array) => CalcValue::array(array.clone()),
+                Ok(match if_empty.core_ref() {
+                    CoreRef::Array(array) => CalcValue::array(array.clone()),
                     _ => value_from_if_empty_arg(if_empty),
                 })
             } else {
@@ -675,8 +675,8 @@ pub fn eval_filter_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicArra
         .collect();
     if selected_cols.is_empty() {
         return if let Some(if_empty) = args.get(2) {
-            Ok(match if_empty.core() {
-                CoreValue::Array(array) => CalcValue::array(array.clone()),
+            Ok(match if_empty.core_ref() {
+                CoreRef::Array(array) => CalcValue::array(array.clone()),
                 _ => value_from_if_empty_arg(if_empty),
             })
         } else {
@@ -696,7 +696,7 @@ fn parse_sort_order(arg: Option<&CalcValue>) -> Result<bool, DynamicArrayReshape
     let Some(arg) = arg else {
         return Ok(false);
     };
-    if matches!(arg.core(), CoreValue::Missing | CoreValue::Empty) {
+    if matches!(arg.core_ref(), CoreRef::Missing | CoreRef::Empty) {
         return Ok(false);
     }
     match parse_integer(arg)? {
@@ -714,8 +714,8 @@ fn parse_sort_index(
         return Ok(0);
     };
     let scalarized;
-    let arg = match arg.core() {
-        CoreValue::Array(array) => {
+    let arg = match arg.core_ref() {
+        CoreRef::Array(array) => {
             scalarized = array
                 .get(0, 0)
                 .map(prepared_from_array_cell)
@@ -724,7 +724,7 @@ fn parse_sort_index(
         }
         _ => arg,
     };
-    if matches!(arg.core(), CoreValue::Missing | CoreValue::Empty) {
+    if matches!(arg.core_ref(), CoreRef::Missing | CoreRef::Empty) {
         return Ok(0);
     }
     let idx = parse_integer(arg)?;
@@ -793,8 +793,8 @@ fn parse_sortby_key_specs(
         idx += 1;
         let descending = match args.get(idx) {
             None => false,
-            Some(arg) if matches!(arg.core(), CoreValue::Array(_)) => false,
-            Some(arg) if matches!(arg.core(), CoreValue::Missing | CoreValue::Empty) => {
+            Some(arg) if matches!(arg.core_ref(), CoreRef::Array(_)) => false,
+            Some(arg) if matches!(arg.core_ref(), CoreRef::Missing | CoreRef::Empty) => {
                 idx += 1;
                 false
             }
@@ -1005,7 +1005,7 @@ pub fn eval_sequence_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicAr
     fn dimension(arg: Option<&CalcValue>) -> Result<usize, DynamicArrayReshapeEvalError> {
         let raw = match arg {
             None => return Ok(1),
-            Some(value) if matches!(value.core(), CoreValue::Missing | CoreValue::Empty) => return Ok(1),
+            Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => return Ok(1),
             Some(value) => coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation)?,
         };
         if raw == 0.0 {
@@ -1019,7 +1019,7 @@ pub fn eval_sequence_prepared(args: &[CalcValue]) -> Result<CalcValue, DynamicAr
     fn scalar(arg: Option<&CalcValue>) -> Result<f64, DynamicArrayReshapeEvalError> {
         match arg {
             None => Ok(1.0),
-            Some(value) if matches!(value.core(), CoreValue::Missing | CoreValue::Empty) => Ok(1.0),
+            Some(value) if matches!(value.core_ref(), CoreRef::Missing | CoreRef::Empty) => Ok(1.0),
             Some(value) => coerce_prepared_to_number(value).map_err(DynamicArrayReshapeEvalError::Preparation),
         }
     }

@@ -18,7 +18,7 @@ use crate::call::EvalServices;
 use crate::kernel::{Exit, Site, Step};
 use crate::locale::{CalcEnvironment, DateSystem};
 use crate::ported::date_kernels::{self as k, OFFSET_1904, WeekendMask};
-use crate::value::{CalcValue, CoreValue, WorksheetErrorCode};
+use crate::value::{CalcValue, CoreRef, WorksheetErrorCode};
 use std::collections::BTreeSet;
 
 type W = WorksheetErrorCode;
@@ -61,26 +61,26 @@ fn date_arg(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
 
 /// A date argument under OxFunc's strict rule: a logical is #VALUE!, an omitted one #N/A.
 fn strict_date_arg(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
-    match a[index].core() {
-        CoreValue::Logical(_) => fail(W::Value),
-        CoreValue::Missing => fail(W::NA),
+    match a[index].core_ref() {
+        CoreRef::Logical(_) => fail(W::Value),
+        CoreRef::Missing => fail(W::NA),
         _ => date_arg(site, a, index),
     }
 }
 
 /// A number argument under the strict rule.
 fn strict_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
-    match a[index].core() {
-        CoreValue::Logical(_) => fail(W::Value),
-        CoreValue::Missing => fail(W::NA),
+    match a[index].core_ref() {
+        CoreRef::Logical(_) => fail(W::Value),
+        CoreRef::Missing => fail(W::NA),
         _ => num(site, a, index),
     }
 }
 
 /// A WORKDAY or NETWORKDAYS argument: a blank or omitted one is #VALUE!.
 fn present_num(site: &Site<'_>, a: &[CalcValue], index: usize) -> Step<f64> {
-    match a[index].core() {
-        CoreValue::Missing | CoreValue::Empty => fail(W::Value),
+    match a[index].core_ref() {
+        CoreRef::Missing | CoreRef::Empty => fail(W::Value),
         _ => num(site, a, index),
     }
 }
@@ -103,14 +103,14 @@ fn weekend(site: &Site<'_>, a: &[CalcValue], index: usize, workday: bool) -> Ste
     let Some(value) = a.get(index) else {
         return Ok(WeekendMask::saturday_sunday());
     };
-    match value.core() {
-        CoreValue::Missing | CoreValue::Empty => Ok(WeekendMask::saturday_sunday()),
+    match value.core_ref() {
+        CoreRef::Missing | CoreRef::Empty => Ok(WeekendMask::saturday_sunday()),
         // An error value is no weekend: WORKDAY.INTL's #NUM!, NETWORKDAYS.INTL's #VALUE! (Excel
         // 16.0.20430, 2026-10-25, dc-6au: `=WORKDAY.INTL(1,1,#REF!)` and `(1,1,#DIV/0!)` #NUM!,
         // `=NETWORKDAYS.INTL(1,1,#REF!)` and `(1,1,#DIV/0!)` #VALUE!).
-        CoreValue::Error(_) if workday => fail(W::Num),
-        CoreValue::Error(_) => fail(W::Value),
-        CoreValue::Text(text) => {
+        CoreRef::Error(_) if workday => fail(W::Num),
+        CoreRef::Error(_) => fail(W::Value),
+        CoreRef::Text(text) => {
             let raw = text.to_string_lossy();
             if raw.len() == 7 && raw.chars().all(|ch| ch == '0' || ch == '1') {
                 let mask = WeekendMask::from_mask_text(&raw).expect("a checked mask");
@@ -148,10 +148,10 @@ fn holidays(
     let mut numbers = Vec::new();
     values(site, a, index, index + 1, sv, &mut |held, value| {
         let n = if held {
-            match value.core() {
-                CoreValue::Number(n) => *n,
-                CoreValue::Error(code) => return fail(*code),
-                CoreValue::Array(_) | CoreValue::Reference(_) => {
+            match value.core_ref() {
+                CoreRef::Number(n) => n,
+                CoreRef::Error(code) => return fail(code),
+                CoreRef::Array(_) | CoreRef::Reference(_) => {
                     return Err(site.not_modelled(Some(index)));
                 }
                 _ => return Ok(()),

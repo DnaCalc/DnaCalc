@@ -510,8 +510,8 @@ fn scatter_marks(svg: &mut String, plot: &PlotView, area: Area) {
     let numbers = |values: &[Option<calc_host::value::CalcValue>]| -> Vec<Option<f64>> {
         values
             .iter()
-            .map(|v| match v.as_ref().map(|v| v.core()) {
-                Some(calc_host::value::CoreValue::Number(n)) => Some(*n),
+            .map(|v| match v.as_ref().map(|v| v.core_ref()) {
+                Some(calc_host::value::CoreRef::Number(n)) => Some(n),
                 _ => None,
             })
             .collect()
