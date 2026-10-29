@@ -129,27 +129,27 @@ fn refreshing_roots(read: &Value) -> Vec<String> {
         .collect()
 }
 
-/// A macro sheet, whose relationship type is in Microsoft's namespace, is recorded as an inventory
-/// failure naming it, and the worksheet beside it is still read: the package reader does not end
-/// the capture on it.
+/// A macro sheet, whose relationship type and document element are in Microsoft's namespace, is
+/// inventoried as a worksheet is (dc-xuw): its formula cells are inventory cells beside the
+/// worksheet's, and no failure is recorded.
 #[test]
-fn a_macro_sheet_is_an_inventory_failure_and_not_fatal() {
+fn a_macro_sheet_is_inventoried_as_a_worksheet() {
     let read = read_package(&fixture("worker/macro-sheet.xlsm"));
     assert_eq!(
         read["sheets"],
-        json!([{"name": "Sheet1", "visibility": "visible"}])
+        json!([
+            {"name": "Sheet1", "visibility": "visible"},
+            {"name": "Macro1", "visibility": "visible"}
+        ])
     );
     assert_eq!(
         read["formulas"],
-        json!([{"sheet": "Sheet1", "row": 1, "column": 1, "type": "normal", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false}])
+        json!([
+            {"sheet": "Sheet1", "row": 1, "column": 1, "type": "normal", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false},
+            {"sheet": "Macro1", "row": 1, "column": 1, "type": "normal", "si": null, "ref": null, "cm": null, "dynamic_array_metadata": false}
+        ])
     );
-    assert_eq!(
-        read["failures"],
-        json!([{
-            "stage": "inventory",
-            "message": "sheet Macro1 is a xlMacrosheet (relationship type http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet), whose cells are not captured"
-        }])
-    );
+    assert_eq!(read["failures"], json!([]));
     assert_eq!(read["refusals"], json!([]));
 }
 

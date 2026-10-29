@@ -5,13 +5,15 @@
 //!
 //! `bundle` builds the app's browser entry (`apps/<package>/src/bin/<package>-web.rs`) for
 //! wasm32-unknown-unknown in the workspace's `web` profile (release, optimised for size), runs
-//! wasm-bindgen 0.2.117 (`--target web`) over it, and copies `apps/<package>/web/index.html` beside
-//! the output, into `target/<app>-bundle` unless `--out` names another folder. It prints each
+//! wasm-bindgen 0.2.117 (`--target web`) over it, and copies `apps/<package>/web/index.html` and its
+//! start module `web/boot.js` (the fault record and the loader, so the page holds no inline script)
+//! beside the output, into `target/<app>-bundle` unless `--out` names another folder. It prints each
 //! file's size and the total. Nothing is published: the folder is served only by `smoke`, on
 //! 127.0.0.1.
 //!
 //! `smoke` builds the bundle (or takes the one `--bundle` names), serves it on 127.0.0.1 from a
-//! port the system picks, and drives it in headless Chrome and headless Firefox through their
+//! port the system picks (or drives the page `--url` names: `cargo xtask site smoke` serves a
+//! packed release with the site's headers, dc-ysl), and drives it in headless Chrome and headless Firefox through their
 //! WebDriver servers (chromedriver and geckodriver, found as `cargo xtask accept` finds them:
 //! `CHROMEDRIVER` or `GECKODRIVER` naming a file, else PATH). In each browser it loads the page,
 //! runs the app's cases in order (typing with WebDriver key input, the browser's own key and input
@@ -39,16 +41,18 @@
 
 use crate::accept::{BROWSERS, Browser, find_on_path, variable_file};
 use crate::cargo::{self, WASM_TARGET, Workspace};
+use crate::site::SiteHeaders;
 use serde_json::{Value, json};
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitCode, Stdio};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
+pub const USAGE: &str = "usage: cargo xtask app bundle onecalc|calc [--out <dir>]\n       cargo xtask app smoke onecalc|calc [--bundle <dir> | --url <page>] [--browser chromium|firefox] [--workbook <file> [--edit <sheet>!<cell>=<text>] [--skins] [--profile <cpuprofile.json>]]\n       cargo xtask onecalc bundle|smoke ... (the same, for onecalc)";
 
 /// One browser application: its package, its entry, its page, and how its page reports itself.
 pub struct App {
@@ -61,6 +65,9 @@ pub struct App {
     pub entry: &'static str,
     /// The page, relative to the workspace root.
     pub page: &'static str,
+    /// The stylesheets, relative to the workspace root, in order: the bundle's `app.css` is
+    /// Strand's token stylesheet (`dna_strand::stylesheet`) followed by these (dc-xib).
+    pub styles: &'static [&'static str],
     /// The default bundle folder, relative to the workspace root.
     pub default_out: &'static str,
     /// The attribute naming an element's role.
@@ -74,6 +81,13 @@ pub struct App {
     pub cases: &'static [Case],
 }
 
+impl App {
+    /// The page's start module (`web/boot.js` beside the page), relative to the workspace root.
+    pub fn boot(&self) -> String {
+        self.page.replace("index.html", "boot.js")
+    }
+}
+
 /// The applications.
 pub static APPS: [App; 2] = [
     App {
@@ -82,6 +96,10 @@ pub static APPS: [App; 2] = [
         package: "dna-onecalc",
         entry: "dna-onecalc-web",
         page: "apps/dna-onecalc/web/index.html",
+        styles: &[
+            "apps/dna-onecalc/web/css/formula-field.css",
+            "apps/dna-onecalc/web/css/surface.css",
+        ],
         default_out: "target/onecalc-bundle",
         role_attribute: "data-onecalc",
         panic_attribute: "data-onecalc-panic",
@@ -95,6 +113,16 @@ pub static APPS: [App; 2] = [
         package: "dna-calc",
         entry: "dna-calc-web",
         page: "apps/dna-calc/web/index.html",
+        styles: &[
+            "apps/dna-onecalc/web/css/formula-field.css",
+            "apps/dna-calc/web/css/shell.css",
+            "apps/dna-calc/web/css/grid.css",
+            "apps/dna-calc/web/css/notebook.css",
+            "apps/dna-calc/web/css/atlas.css",
+            "apps/dna-calc/web/css/tree.css",
+            "apps/dna-calc/web/css/canvas.css",
+            "apps/dna-calc/web/css/ledger.css",
+        ],
         default_out: "target/dnacalc-bundle",
         role_attribute: "data-dnacalc",
         panic_attribute: "data-dnacalc-panic",
@@ -129,7 +157,7 @@ pub fn run_onecalc(raw: &[String]) -> ExitCode {
 }
 
 /// What `--workbook` asks of a smoke run.
-struct WorkbookRun {
+pub(crate) struct WorkbookRun {
     path: PathBuf,
     /// The sheet, the cell and the text to enter.
     edit: Option<(String, String, String)>,
@@ -175,6 +203,7 @@ pub fn run(raw: &[String]) -> ExitCode {
         }
         "smoke" => {
             let mut bundle_dir = None;
+            let mut url: Option<String> = None;
             let mut only: Option<String> = None;
             let mut workbook: Option<PathBuf> = None;
             let mut edit = None;
@@ -188,6 +217,7 @@ pub fn run(raw: &[String]) -> ExitCode {
                 }
                 match (arg.as_str(), args.next()) {
                     ("--bundle", Some(dir)) => bundle_dir = Some(PathBuf::from(dir)),
+                    ("--url", Some(page)) => url = Some(page.clone()),
                     ("--browser", Some(name)) => only = Some(name.clone()),
                     ("--workbook", Some(path)) if app.key == "calc" => {
                         workbook = Some(PathBuf::from(path))
@@ -211,7 +241,12 @@ pub fn run(raw: &[String]) -> ExitCode {
                 profile,
                 skins,
             });
-            smoke(&ws, app, bundle_dir, only.as_deref(), workbook.as_ref())
+            let target = match (url, bundle_dir) {
+                (Some(_), Some(_)) => return usage(raw),
+                (Some(url), None) => SmokeTarget::Url(url),
+                (None, dir) => SmokeTarget::Bundle(dir),
+            };
+            smoke(&ws, app, target, only.as_deref(), workbook.as_ref())
         }
         _ => usage(raw),
     }
@@ -235,7 +270,7 @@ fn usage(raw: &[String]) -> ExitCode {
 // The bundle.
 
 /// Builds the bundle into `out` and returns its files with their sizes.
-fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
+pub(crate) fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, String> {
     let bindgen = find_on_path("wasm-bindgen").ok_or("wasm-bindgen is not on PATH")?;
     let version = cargo::output(Command::new(&bindgen).arg("--version"))?;
     let version = cargo::text(&version.stdout).trim().to_owned();
@@ -292,9 +327,21 @@ fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, S
     }
     fs::copy(ws.root.join(app.page), out.join("index.html"))
         .map_err(|e| format!("cannot copy {}: {e}", app.page))?;
+    let boot = app.boot();
+    fs::copy(ws.root.join(&boot), out.join("boot.js"))
+        .map_err(|e| format!("cannot copy {boot}: {e}"))?;
+    let mut sheet = dna_strand::stylesheet();
+    for style in app.styles {
+        let text = fs::read_to_string(ws.root.join(style))
+            .map_err(|e| format!("cannot read {style}: {e}"))?;
+        sheet.push_str(&text);
+    }
+    fs::write(out.join("app.css"), sheet).map_err(|e| format!("cannot write app.css: {e}"))?;
     let mut files = Vec::new();
     for name in [
         "index.html".to_owned(),
+        "app.css".to_owned(),
+        "boot.js".to_owned(),
         format!("{}.js", app.entry),
         format!("{}_bg.wasm", app.entry),
     ] {
@@ -319,10 +366,21 @@ fn bundle(ws: &Workspace, app: &App, out: &Path) -> Result<Vec<(String, u64)>, S
 // ---------------------------------------------------------------------------------------------
 // The page server.
 
-/// Serves the files of `dir` on 127.0.0.1 from a thread; returns the port.
-fn serve(dir: PathBuf) -> Result<u16, String> {
-    let listener =
-        TcpListener::bind("127.0.0.1:0").map_err(|e| format!("cannot listen on 127.0.0.1: {e}"))?;
+/// Serves the files of `dir` on 127.0.0.1 from a thread; returns the port. With `headers`, every
+/// answer carries the headers the site's Caddy snippet sets for its path (`cargo xtask site
+/// serve`, dc-ysl.4); without, `Cache-Control: no-store` alone.
+pub(crate) fn serve(dir: PathBuf, headers: Option<Arc<SiteHeaders>>) -> Result<u16, String> {
+    serve_on(dir, headers, 0)
+}
+
+/// [`serve`] on a given port (0: one the system picks).
+pub(crate) fn serve_on(
+    dir: PathBuf,
+    headers: Option<Arc<SiteHeaders>>,
+    port: u16,
+) -> Result<u16, String> {
+    let listener = TcpListener::bind(("127.0.0.1", port))
+        .map_err(|e| format!("cannot listen on 127.0.0.1:{port}: {e}"))?;
     let port = listener
         .local_addr()
         .map_err(|e| format!("no local address: {e}"))?
@@ -330,16 +388,52 @@ fn serve(dir: PathBuf) -> Result<u16, String> {
     thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let dir = dir.clone();
+            let headers = headers.clone();
             thread::spawn(move || {
-                let _ = answer(stream, &dir);
+                let _ = answer(stream, &dir, headers.as_deref());
             });
         }
     });
     Ok(port)
 }
 
-/// Answers one request: a file of the bundle by its plain name, `/` as `index.html`.
-fn answer(mut stream: TcpStream, dir: &Path) -> std::io::Result<()> {
+/// The content type of a served file, by its extension, as Caddy's types give it.
+pub(crate) fn content_type(name: &str) -> &'static str {
+    match Path::new(name).extension().and_then(|e| e.to_str()) {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("wasm") => "application/wasm",
+        Some("json") => "application/json",
+        Some("txt") => "text/plain; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        _ => match name.rsplit('/').next() {
+            Some("LICENSE") => "text/plain; charset=utf-8",
+            _ => "application/octet-stream",
+        },
+    }
+}
+
+/// The file a request path names under the served folder: `/` is `index.html`; every segment is
+/// plain (letters, digits, `-`, `_`, `.`), none is empty or `..`.
+fn served_name(path: &str) -> Option<String> {
+    let path = path.split('?').next().unwrap_or("/");
+    let name = match path.trim_start_matches('/') {
+        "" => "index.html".to_owned(),
+        name => name.to_owned(),
+    };
+    let plain = name.split('/').all(|segment| {
+        !segment.is_empty()
+            && segment != ".."
+            && segment != "."
+            && segment
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    });
+    plain.then_some(name)
+}
+
+/// Answers one request: a file of the folder by its path, `/` as `index.html`.
+fn answer(mut stream: TcpStream, dir: &Path, headers: Option<&SiteHeaders>) -> std::io::Result<()> {
     let mut request = Vec::new();
     let mut buffer = [0u8; 4096];
     while !request.windows(4).any(|w| w == b"\r\n\r\n") {
@@ -350,39 +444,32 @@ fn answer(mut stream: TcpStream, dir: &Path) -> std::io::Result<()> {
         request.extend_from_slice(&buffer[..read]);
     }
     let line = String::from_utf8_lossy(&request);
-    let path = line.split_whitespace().nth(1).unwrap_or("/");
-    let path = path.split('?').next().unwrap_or("/");
-    let name = match path.trim_start_matches('/') {
-        "" => "index.html",
-        name => name,
-    };
-    let plain = name
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-        && !name.contains("..");
-    let content_type = match Path::new(name).extension().and_then(|e| e.to_str()) {
-        Some("html") => "text/html; charset=utf-8",
-        Some("js") => "text/javascript; charset=utf-8",
-        Some("wasm") => "application/wasm",
-        _ => "application/octet-stream",
-    };
-    let body = if plain {
-        fs::read(dir.join(name)).ok()
-    } else {
-        None
-    };
-    match body {
-        Some(body) => {
+    let path = line.split_whitespace().nth(1).unwrap_or("/").to_owned();
+    let name = served_name(&path);
+    let body = name.as_ref().and_then(|name| fs::read(dir.join(name)).ok());
+    let mut extra = String::new();
+    match headers {
+        Some(headers) => {
+            for (header, value) in headers.for_path(path.split('?').next().unwrap_or("/")) {
+                extra.push_str(&format!("{header}: {value}\r\n"));
+            }
+        }
+        None => extra.push_str("Cache-Control: no-store\r\n"),
+    }
+    match (name, body) {
+        (Some(name), Some(body)) => {
             write!(
                 stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\n{extra}Connection: close\r\n\r\n",
+                content_type(&name),
                 body.len()
             )?;
             stream.write_all(&body)?;
         }
-        None => {
-            stream.write_all(
-                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        _ => {
+            write!(
+                stream,
+                "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n{extra}Connection: close\r\n\r\n"
             )?;
         }
     }
@@ -632,10 +719,10 @@ const ESCAPE: &str = "\u{E00C}";
 const DELETE: &str = "\u{E017}";
 const F2: &str = "\u{E032}";
 
-/// The selector of an element: a selector as written when `name` starts with `[`, otherwise the
+/// The selector of an element: a selector as written when `name` starts with `[` (or is `body`), otherwise the
 /// element whose role attribute is `name`.
 fn select(app: &App, name: &str) -> String {
-    if name.starts_with('[') {
+    if name.starts_with('[') || name == "body" {
         name.to_owned()
     } else {
         format!("[{}=\"{name}\"]", app.role_attribute)
@@ -658,6 +745,8 @@ pub enum Action {
     Click(&'static str),
     /// Chooses this file (relative to the workspace root) in the file input.
     Upload(&'static str, &'static str),
+    /// Sets the browser window's size (WebDriver's Set Window Rect): a narrow screen (dc-xib).
+    Window(u32, u32),
 }
 
 /// What a case expects the page to show. A name is a role or a selector ([`select`]).
@@ -676,8 +765,19 @@ pub enum Check {
     Value(&'static str, &'static str),
     /// The element's attribute.
     Attr(&'static str, &'static str, &'static str),
-    /// The element's attribute holds this text (a part of a style).
-    AttrHas(&'static str, &'static str, &'static str),
+    /// The element's inline style sets each of these declarations (`"left:4px;color:#ff0000"`),
+    /// compared as the browser holds them: each value is read back from the element's style and
+    /// from a probe element given the expected value, so `#ff0000` and `rgb(255, 0, 0)` agree.
+    /// The skins set styles through the CSS object model (dc-xib), whose serialisation is the
+    /// browser's own.
+    Style(&'static str, &'static str),
+    /// The element's computed style has each of these declarations, compared as [`Check::Style`]
+    /// compares (a probe element in the page gives the expected value its computed form).
+    Computed(&'static str, &'static str),
+    /// The page fits the window's width: no horizontal scroll of the document.
+    Fits,
+    /// The page's viewport is at most this many pixels wide (a narrow-screen case really is one).
+    Narrow(u32),
     /// DNA OneCalc: the array result's cells, row by row.
     Array(&'static [&'static [&'static str]]),
     /// DNA OneCalc: the text of the highlighted run with this role.
@@ -891,6 +991,30 @@ const ONECALC_CASES: &[Case] = &[
             Check::Absent("completions"),
             Check::Value("formula", "=AVER"),
         ],
+    },
+    // dc-xib: Strand's themes and a narrow screen.
+    Case {
+        name: "the theme switch shows the dark theme, and the system's again",
+        actions: &[Action::Choose("theme", "cockpit-dark")],
+        checks: &[
+            Check::Computed("[data-onecalc=\"surface\"]", "color:#E2ECEF"),
+            Check::Computed("body", "background-color:#1A262B"),
+        ],
+    },
+    Case {
+        name: "high contrast, then the system's theme",
+        actions: &[Action::Choose("theme", "high-contrast"), Action::Choose("theme", "")],
+        checks: &[Check::Computed("body", "background-color:#FFFFFF")],
+    },
+    Case {
+        name: "on a 500-pixel screen (the narrowest a desktop Firefox window goes) the page fits its width",
+        actions: &[Action::Window(500, 844)],
+        checks: &[Check::Narrow(500), Check::Fits, Check::Text("sheets", "Sheet1")],
+    },
+    Case {
+        name: "back on a wide screen",
+        actions: &[Action::Window(1280, 1000)],
+        checks: &[Check::Fits],
     },
 ];
 
@@ -1376,19 +1500,19 @@ const CALC_CASES: &[Case] = &[
         checks: &[
             // A is 117 px (16.71 characters), B 180 px (25.71), C hidden, D the default 64 px;
             // row 3 is 40 px (30 points), row 13 hidden, the others 20 px (15 points).
-            Check::Attr(cell!("B1"), "style", "left:165px;top:22px;width:180px;height:20px"),
-            Check::Attr(cell!("D1"), "style", "left:345px;top:22px;width:64px;height:20px"),
-            Check::Attr(cell!("A3"), "style", "left:48px;top:62px;width:117px;height:40px"),
-            Check::Attr(cell!("A14"), "style", "left:48px;top:282px;width:117px;height:20px"),
+            Check::Style(cell!("B1"), "left:165px;top:22px;width:180px;height:20px"),
+            Check::Style(cell!("D1"), "left:345px;top:22px;width:64px;height:20px"),
+            Check::Style(cell!("A3"), "left:48px;top:62px;width:117px;height:40px"),
+            Check::Style(cell!("A14"), "left:48px;top:282px;width:117px;height:20px"),
             // A15's negative section is [Color10]: Excel's palette entry 10.
-            Check::Attr(cell!("A15"), "style", "left:48px;top:302px;width:117px;height:20px;color:#008000"),
+            Check::Style(cell!("A15"), "left:48px;top:302px;width:117px;height:20px;color:#008000"),
             // Column E is 4 characters (33 px): a formatted number too wide shows ####, as in
             // Excel, and a text overflows over the empty F to I.
             Check::Text(cell!("E1"), "####"),
             Check::Text(cell!("E2"), "12"),
-            Check::Attr(cell!("E3"), "style", "left:409px;top:62px;width:289px;height:40px"),
+            Check::Style(cell!("E3"), "left:409px;top:62px;width:289px;height:40px"),
             // A4's negative section is [Red].
-            Check::Attr(cell!("A4"), "style", "left:48px;top:102px;width:117px;height:20px;color:#ff0000"),
+            Check::Style(cell!("A4"), "left:48px;top:102px;width:117px;height:20px;color:#ff0000"),
         ],
     },
     Case {
@@ -1402,7 +1526,7 @@ const CALC_CASES: &[Case] = &[
             Check::Text(cell!("A3"), "25%"),
             Check::Text(cell!("A4"), "2024-01-31"),
             // The file's 30-point row 3 is now row 4.
-            Check::Attr(cell!("A4"), "style", "left:48px;top:82px;width:117px;height:40px"),
+            Check::Style(cell!("A4"), "left:48px;top:82px;width:117px;height:40px"),
         ],
     },
     Case {
@@ -1415,9 +1539,9 @@ const CALC_CASES: &[Case] = &[
             Check::Absent(cell!("B1")),
             // B is 117 px like A; the file's B (180 px) is C, its hidden C is D.
             Check::Text(cell!("C1"), "wide"),
-            Check::Attr(cell!("C1"), "style", "left:282px;top:22px;width:180px;height:20px"),
+            Check::Style(cell!("C1"), "left:282px;top:22px;width:180px;height:20px"),
             Check::Text(cell!("E1"), "after hidden"),
-            Check::Attr(cell!("E1"), "style", "left:462px;top:22px;width:64px;height:20px"),
+            Check::Style(cell!("E1"), "left:462px;top:22px;width:64px;height:20px"),
         ],
     },
     Case {
@@ -1551,13 +1675,13 @@ const CALC_CASES: &[Case] = &[
             Action::Click("skin-grid"),
         ],
         checks: &[
-            Check::AttrHas(cell!("A2"), "style", "background-color:#ffc7ce"),
-            Check::AttrHas(cell!("A2"), "style", "color:#9c0006"),
-            Check::AttrHas(cell!("B1"), "style", "font-weight:700"),
-            Check::AttrHas(cell!("C2"), "style", "background-color:#ffeb9c"),
-            Check::AttrHas(cell!("D2"), "style", "font-style:italic"),
-            Check::AttrHas(cell!("E2"), "style", "background-color:#86c97e"),
-            Check::AttrHas(cell!("J2"), "style", "background-color:#83cceb"),
+            Check::Style(cell!("A2"), "background-color:#ffc7ce"),
+            Check::Style(cell!("A2"), "color:#9c0006"),
+            Check::Style(cell!("B1"), "font-weight:700"),
+            Check::Style(cell!("C2"), "background-color:#ffeb9c"),
+            Check::Style(cell!("D2"), "font-style:italic"),
+            Check::Style(cell!("E2"), "background-color:#86c97e"),
+            Check::Style(cell!("J2"), "background-color:#83cceb"),
             Check::Attr(cell!("H2"), "data-icon", "3Arrows:2"),
             Check::Attr(cell!("H3"), "data-icon", "3Arrows:0"),
             Check::Attr(cell!("G6"), "data-bar", "1.0000"),
@@ -1572,7 +1696,7 @@ const CALC_CASES: &[Case] = &[
             Action::Keys("grid", "8"),
             Action::Keys("cell-editor", ENTER),
         ],
-        checks: &[Check::AttrHas(cell!("A3"), "style", "background-color:#ffc7ce")],
+        checks: &[Check::Style(cell!("A3"), "background-color:#ffc7ce")],
     },
     // dc-6yw: data validation (calc-host's dc_6yw/dv-excel.txt).
     Case {
@@ -1631,6 +1755,76 @@ const CALC_CASES: &[Case] = &[
             Check::Text(cell!("D1"), "-1"),
         ],
     },
+    // dc-6yw: charts drawn read-only (calc-host's dc_6yw/charts-excel.txt).
+    Case {
+        name: "charts are drawn where Excel puts them, with their series' values",
+        actions: &[
+            Action::Upload("open-file", "crates/calc-host/tests/fixtures/dc_6yw/charts.xlsx"),
+            Action::Click("skin-grid"),
+        ],
+        checks: &[
+            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"]", "data-kind", "column"),
+            Check::Text(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-dnacalc=\"chart-title\"]",
+                "Column",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "12",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"1\"][data-point=\"5\"]",
+                "data-value",
+                "13",
+            ),
+            Check::Attr("[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"]", "data-kind", "line"),
+        ],
+    },
+    Case {
+        name: "a chart follows an edit: B2 set to 40 moves its column and the total's line",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Keys("grid", "4"),
+            Action::Keys("cell-editor", "0\u{E007}"),
+        ],
+        checks: &[
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 1\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "40",
+            ),
+            Check::Attr(
+                "[data-dnacalc=\"chart\"][data-chart=\"Chart 3\"] [data-series=\"0\"][data-point=\"0\"]",
+                "data-value",
+                "48",
+            ),
+        ],
+    },
+    // dc-xib: Strand's themes and a narrow screen.
+    Case {
+        name: "the theme switch shows the dark theme: petrol chrome, charcoal paper",
+        actions: &[Action::Choose("theme", "cockpit-dark")],
+        checks: &[
+            Check::Computed("app", "background-color:#1A262B;color:#E2ECEF"),
+            Check::Computed("[data-dnacalc=\"app\"] .dc-mast", "background-color:#0F2229"),
+        ],
+    },
+    Case {
+        name: "the system's theme again: light paper",
+        actions: &[Action::Choose("theme", "")],
+        checks: &[Check::Computed("app", "background-color:#FFFFFF;color:#17282E")],
+    },
+    Case {
+        name: "on a 500-pixel screen (the narrowest a desktop Firefox window goes) the page fits its width and the grid still shows",
+        actions: &[Action::Window(500, 844), Action::Click("skin-grid")],
+        checks: &[Check::Narrow(500), Check::Fits, Check::Attr("grid", "tabindex", "0")],
+    },
+    Case {
+        name: "back on a wide screen",
+        actions: &[Action::Window(1280, 1000)],
+        checks: &[Check::Fits],
+    },
 ];
 
 /// The script that reads what one check looks at.
@@ -1651,8 +1845,18 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
         ),
         Check::Absent(name) => format!("return {} === null;", q(name)),
         Check::Value(name, _) => format!("var e = {}; return e ? e.value : null;", q(name)),
-        Check::Attr(name, attribute, _) | Check::AttrHas(name, attribute, _) => format!(
+        Check::Attr(name, attribute, _) => format!(
             "var e = {}; return e ? e.getAttribute('{attribute}') : null;",
+            q(name)
+        ),
+        Check::Computed(name, declarations) => format!(
+            "var e = {}; if (!e) {{ return null; }} var probe = document.createElement('div'); document.body.appendChild(probe); var out = []; '{declarations}'.split(';').forEach(function (d) {{ var i = d.indexOf(':'); if (i < 0) {{ return; }} var k = d.slice(0, i).trim(); probe.style.setProperty(k, d.slice(i + 1).trim()); out.push([k, getComputedStyle(e).getPropertyValue(k), getComputedStyle(probe).getPropertyValue(k)]); }}); probe.remove(); return out;",
+            q(name)
+        ),
+        Check::Fits => "return [document.documentElement.scrollWidth, window.innerWidth];".to_owned(),
+        Check::Narrow(_) => "return window.innerWidth;".to_owned(),
+        Check::Style(name, declarations) => format!(
+            "var e = {}; if (!e) {{ return null; }} var probe = document.createElement('div'); var out = []; '{declarations}'.split(';').forEach(function (d) {{ var i = d.indexOf(':'); if (i < 0) {{ return; }} var k = d.slice(0, i).trim(); probe.style.setProperty(k, d.slice(i + 1).trim()); out.push([k, e.style.getPropertyValue(k), probe.style.getPropertyValue(k)]); }}); return out;",
             q(name)
         ),
         Check::Array(_) => format!(
@@ -1672,7 +1876,20 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
             seen.as_str() == Some(expected)
         }
         Check::Starts(_, prefix) => seen.as_str().is_some_and(|text| text.starts_with(prefix)),
-        Check::AttrHas(_, _, part) => seen.as_str().is_some_and(|text| text.contains(part)),
+        Check::Fits => seen.as_array().is_some_and(|sizes| {
+            match (sizes.first().and_then(Value::as_f64), sizes.get(1).and_then(Value::as_f64)) {
+                (Some(scroll), Some(window)) => window > 0.0 && scroll <= window,
+                _ => false,
+            }
+        }),
+        Check::Narrow(width) => seen.as_f64().is_some_and(|seen| seen > 0.0 && seen <= f64::from(*width)),
+        Check::Style(..) | Check::Computed(..) => seen.as_array().is_some_and(|pairs| {
+            !pairs.is_empty()
+                && pairs.iter().all(|pair| {
+                    pair.get(1).and_then(Value::as_str).is_some_and(|seen| !seen.is_empty())
+                        && pair.get(1) == pair.get(2)
+                })
+        }),
         Check::Items(_, expected) => seen.as_array().is_some_and(|items| {
             items.len() == expected.len()
                 && items
@@ -1715,9 +1932,10 @@ fn describe(check: &Check) -> String {
         Check::Attr(name, attribute, expected) => {
             format!("{name} has {attribute}={expected:?}")
         }
-        Check::AttrHas(name, attribute, part) => {
-            format!("{name}'s {attribute} holds {part:?}")
-        }
+        Check::Style(name, declarations) => format!("{name}'s style sets {declarations:?}"),
+        Check::Computed(name, declarations) => format!("{name} is shown with {declarations:?}"),
+        Check::Fits => "the page fits the window's width".to_owned(),
+        Check::Narrow(width) => format!("the viewport is at most {width} pixels wide"),
         Check::Array(rows) => format!("result-array is {rows:?}"),
         Check::Highlighted(role_name, text) => format!("{text:?} is highlighted as {role_name}"),
     }
@@ -1770,6 +1988,30 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::Upload(name, path) => {
             let path = ws.root.join(path);
             upload(app, session, name, &path)
+        }
+        Action::Window(width, height) => {
+            // Chrome keeps a desktop window at least about 500 pixels wide, so its viewport is
+            // set through the DevTools protocol (a phone's width, as its device toolbar does);
+            // the wide size clears that. Firefox takes the window size itself.
+            let wide = *width >= 1000;
+            let emulated = if wide {
+                session.post(
+                    "/goog/cdp/execute",
+                    json!({ "cmd": "Emulation.clearDeviceMetricsOverride", "params": {} }),
+                )
+            } else {
+                session.post(
+                    "/goog/cdp/execute",
+                    json!({
+                        "cmd": "Emulation.setDeviceMetricsOverride",
+                        "params": { "width": width, "height": height, "deviceScaleFactor": 1, "mobile": true }
+                    }),
+                )
+            };
+            if emulated.is_err() || wide {
+                session.post("/window/rect", json!({ "width": width, "height": height }))?;
+            }
+            Ok(())
         }
     }
 }
@@ -2120,33 +2362,50 @@ fn run_browser(
     outcome
 }
 
-fn smoke(
+/// What a smoke run drives: a bundle folder it serves itself (built first when none is named), or
+/// a page already served at a URL (`--url`; `cargo xtask site smoke` serves a packed release with
+/// the site's headers and passes its URL).
+pub(crate) enum SmokeTarget {
+    Bundle(Option<PathBuf>),
+    Url(String),
+}
+
+pub(crate) fn smoke(
     ws: &Workspace,
     app: &App,
-    bundle_dir: Option<PathBuf>,
+    target: SmokeTarget,
     only: Option<&str>,
     workbook: Option<&WorkbookRun>,
 ) -> ExitCode {
-    let dir = match bundle_dir {
-        Some(dir) => dir,
-        None => {
-            let dir = ws.root.join(app.default_out);
-            if let Err(e) = bundle(ws, app, &dir) {
-                println!("{} RESULT failed: {e}", app.label);
-                return ExitCode::from(1);
-            }
-            dir
+    let page = match target {
+        SmokeTarget::Url(url) => {
+            println!("{} driving the page at {url}", app.label);
+            url
+        }
+        SmokeTarget::Bundle(bundle_dir) => {
+            let dir = match bundle_dir {
+                Some(dir) => dir,
+                None => {
+                    let dir = ws.root.join(app.default_out);
+                    if let Err(e) = bundle(ws, app, &dir) {
+                        println!("{} RESULT failed: {e}", app.label);
+                        return ExitCode::from(1);
+                    }
+                    dir
+                }
+            };
+            let port = match serve(dir.clone(), None) {
+                Ok(port) => port,
+                Err(e) => {
+                    println!("{} RESULT failed: {e}", app.label);
+                    return ExitCode::from(1);
+                }
+            };
+            let page = format!("http://127.0.0.1:{port}/index.html");
+            println!("{} serving {} at {page}", app.label, dir.display());
+            page
         }
     };
-    let port = match serve(dir.clone()) {
-        Ok(port) => port,
-        Err(e) => {
-            println!("{} RESULT failed: {e}", app.label);
-            return ExitCode::from(1);
-        }
-    };
-    let page = format!("http://127.0.0.1:{port}/index.html");
-    println!("{} serving {} at {page}", app.label, dir.display());
     let mut all_passed = true;
     let mut summary = Vec::new();
     for browser in BROWSERS
@@ -2196,12 +2455,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn served_paths_stay_inside_the_folder() {
+        assert_eq!(served_name("/").as_deref(), Some("index.html"));
+        assert_eq!(served_name("/build.json?x=1").as_deref(), Some("build.json"));
+        assert_eq!(
+            served_name("/assets/0123456789abcdef/boot.js").as_deref(),
+            Some("assets/0123456789abcdef/boot.js")
+        );
+        assert_eq!(served_name("/assets/../../secret"), None);
+        assert_eq!(served_name("/assets//boot.js"), None);
+        assert_eq!(served_name("/a/./b"), None);
+        assert_eq!(served_name("/a%2fb"), None);
+        assert_eq!(content_type("assets/x/a_bg.wasm"), "application/wasm");
+        assert_eq!(content_type("LICENSE"), "text/plain; charset=utf-8");
+    }
+
+    #[test]
     fn chunked_bodies_join() {
         assert_eq!(
             unchunk(b"4\r\nWiki\r\n5;x=1\r\npedia\r\n0\r\n\r\n").unwrap(),
             b"Wikipedia"
         );
         assert!(unchunk(b"zz\r\n").is_err());
+    }
+
+    #[test]
+    fn style_checks_need_every_declaration_as_the_browser_holds_it() {
+        let check = Check::Style("r", "color:#010203");
+        assert!(satisfied(&check, &json!([["color", "rgb(1, 2, 3)", "rgb(1, 2, 3)"]])));
+        assert!(!satisfied(&check, &json!([["color", "rgb(9, 9, 9)", "rgb(1, 2, 3)"]])));
+        assert!(!satisfied(&check, &json!([["color", "", ""]])));
+        assert!(!satisfied(&check, &json!([])));
+        assert!(!satisfied(&check, &Value::Null));
     }
 
     #[test]

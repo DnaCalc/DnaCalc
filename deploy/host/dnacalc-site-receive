@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""The host side of `cargo xtask site publish|status|rollback` (dc-ysl; docs/plan/PUBLISHING_PLAN.md).
+
+Installed on the site host as ~/bin/dnacalc-site-receive and run over ssh, it keeps each site's
+releases under one root (default /srv/dnacalc-site, or $DNACALC_SITE_ROOT):
+
+    <root>/<site>/assets/<id>/        shared, append-only: a page loaded before a switch still
+                                      finds its old assets
+    <root>/<site>/releases/<release>/ one folder per publish; its assets -> ../../assets
+    <root>/<site>/current             symlink to releases/<release>: Caddy's root
+    <root>/<site>/previous            symlink to the release current pointed at before
+
+Commands (as arguments, or in $SSH_ORIGINAL_COMMAND under a forced command):
+
+    publish <site>                              the release's tar on standard input
+    status <site>                               JSON: current, previous, releases
+    list <site>                                 the releases, one per line
+    rollback <site> <release> --if-current <r>  switch current to an earlier release
+
+publish reads the uncompressed tar `cargo xtask site pack` writes, extracts it with tarfile's
+"data" filter (no absolute paths, no links out of the tree, no devices), checks every file
+against the release's build.json and refuses anything build.json does not list, moves the asset
+folder into the shared assets, and switches `current` and `previous` atomically (a new symlink
+renamed over the old) under an exclusive lock. Nothing is ever deleted by a switch. A switch takes
+effect for Caddy at once: no reload.
+"""
+
+import fcntl
+import hashlib
+import io
+import json
+import os
+import re
+import shlex
+import shutil
+import sys
+import tarfile
+import tempfile
+
+ROOT = os.environ.get("DNACALC_SITE_ROOT", "/srv/dnacalc-site")
+SITES = ("onecalc", "calc")
+RELEASE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}$")
+ASSET_ID = re.compile(r"^[0-9a-f]{16}$")
+BUILD_FORMAT = "dnacalc-site-build/1"
+TAR_LIMIT = 256 * 1024 * 1024
+
+
+class Refused(Exception):
+    pass
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def site_dir(site):
+    if site not in SITES:
+        raise Refused(f"no site {site!r}; the sites are {', '.join(SITES)}")
+    return os.path.join(ROOT, site)
+
+
+def link_target(path):
+    """The release a symlink points at, or None."""
+    if not os.path.islink(path):
+        return None
+    return os.path.basename(os.readlink(path).rstrip("/"))
+
+
+def switch(link, target):
+    """Points `link` at `target` atomically: a new symlink renamed over the old one."""
+    temporary = f"{link}.new.{os.getpid()}"
+    if os.path.lexists(temporary):
+        os.unlink(temporary)
+    os.symlink(target, temporary)
+    os.replace(temporary, link)
+
+
+def releases(base):
+    folder = os.path.join(base, "releases")
+    if not os.path.isdir(folder):
+        return []
+    return sorted(name for name in os.listdir(folder) if RELEASE.match(name))
+
+
+def status(site):
+    base = site_dir(site)
+    return {
+        "site": site,
+        "current": link_target(os.path.join(base, "current")),
+        "previous": link_target(os.path.join(base, "previous")),
+        "releases": releases(base),
+    }
+
+
+class Lock:
+    def __init__(self, base):
+        os.makedirs(base, exist_ok=True)
+        self.handle = open(os.path.join(base, ".lock"), "w")
+
+    def __enter__(self):
+        fcntl.flock(self.handle, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        fcntl.flock(self.handle, fcntl.LOCK_UN)
+        self.handle.close()
+
+
+def flip(base, release):
+    current = os.path.join(base, "current")
+    was = link_target(current)
+    if was is not None and was != release:
+        switch(os.path.join(base, "previous"), f"releases/{was}")
+    switch(current, f"releases/{release}")
+
+
+def publish(site, stream):
+    base = site_dir(site)
+    data = stream.read(TAR_LIMIT + 1)
+    if len(data) > TAR_LIMIT:
+        raise Refused("the tar is larger than the limit")
+    with Lock(base):
+        for folder in ("assets", "releases", "incoming"):
+            os.makedirs(os.path.join(base, folder), exist_ok=True)
+        archive = tarfile.open(fileobj=io.BytesIO(data), mode="r:")
+        tops = {member.name.split("/", 1)[0] for member in archive.getmembers()}
+        if len(tops) != 1:
+            raise Refused(f"the tar holds {len(tops)} top folders, not one release")
+        release = tops.pop()
+        if not RELEASE.match(release):
+            raise Refused(f"{release!r} is not a clean release name (a -dirty release is refused)")
+        if os.path.exists(os.path.join(base, "releases", release)):
+            raise Refused(f"release {release} is already on the host")
+        incoming = tempfile.mkdtemp(dir=os.path.join(base, "incoming"))
+        try:
+            try:
+                archive.extractall(incoming, filter="data")
+            except tarfile.FilterError as error:
+                raise Refused(f"the tar holds an entry the data filter refuses: {error}")
+            folder = os.path.join(incoming, release)
+            with open(os.path.join(folder, "build.json"), "rb") as handle:
+                build = json.load(handle)
+            if build.get("format") != BUILD_FORMAT:
+                raise Refused(f"build.json's format is {build.get('format')!r}")
+            if build.get("site") != site or build.get("release") != release:
+                raise Refused("build.json names another site or release")
+            files = build.get("files") or {}
+            present = set()
+            for top, _, names in os.walk(folder):
+                for name in names:
+                    present.add(os.path.relpath(os.path.join(top, name), folder).replace(os.sep, "/"))
+            present.discard("build.json")
+            if present != set(files):
+                raise Refused(f"the tar's files are not build.json's: {sorted(present ^ set(files))}")
+            for name, record in files.items():
+                if sha256(os.path.join(folder, name)) != record.get("sha256"):
+                    raise Refused(f"{name} is not the file build.json records")
+            asset_id = build.get("assets", "")
+            if not ASSET_ID.match(asset_id):
+                raise Refused(f"build.json names no asset folder ({asset_id!r})")
+            source = os.path.join(folder, "assets", asset_id)
+            if sorted(os.listdir(os.path.join(folder, "assets"))) != [asset_id]:
+                raise Refused("the release's assets hold another folder than build.json's")
+            shared = os.path.join(base, "assets", asset_id)
+            if os.path.isdir(shared):
+                for name in os.listdir(source):
+                    if sha256(os.path.join(source, name)) != sha256(os.path.join(shared, name)):
+                        raise Refused(f"the host's asset folder {asset_id} differs from the release's")
+                shutil.rmtree(source)
+            else:
+                for top, dirs, names in os.walk(source):
+                    for name in names:
+                        os.chmod(os.path.join(top, name), 0o644)
+                os.chmod(source, 0o755)
+                os.rename(source, shared)
+            os.rmdir(os.path.join(folder, "assets"))
+            for top, dirs, names in os.walk(folder):
+                for name in dirs:
+                    os.chmod(os.path.join(top, name), 0o755)
+                for name in names:
+                    os.chmod(os.path.join(top, name), 0o644)
+            os.chmod(folder, 0o755)
+            os.symlink("../../assets", os.path.join(folder, "assets"))
+            os.rename(folder, os.path.join(base, "releases", release))
+        finally:
+            shutil.rmtree(incoming, ignore_errors=True)
+        flip(base, release)
+        return status(site)
+
+
+def rollback(site, release, if_current):
+    base = site_dir(site)
+    with Lock(base):
+        now = link_target(os.path.join(base, "current"))
+        if now != if_current:
+            raise Refused(f"the current release is {now}, not {if_current}")
+        if release not in releases(base):
+            raise Refused(f"release {release} is not on the host")
+        flip(base, release)
+        return status(site)
+
+
+def main(argv):
+    command = os.environ.get("SSH_ORIGINAL_COMMAND")
+    words = shlex.split(command)[1:] if command else argv[1:]
+    try:
+        match words:
+            case ["publish", site]:
+                print(json.dumps(publish(site, sys.stdin.buffer), indent=2))
+            case ["status", site]:
+                print(json.dumps(status(site), indent=2))
+            case ["list", site]:
+                print("\n".join(releases(site_dir(site))))
+            case ["rollback", site, release, "--if-current", current]:
+                print(json.dumps(rollback(site, release, current), indent=2))
+            case _:
+                raise Refused(f"unknown command {' '.join(words)!r}")
+    except Refused as refusal:
+        print(f"dnacalc-site-receive: refused: {refusal}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

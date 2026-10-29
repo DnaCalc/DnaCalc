@@ -7,14 +7,14 @@
     "kind": "live_capture"
   },
   "environment": {
-    "excel_build": "16.0.20430.20182",
+    "excel_build": "16.0.20527.20088",
     "channel": "current",
     "compatibility": "compat-1/calc-191029",
     "numeric_environment": "excel-x86-64/cpu-x86-64",
     "settings": {
       "workbook_compatibility_version": "1",
       "excel_version": "16.0",
-      "excel_build_number": "20430",
+      "excel_build_number": "20527",
       "excel_machine": "x86-64",
       "calculation_version": "191029",
       "workbook_calculation_version": "191029",
@@ -55,17 +55,18 @@
       "opened_read_only": "true",
       "external_links": "",
       "ole_dde_links": "",
-      "connections": ""
+      "connections": "",
+      "calculation_clock": "40e69e8e55a030a4"
     }
   },
   "session": {
     "revision": 0,
     "operations": [],
     "context": "excel-calc-context/1;date1904=false;iteration=false;max_iterations=100;max_change=3f50624dd2f1a9fc;precision_as_displayed=false",
-    "tool": "calc-oracle-excel 0.1.0; worker sha256:164031ac1e8d4a122b0f347a141c05cfb67575f350f8e3f35ce9f13887a4bdfd; repository 1e7bd358b205d5180ef86a393e94cd2a841e3eb6+dirty",
+    "tool": "calc-oracle-excel 0.1.0; worker sha256:2fe03da89092385bdac1915ffc0999a15223cbd8b4041ade68cc0d4372c5b8c8; repository 45185cd621fc43fc4b6ab977db2bc143bd8fa718+dirty",
     "packages": {
       "input": "sha256:59082b145c9a0aa0096dcdd596a54d4b222abea54377c8b575372cc54044dec0",
-      "output": "sha256:7da39cd4ffda35e19f38ae2eea1f4859ad71fd074fbfc999324e77d21d337fee"
+      "output": "sha256:5115f5cfde36493d0399bc13f3fbc20f3e4a2cadde3e96d896ab958ad304ab61"
     },
     "failures": [
       {"stage":"reopen","sheet":"error_fallback","row":13,"column":4,"message":"after reopening the saved package Excel reads CalcValue { core: Error(NA), callable: None }, where the capture read CalcValue { core: Error(GettingData), callable: None }"}

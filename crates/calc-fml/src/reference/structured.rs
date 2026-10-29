@@ -93,12 +93,10 @@ impl TableInfo {
     }
 }
 
-/// Excel matches table and column names without case.
+/// Excel matches table and column names without case, as workbook names: under the full Unicode
+/// case fold (dc-cpr, calc-value's `workbook_names_equal`).
 pub(crate) fn same_name(a: &str, b: &str) -> bool {
-    a == b
-        || a.chars()
-            .flat_map(char::to_uppercase)
-            .eq(b.chars().flat_map(char::to_uppercase))
+    a == b || calc_func::value::workbook_names_equal(a, b)
 }
 
 /// The parts of a table.
@@ -455,6 +453,28 @@ fn section(text: &str) -> Option<Section> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// dc-cpr: table and column names compare as workbook names do (Excel 16.0, 2026-09-15:
+    /// `UMSÄTZE[GRÖSSE]`, `UMSÄTZE[GRÖßE]` and `umsätze[größe]` name `Umsätze[Größe]`, and
+    /// `[ΜΈΓΕΘΟΣ]` and `[μέγεθοσ]` name `[Μέγεθος]`).
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[allow(non_snake_case)]
+    fn dc_cpr__table_and_column_names_compare_as_workbook_names() {
+        for (held, written) in [
+            ("Umsätze", "UMSÄTZE"),
+            ("Umsätze", "umsätze"),
+            ("Größe", "GRÖSSE"),
+            ("Größe", "GRÖßE"),
+            ("Größe", "größe"),
+            ("Μέγεθος", "ΜΈΓΕΘΟΣ"),
+            ("Μέγεθος", "μέγεθοσ"),
+        ] {
+            assert!(same_name(held, written), "{held} / {written}");
+        }
+        assert!(!same_name("Μέγεθος", "ΜΕΓΕΘΟΣ"), "accents stay significant");
+        assert!(!same_name("Isik", "\u{0130}sik"), "İ is not I");
+    }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

@@ -1,0 +1,34 @@
+/* grid.css: moved from apps/dna-calc/src/grid/mod.rs (GRID_CSS), dc-xib. */
+.dc-grid{position:relative;overflow:auto;flex:1 1 auto;min-height:200px;outline:none;background:var(--dna-paper);border-top:1px solid var(--dna-line)}
+.dc-grid:focus{box-shadow:inset 0 0 0 1px var(--dna-accent)}
+.dc-layer{position:sticky;top:0;left:0;overflow:hidden;font:13px/1 system-ui,"Segoe UI",sans-serif;color:var(--dna-ink)}
+.dc-line{position:absolute;background:var(--dna-line-soft)}
+.dc-cell[data-format=unshowable]{justify-content:flex-start}
+.dc-cell{position:absolute;box-sizing:border-box;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:clip;display:flex;align-items:center}
+.dc-cell[data-kind=number]{justify-content:flex-end}
+.dc-cell[data-kind=logical],.dc-cell[data-kind=error]{justify-content:center}
+.dc-cell[data-kind=error]{color:var(--dna-red-ink)}
+.dc-cell .dc-icon{display:inline-flex;margin-right:auto;padding-right:4px}
+.dc-cell[data-provenance=refused]{color:var(--dna-red-ink);background:repeating-linear-gradient(135deg,var(--dna-red-soft) 0 6px,var(--dna-paper) 6px 12px);font-style:italic;justify-content:center}
+.dc-cell[data-provenance=file-cache]{color:var(--dna-ink-3);font-style:italic}
+.dc-cell[data-provenance=stale]{color:var(--dna-prov-ext);background:var(--dna-amber-soft)}
+.dc-head{position:absolute;box-sizing:border-box;background:var(--dna-paper-2);color:var(--dna-ink-3);border-right:1px solid var(--dna-line);border-bottom:1px solid var(--dna-line);display:flex;align-items:center;justify-content:center;font-size:12px}
+.dc-head.dc-on{background:var(--dna-accent-soft);color:var(--dna-accent-ink);font-weight:600}
+.dc-corner{position:absolute;left:0;top:0;background:var(--dna-line-soft);border-right:1px solid var(--dna-line);border-bottom:1px solid var(--dna-line);box-sizing:border-box}
+.dc-selection{position:absolute;box-sizing:border-box;background:rgb(255 179 1 / 0.16);border:1px solid var(--dna-amber);pointer-events:none}
+.dc-active{position:absolute;box-sizing:border-box;border:2px solid var(--dna-amber);pointer-events:none}
+.dc-dropdown{position:absolute;box-sizing:border-box;width:17px;border:1px solid var(--dna-ink-3);background:var(--dna-paper-2);font-size:9px;line-height:1;padding:0;cursor:pointer;z-index:2;color:var(--dna-ink)}
+.dc-list{list-style:none;margin:0;padding:0;position:absolute;box-sizing:border-box;min-width:80px;max-height:160px;overflow:auto;border:1px solid var(--dna-ink-3);background:var(--dna-paper);z-index:3;box-shadow:0 2px 6px #0003}
+.dc-list li{padding:1px 6px;white-space:nowrap;cursor:default}
+.dc-list li:hover{background:var(--dna-accent-soft)}
+.dc-prompt{position:absolute;box-sizing:border-box;max-width:220px;border:1px solid var(--dna-ink-3);background:var(--dna-amber-soft);padding:3px 6px;font-size:12px;z-index:2;pointer-events:none;white-space:normal}
+.dc-prompt b{display:block}
+.dc-chart{position:absolute;box-sizing:border-box;pointer-events:none;z-index:1}
+.dc-chart svg{display:block}
+.dc-cell-editor{position:absolute;box-sizing:border-box;border:2px solid var(--dna-amber);color:var(--dna-ink);font:13px system-ui,"Segoe UI",sans-serif;padding:0 3px;margin:0;outline:none;background:var(--dna-paper);z-index:2;min-width:120px}
+.dc-grid-skin{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.dc-space{position:relative}
+.dc-layer{background:var(--dna-paper)}
+/* Touch: a tap selects and a double tap edits (no double-tap zoom); panning scrolls the grid. */
+.dc-grid{touch-action:manipulation}
+@media (pointer:coarse){.dc-dropdown{width:28px}.dc-list li{padding:8px 10px}}

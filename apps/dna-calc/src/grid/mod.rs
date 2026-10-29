@@ -22,6 +22,7 @@
 //! positioned elements, and the legacy projection and dispatcher by calc-host's subscription and
 //! intents.
 
+pub mod chart;
 pub mod geometry;
 pub mod icons;
 pub mod render_plan;
@@ -31,6 +32,7 @@ pub mod viewport;
 use crate::cells;
 use crate::controller::{Controller, EditOrigin};
 use crate::skin::{Skin, SkinContext, SkinId};
+use crate::style::css;
 use calc_host::value::{CellKey, GridArea};
 use calc_host::{DeltaMirror, Interest, SubscriptionId};
 use geometry::{
@@ -51,35 +53,6 @@ const MARGIN_COLS: u32 = 10;
 /// scrolls do not move the interest.
 const BLOCK_ROWS: u32 = 32;
 const BLOCK_COLS: u32 = 8;
-
-/// The grid skin's style sheet.
-pub const GRID_CSS: &str = r#"
-.dc-grid{position:relative;overflow:auto;flex:1 1 auto;min-height:200px;outline:none;background:#fff;border-top:1px solid #d0d7de}
-.dc-grid:focus{box-shadow:inset 0 0 0 1px #0969da55}
-.dc-layer{position:sticky;top:0;left:0;overflow:hidden;font:13px/1 system-ui,"Segoe UI",sans-serif;color:#1b1f24}
-.dc-line{position:absolute;background:#e1e4e8}
-.dc-cell[data-format=unshowable]{justify-content:flex-start}
-.dc-cell{position:absolute;box-sizing:border-box;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:clip;display:flex;align-items:center}
-.dc-cell[data-kind=number]{justify-content:flex-end}
-.dc-cell[data-kind=logical],.dc-cell[data-kind=error]{justify-content:center}
-.dc-cell[data-kind=error]{color:#cf222e}
-.dc-cell .dc-icon{display:inline-flex;margin-right:auto;padding-right:4px}
-.dc-cell[data-provenance=refused]{color:#a40e26;background:repeating-linear-gradient(135deg,#ffebe9 0 6px,#fff5f4 6px 12px);font-style:italic;justify-content:center}
-.dc-cell[data-provenance=file-cache]{color:#6e7781;font-style:italic}
-.dc-cell[data-provenance=stale]{color:#9a6700;background:#fff8c5}
-.dc-head{position:absolute;box-sizing:border-box;background:#f6f8fa;color:#57606a;border-right:1px solid #d0d7de;border-bottom:1px solid #d0d7de;display:flex;align-items:center;justify-content:center;font-size:12px}
-.dc-head.dc-on{background:#dbe9f9;color:#0550ae;font-weight:600}
-.dc-corner{position:absolute;left:0;top:0;background:#eaeef2;border-right:1px solid #d0d7de;border-bottom:1px solid #d0d7de;box-sizing:border-box}
-.dc-selection{position:absolute;box-sizing:border-box;background:#1a7f3722;border:1px solid #1a7f37;pointer-events:none}
-.dc-active{position:absolute;box-sizing:border-box;border:2px solid #1a7f37;pointer-events:none}
-.dc-dropdown{position:absolute;box-sizing:border-box;width:17px;border:1px solid #8c959f;background:#f6f8fa;font-size:9px;line-height:1;padding:0;cursor:pointer;z-index:2;color:#24292f}
-.dc-list{list-style:none;margin:0;padding:0;position:absolute;box-sizing:border-box;min-width:80px;max-height:160px;overflow:auto;border:1px solid #8c959f;background:#fff;z-index:3;box-shadow:0 2px 6px #0003}
-.dc-list li{padding:1px 6px;white-space:nowrap;cursor:default}
-.dc-list li:hover{background:#dbe9f9}
-.dc-prompt{position:absolute;box-sizing:border-box;max-width:220px;border:1px solid #8c959f;background:#ffffe1;padding:3px 6px;font-size:12px;z-index:2;pointer-events:none;white-space:normal}
-.dc-prompt b{display:block}
-.dc-cell-editor{position:absolute;box-sizing:border-box;border:2px solid #1a7f37;font:13px system-ui,"Segoe UI",sans-serif;padding:0 3px;margin:0;outline:none;background:#fff;z-index:2;min-width:120px}
-"#;
 
 /// The grid skin.
 #[derive(Clone, Copy, Debug, Default)]
@@ -664,7 +637,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                             data-formula=if shown.formula { "true" } else { "false" }
                             data-icon=icon_name
                             data-bar=bar
-                            style=style
+                            use:css=style
                         >
                             {icon.map(|(_, markup)| view! { <span class="dc-icon" inner_html=markup></span> })}
                             {text}
@@ -685,7 +658,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|header| {
                     let class = if cols.contains(&header.col) { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class data-dnacalc="column-header" data-column=header.label.clone() style=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    view! { <div class=class data-dnacalc="column-header" data-column=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
             let rows = plan
@@ -693,7 +666,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 .iter()
                 .map(|header| {
                     let class = if rows.contains(&header.row) { "dc-head dc-on" } else { "dc-head" };
-                    view! { <div class=class data-dnacalc="row-header" data-row=header.label.clone() style=rect_style(&header.rect)>{header.label.clone()}</div> }
+                    view! { <div class=class data-dnacalc="row-header" data-row=header.label.clone() use:css=rect_style(&header.rect)>{header.label.clone()}</div> }
                 })
                 .collect_view();
             (columns, rows)
@@ -727,12 +700,78 @@ fn grid_view(controller: Controller) -> impl IntoView {
             px((y1 - y0).max(0.0))
         );
         Some(
-            view! { <div class="dc-selection" data-dnacalc="selection" data-area=label style=style></div> },
+            view! { <div class="dc-selection" data-dnacalc="selection" data-area=label use:css=style></div> },
         )
     };
     let active_view = move || {
         let rect = active_rect();
-        view! { <div class="dc-active" data-dnacalc="active-cell" style=rect_style(&rect)></div> }
+        view! { <div class="dc-active" data-dnacalc="active-cell" use:css=rect_style(&rect)></div> }
+    };
+    // The sheet's charts (dc-6yw), as the workbook holds their series now: read again after every
+    // change, drawn where their frames are, the ones in view only.
+    let charts = Memo::new(move |_| {
+        let sheet = controller.sheet.get()?;
+        Some(controller.with(|book| book.host().charts(sheet).0))
+    });
+    let charts_view = move || {
+        let m = metrics.get();
+        let v = viewport.get();
+        let z = zoom.get();
+        let corner = |c: &calc_host::ChartCorner| {
+            let r = cell_rect(&m, &v, c.cell.row(), c.cell.column());
+            (r.x + c.dx * z, r.y + c.dy * z)
+        };
+        charts
+            .get()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|view| {
+                let (x0, y0, x1, y1) = match view.place {
+                    calc_host::ChartPlace::Cells { from, to } => {
+                        let ((a, b), (c, d)) = (corner(&from), corner(&to));
+                        (a, b, c, d)
+                    }
+                    calc_host::ChartPlace::Sized {
+                        from,
+                        width,
+                        height,
+                    } => {
+                        let (a, b) = corner(&from);
+                        (a, b, a + width * z, b + height * z)
+                    }
+                    calc_host::ChartPlace::Absolute {
+                        x,
+                        y,
+                        width,
+                        height,
+                    } => {
+                        let origin = cell_rect(&m, &v, 1, 1);
+                        let (a, b) = (origin.x + x * z, origin.y + y * z);
+                        (a, b, a + width * z, b + height * z)
+                    }
+                };
+                if x1 <= x0 || y1 <= y0 || x1 < 0.0 || y1 < 0.0 || x0 > v.width || y0 > v.height {
+                    return None;
+                }
+                let markup = chart::chart_svg(&view, (x1 - x0) / z, (y1 - y0) / z);
+                let kind = view
+                    .plots
+                    .first()
+                    .map(|plot| format!("{:?}", plot.kind).to_lowercase())
+                    .unwrap_or_default();
+                let style = format!(
+                    "left:{};top:{};width:{};height:{}",
+                    px(x0),
+                    px(y0),
+                    px(x1 - x0),
+                    px(y1 - y0)
+                );
+                Some(view! {
+                    <div class="dc-chart" data-dnacalc="chart" data-chart=view.name.clone()
+                        data-kind=kind use:css=style inner_html=markup></div>
+                })
+            })
+            .collect_view()
     };
     // The active cell's data validation (dc-6yw): a list's drop-down button at its right edge, the
     // list it opens (Alt+Down too, as in Excel), and the rule's input message below the cell.
@@ -762,7 +801,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 class="dc-dropdown"
                 data-dnacalc="dropdown"
                 title="Pick from the list"
-                style=style
+                use:css=style
                 on:mousedown=move |ev| ev.stop_propagation()
                 on:click=move |_| list_open.update(|open| *open = !*open)
             >"▼"</button>
@@ -793,7 +832,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
             })
             .collect_view();
         Some(view! {
-            <ul class="dc-list" data-dnacalc="dropdown-list" style=style
+            <ul class="dc-list" data-dnacalc="dropdown-list" use:css=style
                 on:mousedown=move |ev| ev.stop_propagation()>{rows}</ul>
         })
     };
@@ -809,7 +848,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
             px(rect.y + rect.h + 4.0)
         );
         Some(view! {
-            <div class="dc-prompt" data-dnacalc="validation-prompt" style=style>
+            <div class="dc-prompt" data-dnacalc="validation-prompt" use:css=style>
                 {(!title.is_empty()).then(|| view! { <b>{title}</b> })}
                 {text}
             </div>
@@ -826,7 +865,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                     type="text"
                     spellcheck="false"
                     autocomplete="off"
-                    style=rect_style(&rect)
+                    use:css=rect_style(&rect)
                     prop:value=move || controller.edit_text.get()
                     on:input=move |ev| controller.edit_text.set(event_target_value(&ev))
                     on:keydown=on_editor_key
@@ -834,22 +873,15 @@ fn grid_view(controller: Controller) -> impl IntoView {
             }
         })
     };
-    let space_style = move || {
+    let space_width = move || {
         let m = metrics.get();
         let extent = grid_extent.get();
-        format!(
-            "position:relative;width:{};height:{}",
-            px(m.header_w + m.col_start(extent.cols) + m.width(extent.cols)),
-            px(m.header_h + m.row_start(extent.rows) + m.height(extent.rows))
-        )
+        px(m.header_w + m.col_start(extent.cols) + m.width(extent.cols))
     };
-    let layer_style = move || {
-        let v = viewport.get();
-        format!(
-            "width:{};height:{};background-color:#fff",
-            px(v.width),
-            px(v.height)
-        )
+    let space_height = move || {
+        let m = metrics.get();
+        let extent = grid_extent.get();
+        px(m.header_h + m.row_start(extent.rows) + m.height(extent.rows))
     };
     // The gridlines: one line after each visible column and row.
     let gridlines = move || {
@@ -865,7 +897,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         px(header.rect.x + header.rect.w - 1.0),
                         px(v.height)
                     );
-                    view! { <div class="dc-line" style=style></div> }
+                    view! { <div class="dc-line" use:css=style></div> }
                 })
                 .collect_view();
             let rows = plan
@@ -878,20 +910,15 @@ fn grid_view(controller: Controller) -> impl IntoView {
                         px(header.rect.y + header.rect.h - 1.0),
                         px(v.width)
                     );
-                    view! { <div class="dc-line" style=style></div> }
+                    view! { <div class="dc-line" use:css=style></div> }
                 })
                 .collect_view();
             (columns, rows)
         })
     };
-    let corner_style = move || {
-        let m = metrics.get();
-        format!("width:{};height:{}", px(m.header_w), px(m.header_h))
-    };
 
     view! {
-        <div class="dc-grid-skin" data-skin="grid" style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0">
-            <style>{GRID_CSS}</style>
+        <div class="dc-grid-skin" data-skin="grid">
             <div
                 class="dc-grid"
                 data-dnacalc="grid"
@@ -904,10 +931,11 @@ fn grid_view(controller: Controller) -> impl IntoView {
                 on:mousemove=on_mousemove
                 on:mouseup=move |_| dragging.set_value(false)
             >
-                <div style=space_style>
-                    <div class="dc-layer" node_ref=layer style=layer_style>
+                <div class="dc-space" style:width=space_width style:height=space_height>
+                    <div class="dc-layer" node_ref=layer style:width=move || px(viewport.get().width) style:height=move || px(viewport.get().height)>
                         {gridlines}
                         {cells_view}
+                        {charts_view}
                         {selection_view}
                         {active_view}
                         {dropdown_view}
@@ -917,7 +945,7 @@ fn grid_view(controller: Controller) -> impl IntoView {
                             let (columns, rows) = headers_view();
                             view! { {columns}{rows} }
                         }}
-                        <div class="dc-corner" style=corner_style></div>
+                        <div class="dc-corner" style:width=move || px(metrics.get().header_w) style:height=move || px(metrics.get().header_h)></div>
                         {editor_view}
                     </div>
                 </div>

@@ -1,0 +1,21 @@
+/* formula-field.css: moved from apps/dna-onecalc/src/formula_field.rs (FORMULA_FIELD_CSS), dc-xib. */
+.oc-editor{position:relative;font:15px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace;border:1px solid var(--dna-ink-3);border-radius:6px;background:var(--dna-paper);min-height:3em}
+.oc-editor pre,.oc-editor textarea{margin:0;padding:8px 10px;white-space:pre-wrap;word-break:break-all;font:inherit;letter-spacing:normal;tab-size:4;box-sizing:border-box;width:100%;min-height:3em;border:0}
+.oc-editor pre{position:absolute;inset:0;pointer-events:none;color:var(--dna-ink);overflow:hidden}
+.oc-editor textarea{position:relative;display:block;resize:vertical;background:transparent;color:transparent;caret-color:var(--dna-ink);outline:none}
+.oc-editor:focus-within{border-color:var(--dna-accent);box-shadow:0 0 0 2px var(--dna-accent-soft)}
+.oc-r-function{color:var(--dna-accent-ink);font-weight:600}.oc-r-name{color:var(--dna-accent-ink)}.oc-r-number{color:var(--dna-value-ink)}
+.oc-r-text{color:var(--dna-prov-const)}.oc-r-error{color:var(--dna-red-ink);font-weight:600}.oc-r-operator{color:var(--dna-prov-ext)}
+.oc-r-delimiter{color:var(--dna-ink-3)}.oc-r-unknown{color:var(--dna-red-ink);text-decoration:underline wavy}
+.oc-diag{text-decoration:underline wavy var(--dna-red-ink);text-decoration-skip-ink:none}
+.oc-bracket{background:var(--dna-accent-soft);outline:1px solid var(--dna-accent);border-radius:2px}
+.oc-pop{list-style:none;margin:4px 0 0;padding:2px;border:1px solid var(--dna-ink-3);border-radius:6px;max-height:220px;overflow:auto;background:var(--dna-paper);font:13px ui-monospace,Consolas,monospace;box-shadow:0 4px 12px #0002}
+.oc-pop li{padding:2px 8px;cursor:pointer;display:flex;justify-content:space-between;gap:12px}
+.oc-pop li.oc-sel{background:var(--dna-accent-ink);color:var(--dna-paper)}
+.oc-pop li small{opacity:.75}
+.oc-sig{margin:6px 0;font:13px ui-monospace,Consolas,monospace;background:var(--dna-paper-2);border:1px solid var(--dna-line);border-radius:6px;padding:4px 8px}
+.oc-sig strong{color:var(--dna-accent);text-decoration:underline}
+.oc-help{border:1px solid var(--dna-line);border-radius:6px;padding:8px 10px;margin:8px 0;background:var(--dna-paper-2);font-size:13px}
+.oc-help h3{margin:0 0 4px;font:600 14px ui-monospace,Consolas,monospace}
+.oc-help code{font-size:13px}
+.oc-help p{margin:4px 0}

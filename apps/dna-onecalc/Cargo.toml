@@ -29,7 +29,7 @@ wasm-bindgen = "=0.2.117"
 # The browser's clock for NOW and TODAY (src/surface.rs). 0.3.94 exactly, the release built on
 # that wasm-bindgen.
 js-sys = "=0.3.94"
-web-sys = { version = "=0.3.94", features = ["HtmlElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Window"] }
+web-sys = { version = "=0.3.94", features = ["HtmlElement", "HtmlTextAreaElement", "KeyboardEvent", "console", "Document", "Element", "Storage", "Window"] }
 
 # The dependency case reads cargo metadata's JSON. Test-only, native-only.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

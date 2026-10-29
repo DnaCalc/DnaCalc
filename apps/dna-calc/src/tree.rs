@@ -28,6 +28,7 @@
 use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
+use crate::style::css;
 use calc_host::value::{CellKey, SheetId};
 use leptos::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -36,24 +37,6 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const ROW_PAGE: usize = 50;
 /// The most cells one row of the outline lists.
 pub const ROW_CELLS: usize = 30;
-
-pub const TREE_CSS: &str = r#"
-.dc-tree{overflow:auto;flex:1 1 auto;padding:8px 12px;font:13px system-ui,"Segoe UI",sans-serif;outline:none}
-.dc-tree ul{list-style:none;margin:0;padding:0}
-.dc-tree li{display:flex;gap:8px;align-items:baseline;padding:2px 6px;border-radius:4px;white-space:nowrap;cursor:default}
-.dc-tree li[data-focused=true]{background:#ddf4ff;box-shadow:inset 0 0 0 1px #54aeff}
-.dc-tree .dc-twisty{width:14px;border:0;background:none;padding:0;font:12px monospace;cursor:pointer;color:#57606a}
-.dc-tree .dc-label{font-weight:600}
-.dc-tree li[data-kind=cell] .dc-label{font:600 12px ui-monospace,Consolas,monospace;min-width:56px}
-.dc-tree .dc-input{font:12px ui-monospace,Consolas,monospace;color:#57606a;max-width:420px;overflow:hidden;text-overflow:ellipsis}
-.dc-tree .dc-count{color:#57606a;font-size:12px}
-.dc-tree .dc-tvalue{font:600 12px ui-monospace,Consolas,monospace}
-.dc-tree .dc-chip{display:inline-block;font-size:11px;border-radius:10px;padding:0 7px;background:#eaeef2;color:#424a53}
-.dc-tree .dc-chip[data-provenance=calculated]{background:#dafbe1;color:#116329}
-.dc-tree .dc-chip[data-provenance=refused]{background:#ffebe9;color:#a40e26}
-.dc-tree .dc-chip[data-provenance=stale]{background:#fff8c5;color:#9a6700}
-.dc-tree li[data-kind=more] button{font-size:12px}
-"#;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TreeSkin;
@@ -482,7 +465,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 };
                 view! {
                     <li data-dnacalc="tree-row" data-kind=kind data-key=data_key data-folded=is_folded.to_string()
-                        data-focused=move || focused().to_string() style=indent on:click=on_click>
+                        data-focused=move || focused().to_string() use:css=indent on:click=on_click>
                         <button type="button" class="dc-twisty" data-dnacalc="tree-toggle" on:click=toggle>
                             {if is_folded { "+" } else { "-" }}
                         </button>
@@ -494,7 +477,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
             }
             TreeRow::Name { text, .. } => view! {
                 <li data-dnacalc="tree-row" data-kind="name" data-focused=move || focused().to_string()
-                    style=indent on:click=on_click>
+                    use:css=indent on:click=on_click>
                     <span class="dc-input">{text}</span>
                 </li>
             }
@@ -538,7 +521,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 view! {
                     <li data-dnacalc="tree-row" data-kind="cell" data-sheet=sheet_name data-cell=data_cell
                         data-provenance=provenance.name() data-focused=move || focused().to_string()
-                        style=indent on:click=on_click>
+                        use:css=indent on:click=on_click>
                         <span class="dc-label">{address}</span>
                         <span class="dc-input" data-dnacalc="tree-input">{input}</span>
                         <span class="dc-tvalue" data-dnacalc="tree-value">{value}</span>
@@ -549,7 +532,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
                 .into_any()
             }
             TreeRow::MoreRows { hidden, .. } => view! {
-                <li data-dnacalc="tree-row" data-kind="more" data-focused=move || focused().to_string() style=indent>
+                <li data-dnacalc="tree-row" data-kind="more" data-focused=move || focused().to_string() use:css=indent>
                     <button type="button" data-dnacalc="tree-more" on:click=on_click>
                         {format!("Show more rows ({hidden} not shown)")}
                     </button>
@@ -557,7 +540,7 @@ fn tree_view(controller: Controller) -> impl IntoView {
             }
             .into_any(),
             TreeRow::MoreCells { hidden, .. } => view! {
-                <li data-dnacalc="tree-row" data-kind="more-cells" data-focused=move || focused().to_string() style=indent>
+                <li data-dnacalc="tree-row" data-kind="more-cells" data-focused=move || focused().to_string() use:css=indent>
                     <span class="dc-count">{format!("{hidden} more cells in this row (see the grid)")}</span>
                 </li>
             }
@@ -567,7 +550,6 @@ fn tree_view(controller: Controller) -> impl IntoView {
 
     view! {
         <section class="dc-tree" data-skin="tree" data-dnacalc="tree" tabindex="0" on:keydown=on_key>
-            <style>{TREE_CSS}</style>
             <ul>{move || rows.get().into_iter().map(line).collect_view()}</ul>
         </section>
     }

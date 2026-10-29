@@ -25,6 +25,7 @@
 //! give a save any revision of its model together with the records the save rewrites from.
 
 pub(crate) mod address;
+mod chart;
 pub(crate) mod conditional;
 mod error;
 pub(crate) mod geometry;
@@ -40,6 +41,9 @@ pub(crate) mod validation;
 
 pub use conditional::{
     ColorScale, ConditionalFormat, ConditionalRule, DataBar, IconSet, Threshold,
+};
+pub use chart::{
+    Chart, ChartAnchor, ChartData, ChartPlot, ChartSeries, DrawingPoint, SheetCharts,
 };
 pub use error::{CellError, LoadError};
 pub use validation::Validation;
@@ -107,6 +111,7 @@ pub struct LoadedSheet {
     conditional_formats: Arc<[ConditionalFormat]>,
     macro_sheet: bool,
     validations: Arc<[Validation]>,
+    charts: Arc<SheetCharts>,
 }
 
 impl LoadedSheet {
@@ -120,6 +125,11 @@ impl LoadedSheet {
     /// The sheet's data validations as the file states them, in document order (dc-6yw).
     pub fn validations(&self) -> &[Validation] {
         &self.validations
+    }
+
+    /// The sheet's charts as the file states them, and how many could not be read (dc-6yw).
+    pub fn charts(&self) -> &SheetCharts {
+        &self.charts
     }
 
     /// The sheet's conditional formats as the file states them, in document order (dc-6yw).
@@ -988,6 +998,7 @@ pub fn load(
                     conditional_formats: loaded.conditional_formats.into(),
                     macro_sheet: declared.macro_sheet,
                     validations: loaded.validations.into(),
+                    charts: Arc::new(chart::read_charts(package, &declared.part)),
                 });
             }
             Err(error) => {

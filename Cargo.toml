@@ -13,6 +13,7 @@ members = [
     "crates/calc-host",
     "apps/dna-onecalc",
     "apps/dna-calc",
+    "apps/dna-strand",
     "platform/calc-platform-desktop",
     "platform/calc-oracle-excel",
     "tools/calc-verdict",

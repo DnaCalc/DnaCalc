@@ -28,31 +28,6 @@ use calc_fml::syntax::TextSpan;
 use calc_func::{FunctionCallTarget, help};
 use leptos::prelude::*;
 
-/// The field's style sheet: the editor, the highlighted runs, the popup, the signature line and
-/// the help panel. An owner carries it in its view once.
-pub const FORMULA_FIELD_CSS: &str = r#"
-.oc-editor{position:relative;font:15px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace;border:1px solid #8c959f;border-radius:6px;background:#fff;min-height:3em}
-.oc-editor pre,.oc-editor textarea{margin:0;padding:8px 10px;white-space:pre-wrap;word-break:break-all;font:inherit;letter-spacing:normal;tab-size:4;box-sizing:border-box;width:100%;min-height:3em;border:0}
-.oc-editor pre{position:absolute;inset:0;pointer-events:none;color:#1b1f24;overflow:hidden}
-.oc-editor textarea{position:relative;display:block;resize:vertical;background:transparent;color:transparent;caret-color:#1b1f24;outline:none}
-.oc-editor:focus-within{border-color:#0969da;box-shadow:0 0 0 2px #0969da33}
-.oc-r-function{color:#8250df;font-weight:600}.oc-r-name{color:#0550ae}.oc-r-number{color:#116329}
-.oc-r-text{color:#0a3069}.oc-r-error{color:#cf222e;font-weight:600}.oc-r-operator{color:#953800}
-.oc-r-delimiter{color:#57606a}.oc-r-unknown{color:#cf222e;text-decoration:underline wavy}
-.oc-diag{text-decoration:underline wavy #cf222e;text-decoration-skip-ink:none}
-.oc-bracket{background:#ddf4ff;outline:1px solid #54aeff;border-radius:2px}
-.oc-pop{list-style:none;margin:4px 0 0;padding:2px;border:1px solid #8c959f;border-radius:6px;max-height:220px;overflow:auto;background:#fff;font:13px ui-monospace,Consolas,monospace;box-shadow:0 4px 12px #0002}
-.oc-pop li{padding:2px 8px;cursor:pointer;display:flex;justify-content:space-between;gap:12px}
-.oc-pop li.oc-sel{background:#0969da;color:#fff}
-.oc-pop li small{opacity:.75}
-.oc-sig{margin:6px 0;font:13px ui-monospace,Consolas,monospace;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px}
-.oc-sig strong{color:#0969da;text-decoration:underline}
-.oc-help{border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;margin:8px 0;background:#f6f8fa;font-size:13px}
-.oc-help h3{margin:0 0 4px;font:600 14px ui-monospace,Consolas,monospace}
-.oc-help code{font-size:13px}
-.oc-help p{margin:4px 0}
-"#;
-
 /// The formula field's state over its owner's text signal. Every part is a signal, a memo or a node
 /// reference, so the whole is `Copy` and its views can be placed anywhere in the owner's view.
 #[derive(Clone, Copy)]

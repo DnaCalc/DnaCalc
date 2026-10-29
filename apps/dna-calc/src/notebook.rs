@@ -23,22 +23,6 @@ use leptos::prelude::*;
 /// The blocks one page shows.
 pub const PAGE: usize = 40;
 
-pub const NOTEBOOK_CSS: &str = r#"
-.dc-notebook{overflow:auto;flex:1 1 auto;padding:12px 16px;background:#f6f8fa;font:13px system-ui,"Segoe UI",sans-serif}
-.dc-nb-pager{display:flex;gap:8px;align-items:center;margin:0 0 10px}
-.dc-block{background:#fff;border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;margin:0 0 8px;max-width:900px}
-.dc-block header{display:flex;gap:10px;align-items:baseline;color:#57606a;font-size:12px}
-.dc-block header strong{color:#1b1f24;font:600 13px ui-monospace,Consolas,monospace}
-.dc-block input{width:100%;box-sizing:border-box;font:13px ui-monospace,Consolas,monospace;border:1px solid #d0d7de;border-radius:4px;padding:3px 6px;margin:6px 0}
-.dc-block .dc-value{font:600 14px ui-monospace,Consolas,monospace}
-.dc-chip{display:inline-block;font-size:11px;border-radius:10px;padding:1px 8px;background:#eaeef2;color:#424a53}
-.dc-chip[data-provenance=calculated]{background:#dafbe1;color:#116329}
-.dc-chip[data-provenance=refused]{background:#ffebe9;color:#a40e26}
-.dc-chip[data-provenance=file-cache]{background:#eaeef2;color:#57606a}
-.dc-chip[data-provenance=stale]{background:#fff8c5;color:#9a6700}
-.dc-why{color:#57606a;font-size:12px;margin:4px 0 0}
-"#;
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NotebookSkin;
 
@@ -169,7 +153,6 @@ fn notebook_view(controller: Controller) -> impl IntoView {
 
     view! {
         <section class="dc-notebook" data-skin="notebook">
-            <style>{NOTEBOOK_CSS}</style>
             <div class="dc-nb-pager">
                 <button type="button" data-dnacalc="notebook-previous"
                     on:click=move |_| page.update(|p| *p = p.saturating_sub(1))>"Previous"</button>

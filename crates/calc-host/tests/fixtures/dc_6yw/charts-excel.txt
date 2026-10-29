@@ -1,0 +1,24 @@
+chart	1	51	Column	G1	M15
+series	1	1	North	12;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+series	1	2	South	8;11;14;10;19;13	Jan;Feb;Mar;Apr;May;Jun
+chart	2	58	Bar	M1	S15
+series	2	1	North	12;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+series	2	2	South	8;11;14;10;19;13	Jan;Feb;Mar;Apr;May;Jun
+chart	3	4	Line	G16	M29
+series	3	1	Total	20;29;23;32;34;40	Jan;Feb;Mar;Apr;May;Jun
+chart	4	1	Area	M16	S29
+series	4	1	North	12;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+series	4	2	South	8;11;14;10;19;13	Jan;Feb;Mar;Apr;May;Jun
+chart	5	5	Pie	G31	M44
+series	5	1	North	12;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+chart	6	-4169	Scatter	M31	S44
+series	6	1	South	8;11;14;10;19;13	12;18;9;22;15;27
+after	1	1	40;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+after	1	2	8;11;14;10;19;13	Jan;Feb;Mar;Apr;May;Jun
+after	2	1	40;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+after	2	2	8;11;14;10;19;13	Jan;Feb;Mar;Apr;May;Jun
+after	3	1	48;29;23;32;34;40	Jan;Feb;Mar;Apr;May;Jun
+after	4	1	40;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+after	4	2	8;11;14;10;19;13	Jan;Feb;Mar;Apr;May;Jun
+after	5	1	40;18;9;22;15;27	Jan;Feb;Mar;Apr;May;Jun
+after	6	1	8;11;14;10;19;13	40;18;9;22;15;27

@@ -33,22 +33,6 @@ use std::collections::BTreeSet;
 /// The rows one page shows.
 pub const PAGE: usize = 100;
 
-pub const LEDGER_CSS: &str = r#"
-.dc-ledger{overflow:auto;flex:1 1 auto;padding:10px 14px;font:13px system-ui,"Segoe UI",sans-serif}
-.dc-ledger .dc-cleave{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
-.dc-ledger table{border-collapse:collapse;min-width:900px}
-.dc-ledger th{position:sticky;top:0;background:#f6f8fa;text-align:left;font-weight:600;border-bottom:1px solid #d0d7de;padding:3px 8px}
-.dc-ledger td{border-bottom:1px solid #eaeef2;padding:3px 8px;white-space:nowrap;max-width:420px;overflow:hidden;text-overflow:ellipsis}
-.dc-ledger td.dc-mono{font:12px ui-monospace,Consolas,monospace}
-.dc-ledger tr[data-dnacalc=ledger-row]{cursor:pointer}
-.dc-ledger tr[data-active=true]{background:#ddf4ff}
-.dc-ledger tr.dc-group td{background:#f6f8fa;font-weight:600;color:#424a53}
-.dc-ledger .dc-chip{display:inline-block;font-size:11px;border-radius:10px;padding:0 7px;background:#eaeef2;color:#424a53}
-.dc-ledger .dc-chip[data-provenance=calculated]{background:#dafbe1;color:#116329}
-.dc-ledger .dc-chip[data-provenance=refused]{background:#ffebe9;color:#a40e26}
-.dc-ledger .dc-chip[data-provenance=stale]{background:#fff8c5;color:#9a6700}
-"#;
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LedgerSkin;
 
@@ -385,7 +369,6 @@ fn ledger_view(controller: Controller) -> impl IntoView {
 
     view! {
         <section class="dc-ledger" data-skin="ledger" data-dnacalc="ledger">
-            <style>{LEDGER_CSS}</style>
             <div class="dc-cleave">
                 <select data-dnacalc="ledger-scope" on:change=move |ev| this_sheet.set(event_target_value(&ev) == "sheet")>
                     <option value="workbook">"Workbook"</option>

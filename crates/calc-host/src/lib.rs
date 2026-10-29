@@ -53,6 +53,7 @@
 //! calc-doc, calc-doc-model and calc-engine themselves are not, so calc-host offers its callers
 //! no way around these calls to change the authored revision or the engine state.
 
+pub mod chart;
 mod command;
 pub mod conditional;
 mod copy;
@@ -65,6 +66,7 @@ mod session;
 mod state;
 pub mod validation;
 
+pub use chart::{ChartCorner, ChartKind, ChartPlace, ChartView, PlotView, SeriesView};
 pub use command::{CellEdit, CommandError, CommandReceipt, HostCommand, dispatch};
 pub use conditional::{BarLook, CellLook, ConditionalFormats, IconLook, LookColor};
 pub use copy::{COPY_LIMIT, CopyRefusal};
