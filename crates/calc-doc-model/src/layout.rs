@@ -218,9 +218,9 @@ impl LocatorName {
         &self.0
     }
 
-    /// Whether `name` is this name, compared ignoring ASCII case, as defined names compare.
+    /// Whether `name` is this name, compared as defined names compare (dc-cpr).
     pub fn is(&self, name: &str) -> bool {
-        self.0.eq_ignore_ascii_case(name)
+        calc_value::workbook_names_equal(&self.0, name)
     }
 }
 

@@ -379,10 +379,12 @@ send_sync_types![
 /// calc-value's source files by module name, read at compile time so the same checks run in the
 /// browsers: the crate root and one file for each module it declares. The case checks that this
 /// set equals the modules the root declares and that no other file declares a module.
-const CALC_VALUE_SOURCES: [(&str, &str); 5] = [
+const CALC_VALUE_SOURCES: [(&str, &str); 7] = [
     ("lib", include_str!("../../calc-value/src/lib.rs")),
+    ("case_folding", include_str!("../../calc-value/src/case_folding.rs")),
     ("grid", include_str!("../../calc-value/src/grid.rs")),
     ("id", include_str!("../../calc-value/src/id.rs")),
+    ("name_case", include_str!("../../calc-value/src/name_case.rs")),
     ("numeric", include_str!("../../calc-value/src/numeric.rs")),
     ("value", include_str!("../../calc-value/src/value.rs")),
 ];

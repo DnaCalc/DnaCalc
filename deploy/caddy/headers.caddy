@@ -1,0 +1,26 @@
+# The response headers of every DNA Calc site (dc-ysl.4), imported by each site file
+# (`import dnacalc_headers`). `cargo xtask site serve` and `site smoke` read this same file and send
+# what it sets, so the local smoke runs under the live headers; they understand only the lines
+# below (a `header` block, `@name path ...` matchers with a trailing `*` for a prefix, and
+# `header @name Name "value"` lines). Keep it to those forms.
+#
+# - Scripts are strict: only the site's own files, plus 'wasm-unsafe-eval' for compiling the
+#   wasm module. Styles allow 'unsafe-inline' for now (the apps' <style> elements and style=
+#   attributes); dc-xib moves them into a stylesheet, after which it can go.
+# - connect-src 'self': a workbook opened from the file input cannot be sent anywhere.
+# - No COOP/COEP: nothing needs cross-origin isolation (no SharedArrayBuffer, no wasm threads).
+# - No HSTS until 30 days after a clean apex cutover (docs/plan/PUBLISHING_PLAN.md).
+(dnacalc_headers) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Cross-Origin-Resource-Policy "same-origin"
+		-Server
+	}
+	@pages path / /index.html /build.json /LICENSE /THIRD-PARTY-NOTICES.txt
+	header @pages Cache-Control "no-cache"
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	encode zstd gzip
+}
