@@ -104,7 +104,10 @@ second copy is really needed, say why in the commit message.
 ## Git: master only
 
 - The loop is `git pull --no-rebase`, work, commit, `git push`.
-- Never use branches, worktrees, rebase, force push or `reset --hard`.
+- Never use branches, worktrees, rebase, force push or `reset --hard`. One exception (owner,
+  2026-10-30): the orchestrator may force-push once per repository for the licence history
+  cleanup under bead dc-96l.7, after a backup and with the lanes paused. No lane agent
+  force-pushes.
 - If a push is rejected, pull with `--no-rebase`, re-run the tests and push again.
 - Never run two cargo invocations in one target directory at the same time.
 - Never commit `target/`, Excel lock files, secrets or bulk corpus files.
