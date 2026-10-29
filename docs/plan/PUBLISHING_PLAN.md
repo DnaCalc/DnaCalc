@@ -44,6 +44,48 @@ the cutover (decision 4), the publish transport (decision 8) and dc-oy6l (decisi
 Sections 1 to 4 below are the research as written on 2026-10-27; where the ruling changes them,
 a note says so.
 
+## 0a. The host as surveyed on 2026-10-29, and the route chosen
+
+Owner update, 2026-10-29: the work prepares **and** publishes to the host reached by `ssh
+dna-koderbot`; the existing DNA Calc endpoint may be overwritten; the owner approved publishing DNA
+OneCalc and DNA Calc once the checks pass. Only the dnacalc.com, www.dnacalc.com and
+onecalc/dnaonecalc site blocks change; no other site, user, sudoers entry, ssh setting, key or
+firewall rule.
+
+**Read-only survey** (`ssh dna-koderbot`, 2026-10-29):
+
+| What | Found |
+|---|---|
+| OS | Ubuntu 25.10, kernel 6.17.0-40 |
+| ssh user | `koderbot` (sudo without a password, lxd) |
+| Caddy | 2.6.2, active; `/etc/caddy/Caddyfile` (102 lines) with backups beside it |
+| Site blocks | `koderbot.dnakode.com` (reverse proxies, not touched); `dnacalc.com` (root `/srv/dnacalc/landing`, `/dnatreecalc/*` from `/srv/dnacalc/dnatreecalc`); `www.dnacalc.com` (redirect to the apex); `dnaonecalc.dnacalc.com` (root `/srv/dnacalc/dnaonecalc`, the 2026-09-11 OneCalc preview, an 8.2 MB debug wasm); `dnatreecalc.dnacalc.com` |
+| Headers now | nosniff, no-referrer, a Permissions-Policy; COOP/CORP on the subdomains; no CSP |
+| Content | `/srv/dnacalc/{landing,dnaonecalc,dnatreecalc}`, owned by `caddy` |
+| DNS (as the host resolves it) | dnacalc.com, www.dnacalc.com, dnaonecalc.dnacalc.com → 92.222.230.210; **onecalc.dnacalc.com has no record** |
+| Org clones folder | `~/projects` (`~/projects/DnaCalc` among others) |
+| Toolchains | rustup in `~/.cargo` (not on the non-interactive PATH), rustc 1.95.0 with wasm32-unknown-unknown; no wasm-bindgen CLI, no trunk; git, python3, curl |
+| Disk | 339 GB, 274 GB free |
+
+**Route: build here, upload the tar, switch on the host.** The workspace pins Rust 1.94.1 and
+wasm-bindgen 0.2.117; the host has 1.95.0 and no wasm-bindgen CLI, and no browsers. Building
+on the host would mean installing toolchains there and losing the two-browser smoke of the exact
+bytes before the switch. `cargo xtask site pack` builds here; `site smoke` runs both apps' smoke
+suites against the packed release under the site's own headers; `site publish` pipes the tar to
+the receiver (`deploy/host/dnacalc-site-receive`, installed as `~/bin/dnacalc-site-receive`), which
+checks every file against build.json and switches `current` atomically, keeping `previous`.
+`build.json` carries the commit either way.
+
+**Host names.** DNA Calc at dnacalc.com (www redirects to it). DNA OneCalc at
+dnaonecalc.dnacalc.com until onecalc.dnacalc.com has a DNS record (an owner step; it cannot be set
+from the host), then at onecalc.dnacalc.com too.
+
+**Caddy change.** The three blocks are replaced by `import /etc/caddy/dnacalc/*.caddy`
+(`deploy/caddy/headers.caddy` and `sites.caddy`). The candidate Caddyfile (the live one with that
+replacement) was checked on the host with `caddy validate` on 2026-10-29: valid; its sites are
+dnatreecalc.dnacalc.com, dnaonecalc.dnacalc.com, koderbot.dnakode.com, www.dnacalc.com and
+dnacalc.com, as before. The exact steps, the backup and the rollback are in `deploy/OWNER_STEPS.md`.
+
 ## 1. What exists now
 
 ### 1.1 Hosting, as far as the files show
