@@ -2,12 +2,14 @@
 //! worksheet part of the same content: sheet properties, dimension, views with their panes and
 //! selections, format defaults, columns, the cells (values, formulas with their shared, array and
 //! data table forms, cell and value metadata), protection, the autoFilter's area, merged cells,
-//! conditional formats, data validations, hyperlinks, print settings, drawings and table parts.
+//! conditional formats, data validations (Excel 2010's too, whose formulas may name other sheets),
+//! phonetic properties, hyperlinks, print settings, page breaks, drawings and table parts; a macro
+//! sheet's the same way (dc-xuw).
 //!
-//! Not carried: an autoFilter's filter criteria and sort state, a sheet's custom views, row and
-//! column page breaks, ignored-error ranges, cell watches, phonetic properties, and the Excel 2010
-//! extensions (data bars' and icon sets' newer properties, data validations whose formulas name
-//! other sheets), which the binary form keeps in future record types.
+//! Not carried: an autoFilter's filter criteria and sort state, a sheet's custom views and data
+//! consolidation, ignored-error ranges, cell watches, and the Excel 2010 conditional-format
+//! extensions (data bars' and icon sets' newer properties), which the binary form keeps in future
+//! record types.
 
 use super::formula::{self, Expanded, Origin};
 use super::parts::{Shared, area_text, guid, rich_text, write_rich};
@@ -77,6 +79,7 @@ const BRT_LEGACY_DRAWING: u16 = 551;
 const BRT_COLOR: u16 = 564;
 const BRT_BEGIN_DVALS: u16 = 573;
 const BRT_LIST_PART: u16 = 661;
+const BRT_DVAL14: u16 = 1053;
 const BRT_FRT_GUID: u16 = 3072;
 
 const REVISION_NAMESPACE: &str = "http://schemas.microsoft.com/office/spreadsheetml/2014/revision";
@@ -113,6 +116,9 @@ struct Sections {
     validations: Vec<u8>,
     validation_count: u32,
     hyperlinks: Vec<u8>,
+    /// Excel 2010's data validations (BrtDVal14), whose formulas may name other sheets.
+    validations14: Vec<u8>,
+    validation14_count: u32,
     print_options: Vec<u8>,
     margins: Vec<u8>,
     page_setup: Vec<u8>,
@@ -369,6 +375,17 @@ fn write(data: &[u8], sheet: Option<u32>, shared: &Shared, macro_sheet: bool) ->
                 s.validations.extend_from_slice(&x.out);
                 s.validation_count += 1;
             }
+            BRT_DVAL14 => {
+                let mut x = fragment();
+                validation14(
+                    &mut c,
+                    &mut x,
+                    &w.shared.context(w.sheet),
+                    guid_pending.take(),
+                )?;
+                s.validations14.extend_from_slice(&x.out);
+                s.validation14_count += 1;
+            }
             BRT_HLINK => {
                 let mut x = fragment();
                 hyperlink(&mut c, &mut x, guid_pending.take())?;
@@ -543,6 +560,27 @@ fn write(data: &[u8], sheet: Option<u32>, shared: &Shared, macro_sheet: bool) ->
             x.empty("tablePart", &[("r:id", id.clone())]);
         }
         x.close("tableParts");
+    }
+    if s.validation14_count > 0 {
+        x.open("extLst", &[]);
+        x.open(
+            "ext",
+            &[
+                ("uri", "{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}".to_owned()),
+                ("xmlns:x14", X14_NAMESPACE.to_owned()),
+            ],
+        );
+        x.open(
+            "x14:dataValidations",
+            &[
+                ("count", s.validation14_count.to_string()),
+                ("xmlns:xm", EXCEL_NAMESPACE.to_owned()),
+            ],
+        );
+        x.out.extend_from_slice(&s.validations14);
+        x.close("x14:dataValidations");
+        x.close("ext");
+        x.close("extLst");
     }
     x.close(root);
     Ok(x.out)
@@ -1711,21 +1749,35 @@ const VALIDATION_TYPES: [&str; 8] = [
     "custom",
 ];
 
-/// A `<dataValidation>` from BrtDVal (2.4.356).
-fn validation(c: &mut Cursor<'_>, x: &mut Xml, context: &formula::Context<'_>) -> Read<()> {
-    let flags = c.u32("BrtDVal")?;
-    let (areas, sqref_text) = sqref(c, "BrtDVal")?;
-    let error_title = c.nullable_wide("DValStrings")?.map(|u| text(&u));
-    let error = c.nullable_wide("DValStrings")?.map(|u| text(&u));
-    let prompt_title = c.nullable_wide("DValStrings")?.map(|u| text(&u));
-    let prompt = c.nullable_wide("DValStrings")?.map(|u| text(&u));
-    let origin = areas
+const X14_NAMESPACE: &str = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
+const EXCEL_NAMESPACE: &str = "http://schemas.microsoft.com/office/excel/2006/main";
+
+/// The four strings of a data validation (DValStrings, 2.5.37).
+fn validation_strings(c: &mut Cursor<'_>) -> Read<[Option<String>; 4]> {
+    Ok([
+        c.nullable_wide("DValStrings")?.map(|u| text(&u)),
+        c.nullable_wide("DValStrings")?.map(|u| text(&u)),
+        c.nullable_wide("DValStrings")?.map(|u| text(&u)),
+        c.nullable_wide("DValStrings")?.map(|u| text(&u)),
+    ])
+}
+
+fn first_cell(areas: &[Area0]) -> Origin {
+    areas
         .first()
         .map(|a| Origin {
             row: a.first_row,
             column: a.first_column,
         })
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+/// A `<dataValidation>` from BrtDVal (2.4.356).
+fn validation(c: &mut Cursor<'_>, x: &mut Xml, context: &formula::Context<'_>) -> Read<()> {
+    let flags = c.u32("BrtDVal")?;
+    let (areas, sqref_text) = sqref(c, "BrtDVal")?;
+    let strings = validation_strings(c)?;
+    let origin = first_cell(&areas);
     let mut formulas = Vec::new();
     for _ in 0..2 {
         if c.remaining() == 0 {
@@ -1740,6 +1792,101 @@ fn validation(c: &mut Cursor<'_>, x: &mut Xml, context: &formula::Context<'_>) -
             |_| Malformed("a data validation formula holding a PtgExp".to_owned()),
         )?));
     }
+    let mut attributes = validation_attributes(flags, strings)?;
+    attributes.push(("sqref", sqref_text));
+    let present: Vec<(usize, &String)> = formulas
+        .iter()
+        .enumerate()
+        .filter_map(|(i, f)| f.as_ref().map(|f| (i, f)))
+        .collect();
+    if present.is_empty() {
+        x.empty("dataValidation", &attributes);
+        return Ok(());
+    }
+    x.open("dataValidation", &attributes);
+    for (i, text) in present {
+        x.element(if i == 0 { "formula1" } else { "formula2" }, &[], text);
+    }
+    x.close("dataValidation");
+    Ok(())
+}
+
+/// An `<x14:dataValidation>` from BrtDVal14 (2.4.357): an FRTHeader with the validation's ranges
+/// and formulas, then BrtDVal's flags and strings.
+fn validation14(
+    c: &mut Cursor<'_>,
+    x: &mut Xml,
+    context: &formula::Context<'_>,
+    uid: Option<String>,
+) -> Read<()> {
+    let header = c.u32("FRTHeader")?;
+    if header & 0x1 != 0 || header & 0x8 != 0 {
+        return Err(Malformed(
+            "a BrtDVal14 whose FRTHeader holds references or a relationship".to_owned(),
+        ));
+    }
+    let mut areas = Vec::new();
+    let mut sqref_text = String::new();
+    if header & 0x2 != 0 {
+        let count = c.u32("FRTSqrefs")?;
+        for _ in 0..count {
+            let _flags = c.u32("FRTSqref")?;
+            let (found, text) = sqref(c, "FRTSqref")?;
+            areas.extend(found);
+            if !sqref_text.is_empty() {
+                sqref_text.push(' ');
+            }
+            sqref_text.push_str(&text);
+        }
+    }
+    let origin = first_cell(&areas);
+    let mut formulas = Vec::new();
+    if header & 0x4 != 0 {
+        let count = c.u32("FRTFormulas")?;
+        for _ in 0..count {
+            let _flags = c.u32("FRTFormula")?;
+            // FRTParsedFormula: both lengths first, then the tokens and their extra data.
+            let cce = c.u32("FRTParsedFormula")? as usize;
+            let cb = c.u32("FRTParsedFormula")? as usize;
+            let rgce = c.bytes(cce, "FRTParsedFormula")?;
+            let rgcb = c.bytes(cb, "FRTParsedFormula")?;
+            formulas.push(
+                formula::print(rgce, rgcb, context, origin)?.map_err(|_| {
+                    Malformed("a data validation formula holding a PtgExp".to_owned())
+                })?,
+            );
+        }
+    }
+    let flags = c.u32("BrtDVal14")?;
+    let strings = validation_strings(c)?;
+    let mut attributes = validation_attributes(flags, strings)?;
+    if let Some(uid) = uid {
+        attributes.push(("xr:uid", uid));
+    }
+    // fDVMinFmla (bit 24) and fDVMaxFmla (bit 25) say which formulas the header holds.
+    let names: Vec<&str> = [(24, "x14:formula1"), (25, "x14:formula2")]
+        .into_iter()
+        .filter(|(bit, _)| flags & (1 << bit) != 0)
+        .map(|(_, name)| name)
+        .collect();
+    x.open("x14:dataValidation", &attributes);
+    for (name, text) in names.iter().zip(&formulas) {
+        x.open(name, &[]);
+        x.element("xm:f", &[], text);
+        x.close(name);
+    }
+    x.element("xm:sqref", &[], &sqref_text);
+    x.close("x14:dataValidation");
+    Ok(())
+}
+
+/// A data validation's attributes from BrtDVal's (or BrtDVal14's) flags and strings, without its
+/// ranges.
+fn validation_attributes(
+    flags: u32,
+    strings: [Option<String>; 4],
+) -> Read<Vec<(&'static str, String)>> {
+    let [error_title, error, prompt_title, prompt] = strings;
     let kind = flags & 0xF;
     let style = (flags >> 4) & 0x7;
     let mut attributes = Vec::new();
@@ -1808,20 +1955,5 @@ fn validation(c: &mut Cursor<'_>, x: &mut Xml, context: &formula::Context<'_>) -
             attributes.push((name, value));
         }
     }
-    attributes.push(("sqref", sqref_text));
-    let present: Vec<(usize, &String)> = formulas
-        .iter()
-        .enumerate()
-        .filter_map(|(i, f)| f.as_ref().map(|f| (i, f)))
-        .collect();
-    if present.is_empty() {
-        x.empty("dataValidation", &attributes);
-        return Ok(());
-    }
-    x.open("dataValidation", &attributes);
-    for (i, text) in present {
-        x.element(if i == 0 { "formula1" } else { "formula2" }, &[], text);
-    }
-    x.close("dataValidation");
-    Ok(())
+    Ok(attributes)
 }
