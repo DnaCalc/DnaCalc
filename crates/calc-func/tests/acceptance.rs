@@ -11292,7 +11292,7 @@ const NUMBER_TEXT_CAPTURE_CASE: &str = "dc_q9rb__excel_comparison";
 /// How every expected text and every text Excel gives in the dc-q9rb rows was obtained. The
 /// comparison case asserts the capture's build, locale, separators and connected COM add-in as
 /// this states them.
-const CAPTURED: &str = "Excel's raw value for this cell in the committed capture crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json, which dc_q9rb__excel_comparison asserts through calc_verdict::judge's report (Excel 16.0.20430.20182 on the owner's Windows machine under Windows locale en-ZA, with '.' as decimal separator and a space as thousands separator, and COM add-in VS15ExcelAdaptor connected; en-US itself was not measured)";
+const CAPTURED: &str = "Excel's raw value for this cell in the committed capture crates/calc-func/tests/captures/dc_q9rb/oracle.capture.json, which dc_q9rb__excel_comparison asserts through calc_verdict::judge's report (Excel 16.0.20527.20088 on the owner's Windows machine under Windows locale en-ZA, with '.' as decimal separator and a space as thousands separator, and COM add-in VS15ExcelAdaptor connected; en-US itself was not measured)";
 /// The capture's settings that [`CAPTURED`] states.
 const CAPTURED_SETTINGS: [(&str, &str); 3] = [
     ("user_culture", "en-ZA"),
@@ -11300,14 +11300,14 @@ const CAPTURED_SETTINGS: [(&str, &str); 3] = [
     ("thousands_separator", " "),
 ];
 /// The Excel build that [`CAPTURED`] states.
-const CAPTURED_BUILD: &str = "16.0.20430.20182";
+const CAPTURED_BUILD: &str = "16.0.20527.20088";
 /// The COM add-in connected during the capture, which [`CAPTURED`] states.
 const CAPTURED_COM_ADD_IN: &str = "VS15ExcelAdaptor";
 /// The content hash of the package Excel saved during the capture, as the capture's session
 /// records it. That package holds the cells the subnormal and -0 rows read as 0; it was read when
 /// the capture was taken and is not retained.
 const CAPTURED_OUTPUT_PACKAGE: &str =
-    "sha256:76ccf29f3d4594454cb1bae5414b09bc56c1d19288759eb619876436e2921cf7";
+    "sha256:c143790d9125bf15b529a8aee0d5048eaf58158df4ff77a49f76ef2a51991d08";
 
 /// The behaviour the refused dc-q9rb rows show.
 const NEAR_TIE: Owner = Owner {
@@ -18865,7 +18865,7 @@ const COLLATION_CAPTURE: &[u8] = include_bytes!("captures/cdoc_jpha/oracle.captu
 const COLLATION_CAPTURE_CASE: &str = "cdoc_jpha__excel_comparison";
 /// How the value each row states was obtained. The comparison case asserts the capture's build,
 /// locale and separators as [`CAPTURED_SETTINGS`] and [`CAPTURED_BUILD`] state them.
-const COLLATION_CAPTURED: &str = "Excel's raw value for this cell in the committed capture crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json, which cdoc_jpha__excel_comparison asserts through calc_verdict::judge's report (Excel 16.0.20430.20182 on the owner's Windows machine under Windows locale en-ZA, user culture en-ZA; no other locale was measured)";
+const COLLATION_CAPTURED: &str = "Excel's raw value for this cell in the committed capture crates/calc-func/tests/captures/cdoc_jpha/oracle.capture.json, which cdoc_jpha__excel_comparison asserts through calc_verdict::judge's report (Excel 16.0.20527.20088 on the owner's Windows machine under Windows locale en-ZA, user culture en-ZA; no other locale was measured)";
 /// The one formula Excel reads back other than as written, beside the XLOOKUP calls it reads
 /// back with @: it writes the literal 1E-15 out.
 const REWRITTEN_FORMULA: (&str, &str) = ("=1+1E-15=1", "=1+0.000000000000001=1");

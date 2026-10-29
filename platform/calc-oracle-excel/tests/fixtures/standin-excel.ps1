@@ -88,7 +88,7 @@ $used | Add-Member -MemberType ScriptMethod -Name SpecialCells -Value { param($t
 $sheet = [pscustomobject]@{ Name = 'Sheet1'; Cells = $cells; UsedRange = $used }
 $sheets = New-Object StandinItems
 $sheets.Add('Sheet1', $sheet)
-$book = [pscustomobject]@{ Worksheets = $sheets; Connections = @(); CompatibilityVersion = 16; CalculationVersion = 191029; Date1904 = $false; PrecisionAsDisplayed = $false; HasVBProject = $false; ReadOnly = $true }
+$book = [pscustomobject]@{ Worksheets = $sheets; Sheets = $sheets; Connections = @(); CompatibilityVersion = 16; CalculationVersion = 191029; Date1904 = $false; PrecisionAsDisplayed = $false; HasVBProject = $false; ReadOnly = $true }
 $book | Add-Member -MemberType ScriptMethod -Name LinkSources -Value { param($kind) if ($kind -eq 1) { return , @('C:\nowhere\link-target.xlsx') } return $null }
 $book | Add-Member -MemberType ScriptMethod -Name SaveAs -Value {
     param($path, $format)
