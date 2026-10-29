@@ -4,15 +4,16 @@
 # below (a `header` block, `@name path ...` matchers with a trailing `*` for a prefix, and
 # `header @name Name "value"` lines). Keep it to those forms.
 #
-# - Scripts are strict: only the site's own files, plus 'wasm-unsafe-eval' for compiling the
-#   wasm module. Styles allow 'unsafe-inline' for now (the apps' <style> elements and style=
-#   attributes); dc-xib moves them into a stylesheet, after which it can go.
+# - Scripts and styles are strict: only the site's own files, plus 'wasm-unsafe-eval' for
+#   compiling the wasm module. The apps' styles are one stylesheet (assets/<id>/app.css) and
+#   computed positions and colours set through the CSS object model (dc-xib), so no inline
+#   style is needed.
 # - connect-src 'self': a workbook opened from the file input cannot be sent anywhere.
 # - No COOP/COEP: nothing needs cross-origin isolation (no SharedArrayBuffer, no wasm threads).
 # - No HSTS until 30 days after a clean apex cutover (docs/plan/PUBLISHING_PLAN.md).
 (dnacalc_headers) {
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "no-referrer"
 		Cross-Origin-Resource-Policy "same-origin"

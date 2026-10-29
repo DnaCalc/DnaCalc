@@ -22,7 +22,7 @@
 
 use crate::display;
 use crate::editor::browse;
-use crate::formula_field::{FORMULA_FIELD_CSS, FormulaAssist};
+use crate::formula_field::FormulaAssist;
 use crate::grid::{self, Entry};
 use crate::result::{self, ResultView};
 use crate::session::{InputValue, Session};
@@ -53,45 +53,6 @@ const KINDS: [(&str, &str); 5] = [
     ("error", "Error"),
     ("blank", "Blank"),
 ];
-
-/// The surface's style sheet, carried in the view so every page that mounts the surface has it.
-pub const SURFACE_CSS: &str = r#"
-.oc{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1f24;max-width:1100px;margin:0 auto;padding:16px}
-.oc h1{font-size:20px;margin:0 0 4px}
-.oc .oc-sub{color:#57606a;margin:0 0 16px;font-size:13px}
-.oc-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-.oc-col{flex:1 1 420px;min-width:0}
-.oc-gridwrap{overflow-x:auto;max-width:100%}
-.oc-result{border:1px solid #d0d7de;border-radius:6px;padding:8px 10px;margin:8px 0}
-.oc-kind{display:inline-block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;background:#eaeef2;color:#424a53;border-radius:10px;padding:1px 8px;margin-right:8px}
-.oc-value{font:600 18px ui-monospace,Consolas,monospace}
-.oc-err{color:#cf222e}
-.oc-prov{color:#57606a;font-size:12px;margin:6px 0 0}
-.oc-diags{color:#cf222e;margin:6px 0;padding-left:20px}
-.oc-reads{color:#424a53;font-size:12px;margin:6px 0;padding-left:20px}
-.oc-array{border-collapse:collapse;margin:6px 0;font:13px ui-monospace,Consolas,monospace}
-.oc-array td{border:1px solid #d0d7de;padding:2px 8px;height:22px;min-width:56px;white-space:nowrap}
-.oc-array td[data-kind=number]{text-align:right}
-.oc-array td[data-kind=error]{color:#cf222e}
-.oc-grid{border-collapse:collapse;font:13px ui-monospace,Consolas,monospace}
-.oc-grid th{background:#f6f8fa;color:#57606a;font-weight:400;border:1px solid #d0d7de;padding:0 6px;min-width:20px}
-.oc-grid td{border:1px solid #d0d7de;padding:0}
-.oc-grid input{border:0;width:64px;padding:2px 4px;font:inherit;box-sizing:border-box;background:transparent}
-.oc-grid input:focus{outline:2px solid #0969da}
-.oc-grid td.oc-formula{background:#fff8c5}
-.oc-grid td.oc-formula input{font-weight:600}
-.oc-grid td.oc-refused{background:#ffebe9}
-.oc-grid input[data-kind=number]{text-align:right}
-.oc-grid input[data-kind=error]{color:#cf222e}
-.oc-panel{margin:12px 0}
-.oc-fns{list-style:none;margin:6px 0;padding:0;max-height:320px;overflow:auto;border:1px solid #d0d7de;border-radius:6px}
-.oc-fns li{padding:3px 8px;border-bottom:1px solid #eaeef2;font-size:12px}
-.oc-fns small{display:block;color:#57606a}
-.oc-fn{border:0;background:none;padding:0;cursor:pointer;color:#8250df;font:600 12px ui-monospace,Consolas,monospace;text-align:left}
-.oc-panel h2{font-size:14px;margin:0 0 6px;color:#424a53}
-.oc table.oc-inputs{border-collapse:collapse;font-size:13px}
-.oc table.oc-inputs td,.oc table.oc-inputs th{padding:2px 4px;text-align:left}
-"#;
 
 /// One input row as typed.
 #[derive(Clone, Debug, PartialEq)]
@@ -632,8 +593,21 @@ fn surface() -> impl IntoView {
 
     view! {
         <section class="oc" data-onecalc="surface">
-            <style>{FORMULA_FIELD_CSS}{SURFACE_CSS}</style>
-            <h1>"DNA OneCalc"</h1>
+            <header class="oc-head">
+                <h1>"DNA OneCalc"</h1>
+                <select
+                    class="oc-theme"
+                    data-onecalc="theme"
+                    aria-label="Theme"
+                    on:change=move |ev| crate::theme::set(&event_target_value(&ev))
+                    prop:value=crate::theme::current()
+                >
+                    {crate::theme::CHOICES
+                        .iter()
+                        .map(|(id, label)| view! { <option value=*id>{*label}</option> })
+                        .collect_view()}
+                </select>
+            </header>
             <p class="oc-sub">
                 "One Excel formula, calculated in your browser by calc-fml and calc-func. No workbook, no calculation engine."
             </p>

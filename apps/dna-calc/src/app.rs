@@ -25,35 +25,10 @@ use crate::grid::{self, GridSkin};
 use crate::notebook::NotebookSkin;
 use crate::skin::{SkinContext, SkinRegistry, SkinResolution, resolve_active_skin, switch_skin};
 use calc_host::CalcMode;
-use dna_onecalc::formula_field::{FORMULA_FIELD_CSS, FormulaAssist};
+use dna_onecalc::formula_field::FormulaAssist;
 use leptos::prelude::*;
 use std::sync::Arc;
 
-pub const APP_CSS: &str = r#"
-html,body{height:100%}
-.dc-app{display:flex;flex-direction:column;height:100vh;font:13px system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1f24;background:#fff}
-.dc-mast{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 10px;background:#1a7f37;color:#fff}
-.dc-mast strong{font-size:15px;margin-right:8px}
-.dc-mast button,.dc-mast select,.dc-mast label.dc-open{font:12px system-ui,sans-serif;border:1px solid #ffffff88;background:#ffffff22;color:#fff;border-radius:4px;padding:3px 8px;cursor:pointer}
-.dc-mast select option{color:#000}
-.dc-mast .dc-doc{font-weight:600}
-.dc-mast .dc-skins{margin-left:auto;display:flex;gap:4px}
-.dc-mast .dc-skins button[aria-pressed=true]{background:#fff;color:#1a7f37}
-.dc-bar{display:flex;gap:8px;align-items:flex-start;padding:6px 10px;border-bottom:1px solid #d0d7de;background:#f6f8fa}
-.dc-namebox{width:90px;font:13px ui-monospace,Consolas,monospace;border:1px solid #8c959f;border-radius:4px;padding:6px}
-.dc-fx{flex:1 1 auto;min-width:0}
-.dc-fx .oc-editor,.dc-fx .oc-editor pre,.dc-fx .oc-editor textarea{min-height:2.2em}
-.dc-fx .oc-editor pre,.dc-fx .oc-editor textarea{padding:4px 8px}
-.dc-main{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
-.dc-tabs{display:flex;gap:2px;padding:0 10px;border-top:1px solid #d0d7de;background:#f6f8fa;overflow-x:auto}
-.dc-tabs button{border:1px solid #d0d7de;border-top:0;background:#eaeef2;padding:3px 12px;font:12px system-ui,sans-serif;cursor:pointer}
-.dc-tabs button[aria-selected=true]{background:#fff;color:#1a7f37;font-weight:600}
-.dc-status{display:flex;gap:16px;padding:3px 10px;border-top:1px solid #d0d7de;background:#f6f8fa;font-size:12px;color:#424a53;white-space:nowrap;overflow:hidden}
-.dc-status [data-refused=true]{color:#cf222e}
-.dc-gridbar{display:flex;gap:12px;align-items:center;padding:2px 10px;font-size:12px;color:#57606a}
-.dc-zoom{margin-left:auto}
-.dc-unavailable{padding:24px;color:#a40e26}
-"#;
 
 /// The skins DNA Calc registers, in the switcher's order.
 pub fn registry() -> SkinRegistry {
@@ -308,9 +283,20 @@ pub fn app() -> impl IntoView {
 
     view! {
         <div class="dc-app" data-dnacalc="app" on:keydown=on_app_key>
-            <style>{FORMULA_FIELD_CSS}{APP_CSS}</style>
             <header class="dc-mast">
                 <strong>"DNA Calc"</strong>
+                <select
+                    class="dc-theme"
+                    data-dnacalc="theme"
+                    aria-label="Theme"
+                    on:change=move |ev| dna_onecalc::theme::set(&event_target_value(&ev))
+                    prop:value=dna_onecalc::theme::current()
+                >
+                    {dna_onecalc::theme::CHOICES
+                        .iter()
+                        .map(|(id, label)| view! { <option value=*id>{*label}</option> })
+                        .collect_view()}
+                </select>
                 <span class="dc-doc" data-dnacalc="document">{document_line}</span>
                 <button type="button" data-dnacalc="new" on:click=move |_| controller.new_workbook()>"New"</button>
                 <label class="dc-open">
@@ -319,7 +305,7 @@ pub fn app() -> impl IntoView {
                         type="file"
                         data-dnacalc="open-file"
                         accept=".xlsx,.xlsm,.xlsb"
-                        style="display:none"
+                        hidden=true
                         on:change=move |ev| {
                             use wasm_bindgen::JsCast;
                             if let Some(input) = ev

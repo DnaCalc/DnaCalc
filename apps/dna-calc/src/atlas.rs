@@ -19,15 +19,6 @@ use crate::skin::{Skin, SkinContext, SkinId};
 use calc_host::CalcMode;
 use leptos::prelude::*;
 
-pub const ATLAS_CSS: &str = r#"
-.dc-atlas{overflow:auto;flex:1 1 auto;padding:12px 16px;font:13px system-ui,"Segoe UI",sans-serif}
-.dc-atlas h2{font-size:14px;margin:12px 0 6px;color:#424a53}
-.dc-atlas table{border-collapse:collapse}
-.dc-atlas td,.dc-atlas th{border:1px solid #d0d7de;padding:3px 8px;text-align:right}
-.dc-atlas td:first-child,.dc-atlas th:first-child{text-align:left}
-.dc-atlas .dc-refusals li{margin:2px 0}
-"#;
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AtlasSkin;
 
@@ -138,7 +129,6 @@ fn atlas_view(controller: Controller) -> impl IntoView {
 
     view! {
         <section class="dc-atlas" data-skin="atlas">
-            <style>{ATLAS_CSS}</style>
             <h2>"Calculation"</h2>
             {hud}
             <p data-dnacalc="atlas-totals">{totals}</p>

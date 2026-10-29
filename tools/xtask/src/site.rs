@@ -440,11 +440,11 @@ fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, Strin
     app::bundle(ws, site.app, &staging)?;
 
     // The assets and their folder.
-    let assets = [
-        "boot.js".to_owned(),
-        format!("{}.js", site.app.entry),
-        format!("{}_bg.wasm", site.app.entry),
-    ];
+    // Every file of the bundle but the page: the stylesheet, the start module, the glue, the wasm.
+    let assets: Vec<String> = files_under(&staging)?
+        .into_iter()
+        .filter(|name| name != "index.html")
+        .collect();
     let mut listing = String::new();
     for name in &assets {
         let bytes = read(&staging.join(name))?;
@@ -461,15 +461,15 @@ fn pack(ws: &Workspace, site: &Site, allow_dirty: bool) -> Result<PathBuf, Strin
     }
     let page = String::from_utf8(read(&staging.join("index.html"))?)
         .map_err(|_| "the page is not UTF-8".to_owned())?;
-    let from = "src=\"boot.js\"";
-    if page.matches(from).count() != 1 {
-        return Err(format!("the page does not load boot.js once ({from})"));
+    let mut page = page;
+    for (attribute, name) in [("src", "boot.js"), ("href", "app.css")] {
+        let from = format!("{attribute}=\"{name}\"");
+        if page.matches(&from).count() != 1 {
+            return Err(format!("the page does not load {name} once ({from})"));
+        }
+        page = page.replace(&from, &format!("{attribute}=\"assets/{id}/{name}\""));
     }
-    write(
-        &dir.join("index.html"),
-        page.replace(from, &format!("src=\"assets/{id}/boot.js\""))
-            .as_bytes(),
-    )?;
+    write(&dir.join("index.html"), page.as_bytes())?;
     write(&dir.join("LICENSE"), &read(&ws.root.join("LICENSE"))?)?;
     let notices = notices(ws, site.app)?;
     write(&dir.join("THIRD-PARTY-NOTICES.txt"), notices.as_bytes())?;

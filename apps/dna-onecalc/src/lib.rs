@@ -27,6 +27,7 @@ pub mod grid;
 pub mod result;
 mod session;
 pub mod surface;
+pub mod theme;
 pub mod web;
 
 pub use fixture::{Read, ReadRun, RunCells};

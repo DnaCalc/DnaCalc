@@ -7,6 +7,13 @@
 // (`cargo xtask app smoke calc`), which reads this list.
 window.__dnacalcFaults = window.__dnacalcFaults || [];
 var faults = window.__dnacalcFaults;
+// The theme the user chose in either app (dna_onecalc::theme), applied before the app loads.
+try {
+  var theme = window.localStorage.getItem("dna-theme");
+  if (theme) { document.documentElement.setAttribute("data-dna-theme", theme); }
+} catch (error) {
+  // No storage (a private window may refuse it): the system's theme.
+}
 window.addEventListener("error", function (event) {
   faults.push("error: " + (event.error && event.error.stack ? event.error.stack : event.message));
 });

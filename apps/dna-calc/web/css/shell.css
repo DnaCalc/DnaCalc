@@ -1,0 +1,39 @@
+/* shell.css: moved from apps/dna-calc/src/app.rs (APP_CSS), dc-xib. */
+/* The page (moved from web/index.html). */
+html, body { margin: 0; height: 100%; background: var(--dna-paper); color: var(--dna-ink); }
+#dnacalc-loading { font-family: system-ui, sans-serif; color: var(--dna-ink-3); padding: 16px; }
+html,body{height:100%}
+.dc-app{display:flex;flex-direction:column;height:100vh;font:13px system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--dna-ink);background:var(--dna-paper)}
+.dc-mast{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 10px;background:var(--dna-chrome);color:var(--dna-chrome-ink)}
+.dc-mast strong{font-size:15px;margin-right:8px}
+.dc-mast button,.dc-mast select,.dc-mast label.dc-open{font:12px system-ui,sans-serif;border:1px solid var(--dna-chrome-ink-2);background:var(--dna-chrome-2);color:var(--dna-chrome-ink);border-radius:4px;padding:3px 8px;cursor:pointer}
+.dc-mast select option{color:var(--dna-ink);background:var(--dna-paper)}
+.dc-mast .dc-doc{font-weight:600}
+.dc-mast .dc-skins{margin-left:auto;display:flex;gap:4px}
+.dc-mast .dc-skins button[aria-pressed=true]{background:var(--dna-chrome-ink);color:var(--dna-chrome)}
+.dc-bar{display:flex;gap:8px;align-items:flex-start;padding:6px 10px;border-bottom:1px solid var(--dna-line);background:var(--dna-paper-2)}
+.dc-namebox{width:90px;font:13px ui-monospace,Consolas,monospace;border:1px solid var(--dna-ink-3);border-radius:4px;padding:6px}
+.dc-fx{flex:1 1 auto;min-width:0}
+.dc-fx .oc-editor,.dc-fx .oc-editor pre,.dc-fx .oc-editor textarea{min-height:2.2em}
+.dc-fx .oc-editor pre,.dc-fx .oc-editor textarea{padding:4px 8px}
+.dc-main{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.dc-tabs{display:flex;gap:2px;padding:0 10px;border-top:1px solid var(--dna-line);background:var(--dna-paper-2);overflow-x:auto}
+.dc-tabs button{border:1px solid var(--dna-line);border-top:0;background:var(--dna-line-soft);padding:3px 12px;font:12px system-ui,sans-serif;cursor:pointer}
+.dc-tabs button[aria-selected=true]{background:var(--dna-paper);color:var(--dna-accent-ink);font-weight:600;box-shadow:inset 0 2px 0 var(--dna-amber)}
+.dc-status{display:flex;gap:16px;padding:3px 10px;border-top:1px solid var(--dna-line);background:var(--dna-paper-2);font-size:12px;color:var(--dna-ink-2);white-space:nowrap;overflow:hidden}
+.dc-status [data-refused=true]{color:var(--dna-red-ink)}
+.dc-gridbar{display:flex;gap:12px;align-items:center;padding:2px 10px;font-size:12px;color:var(--dna-ink-3)}
+.dc-zoom{margin-left:auto}
+.dc-unavailable{padding:24px;color:var(--dna-red-ink)}
+/* Narrow screens and touch (dc-xib): the mast and the bars wrap; touch targets grow. */
+.dc-app{height:100dvh}
+@media (max-width:700px){
+.dc-mast{gap:6px;padding:6px 8px}
+.dc-mast .dc-skins{margin-left:0;flex-wrap:wrap}
+.dc-bar{flex-wrap:wrap;padding:6px 8px}
+.dc-namebox{width:72px}
+.dc-status{flex-wrap:wrap;white-space:normal;gap:2px 12px}
+}
+@media (pointer:coarse){
+.dc-mast button,.dc-mast select,.dc-mast label.dc-open,.dc-tabs button,.dc-gridbar button{min-height:36px;min-width:36px}
+}

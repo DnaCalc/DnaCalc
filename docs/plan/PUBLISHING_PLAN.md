@@ -21,7 +21,7 @@ owner: every publish is run or approved by him.
 |---|---|
 | 1. First publish | DNA OneCalc first, at onecalc.dnacalc.com, labelled a development build |
 | 2. Apex | DNA Calc at the apex next, with a link to OneCalc; no separate home release |
-| 5. CSP for styles | `style-src 'self' 'unsafe-inline'` for now; scripts strict. dc-xib moves the inline styles into the token sheet, after which `'unsafe-inline'` can go |
+| 5. CSP for styles | Strict since dc-xib (2026-10-29): `style-src 'self'`, no `'unsafe-inline'`; the apps load one stylesheet and set computed styles through the CSS object model. Scripts strict |
 | 6. `/build.json` | Public, with the commit SHA |
 | 7. Pipeline form | A: owner-run `cargo xtask site` commands; no GitHub Actions route, `ci` stays disabled |
 | 9. Notices | LICENSE and a generated THIRD-PARTY-NOTICES.txt in every release, after the licence check (dc-ysl.2) |

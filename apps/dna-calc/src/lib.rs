@@ -12,6 +12,8 @@
 //! - [`controller`]: the workbook behind reactive signals, the active sheet and cell, the edit.
 //! - [`cells`]: a projected cell as a skin shows it, with its provenance.
 //! - [`skin`]: the skin contract, the registry and switching.
+//! - [`style`]: computed styles through the CSS object model (the site's CSP refuses style
+//!   attributes).
 //! - [`app`]: the shell (file commands, formula bar, skin switcher, sheet tabs, status line).
 //! - [`web`]: the browser entry of the bundle (`cargo xtask app bundle calc`).
 
@@ -24,6 +26,7 @@ pub mod grid;
 pub mod ledger;
 pub mod notebook;
 pub mod skin;
+pub mod style;
 pub mod tree;
 pub mod web;
 pub mod workbook;

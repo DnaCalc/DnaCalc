@@ -25,6 +25,7 @@
 use crate::cells::{self, Provenance};
 use crate::controller::Controller;
 use crate::skin::{Skin, SkinContext, SkinId};
+use crate::style::css;
 use calc_host::value::{CellKey, GridArea};
 use leptos::prelude::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,27 +39,6 @@ const COLUMN_WIDTH: f64 = 230.0;
 const CHIP_WIDTH: f64 = 200.0;
 const ROW_HEIGHT: f64 = 70.0;
 const CHIP_HEIGHT: f64 = 58.0;
-
-pub const CANVAS_CSS: &str = r#"
-.dc-canvas{display:flex;flex:1 1 auto;min-height:0;font:13px system-ui,"Segoe UI",sans-serif;outline:none}
-.dc-canvas .dc-stage{flex:1 1 auto;overflow:auto;padding:12px;background:#f6f8fa}
-.dc-canvas .dc-bar{display:flex;gap:6px;align-items:center;margin:0 0 10px}
-.dc-canvas .dc-plane{position:relative}
-.dc-canvas .dc-plane svg{position:absolute;left:0;top:0;pointer-events:none}
-.dc-canvas .dc-plane path{fill:none;stroke:#8c959f;stroke-width:1.4}
-.dc-canvas .dc-node{position:absolute;box-sizing:border-box;background:#fff;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;overflow:hidden;cursor:pointer}
-.dc-canvas .dc-node[data-center=true]{border:2px solid #1a7f37}
-.dc-canvas .dc-node[data-kind=area]{background:#f6f8fa;cursor:default}
-.dc-canvas .dc-node b{font:600 12px ui-monospace,Consolas,monospace}
-.dc-canvas .dc-node .dc-f{font:11px ui-monospace,Consolas,monospace;color:#57606a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dc-canvas .dc-node .dc-v{font:600 12px ui-monospace,Consolas,monospace}
-.dc-canvas .dc-node[data-provenance=refused] .dc-v{color:#a40e26}
-.dc-canvas .dc-node[data-provenance=stale] .dc-v{color:#9a6700}
-.dc-canvas .dc-hidden{position:absolute;font-size:12px;color:#57606a}
-.dc-canvas aside{flex:0 0 300px;overflow:auto;border-left:1px solid #d0d7de;padding:10px 12px;background:#fff}
-.dc-canvas aside dt{color:#57606a;font-size:12px;margin-top:8px}
-.dc-canvas aside dd{margin:2px 0 0;font:12px ui-monospace,Consolas,monospace;word-break:break-all}
-"#;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CanvasSkin;
@@ -341,7 +321,7 @@ fn canvas_view(controller: Controller) -> impl IntoView {
                         view! {
                             <div class="dc-node" data-dnacalc="canvas-node" data-kind="cell" data-node=node_label
                                 data-column=column.to_string() data-center=(*column == 0).to_string()
-                                data-provenance=provenance.name() style=style on:click=go>
+                                data-provenance=provenance.name() use:css=style on:click=go>
                                 <b>{label}</b>
                                 <div class="dc-f">{input}</div>
                                 <div class="dc-v" data-dnacalc="canvas-value">{value}</div>
@@ -365,7 +345,7 @@ fn canvas_view(controller: Controller) -> impl IntoView {
                         let node_label = label.clone();
                         view! {
                             <div class="dc-node" data-dnacalc="canvas-node" data-kind="area" data-node=node_label
-                                data-column=column.to_string() data-center="false" style=style>
+                                data-column=column.to_string() data-center="false" use:css=style>
                                 <b>{label}</b>
                                 <div class="dc-f">{format!("a range of {count} cells")}</div>
                             </div>
@@ -379,7 +359,7 @@ fn canvas_view(controller: Controller) -> impl IntoView {
                 let (x, y) = position(&trace, *column, nodes.len());
                 chips.push(
                     view! {
-                        <div class="dc-hidden" data-dnacalc="canvas-hidden" style=format!("left:{x:.0}px;top:{y:.0}px")>
+                        <div class="dc-hidden" data-dnacalc="canvas-hidden" use:css=format!("left:{x:.0}px;top:{y:.0}px")>
                             {format!("{hidden} more not shown")}
                         </div>
                     }
@@ -388,7 +368,7 @@ fn canvas_view(controller: Controller) -> impl IntoView {
             }
         }
         view! {
-            <div class="dc-plane" style=format!("width:{width:.0}px;height:{height:.0}px")>
+            <div class="dc-plane" use:css=format!("width:{width:.0}px;height:{height:.0}px")>
                 <div inner_html=svg></div>
                 {chips}
             </div>
@@ -464,7 +444,6 @@ fn canvas_view(controller: Controller) -> impl IntoView {
 
     view! {
         <section class="dc-canvas" data-skin="canvas" data-dnacalc="canvas" tabindex="0" on:keydown=on_key>
-            <style>{CANVAS_CSS}</style>
             <div class="dc-stage">
                 <div class="dc-bar">
                     <button type="button" data-dnacalc="canvas-back-more" on:click=move |_| grow(back, 1)>"[ reads further"</button>

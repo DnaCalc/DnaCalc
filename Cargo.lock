@@ -2002,6 +2002,7 @@ dependencies = [
  "calc-oracle-excel",
  "calc-platform-desktop",
  "calc-verdict",
+ "dna-strand",
  "proc-macro2",
  "quote",
  "serde_json",
