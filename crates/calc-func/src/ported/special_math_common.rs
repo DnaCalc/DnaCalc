@@ -1109,7 +1109,10 @@ fn bratio_gamln1(a: f64) -> f64 {
             / denominator;
         return x * w;
     }
-    let w = ((((((P6 * a + P5) * a + P4) * a + P3) * a + P2) * a + P1) * a + P0)
+    let numerator_mid = crate::ported::excel_numeric::excel_x87_mul_add(
+        ((P6 * a + P5) * a + P4) * a + P3, a, P2,
+    );
+    let w = ((numerator_mid * a + P1) * a + P0)
         / ((((((Q6 * a + Q5) * a + Q4) * a + Q3) * a + Q2) * a + Q1) * a + 1.0);
     -a * w
 }

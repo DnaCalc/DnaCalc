@@ -8,7 +8,7 @@
 //!   form of the binomial mass, `exp(lc) / sqrt(2 pi x (n - x) / n)` with
 //!   `lc = stirling_error(n) - stirling_error(x) - stirling_error(n - x) - deviance(x, np) - deviance(n - x, nq)`; the
 //!   deviance term `deviance(x, np) = x ln(x/np) + np - x`, summed as its series in
-//!   `v = (x - np)/(x + np)` when `|x - np| < 0.1 (x + np)`; the Stirling error
+//!   `v = (x - np)/(x + np)` when `|x - np| <= 0.1 (x + np)` at positive finite boundaries; the Stirling error
 //!   `stirling_error(n) = ln n! - (n + 1/2) ln n + n - ln sqrt(2 pi)`, for `n > 15` from its asymptotic
 //!   series `1/(12n) - 1/(360n^3) + 1/(1260n^5) - 1/(1680n^7) + 1/(1188n^9)` cut at 35, 80 and
 //!   500, and for the half-integers to 15 from its value (computed here to binary64 from the
@@ -72,7 +72,10 @@ const STIRLING_ERROR_HALVES: [f64; 31] = [
 ];
 
 fn stirling_error(n: f64) -> f64 {
-    const S0: f64 = 1.0 / 12.0;
+    // The 15-digit leading coefficient also used by the retained NSWC Stirling
+    // expansions distinguishes recorded interior mass oc16921 from RN(1/12).
+    // This is a finite-precision model parameter, not the exact Bernoulli value.
+    const S0: f64 = 0.0833333333333333;
     const S1: f64 = 1.0 / 360.0;
     const S2: f64 = 1.0 / 1260.0;
     const S3: f64 = 1.0 / 1680.0;
@@ -98,9 +101,15 @@ fn stirling_error(n: f64) -> f64 {
 }
 
 fn deviance(x: f64, np: f64) -> f64 {
-    if (x - np).abs() < 0.1 * (x + np) {
+    // The recorded negative-binomial CDF boundary is admitted to this series.
+    let difference = (x - np).abs();
+    let boundary = 0.1 * (x + np);
+    if difference < boundary
+        || (difference == boundary && difference > 0.0 && difference.is_finite())
+    {
         let mut v = (x - np) / (x + np);
-        let mut s = (x - np) * v;
+        // Preserve the PC64 product before the initial series sum is stored.
+        let mut s = crate::ported::excel_numeric::excel_x87_mul(x - np, v);
         let mut ej = 2.0 * x * v;
         v *= v;
         let mut j = 1.0;
@@ -371,6 +380,8 @@ mod tests {
     fn stirling_table_is_the_definition() {
         // stirling_error(1) = 1 - ln sqrt(2 pi); stirling_error(1/2) = ln sqrt(pi) - 1/2 ln(1/2) + 1/2 - ln sqrt(2 pi)
         assert!((stirling_error(1.0) - (1.0 - LN_SQRT_2PI)).abs() < 1e-16);
-        assert_eq!(stirling_error(16.0), (1.0 / 12.0 - (1.0 / 360.0 - (1.0 / 1260.0 - (1.0 / 1680.0 - (1.0 / 1188.0) / 256.0) / 256.0) / 256.0) / 256.0) / 16.0);
+        // The asymptotic arm uses the recorded finite-precision coefficient;
+        // the application-route oc16921 control distinguishes it from RN(1/12).
+        assert_eq!(stirling_error(16.0), (0.0833333333333333 - (1.0 / 360.0 - (1.0 / 1260.0 - (1.0 / 1680.0 - (1.0 / 1188.0) / 256.0) / 256.0) / 256.0) / 256.0) / 16.0);
     }
 }

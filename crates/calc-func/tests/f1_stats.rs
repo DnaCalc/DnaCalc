@@ -170,6 +170,9 @@ fn distributions_match_excel_examples() {
     close(call("WEIBULL.DIST", vec![n(105.0), n(20.0), n(100.0), b(true)]), 0.929581390069277, 1e-12);
     close(call("HYPGEOM.DIST", vec![n(1.0), n(4.0), n(8.0), n(20.0), b(false)]), 0.363261093911249, 1e-12);
     close(call("NEGBINOM.DIST", vec![n(10.0), n(5.0), n(0.25), b(false)]), 0.055048660375178, 1e-12);
+    // fresh-negbinom.dist-00113-fresh-endpoints: equality uses the deviance series.
+    exact(call("NEGBINOM.DIST", vec![n(4.0), n(11.0), n(0.75), b(true)]),
+        f64::from_bits(0x3fe5_f7b1_5d80_0000));
     close(call("BETA.DIST", vec![n(2.0), n(8.0), n(10.0), b(true), n(1.0), n(3.0)]), 0.685470581, 1e-9);
     close(call("GAMMA.DIST", vec![n(10.00001131), n(9.0), n(2.0), b(true)]), 0.068094, 1e-5);
     exact(call("GAMMA", vec![n(5.0)]), 24.0);
@@ -377,6 +380,16 @@ fn binomial_mass_uses_the_internal_normalization_logarithm() {
                 f64::from_bits(expected));
         }
     }
+    // oc16921 distinguishes the asymptotic leading Stirling coefficient.
+    for function in ["BINOM.DIST", "BINOMDIST"] {
+        exact(call(function, vec![n(3.0), n(16.0), n(f64::from_bits(0x3f81_4b09_a96b_5f50)), b(false)]),
+            f64::from_bits(0x3f33_c9f8_44fe_e7e4));
+    }
+    // oc48161 distinguishes the initial deviance-series product store.
+    for function in ["BINOM.DIST", "BINOMDIST"] {
+        exact(call(function, vec![n(3.0), n(48.0), n(f64::from_bits(0x3fb2_6666_6666_6763)), b(false)]),
+            f64::from_bits(0x3fcc_a757_9b2b_c297));
+    }
 }
 
 /// Recorded tiny ERF rows independently distinguish the multiply and divide stores.
@@ -455,4 +468,12 @@ fn beta_normalizer_and_fraction_carry_selected_products_into_the_sum() {
     ]), f64::from_bits(0x3fe4_0a1a_47f6_ea10));
     exact(call("F.DIST", vec![n(f64::from_bits(0x3ff5_3020_c3d3_d95f)), n(4.0), n(11.0), b(true)]),
         f64::from_bits(0x3fe5_bb90_637b_4cd0));
+    // oc2325 distinguishes the earlier Horner product in GAMln1's small-a arm.
+    exact(call("BETA.DIST", vec![
+        n(f64::from_bits(0xbfe4_e784_cb53_6e3c)),
+        n(f64::from_bits(0x3ff4_5e5f_705d_d315)),
+        n(f64::from_bits(0x3ff3_9d61_280e_fe34)), b(true),
+        n(f64::from_bits(0xbfff_d2b1_1995_df92)),
+        n(f64::from_bits(0x4006_c206_44e9_7df9)),
+    ]), f64::from_bits(0x3fce_646a_71b7_08b3));
 }
