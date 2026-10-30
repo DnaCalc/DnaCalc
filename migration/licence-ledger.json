@@ -187,13 +187,6 @@
    }
   ],
   "allowed": {
-   "crates/calc-func/src/ported/bessel_convert_family.rs": {
-    "counts": {
-     "numerical-recipes": 42
-    },
-    "owner": "dc-96l.3",
-    "reason": "the Bessel kernels follow Numerical Recipes and are replaced clean-room"
-   },
    "crates/calc-func/src/ported/discrete_dist_family.rs": {
     "counts": {
      "r-nmath": 34
@@ -1089,53 +1082,17 @@
    "surveyed_bytes": 2327
   },
   {
-   "path": "crates/calc-func/src/ported/bessel_convert_family.rs",
-   "class": "proprietary-or-unclear",
+   "path": "crates/calc-func/src/ported/bessel.rs",
+   "class": "own-work",
+   "reason": "written here clean-room (dc-96l.3) from published mathematics and Excel measurement",
    "parts": [
     {
-     "class": "proprietary-or-unclear",
-     "source": "numerical-recipes",
-     "symbols": [
-      "ACC",
-      "BIGNO",
-      "BIGNI",
-      "NR_2_OVER_PI",
-      "bessi0",
-      "bessi1",
-      "bessj0",
-      "bessj1",
-      "bessy0",
-      "bessy1",
-      "bessk0",
-      "bessk1",
-      "besseli_kernel",
-      "besselj_kernel",
-      "besselk_kernel",
-      "bessely_kernel"
-     ],
-     "what": "the eight order-0/1 routines carry NR's names, NR's split points (|x| < 8 rational fit, else the asymptotic P/Q form; 3.75 and 2 for I and K), NR's coefficient tables (with Excel's typos, kept on purpose) and NR's 9-digit 2/pi; the order-n kernels are NR's bessi/bessj (Miller's downward recurrence from m = 2*((n + sqrt(ACC*n))/2), renormalising by BIGNO/BIGNI, the jsum alternation) and bessk/bessy (upward recurrence). The structure is a line-by-line translation of NR in C; Excel's own BESSEL functions follow NR, which is why matching Excel led here",
-     "shipped": "yes (BESSELI, BESSELJ, BESSELK, BESSELY)"
+     "class": "own-work",
+     "kind": "published",
+     "what": "Abramowitz and Stegun 9.8.1-9.8.8 I0/I1/K0/K1 polynomials; Hankel asymptotic form (A&S 9.2.5-9.2.6, DLMF 10.17); A&S 9.1 recurrences and Miller's backward recurrence (Miller 1952, Gautschi 1967); J0/J1/Y0/Y1 rational and P/Q coefficients and all thresholds fitted from Excel readings"
     }
    ],
-   "evidence": [
-    {
-     "kind": "code",
-     "line": 8,
-     "quote": "const ACC: f64 = 40.0;"
-    },
-    {
-     "kind": "comment",
-     "line": 11,
-     "quote": "Excel's Bessel functions use the Numerical Recipes algorithm"
-    }
-   ],
-   "cleanup": {
-    "action": "replace",
-    "bead": "dc-96l.3",
-    "how": "the I0/I1/K0/K1 polynomials are Abramowitz and Stegun 9.8.1-9.8.8 and the J/Y rational fits come from Hart; a clean-room agent writes the routines from A&S/Hart and the recurrences from the mathematics (Miller's algorithm is published, 1952), with its own structure and constants, and re-measures against the Excel captures (Excel's NR typos have to be re-found by measurement or accepted as regressions under dc-j9k)"
-   },
-   "surveyed_blob": "4020bf4674bb4e44d8ff325e79c8b672920aa2d0",
-   "surveyed_bytes": 24091
+   "note": "dc-96l.3 clean-room replacement: written without reading the replaced file or its history"
   },
   {
    "path": "crates/calc-func/src/ported/beta_gamma_stats_family.rs",
