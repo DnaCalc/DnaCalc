@@ -2133,12 +2133,12 @@ fn ceng_m1_2__wrong_cache_not_pass() {
             set(c(7, 1), unpaired),
             set(c(8, 1), formula("0.1+0.2-0.3")),
             // A range where a legacy formula takes one value at a place whose evaluation is not
-            // measured (COUNTIF's range, which takes only a reference: Excel refuses to enter the
+            // measured (COUNTIFS's range, which takes only a reference: Excel refuses to enter the
             // formula; XLOOKUP's lookup array and CHISQ.TEST's ranges, which this row used
             // before, were measured by L3 and dc-10y and lift): a typed refusal. (A range at the
             // formula's root is intersected with its row, as Excel does: `=Data!A1:A2` in row 9
             // is #VALUE!.)
-            set(c(9, 1), formula("COUNTIF(Data!A1:A2*1,1)")),
+            set(c(9, 1), formula("COUNTIFS(Data!A1:A2*1,1)")),
             set(c(1, 3), formula("A2*2")),
         ],
     );

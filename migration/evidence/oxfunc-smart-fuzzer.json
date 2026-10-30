@@ -5,7 +5,7 @@
   "evidence_repository": {
     "url": "https://github.com/DnaCalc/OxFunc-Evidence",
     "branch": "master",
-    "commit": "5e54ff72a0f2903f7dc55aa69c2ab64be193a468",
+    "commit": "1a47dfcec7db3cf8b8343da312af474cbd3ddcf1",
     "local_checkout": "<legacy root>/OxFunc-Evidence",
     "originals": "<legacy root>/OxFunc/smart-fuzzer",
     "legacy_root": "the parent directory of the DnaCalc checkout, or the directory DNACALC_LEGACY_ROOT names",
@@ -695,5 +695,31 @@
     {"entry": "runs/w111-vdb-switched-typed-independent-20260929/", "files": 8, "reading": "path and metadata", "label": "known", "excel_build": "20430", "sources": [{"file": "runs/w111-vdb-switched-typed-independent-20260929/manifest.json", "field": "excel_environment.build", "build": "20430"}, {"file": "runs/w111-vdb-switched-typed-independent-20260929/rollup.json", "field": "excel_environment.build", "build": "20430"}], "certifies_exact_target": "excel-build-20430"},
     {"entry": "runs/wd-hol-001/", "files": 7, "reading": "path and metadata", "label": "unknown", "excel_build": null, "sources": [], "certifies_exact_target": null},
     {"entry": "runs/yf-rev-001/", "files": 7, "reading": "path and metadata", "label": "known", "excel_build": "20026", "sources": [{"file": "runs/yf-rev-001/rollup.json", "field": "excel_environment.build", "build": "20026"}], "certifies_exact_target": "excel-build-20026"}
-  ]
+  ],
+  "w109": {
+    "bead": "dc-ymjf.1",
+    "excluded": {
+      "files": 1214,
+      "git_blob": "fbd97d3987778999758a0d5ed80f9847a006e186",
+      "path": "w109-excluded.tsv",
+      "raw_bytes": 8430992818,
+      "reason": "not stored: 12 cargo build folders (one row each), code, archives of third-party sources, binary intermediates, logs, files named for third-party material, and the files of w109-held.tsv",
+      "sha256": "ce1d3f65a0ca01e73d90a498c00aac513fe0b30de878deea189594bfe0dd72a8"
+    },
+    "held": {
+      "files": 5,
+      "git_blob": "52acf09ebdb9fadb5d05494806955145347ec686",
+      "path": "w109-held.tsv",
+      "sha256": "30ae638e15288316e875c60f59bbd7855d65c59934a19378219a32da5a46c591"
+    },
+    "manifest": {
+      "archived_files": 1363,
+      "git_blob": "ab423fac51a6916fbc22ad454daf88d0582f5dad",
+      "gz_bytes": 214119868,
+      "path": "w109-manifest.tsv",
+      "raw_bytes": 2086703406,
+      "sha256": "305fb3ff4fc35b5e0206f178ece6ebe0e3b75be36b11c529901eea8b9bede6c3"
+    },
+    "subject": "OxFunc/smart-fuzzer/work/w109 as the second set of the same commit, under work/w109/<path>.gz: the W109 discovery, held-out and discriminator banks (Excel answers, generated inputs, search state and notes), which existed only on the owner's disk; `python archive-evidence.py --set w109 verify|restore` reads it, and `cargo xtask witness judge --bank full` reads its answer files in place"
+  }
 }

@@ -186,15 +186,7 @@
     ]
    }
   ],
-  "allowed": {
-   "crates/calc-func/src/ported/discrete_dist_family.rs": {
-    "counts": {
-     "r-nmath": 34
-    },
-    "owner": "dc-96l.3",
-    "reason": "the BINOM.DIST and POISSON.DIST mass functions follow R nmath and are replaced clean-room"
-   }
-  }
+  "allowed": {}
  },
  "files": [
   {
@@ -1451,45 +1443,17 @@
    "surveyed_bytes": 25452
   },
   {
-   "path": "crates/calc-func/src/ported/discrete_dist_family.rs",
-   "class": "copyleft",
+   "path": "crates/calc-func/src/ported/discrete_dist.rs",
+   "class": "own-work",
+   "reason": "written here clean-room (dc-96l.3) from Loader (2000) and Excel measurement",
    "parts": [
     {
-     "class": "copyleft",
-     "source": "r-nmath",
-     "symbols": [
-      "STIRLERR",
-      "STIRL_S0..S4",
-      "M_LN_2PI",
-      "binom_stirlerr",
-      "binom_bd0",
-      "binom_pmf (dbinom_raw body)",
-      "poisson_dist_kernel's k >= 2 branch (dpois_raw)"
-     ],
-     "what": "R's stirlerr (table for n <= 15, then the series with R's cut-offs 15/35/80/500 and the coefficients 1/12, 1/360, 1/1260, 1/1680, 1/1188), R's bd0 (the |x-np| < 0.1(x+np) test, the v-series loop, the direct form), the dbinom_raw composition lc = stirlerr/bd0 terms and lf, and dpois_raw. The table values were recomputed with mpmath (own data) and the grouping of the sums was chosen by Excel measurement, but the tiers, loop and composition follow R line for line",
-     "shipped": "yes (BINOM.DIST, BINOMDIST pmf; POISSON.DIST/POISSON pmf for k >= 2; NEGBINOM, HYPGEOM where they reach binom_pmf)"
+     "class": "own-work",
+     "kind": "published",
+     "what": "C. Loader, Fast and Accurate Computation of Binomial Probabilities (2000): saddle-point binomial and Poisson masses, the Stirling error (definition and asymptotic series) and the deviance term; hypergeometric and negative binomial masses from binomial masses; argument rules and special cases measured in Excel"
     }
    ],
-   "evidence": [
-    {
-     "kind": "comment",
-     "line": 72,
-     "quote": "probability mass through R's `dbinom_raw`/`bd0`/`stirlerr` machinery"
-    },
-    {
-     "kind": "comment",
-     "line": 316,
-     "quote": "Public R `dpois_raw` (nmath/dpois.c)"
-    }
-   ],
-   "cleanup": {
-    "action": "replace",
-    "bead": "dc-96l.3",
-    "how": "reimplement from Loader (2000), 'Fast and accurate computation of binomial probabilities', which publishes the saddle-point method, the deviance series and the Stirling-error cut-offs; a clean-room agent that has not read R or this file writes it, then Excel measurement settles the operation order"
-   },
-   "surveyed_blob": "09ea97bcc24ad660e0d6ce15c6cd5657d1088681",
-   "surveyed_bytes": 28032,
-   "status_2026_10_30": "Comments no longer use the NT CRT routine labels."
+   "note": "dc-96l.3 clean-room replacement: written without reading the replaced file or its history"
   },
   {
    "path": "crates/calc-func/src/ported/dollar_fraction_family.rs",
@@ -2931,6 +2895,21 @@
    "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)",
    "surveyed_blob": "279548134af95ea36e20e45d64614460f5bc4d3d",
    "surveyed_bytes": 3725
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dc96l3_bessel.txt",
+   "class": "own-work",
+   "reason": "written here (dc-96l.3): formulas chosen to measure Excel, one per row of the catalogue oracle"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dc96l3_discrete.txt",
+   "class": "own-work",
+   "reason": "written here (dc-96l.3): formulas chosen to measure Excel, one per row of the catalogue oracle"
+  },
+  {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dc96l3_x87.txt",
+   "class": "own-work",
+   "reason": "written here (dc-96l.3): formulas chosen to measure Excel, one per row of the catalogue oracle"
   },
   {
    "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcb1l_language.txt",
