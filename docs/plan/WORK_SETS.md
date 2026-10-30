@@ -1,0 +1,52 @@
+# Work sets for continuing agents
+
+This is the list of self-contained work sets for agents (Claude, Codex or others) taking over from
+here. Read `AGENTS.md` first; it is the contract. Then read the bead of your work set (`br show
+<id>`) and the documents it names. One agent per work set, each in its own full clone
+(`C:\Work\DnaCalc\DnaCalc-<lane>` on the Windows machine, or any clone elsewhere), on master.
+
+## How to work
+
+- **Capability first.** Report what the product can now do, then the evidence, then what is open.
+  Pass = matched Excel; refused, mismatched, failed and missing count as fail; cells that read
+  another workbook's saved values or that a circular-reference rule produced are listed on their
+  own, never as pass.
+- **Inner loop stays fast.** Per commit: `cargo xtask check` (build, tests of what you touched,
+  the marker and word scans). Slow validation (browsers, the acceptance suite, architecture
+  scans, Excel captures) is run on purpose with `cargo xtask sweep` or the capture command, never
+  as a step that must pass before you can commit. Do not add new per-commit checks.
+- **Excel.** Only the Windows machine `C:\Work\DnaCalc` has Excel. Work sets marked *Excel* need
+  it for new measurements; others can run anywhere. Excel's results are assumed stable across
+  builds; every reading records Excel build, platform and CPU.
+- **Light process.** No tracker comments that only log decisions. A short handover note on a bead
+  you leave open is useful. Close a bead with `br close <id> --reason "<what works; evidence;
+  still open>"`.
+- **Licence.** No third-party reference code in our repositories (see
+  `docs/plan/THIRD_PARTY_REVIEW.md`). Every new calc-func file gets a ledger entry
+  (`migration/licence-ledger.json`). Microsoft's function descriptions are kept, attributed, with
+  their source URLs.
+
+## Work sets
+
+| # | Work set | Beads | Excel | Notes |
+|---|---|---|---|---|
+| 1 | Per-function bit-exact status | dc-ymjf.2, dc-ymjf.3 | partly | `cargo xtask witness judge`, pinned witness sets, `crates/calc-func/witness-status.tsv`; OxFunc's Excel answers (in OxFunc-Evidence) are imported as readings. Plan: `parked/assess/bit-exact.md` §4 (on the Windows machine). |
+| 2 | Algorithm search research | dc-ymjf.4 and its units | no (results are confirmed on the Windows machine) | A public research repository with the search tools; one unit per root cause: BINOM/POISSON mass (clean-room: never read the deleted `discrete_dist_family.rs`, its history or R nmath), ERFC body, PPMT/IPMT, the incomplete beta tail, RATE/IRR solvers, GAMMA.DIST's three cumulative cells. Good for other machines and models. |
+| 3 | Test migration from the legacy repositories | dc-jnt.5 to dc-jnt.16 | J1-J3 no (import), others partly | `docs/plan/TEST_MIGRATION_PLAN.md`. Bring useful OxFunc/OxFml/OxCalc/OxDoc tests over against calc-* APIs. Then dc-jnt.2 and dc-jnt.4 (archive, owner confirms each). |
+| 4 | Circular references | dc-y2o, dc-y2o.1, dc-y2o.2, dc-86f | yes | Iteration off as an engine rule with its own provenance; iteration on in Excel's order. Read the handover notes on the beads. |
+| 5 | Remaining function gaps | dc-h9u, dc-b1l, dc-ylr (open edges in their notes) | yes | Small, measured cases; the catalogue oracle is the one place for Excel rows. |
+| 6 | Text residue | dc-zsn.2 (iteration marks after Han, jamo), dc-zsn.3, dc-zsn.4 | yes | dc-zsn.3 needs a machine set to a double-byte Office language. |
+| 7 | Functions handbook | dc-dfl, dc-dfl.1, dc-vqo | no | The ExcelFunctionsHandbook repository: coverage to every function, pages checked against Excel readings, version/platform/CPU differences (F19). The authoritative reference, built continuously. |
+| 8 | Add-ins | dc-snz.4, then dc-snz.1 to dc-snz.3 | yes | Rename OxVba to CalcVba and OxForms to CalcForms first. UDF registration lives at calc-func/calc-fml level, so DNA OneCalc (engine-free by design) hosts and tests it. |
+| 9 | Pivot tables | dc-8wp | yes | After 4 and 5. |
+| 10 | Performance | dc-dxm, dc-u5c | no | After the first public publish. |
+
+Kept by the coordinator or the owner, not a work set: the licence history rewrite (dc-96l.7,
+force pushes), each publish to dnacalc.com (dc-ysl), and archiving legacy repositories.
+
+## Architecture rules worth knowing
+
+- DNA OneCalc depends only on calc-fml, calc-func and below, never on calc-engine, calc-doc or
+  calc-host: it is the check that the formula layer stays simple and separate. Shared UI lives in
+  one library with the same limit. DNA Calc is the full product over calc-host.
+- One evaluator, one catalogue oracle, one corpus harness, one verdict path: extend, never copy.

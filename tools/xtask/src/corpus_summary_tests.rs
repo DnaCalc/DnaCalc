@@ -261,10 +261,55 @@ fn a_match_from_external_link_caches_is_counted_apart_from_pass() {
     };
     let markdown = summary.markdown();
     assert!(
-        markdown.contains("pass 1; external links 1; fail 1 (mismatched 1"),
+        markdown.contains("pass 1; external links 1; circular rule 0; fail 1 (mismatched 1"),
         "{markdown}"
     );
     assert_eq!(summary.json()["totals"]["counts"]["external_links"], 1);
+}
+
+/// dc-y2o.1: a match whose value the circular-reference rule held with iteration off is counted
+/// apart from pass and fail, ahead of the external-links mark; a mismatch of one is a fail.
+#[test]
+fn a_match_held_by_the_circular_rule_is_counted_apart_from_pass() {
+    let triage = json!({
+        "run": {},
+        "cells": [
+            cell("A1", "matched", "matched", "matched", None),
+            with(cell("A2", "matched", "matched", "matched", None), "circular_rule", json!(true)),
+            with(
+                with(cell("A3", "matched", "matched", "matched", None), "circular_rule", json!(true)),
+                "external_links",
+                json!(true),
+            ),
+            with(
+                with(cell("A4", "mismatched", "formula", "+", Some("root")), "circular_rule", json!(true)),
+                "difference",
+                difference(call("+", "Infix"), number(1.0), number(2.0), None, Some(false)),
+            ),
+        ],
+    });
+    let compared = read_triage(&triage).unwrap();
+    let c = &compared.counts;
+    assert_eq!(
+        (c.formula_cells, c.pass, c.external_links, c.circular_rule, c.mismatched, c.fail()),
+        (4, 1, 0, 2, 1, 1)
+    );
+    let summary = Summary {
+        run: json!({}),
+        workbooks: vec![Workbook {
+            name: "w.xlsx".to_owned(),
+            sha256: None,
+            capture: None,
+            outcome: Ok(compared),
+            times: Times::default(),
+        }],
+    };
+    let markdown = summary.markdown();
+    assert!(
+        markdown.contains("pass 1; external links 0; circular rule 2; fail 1 (mismatched 1"),
+        "{markdown}"
+    );
+    assert_eq!(summary.json()["totals"]["counts"]["circular_rule"], 2);
 }
 
 #[test]
@@ -459,9 +504,9 @@ fn the_corpus_totals_and_causes_merge_the_workbooks() {
 
     let markdown = summary.markdown();
     for expected in [
-        "- formula cells (compared workbooks): 13; pass 4; external links 0; fail 9 (mismatched 4, refused 3, failed or missing 2)",
+        "- formula cells (compared workbooks): 13; pass 4; external links 0; circular rule 0; fail 9 (mismatched 4, refused 3, failed or missing 2)",
         "- pass rate over all formula cells: 30.76%",
-        "| one.xlsx | 9 | 1 | 0 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
+        "| one.xlsx | 9 | 1 | 0 | 0 | 8 | 4 | 2 | 2 | 11.11% | 0.500 | 2.000 | 0.250 |",
         "| three.xlsx (not compared) |",
         "- three.xlsx: capture: Excel refused",
         "| exactness dc-uar | not-modelled NOT | 2 | 1 | 0 | 3 | 2 |",

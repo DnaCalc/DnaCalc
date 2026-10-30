@@ -309,6 +309,10 @@ $FormulaSheets += , @('dczsn3_bytes', 'sheet-dczsn3_bytes.txt')
 # dc-h9u: the functions OxFunc has and calc-func lacked (PERCENTOF, TRIMRANGE first).
 $PrefixSections += 'prefix-h9u.txt'
 $FormulaSheets += , @('dch9u_functions', 'sheet-dch9u.txt')
+# dc-96l.3: the clean-room replacements (the Bessel functions, the discrete distributions, the x87 chains).
+$FormulaSheets += , @('dc96l3_bessel', 'sheet-dc96l3_bessel.txt')
+$FormulaSheets += , @('dc96l3_discrete', 'sheet-dc96l3_discrete.txt')
+$FormulaSheets += , @('dc96l3_x87', 'sheet-dc96l3_x87.txt')
 
 $prefixInputs = @(
     (New-Number 'A1' '1'), (New-Number 'A2' '5'), (New-Number 'A3' '3'),

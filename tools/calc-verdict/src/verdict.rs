@@ -17,6 +17,8 @@
 //!   no value or another value than the result's      -> unproven (returned)
 //!   no observation for the cell                      -> not_run
 //!   compared with the observation                    -> matched | mismatched
+//! provenance circular_rule                           -> as calculated, with no evaluation
+//!                                                       asked for (none ran), counted apart
 //! ```
 //!
 //! "Another revision" and "another context" are measured against the run the result set declares
@@ -272,6 +274,11 @@ pub struct CellVerdict {
     /// workbook's link caches hold, directly or through the formulas it read (dc-ylr): the result
     /// set's `external_links`. Such a cell is counted apart ([`Counts::external_links`]).
     pub external_links: bool,
+    /// The cell is judged (matched, mismatched or not run) and its value is the one the
+    /// circular-reference rule held with iteration off (dc-y2o.1): the result set's
+    /// `circular_rule` provenance. No evaluation proves it; it is counted apart
+    /// ([`Counts::circular_rule`]).
+    pub circular_rule: bool,
 }
 
 /// A result for a cell the inventory does not list (a spill child or a constant cell, say). It is
@@ -318,6 +325,12 @@ pub struct Counts {
     pub external_links: u64,
     /// The matched cells among `external_links`: part of `matched`.
     pub matched_external_links: u64,
+    /// Cells whose value is the one the circular-reference rule held with iteration off
+    /// (dc-y2o.1): part of `calculated`, though no evaluation proves them. A report states them
+    /// apart from plain passes.
+    pub circular_rule: u64,
+    /// The matched cells among `circular_rule`: part of `matched`.
+    pub matched_circular_rule: u64,
 }
 
 /// How the denominator divides by sheet visibility, by formula kind and by what was observed.
@@ -858,12 +871,26 @@ pub fn judge<'e>(
                 },
                 equals(),
             ),
-            Some(Provenance::Calculated {
-                tick,
-                revision,
-                context,
-                ..
-            }) => {
+            Some(
+                Provenance::Calculated {
+                    tick,
+                    revision,
+                    context,
+                    ..
+                }
+                | Provenance::CircularRule {
+                    tick,
+                    revision,
+                    context,
+                    ..
+                },
+            ) => {
+                // The circular-reference rule's value was not evaluated (dc-y2o.1): no evaluation
+                // proves it, and it is counted apart instead.
+                let rule = matches!(
+                    result.map(|result| &result.provenance),
+                    Some(Provenance::CircularRule { .. })
+                );
                 if *revision != results.run.revision
                     || captured.is_some_and(|(captured, _)| captured != results.run.revision)
                 {
@@ -886,7 +913,9 @@ pub fn judge<'e>(
                         },
                         equals(),
                     )
-                } else if let Some(returned) = {
+                } else if let Some(returned) = if rule {
+                    None
+                } else {
                     // A legacy array formula is evaluated once, at its anchor; each cell of its
                     // range is proven by that evaluation's array, filled as a legacy array fills
                     // its range ([`legacy_fill`]).
@@ -953,10 +982,20 @@ pub fn judge<'e>(
         let external_links = verdict.is_calculated()
             && matches!(
                 result.map(|result| &result.provenance),
-                Some(Provenance::Calculated {
-                    external_links: true,
-                    ..
-                })
+                Some(
+                    Provenance::Calculated {
+                        external_links: true,
+                        ..
+                    } | Provenance::CircularRule {
+                        external_links: true,
+                        ..
+                    }
+                )
+            );
+        let circular_rule = verdict.is_calculated()
+            && matches!(
+                result.map(|result| &result.provenance),
+                Some(Provenance::CircularRule { .. })
             );
         cells.push(CellVerdict {
             formula: formula.clone(),
@@ -965,6 +1004,7 @@ pub fn judge<'e>(
             verdict,
             value_equals_expectation,
             external_links,
+            circular_rule,
         });
     }
 
@@ -1030,6 +1070,12 @@ pub fn judge<'e>(
             counts.external_links += 1;
             if matches!(cell.verdict, Verdict::Matched { .. }) {
                 counts.matched_external_links += 1;
+            }
+        }
+        if cell.circular_rule {
+            counts.circular_rule += 1;
+            if matches!(cell.verdict, Verdict::Matched { .. }) {
+                counts.matched_circular_rule += 1;
             }
         }
         if cell.value_equals_expectation == Some(true) {
@@ -1224,6 +1270,9 @@ fn cell_out(cell: &CellVerdict) -> Out {
     members.push(("verdict", Out::text(cell.verdict.name())));
     if cell.external_links {
         members.push(("external_links", Out::Bool(true)));
+    }
+    if cell.circular_rule {
+        members.push(("circular_rule", Out::Bool(true)));
     }
     match &cell.verdict {
         Verdict::Matched { certainty } => certainty_members(*certainty, &mut members),
@@ -1427,6 +1476,16 @@ impl VerdictReport {
                         (
                             "matched_external_links",
                             Out::Unsigned(c.matched_external_links),
+                        ),
+                    ]
+                }).into_iter().flatten())
+                // Written only when a cell holds the circular-reference rule's value (dc-y2o.1).
+                .chain((c.circular_rule > 0).then(|| {
+                    [
+                        ("circular_rule", Out::Unsigned(c.circular_rule)),
+                        (
+                            "matched_circular_rule",
+                            Out::Unsigned(c.matched_circular_rule),
                         ),
                     ]
                 }).into_iter().flatten())
@@ -1758,6 +1817,46 @@ mod tests {
         let encoded: serde_json::Value = serde_json::from_str(&plain.encode()).unwrap();
         assert!(encoded["counts"].get("external_links").is_none());
         assert!(encoded["cells"][0].get("external_links").is_none());
+    }
+
+    /// dc-y2o.1: a result the circular-reference rule held with iteration off was not evaluated,
+    /// so no evaluation proves it; it is judged against the observation like a calculated result
+    /// and counted apart, in the counts and on the cell. A calculated result with no evaluation
+    /// stays unproven, and a rule result at another revision is stale.
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn a_value_the_circular_rule_held_is_judged_and_counted_apart() {
+        let live = capture(LIVE, ENVIRONMENT, RAW_TWO);
+        let none = record_of(&[]);
+        let held = results(r#"{"circular_rule": {"tick": 7, "revision": 3, "context": "k"}}"#);
+        let report = judge(&live, &held, &none, &exact("20430")).unwrap();
+        assert_eq!(report.cells[0].verdict, matched(Certainty::StrictBits));
+        assert!(report.cells[0].circular_rule);
+        assert!(!report.cells[0].external_links);
+        assert_eq!(
+            (
+                report.counts.matched,
+                report.counts.circular_rule,
+                report.counts.matched_circular_rule
+            ),
+            (1, 1, 1)
+        );
+        let encoded: serde_json::Value = serde_json::from_str(&report.encode()).unwrap();
+        assert_eq!(encoded["counts"]["circular_rule"], 1);
+        assert_eq!(encoded["counts"]["matched_circular_rule"], 1);
+        assert_eq!(encoded["cells"][0]["circular_rule"], true);
+
+        let unproven = judge(&live, &results(CALCULATED), &none, &exact("20430")).unwrap();
+        assert!(matches!(unproven.cells[0].verdict, Verdict::Unproven { .. }));
+        assert!(!unproven.cells[0].circular_rule);
+        let encoded: serde_json::Value = serde_json::from_str(&unproven.encode()).unwrap();
+        assert!(encoded["counts"].get("circular_rule").is_none());
+
+        let other_revision =
+            results(r#"{"circular_rule": {"tick": 7, "revision": 2, "context": "k"}}"#);
+        let stale = judge(&live, &other_revision, &none, &exact("20430")).unwrap();
+        assert!(matches!(stale.cells[0].verdict, Verdict::Stale { .. }));
+        assert_eq!(stale.counts.circular_rule, 0);
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]
@@ -2367,6 +2466,8 @@ mod tests {
                 calculated_without_value_check: 2,
                 external_links: 0,
                 matched_external_links: 0,
+                circular_rule: 0,
+                matched_circular_rule: 0,
             }
         );
         assert_eq!(report.evaluation_record_version, 1);
