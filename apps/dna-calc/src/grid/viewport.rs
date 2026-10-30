@@ -14,6 +14,42 @@ pub const ZOOM_MIN: f64 = 0.5;
 /// The largest zoom factor (400%).
 pub const ZOOM_MAX: f64 = 4.0;
 
+/// Keep physical scroll surfaces below browser layout limits while retaining Excel coordinates.
+pub const SCROLL_SURFACE_LIMIT: f64 = 8_000_000.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollScale {
+    pub surface: f64,
+    logical_max: f64,
+    physical_max: f64,
+}
+
+impl ScrollScale {
+    pub fn new(content: f64, viewport: f64) -> Self {
+        let content = content.max(viewport).max(0.0);
+        let surface = content.min(SCROLL_SURFACE_LIMIT).max(viewport);
+        Self {
+            surface,
+            logical_max: (content - viewport).max(0.0),
+            physical_max: (surface - viewport).max(0.0),
+        }
+    }
+    pub fn logical(self, physical: f64) -> f64 {
+        if self.physical_max <= 0.0 {
+            0.0
+        } else {
+            physical.clamp(0.0, self.physical_max) * self.logical_max / self.physical_max
+        }
+    }
+    pub fn physical(self, logical: f64) -> f64 {
+        if self.logical_max <= 0.0 {
+            0.0
+        } else {
+            logical.clamp(0.0, self.logical_max) * self.physical_max / self.logical_max
+        }
+    }
+}
+
 /// Clamp a zoom factor to the control's `[ZOOM_MIN, ZOOM_MAX]` range; a
 /// non-finite value resets to `1.0` (100%). Pure and total, so a `+`/`−`/reset
 /// press can never drive the zoom out of range or to `NaN`.
@@ -113,6 +149,26 @@ pub fn reveal_scroll(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn physical_scroll_surfaces_reach_both_excel_edges_at_every_zoom() {
+        for zoom in [0.5, 1.0, 4.0] {
+            for viewport in [320.0, 844.0, 1000.0] {
+                let content = 22.0 + 1_048_576.0 * 20.0 * zoom;
+                let scale = ScrollScale::new(content, viewport);
+                assert!(scale.surface <= SCROLL_SURFACE_LIMIT);
+                assert_eq!(scale.logical(0.0), 0.0);
+                assert_eq!(scale.logical(scale.surface - viewport), content - viewport);
+                for logical in [0.0, 1000.0, (content - viewport) / 2.0, content - viewport] {
+                    assert!((scale.logical(scale.physical(logical)) - logical).abs() < 0.000001);
+                }
+            }
+        }
+        let small = ScrollScale::new(1000.0, 500.0);
+        assert_eq!(small.logical(123.0), 123.0);
+        assert_eq!(small.physical(123.0), 123.0);
+    }
 
     /// `clamp_zoom` holds the factor to `[ZOOM_MIN, ZOOM_MAX]` and resets a
     /// non-finite value to 1.0.

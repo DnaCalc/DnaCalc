@@ -81,7 +81,7 @@ fn in_unquoted_name(c: char) -> bool {
 
 /// The reference `text` (UTF-16 code units) names, read in `notation` for a formula anchored at
 /// `anchor`, its sheet qualifier resolved through `catalog`. See the module documentation.
-pub(crate) fn bind_text(
+pub fn bind_text(
     text: &[u16],
     notation: ReferenceNotation,
     anchor: FormulaAnchor,

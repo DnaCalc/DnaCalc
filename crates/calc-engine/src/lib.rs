@@ -68,7 +68,7 @@ pub use edit::{
     prepare_edit,
 };
 pub use graph::{AxisInterval, Prerequisite, SheetSpan};
-pub use read::{ObservedEvaluation, ReadObserver, Unobserved};
+pub use read::{ObservedEvaluation, ReadObserver, Unobserved, resolve_reference_text};
 pub use recalc::{
     RecalcFailure, RecalcProgress, RecalcWork, StartError, WorkBudget, begin_recalc, finish, step,
 };

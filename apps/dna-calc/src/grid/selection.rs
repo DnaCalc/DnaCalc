@@ -7,8 +7,9 @@
 //!    [`NavAction`] to the next active cell over a [`GridExtent`]. Navigation stops at the four
 //!    edges and never wraps.
 //!
-//! The selection is a range: the active cell and the corner opposite it, which Shift+Arrow moves
-//! with the same [`next_active`] (dc-09v).
+//! The canonical host selection keeps its active cell separately from its rectangles. Sparse
+//! occupancy drives data-edge moves; geometry drives hidden-axis and page movement. No operation
+//! expands a whole row, column or selection into its blank cells.
 //!
 //! Ported from DnaTreeCalc (commit bf6dfd7) `src/dnacalc-stage-sheet/src/selection.rs`, with its
 //! tests. Delete clears the selection ([`SheetAction::Clear`]) and Shift+Arrow extends it
@@ -58,7 +59,7 @@ impl GridExtent {
 /// distinct from [`SheetAction`], which also carries the mode-change and degrade
 /// verbs the keyboard grammar resolves. Every variant lands on exactly one cell
 /// (single-cell selection), never a range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum NavAction {
     /// One row up (Arrow Up).
     Up,
@@ -110,6 +111,369 @@ pub fn next_active(current: (u32, u32), action: NavAction, extent: GridExtent) -
     extent.clamp(next_row, next_col)
 }
 
+/// Commands whose result depends on the workbook selection, occupancy or viewport.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum Navigation {
+    Step(NavAction),
+    Edge(NavAction),
+    UsedEnd,
+    Page { down: bool },
+    Walk { horizontal: bool, reverse: bool },
+    Column,
+    Row,
+    All,
+}
+
+use super::geometry::GridMetrics;
+use calc_host::Selection;
+use calc_host::value::{CellKey, GridArea, MAX_COLUMNS, MAX_ROWS};
+
+/// The next boundary of a sparse occupied line. Empty formula results still occupy cells.
+pub fn data_edge(current: u32, forward: bool, limit: u32, intervals: &[(u32, u32)]) -> u32 {
+    let mut runs = intervals.to_vec();
+    runs.sort_unstable();
+    let mut merged: Vec<(u32, u32)> = Vec::new();
+    for (first, last) in runs {
+        if let Some(run) = merged.last_mut()
+            && first <= run.1.saturating_add(1)
+        {
+            run.1 = run.1.max(last);
+        } else {
+            merged.push((first, last));
+        }
+    }
+    if let Some(&(first, last)) = merged
+        .iter()
+        .find(|&&(first, last)| first <= current && current <= last)
+    {
+        if forward && current < last {
+            return last;
+        }
+        if !forward && current > first {
+            return first;
+        }
+    }
+    if forward {
+        merged
+            .iter()
+            .find(|&&(first, _)| first > current)
+            .map_or(limit, |r| r.0)
+    } else {
+        merged
+            .iter()
+            .rev()
+            .find(|&&(_, last)| last < current)
+            .map_or(1, |r| r.1)
+    }
+}
+
+fn rectangle(at: CellKey, first: (u32, u32), last: (u32, u32)) -> GridArea {
+    GridArea::new(
+        CellKey::new(at.sheet(), first.0, first.1).expect("bounded coordinate"),
+        CellKey::new(at.sheet(), last.0, last.1).expect("bounded coordinate"),
+    )
+    .expect("one sheet")
+}
+
+pub fn current_region(at: CellKey, occupied: &[GridArea]) -> Option<GridArea> {
+    if !occupied.iter().any(|a| a.contains(at)) {
+        return None;
+    }
+    let mut region = GridArea::cell(at);
+    loop {
+        let old = region;
+        for area in occupied.iter().filter(|a| a.sheet() == at.sheet()) {
+            if area.first().row() <= region.last().row().saturating_add(1)
+                && area.last().row().saturating_add(1) >= region.first().row()
+                && area.first().column() <= region.last().column().saturating_add(1)
+                && area.last().column().saturating_add(1) >= region.first().column()
+            {
+                region = rectangle(
+                    at,
+                    (
+                        region.first().row().min(area.first().row()),
+                        region.first().column().min(area.first().column()),
+                    ),
+                    (
+                        region.last().row().max(area.last().row()),
+                        region.last().column().max(area.last().column()),
+                    ),
+                );
+            }
+        }
+        if region == old {
+            return Some(region);
+        }
+    }
+}
+
+/// The corner opposite an active corner, independently along each axis.
+pub fn opposite(area: GridArea, at: CellKey) -> (u32, u32) {
+    let (first, last) = (area.first(), area.last());
+    let row = if at.row() == first.row() {
+        last.row()
+    } else {
+        first.row()
+    };
+    let column = if at.column() == first.column() {
+        last.column()
+    } else {
+        first.column()
+    };
+    (row, column)
+}
+
+/// Work out a complete selection without enumerating any blank row, column or rectangle.
+pub fn navigate(
+    selection: &Selection,
+    nav: Navigation,
+    extend: bool,
+    metrics: &GridMetrics,
+    page_height: f64,
+    occupied: &[GridArea],
+    used: Option<GridArea>,
+) -> Selection {
+    let Some(at) = selection.active else {
+        return selection.clone();
+    };
+    let area = selection
+        .areas
+        .first()
+        .copied()
+        .unwrap_or(GridArea::cell(at));
+    let single = |active: CellKey, area| Selection {
+        active: Some(active),
+        areas: vec![area],
+    };
+    match nav {
+        Navigation::Column => {
+            return single(
+                at,
+                rectangle(
+                    at,
+                    (1, area.first().column()),
+                    (MAX_ROWS, area.last().column()),
+                ),
+            );
+        }
+        Navigation::Row => {
+            return single(
+                at,
+                rectangle(
+                    at,
+                    (area.first().row(), 1),
+                    (area.last().row(), MAX_COLUMNS),
+                ),
+            );
+        }
+        Navigation::All => {
+            let region = current_region(at, occupied);
+            let target = match region {
+                Some(region)
+                    if selection.areas.as_slice() != [region]
+                        && selection.areas.as_slice() != [GridArea::full_sheet(at.sheet())] =>
+                {
+                    region
+                }
+                _ => GridArea::full_sheet(at.sheet()),
+            };
+            return single(at, target);
+        }
+        Navigation::Walk {
+            horizontal,
+            reverse,
+        } if selection.areas.len() > 1 || area.cell_count() > 1 => {
+            let mut index = selection
+                .areas
+                .iter()
+                .position(|a| a.contains(at))
+                .unwrap_or(0);
+            let area = selection.areas[index];
+            let step = |n: u32, low: u32, high: u32, rows: bool| -> Option<u32> {
+                let next = if reverse {
+                    n.checked_sub(1)?
+                } else {
+                    n.checked_add(1)?
+                };
+                let visible = if rows {
+                    metrics.visible_row(next.max(1), !reverse, MAX_ROWS)
+                } else {
+                    metrics.visible_col(next.max(1), !reverse, MAX_COLUMNS)
+                };
+                (low <= visible && visible <= high && visible != n).then_some(visible)
+            };
+            let (row, col) = (at.row(), at.column());
+            let first_row = if reverse {
+                area.last().row()
+            } else {
+                area.first().row()
+            };
+            let first_col = if reverse {
+                area.last().column()
+            } else {
+                area.first().column()
+            };
+            let next = if horizontal {
+                step(col, area.first().column(), area.last().column(), false)
+                    .map(|c| (row, c))
+                    .or_else(|| {
+                        step(row, area.first().row(), area.last().row(), true)
+                            .map(|r| (r, first_col))
+                    })
+            } else {
+                step(row, area.first().row(), area.last().row(), true)
+                    .map(|r| (r, col))
+                    .or_else(|| {
+                        step(col, area.first().column(), area.last().column(), false)
+                            .map(|c| (first_row, c))
+                    })
+            };
+            let visible = |area: GridArea, (row, col): (u32, u32)| {
+                let row = metrics.visible_row(row, !reverse, MAX_ROWS);
+                let col = metrics.visible_col(col, !reverse, MAX_COLUMNS);
+                let target = CellKey::new(area.sheet(), row, col).ok()?;
+                area.contains(target).then_some(target)
+            };
+            let mut target = next.and_then(|next| visible(area, next));
+            if target.is_none() {
+                for _ in 0..selection.areas.len() {
+                    index = if reverse {
+                        (index + selection.areas.len() - 1) % selection.areas.len()
+                    } else {
+                        (index + 1) % selection.areas.len()
+                    };
+                    let area = selection.areas[index];
+                    let corner = if reverse { area.last() } else { area.first() };
+                    target = visible(area, (corner.row(), corner.column()));
+                    if target.is_some() {
+                        break;
+                    }
+                }
+            }
+            return target.map_or_else(
+                || selection.clone(),
+                |target| Selection {
+                    active: Some(target),
+                    areas: selection.areas.clone(),
+                },
+            );
+        }
+        _ => {}
+    }
+    let from = if extend {
+        let (row, col) = opposite(area, at);
+        CellKey::new(at.sheet(), row, col).expect("area corner")
+    } else {
+        at
+    };
+    let (row, col) = (from.row(), from.column());
+    let next = match nav {
+        Navigation::Step(action) => {
+            next_active((row, col), action, GridExtent::new(MAX_ROWS, MAX_COLUMNS))
+        }
+        Navigation::Walk {
+            horizontal,
+            reverse,
+        } => next_active(
+            (row, col),
+            match (horizontal, reverse) {
+                (true, false) => NavAction::Right,
+                (true, true) => NavAction::Left,
+                (false, false) => NavAction::Down,
+                (false, true) => NavAction::Up,
+            },
+            GridExtent::new(MAX_ROWS, MAX_COLUMNS),
+        ),
+        Navigation::Edge(direction) => {
+            let horizontal = matches!(direction, NavAction::Left | NavAction::Right);
+            let forward = matches!(direction, NavAction::Right | NavAction::Down);
+            let intervals: Vec<_> = occupied
+                .iter()
+                .filter(|a| a.sheet() == at.sheet())
+                .filter_map(|a| {
+                    if horizontal && a.first().row() <= row && row <= a.last().row() {
+                        Some((a.first().column(), a.last().column()))
+                    } else if !horizontal && a.first().column() <= col && col <= a.last().column() {
+                        Some((a.first().row(), a.last().row()))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if horizontal {
+                (row, data_edge(col, forward, MAX_COLUMNS, &intervals))
+            } else {
+                (data_edge(row, forward, MAX_ROWS, &intervals), col)
+            }
+        }
+        Navigation::UsedEnd => used.map_or((1, 1), |a| (a.last().row(), a.last().column())),
+        Navigation::Page { down } => {
+            let distance = (page_height - metrics.header_h).max(metrics.height(row));
+            let offset =
+                (metrics.row_start(row) + if down { distance } else { -distance }).max(0.0);
+            let mut target = metrics.row_at(offset, MAX_ROWS);
+            if !down && metrics.row_start(target) < offset {
+                target = target.saturating_add(1).min(MAX_ROWS);
+            }
+            (target, col)
+        }
+        _ => (row, col),
+    };
+    let home = matches!(
+        nav,
+        Navigation::Step(NavAction::RowStart | NavAction::GridStart)
+    );
+    let next = (
+        metrics.visible_row(next.0, home || next.0 >= row, MAX_ROWS),
+        metrics.visible_col(next.1, home || next.1 >= col, MAX_COLUMNS),
+    );
+    let target = CellKey::new(at.sheet(), next.0, next.1).expect("bounded navigation");
+    if extend {
+        single(at, GridArea::new(at, target).expect("one sheet"))
+    } else {
+        single(target, GridArea::cell(target))
+    }
+}
+
+/// Remove a selected rectangle using at most four rectangles per existing area.
+pub fn subtract(area: GridArea, removed: GridArea) -> Vec<GridArea> {
+    if area.sheet() != removed.sheet() {
+        return vec![area];
+    }
+    let (t, l, b, r) = (
+        area.first().row().max(removed.first().row()),
+        area.first().column().max(removed.first().column()),
+        area.last().row().min(removed.last().row()),
+        area.last().column().min(removed.last().column()),
+    );
+    if t > b || l > r {
+        return vec![area];
+    }
+    let mut result = Vec::new();
+    let at = area.first();
+    if area.first().row() < t {
+        result.push(rectangle(
+            at,
+            (area.first().row(), area.first().column()),
+            (t - 1, area.last().column()),
+        ));
+    }
+    if b < area.last().row() {
+        result.push(rectangle(
+            at,
+            (b + 1, area.first().column()),
+            (area.last().row(), area.last().column()),
+        ));
+    }
+    if area.first().column() < l {
+        result.push(rectangle(at, (t, area.first().column()), (b, l - 1)));
+    }
+    if r < area.last().column() {
+        result.push(rectangle(at, (t, r + 1), (b, area.last().column())));
+    }
+    result
+}
+
 // --- Keyboard grammar (mirrors the Notebook stage's keyboard.rs) -------------
 
 /// Normalize a raw DOM `KeyboardEvent.key` string into the table's vocabulary: a
@@ -159,6 +523,7 @@ pub enum SheetAction {
     /// Ctrl+Home). Carries the [`NavAction`] so the wiring calls [`next_active`]
     /// with it directly — the movement grammar and the key grammar cannot drift.
     Move(NavAction),
+    Navigate(Navigation, bool),
     /// Open the one overlay editor at the active cell, seeded with the cell's
     /// EXISTING authored text (F2 edit-in-place, or a double-click). Type-to-replace
     /// is NOT a keymap row — it is any printable key, handled as a wiring fallback
@@ -195,7 +560,7 @@ pub struct KeyBinding {
 /// chords move the selected range's corner.
 #[must_use]
 pub fn sheet_keymap() -> Vec<KeyBinding> {
-    vec![
+    let mut map = vec![
         // Arrow navigation (Select mode) — bare, no modifiers.
         KeyBinding {
             id: "sheet.move-up",
@@ -225,13 +590,25 @@ pub fn sheet_keymap() -> Vec<KeyBinding> {
         KeyBinding {
             id: "sheet.move-next-column",
             chord: KeyChord::new("Tab", false, false, false),
-            action: SheetAction::Move(NavAction::NextColumn),
+            action: SheetAction::Navigate(
+                Navigation::Walk {
+                    horizontal: true,
+                    reverse: false,
+                },
+                false,
+            ),
             label: "Next column",
         },
         KeyBinding {
             id: "sheet.move-prev-column",
             chord: KeyChord::new("Tab", true, false, false),
-            action: SheetAction::Move(NavAction::PrevColumn),
+            action: SheetAction::Navigate(
+                Navigation::Walk {
+                    horizontal: true,
+                    reverse: true,
+                },
+                false,
+            ),
             label: "Previous column",
         },
         // Home → first column of the row; Ctrl+Home → the top-left cell.
@@ -261,7 +638,13 @@ pub fn sheet_keymap() -> Vec<KeyBinding> {
         KeyBinding {
             id: "sheet.enter-down",
             chord: KeyChord::new("Enter", false, false, false),
-            action: SheetAction::Move(NavAction::Down),
+            action: SheetAction::Navigate(
+                Navigation::Walk {
+                    horizontal: false,
+                    reverse: false,
+                },
+                false,
+            ),
             label: "Enter (move down)",
         },
         // Escape clears the transient degrade note in select mode.
@@ -303,7 +686,74 @@ pub fn sheet_keymap() -> Vec<KeyBinding> {
             action: SheetAction::Extend(NavAction::Right),
             label: "Extend selection right",
         },
-    ]
+    ];
+    for (key, nav, ctrl) in [
+        ("ArrowUp", Navigation::Edge(NavAction::Up), true),
+        ("ArrowDown", Navigation::Edge(NavAction::Down), true),
+        ("ArrowLeft", Navigation::Edge(NavAction::Left), true),
+        ("ArrowRight", Navigation::Edge(NavAction::Right), true),
+        ("End", Navigation::UsedEnd, true),
+        ("PageUp", Navigation::Page { down: false }, false),
+        ("PageDown", Navigation::Page { down: true }, false),
+    ] {
+        for shift in [false, true] {
+            map.push(KeyBinding {
+                id: match (key, shift) {
+                    ("ArrowUp", false) => "sheet.edge-up",
+                    ("ArrowUp", true) => "sheet.extend-edge-up",
+                    ("ArrowDown", false) => "sheet.edge-down",
+                    ("ArrowDown", true) => "sheet.extend-edge-down",
+                    ("ArrowLeft", false) => "sheet.edge-left",
+                    ("ArrowLeft", true) => "sheet.extend-edge-left",
+                    ("ArrowRight", false) => "sheet.edge-right",
+                    ("ArrowRight", true) => "sheet.extend-edge-right",
+                    ("End", false) => "sheet.used-end",
+                    ("End", true) => "sheet.extend-used-end",
+                    ("PageUp", false) => "sheet.page-up",
+                    ("PageUp", true) => "sheet.extend-page-up",
+                    ("PageDown", false) => "sheet.page-down",
+                    _ => "sheet.extend-page-down",
+                },
+                chord: KeyChord::new(key, shift, ctrl, false),
+                action: SheetAction::Navigate(nav, shift),
+                label: "Navigate worksheet",
+            });
+        }
+    }
+    for (id, key, shift, ctrl, nav) in [
+        (
+            "sheet.enter-up",
+            "Enter",
+            true,
+            false,
+            Navigation::Walk {
+                horizontal: false,
+                reverse: true,
+            },
+        ),
+        ("sheet.select-column", " ", false, true, Navigation::Column),
+        ("sheet.select-row", " ", true, false, Navigation::Row),
+        ("sheet.select-region", "a", false, true, Navigation::All),
+    ] {
+        map.push(KeyBinding {
+            id,
+            chord: KeyChord::new(key, shift, ctrl, false),
+            action: SheetAction::Navigate(nav, false),
+            label: "Navigate selection",
+        });
+    }
+    for (id, key, ctrl, nav) in [
+        ("sheet.extend-home", "Home", false, NavAction::RowStart),
+        ("sheet.extend-grid-home", "Home", true, NavAction::GridStart),
+    ] {
+        map.push(KeyBinding {
+            id,
+            chord: KeyChord::new(key, true, ctrl, false),
+            action: SheetAction::Extend(nav),
+            label: "Extend to beginning",
+        });
+    }
+    map
 }
 
 /// Resolve a chord to its action against `keymap` — a pure, first-match lookup.
@@ -379,7 +829,7 @@ pub fn is_shell_chord(chord: &KeyChord) -> bool {
 }
 
 /// Resolve a section keydown's route (see [`SectionKeyRoute`]). Pure over the
-/// facts, so the wiring's first gate is unit-tested here. While EDITING with
+/// facts, so the wiring's initial routing is unit-tested here. While EDITING with
 /// the key at the section, a shell chord the sheet grammar does not bind is
 /// [`SectionKeyRoute::ShellOwns`] (Ctrl+S must save); a chord the
 /// grammar binds (F2, Enter, Ctrl+Home) or plain typing refocuses the editor.
@@ -406,6 +856,373 @@ pub fn section_key_route(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn key(row: u32, col: u32) -> CellKey {
+        CellKey::new(calc_host::value::SheetId::from_parts(1, 0), row, col).unwrap()
+    }
+    fn area(top: u32, left: u32, bottom: u32, right: u32) -> GridArea {
+        GridArea::new(key(top, left), key(bottom, right)).unwrap()
+    }
+    fn run(
+        selection: &Selection,
+        nav: Navigation,
+        extend: bool,
+        occupied: &[GridArea],
+        used: Option<GridArea>,
+    ) -> Selection {
+        navigate(
+            selection,
+            nav,
+            extend,
+            &GridMetrics::default(),
+            242.0,
+            occupied,
+            used,
+        )
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn data_edges_distinguish_contiguous_runs_gaps_and_physical_limits() {
+        let runs = [(8, 10), (1, 2), (3, 4), (20, 20)];
+        for (from, forward, expected) in [
+            (1, true, 4),
+            (4, true, 8),
+            (5, true, 8),
+            (8, true, 10),
+            (10, true, 20),
+            (20, true, MAX_ROWS),
+            (9, false, 8),
+            (8, false, 4),
+            (7, false, 4),
+            (4, false, 1),
+            (1, false, 1),
+        ] {
+            assert_eq!(data_edge(from, forward, MAX_ROWS, &runs), expected);
+        }
+        assert_eq!(data_edge(50, true, MAX_ROWS, &[]), MAX_ROWS);
+        assert_eq!(
+            data_edge(MAX_ROWS, true, MAX_ROWS, &[(MAX_ROWS, MAX_ROWS)]),
+            MAX_ROWS
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn enter_and_tab_walk_a_rectangle_keep_it_and_reverse_across_wrap() {
+        let selected = area(2, 3, 4, 4);
+        for (horizontal, expected) in [
+            (false, vec![(3, 3), (4, 3), (2, 4), (3, 4), (4, 4), (2, 3)]),
+            (true, vec![(2, 4), (3, 3), (3, 4), (4, 3), (4, 4), (2, 3)]),
+        ] {
+            let mut selection = Selection {
+                active: Some(key(2, 3)),
+                areas: vec![selected],
+            };
+            for (row, col) in expected {
+                selection = run(
+                    &selection,
+                    Navigation::Walk {
+                        horizontal,
+                        reverse: false,
+                    },
+                    false,
+                    &[],
+                    None,
+                );
+                assert_eq!(selection.active, Some(key(row, col)));
+                assert_eq!(selection.areas, vec![selected]);
+            }
+            selection = run(
+                &selection,
+                Navigation::Walk {
+                    horizontal,
+                    reverse: true,
+                },
+                false,
+                &[],
+                None,
+            );
+            assert_eq!(selection.active, Some(key(4, 4)));
+            assert_eq!(selection.areas, vec![selected]);
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn navigation_and_extension_use_sparse_spill_bounds_and_the_used_corner() {
+        let selection = Selection::cell(key(2, 2));
+        let spill = area(2, 2, MAX_ROWS, 2);
+        let next = run(
+            &selection,
+            Navigation::Edge(NavAction::Down),
+            false,
+            &[spill],
+            None,
+        );
+        assert_eq!(next.active, Some(key(MAX_ROWS, 2)));
+        let extended = run(
+            &selection,
+            Navigation::Edge(NavAction::Down),
+            true,
+            &[spill],
+            None,
+        );
+        assert_eq!(extended.active, selection.active);
+        assert_eq!(extended.areas, vec![spill]);
+        let next = run(
+            &selection,
+            Navigation::UsedEnd,
+            false,
+            &[],
+            Some(area(1, 1, 500, 30)),
+        );
+        assert_eq!(next.active, Some(key(500, 30)));
+        assert_eq!(
+            run(
+                &next,
+                Navigation::Step(NavAction::GridStart),
+                false,
+                &[],
+                None
+            ),
+            Selection::cell(key(1, 1))
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn axes_and_select_all_are_rectangles_and_current_region_excludes_blank_separators() {
+        let selection = Selection::cell(key(3, 2));
+        let occupied = [area(1, 1, 4, 2), area(10, 1, 12, 2)];
+        let region = run(&selection, Navigation::All, false, &occupied, None);
+        assert_eq!(region.areas, vec![area(1, 1, 4, 2)]);
+        assert_eq!(
+            run(&region, Navigation::All, false, &occupied, None).areas,
+            vec![area(1, 1, MAX_ROWS, MAX_COLUMNS)]
+        );
+        assert_eq!(
+            run(&selection, Navigation::Column, false, &[], None).areas,
+            vec![area(1, 2, MAX_ROWS, 2)]
+        );
+        assert_eq!(
+            run(&selection, Navigation::Row, false, &[], None).areas,
+            vec![area(3, 1, 3, MAX_COLUMNS)]
+        );
+        assert_eq!(
+            run(
+                &Selection::cell(key(8, 8)),
+                Navigation::All,
+                false,
+                &occupied,
+                None
+            )
+            .areas,
+            vec![area(1, 1, MAX_ROWS, MAX_COLUMNS)]
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn page_moves_and_hidden_axes_share_the_geometry_and_home_finds_the_first_visible_cell() {
+        let mut m = GridMetrics::default();
+        m.rows = super::super::geometry::Sizes::new(m.row_height, [(1, 0.0), (2, 0.0), (5, 66.0)]);
+        m.cols = super::super::geometry::Sizes::new(m.col_width, [(1, 0.0), (2, 0.0)]);
+        let selection = Selection::cell(key(4, 4));
+        let home = navigate(
+            &selection,
+            Navigation::Step(NavAction::GridStart),
+            false,
+            &m,
+            242.0,
+            &[],
+            None,
+        );
+        assert_eq!(home.active, Some(key(3, 3)));
+        let page = navigate(
+            &Selection::cell(key(3, 3)),
+            Navigation::Page { down: true },
+            false,
+            &m,
+            242.0,
+            &[],
+            None,
+        );
+        assert_eq!(page.active, Some(key(11, 3)));
+        let previous = navigate(
+            &Selection::cell(key(4, 4)),
+            Navigation::Step(NavAction::Up),
+            false,
+            &m,
+            242.0,
+            &[],
+            None,
+        );
+        assert_eq!(previous.active, Some(key(3, 4)));
+        let previous = navigate(
+            &previous,
+            Navigation::Step(NavAction::Up),
+            false,
+            &m,
+            242.0,
+            &[],
+            None,
+        );
+        assert_eq!(previous.active, Some(key(3, 4)));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn subtracting_one_cell_from_a_whole_sheet_keeps_four_disjoint_rectangles() {
+        let whole = area(1, 1, MAX_ROWS, MAX_COLUMNS);
+        let parts = subtract(whole, area(10, 10, 10, 10));
+        assert_eq!(parts.len(), 4);
+        assert_eq!(
+            parts.iter().map(|a| a.cell_count()).sum::<u64>(),
+            whole.cell_count() - 1
+        );
+        assert!(parts.iter().all(|a| !a.contains(key(10, 10))));
+        for (i, a) in parts.iter().enumerate() {
+            for b in parts.iter().skip(i + 1) {
+                assert!(
+                    a.last().row() < b.first().row()
+                        || b.last().row() < a.first().row()
+                        || a.last().column() < b.first().column()
+                        || b.last().column() < a.first().column()
+                );
+            }
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn disjoint_rectangles_walk_in_both_directions_without_expanding_cells() {
+        let selection = Selection {
+            active: Some(key(2, 2)),
+            areas: vec![
+                area(2, 2, 2, 2),
+                area(MAX_ROWS, MAX_COLUMNS, MAX_ROWS, MAX_COLUMNS),
+            ],
+        };
+        let next = run(
+            &selection,
+            Navigation::Walk {
+                horizontal: false,
+                reverse: false,
+            },
+            false,
+            &[],
+            None,
+        );
+        assert_eq!(next.active, Some(key(MAX_ROWS, MAX_COLUMNS)));
+        assert_eq!(next.areas, selection.areas);
+        assert_eq!(
+            run(
+                &next,
+                Navigation::Walk {
+                    horizontal: false,
+                    reverse: true
+                },
+                false,
+                &[],
+                None
+            ),
+            selection
+        );
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn extending_mixed_corners_keeps_the_stationary_anchor_and_both_axes() {
+        let selected = area(1, 1, 3, 2);
+        let upper_right = Selection {
+            active: Some(key(1, 2)),
+            areas: vec![selected],
+        };
+        let next = run(
+            &upper_right,
+            Navigation::Step(NavAction::Down),
+            true,
+            &[],
+            None,
+        );
+        assert_eq!(next.active, upper_right.active);
+        assert_eq!(next.areas, vec![area(1, 1, 4, 2)]);
+        let lower_left = Selection {
+            active: Some(key(3, 1)),
+            areas: vec![selected],
+        };
+        let next = run(
+            &lower_left,
+            Navigation::Step(NavAction::Right),
+            true,
+            &[],
+            None,
+        );
+        assert_eq!(next.active, lower_left.active);
+        assert_eq!(next.areas, vec![area(1, 1, 3, 3)]);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn range_wrap_and_disjoint_wrap_skip_hidden_boundary_bands() {
+        let mut metrics = GridMetrics::default();
+        metrics.rows =
+            super::super::geometry::Sizes::new(metrics.row_height, [(1, 0.0), (10, 0.0)]);
+        let selection = Selection {
+            active: Some(key(3, 1)),
+            areas: vec![area(1, 1, 3, 2)],
+        };
+        let next = navigate(
+            &selection,
+            Navigation::Walk {
+                horizontal: false,
+                reverse: false,
+            },
+            false,
+            &metrics,
+            242.0,
+            &[],
+            None,
+        );
+        assert_eq!(next.active, Some(key(2, 2)));
+        assert_eq!(next.areas, selection.areas);
+        let selection = Selection {
+            active: Some(key(3, 2)),
+            areas: vec![area(1, 1, 3, 2), area(10, 3, 12, 4)],
+        };
+        let next = navigate(
+            &selection,
+            Navigation::Walk {
+                horizontal: false,
+                reverse: false,
+            },
+            false,
+            &metrics,
+            242.0,
+            &[],
+            None,
+        );
+        assert_eq!(next.active, Some(key(11, 3)));
+        assert_eq!(next.areas, selection.areas);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn axis_selection_expands_every_row_or_column_of_one_rectangle() {
+        let selection = Selection {
+            active: Some(key(2, 2)),
+            areas: vec![area(2, 2, 3, 3)],
+        };
+        assert_eq!(
+            run(&selection, Navigation::Column, false, &[], None).areas,
+            vec![area(1, 2, MAX_ROWS, 3)]
+        );
+        assert_eq!(
+            run(&selection, Navigation::Row, false, &[], None).areas,
+            vec![area(2, 1, 3, MAX_COLUMNS)]
+        );
+    }
 
     const DEMO: GridExtent = GridExtent { rows: 5, cols: 2 };
 
@@ -598,11 +1415,23 @@ mod tests {
             ),
             (
                 KeyChord::new("Tab", false, false, false),
-                SheetAction::Move(NavAction::NextColumn),
+                SheetAction::Navigate(
+                    Navigation::Walk {
+                        horizontal: true,
+                        reverse: false,
+                    },
+                    false,
+                ),
             ),
             (
                 KeyChord::new("Tab", true, false, false),
-                SheetAction::Move(NavAction::PrevColumn),
+                SheetAction::Navigate(
+                    Navigation::Walk {
+                        horizontal: true,
+                        reverse: true,
+                    },
+                    false,
+                ),
             ),
             (
                 KeyChord::new("Home", false, false, false),
@@ -617,9 +1446,15 @@ mod tests {
                 SheetAction::BeginEdit,
             ),
             (
-                // Enter in select mode moves DOWN (Excel-classic), not begin-edit.
+                // Enter walks a selected rectangle, or moves down from one cell.
                 KeyChord::new("Enter", false, false, false),
-                SheetAction::Move(NavAction::Down),
+                SheetAction::Navigate(
+                    Navigation::Walk {
+                        horizontal: false,
+                        reverse: false,
+                    },
+                    false,
+                ),
             ),
             (
                 KeyChord::new("Escape", false, false, false),
@@ -648,18 +1483,27 @@ mod tests {
         let keymap = sheet_keymap();
         assert_eq!(
             resolve_action(&keymap, &KeyChord::new("ArrowUp", false, true, false)),
-            None,
-            "Ctrl+ArrowUp (edge jump) is not bound — it must bubble"
+            Some(SheetAction::Navigate(
+                Navigation::Edge(NavAction::Up),
+                false
+            )),
+            "Ctrl+ArrowUp follows the data edge"
         );
         // A bare letter is not a nav chord — it falls through to type-to-replace.
         assert_eq!(
             resolve_action(&keymap, &KeyChord::new("a", false, false, false)),
             None
         );
-        // Enter WITH shift is unbound (bare Enter moves down; Shift+Enter is free).
+        // Shift+Enter walks the rectangle in reverse.
         assert_eq!(
             resolve_action(&keymap, &KeyChord::new("Enter", true, false, false)),
-            None
+            Some(SheetAction::Navigate(
+                Navigation::Walk {
+                    horizontal: false,
+                    reverse: true
+                },
+                false
+            ))
         );
     }
 

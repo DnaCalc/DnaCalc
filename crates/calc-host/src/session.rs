@@ -120,6 +120,9 @@ pub enum SkinIntent {
     /// Text typed into a cell, read as Excel reads a cell entry ([`crate::interpret_entry`]): a
     /// formula, a value, or, for an empty text, a clear. One transaction, one undo step.
     EnterCell { at: CellKey, text: String },
+    /// Enter one source across the current selection, relocating formulas from its active cell.
+    /// All entries are validated before one transaction and one undo step.
+    EnterSelection { text: String },
     /// Cell edits (values, formulas and clears, over any cells) applied in order as one
     /// transaction and one undo step.
     Edit { edits: Vec<CellEdit> },
@@ -163,6 +166,7 @@ pub enum IntentError {
     Entry(EntryRefusal),
     /// The transaction was refused; the workbook is as it was.
     Command(CommandError),
+    EmptySelection,
     NothingToUndo,
     NothingToRedo,
     /// The step an undo would take back cannot be undone; it stays the last step.
@@ -182,6 +186,7 @@ impl fmt::Display for IntentError {
         match self {
             IntentError::Entry(refusal) => write!(f, "the entry was refused: {refusal}"),
             IntentError::Command(error) => write!(f, "the edit was refused: {error}"),
+            IntentError::EmptySelection => f.write_str("there is no active selection"),
             IntentError::NothingToUndo => f.write_str("there is nothing to undo"),
             IntentError::NothingToRedo => f.write_str("there is nothing to redo"),
             IntentError::Irreversible(irreversible) => {
@@ -394,35 +399,15 @@ impl HostSession {
             deltas: 0,
         };
         let outcome = match intent.clone() {
-            SkinIntent::EnterCell { at, text } => {
-                let entry = interpret_entry_in(&text, Some(&self.host.entry_environment()));
-                // A stop rule of the cell's data validation refuses an entry it does not allow.
-                let refused = match &entry {
-                    Ok(input) => match self.host.check_entry(at, input.as_ref()) {
-                        Err(failure) if failure.style == crate::validation::ErrorStyle::Stop => {
-                            Some(failure)
-                        }
-                        _ => None,
-                    },
-                    Err(_) => None,
-                };
-                match entry {
-                    _ if refused.is_some() => Err(IntentError::Validation(
-                        refused.expect("checked just above"),
-                    )),
-                    Ok(Some(input)) => {
-                        let edit = self.entry_edit(at, input);
-                        self.edit(vec![edit], &mut receipt)
-                    }
-                    Ok(None) => self.edit(
-                        vec![CellEdit::Clear {
-                            area: GridArea::cell(at),
-                        }],
-                        &mut receipt,
-                    ),
-                    Err(refusal) => Err(IntentError::Entry(refusal)),
-                }
-            }
+            SkinIntent::EnterCell { at, text } => self
+                .prepare_entries(at, &text, &[GridArea::cell(at)])
+                .and_then(|edits| self.edit(edits, &mut receipt)),
+            SkinIntent::EnterSelection { text } => match self.selection.active {
+                Some(at) => self
+                    .prepare_entries(at, &text, &self.selection.areas)
+                    .and_then(|edits| self.edit(edits, &mut receipt)),
+                None => Err(IntentError::EmptySelection),
+            },
             SkinIntent::Edit { edits } => {
                 let edits = edits.into_iter().map(|edit| self.authored(edit)).collect();
                 self.edit(edits, &mut receipt)
@@ -469,6 +454,52 @@ impl HostSession {
             self.log.drain(..INTENT_LOG_LIMIT);
         }
         receipt
+    }
+
+    fn prepare_entries(
+        &self,
+        origin: CellKey,
+        text: &str,
+        areas: &[GridArea],
+    ) -> Result<Vec<CellEdit>, IntentError> {
+        let count = areas.iter().map(|area| area.cell_count()).sum::<u64>();
+        if count == 0 {
+            return Err(IntentError::EmptySelection);
+        }
+        if count > crate::copy::COPY_LIMIT {
+            return Err(IntentError::Copy(crate::copy::CopyRefusal::TooLarge {
+                cells: count,
+            }));
+        }
+        let entry = interpret_entry_in(text, Some(&self.host.entry_environment()))
+            .map_err(IntentError::Entry)?;
+        let mut edits = Vec::new();
+        let mut seen = BTreeSet::new();
+        for area in areas {
+            for at in cells_of(Some(*area)).filter(|at| seen.insert(*at)) {
+                let input = match &entry {
+                    Some(CellInput::Formula(formula)) if at != origin => Some(CellInput::Formula(
+                        calc_engine::relocate_formula(&self.host.model, formula, origin, at)
+                            .ok_or(IntentError::Copy(crate::copy::CopyRefusal::Unrelocatable {
+                                at: origin,
+                            }))?,
+                    )),
+                    other => other.clone(),
+                };
+                if let Err(failure) = self.host.check_entry(at, input.as_ref()) {
+                    if failure.style == crate::validation::ErrorStyle::Stop {
+                        return Err(IntentError::Validation(failure));
+                    }
+                }
+                edits.push(match input {
+                    Some(input) => self.entry_edit(at, input),
+                    None => CellEdit::Clear {
+                        area: GridArea::cell(at),
+                    },
+                });
+            }
+        }
+        Ok(edits)
     }
 
     /// The edit an entry makes ([`HostSession::authored`] of a set).

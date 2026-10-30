@@ -393,7 +393,7 @@ pub(crate) fn serve_on(
     headers: Option<Arc<SiteHeaders>>,
     port: u16,
 ) -> Result<u16, String> {
-    serve_mode(dir, headers, port, false)
+    serve_mode(dir, headers, port, false, false)
 }
 
 fn serve_mode(
@@ -401,6 +401,7 @@ fn serve_mode(
     headers: Option<Arc<SiteHeaders>>,
     port: u16,
     worker_fault: bool,
+    worker_latency: bool,
 ) -> Result<u16, String> {
     let listener = TcpListener::bind(("127.0.0.1", port))
         .map_err(|e| format!("cannot listen on 127.0.0.1:{port}: {e}"))?;
@@ -413,7 +414,13 @@ fn serve_mode(
             let dir = dir.clone();
             let headers = headers.clone();
             thread::spawn(move || {
-                let _ = answer(stream, &dir, headers.as_deref(), worker_fault);
+                let _ = answer(
+                    stream,
+                    &dir,
+                    headers.as_deref(),
+                    worker_fault,
+                    worker_latency,
+                );
             });
         }
     });
@@ -461,6 +468,7 @@ fn answer(
     dir: &Path,
     headers: Option<&SiteHeaders>,
     worker_fault: bool,
+    worker_latency: bool,
 ) -> std::io::Result<()> {
     let mut request = Vec::new();
     let mut buffer = [0u8; 4096];
@@ -478,6 +486,17 @@ fn answer(
         // Tool-only network fault: exercise the actual Worker error path with no product hook.
         thread::sleep(Duration::from_secs(3));
         Some(b"setTimeout(()=>postMessage('{}'),200); throw new Error('Smoke worker startup failure');".to_vec())
+    } else if worker_latency && name.as_deref() == Some("smoke-latency.js") {
+        Some(br#"const NativeWorker=window.Worker;window.Worker=class extends NativeWorker {set onmessage(fn){this.handler=fn;super.onmessage=fn?event=>setTimeout(()=>fn.call(this,event),300):null;}get onmessage(){return this.handler;}};"#.to_vec())
+    } else if worker_latency && name.as_deref() == Some("index.html") {
+        fs::read_to_string(dir.join("index.html")).ok().map(|html| {
+            html.replacen(
+                "<head>",
+                "<head><script src=\"smoke-latency.js\"></script>",
+                1,
+            )
+            .into_bytes()
+        })
     } else {
         name.as_ref().and_then(|name| fs::read(dir.join(name)).ok())
     };
@@ -648,54 +667,62 @@ impl Session {
     /// W3C browsingContext.setViewport, which changes CSS viewport dimensions rather
     /// than resizing Firefox's desktop window (whose minimum width is 500 px).
     fn viewport(&self, width: u32, height: u32) -> Result<(), String> {
-        let url = self
-            .bidi
-            .as_deref()
-            .ok_or("the driver supplied no BiDi connection")?;
-        let (mut socket, _) =
-            tungstenite::connect(url).map_err(|e| format!("BiDi connect: {e}"))?;
-        if let tungstenite::stream::MaybeTlsStream::Plain(stream) = socket.get_mut() {
-            stream
-                .set_read_timeout(Some(Duration::from_secs(10)))
-                .map_err(|e| e.to_string())?;
-            stream
-                .set_write_timeout(Some(Duration::from_secs(10)))
-                .map_err(|e| e.to_string())?;
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (width, height);
+            Err("WebDriver viewport control is native-only".to_owned())
         }
-        let mut command = |id: u64, method: &str, params: Value| -> Result<Value, String> {
-            socket
-                .send(tungstenite::Message::Text(
-                    json!({"id":id,"method":method,"params":params})
-                        .to_string()
-                        .into(),
-                ))
-                .map_err(|e| e.to_string())?;
-            loop {
-                let message = socket.read().map_err(|e| e.to_string())?;
-                let tungstenite::Message::Text(text) = message else {
-                    continue;
-                };
-                let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-                if value.get("id").and_then(Value::as_u64) == Some(id) {
-                    if value.get("type").and_then(Value::as_str) == Some("success") {
-                        return Ok(value["result"].clone());
-                    }
-                    return Err(format!("BiDi {method}: {value}"));
-                }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let url = self
+                .bidi
+                .as_deref()
+                .ok_or("the driver supplied no BiDi connection")?;
+            let (mut socket, _) =
+                tungstenite::connect(url).map_err(|e| format!("BiDi connect: {e}"))?;
+            if let tungstenite::stream::MaybeTlsStream::Plain(stream) = socket.get_mut() {
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(10)))
+                    .map_err(|e| e.to_string())?;
+                stream
+                    .set_write_timeout(Some(Duration::from_secs(10)))
+                    .map_err(|e| e.to_string())?;
             }
-        };
-        let tree = command(1, "browsingContext.getTree", json!({}))?;
-        let context = tree
-            .pointer("/contexts/0/context")
-            .and_then(Value::as_str)
-            .ok_or("BiDi returned no top-level context")?;
-        command(
-            2,
-            "browsingContext.setViewport",
-            json!({"context":context,"viewport":{"width":width,"height":height},"devicePixelRatio":1}),
-        )?;
-        let _ = socket.close(None);
-        Ok(())
+            let mut command = |id: u64, method: &str, params: Value| -> Result<Value, String> {
+                socket
+                    .send(tungstenite::Message::Text(
+                        json!({"id":id,"method":method,"params":params})
+                            .to_string()
+                            .into(),
+                    ))
+                    .map_err(|e| e.to_string())?;
+                loop {
+                    let message = socket.read().map_err(|e| e.to_string())?;
+                    let tungstenite::Message::Text(text) = message else {
+                        continue;
+                    };
+                    let value: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                    if value.get("id").and_then(Value::as_u64) == Some(id) {
+                        if value.get("type").and_then(Value::as_str) == Some("success") {
+                            return Ok(value["result"].clone());
+                        }
+                        return Err(format!("BiDi {method}: {value}"));
+                    }
+                }
+            };
+            let tree = command(1, "browsingContext.getTree", json!({}))?;
+            let context = tree
+                .pointer("/contexts/0/context")
+                .and_then(Value::as_str)
+                .ok_or("BiDi returned no top-level context")?;
+            command(
+                2,
+                "browsingContext.setViewport",
+                json!({"context":context,"viewport":{"width":width,"height":height},"devicePixelRatio":1}),
+            )?;
+            let _ = socket.close(None);
+            Ok(())
+        }
     }
 
     fn script(&self, script: &str) -> Result<Value, String> {
@@ -848,6 +875,9 @@ pub enum Action {
     Click(&'static str),
     /// Two real pointer clicks at the element's centre.
     DoubleClick(&'static str),
+    CtrlClick(&'static str),
+    /// Drag beyond the grid and hold, using real pointer actions.
+    DragOutside(&'static str),
     /// An explicit discard decision when replacing a smoke fixture; clean work needs none.
     DiscardReplacement,
     /// Only files in this browser session's own temporary download folder.
@@ -894,7 +924,11 @@ pub enum Check {
     /// The selected element's solid text/background colours meet WCAG's normal-text ratio.
     Contrast(&'static str),
     Bounded(&'static str, usize),
+    Count(&'static str, usize),
     ActiveDescendant(&'static str),
+    DragExtended,
+    PageAligned,
+    ScrollAtEnd,
     /// The element's attribute.
     Attr(&'static str, &'static str, &'static str),
     /// The element's inline style sets each of these declarations (`"left:4px;color:#ff0000"`),
@@ -1235,6 +1269,7 @@ const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Into("name-box", "A1\u{E007}"),
             Action::Keys("grid", "5"),
+            Action::Wait(Check::Value("cell-editor", "5")),
             Action::Keys("cell-editor", ENTER),
         ],
         checks: &[
@@ -1431,6 +1466,7 @@ const CALC_CASES: &[Case] = &[
             Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Data\"]"),
             Action::Into("name-box", "A1\u{E007}"),
             Action::Keys("grid", "5"),
+            Action::Wait(Check::Value("cell-editor", "5")),
             Action::Keys("cell-editor", ENTER),
             Action::Click("[data-dnacalc=\"sheet-tab\"][data-sheet=\"Calc\"]"),
             Action::Click("undo"),
@@ -2048,6 +2084,7 @@ const CALC_CASES: &[Case] = &[
         actions: &[
             Action::Into("name-box", "B2\u{E007}"),
             Action::Keys("grid", "4"),
+            Action::Wait(Check::Value("cell-editor", "4")),
             Action::Keys("cell-editor", "0\u{E007}"),
         ],
         checks: &[
@@ -2311,6 +2348,7 @@ const CALC_CASES: &[Case] = &[
         name: "edit session: cell Shift+Enter commits and moves up",
         actions: &[
             Action::Keys("grid", "4"),
+            Action::Wait(Check::Value("cell-editor", "4")),
             Action::Keys("cell-editor", "\u{E008}\u{E007}\u{E000}"),
         ],
         checks: &[
@@ -2323,6 +2361,7 @@ const CALC_CASES: &[Case] = &[
         name: "edit session: cell Shift+Tab commits and moves left",
         actions: &[
             Action::Keys("grid", "5"),
+            Action::Wait(Check::Value("cell-editor", "5")),
             Action::Keys("cell-editor", "\u{E008}\u{E004}\u{E000}"),
         ],
         checks: &[
@@ -3029,9 +3068,740 @@ const CALC_CASES: &[Case] = &[
         ],
         checks: &[Check::Role("tree", "tree"), Check::ActiveDescendant("tree")],
     },
+    Case {
+        name: "navigation: contiguous cells stop at their edge",
+        actions: &[
+            Action::Click("skin-grid"),
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Into(BAR, "1\u{E007}"),
+            Action::Into("name-box", "A2\u{E007}"),
+            Action::Into(BAR, "2\u{E007}"),
+            Action::Into("name-box", "A3\u{E007}"),
+            Action::Into(BAR, "3\u{E007}"),
+            Action::Into("name-box", "A5\u{E007}"),
+            Action::Into(BAR, "5\u{E007}"),
+            Action::Into("name-box", "A6\u{E007}"),
+            Action::Into(BAR, "6\u{E007}"),
+            Action::Into("name-box", "A8\u{E007}"),
+            Action::Into(BAR, "=\"\"\u{E007}"),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "\u{E009}\u{E015}\u{E000}"),
+        ],
+        checks: &[Check::Value("name-box", "A3"), Check::Value(BAR, "3")],
+    },
+    Case {
+        name: "navigation: a blank gap lands at the next occupied cell",
+        actions: &[Action::Keys("grid", "\u{E009}\u{E015}\u{E000}")],
+        checks: &[Check::Value("name-box", "A5")],
+    },
+    Case {
+        name: "navigation: repeated data-edge keys use canonical worker selection",
+        actions: &[Action::Keys("grid", "\u{E009}\u{E015}\u{E015}\u{E000}")],
+        checks: &[Check::Value("name-box", "A8"), Check::Value(BAR, "=\"\"")],
+    },
+    Case {
+        name: "navigation: an empty formula result still occupies its cell",
+        actions: &[Action::Keys("grid", "\u{E009}\u{E013}\u{E000}")],
+        checks: &[Check::Value("name-box", "A6")],
+    },
+    Case {
+        name: "navigation: Ctrl Shift extends to the same data edge",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "\u{E009}\u{E008}\u{E015}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Attr("selection", "data-area", "A1:A3"),
+        ],
+    },
+    Case {
+        name: "selection: upper-right anchored extension keeps both selected columns",
+        actions: &[
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Keys("grid", "\u{E008}\u{E012}\u{E015}\u{E015}\u{E000}"),
+            Action::Wait(Check::Attr("selection", "data-area", "A1:B3")),
+            Action::Keys("grid", "\u{E008}\u{E015}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "B1"),
+            Check::Attr("selection", "data-area", "A1:B4"),
+        ],
+    },
+    Case {
+        name: "selection: lower-left anchored extension keeps both selected rows",
+        actions: &[
+            Action::Into("name-box", "A3\u{E007}"),
+            Action::Keys("grid", "\u{E008}\u{E013}\u{E013}\u{E014}\u{E000}"),
+            Action::Wait(Check::Attr("selection", "data-area", "A1:B3")),
+            Action::Keys("grid", "\u{E008}\u{E014}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "A3"),
+            Check::Attr("selection", "data-area", "A1:C3"),
+        ],
+    },
+    Case {
+        name: "navigation: a blank row can reach the physical last column",
+        actions: &[
+            Action::Into("name-box", "B2\u{E007}"),
+            Action::Keys("grid", "\u{E009}\u{E014}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "XFD2"),
+            Check::Reachable("active-cell"),
+            Check::ActiveDescendant("grid"),
+        ],
+    },
+    Case {
+        name: "navigation: Ctrl Left finds the preceding occupied cell",
+        actions: &[Action::Keys("grid", "\u{E009}\u{E012}\u{E000}")],
+        checks: &[Check::Value("name-box", "A2")],
+    },
+    Case {
+        name: "selection: the name box accepts a rectangle",
+        actions: &[Action::Into("name-box", "C10:D12\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "C10"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+        ],
+    },
+    Case {
+        name: "selection: Enter retains the rectangle while moving the active cell",
+        actions: &[Action::Keys("grid", ENTER)],
+        checks: &[
+            Check::Value("name-box", "C11"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+            Check::Attr(
+                "[data-dnacalc=row-header][data-row='10']",
+                "class",
+                "dc-head dc-on",
+            ),
+            Check::Attr(
+                "[data-dnacalc=row-header][data-row='12']",
+                "class",
+                "dc-head dc-on",
+            ),
+            Check::Attr("#dc-grid-cell-10-3", "aria-selected", "true"),
+        ],
+    },
+    Case {
+        name: "selection: unmeasured interior-anchor extension keeps the existing range",
+        actions: &[Action::Keys("grid", "\u{E008}\u{E015}\u{E000}")],
+        checks: &[
+            Check::Value("name-box", "C11"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+            Check::Starts(
+                "status",
+                "Range extension from an interior active cell awaits Excel measurement",
+            ),
+        ],
+    },
+    Case {
+        name: "selection: Enter wraps down columns inside the rectangle",
+        actions: &[Action::Keys("grid", "\u{E007}\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "D10"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+        ],
+    },
+    Case {
+        name: "selection: Shift Enter reverses the range walk",
+        actions: &[Action::Keys("grid", "\u{E008}\u{E007}\u{E000}")],
+        checks: &[
+            Check::Value("name-box", "C12"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+        ],
+    },
+    Case {
+        name: "selection: Tab walks across rows then wraps",
+        actions: &[Action::Keys("grid", "\u{E004}\u{E004}")],
+        checks: &[
+            Check::Value("name-box", "C10"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+        ],
+    },
+    Case {
+        name: "selection: Shift Tab reverses the horizontal walk",
+        actions: &[Action::Keys("grid", "\u{E008}\u{E004}\u{E000}")],
+        checks: &[
+            Check::Value("name-box", "D12"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+        ],
+    },
+    Case {
+        name: "selection: Ctrl Enter enters a rectangle as one workbook edit",
+        actions: &[
+            Action::Into("name-box", "B10:B12\u{E007}"),
+            Action::Into(BAR, "7\u{E009}\u{E007}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "B10"),
+            Check::Attr("selection", "data-area", "B10:B12"),
+            Check::Text(cell!("B10"), "7"),
+            Check::Text(cell!("B11"), "7"),
+            Check::Text(cell!("B12"), "7"),
+            Check::Absent("edit-session"),
+        ],
+    },
+    Case {
+        name: "selection: one Undo removes the entire Ctrl Enter entry",
+        actions: &[Action::Keys("grid", "\u{E009}z\u{E000}")],
+        checks: &[
+            Check::Absent(cell!("B10")),
+            Check::Absent(cell!("B11")),
+            Check::Absent(cell!("B12")),
+            Check::Attr("selection", "data-area", "B10:B12"),
+        ],
+    },
+    Case {
+        name: "selection: one Redo restores the entire entry",
+        actions: &[Action::Keys("grid", "\u{E009}y\u{E000}")],
+        checks: &[
+            Check::Text(cell!("B10"), "7"),
+            Check::Text(cell!("B12"), "7"),
+        ],
+    },
+    Case {
+        name: "selection: Ctrl Enter relocates formula references through the host",
+        actions: &[
+            Action::Into("name-box", "C10:D12\u{E007}"),
+            Action::Into(BAR, "=A1+$A$2\u{E009}\u{E007}\u{E000}"),
+        ],
+        checks: &[
+            Check::Text(cell!("C10"), "3"),
+            Check::Text(cell!("C11"), "4"),
+            Check::Text(cell!("C12"), "5"),
+            Check::Text(cell!("D10"), "2"),
+            Check::Attr("selection", "data-area", "C10:D12"),
+        ],
+    },
+    Case {
+        name: "selection: moved range source is authored as a relocated formula",
+        actions: &[Action::Into("name-box", "C11\u{E007}")],
+        checks: &[Check::Value(BAR, "=A2+$A$2")],
+    },
+    Case {
+        name: "selection: Ctrl Space selects a column and retains the active cell",
+        actions: &[
+            Action::Into("name-box", "E4\u{E007}"),
+            Action::Keys("grid", "\u{E009} \u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "E4"),
+            Check::Attr("selection", "data-area", "E1:E1048576"),
+            Check::Bounded("[role=gridcell]", 5000),
+        ],
+    },
+    Case {
+        name: "selection: Shift Space selects a row and retains the active cell",
+        actions: &[
+            Action::Into("name-box", "E4\u{E007}"),
+            Action::Keys("grid", "\u{E008} \u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "E4"),
+            Check::Attr("selection", "data-area", "A4:XFD4"),
+        ],
+    },
+    Case {
+        name: "selection: Ctrl Space expands every column touched by a rectangle",
+        actions: &[
+            Action::Into("name-box", "B2:C3\u{E007}"),
+            Action::Keys("grid", "\u{E009} \u{E000}"),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "B1:C1048576"),
+            Check::Value("name-box", "B2"),
+        ],
+    },
+    Case {
+        name: "selection: Shift Space expands every row touched by a rectangle",
+        actions: &[
+            Action::Into("name-box", "B2:C3\u{E007}"),
+            Action::Keys("grid", "\u{E008} \u{E000}"),
+        ],
+        checks: &[
+            Check::Attr("selection", "data-area", "A2:XFD3"),
+            Check::Value("name-box", "B2"),
+        ],
+    },
+    Case {
+        name: "selection: Ctrl A selects the current region",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Keys("grid", "\u{E009}a\u{E000}"),
+        ],
+        checks: &[Check::Attr("selection", "data-area", "A1:A3")],
+    },
+    Case {
+        name: "selection: another Ctrl A selects the worksheet",
+        actions: &[Action::Keys("grid", "\u{E009}a\u{E000}")],
+        checks: &[
+            Check::Attr("selection", "data-area", "A1:XFD1048576"),
+            Check::Bounded("[role=gridcell]", 5000),
+        ],
+    },
+    Case {
+        name: "selection: Ctrl click adds a nonadjacent area",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::CtrlClick(cell!("A3")),
+        ],
+        checks: &[
+            Check::Count("[data-dnacalc=selection]", 2),
+            Check::Attr("#dc-grid-cell-1-1", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-3-1", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-2-1", "aria-selected", "false"),
+            Check::Attr(
+                "[data-dnacalc=row-header][data-row='2']",
+                "class",
+                "dc-head",
+            ),
+            Check::Attr(
+                "[data-dnacalc=row-header][data-row='3']",
+                "class",
+                "dc-head dc-on",
+            ),
+        ],
+    },
+    Case {
+        name: "selection: disjoint axis expansion is diagnosed without losing areas",
+        actions: &[Action::Keys("grid", "\u{E009} \u{E000}")],
+        checks: &[
+            Check::Count("[data-dnacalc=selection]", 2),
+            Check::Starts(
+                "status",
+                "Axis expansion for disjoint selections is not modelled",
+            ),
+        ],
+    },
+    Case {
+        name: "selection: disjoint copying diagnoses the one-rectangle requirement",
+        actions: &[Action::Keys("grid", "\u{E009}c\u{E000}")],
+        checks: &[
+            Check::Count("[data-dnacalc=selection]", 2),
+            Check::Starts("status", "Select one rectangle for this command"),
+        ],
+    },
+    Case {
+        name: "selection: Ctrl click can remove a selected cell",
+        actions: &[Action::CtrlClick(cell!("A1"))],
+        checks: &[
+            Check::Count("[data-dnacalc=selection]", 1),
+            Check::Attr("#dc-grid-cell-1-1", "aria-selected", "false"),
+            Check::Attr("#dc-grid-cell-3-1", "aria-selected", "true"),
+        ],
+    },
+    Case {
+        name: "selection: Delete clears disjoint areas with one Undo",
+        actions: &[
+            Action::CtrlClick(cell!("A1")),
+            Action::Keys("grid", "\u{E017}"),
+        ],
+        checks: &[
+            Check::Absent(cell!("A1")),
+            Check::Absent(cell!("A3")),
+            Check::Text(cell!("A2"), "2"),
+        ],
+    },
+    Case {
+        name: "selection: disjoint clearing Undo restores both sources and areas",
+        actions: &[Action::Keys("grid", "\u{E009}z\u{E000}")],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("A3"), "3"),
+            Check::Count("[data-dnacalc=selection]", 2),
+        ],
+    },
+    Case {
+        name: "selection: a real drag beyond the viewport scrolls and extends",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::DragOutside(cell!("A1")),
+        ],
+        checks: &[Check::DragExtended, Check::Focused("grid")],
+    },
+    Case {
+        name: "navigation: PageDown moves a screen while preserving relative position",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Into("name-box", "A10\u{E007}"),
+            Action::Keys("grid", "\u{E00F}"),
+        ],
+        checks: &[Check::PageAligned, Check::Reachable("active-cell")],
+    },
+    Case {
+        name: "navigation: PageUp returns to the original cell",
+        actions: &[Action::Keys("grid", "\u{E00E}")],
+        checks: &[
+            Check::Value("name-box", "A10"),
+            Check::Reachable("active-cell"),
+        ],
+    },
+    Case {
+        name: "navigation: Ctrl End uses the current used corner",
+        actions: &[Action::Keys("grid", "\u{E009}\u{E010}\u{E000}")],
+        checks: &[
+            Check::Value("name-box", "D12"),
+            Check::Reachable("active-cell"),
+        ],
+    },
+    Case {
+        name: "navigation: a defined range resolves through the existing workbook catalogue",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "InputRange\u{E007}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Attr("selection", "data-area", "A1:A3"),
+            Check::Value(BAR, "1"),
+        ],
+    },
+    Case {
+        name: "navigation: a sheet-scoped name resolves on its sheet",
+        actions: &[Action::Into("name-box", "LocalIn\u{E007}")],
+        checks: &[Check::Value("name-box", "A2"), Check::Value(BAR, "2")],
+    },
+    Case {
+        name: "navigation: a qualified range changes sheets",
+        actions: &[Action::Into("name-box", "'Target Sheet'!B2:C3\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "B2"),
+            Check::Attr("selection", "data-area", "B2:C3"),
+            Check::Attr(
+                "[data-dnacalc=sheet-tab][data-sheet='Target Sheet']",
+                "aria-selected",
+                "true",
+            ),
+        ],
+    },
+    Case {
+        name: "navigation: invalid input diagnoses the name without changing selection",
+        actions: &[Action::Into("name-box", "XFE1\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "B2"),
+            Check::Starts("status", "\"XFE1\" is not a valid"),
+            Check::Attr("selection", "data-area", "B2:C3"),
+        ],
+    },
+    Case {
+        name: "selection: a pointed cross-sheet edit restores its original range after returning",
+        actions: &[
+            Action::Into("name-box", "Data!A1:A3\u{E007}"),
+            Action::Wait(Check::Attr(
+                "[data-dnacalc=sheet-tab][data-sheet=Data]",
+                "aria-selected",
+                "true",
+            )),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::Into(BAR, "=1+"),
+            Action::Wait(Check::Value(BAR, "=1+")),
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=Other]"),
+            Action::Wait(Check::Attr(
+                "[data-dnacalc=sheet-tab][data-sheet=Other]",
+                "aria-selected",
+                "true",
+            )),
+            Action::Wait(Check::Text(cell!("A1"), "100")),
+            Action::Click(cell!("A1")),
+            Action::Click("[data-dnacalc=sheet-tab][data-sheet=Data]"),
+            Action::Keys(BAR, "\u{E009}\u{E007}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Attr("selection", "data-area", "A1:A3"),
+            Check::Text(cell!("A1"), "101"),
+            Check::Text(cell!("A2"), "1"),
+            Check::Text(cell!("A3"), "1"),
+        ],
+    },
+    Case {
+        name: "selection: cross-sheet range entry Undo restores all original cells",
+        actions: &[Action::Keys("grid", "\u{E009}z\u{E000}")],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("A2"), "2"),
+            Check::Text(cell!("A3"), "3"),
+            Check::Attr("selection", "data-area", "A1:A3"),
+        ],
+    },
+    Case {
+        name: "navigation: hidden columns are skipped",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_09v/formats.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "B12\u{E007}"),
+            Action::Keys("grid", "\u{E014}"),
+        ],
+        checks: &[Check::Value("name-box", "D12")],
+    },
+    Case {
+        name: "navigation: hidden rows are skipped",
+        actions: &[Action::Keys("grid", "\u{E015}")],
+        checks: &[Check::Value("name-box", "D14")],
+    },
+    Case {
+        name: "navigation: unmeasured table selection stages are explicitly diagnosed",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-doc/tests/fixtures/cdoc_m1_2/d1.saved.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "Data!D2\u{E007}"),
+            Action::Keys("grid", "\u{E009}a\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "D2"),
+            Check::Attr("selection", "data-area", "D2:D2"),
+            Check::Starts("status", "Table selection stages are not modelled"),
+        ],
+    },
+    Case {
+        name: "navigation: physical last cell remains reachable in both browsers",
+        actions: &[
+            Action::Click("new"),
+            Action::DiscardReplacement,
+            Action::Into("name-box", "XFD1048576\u{E007}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "XFD1048576"),
+            Check::Reachable("active-cell"),
+            Check::ActiveDescendant("grid"),
+            Check::ScrollAtEnd,
+            Check::Bounded("[role=gridcell]", 5000),
+        ],
+    },
+    Case {
+        name: "navigation: arrows clamp at the physical worksheet edge",
+        actions: &[Action::Keys("grid", "\u{E014}\u{E015}")],
+        checks: &[
+            Check::Value("name-box", "XFD1048576"),
+            Check::Reachable("active-cell"),
+        ],
+    },
+    Case {
+        name: "navigation: Home and Ctrl Home use physical worksheet coordinates",
+        actions: &[
+            Action::Keys("grid", "\u{E011}"),
+            Action::Wait(Check::Value("name-box", "A1048576")),
+            Action::Keys("grid", "\u{E009}\u{E011}\u{E000}"),
+        ],
+        checks: &[
+            Check::Value("name-box", "A1"),
+            Check::Reachable("active-cell"),
+        ],
+    },
+    Case {
+        name: "navigation: the last row is reachable at maximum zoom",
+        actions: &[
+            Action::Click("zoom-in"),
+            Action::Click("zoom-in"),
+            Action::Click("zoom-in"),
+            Action::Click("zoom-in"),
+            Action::Click("zoom-in"),
+            Action::Click("zoom-in"),
+            Action::Click("zoom-in"),
+            Action::Into("name-box", "XFD1048576\u{E007}"),
+        ],
+        checks: &[
+            Check::Text("zoom", "400%"),
+            Check::Reachable("active-cell"),
+            Check::ScrollAtEnd,
+            Check::ActiveDescendant("grid"),
+        ],
+    },
+    Case {
+        name: "navigation: entry at the last physical cell stays in bounds",
+        actions: &[Action::Into(BAR, "9\u{E007}")],
+        checks: &[
+            Check::Value("name-box", "XFD1048576"),
+            Check::Value(BAR, "9"),
+            Check::Text("selected-value", "9"),
+            Check::Reachable("active-cell"),
+        ],
+    },
 ];
 
 /// The script that reads what one check looks at.
+// Only the timing of actual Worker deliveries changes; the product and workbook path stay intact.
+const CALC_LATENCY_CASES: &[Case] = &[
+    Case {
+        name: "worker latency: typing after navigation edits the destination",
+        actions: &[
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(800),
+            Action::Keys("grid", "1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Keys("grid", "2\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A3")),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(400),
+            Action::Keys("grid", "\u{E015}9\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A3")),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("A2"), "9"),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "worker latency: consecutive entry preserves every key and destination",
+        actions: &[
+            Action::Keys("grid", "78\u{E007}56\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A5")),
+        ],
+        checks: &[
+            Check::Text(cell!("A3"), "78"),
+            Check::Text(cell!("A4"), "56"),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "worker latency: F2 immediately after navigation reads its destination source",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(400),
+            Action::Keys("grid", "\u{E015}\u{E032}"),
+            Action::Wait(Check::Value("cell-editor", "9")),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "9"),
+            Check::Value("name-box", "A2"),
+        ],
+    },
+    Case {
+        name: "worker latency: rapid Ctrl clicks retain every area despite earlier replies",
+        actions: &[
+            Action::Keys("cell-editor", ESCAPE),
+            Action::Into("name-box", "B1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "B1")),
+            Action::PauseMillis(700),
+            Action::Keys("grid", "10\u{E007}"),
+            Action::Wait(Check::Value("name-box", "B2")),
+            Action::Into("name-box", "C1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "C1")),
+            Action::PauseMillis(700),
+            Action::Keys("grid", "20\u{E007}"),
+            Action::Wait(Check::Value("name-box", "C2")),
+            Action::Into("name-box", "D1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "D1")),
+            Action::PauseMillis(700),
+            Action::Keys("grid", "30\u{E007}"),
+            Action::Wait(Check::Value("name-box", "D2")),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(400),
+            Action::CtrlClick(cell!("B1")),
+            Action::PauseMillis(180),
+            Action::CtrlClick(cell!("C1")),
+            Action::PauseMillis(180),
+            Action::CtrlClick(cell!("D1")),
+            Action::PauseMillis(700),
+        ],
+        checks: &[
+            Check::Count("[data-dnacalc=selection]", 4),
+            Check::Attr("#dc-grid-cell-1-2", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-1-3", "aria-selected", "true"),
+            Check::Attr("#dc-grid-cell-1-4", "aria-selected", "true"),
+        ],
+    },
+    Case {
+        name: "worker latency: Ctrl Enter closes its draft and one Undo restores every area",
+        actions: &[
+            Action::Keys("grid", "9\u{E009}\u{E007}\u{E000}"),
+            Action::Wait(Check::Absent("cell-editor")),
+            Action::Wait(Check::Text(cell!("D1"), "9")),
+            Action::Keys("grid", "\u{E009}z\u{E000}"),
+            Action::PauseMillis(700),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("B1"), "10"),
+            Check::Text(cell!("C1"), "20"),
+            Check::Text(cell!("D1"), "30"),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "worker latency: a click after a queued formula seed points into its original destination",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(700),
+            Action::Keys("grid", "\u{E015}="),
+            Action::Click(cell!("B1")),
+            Action::Wait(Check::Value("cell-editor", "=B1")),
+            Action::Wait(Check::Value("name-box", "A2")),
+            Action::Keys("cell-editor", "\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A3")),
+        ],
+        checks: &[
+            Check::Text(cell!("A1"), "1"),
+            Check::Text(cell!("A2"), "10"),
+            Check::Text(cell!("B1"), "10"),
+            Check::Absent("cell-editor"),
+            Check::Focused("grid"),
+        ],
+    },
+    Case {
+        name: "worker latency: a pending clear protects a clean workbook from replacement",
+        actions: &[
+            Action::Upload(
+                "open-file",
+                "crates/calc-host/tests/fixtures/dc_gf0/cut-base.xlsx",
+            ),
+            Action::DiscardReplacement,
+            Action::Wait(Check::Text("document", "cut-base.xlsx")),
+            Action::PauseMillis(800),
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(700),
+            Action::Keys("grid", DELETE),
+            Action::Click("new"),
+            Action::Wait(Check::Attr("replace-dialog", "open", "")),
+            Action::Click("keep-working"),
+            Action::PauseMillis(700),
+        ],
+        checks: &[
+            Check::Text("document", "cut-base.xlsx (changed)"),
+            Check::Absent(cell!("A1")),
+            Check::Absent("[data-dnacalc=replace-dialog][open]"),
+        ],
+    },
+    Case {
+        name: "worker latency: unsupported queued text shortcuts retain the draft and diagnose retry",
+        actions: &[
+            Action::Into("name-box", "A1\u{E007}"),
+            Action::Wait(Check::Value("name-box", "A1")),
+            Action::PauseMillis(700),
+            Action::Keys("grid", "\u{E015}9\u{E009}\u{E003}\u{E000}"),
+            Action::Wait(Check::Value("cell-editor", "9")),
+        ],
+        checks: &[
+            Check::Value("cell-editor", "9"),
+            Check::Value("name-box", "A2"),
+            Check::Starts("status", "Workbook reply delayed this editor shortcut"),
+        ],
+    },
+];
+
 const CALC_WORKER_FAULT_CASES: &[Case] = &[
     Case {
         name: "worker transport: outstanding startup requests visibly say Pending",
@@ -3080,6 +3850,9 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
     }
     let script = match check {
         Check::Role(..) | Check::Name(..) => unreachable!(),
+        Check::DragExtended => "var g=document.querySelector('[data-dnacalc=grid]'),s=document.querySelector('[data-dnacalc=selection]');if(!g||!s)return false;var a=s.dataset.area, n=Number(a.split(':')[1]?.match(/[0-9]+$/)?.[0]);return a.startsWith('A1:')&&n>g.querySelectorAll('[role=row]').length&&g.scrollTop>0;".to_owned(),
+        Check::PageAligned => "var g=document.querySelector('[data-dnacalc=grid]'),a=document.querySelector('[data-dnacalc=active-cell]');if(!g||!a)return false;var r=a.getBoundingClientRect(),b=g.getBoundingClientRect();return r.top>b.top+22&&r.bottom<b.bottom-20&&g.scrollTop>0;".to_owned(),
+        Check::ScrollAtEnd => "var g=document.querySelector('[data-dnacalc=grid]');return !!g&&g.scrollTop>0&&Math.abs(g.scrollHeight-g.clientHeight-g.scrollTop)<3&&g.scrollHeight<=8000001;".to_owned(),
         Check::ActiveDescendant(name) => format!(
             "var e={}; var id=e && e.getAttribute('aria-activedescendant'); var child=id && document.getElementById(id); return !!child && e.contains(child);",
             q(name)
@@ -3088,7 +3861,7 @@ fn observe(app: &App, session: &Session, check: &Check) -> Result<Value, String>
             "var e={}; if(!e) return false; var r=e.getBoundingClientRect(); return r.width>0 && r.height>0 && r.left>=0 && r.top>=0 && r.right<=innerWidth+1 && r.bottom<=innerHeight+1 && getComputedStyle(e).visibility==='visible';",
             q(name)
         ),
-        Check::Bounded(name, _) => format!(
+        Check::Bounded(name, _) | Check::Count(name,_) => format!(
             "return document.querySelectorAll('{}').length;",
             select(app, name).replace('\'', "\\'")
         ),
@@ -3174,10 +3947,15 @@ fn satisfied(check: &Check, seen: &Value) -> bool {
                 .iter()
                 .any(|item| item.as_str().is_some_and(|text| text.starts_with(wanted)))
         }),
-        Check::Absent(_) | Check::Focused(_) | Check::Reachable(_) | Check::ActiveDescendant(_) => {
-            seen.as_bool() == Some(true)
-        }
+        Check::Absent(_)
+        | Check::Focused(_)
+        | Check::Reachable(_)
+        | Check::ActiveDescendant(_)
+        | Check::DragExtended
+        | Check::PageAligned
+        | Check::ScrollAtEnd => seen.as_bool() == Some(true),
         Check::Contrast(_) => seen.as_f64().is_some_and(|ratio| ratio >= 4.5),
+        Check::Count(_, expected) => seen.as_u64() == Some(*expected as u64),
         Check::Bounded(_, limit) => seen
             .as_u64()
             .is_some_and(|count| count > 0 && count <= *limit as u64),
@@ -3211,8 +3989,18 @@ fn describe(check: &Check) -> String {
         Check::Role(name, value) => format!("{name} has computed accessibility role {value}"),
         Check::Name(name, value) => format!("{name} has computed accessible name {value}"),
         Check::Reachable(name) => format!("{name} fits within the viewport"),
+        Check::DragExtended => {
+            "selection extends beyond the initial viewport after a real out-of-view drag".to_owned()
+        }
+        Check::PageAligned => {
+            "PageDown moves the viewport and retains an interior active-cell position".to_owned()
+        }
+        Check::ScrollAtEnd => {
+            "physical scroll reaches the last worksheet row within browser bounds".to_owned()
+        }
         Check::Contrast(name) => format!("{name} has text contrast at least 4.5:1"),
         Check::ActiveDescendant(name) => format!("{name} identifies a rendered active descendant"),
+        Check::Count(name, expected) => format!("{name} has exactly {expected} elements"),
         Check::Bounded(name, limit) => format!("{name} has between 1 and {limit} elements"),
         Check::Attr(name, attribute, expected) => {
             format!("{name} has {attribute}={expected:?}")
@@ -3276,29 +4064,39 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
             Ok(())
         }
         Action::ManualDownloadFixture => {
-            let path = session.downloads.join("Book1.xlsx");
-            let started = Instant::now();
-            while !path.is_file() && started.elapsed() < SETTLE {
-                thread::sleep(Duration::from_millis(50));
+            #[cfg(target_arch = "wasm32")]
+            {
+                Err("Package fixture preparation is native-only".to_owned())
             }
-            let bytes = fs::read(&path).map_err(|e| e.to_string())?;
-            let parts = crate::oracle_cases::package_parts(&bytes)?;
-            let xml = std::str::from_utf8(parts.get("xl/workbook.xml").ok_or("no workbook part")?)
-                .map_err(|e| e.to_string())?;
-            if xml.contains("calcMode=") || !xml.contains("<calcPr ") {
-                return Err(
-                    "manual smoke fixture expects the blank package's original calcPr".to_owned(),
-                );
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let path = session.downloads.join("Book1.xlsx");
+                let started = Instant::now();
+                while !path.is_file() && started.elapsed() < SETTLE {
+                    thread::sleep(Duration::from_millis(50));
+                }
+                let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+                let parts = crate::oracle_cases::package_parts(&bytes)?;
+                let xml =
+                    std::str::from_utf8(parts.get("xl/workbook.xml").ok_or("no workbook part")?)
+                        .map_err(|e| e.to_string())?;
+                if xml.contains("calcMode=") || !xml.contains("<calcPr ") {
+                    return Err(
+                        "manual smoke fixture expects the blank package's original calcPr"
+                            .to_owned(),
+                    );
+                }
+                let manual = xml.replacen("<calcPr ", "<calcPr calcMode=\"manual\" ", 1);
+                let bytes = crate::oracle_cases::replace_package_parts(
+                    &bytes,
+                    &std::collections::BTreeMap::from([(
+                        "xl/workbook.xml".to_owned(),
+                        manual.into_bytes(),
+                    )]),
+                )?;
+                fs::write(session.downloads.join("manual-cache.xlsx"), bytes)
+                    .map_err(|e| e.to_string())
             }
-            let manual = xml.replacen("<calcPr ", "<calcPr calcMode=\"manual\" ", 1);
-            let bytes = crate::oracle_cases::replace_package_parts(
-                &bytes,
-                &std::collections::BTreeMap::from([(
-                    "xl/workbook.xml".to_owned(),
-                    manual.into_bytes(),
-                )]),
-            )?;
-            fs::write(session.downloads.join("manual-cache.xlsx"), bytes).map_err(|e| e.to_string())
         }
         Action::UploadDownload(name) => {
             let path = session.downloads.join(name);
@@ -3329,6 +4127,25 @@ fn act(ws: &Workspace, app: &App, session: &Session, action: &Action) -> Result<
         Action::Click(name) => {
             let element = session.element(&select(app, name))?;
             session.post(&format!("/element/{element}/click"), json!({}))?;
+            Ok(())
+        }
+        Action::CtrlClick(name) => {
+            let element = session.element(&select(app, name))?;
+            session.post("/actions",json!({"actions":[
+                {"type":"key","id":"modifiers","actions":[{"type":"keyDown","value":"\u{E009}"},{"type":"pause"},{"type":"pause"},{"type":"keyUp","value":"\u{E009}"}]},
+                {"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[{"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":element},"x":0,"y":0},{"type":"pointerDown","button":0},{"type":"pointerUp","button":0},{"type":"pause"}]}
+            ]}))?;
+            Ok(())
+        }
+        Action::DragOutside(name) => {
+            let from = session.element(&select(app, name))?;
+            let coordinates=session.script("var r=document.querySelector('[data-dnacalc=grid]').getBoundingClientRect();return [Math.round(r.left+90),Math.min(innerHeight-2,Math.round(r.bottom+24))];")?;
+            let x = coordinates[0].as_i64().ok_or("drag x")?;
+            let y = coordinates[1].as_i64().ok_or("drag y")?;
+            session.post("/actions",json!({"actions":[{"type":"pointer","id":"mouse","parameters":{"pointerType":"mouse"},"actions":[
+                {"type":"pointerMove","duration":0,"origin":{"element-6066-11e4-a52e-4f735466cecf":from},"x":0,"y":0},{"type":"pointerDown","button":0},
+                {"type":"pointerMove","duration":200,"origin":"viewport","x":x,"y":y},{"type":"pause","duration":700},{"type":"pointerUp","button":0}
+            ]}]}))?;
             Ok(())
         }
         Action::DoubleClick(name) => {
@@ -3803,6 +4620,7 @@ pub(crate) fn smoke(
     workbook: Option<&WorkbookRun>,
 ) -> ExitCode {
     let mut fault_page = None;
+    let mut latency_page = None;
     let page = match target {
         SmokeTarget::Url(url) => {
             println!("{} driving the page at {url}", app.label);
@@ -3835,8 +4653,17 @@ pub(crate) fn smoke(
                 }
             };
             if app.key == "calc" {
-                match serve_mode(dir.clone(), Some(headers), 0, true) {
+                match serve_mode(dir.clone(), Some(headers.clone()), 0, true, false) {
                     Ok(port) => fault_page = Some(format!("http://127.0.0.1:{port}/index.html")),
+                    Err(error) => {
+                        println!("{} RESULT failed: {error}", app.label);
+                        return ExitCode::from(1);
+                    }
+                }
+            }
+            if app.key == "calc" {
+                match serve_mode(dir.clone(), Some(headers), 0, false, true) {
+                    Ok(port) => latency_page = Some(format!("http://127.0.0.1:{port}/index.html")),
                     Err(error) => {
                         println!("{} RESULT failed: {error}", app.label);
                         return ExitCode::from(1);
@@ -3850,20 +4677,31 @@ pub(crate) fn smoke(
     };
     let mut fault_app = app.clone();
     fault_app.cases = CALC_WORKER_FAULT_CASES;
+    let mut latency_app = app.clone();
+    latency_app.cases = CALC_LATENCY_CASES;
     let mut all_passed = true;
     let mut summary = Vec::new();
     for browser in BROWSERS
         .iter()
         .filter(|b| only.is_none_or(|name| b.name == name))
     {
-        let result = run_browser(ws, app, browser, &page, workbook).and_then(|(passed, failed)| {
-            if let Some(page) = fault_page.as_deref() {
-                run_browser(ws, &fault_app, browser, page, None)
-                    .map(|(p, f)| (passed + p, failed + f))
-            } else {
-                Ok((passed, failed))
-            }
-        });
+        let result = run_browser(ws, app, browser, &page, workbook)
+            .and_then(|(passed, failed)| {
+                if let Some(page) = fault_page.as_deref() {
+                    run_browser(ws, &fault_app, browser, page, None)
+                        .map(|(p, f)| (passed + p, failed + f))
+                } else {
+                    Ok((passed, failed))
+                }
+            })
+            .and_then(|(passed, failed)| {
+                if let Some(page) = latency_page.as_deref() {
+                    run_browser(ws, &latency_app, browser, page, None)
+                        .map(|(p, f)| (passed + p, failed + f))
+                } else {
+                    Ok((passed, failed))
+                }
+            });
         match result {
             Ok((passed, failed)) => {
                 all_passed &= failed == 0;
@@ -3888,6 +4726,11 @@ pub(crate) fn smoke(
         app.label,
         if all_passed { "passed" } else { "failed" },
         app.cases.len()
+            + if latency_page.is_some() {
+                CALC_LATENCY_CASES.len()
+            } else {
+                0
+            }
             + if fault_page.is_some() {
                 CALC_WORKER_FAULT_CASES.len()
             } else {

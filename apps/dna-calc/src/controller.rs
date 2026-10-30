@@ -24,7 +24,7 @@
 //! `src/dnacalc-skin-leptos/src/state_handles.rs` (shared state behind one handle), onto calc-host's
 //! session.
 
-use crate::grid::selection::{GridExtent, NavAction, next_active};
+use crate::grid::selection::{GridExtent, NavAction, next_active, opposite};
 use crate::port;
 use crate::wire::{self, Area, Cells, Event, Intent, Key, Outcome, Reply, Request, Sheet, Summary};
 use crate::workbook::SheetTab;
@@ -34,7 +34,7 @@ use dna_formula_ui::editor::{
 };
 use dna_formula_ui::formula_field::FormulaAssist;
 use leptos::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 /// What the status line says, and whether it reports a refusal.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -173,6 +173,7 @@ pub struct Controller {
     /// The selected range's corner opposite the active cell: the range is the rectangle of the
     /// two (one cell when they are the same).
     pub corner: RwSignal<(u32, u32)>,
+    pub areas: RwSignal<Vec<GridArea>>,
     /// The range copied (Ctrl+C), which a paste copies from.
     pub clipboard: RwSignal<Option<GridArea>>,
     /// Whether the range on the clipboard was cut (Ctrl+X): a paste moves it.
@@ -188,6 +189,7 @@ pub struct Controller {
     edit_field: StoredValue<FormulaAssist>,
     edit_target: RwSignal<Option<CellKey>>,
     edit_original: StoredValue<String>,
+    edit_areas: StoredValue<Vec<GridArea>>,
     pub point_mode: RwSignal<bool>,
     pub pointed: RwSignal<Option<PointPick>>,
     pointed_text: StoredValue<String>,
@@ -195,6 +197,14 @@ pub struct Controller {
     pub transport: RwSignal<port::Health>,
     pub download_unconfirmed: RwSignal<bool>,
     pub notebook_drafts: RwSignal<BTreeMap<CellKey, String>>,
+    pub pending_actions: RwSignal<usize>,
+    pub replacing: RwSignal<bool>,
+    pending_changes: RwSignal<usize>,
+    selection_epoch: StoredValue<u64>,
+    deferred: StoredValue<VecDeque<Box<dyn FnOnce()>>, LocalStorage>,
+    deferred_version: RwSignal<u64>,
+    replaying: StoredValue<bool>,
+    flush_scheduled: StoredValue<bool>,
 }
 
 impl Controller {
@@ -211,6 +221,7 @@ impl Controller {
             sheet: RwSignal::new(None),
             active: RwSignal::new((1, 1)),
             corner: RwSignal::new((1, 1)),
+            areas: RwSignal::new(Vec::new()),
             clipboard: RwSignal::new(None),
             cut: RwSignal::new(false),
             selection: RwSignal::new(ViewMirror::default()),
@@ -221,6 +232,7 @@ impl Controller {
             edit_field: StoredValue::new(assist),
             edit_target: RwSignal::new(None),
             edit_original: StoredValue::new(String::new()),
+            edit_areas: StoredValue::new(Vec::new()),
             point_mode: RwSignal::new(false),
             pointed: RwSignal::new(None),
             pointed_text: StoredValue::new(String::new()),
@@ -228,6 +240,14 @@ impl Controller {
             transport: RwSignal::new(port::Health::default()),
             download_unconfirmed: RwSignal::new(false),
             notebook_drafts: RwSignal::new(BTreeMap::new()),
+            pending_actions: RwSignal::new(0),
+            replacing: RwSignal::new(false),
+            pending_changes: RwSignal::new(0),
+            selection_epoch: StoredValue::new(0),
+            deferred: StoredValue::new_local(VecDeque::new()),
+            deferred_version: RwSignal::new(0),
+            replaying: StoredValue::new(false),
+            flush_scheduled: StoredValue::new(false),
         };
         port::start();
         port::set_events(move |event| controller.receive(event));
@@ -236,6 +256,313 @@ impl Controller {
         });
         controller.new_workbook();
         controller
+    }
+
+    pub fn input_pending(&self) -> bool {
+        self.deferred_version.track();
+        self.pending_actions.get() > 0 || self.has_deferred()
+    }
+
+    fn has_deferred(&self) -> bool {
+        self.deferred.with_value(|queue| !queue.is_empty())
+    }
+    fn waiting_input(&self) -> bool {
+        !self.replaying.get_value()
+            && (self.pending_actions.get_untracked() > 0 || self.has_deferred())
+    }
+    /// Keep a pointer command's meaning behind earlier keys, including a queued formula seed.
+    pub fn after_input(&self, action: impl FnOnce() + 'static) {
+        if self.waiting_input() {
+            self.enqueue(action);
+        } else {
+            self.perform(action);
+        }
+    }
+
+    fn enqueue(&self, action: impl FnOnce() + 'static) {
+        self.deferred
+            .update_value(|queue| queue.push_back(Box::new(action)));
+        self.deferred_version.update(|v| *v += 1);
+    }
+    fn perform(&self, action: impl FnOnce()) {
+        let prior = self.replaying.get_value();
+        self.replaying.set_value(true);
+        action();
+        self.replaying.set_value(prior);
+    }
+
+    /// Serialize input behind worker selection and edit replies. A timer between keys lets the
+    /// actual editor mount before its next event; all replay uses the application's handlers.
+    pub fn install_input_queue(self) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            use wasm_bindgen::{JsCast, closure::Closure};
+            Effect::new(move |_| {
+                let pending = self.pending_actions.get();
+                self.deferred_version.track();
+                if pending == 0 && self.has_deferred() && !self.flush_scheduled.get_value() {
+                    self.flush_scheduled.set_value(true);
+                    set_timeout(
+                        move || {
+                            if self.pending_actions.try_get_untracked() != Some(0) {
+                                let _ = self.flush_scheduled.try_set_value(false);
+                                return;
+                            }
+                            let mut action = None;
+                            self.deferred
+                                .update_value(|queue| action = queue.pop_front());
+                            if let Some(action) = action {
+                                self.perform(action);
+                            }
+                            self.flush_scheduled.set_value(false);
+                            self.deferred_version.update(|v| *v += 1);
+                        },
+                        std::time::Duration::ZERO,
+                    );
+                }
+            });
+            let keys = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
+                move |event: web_sys::KeyboardEvent| {
+                    if matches!(
+                        event.key().as_str(),
+                        "F6" | "Unidentified"
+                            | "Control"
+                            | "Shift"
+                            | "Alt"
+                            | "Meta"
+                            | "CapsLock"
+                            | "NumLock"
+                            | "ScrollLock"
+                    ) {
+                        return;
+                    }
+                    let Some(target) = event
+                        .target()
+                        .and_then(|v| v.dyn_into::<web_sys::Element>().ok())
+                    else {
+                        return;
+                    };
+                    let opening_editor = self.editing.get_untracked().is_some()
+                        && target.get_attribute("data-dnacalc").as_deref() == Some("grid");
+                    if !self.waiting_input() && !opening_editor {
+                        return;
+                    }
+                    if !target
+                        .closest("[data-dnacalc=grid], [data-dnacalc=formula-bar]")
+                        .ok()
+                        .flatten()
+                        .is_some()
+                    {
+                        return;
+                    }
+                    if event.is_composing() || event.key_code() == 229 {
+                        return;
+                    }
+                    if target.dyn_ref::<web_sys::HtmlTextAreaElement>().is_some()
+                        && self.editing.get_untracked().is_some()
+                        && !self.assist.readonly.get_untracked()
+                        && !self.has_deferred()
+                    {
+                        return;
+                    }
+                    let bar = target
+                        .closest("[data-dnacalc=formula-bar]")
+                        .ok()
+                        .flatten()
+                        .is_some();
+                    let init = web_sys::KeyboardEventInit::new();
+                    init.set_key(&event.key());
+                    init.set_code(&event.code());
+                    init.set_ctrl_key(event.ctrl_key());
+                    init.set_meta_key(event.meta_key());
+                    init.set_shift_key(event.shift_key());
+                    init.set_alt_key(event.alt_key());
+                    init.set_bubbles(true);
+                    init.set_cancelable(true);
+                    event.prevent_default();
+                    event.stop_immediate_propagation();
+                    self.enqueue(move || self.replay_key(init, bar));
+                },
+            );
+            let _ = document().add_event_listener_with_callback_and_bool(
+                "keydown",
+                keys.as_ref().unchecked_ref(),
+                true,
+            );
+            let keys = StoredValue::new_local(keys);
+            on_cleanup(move || {
+                keys.with_value(|keys| {
+                    let _ = document().remove_event_listener_with_callback_and_bool(
+                        "keydown",
+                        keys.as_ref().unchecked_ref(),
+                        true,
+                    );
+                })
+            });
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn replay_key(self, init: web_sys::KeyboardEventInit, bar: bool) {
+        use wasm_bindgen::JsCast;
+        let Ok(event) = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        else {
+            return;
+        };
+        if matches!(
+            event.key().as_str(),
+            "Unidentified"
+                | "Control"
+                | "Shift"
+                | "Alt"
+                | "Meta"
+                | "CapsLock"
+                | "NumLock"
+                | "ScrollLock"
+        ) {
+            return;
+        }
+        let editing = self.editing.get_untracked().is_some();
+        if !editing && bar {
+            self.activate_editor(EditOrigin::Bar, self.assist);
+            self.deferred.update_value(|queue| {
+                queue.push_front(Box::new(move || self.replay_key(init, true)))
+            });
+            self.deferred_version.update(|v| *v += 1);
+            return;
+        }
+        let field = if editing {
+            self.edit_field.get_value().field.get_untracked()
+        } else {
+            None
+        };
+        if editing && field.is_none() {
+            self.deferred.update_value(|queue| {
+                queue.push_front(Box::new(move || self.replay_key(init, bar)))
+            });
+            self.deferred_version.update(|v| *v += 1);
+            return;
+        }
+        let target: Option<web_sys::Element> = field
+            .as_ref()
+            .map(|v| v.clone().unchecked_into::<web_sys::Element>())
+            .or_else(|| {
+                document()
+                    .query_selector("[data-dnacalc=grid]")
+                    .ok()
+                    .flatten()
+            });
+        let Some(target) = target else {
+            self.say("Return to the grid to continue queued navigation", true);
+            return;
+        };
+        let _ = target.dispatch_event(&event);
+        if event.default_prevented() || !editing {
+            return;
+        }
+        let Some(field) = field else {
+            return;
+        };
+        let assist = self.edit_field.get_value();
+        let text = field.value();
+        let (mut start, mut end) = field_selection(assist);
+        let len = text.encode_utf16().count();
+        let key = event.key();
+        let ctrl = event.ctrl_key() || event.meta_key();
+        let insert = if !ctrl && !event.alt_key() && key.chars().count() == 1 {
+            Some(key.as_str())
+        } else if event.alt_key() && key == "Enter" {
+            Some("\n")
+        } else if !ctrl && !event.alt_key() && matches!(key.as_str(), "Backspace" | "Delete") {
+            if start == end {
+                let boundaries: Vec<usize> = std::iter::once(0)
+                    .chain(text.chars().scan(0, |n, c| {
+                        *n += c.len_utf16();
+                        Some(*n)
+                    }))
+                    .collect();
+                if key == "Backspace" {
+                    start = boundaries
+                        .iter()
+                        .copied()
+                        .filter(|n| *n < start)
+                        .next_back()
+                        .unwrap_or(0);
+                } else {
+                    end = boundaries.iter().copied().find(|n| *n > end).unwrap_or(len);
+                }
+            }
+            Some("")
+        } else {
+            None
+        };
+        if let Some(insert) = insert {
+            let (next, caret) = replace_text(&text, start, end, insert);
+            assist.place(next, caret);
+            assist.sync_from_field(false);
+            self.edit_changed();
+        } else if ctrl && key.eq_ignore_ascii_case("a") {
+            let _ = field.set_selection_range(0, len as u32);
+            assist.sync_from_field(false);
+        } else if matches!(key.as_str(), "ArrowLeft" | "ArrowRight" | "Home" | "End")
+            && (!ctrl || matches!(key.as_str(), "Home" | "End"))
+        {
+            let boundaries: Vec<usize> = std::iter::once(0)
+                .chain(text.chars().scan(0, |n, c| {
+                    *n += c.len_utf16();
+                    Some(*n)
+                }))
+                .collect();
+            let backward =
+                field.selection_direction().ok().flatten().as_deref() == Some("backward");
+            let (anchor, focus) = if backward { (end, start) } else { (start, end) };
+            let units: Vec<u16> = text.encode_utf16().collect();
+            let caret = match key.as_str() {
+                "Home" if ctrl => 0,
+                "End" if ctrl => len,
+                "Home" => units[..focus]
+                    .iter()
+                    .rposition(|u| *u == 10)
+                    .map_or(0, |n| n + 1),
+                "End" => units[focus..]
+                    .iter()
+                    .position(|u| *u == 10)
+                    .map_or(len, |n| focus + n),
+                "ArrowLeft" if start != end && !event.shift_key() => start,
+                "ArrowRight" if start != end && !event.shift_key() => end,
+                "ArrowLeft" => boundaries
+                    .iter()
+                    .copied()
+                    .filter(|n| *n < focus)
+                    .next_back()
+                    .unwrap_or(0),
+                _ => boundaries
+                    .iter()
+                    .copied()
+                    .find(|n| *n > focus)
+                    .unwrap_or(len),
+            };
+            let (a, b, direction) = if event.shift_key() {
+                (
+                    anchor.min(caret),
+                    anchor.max(caret),
+                    if caret < anchor {
+                        "backward"
+                    } else {
+                        "forward"
+                    },
+                )
+            } else {
+                (caret, caret, "none")
+            };
+            let _ = field.set_selection_range_with_direction(a as u32, b as u32, direction);
+            assist.sync_from_field(false);
+        } else if !matches!(key.as_str(), "Control" | "Shift" | "Alt" | "Meta") {
+            self.say(
+                "Workbook reply delayed this editor shortcut; repeat it after Pending clears",
+                true,
+            );
+        }
     }
 
     /// Asks the server; `answer` gets the reply when it comes (a failure goes to the status line).
@@ -315,6 +642,16 @@ impl Controller {
         self.sheet.set(first);
         self.active.set((1, 1));
         self.corner.set((1, 1));
+        self.areas.set(
+            first
+                .and_then(|sheet| CellKey::new(sheet, 1, 1).ok())
+                .map(GridArea::cell)
+                .into_iter()
+                .collect(),
+        );
+        self.deferred.update_value(VecDeque::clear);
+        self.deferred_version.update(|v| *v += 1);
+        self.selection_epoch.update_value(|v| *v += 1);
         self.clipboard.set(None);
         self.editing.set(None);
         self.selection.set(ViewMirror::default());
@@ -325,7 +662,7 @@ impl Controller {
             self.dispatch(
                 Intent::Select {
                     active: Key::of(at),
-                    area: Area::of(area),
+                    areas: vec![Area::of(area)],
                 },
                 |_| {},
             );
@@ -337,7 +674,10 @@ impl Controller {
 
     /// Replacing a workbook also risks an uncommitted draft or an unconfirmed download.
     pub fn has_dirty_work(&self) -> bool {
-        self.summary.get().changed
+        self.deferred_version.track();
+        self.has_deferred()
+            || self.pending_changes.get() > 0
+            || self.summary.get().changed
             || self.download_unconfirmed.get()
             || !self.notebook_drafts.with(BTreeMap::is_empty)
             || (self.editing.get().is_some()
@@ -413,56 +753,82 @@ impl Controller {
 
     /// A new, empty workbook.
     pub fn new_workbook(&self) {
+        if self.replacing.get_untracked() {
+            return;
+        }
+        self.replacing.set(true);
+        self.deferred.update_value(VecDeque::clear);
+        self.deferred_version.update(|v| *v += 1);
+        self.pending_actions.update(|n| *n += 1);
         let controller = *self;
-        port::call(Request::New, None, move |reply, _| match reply {
-            Ok(Reply::Done { outcome, .. }) => {
-                controller.installed(outcome.summary, "New workbook".to_owned())
+        port::call(Request::New, None, move |reply, _| {
+            controller
+                .pending_actions
+                .update(|n| *n = n.saturating_sub(1));
+            controller.replacing.set(false);
+            match reply {
+                Ok(Reply::Done { outcome, .. }) => {
+                    controller.installed(outcome.summary, "New workbook".to_owned())
+                }
+                Err(error) => controller.say(format!("New workbook failed: {error}"), true),
+                _ => controller.say("New workbook did not answer", true),
             }
-            Err(error) => controller.say(format!("New workbook failed: {error}"), true),
-            _ => controller.say("New workbook did not answer", true),
         });
     }
 
     /// Opens a package's bytes under `name`; the current workbook stays when it is refused.
     /// `opened` hears whether it opened.
     pub fn open(&self, name: &str, bytes: Vec<u8>, opened: impl FnOnce(bool) + 'static) {
+        if self.replacing.get_untracked() {
+            return;
+        }
+        self.replacing.set(true);
+        self.deferred.update_value(VecDeque::clear);
+        self.deferred_version.update(|v| *v += 1);
+        self.pending_actions.update(|n| *n += 1);
         let controller = *self;
         let size = bytes.len();
         let name = name.to_owned();
         port::call(
             Request::Open { name: name.clone() },
             Some(bytes),
-            move |reply, _| match reply {
-                Ok(Reply::Done {
-                    outcome,
-                    opened: Some((elapsed, calculated)),
-                    ..
-                }) => {
-                    controller
-                        .timings
-                        .update(|timings| timings.open_ms = Some(elapsed));
-                    let message = match calculated {
-                        Some(calculated) => format!(
-                            "Opened {name}: {size} bytes in {elapsed:.0} ms: read in {:.0} ms, calculated in {calculated:.0} ms",
-                            elapsed - calculated
-                        ),
-                        None => format!(
-                            "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
-                        ),
-                    };
-                    controller.installed(outcome.summary, message);
-                    opened(true);
-                }
-                Ok(Reply::Done { outcome, .. }) => {
-                    controller.say(
-                        format!("{name} did not open: {}", outcome.error.unwrap_or_default()),
-                        true,
-                    );
-                    opened(false);
-                }
-                Ok(_) | Err(_) => {
-                    controller.say(format!("{name} did not open"), true);
-                    opened(false);
+            move |reply, _| {
+                controller
+                    .pending_actions
+                    .update(|n| *n = n.saturating_sub(1));
+                controller.replacing.set(false);
+                match reply {
+                    Ok(Reply::Done {
+                        outcome,
+                        opened: Some((elapsed, calculated)),
+                        ..
+                    }) => {
+                        controller
+                            .timings
+                            .update(|timings| timings.open_ms = Some(elapsed));
+                        let message = match calculated {
+                            Some(calculated) => format!(
+                                "Opened {name}: {size} bytes in {elapsed:.0} ms: read in {:.0} ms, calculated in {calculated:.0} ms",
+                                elapsed - calculated
+                            ),
+                            None => format!(
+                                "Opened {name}: {size} bytes in {elapsed:.0} ms; the file calculates manually, so its formulas show the values it stored until Calculate"
+                            ),
+                        };
+                        controller.installed(outcome.summary, message);
+                        opened(true);
+                    }
+                    Ok(Reply::Done { outcome, .. }) => {
+                        controller.say(
+                            format!("{name} did not open: {}", outcome.error.unwrap_or_default()),
+                            true,
+                        );
+                        opened(false);
+                    }
+                    Ok(_) | Err(_) => {
+                        controller.say(format!("{name} did not open"), true);
+                        opened(false);
+                    }
                 }
             },
         );
@@ -484,23 +850,50 @@ impl Controller {
         then: impl FnOnce(Result<Outcome, String>) + 'static,
     ) {
         let controller = *self;
-        port::call(Request::Intent(intent), None, move |reply, _| match reply {
-            Ok(Reply::Done { outcome, .. }) => {
-                controller.applied(&outcome);
-                then(Ok(outcome));
+        let selects = matches!(
+            intent,
+            Intent::Select { .. } | Intent::Navigate { .. } | Intent::Undo | Intent::Redo
+        );
+        if selects {
+            self.selection_epoch.update_value(|v| *v += 1);
+        }
+        let epoch = self.selection_epoch.get_value();
+        let changes = !matches!(intent, Intent::Select { .. } | Intent::Navigate { .. });
+        if changes {
+            self.pending_changes.update(|n| *n += 1);
+        }
+        self.pending_actions.update(|n| *n += 1);
+        port::call(Request::Intent(intent), None, move |reply, _| {
+            if changes {
+                controller
+                    .pending_changes
+                    .update(|n| *n = n.saturating_sub(1));
             }
-            reply => {
-                let message = match reply {
-                    Err(message) => format!("The workbook did not answer: {message}"),
-                    _ => "The workbook answered an intent with something else".to_owned(),
-                };
-                controller.say(message.clone(), true);
-                then(Err(message));
+            controller
+                .pending_actions
+                .update(|n| *n = n.saturating_sub(1));
+            match reply {
+                Ok(Reply::Done { mut outcome, .. }) => {
+                    let current = epoch == controller.selection_epoch.get_value();
+                    controller.applied(&outcome, current);
+                    if !current {
+                        outcome.selection = None;
+                    }
+                    controller.perform(move || then(Ok(outcome)));
+                }
+                reply => {
+                    let message = match reply {
+                        Err(message) => format!("The workbook did not answer: {message}"),
+                        _ => "The workbook answered an intent with something else".to_owned(),
+                    };
+                    controller.say(message.clone(), true);
+                    controller.perform(move || then(Err(message)));
+                }
             }
         });
     }
 
-    fn applied(&self, outcome: &Outcome) {
+    fn applied(&self, outcome: &Outcome, apply_selection: bool) {
         self.timings
             .update(|timings| timings.last_intent_ms = Some(outcome.elapsed_ms));
         if outcome.summary != self.summary.get_untracked() {
@@ -509,7 +902,8 @@ impl Controller {
         // The active cell follows the session's selection: an undo or a redo restores the
         // selection of its edit, which may be on another sheet, and then that sheet is shown (as
         // Excel does), so the formula bar and the status line read the cell the selection holds.
-        if let Some((at, area)) = &outcome.selection
+        if apply_selection
+            && let Some((at, areas)) = &outcome.selection
             && let Some(at) = at.cell()
         {
             if Some(at.sheet()) != self.sheet.get_untracked() {
@@ -518,8 +912,13 @@ impl Controller {
             if (at.row(), at.column()) != self.active.get_untracked() {
                 self.active.set((at.row(), at.column()));
             }
-            let corner = area
-                .and_then(Area::area)
+            let areas: Vec<_> = areas.iter().filter_map(|area| area.area()).collect();
+            if self.areas.get_untracked() != areas {
+                self.areas.set(areas.clone());
+            }
+            let corner = areas
+                .first()
+                .copied()
                 .map_or((at.row(), at.column()), |area| opposite(area, at));
             if corner != self.corner.get_untracked() {
                 self.corner.set(corner);
@@ -553,15 +952,36 @@ impl Controller {
 
     /// Selects the range from the active cell `active` to its opposite corner `corner`.
     pub fn select_range(&self, active: (u32, u32), corner: (u32, u32)) {
-        self.active.set(active);
+        if self.has_deferred() && !self.replaying.get_value() {
+            let controller = *self;
+            self.enqueue(move || controller.select_range(active, corner));
+            return;
+        }
+        self.set_range(active, corner, true);
+    }
+
+    fn set_range(&self, active: (u32, u32), corner: (u32, u32), reveal_active: bool) {
+        if reveal_active || self.active.get_untracked() != active {
+            self.active.set(active);
+        }
         self.corner.set(corner);
+        if let Some(sheet) = self.sheet.get_untracked() {
+            if let (Ok(first), Ok(last)) = (
+                CellKey::new(sheet, active.0, active.1),
+                CellKey::new(sheet, corner.0, corner.1),
+            ) {
+                if let Ok(area) = GridArea::new(first, last) {
+                    self.areas.set(vec![area]);
+                }
+            }
+        }
         if let (Some(at), Some(area)) =
             (self.active_key_untracked(), self.selected_area_untracked())
         {
             self.dispatch(
                 Intent::Select {
                     active: Key::of(at),
-                    area: Area::of(area),
+                    areas: vec![Area::of(area)],
                 },
                 |_| {},
             );
@@ -570,25 +990,100 @@ impl Controller {
 
     /// Moves the selected range's far corner, keeping the active cell (Shift+Arrow, Shift+click).
     pub fn extend(&self, corner: (u32, u32)) {
-        self.select_range(self.active.get_untracked(), corner);
+        if self.has_deferred() && !self.replaying.get_value() {
+            let controller = *self;
+            self.enqueue(move || controller.extend(corner));
+            return;
+        }
+        self.set_range(self.active.get_untracked(), corner, false);
     }
 
     /// The selected range.
     pub fn selected_area(&self) -> Option<GridArea> {
-        self.active.track();
-        self.corner.track();
-        self.selected_area_untracked()
+        self.areas.with(|areas| areas.first().copied())
     }
 
     pub fn selected_area_untracked(&self) -> Option<GridArea> {
-        let sheet = self.sheet.get_untracked()?;
-        let (row, column) = self.active.get_untracked();
-        let (corner_row, corner_column) = self.corner.get_untracked();
-        GridArea::new(
-            CellKey::new(sheet, row, column).ok()?,
-            CellKey::new(sheet, corner_row, corner_column).ok()?,
-        )
-        .ok()
+        self.areas.with_untracked(|areas| areas.first().copied())
+    }
+
+    pub fn navigate(
+        &self,
+        nav: crate::grid::selection::Navigation,
+        extend: bool,
+        page_height: u32,
+    ) {
+        self.navigate_then(nav, extend, page_height, |_| {});
+    }
+
+    pub fn navigate_then(
+        &self,
+        nav: crate::grid::selection::Navigation,
+        extend: bool,
+        page_height: u32,
+        then: impl FnOnce(&Outcome) + 'static,
+    ) {
+        self.dispatch(
+            Intent::Navigate {
+                nav,
+                extend,
+                page_height,
+            },
+            then,
+        );
+    }
+
+    pub fn select_areas(&self, at: CellKey, areas: Vec<GridArea>) {
+        if self.has_deferred() && !self.replaying.get_value() {
+            let controller = *self;
+            self.enqueue(move || controller.select_areas(at, areas));
+            return;
+        }
+        self.sheet.set(Some(at.sheet()));
+        self.active.set((at.row(), at.column()));
+        self.areas.set(areas.clone());
+        self.dispatch(
+            Intent::Select {
+                active: Key::of(at),
+                areas: areas.into_iter().map(Area::of).collect(),
+            },
+            |_| {},
+        );
+    }
+
+    pub fn toggle_cell(&self, row: u32, col: u32) {
+        if self.has_deferred() && !self.replaying.get_value() {
+            let controller = *self;
+            self.enqueue(move || controller.toggle_cell(row, col));
+            return;
+        }
+        let Some(sheet) = self.sheet.get_untracked() else {
+            return;
+        };
+        let Ok(at) = CellKey::new(sheet, row, col) else {
+            return;
+        };
+        let areas = self.areas.get_untracked();
+        let removing = areas.iter().any(|area| area.contains(at));
+        let mut areas: Vec<_> = if removing {
+            areas
+                .into_iter()
+                .flat_map(|area| crate::grid::selection::subtract(area, GridArea::cell(at)))
+                .collect()
+        } else {
+            let mut areas = areas;
+            areas.push(GridArea::cell(at));
+            areas
+        };
+        if areas.is_empty() {
+            areas.push(GridArea::cell(at));
+        }
+        let active = if areas.iter().any(|area| area.contains(at)) {
+            at
+        } else {
+            areas[0].first()
+        };
+        self.select_areas(active, areas);
     }
 
     /// A cell's label with its sheet's name: `Sheet1!B3`.
@@ -614,6 +1109,15 @@ impl Controller {
     }
 
     fn take(&self, cut: bool) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.take(cut));
+            return;
+        }
+        if self.areas.with_untracked(|areas| areas.len() > 1) {
+            self.say("Select one rectangle for this command", true);
+            return;
+        }
         if let Some(area) = self.selected_area_untracked() {
             self.clipboard.set(Some(area));
             self.cut.set(cut);
@@ -628,6 +1132,15 @@ impl Controller {
     /// empties the source and takes references to the moved cells with them, and empties the
     /// clipboard, as Excel does.
     pub fn paste(&self) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.paste());
+            return;
+        }
+        if self.areas.with_untracked(|areas| areas.len() > 1) {
+            self.say("Select one rectangle for this command", true);
+            return;
+        }
         let (Some(from), Some(to)) = (
             self.clipboard.get_untracked(),
             self.selected_area_untracked(),
@@ -655,6 +1168,15 @@ impl Controller {
     /// Fills the selected range down from its first row (Ctrl+D) or right from its first column
     /// (Ctrl+R): a calc-host copy of that row or column over the rest.
     pub fn fill(&self, down: bool) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.fill(down));
+            return;
+        }
+        if self.areas.with_untracked(|areas| areas.len() > 1) {
+            self.say("Select one rectangle for this command", true);
+            return;
+        }
         let Some(area) = self.selected_area_untracked() else {
             return;
         };
@@ -680,6 +1202,11 @@ impl Controller {
 
     /// Shows another sheet, at its A1.
     pub fn show_sheet(&self, sheet: SheetId) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.show_sheet(sheet));
+            return;
+        }
         if self.editing.get_untracked().is_some() {
             if self.edit_text.get_untracked().trim_start().starts_with('=') {
                 self.carry_edit_to_bar();
@@ -707,6 +1234,11 @@ impl Controller {
 
     /// Navigate after resolving the current draft; a rejected draft keeps the original address.
     pub fn navigate_to(&self, at: CellKey, arrived: impl FnOnce(bool) + 'static) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.navigate_to(at, arrived));
+            return;
+        }
         if self.editing.get_untracked().is_some() {
             let controller = *self;
             self.commit_edit(move |ok| {
@@ -727,12 +1259,81 @@ impl Controller {
         arrived(true);
     }
 
+    pub fn go_to_text(&self, text: String, arrived: impl FnOnce(bool) + 'static) {
+        let controller = *self;
+        if self.waiting_input() {
+            self.enqueue(move || controller.go_to_text(text, arrived));
+            return;
+        }
+        if self.editing.get_untracked().is_some() {
+            self.commit_edit(move |accepted| {
+                if accepted {
+                    controller.go_to_text(text, arrived)
+                } else {
+                    controller.focus_editor();
+                    arrived(false)
+                }
+            });
+            return;
+        }
+        let Some(at) = self.active_key_untracked() else {
+            arrived(false);
+            return;
+        };
+        self.selection_epoch.update_value(|v| *v += 1);
+        let epoch = self.selection_epoch.get_value();
+        self.pending_actions.update(|n| *n += 1);
+        port::call(
+            Request::ResolveReference {
+                anchor: Key::of(at),
+                text,
+            },
+            None,
+            move |reply, _| {
+                controller
+                    .pending_actions
+                    .update(|n| *n = n.saturating_sub(1));
+                if epoch != controller.selection_epoch.get_value() {
+                    arrived(false);
+                    return;
+                }
+                controller.perform(move || match reply {
+                    Ok(Reply::ResolvedReference(Ok(area))) => {
+                        if let Some(area) = area.area() {
+                            controller.select_areas(area.first(), vec![area]);
+                            arrived(true);
+                        } else {
+                            arrived(false)
+                        }
+                    }
+                    Ok(Reply::ResolvedReference(Err(reason))) | Err(reason) => {
+                        controller.say(reason, true);
+                        arrived(false)
+                    }
+                    _ => {
+                        controller.say("The workbook did not resolve the reference", true);
+                        arrived(false)
+                    }
+                });
+            },
+        );
+    }
+
     /// Starts an edit of the active cell: with `seed`, or the cell's input when `None`.
     pub fn begin_edit(&self, origin: EditOrigin, seed: Option<String>) {
         if self.editing.get_untracked().is_some() {
             if self.editing.get_untracked() != Some(origin) {
                 self.editing.set(Some(origin));
             }
+            return;
+        }
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.begin_edit(origin, seed));
+            return;
+        }
+        if self.active_key_untracked().is_none() {
+            self.say("Wait for the workbook before editing", true);
             return;
         }
         let replacing = seed.is_some();
@@ -749,6 +1350,7 @@ impl Controller {
         self.point_mode.set(replacing);
         self.pointed.set(None);
         self.edit_original.set_value(original.clone());
+        self.edit_areas.set_value(self.areas.get_untracked());
         self.assist.start_edit(original);
         self.editing.set(Some(origin));
     }
@@ -797,6 +1399,19 @@ impl Controller {
             return;
         }
         let ctrl = ev.ctrl_key() || ev.meta_key();
+        if ctrl && !ev.shift_key() && !ev.alt_key() && ev.key() == "Enter" {
+            ev.prevent_default();
+            ev.stop_propagation();
+            let controller = *self;
+            self.commit_edit_as(true, move |accepted| {
+                if accepted {
+                    crate::grid::focus_grid();
+                } else {
+                    controller.focus_editor();
+                }
+            });
+            return;
+        }
         let movement = match ev.key().as_str() {
             "Enter" if !ctrl && !ev.alt_key() => Some(if ev.shift_key() {
                 NavAction::Up
@@ -974,12 +1589,19 @@ impl Controller {
         let controller = *self;
         self.commit_edit(move |accepted| {
             if accepted {
-                let next = next_active(
-                    controller.active.get_untracked(),
+                let horizontal = matches!(
                     movement,
-                    GridExtent::new(1_048_576, 16_384),
+                    NavAction::CommitRight | NavAction::NextColumn | NavAction::PrevColumn
                 );
-                controller.select(next.0, next.1);
+                let reverse = matches!(movement, NavAction::Up | NavAction::PrevColumn);
+                controller.navigate(
+                    crate::grid::selection::Navigation::Walk {
+                        horizontal,
+                        reverse,
+                    },
+                    false,
+                    0,
+                );
                 crate::grid::focus_grid();
             } else {
                 controller.focus_editor();
@@ -1000,7 +1622,7 @@ impl Controller {
             self.assist.reset();
             if let Some(at) = target {
                 self.sheet.set(Some(at.sheet()));
-                self.select(at.row(), at.column());
+                self.select_areas(at, self.edit_areas.get_value());
             }
             self.say("Edit cancelled", false);
         }
@@ -1009,6 +1631,10 @@ impl Controller {
     /// Enters the edited text into the active cell. `then` hears whether the entry was
     /// accepted; a refused entry keeps the edit open with the reason on the status line.
     pub fn commit_edit(&self, then: impl FnOnce(bool) + 'static) {
+        self.commit_edit_as(false, then);
+    }
+
+    fn commit_edit_as(&self, fill_selection: bool, then: impl FnOnce(bool) + 'static) {
         if self.assist.readonly.get_untracked() {
             return;
         }
@@ -1017,11 +1643,13 @@ impl Controller {
             return;
         };
         let text = self.edit_text.get_untracked();
-        if self.active_key_untracked() != Some(at) {
+        if self.active_key_untracked() != Some(at)
+            || self.areas.get_untracked() != self.edit_areas.get_value()
+        {
             self.sheet.set(Some(at.sheet()));
-            self.select(at.row(), at.column());
+            self.select_areas(at, self.edit_areas.get_value());
         }
-        if text == self.edit_original.get_value() {
+        if !fill_selection && text == self.edit_original.get_value() {
             self.editing.set(None);
             self.edit_target.set(None);
             self.pointed.set(None);
@@ -1032,9 +1660,13 @@ impl Controller {
         self.assist.readonly.set(true);
         let controller = *self;
         self.dispatch_result(
-            Intent::EnterCell {
-                at: Key::of(at),
-                text,
+            if fill_selection {
+                Intent::EnterSelection { text }
+            } else {
+                Intent::EnterCell {
+                    at: Key::of(at),
+                    text,
+                }
             },
             move |result| {
                 controller.assist.readonly.set(false);
@@ -1067,6 +1699,15 @@ impl Controller {
     /// references, number formats and sizes move as Excel moves them). Any other selection says
     /// what to select (dc-09v).
     pub fn edit_axis(&self, insert: bool) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.edit_axis(insert));
+            return;
+        }
+        if self.areas.with_untracked(|areas| areas.len() > 1) {
+            self.say("Select one rectangle for this command", true);
+            return;
+        }
         let Some(area) = self.selected_area_untracked() else {
             return;
         };
@@ -1098,10 +1739,20 @@ impl Controller {
 
     /// Clears the selected range (Delete).
     pub fn clear_active(&self) {
-        if let Some(area) = self.selected_area_untracked() {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.clear_active());
+            return;
+        }
+        if self.selected_area_untracked().is_some() {
             self.dispatch(
                 Intent::Clear {
-                    area: Area::of(area),
+                    areas: self
+                        .areas
+                        .get_untracked()
+                        .into_iter()
+                        .map(Area::of)
+                        .collect(),
                 },
                 |_| {},
             );
@@ -1109,6 +1760,11 @@ impl Controller {
     }
 
     pub fn undo(&self) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.undo());
+            return;
+        }
         if self.editing.get_untracked().is_some() {
             self.pointed.set(None);
             self.edit_field.get_value().undo(false);
@@ -1118,6 +1774,11 @@ impl Controller {
     }
 
     pub fn redo(&self) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.redo());
+            return;
+        }
         if self.editing.get_untracked().is_some() {
             self.pointed.set(None);
             self.edit_field.get_value().undo(true);
@@ -1209,6 +1870,11 @@ impl Controller {
     /// Saves the workbook as a package's bytes; `saved` gets its name and bytes, and the status
     /// line says how it went.
     pub fn save(&self, saved: impl FnOnce(String, Vec<u8>) + 'static) {
+        if self.waiting_input() {
+            let controller = *self;
+            self.enqueue(move || controller.save(saved));
+            return;
+        }
         if !self.notebook_drafts.with_untracked(BTreeMap::is_empty) {
             self.say("Finish the Notebook draft with Enter, or cancel it with Escape, before downloading.", true);
             self.focus_pending_draft();
@@ -1279,22 +1945,6 @@ fn capitalised(text: &str) -> String {
         Some(first) => first.to_uppercase().chain(chars).collect(),
         None => String::new(),
     }
-}
-
-/// The corner of `area` opposite `at`, one of its corners.
-fn opposite(area: GridArea, at: CellKey) -> (u32, u32) {
-    let (first, last) = (area.first(), area.last());
-    let row = if at.row() == first.row() {
-        last.row()
-    } else {
-        first.row()
-    };
-    let column = if at.column() == first.column() {
-        last.column()
-    } else {
-        first.column()
-    };
-    (row, column)
 }
 
 /// A fill's source and target in `area`: its first row and the rows below (`down`), or its first

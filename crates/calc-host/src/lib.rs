@@ -105,3 +105,6 @@ pub use calc_engine::{
 };
 pub use calc_fml::FormatProfile;
 pub use calc_fml::reference::CellRun;
+
+/// The existing reference-text binder's typed result, exposed to host consumers.
+pub use calc_fml::reference::TextReference as ReferenceTarget;

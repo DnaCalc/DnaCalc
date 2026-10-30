@@ -174,6 +174,21 @@ impl ReadObserver for Unobserved {
 /// matching included.
 pub(crate) struct SnapshotCatalog<'r>(pub(crate) &'r ModelRoot);
 
+/// Resolve reference text with the catalogue and binder that INDIRECT uses.
+/// This reads no values and performs no evaluation; computed names retain the binder's refusal.
+pub fn resolve_reference_text(
+    inputs: &ModelRoot,
+    at: CellKey,
+    text: &str,
+) -> calc_fml::reference::TextReference {
+    calc_fml::reference::bind_text(
+        &text.encode_utf16().collect::<Vec<_>>(),
+        calc_fml::reference::ReferenceNotation::A1,
+        calc_fml::reference::FormulaAnchor::new(at),
+        &SnapshotCatalog(inputs),
+    )
+}
+
 impl ReferenceCatalog for SnapshotCatalog<'_> {
     fn workbook_name(&self) -> Option<&str> {
         self.0.definitions().workbook_name()
