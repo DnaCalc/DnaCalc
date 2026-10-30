@@ -364,6 +364,21 @@ fn lognormal_uses_its_internal_logarithm() {
     exact(call("LOGNORMDIST", vec![x, n(0.0), n(1.0)]), expected);
 }
 
+/// Build-20131 rows oc66883 and oc69092 distinguish the interior mass's logarithm.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn binomial_mass_uses_the_internal_normalization_logarithm() {
+    for (k, p, expected) in [
+        (2.0, 0x3ebd_5eba_c7b2_a5ce, 0x3e1d_88cb_f5d2_8843),
+        (32.0, 0x3fef_ffe3_e30c_d521, 0x3e7b_0ce6_d3d6_58f5),
+    ] {
+        for function in ["BINOM.DIST", "BINOMDIST"] {
+            exact(call(function, vec![n(k), n(34.0), n(f64::from_bits(p)), b(false)]),
+                f64::from_bits(expected));
+        }
+    }
+}
+
 /// Recorded tiny ERF rows independently distinguish the multiply and divide stores.
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

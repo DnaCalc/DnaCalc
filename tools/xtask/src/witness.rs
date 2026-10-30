@@ -26,6 +26,9 @@
 //! builds, rows, matched, worst ULP, class, calc-func commit). `--bank full` also compares each
 //! function with OxFunc's last ledger (`function-lane/ledgers/EXCEL_PARITY_LEDGER.csv` of the
 //! evidence repository) and writes `target/witness/full-vs-oxfunc.tsv`.
+//! `judge --trace <path>` also writes the selected input, expected and calculated result of
+//! every decoded row as JSONL, for comparisons that check individual gains and losses.
+//! Unread rows still count as failures in the summary; they have no decoded trace row.
 //!
 //! `pin` judges the full banks as `judge --bank full` does, writes what it writes, and then the
 //! pinned sets: per function, the first rows of each bank
@@ -58,11 +61,12 @@ use calc_verdict::{
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::{BufWriter, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>]";
+pub const USAGE: &str = "cargo xtask witness judge [--func <F>] [--bank pinned|full] [--trace <path>] | cargo xtask witness pin [--func <F>] [--rows <N>] | cargo xtask witness read --func <F>[,<F>...] [--timeout <s>]";
 
 const CHECKOUT: &str = "OxFunc-Evidence";
 const MANIFESTS: [&str; 2] = ["manifest.tsv", "w109-manifest.tsv"];
@@ -93,6 +97,7 @@ struct Request {
     bank: Bank,
     rows: usize,
     timeout: u64,
+    trace: Option<PathBuf>,
 }
 
 fn parse_args(raw: &[String]) -> Result<Request, String> {
@@ -109,12 +114,14 @@ fn parse_args(raw: &[String]) -> Result<Request, String> {
         bank: if verb == Verb::Pin { Bank::Full } else { Bank::Pinned },
         rows: 120,
         timeout: 600,
+        trace: None,
     };
     let mut it = rest.iter();
     while let Some(arg) = it.next() {
         let mut value = || it.next().cloned().ok_or(format!("{arg} needs a value"));
         match arg.as_str() {
             "--func" => request.function = Some(value()?.to_ascii_uppercase()),
+            "--trace" if verb == Verb::Judge => request.trace = Some(PathBuf::from(value()?)),
             "--bank" if verb == Verb::Judge => {
                 request.bank = match value()?.as_str() {
                     "pinned" => Bank::Pinned,
@@ -818,6 +825,27 @@ struct Row<'a> {
     ulp: Option<u64>,
 }
 
+fn write_trace_row(writer: &mut impl Write, row: &Row<'_>, source: &Source) -> Result<(), String> {
+    let r = row.reading;
+    let value = serde_json::json!({
+        "function": r.function,
+        "id": r.id,
+        "args": r.args,
+        "result_index": r.index,
+        "expected": r.expected,
+        "actual": row.actual,
+        "source": source.path,
+        "reading": {
+            "excel_build": source.env.excel_build,
+            "platform": source.env.platform,
+            "bitness": source.env.bitness,
+            "cpu": source.env.cpu,
+        },
+    });
+    serde_json::to_writer(&mut *writer, &value).map_err(|e| format!("witness trace: {e}"))?;
+    writer.write_all(b"\n").map_err(|e| format!("witness trace: {e}"))
+}
+
 struct Difference {
     function: String,
     key: String,
@@ -1249,6 +1277,9 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let ws = Workspace::load(&cwd)?;
     let only = request.function.as_deref();
+    let mut trace = request.trace.as_ref().map(|path| {
+        fs::File::create(path).map(BufWriter::new).map_err(|e| format!("{}: {e}", path.display()))
+    }).transpose()?;
     let checkout = legacy_root(&ws.root).path.join(CHECKOUT);
     if request.verb == Verb::Read {
         return run_read(&ws.root, &checkout, request);
@@ -1343,7 +1374,11 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
                 println!("xtask witness: {function}: no result within {ROW_SECONDS} s on {}", Value::Array(reading.args.clone()));
             }
             let (severity, ulp) = judge(&reading.expected, &actual);
-            rows.push(Row { reading, builds, actual, severity, ulp, slow });
+            let row = Row { reading, builds, actual, severity, ulp, slow };
+            if let Some(writer) = trace.as_mut() {
+                write_trace_row(writer, &row, &banks.sources[reading.source])?;
+            }
+            rows.push(row);
         }
         let mut status = status_of(function, &rows);
         let unread = banks.unread_rows.get(function).copied().unwrap_or(0);
@@ -1364,6 +1399,9 @@ fn run_request(request: &Request) -> Result<ExitCode, String> {
         judged.insert(function.clone(), rows);
     }
     let exact = statuses.iter().filter(|s| s.class == Severity::Exact).count();
+    if let Some(writer) = trace.as_mut() {
+        writer.flush().map_err(|e| format!("witness trace: {e}"))?;
+    }
     let rows: usize = statuses.iter().map(|s| s.rows).sum();
     let matched: usize = statuses.iter().map(|s| s.matched).sum();
     println!(
@@ -1607,6 +1645,8 @@ mod tests {
         assert!(r.verb == Verb::Judge && r.bank == Bank::Pinned && r.function.is_none());
         let r = parse_args(&args("judge --bank full --func pmt")).unwrap();
         assert!(r.bank == Bank::Full && r.function.as_deref() == Some("PMT"));
+        let r = parse_args(&args("judge --trace rows.jsonl")).unwrap();
+        assert_eq!(r.trace, Some(PathBuf::from("rows.jsonl")));
         let r = parse_args(&args("pin --rows 100")).unwrap();
         assert!(r.verb == Verb::Pin && r.bank == Bank::Full && r.rows == 100);
         let r = parse_args(&args("read --func gammaln --timeout 60")).unwrap();
@@ -1614,7 +1654,37 @@ mod tests {
         assert!(parse_args(&args("read")).is_err());
         assert!(parse_args(&args("pin --bank pinned")).is_err());
         assert!(parse_args(&args("judge --rows 3")).is_err());
+        assert!(parse_args(&args("pin --trace rows.jsonl")).is_err());
+        assert!(parse_args(&args("read --func GAMMA --trace rows.jsonl")).is_err());
         assert!(parse_args(&args("race")).is_err());
+    }
+
+    #[test]
+    fn trace_preserves_bits_selection_and_refusal_without_changing_the_reading() {
+        let r = Reading {
+            function: "MINVERSE".into(), id: "recorded\nrow".into(),
+            args: vec![serde_json::json!(["0x8000000000000000", "0x0000000000000001"])],
+            index: Some((1, 0)), expected: "0x3ff0000000000000".into(), source: 0,
+        };
+        let row = Row {
+            reading: &r, slow: false, builds: BTreeSet::new(),
+            actual: "fault:ResultShape".into(), severity: Severity::Structural, ulp: None,
+        };
+        let source = Source {
+            path: "recorded/bank".into(),
+            env: environment("r0".into(), "recorded/bank".into(), None, None),
+        };
+        let mut bytes = Vec::new();
+        write_trace_row(&mut bytes, &row, &source).unwrap();
+        assert_eq!(bytes.iter().filter(|&&b| b == b'\n').count(), 1);
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["args"], Value::Array(r.args.clone()));
+        assert_eq!(value["result_index"], serde_json::json!([1, 0]));
+        assert_eq!(value["expected"], r.expected);
+        assert_eq!(value["id"], r.id);
+        assert_eq!(value["actual"], "fault:ResultShape");
+        assert_eq!(value["source"], source.path);
+        assert!(value["reading"]["cpu"].is_null());
     }
 
     #[test]
