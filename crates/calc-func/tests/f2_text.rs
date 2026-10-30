@@ -39,7 +39,9 @@ fn char_code_unichar_unicode() {
 fn slices_and_lengths() {
     exact(call("LEN", vec![t("abc")]), 3.0);
     exact(call("LEN", vec![n(12.5)]), 4.0);
-    exact(call("LEN", vec![t("\u{1F600}")]), 1.0);
+    // Excel 16.0.20527 (dc-fl2, the catalogue's sheet dcfl2_text): LEN counts UTF-16 code units,
+    // so a surrogate pair is 2.
+    exact(call("LEN", vec![t("\u{1F600}")]), 2.0);
     exact(call("LENB", vec![t("\u{1F600}")]), 2.0);
     text(call("LEFT", vec![t("abc")]), "a");
     text(call("LEFT", vec![t("abc"), n(2.0)]), "ab");

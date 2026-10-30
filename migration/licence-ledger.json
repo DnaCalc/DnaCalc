@@ -3009,6 +3009,11 @@
    "surveyed_bytes": 3612
   },
   {
+   "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dcfl2_text.txt",
+   "class": "own-work",
+   "reason": "oracle workbook or row list written by this project's generators (make-fixtures.ps1, make-catalogue-fixtures.ps1)"
+  },
+  {
    "path": "crates/calc-func/tests/fixtures/catalogue/sheet-dch9u.txt",
    "class": "own-work",
    "reason": "oracle formulas of the catalogue oracle, dc-h9u and dc-bd5"

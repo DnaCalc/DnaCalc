@@ -299,6 +299,8 @@ $PrefixSections += 'prefix-b1l.txt'
 $FormulaSheets += , @('dcb1l_language', 'sheet-dcb1l_language.txt')
 # dc-zsn.1: text comparison and sorting beyond ASCII.
 $FormulaSheets += , @('dczsn1_collation', 'sheet-dczsn1_collation.txt')
+# dc-fl2: the text functions over surrogates and the 32,767-unit limit.
+$FormulaSheets += , @('dcfl2_text', 'sheet-dcfl2_text.txt')
 # dc-h9u: the functions OxFunc has and calc-func lacked (PERCENTOF, TRIMRANGE first).
 $PrefixSections += 'prefix-h9u.txt'
 $FormulaSheets += , @('dch9u_functions', 'sheet-dch9u.txt')
