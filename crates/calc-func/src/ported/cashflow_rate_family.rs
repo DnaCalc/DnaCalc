@@ -271,34 +271,65 @@ fn xnpv_derivative(rate: f64, values: &[f64], dates: &[i64]) -> Result<f64, Work
     }
 }
 
-fn next_up(rate: f64) -> f64 {
-    if rate.is_nan() || rate == f64::INFINITY {
-        rate
-    } else if rate == -0.0 {
-        0.0
-    } else {
-        let bits = rate.to_bits();
-        if rate >= 0.0 {
-            f64::from_bits(bits + 1)
-        } else {
-            f64::from_bits(bits - 1)
-        }
-    }
+fn ordered_rate(rate: f64) -> u64 {
+    let bits = rate.to_bits();
+    if rate.is_sign_negative() { !bits } else { bits | (1 << 63) }
 }
 
-fn next_down(rate: f64) -> f64 {
-    if rate.is_nan() || rate == f64::NEG_INFINITY {
-        rate
-    } else if rate == 0.0 {
-        -0.0
-    } else {
-        let bits = rate.to_bits();
-        if rate > 0.0 {
-            f64::from_bits(bits - 1)
-        } else {
-            f64::from_bits(bits + 1)
+fn rate_from_ordered(key: u64) -> f64 {
+    f64::from_bits(if key & (1 << 63) == 0 { !key } else { key & !(1 << 63) })
+}
+
+/// Find the end of the residual plateau by doubling the distance, then bisecting its last
+/// interval. Near zero, `1 + rate` can be constant over millions of rates: walking them one
+/// by one is unbounded in practice. There are only 64 bits in the ordered representation,
+/// so each end needs at most 64 distance probes and 64 bisections. A plateau with no finite
+/// end returns #NUM!.
+fn residual_plateau_end<F>(
+    root: u64,
+    residual: u64,
+    lower: bool,
+    f: &mut F,
+) -> Result<u64, WorksheetErrorCode>
+where
+    F: FnMut(f64) -> Result<f64, WorksheetErrorCode>,
+{
+    let mut inside = root;
+    let mut on_plateau = |rate| match f(rate) {
+        Ok(value) => Ok(value.abs().to_bits() == residual),
+        // A probe outside the NPV domain bounds the plateau just as a different residual
+        // does. Bisect back into the valid interval instead of rejecting the root.
+        Err(WorksheetErrorCode::Num) => Ok(false),
+        Err(code) => Err(code),
+    };
+    for bit in 0..64 {
+        let distance = 1u64 << bit;
+        let outside = if lower { root.saturating_sub(distance) } else { root.saturating_add(distance) };
+        let candidate = rate_from_ordered(outside);
+        if candidate.is_finite() && on_plateau(candidate)? {
+            inside = outside;
+            continue;
         }
+        let mut outside = outside;
+        for _ in 0..64 {
+            if inside.abs_diff(outside) <= 1 {
+                // No finite end exists when even the last finite rate is on the plateau.
+                if !rate_from_ordered(outside).is_finite() {
+                    return Err(WorksheetErrorCode::Num);
+                }
+                return Ok(inside);
+            }
+            let midpoint = inside.min(outside) + inside.abs_diff(outside) / 2;
+            let candidate = rate_from_ordered(midpoint);
+            if candidate.is_finite() && on_plateau(candidate)? {
+                inside = midpoint;
+            } else {
+                outside = midpoint;
+            }
+        }
+        return Err(WorksheetErrorCode::Num);
     }
+    Err(WorksheetErrorCode::Num)
 }
 
 fn midpoint_of_local_min_abs_residual_plateau<F>(
@@ -314,7 +345,7 @@ where
     let mut lower_probe = root;
     let mut upper_probe = root;
     for _ in 0..IRR_PUBLICATION_ULP_SCAN_RADIUS {
-        lower_probe = next_down(lower_probe);
+        lower_probe = lower_probe.next_down();
         if lower_probe.is_finite() {
             let abs_bits = f(lower_probe)?.abs().to_bits();
             if abs_bits < best_abs_bits {
@@ -323,7 +354,7 @@ where
             }
         }
 
-        upper_probe = next_up(upper_probe);
+        upper_probe = upper_probe.next_up();
         if upper_probe.is_finite() {
             let abs_bits = f(upper_probe)?.abs().to_bits();
             if abs_bits < best_abs_bits {
@@ -333,36 +364,15 @@ where
         }
     }
 
-    let mut lower = best_rate;
-    loop {
-        let candidate = next_down(lower);
-        if !candidate.is_finite() || f(candidate)?.abs().to_bits() != best_abs_bits {
-            break;
-        }
-        lower = candidate;
+    let root = ordered_rate(best_rate);
+    let lower = residual_plateau_end(root, best_abs_bits, true, &mut f)?;
+    let upper = residual_plateau_end(root, best_abs_bits, false, &mut f)?;
+    // Both zero representations are in the same plateau. Publish the exact zero root rather
+    // than letting the different spacings on either side choose a subnormal rate.
+    if rate_from_ordered(lower) <= 0.0 && rate_from_ordered(upper) >= 0.0 {
+        return Ok(0.0);
     }
-
-    let mut upper = best_rate;
-    loop {
-        let candidate = next_up(upper);
-        if !candidate.is_finite() || f(candidate)?.abs().to_bits() != best_abs_bits {
-            break;
-        }
-        upper = candidate;
-    }
-
-    let mut width = 0usize;
-    let mut cursor = lower;
-    while cursor.to_bits() != upper.to_bits() {
-        cursor = next_up(cursor);
-        width += 1;
-    }
-
-    let mut midpoint = lower;
-    for _ in 0..(width / 2) {
-        midpoint = next_up(midpoint);
-    }
-    Ok(midpoint)
+    Ok(rate_from_ordered(lower + (upper - lower) / 2))
 }
 
 fn bounded_rate_solve<F, D>(
@@ -817,6 +827,48 @@ mod tests {
         // publication plateau land on 1.0 bit-for-bit (Excel returns exactly 1.0,
         // and here OxFunc beats the F# reference, which is 1 ULP off).
         assert_bits(irr_kernel(&[1.0, -2.0], None).unwrap(), 1.0);
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_plateau_search_has_a_finite_probe_budget() {
+        let mut probes = 0;
+        let result = midpoint_of_local_min_abs_residual_plateau(0.1, |_| {
+            probes += 1;
+            Ok(1e-9)
+        });
+        assert_eq!(result, Err(WorksheetErrorCode::Num));
+        assert!(probes <= 33 + 2 * 128, "{probes} probes");
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_plateau_bisects_a_probe_outside_the_rate_domain() {
+        // A pure search invariant, not an Excel reading: the plateau has two finite ends,
+        // even though the first exponential probe beyond its lower end crosses the domain.
+        let result = midpoint_of_local_min_abs_residual_plateau(0.0, |rate: f64| {
+            if rate <= -1.0 {
+                Err(WorksheetErrorCode::Num)
+            } else {
+                Ok(if rate.abs() <= 1e-16 { 0.0 } else { 1.0 })
+            }
+        });
+        assert_eq!(result, Ok(0.0));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn irr_plateau_bisects_a_nonfinite_distance_probe() {
+        // Doubling overshoots the finite range before reaching these finite plateau ends.
+        for (root, lower, end) in [
+            (0.1, false, 1e308_f64.next_down()),
+            (-0.1, true, (-1e308_f64).next_up()),
+        ] {
+            let result = residual_plateau_end(ordered_rate(root), 1.0_f64.to_bits(), lower, &mut |rate: f64| {
+                Ok(if rate.abs() < 1e308 { 1.0 } else { 2.0 })
+            });
+            assert_eq!(result, Ok(ordered_rate(end)));
+        }
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), test)]

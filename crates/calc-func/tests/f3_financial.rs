@@ -41,6 +41,29 @@ fn time_value_of_money() {
     error(call("PMT", vec![n(0.1), n(0.0), n(1000.0)]), Num);
 }
 
+/// Excel 16.0 build 20228, answers-irr-exact-graph-discovery-20260809.json,
+/// d16-root / d16-far_p010 and d11-root. These run through the application call path.
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+fn irr_near_zero_plateau_terminates_and_nonconvergence_is_num() {
+    let flows = col(&[-1000.0, 999.999999, 1.1e-5]);
+    for guess in [f64::from_bits(0x3e45798eddbe9730), 0.1] {
+        exact(call("IRR", vec![flows.clone(), n(guess)]), f64::from_bits(0x3e45798ee0000000));
+    }
+    error(
+        call("IRR", vec![
+            col(&[
+                f64::from_bits(0xdf138d352e5096af),
+                f64::from_bits(0x5eef485516e7577f),
+                f64::from_bits(0x5ef7763fd12d819f),
+                f64::from_bits(0x5f0b5f4a740a6c8f),
+            ]),
+            n(f64::from_bits(0x3fb4413a15562ce0)),
+        ]),
+        Num,
+    );
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 fn cash_flows() {
